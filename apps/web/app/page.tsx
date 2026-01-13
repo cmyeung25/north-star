@@ -1,13 +1,16 @@
+import { Button, Card, Stack, Text, Title } from "@mantine/core";
+
 export default function HomePage() {
   return (
-    <main>
-      <div>
-        <h1>App scaffold ready</h1>
-        <p>
-          The North Star PWA foundation is in place. Planning-only simulation features will
-          follow in upcoming phases.
-        </p>
-      </div>
-    </main>
+    <Stack gap="md">
+      <Title order={1}>Plan your next chapter</Title>
+      <Card withBorder shadow="sm" padding="lg" radius="md">
+        <Text>
+          Welcome to North Star. Your personalized life-stage planner will live here
+          soon.
+        </Text>
+      </Card>
+      <Button size="md">Start exploring</Button>
+    </Stack>
   );
 }

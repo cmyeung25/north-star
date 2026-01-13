@@ -1,5 +1,9 @@
+import "@mantine/core/styles.css";
 import "./globals.css";
 import type { Metadata } from "next";
+import { ColorSchemeScript } from "@mantine/core";
+import Providers from "./providers";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "North Star",
@@ -16,11 +20,16 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        <ColorSchemeScript defaultColorScheme="light" />
+      </head>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
