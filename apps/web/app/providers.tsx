@@ -28,6 +28,7 @@ const theme = createTheme({
 
 const navItems = [
   { label: "Home", href: "/" },
+  { label: "Scenarios", href: "/scenarios" },
   { label: "Timeline", href: "/timeline" },
 ];
 
