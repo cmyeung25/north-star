@@ -66,7 +66,7 @@ export default function CashBalanceChart({
         </div>
         {lowestPoint && (
           <Text size="xs" c="dimmed">
-            Lowest balance: {formatCurrency(lowestPoint.value)} in {lowestPoint.month}
+            Lowest: {formatCurrency(lowestPoint.value)} in {lowestPoint.month}
           </Text>
         )}
       </Stack>

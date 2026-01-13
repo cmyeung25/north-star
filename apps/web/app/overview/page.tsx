@@ -12,6 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import { computeProjection } from "@north-star/engine";
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -24,6 +25,10 @@ import OverviewActionsCard from "../../features/overview/components/OverviewActi
 import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
 import type { RiskLevel, TimeSeriesPoint } from "../../features/overview/types";
 import { formatCurrency } from "../../lib/i18n";
+import {
+  mapScenarioToEngineInput,
+  projectionToOverviewViewModel,
+} from "../../src/engine/adapter";
 import {
   getScenarioById,
   useScenarioStore,
@@ -126,18 +131,15 @@ const riskBadgeColor: Record<RiskLevel, string> = {
 
 const scenarioSeriesById: Record<
   string,
-  { cashSeries: TimeSeriesPoint[]; netWorthSeries: TimeSeriesPoint[] }
+  { netWorthSeries: TimeSeriesPoint[] }
 > = {
   "scenario-plan-a": {
-    cashSeries: buildSeries("2024-01", 36, 32000, -1200, 3200, 8, -12000),
     netWorthSeries: buildSeries("2024-01", 36, 450000, 12000, 7000),
   },
   "scenario-plan-b": {
-    cashSeries: buildSeries("2024-01", 36, 40000, -1800, 4200, 10, -32000),
     netWorthSeries: buildSeries("2024-01", 36, 520000, 15000, 9000),
   },
   "scenario-plan-c": {
-    cashSeries: buildSeries("2024-01", 36, 28000, 400, 1800, 12, 8000),
     netWorthSeries: buildSeries("2024-01", 36, 380000, 10000, 6000),
   },
 };
@@ -168,46 +170,64 @@ export default function OverviewPage() {
 
   const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
 
+  const projection = useMemo(() => {
+    if (!selectedScenario) {
+      return null;
+    }
+    const input = mapScenarioToEngineInput(selectedScenario);
+    return computeProjection(input);
+  }, [selectedScenario]);
+
+  const overviewViewModel = useMemo(
+    () => (projection ? projectionToOverviewViewModel(projection) : null),
+    [projection]
+  );
+
   const series =
     (selectedScenario && scenarioSeriesById[selectedScenario.id]) ??
     scenarioSeriesById[scenarios[0]?.id ?? ""] ?? {
-      cashSeries: buildSeries("2024-01", 24, 30000, 600, 1200),
       netWorthSeries: buildSeries("2024-01", 24, 420000, 8000, 4000),
     };
 
+  const cashSeries = overviewViewModel?.cashSeries ?? [];
+  const computedKpis = overviewViewModel?.kpis;
+
   const insights = useMemo(() => {
-    if (!selectedScenario) {
+    if (!computedKpis) {
       return [];
     }
 
-    return buildInsights(selectedScenario.kpis);
-  }, [selectedScenario]);
+    return buildInsights(computedKpis);
+  }, [computedKpis]);
 
   if (!selectedScenario) {
     return null;
   }
 
+  const hasEnabledEvents =
+    (selectedScenario.events ?? []).filter((event) => event.enabled).length > 0;
+
   const kpiItems = [
     {
       label: "Lowest Balance",
-      value: formatCurrency(selectedScenario.kpis.lowestMonthlyBalance),
+      value: formatCurrency(computedKpis?.lowestMonthlyBalance ?? 0),
       helper: "Lowest point across forecast",
     },
     {
       label: "Runway",
-      value: `${selectedScenario.kpis.runwayMonths} months`,
+      value: `${computedKpis?.runwayMonths ?? 0} months`,
       helper: "Time until cash runs out",
     },
     {
       label: "5Y Net Worth",
-      value: formatCurrency(selectedScenario.kpis.netWorthYear5),
+      value: formatCurrency(computedKpis?.netWorthYear5 ?? 0),
       helper: "Projected net worth",
     },
     {
       label: "Risk Level",
-      value: selectedScenario.kpis.riskLevel,
-      badgeLabel: selectedScenario.kpis.riskLevel,
-      badgeColor: riskBadgeColor[selectedScenario.kpis.riskLevel],
+      value: computedKpis?.riskLevel ?? "Low",
+      badgeLabel: computedKpis?.riskLevel ?? "Low",
+      badgeColor: riskBadgeColor[computedKpis?.riskLevel ?? "Low"],
     },
   ];
 
@@ -264,21 +284,44 @@ export default function OverviewPage() {
 
       {isDesktop ? (
         <SimpleGrid cols={2} spacing="md">
-          <CashBalanceChart data={series.cashSeries} title="Cash Balance" />
-          <NetWorthChart data={series.netWorthSeries} title="Net Worth" />
+          <CashBalanceChart data={cashSeries} title="Cash Balance" />
+          <Stack gap="xs">
+            <NetWorthChart data={series.netWorthSeries} title="Net Worth" />
+            <Text size="xs" c="dimmed">
+              Net worth projection will be improved in later versions.
+            </Text>
+          </Stack>
         </SimpleGrid>
       ) : (
         <Stack gap="md">
-          <CashBalanceChart data={series.cashSeries} title="Cash Balance" />
+          <CashBalanceChart data={cashSeries} title="Cash Balance" />
           <Accordion variant="separated" radius="md">
             <Accordion.Item value="net-worth">
               <Accordion.Control>Net Worth</Accordion.Control>
               <Accordion.Panel>
                 <NetWorthChart data={series.netWorthSeries} />
+                <Text size="xs" c="dimmed" mt="xs">
+                  Net worth projection will be improved in later versions.
+                </Text>
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
         </Stack>
+      )}
+
+      {!hasEnabledEvents && (
+        <Card withBorder radius="md" padding="md">
+          <Stack gap="sm" align="flex-start">
+            <Text size="sm">Add events in Timeline to see your projection.</Text>
+            <Button
+              component={Link}
+              href={buildScenarioUrl("/timeline", selectedScenario.id)}
+              size="xs"
+            >
+              Add Events
+            </Button>
+          </Stack>
+        </Card>
       )}
 
       {isDesktop ? (
