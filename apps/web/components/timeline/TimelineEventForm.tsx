@@ -10,12 +10,11 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
+import { defaultCurrency, t } from "../../lib/i18n";
 import type { TimelineEvent } from "./types";
 
 const currencyOptions = [
-  { value: "USD", label: "USD" },
-  { value: "EUR", label: "EUR" },
-  { value: "GBP", label: "GBP" },
+  { value: defaultCurrency, label: t("currencyHkdLabel") },
 ];
 
 interface TimelineEventFormProps {
@@ -29,7 +28,7 @@ export default function TimelineEventForm({
   event,
   onCancel,
   onSave,
-  submitLabel = "Save",
+  submitLabel = t("eventFormSave"),
 }: TimelineEventFormProps) {
   const [formValues, setFormValues] = useState<TimelineEvent | null>(event);
 
@@ -58,42 +57,42 @@ export default function TimelineEventForm({
   return (
     <Stack gap="md">
       <TextInput
-        label="Name"
+        label={t("eventFormName")}
         value={formValues.name}
         onChange={(eventChange) => updateField("name", eventChange.target.value)}
       />
       <TextInput
-        label="Start month"
-        placeholder="YYYY-MM"
+        label={t("eventFormStartMonth")}
+        placeholder={t("eventFormStartMonthPlaceholder")}
         value={formValues.startMonth}
         onChange={(eventChange) =>
           updateField("startMonth", eventChange.target.value)
         }
       />
       <TextInput
-        label="End month"
-        placeholder="YYYY-MM (optional)"
+        label={t("eventFormEndMonth")}
+        placeholder={t("eventFormEndMonthPlaceholder")}
         value={formValues.endMonth ?? ""}
         onChange={(eventChange) =>
           updateField("endMonth", eventChange.target.value || null)
         }
       />
       <NumberInput
-        label="Monthly amount"
+        label={t("eventFormMonthlyAmount")}
         value={formValues.monthlyAmount}
         onChange={(value) => updateField("monthlyAmount", Number(value ?? 0))}
         min={0}
         thousandSeparator=","
       />
       <NumberInput
-        label="One-time amount"
+        label={t("eventFormOneTimeAmount")}
         value={formValues.oneTimeAmount}
         onChange={(value) => updateField("oneTimeAmount", Number(value ?? 0))}
         min={0}
         thousandSeparator=","
       />
       <NumberInput
-        label="Annual growth %"
+        label={t("eventFormAnnualGrowth")}
         value={formValues.annualGrowthPct}
         onChange={(value) => updateField("annualGrowthPct", Number(value ?? 0))}
         min={0}
@@ -101,13 +100,15 @@ export default function TimelineEventForm({
         decimalScale={2}
       />
       <Select
-        label="Currency"
+        label={t("eventFormCurrency")}
         data={currencyOptions}
         value={formValues.currency}
-        onChange={(value) => updateField("currency", value ?? "USD")}
+        onChange={(value) =>
+          updateField("currency", value ?? defaultCurrency)
+        }
       />
       <Switch
-        label="Enabled"
+        label={t("eventFormEnabled")}
         checked={formValues.enabled}
         onChange={(eventChange) =>
           updateField("enabled", eventChange.currentTarget.checked)
@@ -115,7 +116,7 @@ export default function TimelineEventForm({
       />
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
-          Cancel
+          {t("eventFormCancel")}
         </Button>
         <Button onClick={() => onSave(formValues)}>{submitLabel}</Button>
       </Group>

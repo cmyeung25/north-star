@@ -1,7 +1,7 @@
 {
-  "name": "North Star",
-  "short_name": "North Star",
-  "description": "Mobile-first PWA life-stage financial planner.",
+  "name": "北極星",
+  "short_name": "北極星",
+  "description": "以行動裝置為主的 PWA 人生階段理財規劃。",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",

@@ -1,5 +1,6 @@
 import { Button, Group, Modal, Stack, TextInput } from "@mantine/core";
 import { useEffect, useState } from "react";
+import { t } from "../../../lib/i18n";
 
 type NewScenarioModalProps = {
   opened: boolean;
@@ -29,19 +30,24 @@ export default function NewScenarioModal({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="New Scenario" centered>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={t("scenariosNewTitle")}
+      centered
+    >
       <Stack gap="md">
         <TextInput
-          label="Scenario name"
-          placeholder="e.g. Plan D · Sabbatical"
+          label={t("scenariosNameLabel")}
+          placeholder={t("scenariosNamePlaceholder")}
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
         />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t("scenariosCancel")}
           </Button>
-          <Button onClick={handleCreate}>Create</Button>
+          <Button onClick={handleCreate}>{t("scenariosCreate")}</Button>
         </Group>
       </Stack>
     </Modal>

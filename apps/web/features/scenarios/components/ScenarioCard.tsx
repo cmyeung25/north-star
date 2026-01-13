@@ -1,7 +1,8 @@
 import { Badge, Card, Group, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 import type { Scenario } from "../types";
-import { formatRelativeTime, riskColorMap } from "../utils";
+import { t } from "../../../lib/i18n";
+import { formatRelativeTime, formatRiskLevel, riskColorMap } from "../utils";
 import ScenarioKpiGrid from "./ScenarioKpiGrid";
 
 export type ScenarioCardProps = {
@@ -26,7 +27,9 @@ export default function ScenarioCard({
               {scenario.name}
             </Text>
             <Text size="xs" c="dimmed">
-              Last updated {formatRelativeTime(scenario.updatedAt)}
+              {t("scenariosUpdated", {
+                time: formatRelativeTime(scenario.updatedAt),
+              })}
             </Text>
           </div>
           {menu}
@@ -36,10 +39,10 @@ export default function ScenarioCard({
 
         <Group justify="space-between">
           <Badge color={riskColorMap[scenario.kpis.riskLevel]} variant="light">
-            Risk {scenario.kpis.riskLevel}
+            {t("scenariosRisk")} {formatRiskLevel(scenario.kpis.riskLevel)}
           </Badge>
           <Text size="xs" c="dimmed">
-            Base currency: {scenario.baseCurrency}
+            {t("scenariosBaseCurrency")}: {scenario.baseCurrency}
           </Text>
         </Group>
 
