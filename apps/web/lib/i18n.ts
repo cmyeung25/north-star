@@ -6,6 +6,7 @@ const translations = {
     appName: "北極星",
     appDescription: "以行動裝置為主的 PWA 人生階段理財規劃。",
     navHome: "首頁",
+    navOverview: "總覽",
     navScenarios: "情境",
     navTimeline: "時間線",
     navStress: "壓力測試",
@@ -108,14 +109,17 @@ export type TranslationKey = keyof (typeof translations)[typeof locale];
 
 type InterpolationValues = Record<string, string | number>;
 
-export const t = (key: TranslationKey, values?: InterpolationValues) => {
-  let text = translations[locale][key];
+export const t = (
+  key: TranslationKey,
+  values?: InterpolationValues
+): string => {
+  const text = translations[locale][key] as string;
 
   if (!values) {
     return text;
   }
 
-  return Object.entries(values).reduce(
+  return Object.entries(values).reduce<string>(
     (current, [token, value]) =>
       current.replace(new RegExp(`\\{${token}\\}`, "g"), String(value)),
     text
