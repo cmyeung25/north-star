@@ -1,0 +1,27 @@
+import { z } from "zod";
+
+export const EventSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  date: z.string(),
+  description: z.string().optional(),
+});
+
+export const AssumptionsSchema = z.object({
+  inflationRate: z.number().min(0),
+  wageGrowthRate: z.number().min(0),
+  realReturnRate: z.number().min(0),
+});
+
+export const ScenarioSchema = z.object({
+  schemaVersion: z.string(),
+  engineVersion: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+  assumptions: AssumptionsSchema,
+  events: z.array(EventSchema),
+});
+
+export type Event = z.infer<typeof EventSchema>;
+export type Assumptions = z.infer<typeof AssumptionsSchema>;
+export type Scenario = z.infer<typeof ScenarioSchema>;

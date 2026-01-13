@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="North Star">
+  <rect width="512" height="512" rx="96" fill="#0f172a" />
+  <path
+    fill="#f8fafc"
+    d="M256 104l32.7 96.1 100.6 2.3-80.6 60.4 29.8 97.6L256 299.5l-82.5 60.9 29.8-97.6-80.6-60.4 100.6-2.3L256 104z"
+  />
+</svg>
