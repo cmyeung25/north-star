@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   Drawer,
-  Alert,
   Group,
   Modal,
   Stack,
@@ -88,10 +87,6 @@ export default function TimelineMobile() {
           </Text>
         </div>
       </Group>
-      <Alert title="UI preview" color="indigo" variant="light">
-        Timeline events are mocked in-memory for now. A future PR will connect the
-        timeline to the engine and persistence.
-      </Alert>
 
       <Stack gap="md">
         {sortedEvents.map((event) => (

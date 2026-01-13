@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Alert,
   Button,
   Drawer,
   Group,
@@ -66,11 +65,6 @@ export default function TimelineDesktop() {
         </div>
         <Button onClick={() => setTemplateOpen(true)}>+ Add Event</Button>
       </Group>
-
-      <Alert title="UI preview" color="indigo" variant="light">
-        Events are mocked in-memory. The next PR will wire this table to the
-        engine and persistence.
-      </Alert>
 
       <Table striped highlightOnHover withColumnBorders>
         <Table.Thead>
