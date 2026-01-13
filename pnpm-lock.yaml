@@ -47,6 +47,9 @@ importers:
       '@mantine/next':
         specifier: ^6.0.22
         version: 6.0.22(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@emotion/server@11.11.0)(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@north-star/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       nanoid:
         specifier: ^5.1.6
         version: 5.1.6

@@ -11,6 +11,11 @@ export type ScenarioKpis = {
   riskLevel: ScenarioRiskLevel;
 };
 
+export type ScenarioAssumptions = {
+  horizonMonths?: number;
+  initialCash?: number;
+};
+
 export type EventType =
   | "rent"
   | "buy_home"
@@ -40,6 +45,7 @@ export type Scenario = {
   baseCurrency: string;
   updatedAt: number;
   kpis: ScenarioKpis;
+  assumptions?: ScenarioAssumptions;
   events?: TimelineEvent[];
 };
 
