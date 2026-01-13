@@ -1,16 +1,17 @@
 import { z } from "zod";
 
 export const EventSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  date: z.string(),
-  description: z.string().optional(),
+  enabled: z.boolean(),
+  startMonth: z.string(),
+  endMonth: z.string().nullable(),
+  monthlyAmount: z.number().optional(),
+  oneTimeAmount: z.number().optional(),
+  annualGrowthPct: z.number().optional(),
 });
 
 export const AssumptionsSchema = z.object({
-  inflationRate: z.number().min(0),
-  wageGrowthRate: z.number().min(0),
-  realReturnRate: z.number().min(0),
+  horizonMonths: z.number().int().positive(),
+  emergencyFundMonths: z.number().min(0),
 });
 
 export const ScenarioSchema = z.object({
