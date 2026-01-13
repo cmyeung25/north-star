@@ -9,6 +9,7 @@ const translations = {
     navOverview: "總覽",
     navScenarios: "情境",
     navTimeline: "時間線",
+    navStress: "壓力測試",
     homeTitle: "規劃你的下一個人生階段",
     homeIntro:
       "歡迎來到北極星。你的個人化人生階段規劃將在此展開。",
