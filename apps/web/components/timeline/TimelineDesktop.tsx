@@ -20,12 +20,18 @@ import {
   eventTypeLabels,
   formatCurrency,
   iconMap,
-  mockedEvents,
   templateOptions,
 } from "./utils";
 
-export default function TimelineDesktop() {
-  const [events, setEvents] = useState<TimelineEvent[]>(mockedEvents);
+interface TimelineDesktopProps {
+  events: TimelineEvent[];
+  onEventsChange: (events: TimelineEvent[]) => void;
+}
+
+export default function TimelineDesktop({
+  events,
+  onEventsChange,
+}: TimelineDesktopProps) {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
 
@@ -35,15 +41,15 @@ export default function TimelineDesktop() {
   );
 
   const handleSave = (updated: TimelineEvent) => {
-    setEvents((current) =>
-      current.map((event) => (event.id === updated.id ? updated : event))
+    onEventsChange(
+      events.map((event) => (event.id === updated.id ? updated : event))
     );
     setEditingEvent(null);
   };
 
   const handleToggle = (eventId: string, enabled: boolean) => {
-    setEvents((current) =>
-      current.map((event) =>
+    onEventsChange(
+      events.map((event) =>
         event.id === eventId ? { ...event, enabled } : event
       )
     );
@@ -51,7 +57,7 @@ export default function TimelineDesktop() {
 
   const handleTemplateSelect = (type: TimelineEvent["type"]) => {
     const newEvent = createEventFromTemplate(type);
-    setEvents((current) => [newEvent, ...current]);
+    onEventsChange([newEvent, ...events]);
     setTemplateOpen(false);
   };
 
@@ -69,63 +75,73 @@ export default function TimelineDesktop() {
         </Button>
       </Group>
 
-      <Table striped highlightOnHover withColumnBorders>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t("timelineTableEnabled")}</Table.Th>
-            <Table.Th>{t("timelineTableType")}</Table.Th>
-            <Table.Th>{t("timelineTableName")}</Table.Th>
-            <Table.Th>{t("timelineTableStart")}</Table.Th>
-            <Table.Th>{t("timelineTableEnd")}</Table.Th>
-            <Table.Th>{t("timelineTableMonthly")}</Table.Th>
-            <Table.Th>{t("timelineTableOneTime")}</Table.Th>
-            <Table.Th>{t("timelineTableGrowth")}</Table.Th>
-            <Table.Th>{t("timelineTableCurrency")}</Table.Th>
-            <Table.Th>{t("timelineTableActions")}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {sortedEvents.map((event) => (
-            <Table.Tr key={event.id}>
-              <Table.Td>
-                <Switch
-                  checked={event.enabled}
-                  onChange={(eventChange) =>
-                    handleToggle(event.id, eventChange.currentTarget.checked)
-                  }
-                />
-              </Table.Td>
-              <Table.Td>
-                {iconMap[event.type]} {eventTypeLabels[event.type]}
-              </Table.Td>
-              <Table.Td>{event.name}</Table.Td>
-              <Table.Td>{event.startMonth}</Table.Td>
-              <Table.Td>{event.endMonth ?? "—"}</Table.Td>
-              <Table.Td>
-                {event.monthlyAmount > 0
-                  ? formatCurrency(event.monthlyAmount, event.currency)
-                  : "—"}
-              </Table.Td>
-              <Table.Td>
-                {event.oneTimeAmount > 0
-                  ? formatCurrency(event.oneTimeAmount, event.currency)
-                  : "—"}
-              </Table.Td>
-              <Table.Td>
-                {event.annualGrowthPct > 0
-                  ? `${event.annualGrowthPct}%`
-                  : "—"}
-              </Table.Td>
-              <Table.Td>{defaultCurrency}</Table.Td>
-              <Table.Td>
-                <Button size="xs" variant="light" onClick={() => setEditingEvent(event)}>
-                  {t("timelineEdit")}
-                </Button>
-              </Table.Td>
+      {sortedEvents.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No timeline events yet. Add one to start shaping the plan.
+        </Text>
+      ) : (
+        <Table striped highlightOnHover withColumnBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>{t("timelineTableEnabled")}</Table.Th>
+              <Table.Th>{t("timelineTableType")}</Table.Th>
+              <Table.Th>{t("timelineTableName")}</Table.Th>
+              <Table.Th>{t("timelineTableStart")}</Table.Th>
+              <Table.Th>{t("timelineTableEnd")}</Table.Th>
+              <Table.Th>{t("timelineTableMonthly")}</Table.Th>
+              <Table.Th>{t("timelineTableOneTime")}</Table.Th>
+              <Table.Th>{t("timelineTableGrowth")}</Table.Th>
+              <Table.Th>{t("timelineTableCurrency")}</Table.Th>
+              <Table.Th>{t("timelineTableActions")}</Table.Th>
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+          </Table.Thead>
+          <Table.Tbody>
+            {sortedEvents.map((event) => (
+              <Table.Tr key={event.id}>
+                <Table.Td>
+                  <Switch
+                    checked={event.enabled}
+                    onChange={(eventChange) =>
+                      handleToggle(event.id, eventChange.currentTarget.checked)
+                    }
+                  />
+                </Table.Td>
+                <Table.Td>
+                  {iconMap[event.type]} {eventTypeLabels[event.type]}
+                </Table.Td>
+                <Table.Td>{event.name}</Table.Td>
+                <Table.Td>{event.startMonth}</Table.Td>
+                <Table.Td>{event.endMonth ?? "—"}</Table.Td>
+                <Table.Td>
+                  {event.monthlyAmount && event.monthlyAmount > 0
+                    ? formatCurrency(event.monthlyAmount, event.currency)
+                    : "—"}
+                </Table.Td>
+                <Table.Td>
+                  {event.oneTimeAmount && event.oneTimeAmount > 0
+                    ? formatCurrency(event.oneTimeAmount, event.currency)
+                    : "—"}
+                </Table.Td>
+                <Table.Td>
+                  {event.annualGrowthPct && event.annualGrowthPct > 0
+                    ? `${event.annualGrowthPct}%`
+                    : "—"}
+                </Table.Td>
+                <Table.Td>{event.currency ?? defaultCurrency}</Table.Td>
+                <Table.Td>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setEditingEvent(event)}
+                  >
+                    {t("timelineEdit")}
+                  </Button>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
 
       <Modal
         opened={templateOpen}
