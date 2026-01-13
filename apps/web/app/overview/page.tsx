@@ -13,8 +13,8 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import CashBalanceChart from "../../features/overview/components/CashBalanceChart";
 import InsightsCard from "../../features/overview/components/InsightsCard";
 import KpiCard from "../../features/overview/components/KpiCard";
@@ -22,18 +22,17 @@ import KpiCarousel from "../../features/overview/components/KpiCarousel";
 import NetWorthChart from "../../features/overview/components/NetWorthChart";
 import OverviewActionsCard from "../../features/overview/components/OverviewActionsCard";
 import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
-import type { OverviewKpis, RiskLevel, TimeSeriesPoint } from "../../features/overview/types";
+import type { RiskLevel, TimeSeriesPoint } from "../../features/overview/types";
 import { formatCurrency } from "../../lib/i18n";
-
-type OverviewScenario = {
-  id: string;
-  name: string;
-  kpis: OverviewKpis;
-  cashSeries: TimeSeriesPoint[];
-  netWorthSeries: TimeSeriesPoint[];
-  insights: string[];
-  isActive: boolean;
-};
+import {
+  getScenarioById,
+  useScenarioStore,
+} from "../../src/store/scenarioStore";
+import {
+  buildScenarioUrl,
+  getScenarioIdFromSearchParams,
+  resolveScenarioId,
+} from "../../src/utils/scenarioContext";
 
 const buildMonths = (startMonth: string, months: number) => {
   const [startYear, startMonthValue] = startMonth.split("-").map(Number);
@@ -89,11 +88,17 @@ const buildSeries = (
   return series;
 };
 
-const buildInsights = (kpis: OverviewKpis) => {
+const buildInsights = (kpis: {
+  lowestMonthlyBalance: number;
+  runwayMonths: number;
+  riskLevel: RiskLevel;
+}) => {
   const insights: string[] = [];
 
   if (kpis.lowestMonthlyBalance < 0) {
-    insights.push("Cash balance dips below zero — consider trimming discretionary spend.");
+    insights.push(
+      "Cash balance dips below zero — consider trimming discretionary spend."
+    );
   } else {
     insights.push("Cash buffer remains positive across the forecast window.");
   }
@@ -119,79 +124,64 @@ const riskBadgeColor: Record<RiskLevel, string> = {
   High: "red",
 };
 
-const createScenario = (
-  scenario: Omit<OverviewScenario, "insights">
-): OverviewScenario => ({
-  ...scenario,
-  insights: buildInsights(scenario.kpis),
-});
-
-const mockedScenarios: OverviewScenario[] = [
-  createScenario({
-    id: "scenario-1",
-    name: "Plan A · Rent + Baby",
-    kpis: {
-      lowestMonthlyBalance: -12000,
-      runwayMonths: 18,
-      netWorthYear5: 1650000,
-      riskLevel: "Medium",
-    },
+const scenarioSeriesById: Record<
+  string,
+  { cashSeries: TimeSeriesPoint[]; netWorthSeries: TimeSeriesPoint[] }
+> = {
+  "scenario-plan-a": {
     cashSeries: buildSeries("2024-01", 36, 32000, -1200, 3200, 8, -12000),
     netWorthSeries: buildSeries("2024-01", 36, 450000, 12000, 7000),
-    isActive: true,
-  }),
-  createScenario({
-    id: "scenario-2",
-    name: "Plan B · Buy Home",
-    kpis: {
-      lowestMonthlyBalance: -32000,
-      runwayMonths: 10,
-      netWorthYear5: 2100000,
-      riskLevel: "High",
-    },
+  },
+  "scenario-plan-b": {
     cashSeries: buildSeries("2024-01", 36, 40000, -1800, 4200, 10, -32000),
     netWorthSeries: buildSeries("2024-01", 36, 520000, 15000, 9000),
-    isActive: false,
-  }),
-  createScenario({
-    id: "scenario-3",
-    name: "Plan C · Delay Car",
-    kpis: {
-      lowestMonthlyBalance: 8000,
-      runwayMonths: 24,
-      netWorthYear5: 1350000,
-      riskLevel: "Low",
-    },
+  },
+  "scenario-plan-c": {
     cashSeries: buildSeries("2024-01", 36, 28000, 400, 1800, 12, 8000),
     netWorthSeries: buildSeries("2024-01", 36, 380000, 10000, 6000),
-    isActive: false,
-  }),
-];
+  },
+};
 
 export default function OverviewPage() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const scenarioIdFromQuery = searchParams.get("scenarioId");
+  const scenarios = useScenarioStore((state) => state.scenarios);
+  const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const scenarioIdFromQuery = getScenarioIdFromSearchParams(searchParams);
 
-  const activeScenario = useMemo(
-    () => mockedScenarios.find((scenario) => scenario.isActive) ?? mockedScenarios[0],
-    []
+  useEffect(() => {
+    if (
+      scenarioIdFromQuery &&
+      scenarioIdFromQuery !== activeScenarioId &&
+      scenarios.some((scenario) => scenario.id === scenarioIdFromQuery)
+    ) {
+      setActiveScenario(scenarioIdFromQuery);
+    }
+  }, [activeScenarioId, scenarioIdFromQuery, scenarios, setActiveScenario]);
+
+  const resolvedScenarioId = useMemo(
+    () => resolveScenarioId(searchParams, activeScenarioId, scenarios),
+    [activeScenarioId, scenarios, searchParams]
   );
 
-  const initialScenarioId = useMemo(() => {
-    const byQuery = mockedScenarios.find((scenario) => scenario.id === scenarioIdFromQuery);
-    return byQuery?.id ?? activeScenario?.id ?? mockedScenarios[0]?.id ?? "";
-  }, [activeScenario, scenarioIdFromQuery]);
+  const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
 
-  const [selectedScenarioId, setSelectedScenarioId] = useState(initialScenarioId);
+  const series =
+    (selectedScenario && scenarioSeriesById[selectedScenario.id]) ??
+    scenarioSeriesById[scenarios[0]?.id ?? ""] ?? {
+      cashSeries: buildSeries("2024-01", 24, 30000, 600, 1200),
+      netWorthSeries: buildSeries("2024-01", 24, 420000, 8000, 4000),
+    };
 
-  const selectedScenario = useMemo(() => {
-    return (
-      mockedScenarios.find((scenario) => scenario.id === selectedScenarioId) ??
-      activeScenario ??
-      mockedScenarios[0]
-    );
-  }, [activeScenario, selectedScenarioId]);
+  const insights = useMemo(() => {
+    if (!selectedScenario) {
+      return [];
+    }
+
+    return buildInsights(selectedScenario.kpis);
+  }, [selectedScenario]);
 
   if (!selectedScenario) {
     return null;
@@ -221,6 +211,11 @@ export default function OverviewPage() {
     },
   ];
 
+  const handleScenarioChange = (scenarioId: string) => {
+    setActiveScenario(scenarioId);
+    router.push(buildScenarioUrl("/overview", scenarioId));
+  };
+
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap="sm">
@@ -238,12 +233,12 @@ export default function OverviewPage() {
 
         {isDesktop ? (
           <ScenarioContextSelector
-            options={mockedScenarios.map((scenario) => ({
+            options={scenarios.map((scenario) => ({
               label: scenario.name,
               value: scenario.id,
             }))}
-            value={selectedScenarioId}
-            onChange={setSelectedScenarioId}
+            value={selectedScenario.id}
+            onChange={handleScenarioChange}
           />
         ) : (
           <Group gap="xs">
@@ -269,17 +264,17 @@ export default function OverviewPage() {
 
       {isDesktop ? (
         <SimpleGrid cols={2} spacing="md">
-          <CashBalanceChart data={selectedScenario.cashSeries} title="Cash Balance" />
-          <NetWorthChart data={selectedScenario.netWorthSeries} title="Net Worth" />
+          <CashBalanceChart data={series.cashSeries} title="Cash Balance" />
+          <NetWorthChart data={series.netWorthSeries} title="Net Worth" />
         </SimpleGrid>
       ) : (
         <Stack gap="md">
-          <CashBalanceChart data={selectedScenario.cashSeries} title="Cash Balance" />
+          <CashBalanceChart data={series.cashSeries} title="Cash Balance" />
           <Accordion variant="separated" radius="md">
             <Accordion.Item value="net-worth">
               <Accordion.Control>Net Worth</Accordion.Control>
               <Accordion.Panel>
-                <NetWorthChart data={selectedScenario.netWorthSeries} />
+                <NetWorthChart data={series.netWorthSeries} />
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
@@ -288,20 +283,23 @@ export default function OverviewPage() {
 
       {isDesktop ? (
         <SimpleGrid cols={2} spacing="md">
-          <InsightsCard insights={selectedScenario.insights} />
+          <InsightsCard insights={insights} />
           <OverviewActionsCard scenarioId={selectedScenario.id} />
         </SimpleGrid>
       ) : (
         <Stack gap="md">
-          <InsightsCard insights={selectedScenario.insights} />
+          <InsightsCard insights={insights} />
           <Card withBorder radius="md" padding="md">
             <Stack gap="sm">
-              <Button component={Link} href={`/timeline?scenarioId=${selectedScenario.id}`}>
+              <Button
+                component={Link}
+                href={buildScenarioUrl("/timeline", selectedScenario.id)}
+              >
                 Open Timeline
               </Button>
               <Button
                 component={Link}
-                href={`/stress?scenarioId=${selectedScenario.id}`}
+                href={buildScenarioUrl("/stress", selectedScenario.id)}
                 variant="light"
               >
                 Run Stress Test

@@ -1,199 +1,62 @@
 "use client";
 
 import {
-  Alert,
   Badge,
   Button,
   Card,
   Group,
+  NumberInput,
+  SimpleGrid,
   Stack,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import Link from "next/link";
+import { nanoid } from "nanoid";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import BeforeAfterKpiGrid from "../../features/stress/components/BeforeAfterKpiGrid";
-import SaveScenarioModal from "../../features/stress/components/SaveScenarioModal";
-import StickyActionBar from "../../features/stress/components/StickyActionBar";
-import StressCashChart from "../../features/stress/components/StressCashChart";
-import StressControlCard from "../../features/stress/components/StressControlCard";
-import StressInsightsCard from "../../features/stress/components/StressInsightsCard";
-import {
-  baselineKpis,
-  baselineSeries,
-  mockScenarios,
-} from "../../features/stress/mockData";
-import type {
-  Kpis,
-  StressConfig,
-  StressType,
-  TimeSeriesPoint,
-} from "../../features/stress/types";
+import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
 import { formatCurrency } from "../../lib/i18n";
+import {
+  getScenarioById,
+  useScenarioStore,
+  type ScenarioKpis,
+} from "../../src/store/scenarioStore";
+import {
+  buildScenarioUrl,
+  getScenarioIdFromSearchParams,
+  resolveScenarioId,
+} from "../../src/utils/scenarioContext";
 
-const segmentOptions = {
-  job_loss: [
-    { label: "3 months", value: "3" },
-    { label: "6 months", value: "6" },
-    { label: "12 months", value: "12" },
-  ],
-  rate_hike: [
-    { label: "+0.5%", value: "0.5" },
-    { label: "+1%", value: "1" },
-    { label: "+2%", value: "2" },
-  ],
-};
+const formatRisk = (risk: ScenarioKpis["riskLevel"]) => risk;
 
-const medicalAmounts = [50000, 100000, 200000];
+const buildStressedKpis = (
+  baseline: ScenarioKpis,
+  expenseIncreasePct: number,
+  incomeDropPct: number
+): ScenarioKpis => {
+  const stressFactor = expenseIncreasePct + incomeDropPct;
+  const balanceDelta = Math.round(
+    Math.abs(baseline.lowestMonthlyBalance) * (expenseIncreasePct / 100)
+  );
+  const netWorthDelta = Math.round(
+    baseline.netWorthYear5 * (stressFactor / 100)
+  );
+  const runwayReduction = Math.ceil(stressFactor / 5);
 
-const stressCardCopy = {
-  job_loss: {
-    title: "Job loss",
-    description: "Reduced income for a set duration.",
-  },
-  rate_hike: {
-    title: "Interest rate hike",
-    description: "Higher repayments on variable debt.",
-  },
-  medical: {
-    title: "Medical expense",
-    description: "One-time healthcare spending shock.",
-  },
-};
-
-const clamp = (value: number, min: number) => Math.max(value, min);
-
-const calculateRiskLevel = (kpis: Kpis): Kpis["riskLevel"] => {
-  if (kpis.runwayMonths <= 8 || kpis.lowestMonthlyBalance < 0) {
-    return "High";
-  }
-  if (kpis.runwayMonths <= 14 || kpis.lowestMonthlyBalance < 8000) {
-    return "Medium";
-  }
-  return "Low";
-};
-
-const applyStressToKpis = (
-  baseline: Kpis,
-  stresses: StressConfig[]
-): Kpis => {
-  let next = { ...baseline };
-
-  stresses.forEach((stress) => {
-    if (stress.type === "job_loss") {
-      const months = Number(stress.params.months ?? 0);
-      next.lowestMonthlyBalance -= months * 2500;
-      next.runwayMonths -= Math.round(months / 3) * 2;
-      next.netWorthYear5 -= months * 15000;
-    }
-
-    if (stress.type === "rate_hike") {
-      const rate = Number(stress.params.rate ?? 0);
-      next.lowestMonthlyBalance -= rate * 12000;
-      next.netWorthYear5 -= rate * 40000;
-    }
-
-    if (stress.type === "medical") {
-      const amount = Number(stress.params.amount ?? 0);
-      next.lowestMonthlyBalance -= amount * 0.2;
-      next.runwayMonths -= Math.round(amount / 50000) * 2;
-      next.netWorthYear5 -= amount;
-    }
-  });
-
-  next.runwayMonths = clamp(next.runwayMonths, 0);
-  next.lowestMonthlyBalance = Math.round(next.lowestMonthlyBalance);
-  next.netWorthYear5 = Math.round(next.netWorthYear5);
-  next.riskLevel = calculateRiskLevel(next);
-
-  return next;
-};
-
-const applyStressToSeries = (
-  baseline: TimeSeriesPoint[],
-  stresses: StressConfig[]
-): TimeSeriesPoint[] => {
-  let next = baseline.map((point) => ({ ...point }));
-
-  stresses.forEach((stress) => {
-    if (stress.type === "job_loss") {
-      const months = Number(stress.params.months ?? 0);
-      const startIndex = 4;
-      const endIndex = Math.min(startIndex + months, next.length);
-      next = next.map((point, index) => {
-        if (index >= startIndex && index < endIndex) {
-          return { ...point, value: point.value - 12000 };
-        }
-        return point;
-      });
-    }
-
-    if (stress.type === "rate_hike") {
-      const rate = Number(stress.params.rate ?? 0);
-      next = next.map((point, index) =>
-        index > 6 ? { ...point, value: point.value - rate * 3500 } : point
-      );
-    }
-
-    if (stress.type === "medical") {
-      const amount = Number(stress.params.amount ?? 0);
-      const dipIndex = 8;
-      next = next.map((point, index) => {
-        if (index === dipIndex) {
-          return { ...point, value: point.value - amount * 0.6 };
-        }
-        if (index > dipIndex && index <= dipIndex + 3) {
-          return { ...point, value: point.value - amount * 0.15 };
-        }
-        return point;
-      });
-    }
-  });
-
-  return next.map((point) => ({ ...point, value: Math.round(point.value) }));
-};
-
-const buildStressLabel = (
-  type: StressType,
-  value: string,
-  currency: string
-) => {
-  if (type === "job_loss") {
-    return `Job loss · ${value} months`;
-  }
-  if (type === "rate_hike") {
-    return `Rate hike · +${value}%`;
-  }
-  return `Medical · ${formatCurrency(Number(value), currency)}`;
-};
-
-const buildConfig = (
-  type: StressType,
-  value: string,
-  currency: string
-): StressConfig => {
-  if (type === "job_loss") {
-    return {
-      type,
-      label: buildStressLabel(type, value, currency),
-      params: { months: Number(value) },
-    };
-  }
-
-  if (type === "rate_hike") {
-    return {
-      type,
-      label: buildStressLabel(type, value, currency),
-      params: { rate: Number(value) },
-    };
+  let riskLevel: ScenarioKpis["riskLevel"] = baseline.riskLevel;
+  if (stressFactor >= 18) {
+    riskLevel = "High";
+  } else if (stressFactor >= 8) {
+    riskLevel = baseline.riskLevel === "Low" ? "Medium" : baseline.riskLevel;
   }
 
   return {
-    type,
-    label: buildStressLabel(type, value, currency),
-    params: { amount: Number(value) },
+    lowestMonthlyBalance: baseline.lowestMonthlyBalance - balanceDelta,
+    runwayMonths: Math.max(1, baseline.runwayMonths - runwayReduction),
+    netWorthYear5: Math.max(0, baseline.netWorthYear5 - netWorthDelta),
+    riskLevel,
   };
 };
 
@@ -201,318 +64,233 @@ export default function StressPage() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [scenarios, setScenarios] = useState(mockScenarios);
-  const [selectedValues, setSelectedValues] = useState({
-    job_loss: "6",
-    rate_hike: "1",
-    medical: "100000",
-  });
-  const [appliedStresses, setAppliedStresses] = useState<StressConfig[]>([]);
-  const [saveModalOpen, setSaveModalOpen] = useState(false);
-
-  const activeScenario = useMemo(
-    () => scenarios.find((scenario) => scenario.isActive) ?? scenarios[0],
-    [scenarios]
+  const scenarioIdFromQuery = getScenarioIdFromSearchParams(searchParams);
+  const scenarios = useScenarioStore((state) => state.scenarios);
+  const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const createScenario = useScenarioStore((state) => state.createScenario);
+  const updateScenarioKpis = useScenarioStore((state) => state.updateScenarioKpis);
+  const upsertScenarioEvents = useScenarioStore(
+    (state) => state.upsertScenarioEvents
   );
 
-  const scenario = useMemo(() => {
-    const scenarioId = searchParams?.get("scenarioId");
-    return (
-      scenarios.find((item) => item.id === scenarioId) ??
-      activeScenario ??
-      scenarios[0]
+  const [expenseIncreasePct, setExpenseIncreasePct] = useState(8);
+  const [incomeDropPct, setIncomeDropPct] = useState(4);
+  const [stressApplied, setStressApplied] = useState(false);
+  const [saveName, setSaveName] = useState("");
+
+  useEffect(() => {
+    if (
+      scenarioIdFromQuery &&
+      scenarioIdFromQuery !== activeScenarioId &&
+      scenarios.some((scenario) => scenario.id === scenarioIdFromQuery)
+    ) {
+      setActiveScenario(scenarioIdFromQuery);
+    }
+  }, [activeScenarioId, scenarioIdFromQuery, scenarios, setActiveScenario]);
+
+  const resolvedScenarioId = useMemo(
+    () => resolveScenarioId(searchParams, activeScenarioId, scenarios),
+    [activeScenarioId, scenarios, searchParams]
+  );
+
+  const scenario = getScenarioById(scenarios, resolvedScenarioId);
+
+  useEffect(() => {
+    if (scenario) {
+      setSaveName(`Stressed ${scenario.name}`);
+    }
+  }, [scenario]);
+
+  const stressedKpis = useMemo(() => {
+    if (!scenario) {
+      return null;
+    }
+
+    return buildStressedKpis(
+      scenario.kpis,
+      expenseIncreasePct,
+      incomeDropPct
     );
-  }, [activeScenario, scenarios, searchParams]);
+  }, [expenseIncreasePct, incomeDropPct, scenario]);
 
-  const scenarioId = scenario?.id ?? "";
-  const currency = scenario?.baseCurrency ?? "HKD";
-  const hasStress = appliedStresses.length > 0;
-  const medicalOptions = useMemo(
-    () =>
-      medicalAmounts.map((amount) => ({
-        label: formatCurrency(amount, currency),
-        value: String(amount),
-      })),
-    [currency]
-  );
+  if (!scenario || !stressedKpis) {
+    return null;
+  }
 
-  const stressedKpis = useMemo(
-    () => applyStressToKpis(baselineKpis, appliedStresses),
-    [appliedStresses]
-  );
-
-  const stressedSeries = useMemo(
-    () => applyStressToSeries(baselineSeries, appliedStresses),
-    [appliedStresses]
-  );
-
-  const updateStress = (type: StressType) => {
-    const value = selectedValues[type];
-    const config = buildConfig(type, value, currency);
-
-    setAppliedStresses((current) => {
-      const filtered = current.filter((item) => item.type !== type);
-      return [...filtered, config];
-    });
+  const handleApplyStress = () => {
+    setStressApplied(true);
   };
 
-  const handleRevert = () => {
-    setAppliedStresses([]);
-  };
+  const handleSaveScenario = () => {
+    const newScenario = createScenario(saveName || `Stressed ${scenario.name}`);
+    if (scenario.events && scenario.events.length > 0) {
+      const clonedEvents = scenario.events.map((event) => ({
+        ...event,
+        id: `event-${nanoid(10)}`,
+      }));
+      upsertScenarioEvents(newScenario.id, clonedEvents);
+    }
 
-  const handleSaveScenario = (name: string, includeSummary: boolean) => {
-    const stressSuffix = appliedStresses.map((stress) => stress.label).join(", ");
-    const displayName =
-      includeSummary && stressSuffix ? `${name} · ${stressSuffix}` : name;
-
-    setScenarios((current) => [
-      {
-        id: `scenario-${Date.now()}`,
-        name: displayName,
-        baseCurrency: currency,
-        isActive: false,
-      },
-      ...current,
-    ]);
-
-    setSaveModalOpen(false);
+    updateScenarioKpis(newScenario.id, stressedKpis);
+    setActiveScenario(newScenario.id);
     router.push("/scenarios");
   };
 
-  const headerLinks = (
-    <Group gap="sm">
-      <Button
-        component={Link}
-        href={`/overview?scenarioId=${scenarioId}`}
-        variant="subtle"
-      >
-        Back to Overview
-      </Button>
-      <Button
-        component={Link}
-        href={`/timeline?scenarioId=${scenarioId}`}
-        variant="light"
-      >
-        Open Timeline
-      </Button>
-    </Group>
+  const handleScenarioChange = (scenarioId: string) => {
+    setActiveScenario(scenarioId);
+    router.push(buildScenarioUrl("/stress", scenarioId));
+  };
+
+  const kpiCard = (label: string, value: string, helper: string) => (
+    <Card withBorder radius="md" padding="md">
+      <Stack gap={4}>
+        <Text size="xs" c="dimmed">
+          {label}
+        </Text>
+        <Text fw={600} size="lg">
+          {value}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {helper}
+        </Text>
+      </Stack>
+    </Card>
   );
 
   return (
-    <Stack gap="lg">
-      <Group justify="space-between" align="flex-start" wrap="wrap">
-        <Stack gap={4}>
-          <Title order={2}>Stress Test</Title>
+    <Stack gap="xl" pb={isDesktop ? undefined : 120}>
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <div>
+            <Title order={2}>Stress Test</Title>
+            <Text size="sm" c="dimmed">
+              Apply downside shocks to see how the plan reacts.
+            </Text>
+          </div>
+        </Group>
+
+        {isDesktop ? (
+          <ScenarioContextSelector
+            options={scenarios.map((scenarioOption) => ({
+              label: scenarioOption.name,
+              value: scenarioOption.id,
+            }))}
+            value={scenario.id}
+            onChange={handleScenarioChange}
+          />
+        ) : (
           <Group gap="xs">
-            <Badge color="indigo" variant="light">
-              {scenario?.name ?? "Scenario"}
+            <Badge variant="light" color="indigo">
+              {scenario.name}
             </Badge>
-            <Button component={Link} href="/scenarios" variant="subtle" size="xs">
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={() => router.push("/scenarios")}
+            >
               Change
             </Button>
           </Group>
-        </Stack>
-        {headerLinks}
-      </Group>
+        )}
+      </Stack>
 
-      {hasStress && (
-        <Card withBorder padding="sm" radius="md">
-          <Stack gap="xs">
-            <Text size="sm" c="dimmed">
-              Active stresses
-            </Text>
-            <Group gap="xs">
-              {appliedStresses.map((stress) => (
-                <Badge key={stress.label} variant="light" color="red">
-                  {stress.label}
-                </Badge>
-              ))}
-            </Group>
-          </Stack>
-        </Card>
-      )}
-
-      {isDesktop ? (
-        <Group align="flex-start" grow>
-          <Stack gap="md" style={{ flex: 1, minWidth: 320 }}>
-            <StressControlCard
-              title={stressCardCopy.job_loss.title}
-              description={stressCardCopy.job_loss.description}
-              options={segmentOptions.job_loss}
-              value={selectedValues.job_loss}
-              onChange={(value) =>
-                setSelectedValues((current) => ({
-                  ...current,
-                  job_loss: value,
-                }))
-              }
-              onApply={() => updateStress("job_loss")}
-              isApplied={appliedStresses.some(
-                (stress) => stress.type === "job_loss"
-              )}
-            />
-            <StressControlCard
-              title={stressCardCopy.rate_hike.title}
-              description={stressCardCopy.rate_hike.description}
-              options={segmentOptions.rate_hike}
-              value={selectedValues.rate_hike}
-              onChange={(value) =>
-                setSelectedValues((current) => ({
-                  ...current,
-                  rate_hike: value,
-                }))
-              }
-              onApply={() => updateStress("rate_hike")}
-              isApplied={appliedStresses.some(
-                (stress) => stress.type === "rate_hike"
-              )}
-            />
-            <StressControlCard
-              title={stressCardCopy.medical.title}
-              description={stressCardCopy.medical.description}
-              options={medicalOptions}
-              value={selectedValues.medical}
-              onChange={(value) =>
-                setSelectedValues((current) => ({
-                  ...current,
-                  medical: value,
-                }))
-              }
-              onApply={() => updateStress("medical")}
-              isApplied={appliedStresses.some(
-                (stress) => stress.type === "medical"
-              )}
-            />
-          </Stack>
-
-          <Stack gap="md" style={{ flex: 2, minWidth: 360 }}>
-            {hasStress ? (
-              <Stack gap="md">
-                <BeforeAfterKpiGrid
-                  baseline={baselineKpis}
-                  stressed={stressedKpis}
-                  currency={currency}
-                />
-                <StressCashChart
-                  baseline={baselineSeries}
-                  stressed={stressedSeries}
-                />
-                <StressInsightsCard riskLevel={stressedKpis.riskLevel} />
-                <Alert color="yellow" variant="light">
-                  This is a simulation based on assumptions.
-                </Alert>
-                <Group justify="flex-end">
-                  <Button onClick={() => setSaveModalOpen(true)}>
-                    Save as Scenario
-                  </Button>
-                  <Button variant="light" onClick={handleRevert}>
-                    Revert
-                  </Button>
-                </Group>
-              </Stack>
-            ) : (
-              <Card withBorder padding="lg" radius="md">
-                <Stack gap="sm">
-                  <Title order={4}>Apply a stress test to see results</Title>
-                  <Text size="sm" c="dimmed">
-                    Pick one or more stress tests to compare before vs after
-                    projections.
-                  </Text>
-                </Stack>
-              </Card>
-            )}
-          </Stack>
-        </Group>
-      ) : (
+      <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
-          <StressControlCard
-            title={stressCardCopy.job_loss.title}
-            description={stressCardCopy.job_loss.description}
-            options={segmentOptions.job_loss}
-            value={selectedValues.job_loss}
-            onChange={(value) =>
-              setSelectedValues((current) => ({
-                ...current,
-                job_loss: value,
-              }))
-            }
-            onApply={() => updateStress("job_loss")}
-            isApplied={appliedStresses.some(
-              (stress) => stress.type === "job_loss"
-            )}
-          />
-          <StressControlCard
-            title={stressCardCopy.rate_hike.title}
-            description={stressCardCopy.rate_hike.description}
-            options={segmentOptions.rate_hike}
-            value={selectedValues.rate_hike}
-            onChange={(value) =>
-              setSelectedValues((current) => ({
-                ...current,
-                rate_hike: value,
-              }))
-            }
-            onApply={() => updateStress("rate_hike")}
-            isApplied={appliedStresses.some(
-              (stress) => stress.type === "rate_hike"
-            )}
-          />
-          <StressControlCard
-            title={stressCardCopy.medical.title}
-            description={stressCardCopy.medical.description}
-            options={medicalOptions}
-            value={selectedValues.medical}
-            onChange={(value) =>
-              setSelectedValues((current) => ({
-                ...current,
-                medical: value,
-              }))
-            }
-            onApply={() => updateStress("medical")}
-            isApplied={appliedStresses.some(
-              (stress) => stress.type === "medical"
-            )}
-          />
-          {hasStress && (
-            <Stack gap="md">
-              <BeforeAfterKpiGrid
-                baseline={baselineKpis}
-                stressed={stressedKpis}
-                currency={currency}
-              />
-              <StressCashChart
-                baseline={baselineSeries}
-                stressed={stressedSeries}
-              />
-              <Alert color="yellow" variant="light">
-                This is a simulation based on assumptions.
-              </Alert>
-            </Stack>
-          )}
-          <Text size="xs" c="dimmed">
-            Planning & simulation only. Not investment advice.
-          </Text>
-          {hasStress && (
-            <StickyActionBar
-              onSave={() => setSaveModalOpen(true)}
-              onRevert={handleRevert}
+          <Text fw={600}>Stress Controls</Text>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <NumberInput
+              label="Expense increase (%)"
+              value={expenseIncreasePct}
+              onChange={(value) => setExpenseIncreasePct(Number(value ?? 0))}
+              min={0}
+              max={50}
             />
-          )}
+            <NumberInput
+              label="Income drop (%)"
+              value={incomeDropPct}
+              onChange={(value) => setIncomeDropPct(Number(value ?? 0))}
+              min={0}
+              max={50}
+            />
+          </SimpleGrid>
+          <Group justify="flex-end">
+            <Button variant="light" onClick={handleApplyStress}>
+              {stressApplied ? "Recalculate" : "Apply Stress"}
+            </Button>
+          </Group>
         </Stack>
-      )}
+      </Card>
 
-      {isDesktop && (
-        <Text size="xs" c="dimmed">
-          Planning & simulation only. Not investment advice.
-        </Text>
-      )}
+      <Stack gap="md">
+        <Text fw={600}>Baseline KPIs</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+          {kpiCard(
+            "Lowest Balance",
+            formatCurrency(scenario.kpis.lowestMonthlyBalance),
+            "Lowest point across forecast"
+          )}
+          {kpiCard(
+            "Runway",
+            `${scenario.kpis.runwayMonths} months`,
+            "Time until cash runs out"
+          )}
+          {kpiCard(
+            "5Y Net Worth",
+            formatCurrency(scenario.kpis.netWorthYear5),
+            "Projected net worth"
+          )}
+          {kpiCard(
+            "Risk Level",
+            formatRisk(scenario.kpis.riskLevel),
+            "Current risk posture"
+          )}
+        </SimpleGrid>
+      </Stack>
 
-      <SaveScenarioModal
-        opened={saveModalOpen}
-        defaultName={scenario?.name ?? "New Scenario"}
-        onClose={() => setSaveModalOpen(false)}
-        onSave={handleSaveScenario}
-      />
+      <Stack gap="md">
+        <Text fw={600}>Stressed KPIs</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+          {kpiCard(
+            "Lowest Balance",
+            formatCurrency(stressedKpis.lowestMonthlyBalance),
+            "After applied stress"
+          )}
+          {kpiCard(
+            "Runway",
+            `${stressedKpis.runwayMonths} months`,
+            "After applied stress"
+          )}
+          {kpiCard(
+            "5Y Net Worth",
+            formatCurrency(stressedKpis.netWorthYear5),
+            "After applied stress"
+          )}
+          {kpiCard(
+            "Risk Level",
+            formatRisk(stressedKpis.riskLevel),
+            "Stress-adjusted risk"
+          )}
+        </SimpleGrid>
+      </Stack>
+
+      <Card withBorder radius="md" padding="lg">
+        <Stack gap="md">
+          <Text fw={600}>Save as Scenario</Text>
+          <TextInput
+            label="Scenario name"
+            value={saveName}
+            onChange={(event) => setSaveName(event.currentTarget.value)}
+          />
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              This will create a new scenario with stressed KPIs and any existing
+              timeline events.
+            </Text>
+            <Button onClick={handleSaveScenario}>Save as Scenario</Button>
+          </Group>
+        </Stack>
+      </Card>
     </Stack>
   );
 }

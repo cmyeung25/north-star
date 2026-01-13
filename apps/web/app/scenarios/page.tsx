@@ -16,7 +16,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { defaultCurrency, t } from "../../lib/i18n";
+import { t } from "../../lib/i18n";
 import ScenarioActionsMenu from "../../features/scenarios/components/ScenarioActionsMenu";
 import ScenarioCard from "../../features/scenarios/components/ScenarioCard";
 import ConfirmDeleteDialog from "../../features/scenarios/components/ConfirmDeleteDialog";
@@ -24,6 +24,12 @@ import NewScenarioModal from "../../features/scenarios/components/NewScenarioMod
 import RenameScenarioModal from "../../features/scenarios/components/RenameScenarioModal";
 import type { Scenario } from "../../features/scenarios/types";
 import { formatRelativeTime } from "../../features/scenarios/utils";
+import {
+  getActiveScenario,
+  getScenarioById,
+  useScenarioStore,
+} from "../../src/store/scenarioStore";
+import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 
 const floatingButtonStyle = {
   position: "fixed" as const,
@@ -31,62 +37,6 @@ const floatingButtonStyle = {
   bottom: 92,
   zIndex: 10,
 };
-
-const initialScenarios: Scenario[] = [
-  {
-    id: "scenario-1",
-    name: "方案 A · 租屋 + 寶寶",
-    baseCurrency: defaultCurrency,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 12,
-    kpis: {
-      lowestMonthlyBalance: -12000,
-      runwayMonths: 18,
-      netWorthYear5: 1650000,
-      riskLevel: "Medium",
-    },
-    isActive: true,
-  },
-  {
-    id: "scenario-2",
-    name: "方案 B · 買樓",
-    baseCurrency: defaultCurrency,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
-    kpis: {
-      lowestMonthlyBalance: -32000,
-      runwayMonths: 10,
-      netWorthYear5: 2100000,
-      riskLevel: "High",
-    },
-    isActive: false,
-  },
-  {
-    id: "scenario-3",
-    name: "方案 C · 延後買車",
-    baseCurrency: defaultCurrency,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 9,
-    kpis: {
-      lowestMonthlyBalance: 8000,
-      runwayMonths: 24,
-      netWorthYear5: 1350000,
-      riskLevel: "Low",
-    },
-    isActive: false,
-  },
-];
-
-const buildScenario = (name: string): Scenario => ({
-  id: `scenario-${Date.now()}`,
-  name,
-  baseCurrency: defaultCurrency,
-  updatedAt: Date.now(),
-  kpis: {
-    lowestMonthlyBalance: 0,
-    runwayMonths: 12,
-    netWorthYear5: 1000000,
-    riskLevel: "Medium",
-  },
-  isActive: false,
-});
 
 type ToastState = {
   message: string;
@@ -96,114 +46,98 @@ type ToastState = {
 export default function ScenariosPage() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
-  const [scenarios, setScenarios] = useState<Scenario[]>(initialScenarios);
+  const scenarios = useScenarioStore((state) => state.scenarios);
+  const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const createScenario = useScenarioStore((state) => state.createScenario);
+  const renameScenario = useScenarioStore((state) => state.renameScenario);
+  const duplicateScenario = useScenarioStore((state) => state.duplicateScenario);
+  const deleteScenario = useScenarioStore((state) => state.deleteScenario);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+
   const [selectedScenarioId, setSelectedScenarioId] = useState(
-    initialScenarios[0]?.id ?? ""
+    activeScenarioId ?? scenarios[0]?.id ?? ""
   );
   const [newModalOpen, setNewModalOpen] = useState(false);
-  const [renameScenario, setRenameScenario] = useState<Scenario | null>(null);
-  const [deleteScenario, setDeleteScenario] = useState<Scenario | null>(null);
+  const [renameScenarioTarget, setRenameScenarioTarget] = useState<Scenario | null>(
+    null
+  );
+  const [deleteScenarioTarget, setDeleteScenarioTarget] = useState<Scenario | null>(
+    null
+  );
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const activeScenario = useMemo(
-    () => scenarios.find((scenario) => scenario.isActive) ?? scenarios[0],
-    [scenarios]
+    () => getActiveScenario(scenarios, activeScenarioId),
+    [activeScenarioId, scenarios]
   );
 
   const selectedScenario = useMemo(() => {
-    const current = scenarios.find(
-      (scenario) => scenario.id === selectedScenarioId
+    return (
+      getScenarioById(scenarios, selectedScenarioId) ??
+      activeScenario ??
+      scenarios[0]
     );
-    return current ?? activeScenario ?? scenarios[0];
   }, [activeScenario, scenarios, selectedScenarioId]);
 
   const showToast = (message: string, color?: string) => {
     setToast({ message, color });
   };
 
-  const setActiveScenario = (id: string) => {
-    setScenarios((current) =>
-      current.map((scenario) => ({
-        ...scenario,
-        isActive: scenario.id === id,
-        updatedAt: scenario.id === id ? Date.now() : scenario.updatedAt,
-      }))
-    );
+  const handleSetActiveScenario = (id: string) => {
+    const nextActive = getScenarioById(scenarios, id);
+    if (!nextActive) {
+      return;
+    }
+    setActiveScenario(id);
     setSelectedScenarioId(id);
     showToast(t("scenariosActiveUpdated"), "teal");
   };
 
-  const createScenario = (name: string) => {
-    const newScenario = buildScenario(name);
-    setScenarios((current) => [newScenario, ...current]);
+  const handleCreateScenario = (name: string) => {
+    const newScenario = createScenario(name);
     setSelectedScenarioId(newScenario.id);
     showToast(t("scenariosCreated"), "teal");
   };
 
-  const renameScenarioById = (id: string, newName: string) => {
-    setScenarios((current) =>
-      current.map((scenario) =>
-        scenario.id === id
-          ? { ...scenario, name: newName, updatedAt: Date.now() }
-          : scenario
-      )
-    );
+  const handleRenameScenario = (id: string, newName: string) => {
+    renameScenario(id, newName);
     showToast(t("scenariosRenamed"), "teal");
   };
 
-  const duplicateScenario = (id: string) => {
-    const source = scenarios.find((scenario) => scenario.id === id);
-    if (!source) {
+  const handleDuplicateScenario = (id: string) => {
+    const copy = duplicateScenario(id);
+    if (!copy) {
       return;
     }
-    const copy = {
-      ...source,
-      id: `scenario-${Date.now()}`,
-      name: t("scenariosCopyOf", { name: source.name }),
-      isActive: false,
-      updatedAt: Date.now(),
-    };
-    setScenarios((current) => [copy, ...current]);
     setSelectedScenarioId(copy.id);
     showToast(t("scenariosDuplicated"), "teal");
   };
 
-  const deleteScenarioById = (id: string) => {
+  const handleDeleteScenario = (id: string) => {
     if (scenarios.length <= 1) {
       showToast(t("scenariosDeleteMinimum"), "red");
       return;
     }
-    const target = scenarios.find((scenario) => scenario.id === id);
-    if (!target) {
-      return;
-    }
 
     const remaining = scenarios.filter((scenario) => scenario.id !== id);
-    const nextActive = target.isActive
-      ? remaining[0]
-      : remaining.find((scenario) => scenario.isActive) ?? remaining[0];
+    const nextActive =
+      id === activeScenarioId
+        ? remaining[0]
+        : remaining.find((scenario) => scenario.id === activeScenarioId) ??
+          remaining[0];
 
-    setScenarios(
-      remaining.map((scenario) => ({
-        ...scenario,
-        isActive: scenario.id === nextActive?.id,
-      }))
-    );
+    deleteScenario(id);
+    setSelectedScenarioId(nextActive?.id ?? remaining[0]?.id ?? "");
 
-    if (target.isActive && nextActive) {
-      showToast(
-        t("scenariosActiveSwitched", { name: nextActive.name }),
-        "yellow"
-      );
+    if (id === activeScenarioId && nextActive) {
+      showToast(t("scenariosActiveSwitched", { name: nextActive.name }), "yellow");
     } else {
       showToast(t("scenariosDeleted"), "teal");
     }
-
-    setSelectedScenarioId(nextActive?.id ?? remaining[0]?.id ?? "");
   };
 
   const handleOpenTimeline = (scenarioId: string) => {
-    router.push(`/timeline?scenarioId=${scenarioId}`);
+    router.push(buildScenarioUrl("/timeline", scenarioId));
   };
 
   if (!selectedScenario) {
@@ -258,7 +192,7 @@ export default function ScenariosPage() {
                         })}
                       </Text>
                     </Box>
-                    {scenario.isActive && (
+                    {scenario.id === activeScenarioId && (
                       <Badge color="teal" variant="light">
                         {t("scenariosActive")}
                       </Badge>
@@ -275,34 +209,34 @@ export default function ScenariosPage() {
               actions={
                 <Group wrap="wrap" gap="sm">
                   <Button
-                    onClick={() => setActiveScenario(selectedScenario.id)}
-                    disabled={selectedScenario.isActive}
+                    onClick={() => handleSetActiveScenario(selectedScenario.id)}
+                    disabled={selectedScenario.id === activeScenarioId}
                   >
                     {t("scenariosSetActive")}
                   </Button>
                   <Button
                     variant="light"
                     onClick={() => handleOpenTimeline(selectedScenario.id)}
-                    disabled={!selectedScenario.isActive}
+                    disabled={selectedScenario.id !== activeScenarioId}
                   >
                     {t("scenariosGoToTimeline")}
                   </Button>
                   <Button
                     variant="default"
-                    onClick={() => setRenameScenario(selectedScenario)}
+                    onClick={() => setRenameScenarioTarget(selectedScenario)}
                   >
                     {t("scenariosRename")}
                   </Button>
                   <Button
                     variant="default"
-                    onClick={() => duplicateScenario(selectedScenario.id)}
+                    onClick={() => handleDuplicateScenario(selectedScenario.id)}
                   >
                     {t("scenariosDuplicate")}
                   </Button>
                   <Button
                     color="red"
                     variant="light"
-                    onClick={() => setDeleteScenario(selectedScenario)}
+                    onClick={() => setDeleteScenarioTarget(selectedScenario)}
                   >
                     {t("scenariosDelete")}
                   </Button>
@@ -321,23 +255,23 @@ export default function ScenariosPage() {
                   menu={
                     <ScenarioActionsMenu
                       scenarioName={scenario.name}
-                      onRename={() => setRenameScenario(scenario)}
-                      onDuplicate={() => duplicateScenario(scenario.id)}
-                      onDelete={() => setDeleteScenario(scenario)}
+                      onRename={() => setRenameScenarioTarget(scenario)}
+                      onDuplicate={() => handleDuplicateScenario(scenario.id)}
+                      onDelete={() => setDeleteScenarioTarget(scenario)}
                     />
                   }
                   actions={
                     <Group grow>
                       <Button
-                        onClick={() => setActiveScenario(scenario.id)}
-                        disabled={scenario.isActive}
+                        onClick={() => handleSetActiveScenario(scenario.id)}
+                        disabled={scenario.id === activeScenarioId}
                       >
                         {t("scenariosSetActive")}
                       </Button>
                       <Button
                         variant="light"
                         onClick={() => handleOpenTimeline(scenario.id)}
-                        disabled={!scenario.isActive}
+                        disabled={scenario.id !== activeScenarioId}
                       >
                         {t("scenariosGoToTimeline")}
                       </Button>
@@ -359,26 +293,26 @@ export default function ScenariosPage() {
       <NewScenarioModal
         opened={newModalOpen}
         onClose={() => setNewModalOpen(false)}
-        onCreate={createScenario}
+        onCreate={handleCreateScenario}
       />
       <RenameScenarioModal
-        opened={Boolean(renameScenario)}
-        currentName={renameScenario?.name ?? ""}
-        onClose={() => setRenameScenario(null)}
+        opened={Boolean(renameScenarioTarget)}
+        currentName={renameScenarioTarget?.name ?? ""}
+        onClose={() => setRenameScenarioTarget(null)}
         onSave={(name) => {
-          if (renameScenario) {
-            renameScenarioById(renameScenario.id, name);
+          if (renameScenarioTarget) {
+            handleRenameScenario(renameScenarioTarget.id, name);
           }
         }}
       />
       <ConfirmDeleteDialog
-        opened={Boolean(deleteScenario)}
-        scenarioName={deleteScenario?.name ?? ""}
-        onCancel={() => setDeleteScenario(null)}
+        opened={Boolean(deleteScenarioTarget)}
+        scenarioName={deleteScenarioTarget?.name ?? ""}
+        onCancel={() => setDeleteScenarioTarget(null)}
         onConfirm={() => {
-          if (deleteScenario) {
-            deleteScenarioById(deleteScenario.id);
-            setDeleteScenario(null);
+          if (deleteScenarioTarget) {
+            handleDeleteScenario(deleteScenarioTarget.id);
+            setDeleteScenarioTarget(null);
           }
         }}
       />

@@ -1,3 +1,4 @@
+import { nanoid } from "nanoid";
 import { defaultCurrency, formatCurrency as formatCurrencyWithLocale, t } from "../../lib/i18n";
 import type { EventType, TimelineEvent } from "./types";
 
@@ -45,8 +46,7 @@ export const formatDateRange = (start: string, end: string | null) => {
   return `${start} → ${end}`;
 };
 
-const createEventId = () =>
-  `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+const createEventId = () => `evt_${nanoid(8)}`;
 
 export const createEventFromTemplate = (type: EventType): TimelineEvent => {
   const label = eventTypeLabels[type];
@@ -64,42 +64,3 @@ export const createEventFromTemplate = (type: EventType): TimelineEvent => {
     currency: defaultCurrency,
   };
 };
-
-export const mockedEvents: TimelineEvent[] = [
-  {
-    id: createEventId(),
-    type: "rent",
-    name: "市中心租金",
-    startMonth: "2024-09",
-    endMonth: null,
-    enabled: true,
-    monthlyAmount: 1800,
-    oneTimeAmount: 0,
-    annualGrowthPct: 3,
-    currency: defaultCurrency,
-  },
-  {
-    id: createEventId(),
-    type: "travel",
-    name: "日本旅行",
-    startMonth: "2026-03",
-    endMonth: "2026-03",
-    enabled: true,
-    monthlyAmount: 0,
-    oneTimeAmount: 4200,
-    annualGrowthPct: 0,
-    currency: defaultCurrency,
-  },
-  {
-    id: createEventId(),
-    type: "car",
-    name: "家庭 SUV",
-    startMonth: "2025-06",
-    endMonth: "2030-06",
-    enabled: false,
-    monthlyAmount: 540,
-    oneTimeAmount: 12000,
-    annualGrowthPct: 2,
-    currency: defaultCurrency,
-  },
-];
