@@ -14,6 +14,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { t } from "../lib/i18n";
 
 const theme = createTheme({
   primaryColor: "indigo",
@@ -27,9 +28,9 @@ const theme = createTheme({
 });
 
 const navItems = [
-  { label: "Home", href: "/" },
-  { label: "Scenarios", href: "/scenarios" },
-  { label: "Timeline", href: "/timeline" },
+  { label: t("navHome"), href: "/" },
+  { label: t("navScenarios"), href: "/scenarios" },
+  { label: t("navTimeline"), href: "/timeline" },
 ];
 
 export default function Providers({ children }: { children: ReactNode }) {
@@ -47,7 +48,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between">
             <Text fw={600} size="lg">
-              North Star
+              {t("appName")}
             </Text>
           </Group>
         </AppShell.Header>

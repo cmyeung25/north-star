@@ -1,16 +1,14 @@
 import { Button, Card, Stack, Text, Title } from "@mantine/core";
+import { t } from "../lib/i18n";
 
 export default function HomePage() {
   return (
     <Stack gap="md">
-      <Title order={1}>Plan your next chapter</Title>
+      <Title order={1}>{t("homeTitle")}</Title>
       <Card withBorder shadow="sm" padding="lg" radius="md">
-        <Text>
-          Welcome to North Star. Your personalized life-stage planner will live here
-          soon.
-        </Text>
+        <Text>{t("homeIntro")}</Text>
       </Card>
-      <Button size="md">Start exploring</Button>
+      <Button size="md">{t("homeCta")}</Button>
     </Stack>
   );
 }

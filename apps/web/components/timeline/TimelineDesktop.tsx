@@ -12,6 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useMemo, useState } from "react";
+import { defaultCurrency, t } from "../../lib/i18n";
 import TimelineEventForm from "./TimelineEventForm";
 import type { TimelineEvent } from "./types";
 import {
@@ -58,27 +59,29 @@ export default function TimelineDesktop() {
     <Stack gap="lg">
       <Group justify="space-between" align="flex-end">
         <div>
-          <Title order={2}>Timeline</Title>
+          <Title order={2}>{t("timelineTitle")}</Title>
           <Text c="dimmed" size="sm">
-            Review your events in a table view and edit in the side panel.
+            {t("timelineSubtitleDesktop")}
           </Text>
         </div>
-        <Button onClick={() => setTemplateOpen(true)}>+ Add Event</Button>
+        <Button onClick={() => setTemplateOpen(true)}>
+          {t("timelineAddEvent")}
+        </Button>
       </Group>
 
       <Table striped highlightOnHover withColumnBorders>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Enabled</Table.Th>
-            <Table.Th>Type</Table.Th>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Start</Table.Th>
-            <Table.Th>End</Table.Th>
-            <Table.Th>Monthly</Table.Th>
-            <Table.Th>One-time</Table.Th>
-            <Table.Th>Growth</Table.Th>
-            <Table.Th>Currency</Table.Th>
-            <Table.Th>Actions</Table.Th>
+            <Table.Th>{t("timelineTableEnabled")}</Table.Th>
+            <Table.Th>{t("timelineTableType")}</Table.Th>
+            <Table.Th>{t("timelineTableName")}</Table.Th>
+            <Table.Th>{t("timelineTableStart")}</Table.Th>
+            <Table.Th>{t("timelineTableEnd")}</Table.Th>
+            <Table.Th>{t("timelineTableMonthly")}</Table.Th>
+            <Table.Th>{t("timelineTableOneTime")}</Table.Th>
+            <Table.Th>{t("timelineTableGrowth")}</Table.Th>
+            <Table.Th>{t("timelineTableCurrency")}</Table.Th>
+            <Table.Th>{t("timelineTableActions")}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -113,10 +116,10 @@ export default function TimelineDesktop() {
                   ? `${event.annualGrowthPct}%`
                   : "—"}
               </Table.Td>
-              <Table.Td>{event.currency}</Table.Td>
+              <Table.Td>{defaultCurrency}</Table.Td>
               <Table.Td>
                 <Button size="xs" variant="light" onClick={() => setEditingEvent(event)}>
-                  Edit
+                  {t("timelineEdit")}
                 </Button>
               </Table.Td>
             </Table.Tr>
@@ -127,7 +130,7 @@ export default function TimelineDesktop() {
       <Modal
         opened={templateOpen}
         onClose={() => setTemplateOpen(false)}
-        title="Choose a template"
+        title={t("timelineChooseTemplate")}
       >
         <Stack gap="sm">
           {templateOptions.map((template) => (
@@ -147,7 +150,13 @@ export default function TimelineDesktop() {
         onClose={() => setEditingEvent(null)}
         position="right"
         size="md"
-        title={editingEvent ? `Edit ${eventTypeLabels[editingEvent.type]}` : "Edit"}
+        title={
+          editingEvent
+            ? t("timelineEditTitle", {
+                type: eventTypeLabels[editingEvent.type],
+              })
+            : t("timelineEdit")
+        }
       >
         <TimelineEventForm
           event={editingEvent}

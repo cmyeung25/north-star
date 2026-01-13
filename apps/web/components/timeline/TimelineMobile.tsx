@@ -14,6 +14,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useMemo, useState } from "react";
+import { t } from "../../lib/i18n";
 import TimelineEventForm from "./TimelineEventForm";
 import type { TimelineEvent } from "./types";
 import {
@@ -62,7 +63,7 @@ export default function TimelineMobile() {
     const copy = {
       ...event,
       id: createEventFromTemplate(event.type).id,
-      name: `${event.name} (copy)`,
+      name: t("timelineCopyName", { name: event.name }),
     };
     setEvents((current) => [copy, ...current]);
   };
@@ -81,9 +82,9 @@ export default function TimelineMobile() {
     <Stack gap="lg" pb={120}>
       <Group justify="space-between">
         <div>
-          <Title order={2}>Timeline</Title>
+          <Title order={2}>{t("timelineTitle")}</Title>
           <Text c="dimmed" size="sm">
-            Track the life events that shape your plan.
+            {t("timelineSubtitleMobile")}
           </Text>
         </div>
       </Group>
@@ -113,27 +114,29 @@ export default function TimelineMobile() {
               <Group gap="xs">
                 {event.monthlyAmount > 0 && (
                   <Badge variant="light" color="indigo">
-                    Monthly {formatCurrency(event.monthlyAmount, event.currency)}
+                    {t("timelineMonthlyLabel")}{" "}
+                    {formatCurrency(event.monthlyAmount, event.currency)}
                   </Badge>
                 )}
                 {event.oneTimeAmount > 0 && (
                   <Badge variant="light" color="grape">
-                    One-time {formatCurrency(event.oneTimeAmount, event.currency)}
+                    {t("timelineOneTimeLabel")}{" "}
+                    {formatCurrency(event.oneTimeAmount, event.currency)}
                   </Badge>
                 )}
                 {event.monthlyAmount === 0 && event.oneTimeAmount === 0 && (
-                  <Badge variant="outline">No amounts yet</Badge>
+                  <Badge variant="outline">{t("timelineNoAmounts")}</Badge>
                 )}
               </Group>
 
               <Group justify="space-between">
                 <Button size="xs" onClick={() => setEditingEvent(event)}>
-                  Edit
+                  {t("timelineEdit")}
                 </Button>
                 <Group gap="xs">
                   <ActionIcon
                     variant="subtle"
-                    aria-label={`Duplicate ${event.name}`}
+                    aria-label={t("timelineDuplicateAria", { name: event.name })}
                     onClick={() => handleDuplicate(event)}
                   >
                     ⧉
@@ -141,7 +144,7 @@ export default function TimelineMobile() {
                   <ActionIcon
                     variant="subtle"
                     color="red"
-                    aria-label={`Delete ${event.name}`}
+                    aria-label={t("timelineDeleteAria", { name: event.name })}
                     onClick={() => handleDelete(event.id)}
                   >
                     🗑️
@@ -154,7 +157,7 @@ export default function TimelineMobile() {
       </Stack>
 
       <Button style={floatingButtonStyle} onClick={() => setTemplateOpen(true)}>
-        + Add Event
+        {t("timelineAddEvent")}
       </Button>
 
       <Drawer
@@ -162,7 +165,7 @@ export default function TimelineMobile() {
         onClose={() => setTemplateOpen(false)}
         position="bottom"
         size="md"
-        title="Choose a template"
+        title={t("timelineChooseTemplate")}
         radius="md"
       >
         <Stack gap="sm">
@@ -181,14 +184,20 @@ export default function TimelineMobile() {
       <Modal
         opened={Boolean(editingEvent)}
         onClose={() => setEditingEvent(null)}
-        title={editingEvent ? `Edit ${eventTypeLabels[editingEvent.type]}` : "Edit"}
+        title={
+          editingEvent
+            ? t("timelineEditTitle", {
+                type: eventTypeLabels[editingEvent.type],
+              })
+            : t("timelineEdit")
+        }
         fullScreen
       >
         <TimelineEventForm
           event={editingEvent}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
-          submitLabel="Save changes"
+          submitLabel={t("timelineSaveChanges")}
         />
       </Modal>
     </Stack>

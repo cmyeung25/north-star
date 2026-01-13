@@ -1,5 +1,6 @@
 import { Button, Group, Modal, Stack, TextInput } from "@mantine/core";
 import { useEffect, useState } from "react";
+import { t } from "../../../lib/i18n";
 
 type RenameScenarioModalProps = {
   opened: boolean;
@@ -31,18 +32,23 @@ export default function RenameScenarioModal({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Rename Scenario" centered>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={t("scenariosRenameTitle")}
+      centered
+    >
       <Stack gap="md">
         <TextInput
-          label="Scenario name"
+          label={t("scenariosNameLabel")}
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
         />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t("scenariosCancel")}
           </Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={handleSave}>{t("scenariosSave")}</Button>
         </Group>
       </Stack>
     </Modal>

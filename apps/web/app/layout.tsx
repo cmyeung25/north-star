@@ -4,16 +4,17 @@ import type { Metadata } from "next";
 import { ColorSchemeScript } from "@mantine/core";
 import Providers from "./providers";
 import type { ReactNode } from "react";
+import { t } from "../lib/i18n";
 
 export const metadata: Metadata = {
-  title: "North Star",
-  description: "Mobile-first PWA life-stage financial planner.",
+  title: t("appName"),
+  description: t("appDescription"),
   manifest: "/manifest.json",
-  applicationName: "North Star",
+  applicationName: t("appName"),
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "North Star",
+    title: t("appName"),
   },
 };
 
@@ -23,7 +24,7 @@ export default function RootLayout({
   children: ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="zh-HK">
       <head>
         <ColorSchemeScript defaultColorScheme="light" />
       </head>

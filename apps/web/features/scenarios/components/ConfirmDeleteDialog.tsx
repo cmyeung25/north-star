@@ -1,4 +1,5 @@
 import { Button, Group, Modal, Stack, Text } from "@mantine/core";
+import { t } from "../../../lib/i18n";
 
 type ConfirmDeleteDialogProps = {
   opened: boolean;
@@ -14,17 +15,22 @@ export default function ConfirmDeleteDialog({
   onConfirm,
 }: ConfirmDeleteDialogProps) {
   return (
-    <Modal opened={opened} onClose={onCancel} title="Delete Scenario" centered>
+    <Modal
+      opened={opened}
+      onClose={onCancel}
+      title={t("scenariosDeleteTitle")}
+      centered
+    >
       <Stack gap="md">
         <Text>
-          Are you sure you want to delete <strong>{scenarioName}</strong>?
+          {t("scenariosConfirmDelete", { name: scenarioName })}
         </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={onCancel}>
-            Cancel
+            {t("scenariosCancel")}
           </Button>
           <Button color="red" onClick={onConfirm}>
-            Delete
+            {t("scenariosDelete")}
           </Button>
         </Group>
       </Stack>
