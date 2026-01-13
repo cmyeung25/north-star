@@ -2,12 +2,17 @@
 
 import {
   AppShell,
+  Button,
   Container,
   Group,
   MantineProvider,
+  Stack,
   Text,
   createTheme,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const theme = createTheme({
@@ -21,19 +26,68 @@ const theme = createTheme({
   defaultRadius: "md",
 });
 
+const navItems = [
+  { label: "Home", href: "/" },
+  { label: "Timeline", href: "/timeline" },
+];
+
 export default function Providers({ children }: { children: ReactNode }) {
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const pathname = usePathname();
+
   return (
     <MantineProvider theme={theme}>
-      <AppShell header={{ height: 64 }} padding="md">
+      <AppShell
+        header={{ height: 64 }}
+        navbar={isDesktop ? { width: 220, breakpoint: 0 } : undefined}
+        footer={!isDesktop ? { height: 72 } : undefined}
+        padding="md"
+      >
         <AppShell.Header>
-          <Group h="100%" px="md">
+          <Group h="100%" px="md" justify="space-between">
             <Text fw={600} size="lg">
               North Star
             </Text>
           </Group>
         </AppShell.Header>
+
+        {isDesktop && (
+          <AppShell.Navbar p="md">
+            <Stack gap="xs">
+              {navItems.map((item) => (
+                <Button
+                  key={item.href}
+                  component={Link}
+                  href={item.href}
+                  variant={pathname === item.href ? "light" : "subtle"}
+                  justify="flex-start"
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Stack>
+          </AppShell.Navbar>
+        )}
+
+        {!isDesktop && (
+          <AppShell.Footer p="xs">
+            <Group grow>
+              {navItems.map((item) => (
+                <Button
+                  key={item.href}
+                  component={Link}
+                  href={item.href}
+                  variant={pathname === item.href ? "light" : "subtle"}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Group>
+          </AppShell.Footer>
+        )}
+
         <AppShell.Main>
-          <Container size="sm" px="md" py="xl">
+          <Container size="lg" px="md" py="xl">
             {children}
           </Container>
         </AppShell.Main>

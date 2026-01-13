@@ -48,4 +48,11 @@ pnpm test
 - **packages/engine** hosts deterministic, browser-first computation.
 - **packages/types** centralizes shared schema definitions.
 
+## Timeline page behavior
+
+- **Mobile (<768px):** timeline events render as stacked cards with a bottom action to
+  add a template and full-screen editing in a modal.
+- **Desktop (>=768px):** events render in a compact table with a right-side drawer for
+  editing and a modal template picker.
+
 For product phases and scope boundaries, see [SPEC.md](./SPEC.md).
