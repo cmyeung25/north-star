@@ -24,6 +24,12 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const upsertScenarioEvents = useScenarioStore(
     (state) => state.upsertScenarioEvents
   );
+  const upsertHomePosition = useScenarioStore(
+    (state) => state.upsertHomePosition
+  );
+  const clearHomePosition = useScenarioStore(
+    (state) => state.clearHomePosition
+  );
 
   useEffect(() => {
     if (
@@ -41,6 +47,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const events = scenario?.events ?? [];
+  const homePosition = scenario?.positions?.home;
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
 
@@ -65,9 +72,13 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
     return (
       <TimelineDesktop
         events={events}
+        homePosition={homePosition ?? null}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
+        scenarioId={scenario.id}
         onEventsChange={handleEventsChange}
+        onHomePositionChange={(home) => upsertHomePosition(scenario.id, home)}
+        onHomePositionClear={() => clearHomePosition(scenario.id)}
       />
     );
   }
@@ -75,9 +86,13 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   return (
     <TimelineMobile
       events={events}
+      homePosition={homePosition ?? null}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
+      scenarioId={scenario.id}
       onEventsChange={handleEventsChange}
+      onHomePositionChange={(home) => upsertHomePosition(scenario.id, home)}
+      onHomePositionClear={() => clearHomePosition(scenario.id)}
     />
   );
 }

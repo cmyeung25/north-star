@@ -1,5 +1,4 @@
 import { nanoid } from "nanoid";
-import type { PositionsInput } from "@north-star/engine";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
 import type { TimelineEvent } from "../features/timeline/schema";
@@ -24,6 +23,25 @@ export type ScenarioAssumptions = {
   emergencyFundMonths?: number;
 };
 
+export type HomeMortgage = {
+  principal: number;
+  annualRatePct: number;
+  termMonths: number;
+};
+
+export type HomePosition = {
+  purchasePrice: number;
+  downPayment: number;
+  purchaseMonth: string;
+  annualAppreciationPct: number;
+  feesOneTime?: number;
+  mortgage?: HomeMortgage;
+};
+
+export type ScenarioPositions = {
+  home?: HomePosition;
+};
+
 export type Scenario = {
   id: string;
   name: string;
@@ -32,7 +50,7 @@ export type Scenario = {
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
   events?: TimelineEvent[];
-  positions?: PositionsInput;
+  positions?: ScenarioPositions;
 };
 
 type ScenarioStoreState = {
@@ -45,6 +63,8 @@ type ScenarioStoreState = {
   setActiveScenario: (id: string) => void;
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
   upsertScenarioEvents: (id: string, events: TimelineEvent[]) => void;
+  upsertHomePosition: (id: string, home: HomePosition) => void;
+  clearHomePosition: (id: string) => void;
   updateScenarioUpdatedAt: (id: string) => void;
   updateScenarioAssumptions: (
     id: string,
@@ -297,6 +317,41 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             }
           : scenario
       ),
+    }));
+  },
+  upsertHomePosition: (id, home) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              positions: {
+                ...(scenario.positions ?? {}),
+                home,
+              },
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  clearHomePosition: (id) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const { home: _home, ...rest } = scenario.positions ?? {};
+        const nextPositions =
+          Object.keys(rest).length > 0 ? rest : undefined;
+
+        return {
+          ...scenario,
+          positions: nextPositions,
+          updatedAt: now(),
+        };
+      }),
     }));
   },
   updateScenarioUpdatedAt: (id) => {

@@ -5,6 +5,7 @@ import {
   t,
 } from "../../lib/i18n";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
+import type { HomePosition } from "../../src/store/scenarioStore";
 import type { EventType, TimelineEvent } from "./types";
 
 export const eventTypeLabels: Record<EventType, string> = {
@@ -106,4 +107,37 @@ export const createEventFromTemplate = (
       fallbackMonth: startMonth,
     }
   );
+};
+
+export const createHomePositionFromTemplate = (
+  baseMonth?: string | null
+): HomePosition => {
+  const purchaseMonth = getDefaultStartMonth(baseMonth);
+  const purchasePrice = 9_000_000;
+  const downPayment = 1_800_000;
+
+  return {
+    purchasePrice,
+    downPayment,
+    purchaseMonth,
+    annualAppreciationPct: 2,
+    feesOneTime: 300_000,
+    mortgage: {
+      principal: purchasePrice - downPayment,
+      annualRatePct: 3.5,
+      termMonths: 360,
+    },
+  };
+};
+
+export const formatHomeSummary = (home: HomePosition, currency: string) => {
+  const formattedPrice = formatCurrency(home.purchasePrice, currency);
+
+  if (!home.mortgage) {
+    return `Home: ${formattedPrice}`;
+  }
+
+  const termYears = Math.round(home.mortgage.termMonths / 12);
+  const rate = home.mortgage.annualRatePct.toFixed(1);
+  return `Home: ${formattedPrice} · Mortgage ${termYears}y @ ${rate}%`;
 };
