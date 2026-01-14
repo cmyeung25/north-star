@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import type { PositionsInput } from "@north-star/engine";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
 import type { TimelineEvent } from "../features/timeline/schema";
@@ -31,6 +32,7 @@ export type Scenario = {
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
   events?: TimelineEvent[];
+  positions?: PositionsInput;
 };
 
 type ScenarioStoreState = {
