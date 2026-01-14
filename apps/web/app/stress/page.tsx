@@ -217,7 +217,10 @@ export default function StressPage() {
     stressEvents,
   ]);
 
-  if (!scenario || !baselineView || !afterView || !baselineProjection || !afterProjection) {
+  const isReady =
+    !!scenario && !!baselineView && !!afterView && !!baselineProjection && !!afterProjection;
+
+  if (!isReady) {
     return null;
   }
 
