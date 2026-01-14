@@ -57,12 +57,14 @@ export const mapScenarioToEngineInput = (
     horizonMonths,
     initialCash,
     events,
+    positions: scenario.positions,
   };
 };
 
 export const projectionToOverviewViewModel = (projection: ProjectionResult): {
   kpis: OverviewKpis;
   cashSeries: TimeSeriesPoint[];
+  netWorthSeries: TimeSeriesPoint[];
 } => ({
   kpis: {
     lowestMonthlyBalance: projection.lowestMonthlyBalance.value,
@@ -73,5 +75,9 @@ export const projectionToOverviewViewModel = (projection: ProjectionResult): {
   cashSeries: projection.months.map((month, index) => ({
     month,
     value: projection.cashBalance[index] ?? 0,
+  })),
+  netWorthSeries: projection.months.map((month, index) => ({
+    month,
+    value: projection.netWorth[index] ?? 0,
   })),
 });

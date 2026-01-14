@@ -23,7 +23,7 @@ import KpiCarousel from "../../features/overview/components/KpiCarousel";
 import NetWorthChart from "../../features/overview/components/NetWorthChart";
 import OverviewActionsCard from "../../features/overview/components/OverviewActionsCard";
 import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
-import type { RiskLevel, TimeSeriesPoint } from "../../features/overview/types";
+import type { RiskLevel } from "../../features/overview/types";
 import { formatCurrency } from "../../lib/i18n";
 import {
   mapScenarioToEngineInput,
@@ -38,60 +38,6 @@ import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 
 type OverviewClientProps = {
   scenarioId?: string;
-};
-
-const buildMonths = (startMonth: string, months: number) => {
-  const [startYear, startMonthValue] = startMonth.split("-").map(Number);
-  const results: string[] = [];
-  let year = startYear;
-  let month = startMonthValue;
-
-  for (let index = 0; index < months; index += 1) {
-    results.push(`${year}-${String(month).padStart(2, "0")}`);
-    month += 1;
-    if (month > 12) {
-      month = 1;
-      year += 1;
-    }
-  }
-
-  return results;
-};
-
-const buildSeries = (
-  startMonth: string,
-  months: number,
-  baseValue: number,
-  trend: number,
-  volatility: number,
-  forcedLowIndex?: number,
-  forcedLowValue?: number
-) => {
-  const monthsList = buildMonths(startMonth, months);
-  let currentValue = baseValue;
-
-  const series = monthsList.map((month, index) => {
-    const seasonal = Math.sin(index / 2) * volatility;
-    currentValue = currentValue + trend + seasonal;
-    return {
-      month,
-      value: Math.round(currentValue),
-    } satisfies TimeSeriesPoint;
-  });
-
-  if (
-    typeof forcedLowIndex === "number" &&
-    forcedLowIndex >= 0 &&
-    forcedLowIndex < series.length &&
-    typeof forcedLowValue === "number"
-  ) {
-    series[forcedLowIndex] = {
-      ...series[forcedLowIndex],
-      value: forcedLowValue,
-    };
-  }
-
-  return series;
 };
 
 const buildInsights = (kpis: {
@@ -130,21 +76,6 @@ const riskBadgeColor: Record<RiskLevel, string> = {
   High: "red",
 };
 
-const scenarioSeriesById: Record<
-  string,
-  { netWorthSeries: TimeSeriesPoint[] }
-> = {
-  "scenario-plan-a": {
-    netWorthSeries: buildSeries("2024-01", 36, 450000, 12000, 7000),
-  },
-  "scenario-plan-b": {
-    netWorthSeries: buildSeries("2024-01", 36, 520000, 15000, 9000),
-  },
-  "scenario-plan-c": {
-    netWorthSeries: buildSeries("2024-01", 36, 380000, 10000, 6000),
-  },
-};
-
 export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
@@ -176,20 +107,20 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     }
     const input = mapScenarioToEngineInput(selectedScenario);
     return computeProjection(input);
-  }, [selectedScenario]);
+  }, [
+    selectedScenario,
+    selectedScenario?.events,
+    selectedScenario?.assumptions,
+    selectedScenario?.positions,
+  ]);
 
   const overviewViewModel = useMemo(
     () => (projection ? projectionToOverviewViewModel(projection) : null),
     [projection]
   );
 
-  const series =
-    (selectedScenario && scenarioSeriesById[selectedScenario.id]) ??
-    scenarioSeriesById[scenarios[0]?.id ?? ""] ?? {
-      netWorthSeries: buildSeries("2024-01", 24, 420000, 8000, 4000),
-    };
-
   const cashSeries = overviewViewModel?.cashSeries ?? [];
+  const netWorthSeries = overviewViewModel?.netWorthSeries ?? [];
   const computedKpis = overviewViewModel?.kpis;
 
   const insights = useMemo(() => {
@@ -286,10 +217,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         <SimpleGrid cols={2} spacing="md">
           <CashBalanceChart data={cashSeries} title="Cash Balance" />
           <Stack gap="xs">
-            <NetWorthChart data={series.netWorthSeries} title="Net Worth" />
-            <Text size="xs" c="dimmed">
-              Net worth projection will be improved in later versions.
-            </Text>
+            <NetWorthChart data={netWorthSeries} title="Net Worth" />
           </Stack>
         </SimpleGrid>
       ) : (
@@ -299,10 +227,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Accordion.Item value="net-worth">
               <Accordion.Control>Net Worth</Accordion.Control>
               <Accordion.Panel>
-                <NetWorthChart data={series.netWorthSeries} />
-                <Text size="xs" c="dimmed" mt="xs">
-                  Net worth projection will be improved in later versions.
-                </Text>
+                <NetWorthChart data={netWorthSeries} />
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
