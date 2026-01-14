@@ -5,7 +5,9 @@ import {
   Button,
   Card,
   Group,
+  List,
   NumberInput,
+  Select,
   SimpleGrid,
   Stack,
   Text,
@@ -13,51 +15,37 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import { computeProjection } from "@north-star/engine";
 import { nanoid } from "nanoid";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
+import StressCashChart from "../../features/stress/components/StressCashChart";
 import { formatCurrency } from "../../lib/i18n";
+import {
+  mapScenarioToEngineInput,
+  projectionToOverviewViewModel,
+} from "../../src/engine/adapter";
 import {
   getScenarioById,
   useScenarioStore,
-  type ScenarioKpis,
 } from "../../src/store/scenarioStore";
+import {
+  buildStressEvents,
+  type AppliedStressState,
+} from "../../src/features/stress/stressEvents";
+import { normalizeMonth } from "../../src/features/timeline/schema";
 import {
   buildScenarioUrl,
   getScenarioIdFromSearchParams,
   resolveScenarioId,
 } from "../../src/utils/scenarioContext";
 
-const formatRisk = (risk: ScenarioKpis["riskLevel"]) => risk;
-
-const buildStressedKpis = (
-  baseline: ScenarioKpis,
-  expenseIncreasePct: number,
-  incomeDropPct: number
-): ScenarioKpis => {
-  const stressFactor = expenseIncreasePct + incomeDropPct;
-  const balanceDelta = Math.round(
-    Math.abs(baseline.lowestMonthlyBalance) * (expenseIncreasePct / 100)
-  );
-  const netWorthDelta = Math.round(
-    baseline.netWorthYear5 * (stressFactor / 100)
-  );
-  const runwayReduction = Math.ceil(stressFactor / 5);
-
-  let riskLevel: ScenarioKpis["riskLevel"] = baseline.riskLevel;
-  if (stressFactor >= 18) {
-    riskLevel = "High";
-  } else if (stressFactor >= 8) {
-    riskLevel = baseline.riskLevel === "Low" ? "Medium" : baseline.riskLevel;
-  }
-
-  return {
-    lowestMonthlyBalance: baseline.lowestMonthlyBalance - balanceDelta,
-    runwayMonths: Math.max(1, baseline.runwayMonths - runwayReduction),
-    netWorthYear5: Math.max(0, baseline.netWorthYear5 - netWorthDelta),
-    riskLevel,
-  };
+const emptyStressState: AppliedStressState = {
+  jobLossMonths: null,
+  rateHikePct: null,
+  medicalAmount: null,
+  applyMonth: null,
 };
 
 export default function StressPage() {
@@ -69,14 +57,19 @@ export default function StressPage() {
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const createScenario = useScenarioStore((state) => state.createScenario);
-  const updateScenarioKpis = useScenarioStore((state) => state.updateScenarioKpis);
   const upsertScenarioEvents = useScenarioStore(
     (state) => state.upsertScenarioEvents
   );
+  const updateScenarioAssumptions = useScenarioStore(
+    (state) => state.updateScenarioAssumptions
+  );
 
-  const [expenseIncreasePct, setExpenseIncreasePct] = useState(8);
-  const [incomeDropPct, setIncomeDropPct] = useState(4);
-  const [stressApplied, setStressApplied] = useState(false);
+  const [draftStress, setDraftStress] = useState<AppliedStressState>(
+    emptyStressState
+  );
+  const [appliedStress, setAppliedStress] = useState<AppliedStressState>(
+    emptyStressState
+  );
   const [saveName, setSaveName] = useState("");
 
   useEffect(() => {
@@ -96,43 +89,146 @@ export default function StressPage() {
 
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
 
-  useEffect(() => {
-    if (scenario) {
-      setSaveName(`Stressed ${scenario.name}`);
-    }
-  }, [scenario]);
-
-  const stressedKpis = useMemo(() => {
+  const baselineInput = useMemo(() => {
     if (!scenario) {
       return null;
     }
+    return mapScenarioToEngineInput(scenario);
+  }, [scenario]);
 
-    return buildStressedKpis(
-      scenario.kpis,
-      expenseIncreasePct,
-      incomeDropPct
-    );
-  }, [expenseIncreasePct, incomeDropPct, scenario]);
+  useEffect(() => {
+    if (!scenario) {
+      return;
+    }
 
-  if (!scenario || !stressedKpis) {
+    const defaultApplyMonth =
+      normalizeMonth(scenario.assumptions.baseMonth ?? "") ??
+      baselineInput?.baseMonth ??
+      null;
+
+    setSaveName(`${scenario.name} · Stress`);
+    setDraftStress((previous) => ({
+      ...previous,
+      applyMonth: defaultApplyMonth,
+    }));
+    setAppliedStress({
+      ...emptyStressState,
+      applyMonth: defaultApplyMonth,
+    });
+  }, [baselineInput?.baseMonth, scenario]);
+
+  const stressEvents = useMemo(() => {
+    if (!scenario) {
+      return [];
+    }
+    return buildStressEvents(appliedStress, scenario);
+  }, [appliedStress, scenario]);
+
+  const afterInput = useMemo(() => {
+    if (!scenario || !baselineInput) {
+      return null;
+    }
+    const combinedScenario = {
+      ...scenario,
+      events: [...(scenario.events ?? []), ...stressEvents],
+    };
+
+    return mapScenarioToEngineInput(combinedScenario, {
+      baseMonth: baselineInput.baseMonth,
+      horizonMonths: baselineInput.horizonMonths,
+      initialCash: baselineInput.initialCash,
+    });
+  }, [baselineInput, scenario, stressEvents]);
+
+  const baselineProjection = useMemo(() => {
+    if (!baselineInput) {
+      return null;
+    }
+    return computeProjection(baselineInput);
+  }, [baselineInput]);
+
+  const afterProjection = useMemo(() => {
+    if (!afterInput) {
+      return null;
+    }
+    return computeProjection(afterInput);
+  }, [afterInput]);
+
+  const baselineView = useMemo(
+    () => (baselineProjection ? projectionToOverviewViewModel(baselineProjection) : null),
+    [baselineProjection]
+  );
+  const afterView = useMemo(
+    () => (afterProjection ? projectionToOverviewViewModel(afterProjection) : null),
+    [afterProjection]
+  );
+
+  if (!scenario || !baselineView || !afterView || !baselineProjection || !afterProjection) {
     return null;
   }
 
+  const applyMonthError =
+    draftStress.applyMonth && !normalizeMonth(draftStress.applyMonth)
+      ? "Use YYYY-MM"
+      : undefined;
+
+  const hasActiveStresses = stressEvents.length > 0;
+
+  const activeStressBadges = [
+    appliedStress.jobLossMonths
+      ? {
+          key: "jobloss",
+          label: `Job loss (${appliedStress.jobLossMonths}m)`,
+        }
+      : null,
+    appliedStress.rateHikePct
+      ? {
+          key: "ratehike",
+          label: `Rate hike (+${appliedStress.rateHikePct}%)`,
+        }
+      : null,
+    typeof appliedStress.medicalAmount === "number" &&
+    appliedStress.medicalAmount > 0
+      ? {
+          key: "medical",
+          label: `Medical expense (${formatCurrency(
+            appliedStress.medicalAmount,
+            scenario.baseCurrency
+          )})`,
+        }
+      : null,
+  ].filter(Boolean) as { key: string; label: string }[];
+
   const handleApplyStress = () => {
-    setStressApplied(true);
+    setAppliedStress({
+      ...draftStress,
+      applyMonth: normalizeMonth(draftStress.applyMonth ?? "") ?? draftStress.applyMonth,
+    });
+  };
+
+  const handleRevertStress = () => {
+    setAppliedStress({
+      ...emptyStressState,
+      applyMonth: draftStress.applyMonth ?? baselineInput.baseMonth,
+    });
   };
 
   const handleSaveScenario = () => {
-    const newScenario = createScenario(saveName || `Stressed ${scenario.name}`);
-    if (scenario.events && scenario.events.length > 0) {
-      const clonedEvents = scenario.events.map((event) => ({
-        ...event,
-        id: `event-${nanoid(10)}`,
-      }));
-      upsertScenarioEvents(newScenario.id, clonedEvents);
+    const newScenario = createScenario(saveName || `${scenario.name} · Stress`, {
+      baseCurrency: scenario.baseCurrency,
+    });
+
+    updateScenarioAssumptions(newScenario.id, { ...scenario.assumptions });
+
+    const clonedEvents = (scenario.events ?? []).map((event) => ({
+      ...event,
+      id: `event-${nanoid(10)}`,
+    }));
+    const eventsToSave = [...clonedEvents, ...stressEvents];
+    if (eventsToSave.length > 0) {
+      upsertScenarioEvents(newScenario.id, eventsToSave);
     }
 
-    updateScenarioKpis(newScenario.id, stressedKpis);
     setActiveScenario(newScenario.id);
     router.push("/scenarios");
   };
@@ -141,6 +237,54 @@ export default function StressPage() {
     setActiveScenario(scenarioId);
     router.push(buildScenarioUrl("/stress", scenarioId));
   };
+
+  const baselineKpis = baselineView.kpis;
+  const afterKpis = afterView.kpis;
+
+  const insights = useMemo(() => {
+    const notes: string[] = [];
+    const jobLossEvent = stressEvents.find((event) =>
+      event.id.startsWith("stress_jobloss")
+    );
+
+    if (afterProjection.lowestMonthlyBalance.value < 0) {
+      notes.push("Cash balance drops below zero after stress is applied.");
+    }
+
+    if (afterProjection.runwayMonths < 3) {
+      notes.push("Emergency runway falls below 3 months.");
+    }
+
+    if (
+      hasActiveStresses &&
+      afterProjection.lowestMonthlyBalance.index <
+        baselineProjection.lowestMonthlyBalance.index
+    ) {
+      notes.push("The lowest cash month arrives sooner than the baseline plan.");
+    }
+
+    if (appliedStress.jobLossMonths && jobLossEvent?.monthlyAmount === 0) {
+      notes.push("No income to offset in the selected apply month.");
+    }
+
+    if (notes.length === 0) {
+      notes.push("Stress impact is muted relative to the baseline projection.");
+    }
+
+    if (notes.length < 2) {
+      notes.push("Try increasing shocks to surface additional downside risks.");
+    }
+
+    return notes.slice(0, 3);
+  }, [
+    afterProjection.lowestMonthlyBalance.index,
+    afterProjection.lowestMonthlyBalance.value,
+    afterProjection.runwayMonths,
+    appliedStress.jobLossMonths,
+    baselineProjection.lowestMonthlyBalance.index,
+    hasActiveStresses,
+    stressEvents,
+  ]);
 
   const kpiCard = (label: string, value: string, helper: string) => (
     <Card withBorder radius="md" padding="md">
@@ -197,26 +341,95 @@ export default function StressPage() {
 
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
-          <Text fw={600}>Stress Controls</Text>
+          <Group justify="space-between" align="flex-start">
+            <div>
+              <Text fw={600}>Stress Controls</Text>
+              <Text size="sm" c="dimmed">
+                Select stress tests and choose when they take effect.
+              </Text>
+            </div>
+            <Group gap="xs">
+              {activeStressBadges.length > 0 ? (
+                activeStressBadges.map((badge) => (
+                  <Badge key={badge.key} variant="light" color="red">
+                    {badge.label}
+                  </Badge>
+                ))
+              ) : (
+                <Badge variant="light">No active stresses</Badge>
+              )}
+            </Group>
+          </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <NumberInput
-              label="Expense increase (%)"
-              value={expenseIncreasePct}
-              onChange={(value) => setExpenseIncreasePct(Number(value ?? 0))}
-              min={0}
-              max={50}
+            <Select
+              label="Job loss duration"
+              placeholder="Select months"
+              value={draftStress.jobLossMonths?.toString() ?? null}
+              data={[
+                { value: "3", label: "3 months" },
+                { value: "6", label: "6 months" },
+                { value: "12", label: "12 months" },
+              ]}
+              clearable
+              onChange={(value) =>
+                setDraftStress((previous) => ({
+                  ...previous,
+                  jobLossMonths: value ? (Number(value) as 3 | 6 | 12) : null,
+                }))
+              }
+            />
+            <Select
+              label="Interest rate hike"
+              placeholder="Select hike"
+              value={draftStress.rateHikePct?.toString() ?? null}
+              data={[
+                { value: "0.5", label: "+0.5%" },
+                { value: "1", label: "+1%" },
+                { value: "2", label: "+2%" },
+              ]}
+              clearable
+              onChange={(value) =>
+                setDraftStress((previous) => ({
+                  ...previous,
+                  rateHikePct: value
+                    ? (Number(value) as 0.5 | 1 | 2)
+                    : null,
+                }))
+              }
             />
             <NumberInput
-              label="Income drop (%)"
-              value={incomeDropPct}
-              onChange={(value) => setIncomeDropPct(Number(value ?? 0))}
+              label="Medical expense"
+              value={draftStress.medicalAmount ?? ""}
+              onChange={(value) =>
+                setDraftStress((previous) => ({
+                  ...previous,
+                  medicalAmount:
+                    typeof value === "number" ? Math.max(0, value) : null,
+                }))
+              }
               min={0}
-              max={50}
+              placeholder="One-time amount"
+              thousandSeparator
+            />
+            <TextInput
+              label="Apply month"
+              placeholder="YYYY-MM"
+              value={draftStress.applyMonth ?? ""}
+              onChange={(event) =>
+                setDraftStress((previous) => ({
+                  ...previous,
+                  applyMonth: event.currentTarget.value,
+                }))
+              }
+              error={applyMonthError}
             />
           </SimpleGrid>
           <Group justify="flex-end">
+            <Button variant="default" onClick={handleRevertStress}>
+              Revert
+            </Button>
             <Button variant="light" onClick={handleApplyStress}>
-              {stressApplied ? "Recalculate" : "Apply Stress"}
+              {hasActiveStresses ? "Recalculate" : "Apply Stress"}
             </Button>
           </Group>
         </Stack>
@@ -227,52 +440,71 @@ export default function StressPage() {
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {kpiCard(
             "Lowest Balance",
-            formatCurrency(scenario.kpis.lowestMonthlyBalance),
+            formatCurrency(baselineKpis.lowestMonthlyBalance, scenario.baseCurrency),
             "Lowest point across forecast"
           )}
           {kpiCard(
             "Runway",
-            `${scenario.kpis.runwayMonths} months`,
+            `${baselineKpis.runwayMonths} months`,
             "Time until cash runs out"
           )}
           {kpiCard(
             "5Y Net Worth",
-            formatCurrency(scenario.kpis.netWorthYear5),
+            formatCurrency(baselineKpis.netWorthYear5, scenario.baseCurrency),
             "Projected net worth"
           )}
           {kpiCard(
             "Risk Level",
-            formatRisk(scenario.kpis.riskLevel),
+            baselineKpis.riskLevel,
             "Current risk posture"
           )}
         </SimpleGrid>
       </Stack>
 
       <Stack gap="md">
-        <Text fw={600}>Stressed KPIs</Text>
+        <Group justify="space-between">
+          <Text fw={600}>After Stress KPIs</Text>
+          {!hasActiveStresses && (
+            <Text size="sm" c="dimmed">
+              No stresses applied yet.
+            </Text>
+          )}
+        </Group>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {kpiCard(
             "Lowest Balance",
-            formatCurrency(stressedKpis.lowestMonthlyBalance),
+            formatCurrency(afterKpis.lowestMonthlyBalance, scenario.baseCurrency),
             "After applied stress"
           )}
           {kpiCard(
             "Runway",
-            `${stressedKpis.runwayMonths} months`,
+            `${afterKpis.runwayMonths} months`,
             "After applied stress"
           )}
           {kpiCard(
             "5Y Net Worth",
-            formatCurrency(stressedKpis.netWorthYear5),
+            formatCurrency(afterKpis.netWorthYear5, scenario.baseCurrency),
             "After applied stress"
           )}
-          {kpiCard(
-            "Risk Level",
-            formatRisk(stressedKpis.riskLevel),
-            "Stress-adjusted risk"
-          )}
+          {kpiCard("Risk Level", afterKpis.riskLevel, "Stress-adjusted risk")}
         </SimpleGrid>
       </Stack>
+
+      <StressCashChart
+        baseline={baselineView.cashSeries}
+        stressed={afterView.cashSeries}
+      />
+
+      <Card withBorder radius="md" padding="lg">
+        <Stack gap="sm">
+          <Text fw={600}>Insights</Text>
+          <List spacing="xs" size="sm">
+            {insights.map((insight) => (
+              <List.Item key={insight}>{insight}</List.Item>
+            ))}
+          </List>
+        </Stack>
+      </Card>
 
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
@@ -284,10 +516,12 @@ export default function StressPage() {
           />
           <Group justify="space-between">
             <Text size="sm" c="dimmed">
-              This will create a new scenario with stressed KPIs and any existing
-              timeline events.
+              This will create a new scenario with the stress events applied to
+              the timeline.
             </Text>
-            <Button onClick={handleSaveScenario}>Save as Scenario</Button>
+            <Button onClick={handleSaveScenario} disabled={!hasActiveStresses}>
+              Save as Scenario
+            </Button>
           </Group>
         </Stack>
       </Card>
