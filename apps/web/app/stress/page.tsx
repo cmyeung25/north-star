@@ -257,9 +257,14 @@ export default function StressPage() {
   };
 
   const handleRevertStress = () => {
+    const fallbackApplyMonth =
+      baselineInput?.baseMonth ??
+      scenario?.assumptions.baseMonth ??
+      new Date().toISOString().slice(0, 7);
+
     setAppliedStress({
       ...emptyStressState,
-      applyMonth: draftStress.applyMonth ?? baselineInput.baseMonth,
+      applyMonth: draftStress.applyMonth ?? fallbackApplyMonth,
     });
   };
 
