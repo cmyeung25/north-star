@@ -98,8 +98,20 @@ export const projectionToOverviewViewModel = (projection: ProjectionResult): {
     month,
     value: projection.cashBalance[index] ?? 0,
   })),
-  netWorthSeries: projection.months.map((month, index) => ({
+  netWorthSeries: mapNetWorthSeries(projection),
+});
+
+export const mapNetWorthSeries = (
+  projection: ProjectionResult
+): TimeSeriesPoint[] => {
+  if (!projection.months.length || !projection.netWorth.length) {
+    return [];
+  }
+
+  const seriesLength = Math.min(projection.months.length, projection.netWorth.length);
+
+  return projection.months.slice(0, seriesLength).map((month, index) => ({
     month,
     value: projection.netWorth[index] ?? 0,
-  })),
-});
+  }));
+};

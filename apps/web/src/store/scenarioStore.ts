@@ -342,7 +342,8 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           return scenario;
         }
 
-        const { home: _home, ...rest } = scenario.positions ?? {};
+        const { home, ...rest } = scenario.positions ?? {};
+        void home;
         const nextPositions =
           Object.keys(rest).length > 0 ? rest : undefined;
 
