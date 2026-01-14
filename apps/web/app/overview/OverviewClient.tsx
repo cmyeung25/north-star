@@ -107,12 +107,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     }
     const input = mapScenarioToEngineInput(selectedScenario);
     return computeProjection(input);
-  }, [
-    selectedScenario,
-    selectedScenario?.events,
-    selectedScenario?.assumptions,
-    selectedScenario?.positions,
-  ]);
+  }, [selectedScenario]);
 
   const overviewViewModel = useMemo(
     () => (projection ? projectionToOverviewViewModel(projection) : null),
