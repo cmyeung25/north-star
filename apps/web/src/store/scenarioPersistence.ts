@@ -1,7 +1,8 @@
 import { get, set } from "idb-keyval";
 import { type Scenario, useScenarioStore } from "./scenarioStore";
+import { SCHEMA_VERSION } from "./scenarioSchema";
+import { normalizeActiveScenarioId } from "./scenarioState";
 
-const SCHEMA_VERSION = 1;
 const STORAGE_KEY = "north-star-scenarios";
 const SAVE_DEBOUNCE_MS = 500;
 
@@ -29,17 +30,6 @@ const isPersistedScenarioState = (
     Array.isArray(record.scenarios) &&
     typeof record.activeScenarioId === "string"
   );
-};
-
-const normalizeActiveScenarioId = (
-  scenarios: Scenario[],
-  activeScenarioId: string
-) => {
-  if (scenarios.some((scenario) => scenario.id === activeScenarioId)) {
-    return activeScenarioId;
-  }
-
-  return scenarios[0]?.id ?? "";
 };
 
 export const loadFromIndexedDB = async () => {
