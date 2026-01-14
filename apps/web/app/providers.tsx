@@ -14,7 +14,9 @@ import { useMediaQuery } from "@mantine/hooks";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
+import { isFirebaseConfigured } from "../lib/firebaseClient";
 import { t } from "../lib/i18n";
+import { useAuthState } from "../src/hooks/useAuthState";
 import {
   hydrateScenarioStore,
   initializeScenarioPersistence,
@@ -43,6 +45,13 @@ const navItems = [
 export default function Providers({ children }: { children: ReactNode }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const pathname = usePathname();
+  const authState = useAuthState();
+
+  const isSignedIn = authState.status === "signed-in";
+  const statusLabel = isSignedIn
+    ? "Signed in · Sync enabled"
+    : "Local mode · Data saved on this device";
+  const actionLabel = isSignedIn ? "Sync settings" : "Sign in to sync";
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -81,15 +90,16 @@ export default function Providers({ children }: { children: ReactNode }) {
             </Text>
             <Group gap="xs" align="center">
               <Text size="xs" c="dimmed">
-                Local mode · Data saved on this device
+                {statusLabel}
               </Text>
               <Button
                 component={Link}
                 href="/settings#sync"
                 size="xs"
                 variant="subtle"
+                disabled={!isFirebaseConfigured && !isSignedIn}
               >
-                Sign in to sync
+                {actionLabel}
               </Button>
             </Group>
           </Group>
