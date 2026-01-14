@@ -21,6 +21,8 @@ export type ScenarioAssumptions = {
   inflationRate?: number;
   salaryGrowthRate?: number;
   emergencyFundMonths?: number;
+  mortgageRatePct?: number;
+  mortgageTermYears?: number;
 };
 
 export type HomeMortgage = {

@@ -1,11 +1,12 @@
 import type { ProjectionInput, ProjectionResult } from "@north-star/engine";
-import type { Scenario, TimelineEvent } from "../store/scenarioStore";
+import type { HomePosition, Scenario, TimelineEvent } from "../store/scenarioStore";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
 
 type AdapterOptions = {
   baseMonth?: string;
   horizonMonths?: number;
   initialCash?: number;
+  strict?: boolean;
 };
 
 const formatMonth = (date: Date) => {
@@ -24,6 +25,68 @@ const getEarliestStartMonth = (events: TimelineEvent[]) =>
     return earliest;
   }, null);
 
+const monthPattern = /^\d{4}-\d{2}$/;
+
+const isValidMonth = (value: string) => {
+  if (!monthPattern.test(value)) {
+    return false;
+  }
+  const [, month] = value.split("-");
+  const monthNumber = Number(month);
+  return Number.isInteger(monthNumber) && monthNumber >= 1 && monthNumber <= 12;
+};
+
+const getEarliestBuyHomeEvent = (events: TimelineEvent[]) =>
+  events.reduce<TimelineEvent | null>((earliest, event) => {
+    if (!event.enabled || event.type !== "buy_home") {
+      return earliest;
+    }
+    if (!earliest || event.startMonth < earliest.startMonth) {
+      return event;
+    }
+    return earliest;
+  }, null);
+
+const mapBuyHomeEventToHomePosition = (
+  event: TimelineEvent,
+  assumptions: Scenario["assumptions"],
+  options: { strict: boolean }
+): HomePosition | null => {
+  if (!isValidMonth(event.startMonth)) {
+    if (options.strict) {
+      throw new Error("buy_home event requires a valid startMonth (YYYY-MM).");
+    }
+    return null;
+  }
+
+  if (event.oneTimeAmount == null) {
+    if (options.strict) {
+      throw new Error("buy_home event requires oneTimeAmount for down payment.");
+    }
+    return null;
+  }
+
+  const downPayment = Math.abs(event.oneTimeAmount ?? 0);
+  // Assume a 20% down payment to infer purchase price.
+  // TODO: extend buy_home schema to collect purchase price and mortgage details explicitly.
+  const purchasePrice = downPayment / 0.2;
+  const annualRatePct = assumptions.mortgageRatePct ?? 3;
+  const termMonths = (assumptions.mortgageTermYears ?? 30) * 12;
+
+  return {
+    purchasePrice,
+    downPayment,
+    purchaseMonth: event.startMonth,
+    annualAppreciationPct: event.annualGrowthPct ?? 0,
+    feesOneTime: 0,
+    mortgage: {
+      principal: purchasePrice - downPayment,
+      annualRatePct,
+      termMonths,
+    },
+  };
+};
+
 const mapEventToEngine = (
   event: TimelineEvent
 ): ProjectionInput["events"][number] => ({
@@ -41,9 +104,14 @@ export const mapScenarioToEngineInput = (
   options: AdapterOptions = {}
 ): ProjectionInput => {
   const assumptions = scenario.assumptions;
+  const strict = options.strict ?? true;
   const enabledEvents = (scenario.events ?? []).filter((event) => event.enabled);
   const earliestStartMonth = getEarliestStartMonth(enabledEvents);
-  const homePosition = scenario.positions?.home;
+  const buyHomeEvent = getEarliestBuyHomeEvent(enabledEvents);
+  const mappedHomeFromEvent = buyHomeEvent
+    ? mapBuyHomeEventToHomePosition(buyHomeEvent, assumptions, { strict })
+    : null;
+  const homePosition = mappedHomeFromEvent ?? scenario.positions?.home;
   const homePurchaseMonth = homePosition?.purchaseMonth ?? null;
   const baseMonth =
     options.baseMonth ??
@@ -53,7 +121,11 @@ export const mapScenarioToEngineInput = (
     formatMonth(new Date());
   const horizonMonths = options.horizonMonths ?? assumptions.horizonMonths ?? 240;
   const initialCash = options.initialCash ?? assumptions.initialCash ?? 0;
-  const events = enabledEvents.map(mapEventToEngine);
+  const events = enabledEvents
+    // Strategy A: remove buy_home cashflow events to avoid double counting with positions.home.
+    // Only the earliest buy_home event is mapped into positions; any additional buy_home events are ignored.
+    .filter((event) => event.type !== "buy_home")
+    .map(mapEventToEngine);
   const positions = homePosition
     ? {
         home: {
