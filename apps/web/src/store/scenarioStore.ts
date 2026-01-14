@@ -51,6 +51,8 @@ type ScenarioStoreState = {
   setScenarioHorizonMonths: (id: string, horizonMonths: number) => void;
   setScenarioInitialCash: (id: string, initialCash: number) => void;
   setScenarioBaseMonth: (id: string, baseMonth: string | null) => void;
+  replaceScenario: (scenario: Scenario) => void;
+  replaceAllScenarios: (scenarios: Scenario[]) => void;
 };
 
 const defaultKpis: ScenarioKpis = {
@@ -369,5 +371,30 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   setScenarioBaseMonth: (id, baseMonth) => {
     get().updateScenarioAssumptions(id, { baseMonth });
+  },
+  replaceScenario: (scenario) => {
+    set((state) => {
+      const exists = state.scenarios.some((entry) => entry.id === scenario.id);
+      const scenarios = exists
+        ? state.scenarios.map((entry) =>
+            entry.id === scenario.id ? scenario : entry
+          )
+        : [scenario, ...state.scenarios];
+
+      const nextActiveScenarioId = state.activeScenarioId
+        ? state.activeScenarioId
+        : scenarios[0]?.id ?? "";
+
+      return {
+        scenarios,
+        activeScenarioId: nextActiveScenarioId,
+      };
+    });
+  },
+  replaceAllScenarios: (scenarios) => {
+    set(() => ({
+      scenarios,
+      activeScenarioId: scenarios[0]?.id ?? "",
+    }));
   },
 }));

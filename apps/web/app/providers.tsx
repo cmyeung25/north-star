@@ -17,10 +17,16 @@ import { useEffect, type ReactNode } from "react";
 import { isFirebaseConfigured } from "../lib/firebaseClient";
 import { t } from "../lib/i18n";
 import { useAuthState } from "../src/hooks/useAuthState";
+import { startAutoSync, stopAutoSync } from "../src/sync/autoSync";
 import {
   hydrateScenarioStore,
   initializeScenarioPersistence,
 } from "../src/store/scenarioPersistence";
+import {
+  hydrateSettingsStore,
+  initializeSettingsPersistence,
+} from "../src/store/settingsPersistence";
+import { useSettingsStore } from "../src/store/settingsStore";
 
 const theme = createTheme({
   primaryColor: "indigo",
@@ -46,23 +52,27 @@ export default function Providers({ children }: { children: ReactNode }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const pathname = usePathname();
   const authState = useAuthState();
+  const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
 
   const isSignedIn = authState.status === "signed-in";
   const statusLabel = isSignedIn
-    ? "Signed in · Sync enabled"
+    ? `Signed in · Auto-sync ${autoSyncEnabled ? "on" : "off"}`
     : "Local mode · Data saved on this device";
   const actionLabel = isSignedIn ? "Sync settings" : "Sign in to sync";
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
+    let settingsCleanup: (() => void) | undefined;
     let active = true;
 
     const start = async () => {
       await hydrateScenarioStore();
+      await hydrateSettingsStore();
       if (!active) {
         return;
       }
       cleanup = initializeScenarioPersistence();
+      settingsCleanup = initializeSettingsPersistence();
     };
 
     void start();
@@ -72,8 +82,29 @@ export default function Providers({ children }: { children: ReactNode }) {
       if (cleanup) {
         cleanup();
       }
+      if (settingsCleanup) {
+        settingsCleanup();
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      authState.status !== "signed-in" ||
+      !authState.user ||
+      !autoSyncEnabled ||
+      !isFirebaseConfigured
+    ) {
+      stopAutoSync();
+      return;
+    }
+
+    startAutoSync(authState.user.uid);
+
+    return () => {
+      stopAutoSync();
+    };
+  }, [authState.status, authState.user, autoSyncEnabled]);
 
   return (
     <MantineProvider theme={theme}>
