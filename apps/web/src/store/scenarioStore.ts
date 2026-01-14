@@ -1,6 +1,9 @@
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
+import type { TimelineEvent } from "../features/timeline/schema";
+
+export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
 export type ScenarioRiskLevel = "Low" | "Medium" | "High";
 
@@ -18,29 +21,6 @@ export type ScenarioAssumptions = {
   inflationRate?: number;
   salaryGrowthRate?: number;
   emergencyFundMonths?: number;
-};
-
-export type EventType =
-  | "rent"
-  | "buy_home"
-  | "baby"
-  | "car"
-  | "travel"
-  | "insurance"
-  | "helper"
-  | "custom";
-
-export type TimelineEvent = {
-  id: string;
-  type: EventType;
-  name: string;
-  startMonth: string;
-  endMonth?: string | null;
-  enabled: boolean;
-  monthlyAmount?: number;
-  oneTimeAmount?: number;
-  annualGrowthPct?: number;
-  currency: string;
 };
 
 export type Scenario = {

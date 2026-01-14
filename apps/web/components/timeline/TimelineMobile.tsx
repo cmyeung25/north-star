@@ -18,6 +18,7 @@ import { t } from "../../lib/i18n";
 import TimelineEventForm from "./TimelineEventForm";
 import type { TimelineEvent } from "./types";
 import {
+  createEventId,
   createEventFromTemplate,
   eventTypeLabels,
   formatCurrency,
@@ -35,11 +36,15 @@ const floatingButtonStyle = {
 
 interface TimelineMobileProps {
   events: TimelineEvent[];
+  baseCurrency: string;
+  baseMonth?: string | null;
   onEventsChange: (events: TimelineEvent[]) => void;
 }
 
 export default function TimelineMobile({
   events,
+  baseCurrency,
+  baseMonth,
   onEventsChange,
 }: TimelineMobileProps) {
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -68,7 +73,7 @@ export default function TimelineMobile({
   const handleDuplicate = (event: TimelineEvent) => {
     const copy = {
       ...event,
-      id: createEventFromTemplate(event.type).id,
+      id: createEventId(),
       name: t("timelineCopyName", { name: event.name }),
     };
     onEventsChange([copy, ...events]);
@@ -79,7 +84,10 @@ export default function TimelineMobile({
   };
 
   const handleTemplateSelect = (type: TimelineEvent["type"]) => {
-    const newEvent = createEventFromTemplate(type);
+    const newEvent = createEventFromTemplate(type, {
+      baseCurrency,
+      baseMonth,
+    });
     onEventsChange([newEvent, ...events]);
     setTemplateOpen(false);
   };
@@ -92,12 +100,17 @@ export default function TimelineMobile({
           <Text c="dimmed" size="sm">
             {t("timelineSubtitleMobile")}
           </Text>
+          {process.env.NODE_ENV === "development" && (
+            <Text c="dimmed" size="xs">
+              Changes affect projections in Overview immediately.
+            </Text>
+          )}
         </div>
       </Group>
 
       {sortedEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
-          No timeline events yet. Add one to start shaping the plan.
+          Add your first event to start shaping the plan.
         </Text>
       ) : (
         <Stack gap="md">
@@ -123,20 +136,19 @@ export default function TimelineMobile({
                 </Group>
 
                 <Group gap="xs">
-                  {event.monthlyAmount && event.monthlyAmount > 0 && (
+                  {event.monthlyAmount !== 0 && (
                     <Badge variant="light" color="indigo">
                       {t("timelineMonthlyLabel")} {" "}
                       {formatCurrency(event.monthlyAmount, event.currency)}
                     </Badge>
                   )}
-                  {event.oneTimeAmount && event.oneTimeAmount > 0 && (
+                  {event.oneTimeAmount !== 0 && (
                     <Badge variant="light" color="grape">
                       {t("timelineOneTimeLabel")} {" "}
                       {formatCurrency(event.oneTimeAmount, event.currency)}
                     </Badge>
                   )}
-                  {(!event.monthlyAmount || event.monthlyAmount === 0) &&
-                    (!event.oneTimeAmount || event.oneTimeAmount === 0) && (
+                  {event.monthlyAmount === 0 && event.oneTimeAmount === 0 && (
                       <Badge variant="outline">{t("timelineNoAmounts")}</Badge>
                     )}
                 </Group>
@@ -208,6 +220,7 @@ export default function TimelineMobile({
       >
         <TimelineEventForm
           event={editingEvent}
+          baseCurrency={baseCurrency}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
           submitLabel={t("timelineSaveChanges")}
