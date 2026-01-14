@@ -12,8 +12,12 @@ export type ScenarioKpis = {
 };
 
 export type ScenarioAssumptions = {
-  horizonMonths?: number;
-  initialCash?: number;
+  horizonMonths: number;
+  initialCash: number;
+  baseMonth: string | null;
+  inflationRate?: number;
+  salaryGrowthRate?: number;
+  emergencyFundMonths?: number;
 };
 
 export type EventType =
@@ -45,7 +49,7 @@ export type Scenario = {
   baseCurrency: string;
   updatedAt: number;
   kpis: ScenarioKpis;
-  assumptions?: ScenarioAssumptions;
+  assumptions: ScenarioAssumptions;
   events?: TimelineEvent[];
 };
 
@@ -60,6 +64,13 @@ type ScenarioStoreState = {
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
   upsertScenarioEvents: (id: string, events: TimelineEvent[]) => void;
   updateScenarioUpdatedAt: (id: string) => void;
+  updateScenarioAssumptions: (
+    id: string,
+    patch: Partial<ScenarioAssumptions>
+  ) => void;
+  setScenarioHorizonMonths: (id: string, horizonMonths: number) => void;
+  setScenarioInitialCash: (id: string, initialCash: number) => void;
+  setScenarioBaseMonth: (id: string, baseMonth: string | null) => void;
 };
 
 const defaultKpis: ScenarioKpis = {
@@ -68,6 +79,19 @@ const defaultKpis: ScenarioKpis = {
   netWorthYear5: 1200000,
   riskLevel: "Medium",
 };
+
+const defaultAssumptions: ScenarioAssumptions = {
+  horizonMonths: 240,
+  initialCash: 0,
+  baseMonth: null,
+};
+
+const horizonRange = { min: 60, max: 480 };
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
+const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
 
 const now = () => Date.now();
 
@@ -92,6 +116,7 @@ const initialScenarios: Scenario[] = [
       netWorthYear5: 1650000,
       riskLevel: "Medium",
     },
+    assumptions: { ...defaultAssumptions },
     events: [
       {
         id: "event-plan-a-rent",
@@ -130,6 +155,7 @@ const initialScenarios: Scenario[] = [
       netWorthYear5: 2100000,
       riskLevel: "High",
     },
+    assumptions: { ...defaultAssumptions },
   },
   {
     id: "scenario-plan-c",
@@ -142,6 +168,7 @@ const initialScenarios: Scenario[] = [
       netWorthYear5: 1350000,
       riskLevel: "Low",
     },
+    assumptions: { ...defaultAssumptions },
   },
 ];
 
@@ -182,6 +209,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       baseCurrency: options?.baseCurrency ?? defaultCurrency,
       updatedAt: now(),
       kpis: { ...defaultKpis },
+      assumptions: { ...defaultAssumptions },
       events: [],
     };
 
@@ -215,6 +243,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       id: createScenarioId(),
       name: `Copy of ${source.name}`,
       updatedAt: now(),
+      assumptions: { ...source.assumptions },
       events: duplicateEvents(source.events),
     };
 
@@ -297,5 +326,68 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           : scenario
       ),
     }));
+  },
+  updateScenarioAssumptions: (id, patch) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextAssumptions = { ...scenario.assumptions };
+
+        if (Object.prototype.hasOwnProperty.call(patch, "horizonMonths")) {
+          const horizon =
+            typeof patch.horizonMonths === "number"
+              ? clamp(patch.horizonMonths, horizonRange.min, horizonRange.max)
+              : scenario.assumptions.horizonMonths;
+          nextAssumptions.horizonMonths = horizon;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, "initialCash")) {
+          const cash =
+            typeof patch.initialCash === "number"
+              ? Math.max(0, patch.initialCash)
+              : scenario.assumptions.initialCash;
+          nextAssumptions.initialCash = cash;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, "baseMonth")) {
+          const baseMonth = patch.baseMonth;
+          if (baseMonth === null) {
+            nextAssumptions.baseMonth = null;
+          } else if (typeof baseMonth === "string" && isValidBaseMonth(baseMonth)) {
+            nextAssumptions.baseMonth = baseMonth;
+          }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, "inflationRate")) {
+          nextAssumptions.inflationRate = patch.inflationRate;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, "salaryGrowthRate")) {
+          nextAssumptions.salaryGrowthRate = patch.salaryGrowthRate;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, "emergencyFundMonths")) {
+          nextAssumptions.emergencyFundMonths = patch.emergencyFundMonths;
+        }
+
+        return {
+          ...scenario,
+          assumptions: nextAssumptions,
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  setScenarioHorizonMonths: (id, horizonMonths) => {
+    get().updateScenarioAssumptions(id, { horizonMonths });
+  },
+  setScenarioInitialCash: (id, initialCash) => {
+    get().updateScenarioAssumptions(id, { initialCash });
+  },
+  setScenarioBaseMonth: (id, baseMonth) => {
+    get().updateScenarioAssumptions(id, { baseMonth });
   },
 }));

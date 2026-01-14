@@ -25,6 +25,6 @@ export const resolveScenarioId = (
 };
 
 export const buildScenarioUrl = (
-  path: "/timeline" | "/overview" | "/stress",
+  path: "/timeline" | "/overview" | "/stress" | "/settings",
   scenarioId: string
 ) => `${path}?scenarioId=${scenarioId}`;
