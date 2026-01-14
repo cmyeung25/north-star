@@ -1,10 +1,38 @@
 import type { Event } from "@north-star/types";
 
+import { computeHomeValueSeries } from "./home";
+import { computeMortgageSchedule } from "./mortgage";
+
+export type EngineEvent = Event & {
+  type?: string;
+  meta?: {
+    category?: "cashflow" | "asset" | "liability";
+  };
+};
+
+export type HomePosition = {
+  purchasePrice: number;
+  annualAppreciation: number;
+  purchaseMonth: string;
+  downPayment: number;
+  mortgage?: {
+    principal: number;
+    annualRate: number;
+    termMonths: number;
+  };
+  feesOneTime?: number;
+};
+
+export type PositionsInput = {
+  home?: HomePosition;
+};
+
 export type ProjectionInput = {
   baseMonth: string;
   horizonMonths: number;
   initialCash?: number;
-  events: Event[];
+  events: EngineEvent[];
+  positions?: PositionsInput;
 };
 
 export type ProjectionResult = {
@@ -12,7 +40,17 @@ export type ProjectionResult = {
   months: string[];
   netCashflow: number[];
   cashBalance: number[];
+  assets: {
+    housing: number[];
+    total: number[];
+  };
+  liabilities: {
+    mortgage: number[];
+    total: number[];
+  };
+  netWorth: number[];
   lowestMonthlyBalance: { value: number; index: number; month: string };
+  lowestNetWorth?: { value: number; index: number; month: string };
   runwayMonths: number;
   netWorthYear5: number;
   riskLevel: "Low" | "Medium" | "High";
@@ -55,7 +93,7 @@ export function buildMonthRange(baseMonth: string, horizonMonths: number): strin
 }
 
 export function expandEventToSeries(
-  event: Event,
+  event: EngineEvent,
   baseMonth: string,
   horizonMonths: number
 ): number[] {
@@ -91,6 +129,8 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const months = buildMonthRange(input.baseMonth, horizonMonths);
   const netCashflow = Array.from({ length: horizonMonths }, () => 0);
   const initialCash = input.initialCash ?? 0;
+  const assetsHousing = Array.from({ length: horizonMonths }, () => 0);
+  const liabilitiesMortgage = Array.from({ length: horizonMonths }, () => 0);
 
   for (const event of input.events) {
     const series = expandEventToSeries(event, input.baseMonth, horizonMonths);
@@ -99,11 +139,57 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     }
   }
 
+  if (input.positions?.home) {
+    const home = input.positions.home;
+    const purchaseIndex = monthIndex(input.baseMonth, home.purchaseMonth);
+    if (purchaseIndex >= 0 && purchaseIndex < horizonMonths) {
+      netCashflow[purchaseIndex] -= home.downPayment;
+      if (home.feesOneTime) {
+        netCashflow[purchaseIndex] -= home.feesOneTime;
+      }
+    }
+
+    const homeSeries = computeHomeValueSeries({
+      purchasePrice: home.purchasePrice,
+      annualAppreciation: home.annualAppreciation,
+      startIndex: purchaseIndex,
+      horizonMonths,
+    });
+
+    for (let i = 0; i < horizonMonths; i += 1) {
+      assetsHousing[i] = homeSeries[i];
+    }
+
+    if (home.mortgage) {
+      const schedule = computeMortgageSchedule({
+        principal: home.mortgage.principal,
+        annualRate: home.mortgage.annualRate,
+        termMonths: home.mortgage.termMonths,
+        startIndex: purchaseIndex,
+        horizonMonths,
+      });
+
+      for (let i = 0; i < horizonMonths; i += 1) {
+        const payment = schedule.interestSeries[i] + schedule.principalSeries[i];
+        if (payment !== 0) {
+          netCashflow[i] -= payment;
+        }
+        liabilitiesMortgage[i] = schedule.balanceSeries[i];
+      }
+    }
+  }
+
   const cashBalance: number[] = [];
   for (let i = 0; i < horizonMonths; i += 1) {
     const prior = i === 0 ? initialCash : cashBalance[i - 1];
     cashBalance[i] = prior + netCashflow[i];
   }
+
+  const assetsTotal = assetsHousing.map((value) => value);
+  const liabilitiesTotal = liabilitiesMortgage.map((value) => value);
+  const netWorth = cashBalance.map(
+    (cash, index) => cash + assetsTotal[index] - liabilitiesTotal[index]
+  );
 
   const lowest = cashBalance.reduce(
     (current, value, index) => {
@@ -121,6 +207,22 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     month: months[lowest.index] ?? input.baseMonth,
   };
 
+  const lowestNetWorthValue = netWorth.reduce(
+    (current, value, index) => {
+      if (value < current.value) {
+        return { value, index };
+      }
+      return current;
+    },
+    { value: netWorth[0] ?? initialCash, index: 0 }
+  );
+
+  const lowestNetWorth = {
+    value: lowestNetWorthValue.value,
+    index: lowestNetWorthValue.index,
+    month: months[lowestNetWorthValue.index] ?? input.baseMonth,
+  };
+
   const monthZeroCash = cashBalance[0] ?? initialCash;
   const burn = Math.max(0, -(netCashflow[0] ?? 0));
   let runwayMonths = 999;
@@ -129,8 +231,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   }
 
   const year5Index = Math.min(60, Math.max(0, horizonMonths - 1));
-  const netWorthYear5 =
-    cashBalance.length === 0 ? initialCash : cashBalance[year5Index] ?? initialCash;
+  const netWorthYear5 = netWorth[year5Index] ?? initialCash;
 
   let riskLevel: ProjectionResult["riskLevel"] = "Low";
   if (lowestMonthlyBalance.value < 0 || runwayMonths < 3) {
@@ -144,9 +245,22 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     months,
     netCashflow,
     cashBalance,
+    assets: {
+      housing: assetsHousing,
+      total: assetsTotal,
+    },
+    liabilities: {
+      mortgage: liabilitiesMortgage,
+      total: liabilitiesTotal,
+    },
+    netWorth,
     lowestMonthlyBalance,
+    lowestNetWorth,
     runwayMonths,
     netWorthYear5,
     riskLevel,
   };
 }
+
+export { computeHomeValueSeries } from "./home";
+export { computeMortgageSchedule } from "./mortgage";
