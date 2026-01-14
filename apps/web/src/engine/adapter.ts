@@ -1,5 +1,5 @@
 import type { ProjectionInput, ProjectionResult } from "@north-star/engine";
-import type { Scenario, ScenarioAssumptions, TimelineEvent } from "../store/scenarioStore";
+import type { Scenario, TimelineEvent } from "../store/scenarioStore";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
 
 type AdapterOptions = {
@@ -12,9 +12,6 @@ const formatMonth = (date: Date) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${date.getFullYear()}-${month}`;
 };
-
-const getScenarioAssumptions = (scenario: Scenario): ScenarioAssumptions | undefined =>
-  "assumptions" in scenario ? (scenario.assumptions as ScenarioAssumptions) : undefined;
 
 const getEarliestStartMonth = (events: TimelineEvent[]) =>
   events.reduce<string | null>((earliest, event) => {
@@ -43,12 +40,16 @@ export const mapScenarioToEngineInput = (
   scenario: Scenario,
   options: AdapterOptions = {}
 ): ProjectionInput => {
-  const assumptions = getScenarioAssumptions(scenario);
+  const assumptions = scenario.assumptions;
   const enabledEvents = (scenario.events ?? []).filter((event) => event.enabled);
   const earliestStartMonth = getEarliestStartMonth(enabledEvents);
-  const baseMonth = options.baseMonth ?? earliestStartMonth ?? formatMonth(new Date());
-  const horizonMonths = options.horizonMonths ?? assumptions?.horizonMonths ?? 240;
-  const initialCash = options.initialCash ?? assumptions?.initialCash ?? 0;
+  const baseMonth =
+    options.baseMonth ??
+    assumptions.baseMonth ??
+    earliestStartMonth ??
+    formatMonth(new Date());
+  const horizonMonths = options.horizonMonths ?? assumptions.horizonMonths ?? 240;
+  const initialCash = options.initialCash ?? assumptions.initialCash ?? 0;
   const events = enabledEvents.map(mapEventToEngine);
 
   return {

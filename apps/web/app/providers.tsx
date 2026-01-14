@@ -33,6 +33,7 @@ const navItems = [
   { label: t("navScenarios"), href: "/scenarios" },
   { label: t("navTimeline"), href: "/timeline" },
   { label: t("navStress"), href: "/stress" },
+  { label: t("navSettings"), href: "/settings" },
 ];
 
 export default function Providers({ children }: { children: ReactNode }) {
