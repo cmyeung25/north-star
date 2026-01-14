@@ -121,6 +121,24 @@ export default function SettingsPage() {
         </Notification>
       )}
 
+      <Card withBorder radius="md" padding="md" id="sync">
+        <Stack gap="xs">
+          <Group justify="space-between" align="center">
+            <Text fw={600}>Sync</Text>
+            <Text size="xs" c="dimmed">
+              Local mode · Data saved on this device
+            </Text>
+          </Group>
+          <Text size="sm" c="dimmed">
+            Sign in to enable cloud sync when it becomes available. Your current
+            scenarios remain stored locally until then.
+          </Text>
+          <Button component={Link} href="/settings#sync" size="sm" variant="light">
+            Sign in to sync
+          </Button>
+        </Stack>
+      </Card>
+
       <Card withBorder radius="md" padding="md">
         <Stack gap="md">
           <Stack gap={6}>

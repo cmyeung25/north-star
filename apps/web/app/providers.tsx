@@ -13,8 +13,12 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { t } from "../lib/i18n";
+import {
+  hydrateScenarioStore,
+  initializeScenarioPersistence,
+} from "../src/store/scenarioPersistence";
 
 const theme = createTheme({
   primaryColor: "indigo",
@@ -40,6 +44,28 @@ export default function Providers({ children }: { children: ReactNode }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const pathname = usePathname();
 
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    let active = true;
+
+    const start = async () => {
+      await hydrateScenarioStore();
+      if (!active) {
+        return;
+      }
+      cleanup = initializeScenarioPersistence();
+    };
+
+    void start();
+
+    return () => {
+      active = false;
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, []);
+
   return (
     <MantineProvider theme={theme}>
       <AppShell
@@ -53,6 +79,19 @@ export default function Providers({ children }: { children: ReactNode }) {
             <Text fw={600} size="lg">
               {t("appName")}
             </Text>
+            <Group gap="xs" align="center">
+              <Text size="xs" c="dimmed">
+                Local mode · Data saved on this device
+              </Text>
+              <Button
+                component={Link}
+                href="/settings#sync"
+                size="xs"
+                variant="subtle"
+              >
+                Sign in to sync
+              </Button>
+            </Group>
           </Group>
         </AppShell.Header>
 
