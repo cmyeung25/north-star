@@ -43,21 +43,43 @@ export const mapScenarioToEngineInput = (
   const assumptions = scenario.assumptions;
   const enabledEvents = (scenario.events ?? []).filter((event) => event.enabled);
   const earliestStartMonth = getEarliestStartMonth(enabledEvents);
+  const homePosition = scenario.positions?.home;
+  const homePurchaseMonth = homePosition?.purchaseMonth ?? null;
   const baseMonth =
     options.baseMonth ??
     assumptions.baseMonth ??
     earliestStartMonth ??
+    homePurchaseMonth ??
     formatMonth(new Date());
   const horizonMonths = options.horizonMonths ?? assumptions.horizonMonths ?? 240;
   const initialCash = options.initialCash ?? assumptions.initialCash ?? 0;
   const events = enabledEvents.map(mapEventToEngine);
+  const positions = homePosition
+    ? {
+        home: {
+          purchasePrice: homePosition.purchasePrice,
+          downPayment: homePosition.downPayment,
+          purchaseMonth: homePosition.purchaseMonth,
+          annualAppreciation: homePosition.annualAppreciationPct / 100,
+          feesOneTime: homePosition.feesOneTime,
+          mortgage: homePosition.mortgage
+            ? {
+                principal:
+                  homePosition.purchasePrice - homePosition.downPayment,
+                annualRate: homePosition.mortgage.annualRatePct / 100,
+                termMonths: homePosition.mortgage.termMonths,
+              }
+            : undefined,
+        },
+      }
+    : undefined;
 
   return {
     baseMonth,
     horizonMonths,
     initialCash,
     events,
-    positions: scenario.positions,
+    positions,
   };
 };
 

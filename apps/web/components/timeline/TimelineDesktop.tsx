@@ -2,42 +2,58 @@
 
 import {
   Button,
+  Card,
   Drawer,
   Group,
   Modal,
+  Notification,
   Stack,
   Switch,
   Table,
   Text,
   Title,
 } from "@mantine/core";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { defaultCurrency, t } from "../../lib/i18n";
+import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm from "./TimelineEventForm";
 import type { TimelineEvent } from "./types";
 import {
+  createHomePositionFromTemplate,
   createEventFromTemplate,
   eventTypeLabels,
   formatCurrency,
+  formatHomeSummary,
   iconMap,
   templateOptions,
 } from "./utils";
+import type { HomePosition } from "../../src/store/scenarioStore";
 
 interface TimelineDesktopProps {
   events: TimelineEvent[];
+  homePosition: HomePosition | null;
   baseCurrency: string;
   baseMonth?: string | null;
+  scenarioId: string;
   onEventsChange: (events: TimelineEvent[]) => void;
+  onHomePositionChange: (home: HomePosition) => void;
+  onHomePositionClear: () => void;
 }
 
 export default function TimelineDesktop({
   events,
+  homePosition,
   baseCurrency,
   baseMonth,
+  scenarioId,
   onEventsChange,
+  onHomePositionChange,
+  onHomePositionClear,
 }: TimelineDesktopProps) {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
+  const [homeToastOpen, setHomeToastOpen] = useState(false);
 
   const sortedEvents = useMemo(
     () => [...events].sort((a, b) => a.startMonth.localeCompare(b.startMonth)),
@@ -60,6 +76,13 @@ export default function TimelineDesktop({
   };
 
   const handleTemplateSelect = (type: TimelineEvent["type"]) => {
+    if (type === "buy_home") {
+      onHomePositionChange(createHomePositionFromTemplate(baseMonth));
+      setHomeToastOpen(true);
+      setTemplateOpen(false);
+      return;
+    }
+
     const newEvent = createEventFromTemplate(type, {
       baseCurrency,
       baseMonth,
@@ -67,6 +90,8 @@ export default function TimelineDesktop({
     onEventsChange([newEvent, ...events]);
     setTemplateOpen(false);
   };
+
+  const overviewUrl = buildScenarioUrl("/overview", scenarioId);
 
   return (
     <Stack gap="lg">
@@ -86,6 +111,40 @@ export default function TimelineDesktop({
           {t("timelineAddEvent")}
         </Button>
       </Group>
+
+      {homeToastOpen && (
+        <Notification color="teal" onClose={() => setHomeToastOpen(false)}>
+          <Group justify="space-between" align="center" wrap="wrap">
+            <Text size="sm">
+              Home position added. Check Overview for net worth impact.
+            </Text>
+            <Button component={Link} href={overviewUrl} size="xs" variant="light">
+              Open Overview
+            </Button>
+          </Group>
+        </Notification>
+      )}
+
+      {homePosition && (
+        <Card withBorder padding="md" radius="md">
+          <Group justify="space-between" align="center" wrap="wrap">
+            <div>
+              <Text fw={600}>{formatHomeSummary(homePosition, baseCurrency)}</Text>
+              <Text size="xs" c="dimmed">
+                Purchase month: {homePosition.purchaseMonth}
+              </Text>
+            </div>
+            <Group gap="sm">
+              <Button size="xs" variant="light" disabled>
+                Edit (coming soon)
+              </Button>
+              <Button size="xs" color="red" variant="light" onClick={onHomePositionClear}>
+                Remove home
+              </Button>
+            </Group>
+          </Group>
+        </Card>
+      )}
 
       {sortedEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
