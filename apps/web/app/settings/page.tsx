@@ -11,6 +11,7 @@ import {
   SegmentedControl,
   Slider,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -29,6 +30,7 @@ import {
 } from "../../lib/sync/firestoreSync";
 import { useAuthState } from "../../src/hooks/useAuthState";
 import { getScenarioById, useScenarioStore } from "../../src/store/scenarioStore";
+import { useSettingsStore } from "../../src/store/settingsStore";
 import {
   buildScenarioUrl,
   getScenarioIdFromSearchParams,
@@ -60,6 +62,11 @@ export default function SettingsPage() {
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
+  const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
+  const lastAutoSyncAt = useSettingsStore((state) => state.lastAutoSyncAt);
+  const autoSyncError = useSettingsStore((state) => state.autoSyncError);
+  const setAutoSyncEnabled = useSettingsStore((state) => state.setAutoSyncEnabled);
+  const setAutoSyncError = useSettingsStore((state) => state.setAutoSyncError);
 
   const [toast, setToast] = useState<ToastState | null>(null);
   const [syncToast, setSyncToast] = useState<ToastState | null>(null);
@@ -69,6 +76,9 @@ export default function SettingsPage() {
     null
   );
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine
+  );
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,6 +140,24 @@ export default function SettingsPage() {
     };
   }, [authState.status, authState.user]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleOnlineChange = () => {
+      setIsOnline(navigator.onLine);
+    };
+
+    window.addEventListener("online", handleOnlineChange);
+    window.addEventListener("offline", handleOnlineChange);
+
+    return () => {
+      window.removeEventListener("online", handleOnlineChange);
+      window.removeEventListener("offline", handleOnlineChange);
+    };
+  }, []);
+
   const showToast = (message: string, color?: string) => {
     setToast({ message, color });
     if (toastTimeoutRef.current) {
@@ -155,6 +183,18 @@ export default function SettingsPage() {
   const localHasData = scenarios.length > 0;
   const schemaUpgradeRequired = requiresSchemaUpgrade(cloudSummary);
   const hasConflict = isSignedIn && cloudHasData && localHasData;
+  const autoSyncStatusLabel = isSignedIn
+    ? autoSyncEnabled
+      ? "Auto-sync: On"
+      : "Auto-sync: Off"
+    : "Auto-sync: Sign in to enable";
+  const autoSyncDetails = isSignedIn && autoSyncEnabled
+    ? isOnline
+      ? lastAutoSyncAt
+        ? `Last sync: ${new Date(lastAutoSyncAt).toLocaleString()}`
+        : "Last sync: not yet"
+      : "Offline: changes saved locally and will sync when online."
+    : null;
 
   const refreshCloudSummary = async () => {
     if (!authState.user) {
@@ -304,6 +344,12 @@ export default function SettingsPage() {
             </Notification>
           )}
 
+          {autoSyncError && (
+            <Notification color="yellow" onClose={() => setAutoSyncError(null)}>
+              {autoSyncError}
+            </Notification>
+          )}
+
           {!isFirebaseConfigured && !isSignedIn && (
             <Notification color="yellow">
               Firebase is not configured yet. Add environment variables to enable
@@ -342,51 +388,68 @@ export default function SettingsPage() {
             </Group>
           )}
 
-          {isSignedIn && (
-            <Stack gap="sm">
-              {hasConflict && (
-                <Notification color="orange">
-                  Cloud data already exists. Choose which data to keep before
-                  syncing.
-                </Notification>
-              )}
-              <Group wrap="wrap">
-                <Button
-                  size="sm"
-                  onClick={() => void handleUpload()}
-                  loading={syncingAction === "upload"}
-                  disabled={schemaUpgradeRequired}
-                >
-                  Upload local data to cloud
-                </Button>
-                <Button
-                  size="sm"
-                  variant="light"
-                  onClick={() => void handleDownload()}
-                  loading={syncingAction === "download"}
-                  disabled={schemaUpgradeRequired}
-                >
-                  Replace local data with cloud data
-                </Button>
-              </Group>
-              <Divider />
-              <Group justify="space-between" align="center">
-                <Text size="sm" c="dimmed">
-                  Signed in as {authState.user?.email ?? "Google user"}.
-                </Text>
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  onClick={async () => {
-                    await signOutUser();
-                    setCloudSummary(null);
-                  }}
-                >
-                  Sign out
-                </Button>
-              </Group>
+          <Stack gap="sm">
+            {hasConflict && (
+              <Notification color="orange">
+                Cloud data already exists. Choose which data to keep before
+                syncing.
+              </Notification>
+            )}
+            <Stack gap={4}>
+              <Switch
+                label="Auto-sync when signed in"
+                checked={autoSyncEnabled}
+                disabled={!isSignedIn}
+                onChange={(event) =>
+                  setAutoSyncEnabled(event.currentTarget.checked)
+                }
+                description="Uses last-write-wins at the scenario level (newer updatedAt wins; revision breaks ties)."
+              />
+              <Text size="xs" c="dimmed">
+                {autoSyncStatusLabel}
+                {autoSyncDetails ? ` · ${autoSyncDetails}` : ""}
+              </Text>
             </Stack>
-          )}
+            {isSignedIn && (
+              <>
+                <Group wrap="wrap">
+                  <Button
+                    size="sm"
+                    onClick={() => void handleUpload()}
+                    loading={syncingAction === "upload"}
+                    disabled={schemaUpgradeRequired}
+                  >
+                    Upload local data to cloud
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="light"
+                    onClick={() => void handleDownload()}
+                    loading={syncingAction === "download"}
+                    disabled={schemaUpgradeRequired}
+                  >
+                    Replace local data with cloud data
+                  </Button>
+                </Group>
+                <Divider />
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">
+                    Signed in as {authState.user?.email ?? "Google user"}.
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={async () => {
+                      await signOutUser();
+                      setCloudSummary(null);
+                    }}
+                  >
+                    Sign out
+                  </Button>
+                </Group>
+              </>
+            )}
+          </Stack>
         </Stack>
       </Card>
 
