@@ -163,16 +163,63 @@ export default function StressPage() {
     [afterProjection]
   );
 
-  if (!scenario || !baselineView || !afterView || !baselineProjection || !afterProjection) {
-    return null;
-  }
-
   const applyMonthError =
     draftStress.applyMonth && !normalizeMonth(draftStress.applyMonth)
       ? "Use YYYY-MM"
       : undefined;
 
   const hasActiveStresses = stressEvents.length > 0;
+
+  const insights = useMemo(() => {
+    if (!afterProjection || !baselineProjection) {
+      return [];
+    }
+
+    const notes: string[] = [];
+    const jobLossEvent = stressEvents.find((event) =>
+      event.id.startsWith("stress_jobloss")
+    );
+
+    if (afterProjection.lowestMonthlyBalance.value < 0) {
+      notes.push("Cash balance drops below zero after stress is applied.");
+    }
+
+    if (afterProjection.runwayMonths < 3) {
+      notes.push("Emergency runway falls below 3 months.");
+    }
+
+    if (
+      hasActiveStresses &&
+      afterProjection.lowestMonthlyBalance.index <
+        baselineProjection.lowestMonthlyBalance.index
+    ) {
+      notes.push("The lowest cash month arrives sooner than the baseline plan.");
+    }
+
+    if (appliedStress.jobLossMonths && jobLossEvent?.monthlyAmount === 0) {
+      notes.push("No income to offset in the selected apply month.");
+    }
+
+    if (notes.length === 0) {
+      notes.push("Stress impact is muted relative to the baseline projection.");
+    }
+
+    if (notes.length < 2) {
+      notes.push("Try increasing shocks to surface additional downside risks.");
+    }
+
+    return notes.slice(0, 3);
+  }, [
+    afterProjection,
+    appliedStress.jobLossMonths,
+    baselineProjection,
+    hasActiveStresses,
+    stressEvents,
+  ]);
+
+  if (!scenario || !baselineView || !afterView || !baselineProjection || !afterProjection) {
+    return null;
+  }
 
   const activeStressBadges = [
     appliedStress.jobLossMonths
@@ -240,51 +287,6 @@ export default function StressPage() {
 
   const baselineKpis = baselineView.kpis;
   const afterKpis = afterView.kpis;
-
-  const insights = useMemo(() => {
-    const notes: string[] = [];
-    const jobLossEvent = stressEvents.find((event) =>
-      event.id.startsWith("stress_jobloss")
-    );
-
-    if (afterProjection.lowestMonthlyBalance.value < 0) {
-      notes.push("Cash balance drops below zero after stress is applied.");
-    }
-
-    if (afterProjection.runwayMonths < 3) {
-      notes.push("Emergency runway falls below 3 months.");
-    }
-
-    if (
-      hasActiveStresses &&
-      afterProjection.lowestMonthlyBalance.index <
-        baselineProjection.lowestMonthlyBalance.index
-    ) {
-      notes.push("The lowest cash month arrives sooner than the baseline plan.");
-    }
-
-    if (appliedStress.jobLossMonths && jobLossEvent?.monthlyAmount === 0) {
-      notes.push("No income to offset in the selected apply month.");
-    }
-
-    if (notes.length === 0) {
-      notes.push("Stress impact is muted relative to the baseline projection.");
-    }
-
-    if (notes.length < 2) {
-      notes.push("Try increasing shocks to surface additional downside risks.");
-    }
-
-    return notes.slice(0, 3);
-  }, [
-    afterProjection.lowestMonthlyBalance.index,
-    afterProjection.lowestMonthlyBalance.value,
-    afterProjection.runwayMonths,
-    appliedStress.jobLossMonths,
-    baselineProjection.lowestMonthlyBalance.index,
-    hasActiveStresses,
-    stressEvents,
-  ]);
 
   const kpiCard = (label: string, value: string, helper: string) => (
     <Card withBorder radius="md" padding="md">
