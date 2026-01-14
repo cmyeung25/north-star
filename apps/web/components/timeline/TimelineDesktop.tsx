@@ -25,11 +25,15 @@ import {
 
 interface TimelineDesktopProps {
   events: TimelineEvent[];
+  baseCurrency: string;
+  baseMonth?: string | null;
   onEventsChange: (events: TimelineEvent[]) => void;
 }
 
 export default function TimelineDesktop({
   events,
+  baseCurrency,
+  baseMonth,
   onEventsChange,
 }: TimelineDesktopProps) {
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -56,7 +60,10 @@ export default function TimelineDesktop({
   };
 
   const handleTemplateSelect = (type: TimelineEvent["type"]) => {
-    const newEvent = createEventFromTemplate(type);
+    const newEvent = createEventFromTemplate(type, {
+      baseCurrency,
+      baseMonth,
+    });
     onEventsChange([newEvent, ...events]);
     setTemplateOpen(false);
   };
@@ -69,6 +76,11 @@ export default function TimelineDesktop({
           <Text c="dimmed" size="sm">
             {t("timelineSubtitleDesktop")}
           </Text>
+          {process.env.NODE_ENV === "development" && (
+            <Text c="dimmed" size="xs">
+              Changes affect projections in Overview immediately.
+            </Text>
+          )}
         </div>
         <Button onClick={() => setTemplateOpen(true)}>
           {t("timelineAddEvent")}
@@ -77,7 +89,7 @@ export default function TimelineDesktop({
 
       {sortedEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
-          No timeline events yet. Add one to start shaping the plan.
+          Add your first event to start shaping the plan.
         </Text>
       ) : (
         <Table striped highlightOnHover withColumnBorders>
@@ -113,12 +125,12 @@ export default function TimelineDesktop({
                 <Table.Td>{event.startMonth}</Table.Td>
                 <Table.Td>{event.endMonth ?? "—"}</Table.Td>
                 <Table.Td>
-                  {event.monthlyAmount && event.monthlyAmount > 0
+                  {event.monthlyAmount !== 0
                     ? formatCurrency(event.monthlyAmount, event.currency)
                     : "—"}
                 </Table.Td>
                 <Table.Td>
-                  {event.oneTimeAmount && event.oneTimeAmount > 0
+                  {event.oneTimeAmount !== 0
                     ? formatCurrency(event.oneTimeAmount, event.currency)
                     : "—"}
                 </Table.Td>
@@ -176,6 +188,7 @@ export default function TimelineDesktop({
       >
         <TimelineEventForm
           event={editingEvent}
+          baseCurrency={baseCurrency}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
         />

@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import TimelineDesktop from "../../components/timeline/TimelineDesktop";
 import TimelineMobile from "../../components/timeline/TimelineMobile";
+import { normalizeEvent } from "../../src/features/timeline/schema";
 import {
   getScenarioById,
   useScenarioStore,
@@ -41,12 +42,20 @@ export default function TimelinePage() {
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const events = scenario?.events ?? [];
+  const baseCurrency = scenario?.baseCurrency ?? "";
+  const baseMonth = scenario?.assumptions.baseMonth ?? null;
 
   const handleEventsChange = (updatedEvents: typeof events) => {
     if (!scenario) {
       return;
     }
-    upsertScenarioEvents(scenario.id, updatedEvents);
+    const normalizedEvents = updatedEvents.map((event) =>
+      normalizeEvent(event, {
+        baseCurrency: scenario.baseCurrency,
+        fallbackMonth: scenario.assumptions.baseMonth,
+      })
+    );
+    upsertScenarioEvents(scenario.id, normalizedEvents);
   };
 
   if (!scenario) {
@@ -54,8 +63,22 @@ export default function TimelinePage() {
   }
 
   if (isDesktop) {
-    return <TimelineDesktop events={events} onEventsChange={handleEventsChange} />;
+    return (
+      <TimelineDesktop
+        events={events}
+        baseCurrency={baseCurrency}
+        baseMonth={baseMonth}
+        onEventsChange={handleEventsChange}
+      />
+    );
   }
 
-  return <TimelineMobile events={events} onEventsChange={handleEventsChange} />;
+  return (
+    <TimelineMobile
+      events={events}
+      baseCurrency={baseCurrency}
+      baseMonth={baseMonth}
+      onEventsChange={handleEventsChange}
+    />
+  );
 }

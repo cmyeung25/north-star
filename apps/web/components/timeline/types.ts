@@ -1,1 +1,1 @@
-export type { EventType, TimelineEvent } from "../../src/store/scenarioStore";
+export type { EventType, TimelineEvent } from "../../src/features/timeline/schema";
