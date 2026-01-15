@@ -8,6 +8,7 @@ import {
   SegmentedControl,
   Stack,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useMemo, useState } from "react";
@@ -37,16 +38,50 @@ export default function OnboardingClient() {
     housingStatus: "rent",
     rentMonthly: 0,
     salaryMonthly: 0,
-    expenseMonthly: 0,
+    expenseItems: [{ label: "", monthlyAmount: 0 }],
     travelAnnual: 0,
   });
   const [errors, setErrors] = useState<DraftErrors>({});
+
+  const totalMonthlyExpenses = useMemo(
+    () =>
+      draft.expenseItems.reduce(
+        (total, item) => total + Number(item.monthlyAmount || 0),
+        0
+      ),
+    [draft.expenseItems]
+  );
 
   const updateDraft = <K extends keyof OnboardingDraft>(
     key: K,
     value: OnboardingDraft[K]
   ) => {
     setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateExpenseItem = (
+    index: number,
+    patch: Partial<OnboardingDraft["expenseItems"][number]>
+  ) => {
+    setDraft((current) => {
+      const next = [...current.expenseItems];
+      next[index] = { ...next[index], ...patch };
+      return { ...current, expenseItems: next };
+    });
+  };
+
+  const addExpenseItem = () => {
+    setDraft((current) => ({
+      ...current,
+      expenseItems: [...current.expenseItems, { label: "", monthlyAmount: 0 }],
+    }));
+  };
+
+  const removeExpenseItem = (index: number) => {
+    setDraft((current) => ({
+      ...current,
+      expenseItems: current.expenseItems.filter((_, itemIndex) => itemIndex !== index),
+    }));
   };
 
   const validateStep = (index: number) => {
@@ -67,8 +102,11 @@ export default function OnboardingClient() {
       if (draft.salaryMonthly <= 0) {
         nextErrors.salaryMonthly = "Enter a monthly salary amount.";
       }
-      if (draft.expenseMonthly < 0) {
-        nextErrors.expenseMonthly = "Recurring expenses must be 0 or higher.";
+      if (draft.expenseItems.length === 0) {
+        nextErrors.expenseItems = "Add at least one recurring expense item.";
+      }
+      if (draft.expenseItems.some((item) => item.monthlyAmount < 0)) {
+        nextErrors.expenseItems = "Expense amounts must be 0 or higher.";
       }
     }
 
@@ -186,16 +224,53 @@ export default function OnboardingClient() {
                 thousandSeparator=","
                 min={0}
               />
-              <NumberInput
-                label="Monthly recurring expenses"
-                value={draft.expenseMonthly}
-                error={errors.expenseMonthly}
-                onChange={(value) =>
-                  updateDraft("expenseMonthly", Number(value ?? 0))
-                }
-                thousandSeparator=","
-                min={0}
-              />
+              <Stack gap="sm">
+                {draft.expenseItems.map((item, index) => (
+                  <Group key={`expense-item-${index}`} align="flex-end" wrap="nowrap">
+                    <TextInput
+                      label={index === 0 ? "Expense item" : undefined}
+                      placeholder="Groceries, childcare, etc."
+                      value={item.label}
+                      onChange={(event) =>
+                        updateExpenseItem(index, { label: event.currentTarget.value })
+                      }
+                      style={{ flex: 2 }}
+                    />
+                    <NumberInput
+                      label={index === 0 ? "Monthly amount" : undefined}
+                      value={item.monthlyAmount}
+                      onChange={(value) =>
+                        updateExpenseItem(index, {
+                          monthlyAmount: Number(value ?? 0),
+                        })
+                      }
+                      thousandSeparator=","
+                      min={0}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      onClick={() => removeExpenseItem(index)}
+                    >
+                      Remove
+                    </Button>
+                  </Group>
+                ))}
+                {errors.expenseItems && (
+                  <Text size="xs" c="red">
+                    {errors.expenseItems}
+                  </Text>
+                )}
+                <Group justify="space-between">
+                  <Button variant="light" onClick={addExpenseItem}>
+                    Add expense item
+                  </Button>
+                  <Text size="sm" c="dimmed">
+                    Total monthly expenses: {totalMonthlyExpenses.toLocaleString()}
+                  </Text>
+                </Group>
+              </Stack>
             </Stack>
           )}
 

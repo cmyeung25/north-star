@@ -10,6 +10,7 @@ import {
 import type { HomePosition, Scenario, TimelineEvent } from "../store/scenarioStore";
 import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
+import { getEventSign } from "../events/eventCatalog";
 
 type AdapterOptions = {
   baseMonth?: string;
@@ -79,13 +80,18 @@ const mapEventToEngine = (
     },
     assumptions
   );
+  const sign = getEventSign(event.type);
+  const applySign = (value: number | null | undefined) => {
+    const absValue = Math.abs(value ?? 0);
+    return absValue === 0 ? 0 : sign * absValue;
+  };
 
   return {
     enabled: event.enabled,
     startMonth: event.startMonth,
     endMonth: event.endMonth ?? null,
-    monthlyAmount: event.monthlyAmount ?? 0,
-    oneTimeAmount: event.oneTimeAmount ?? 0,
+    monthlyAmount: applySign(event.monthlyAmount),
+    oneTimeAmount: applySign(event.oneTimeAmount),
     // Store annualGrowthPct is a whole percent (e.g. 3 for 3%), engine expects decimal.
     annualGrowthPct: (withFallbacks.annualGrowthPct ?? 0) / 100,
   };

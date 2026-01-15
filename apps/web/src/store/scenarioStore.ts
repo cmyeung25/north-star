@@ -136,7 +136,7 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
 const initialScenarios: Scenario[] = [
   {
     id: "scenario-plan-a",
-    name: "Plan A · Rent + Baby",
+    name: "Plan A",
     baseCurrency: defaultCurrency,
     updatedAt: 1716806400000,
     kpis: {
@@ -172,32 +172,6 @@ const initialScenarios: Scenario[] = [
         currency: defaultCurrency,
       },
     ],
-  },
-  {
-    id: "scenario-plan-b",
-    name: "Plan B · Buy Home",
-    baseCurrency: defaultCurrency,
-    updatedAt: 1714387200000,
-    kpis: {
-      lowestMonthlyBalance: -32000,
-      runwayMonths: 10,
-      netWorthYear5: 2100000,
-      riskLevel: "High",
-    },
-    assumptions: { ...defaultAssumptions },
-  },
-  {
-    id: "scenario-plan-c",
-    name: "Plan C · Delay Car",
-    baseCurrency: defaultCurrency,
-    updatedAt: 1711708800000,
-    kpis: {
-      lowestMonthlyBalance: 8000,
-      runwayMonths: 24,
-      netWorthYear5: 1350000,
-      riskLevel: "Low",
-    },
-    assumptions: { ...defaultAssumptions },
   },
 ];
 

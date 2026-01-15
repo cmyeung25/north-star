@@ -1,5 +1,6 @@
 import type { Scenario, TimelineEvent } from "../store/scenarioStore";
 import { normalizeMonth } from "../features/timeline/schema";
+import { getEventSign } from "../events/eventCatalog";
 
 export type StressPreset = "RATE_HIKE_2" | "INCOME_DROP_20" | "INFLATION_PLUS_2";
 
@@ -43,20 +44,9 @@ const resolveShockMonth = (scenario: Scenario, options: StressPresetOptions) => 
   return earliestEventMonth ?? getCurrentMonth();
 };
 
-const isIncomeEvent = (event: TimelineEvent) =>
-  event.type === "custom" && (event.monthlyAmount ?? 0) > 0;
+const isIncomeEvent = (event: TimelineEvent) => getEventSign(event.type) === 1;
 
-const expenseTypes = new Set([
-  "rent",
-  "baby",
-  "car",
-  "travel",
-  "insurance",
-  "helper",
-]);
-
-const isExpenseEvent = (event: TimelineEvent) =>
-  expenseTypes.has(event.type) || (event.monthlyAmount ?? 0) < 0;
+const isExpenseEvent = (event: TimelineEvent) => getEventSign(event.type) === -1;
 
 export const applyStressPreset = (
   baseScenario: Scenario,
