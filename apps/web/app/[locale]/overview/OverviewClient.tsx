@@ -20,33 +20,33 @@ import { computeProjection } from "@north-star/engine";
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import CashBalanceChart from "../../features/overview/components/CashBalanceChart";
-import InsightsCard from "../../features/overview/components/InsightsCard";
-import KpiCard from "../../features/overview/components/KpiCard";
-import KpiCarousel from "../../features/overview/components/KpiCarousel";
-import NetWorthChart from "../../features/overview/components/NetWorthChart";
-import OverviewActionsCard from "../../features/overview/components/OverviewActionsCard";
-import RentVsOwnCard from "../../features/overview/components/RentVsOwnCard";
-import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
-import type { RiskLevel } from "../../features/overview/types";
-import { formatCurrency } from "../../lib/i18n";
+import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
+import InsightsCard from "../../../features/overview/components/InsightsCard";
+import KpiCard from "../../../features/overview/components/KpiCard";
+import KpiCarousel from "../../../features/overview/components/KpiCarousel";
+import NetWorthChart from "../../../features/overview/components/NetWorthChart";
+import OverviewActionsCard from "../../../features/overview/components/OverviewActionsCard";
+import RentVsOwnCard from "../../../features/overview/components/RentVsOwnCard";
+import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
+import type { RiskLevel } from "../../../features/overview/types";
+import { formatCurrency } from "../../../lib/i18n";
 import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
-} from "../../src/engine/adapter";
+} from "../../../src/engine/adapter";
 import {
   buildExportFilename,
   downloadTextFile,
   projectionToCSV,
-} from "../../src/export/projectionExport";
-import { useRentVsOwnComparison } from "../../src/engine/rentVsOwnComparison";
+} from "../../../src/export/projectionExport";
+import { useRentVsOwnComparison } from "../../../src/engine/rentVsOwnComparison";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
-} from "../../src/store/scenarioStore";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
-import { Link } from "../../src/i18n/navigation";
+} from "../../../src/store/scenarioStore";
+import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
+import { Link } from "../../../src/i18n/navigation";
 
 type OverviewClientProps = {
   scenarioId?: string;

@@ -7,7 +7,7 @@ const currencyFormatters = new Map<string, Intl.NumberFormat>();
 export const formatCurrency = (
   amount: number,
   currency = defaultCurrency,
-  locale = defaultLocale
+  locale: string = defaultLocale
 ) => {
   const cacheKey = `${locale}:${currency}`;
   if (!currencyFormatters.has(cacheKey)) {
