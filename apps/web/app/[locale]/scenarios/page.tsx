@@ -101,10 +101,9 @@ export default function ScenariosPage() {
   );
 
   useEffect(() => {
-    if (activeScenarioId && activeScenarioId !== selectedScenarioId) {
-      setSelectedScenarioId(activeScenarioId);
-    }
-  }, [activeScenarioId, selectedScenarioId]);
+    if (!activeScenarioId) return;
+    setSelectedScenarioId((prev) => (prev !== activeScenarioId ? activeScenarioId : prev));
+  }, [activeScenarioId]);
 
   const selectedScenario = useMemo(() => {
     return (
