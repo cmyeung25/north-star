@@ -242,13 +242,6 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     stressEvents,
   ]);
 
-  const isReady =
-    !!scenario && !!baselineView && !!afterView && !!baselineProjection && !!afterProjection;
-
-  if (!isReady) {
-    return null;
-  }
-
   const activeStressBadges = [
     appliedStress.jobLossMonths
       ? {
@@ -334,6 +327,13 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       return { value, label: value };
     });
   }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
+
+  const isReady =
+    !!scenario && !!baselineView && !!afterView && !!baselineProjection && !!afterProjection;
+
+  if (!isReady) {
+    return null;
+  }
 
   const kpiCard = (label: string, value: string, helper: string) => (
     <Card withBorder radius="md" padding="md">
