@@ -22,6 +22,7 @@ export const TimelineEventSchema = z.object({
 });
 
 export type TimelineEvent = z.infer<typeof TimelineEventSchema>;
+export type { EventType };
 
 export const normalizeMonth = (input: string): string | null => {
   const value = input.trim();
