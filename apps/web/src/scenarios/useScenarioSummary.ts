@@ -27,7 +27,7 @@ export const useScenarioSummary = (scenarioId?: string | null) => {
   );
 
   const summary = useMemo(() => {
-    if (!scenario) {
+    if (!scenario || !scenarioKey) {
       return null;
     }
 
