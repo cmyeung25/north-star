@@ -527,7 +527,8 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         const nextHomes = (scenario.positions?.homes ?? []).filter(
           (home) => home.id !== homeId
         );
-        const { home: _legacyHome, ...otherPositions } = scenario.positions ?? {};
+        const { home: legacyHome, ...otherPositions } = scenario.positions ?? {};
+        void legacyHome;
         const nextPositions: ScenarioPositions | undefined = scenario.positions
           ? {
               ...otherPositions,

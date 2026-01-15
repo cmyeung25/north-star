@@ -146,7 +146,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       ...emptyStressState,
       applyMonth: defaultApplyMonth,
     });
-  }, [baselineInput?.baseMonth, scenario]);
+  }, [baselineInput?.baseMonth, scenario, t]);
 
   const stressEvents = useMemo(() => {
     if (!scenario) {
@@ -246,6 +246,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     baselineProjection,
     hasActiveStresses,
     stressEvents,
+    t,
   ]);
 
   const shockMonthOptions = useMemo(() => {
