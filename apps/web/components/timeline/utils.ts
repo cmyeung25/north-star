@@ -150,6 +150,8 @@ export const createHomePositionFromTemplate = (
 
   return {
     id: createHomePositionId(),
+    usage: "primary",
+    mode: "new_purchase",
     purchasePrice,
     downPayment,
     purchaseMonth,
@@ -163,8 +165,21 @@ export const createHomePositionFromTemplate = (
 };
 
 export const formatHomeSummary = (home: HomePosition, currency: string) => {
-  const formattedPrice = formatCurrency(home.purchasePrice, currency);
-  const termYears = Math.round(home.mortgageTermYears);
-  const rate = home.mortgageRatePct.toFixed(1);
-  return `Home: ${formattedPrice} · Mortgage ${termYears}y @ ${rate}%`;
+  const usageLabel =
+    (home.usage ?? "primary") === "investment" ? "Investment" : "Primary";
+  const mode = home.mode ?? "new_purchase";
+  const displayValue =
+    mode === "existing" && home.existing
+      ? home.existing.marketValue
+      : home.purchasePrice ?? 0;
+  const formattedPrice = formatCurrency(displayValue, currency);
+
+  if (mode === "existing" && home.existing) {
+    const rate = home.existing.annualRatePct.toFixed(1);
+    return `${usageLabel} home: ${formattedPrice} · Existing mortgage ${home.existing.remainingTermMonths}m @ ${rate}%`;
+  }
+
+  const termYears = Math.round(home.mortgageTermYears ?? 0);
+  const rate = (home.mortgageRatePct ?? 0).toFixed(1);
+  return `${usageLabel} home: ${formattedPrice} · Mortgage ${termYears}y @ ${rate}%`;
 };

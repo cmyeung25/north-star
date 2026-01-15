@@ -65,15 +65,32 @@ export const applyStressPreset = (
       }
 
       if (scenario.positions?.home) {
-        scenario.positions.home.mortgageRatePct = clampPct(
-          scenario.positions.home.mortgageRatePct + 2
-        );
+        scenario.positions.home = {
+          ...scenario.positions.home,
+          mortgageRatePct: clampPct(
+            (scenario.positions.home.mortgageRatePct ?? 0) + 2
+          ),
+          existing: scenario.positions.home.existing
+            ? {
+                ...scenario.positions.home.existing,
+                annualRatePct: clampPct(
+                  (scenario.positions.home.existing.annualRatePct ?? 0) + 2
+                ),
+              }
+            : scenario.positions.home.existing,
+        };
       }
 
       if (scenario.positions?.homes) {
         scenario.positions.homes = scenario.positions.homes.map((home) => ({
           ...home,
-          mortgageRatePct: clampPct(home.mortgageRatePct + 2),
+          mortgageRatePct: clampPct((home.mortgageRatePct ?? 0) + 2),
+          existing: home.existing
+            ? {
+                ...home.existing,
+                annualRatePct: clampPct((home.existing.annualRatePct ?? 0) + 2),
+              }
+            : home.existing,
         }));
       }
       break;

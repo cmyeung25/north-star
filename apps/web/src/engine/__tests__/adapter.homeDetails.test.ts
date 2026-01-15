@@ -46,4 +46,44 @@ describe("mapScenarioToEngineInput home details", () => {
     expect(input.positions?.homes?.[0]?.purchasePrice).toBe(9000000);
     expect(input.positions?.homes?.[0]?.mortgage?.principal).toBe(7000000);
   });
+
+  it("maps existing homes without recalculating principal", () => {
+    const scenario = buildScenario({
+      positions: {
+        homes: [
+          {
+            id: "home-2",
+            mode: "existing",
+            usage: "investment",
+            annualAppreciationPct: 2,
+            existing: {
+              asOfMonth: "2024-12",
+              marketValue: 5000000,
+              mortgageBalance: 3200000,
+              remainingTermMonths: 240,
+              annualRatePct: 4.5,
+            },
+            rental: {
+              rentMonthly: 18000,
+              rentStartMonth: "2025-01",
+              rentEndMonth: null,
+              rentAnnualGrowthPct: 2,
+              vacancyRatePct: 5,
+            },
+          },
+        ],
+      },
+    });
+
+    const input = mapScenarioToEngineInput(scenario);
+    const home = input.positions?.homes?.[0];
+
+    expect(home?.mode).toBe("existing");
+    expect(home?.usage).toBe("investment");
+    expect(home?.existing?.mortgageBalance).toBe(3200000);
+    expect(home?.existing?.annualRate).toBeCloseTo(0.045);
+    expect(home?.rental?.rentAnnualGrowth).toBeCloseTo(0.02);
+    expect(home?.rental?.vacancyRate).toBeCloseTo(0.05);
+    expect(home?.mortgage).toBeUndefined();
+  });
 });

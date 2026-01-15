@@ -160,7 +160,9 @@ export default function TimelineDesktop({
                   </Text>
                   <Text size="sm">{formatHomeSummary(home, baseCurrency)}</Text>
                   <Text size="xs" c="dimmed">
-                    Purchase month: {home.purchaseMonth}
+                    {(home.mode ?? "new_purchase") === "existing"
+                      ? `${t("homeDetailsExistingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
+                      : `${t("homeDetailsPurchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
                   </Text>
                 </div>
                 <Group gap="sm">

@@ -26,4 +26,20 @@ describe("HomePositionSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("allows existing homes without purchase fields", () => {
+    const result = HomePositionSchema.safeParse({
+      mode: "existing",
+      annualAppreciationPct: 2,
+      existing: {
+        asOfMonth: "2024-06",
+        marketValue: 2500000,
+        mortgageBalance: 1500000,
+        remainingTermMonths: 300,
+        annualRatePct: 4,
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
 });

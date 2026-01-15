@@ -30,16 +30,39 @@ export type ScenarioAssumptions = {
   rentAnnualGrowthPct?: number;
 };
 
+export type HomeUsage = "primary" | "investment";
+export type HomeMode = "new_purchase" | "existing";
+
+export type ExistingHomeDetails = {
+  asOfMonth: string;
+  marketValue: number;
+  mortgageBalance: number;
+  remainingTermMonths: number;
+  annualRatePct: number;
+};
+
+export type RentalDetails = {
+  rentMonthly: number;
+  rentStartMonth: string;
+  rentEndMonth?: string | null;
+  rentAnnualGrowthPct?: number;
+  vacancyRatePct?: number;
+};
+
 export type HomePosition = {
-  purchasePrice: number;
-  downPayment: number;
-  purchaseMonth: string;
+  usage?: HomeUsage;
+  mode?: HomeMode;
+  purchasePrice?: number;
+  downPayment?: number;
+  purchaseMonth?: string;
   annualAppreciationPct: number;
-  mortgageRatePct: number;
-  mortgageTermYears: number;
+  mortgageRatePct?: number;
+  mortgageTermYears?: number;
   feesOneTime?: number;
   holdingCostMonthly?: number;
   holdingCostAnnualGrowthPct?: number;
+  existing?: ExistingHomeDetails;
+  rental?: RentalDetails;
 };
 
 export type HomePositionDraft = HomePosition & {
@@ -177,6 +200,8 @@ const initialScenarios: Scenario[] = [
 
 const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePositionDraft => ({
   id: "id" in home ? home.id : createHomePositionId(),
+  usage: home.usage ?? "primary",
+  mode: home.mode ?? "new_purchase",
   purchasePrice: home.purchasePrice,
   downPayment: home.downPayment,
   purchaseMonth: home.purchaseMonth,
@@ -186,6 +211,8 @@ const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePosit
   feesOneTime: home.feesOneTime,
   holdingCostMonthly: home.holdingCostMonthly,
   holdingCostAnnualGrowthPct: home.holdingCostAnnualGrowthPct,
+  existing: home.existing ? { ...home.existing } : undefined,
+  rental: home.rental ? { ...home.rental } : undefined,
 });
 
 const normalizeScenarioPositions = (
