@@ -5,7 +5,11 @@ import {
   t,
 } from "../../lib/i18n";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
-import type { HomePosition } from "../../src/store/scenarioStore";
+import {
+  createHomePositionId,
+  type HomePosition,
+  type HomePositionDraft,
+} from "../../src/store/scenarioStore";
 import type { EventType, TimelineEvent } from "./types";
 
 export const eventTypeLabels: Record<EventType, string> = {
@@ -111,7 +115,7 @@ export const createEventFromTemplate = (
 
 export const createHomePositionFromTemplate = (
   options?: { baseMonth?: string | null; purchaseMonth?: string | null }
-): HomePosition => {
+): HomePositionDraft => {
   const purchaseMonth = getDefaultStartMonth(
     normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? null
   );
@@ -119,6 +123,7 @@ export const createHomePositionFromTemplate = (
   const downPayment = 1_800_000;
 
   return {
+    id: createHomePositionId(),
     purchasePrice,
     downPayment,
     purchaseMonth,

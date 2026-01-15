@@ -25,6 +25,7 @@ export type HomePosition = {
 
 export type PositionsInput = {
   home?: HomePosition;
+  homes?: HomePosition[];
 };
 
 export type ProjectionInput = {
@@ -139,8 +140,8 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     }
   }
 
-  if (input.positions?.home) {
-    const home = input.positions.home;
+  const homes = input.positions?.homes ?? (input.positions?.home ? [input.positions.home] : []);
+  for (const home of homes) {
     const purchaseIndex = monthIndex(input.baseMonth, home.purchaseMonth);
     if (purchaseIndex >= 0 && purchaseIndex < horizonMonths) {
       netCashflow[purchaseIndex] -= home.downPayment;
@@ -157,7 +158,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     });
 
     for (let i = 0; i < horizonMonths; i += 1) {
-      assetsHousing[i] = homeSeries[i];
+      assetsHousing[i] += homeSeries[i];
     }
 
     if (home.mortgage) {
@@ -174,7 +175,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
         if (payment !== 0) {
           netCashflow[i] -= payment;
         }
-        liabilitiesMortgage[i] = schedule.balanceSeries[i];
+        liabilitiesMortgage[i] += schedule.balanceSeries[i];
       }
     }
   }

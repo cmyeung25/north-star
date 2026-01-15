@@ -1,5 +1,9 @@
 import { get, set } from "idb-keyval";
-import { type Scenario, useScenarioStore } from "./scenarioStore";
+import {
+  normalizeScenarioList,
+  type Scenario,
+  useScenarioStore,
+} from "./scenarioStore";
 import { SCHEMA_VERSION } from "./scenarioSchema";
 import { normalizeActiveScenarioId } from "./scenarioState";
 
@@ -48,10 +52,13 @@ export const loadFromIndexedDB = async () => {
     return null;
   }
 
+  const normalizedScenarios = normalizeScenarioList(value.scenarios);
+
   return {
     ...value,
+    scenarios: normalizedScenarios,
     activeScenarioId: normalizeActiveScenarioId(
-      value.scenarios,
+      normalizedScenarios,
       value.activeScenarioId
     ),
   };
@@ -79,7 +86,7 @@ export const hydrateScenarioStore = async () => {
 
   if (persisted) {
     useScenarioStore.setState({
-      scenarios: persisted.scenarios,
+      scenarios: normalizeScenarioList(persisted.scenarios),
       activeScenarioId: persisted.activeScenarioId,
     });
     return;

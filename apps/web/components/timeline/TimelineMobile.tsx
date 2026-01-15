@@ -32,7 +32,7 @@ import {
   iconMap,
   templateOptions,
 } from "./utils";
-import type { HomePosition } from "../../src/store/scenarioStore";
+import type { HomePositionDraft } from "../../src/store/scenarioStore";
 
 const floatingButtonStyle = {
   position: "fixed" as const,
@@ -43,28 +43,30 @@ const floatingButtonStyle = {
 
 interface TimelineMobileProps {
   events: TimelineEvent[];
-  homePosition: HomePosition | null;
+  homePositions: HomePositionDraft[];
   baseCurrency: string;
   baseMonth?: string | null;
   scenarioId: string;
   onEventsChange: (events: TimelineEvent[]) => void;
-  onHomePositionChange: (home: HomePosition) => void;
-  onHomePositionClear: () => void;
+  onHomePositionAdd: (home: HomePositionDraft) => void;
+  onHomePositionUpdate: (home: HomePositionDraft) => void;
+  onHomePositionRemove: (homeId: string) => void;
 }
 
 export default function TimelineMobile({
   events,
-  homePosition,
+  homePositions,
   baseCurrency,
   baseMonth,
   scenarioId,
   onEventsChange,
-  onHomePositionChange,
-  onHomePositionClear,
+  onHomePositionAdd,
+  onHomePositionUpdate,
+  onHomePositionRemove,
 }: TimelineMobileProps) {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
-  const [editingHome, setEditingHome] = useState(false);
+  const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
 
   const sortedEvents = useMemo(
@@ -102,7 +104,7 @@ export default function TimelineMobile({
 
   const handleTemplateSelect = (type: TimelineEvent["type"]) => {
     if (type === "buy_home") {
-      onHomePositionChange(createHomePositionFromTemplate({ baseMonth }));
+      onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
       setHomeToastOpen(true);
       setTemplateOpen(false);
       return;
@@ -117,6 +119,8 @@ export default function TimelineMobile({
   };
 
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
+  const editingHome =
+    homePositions.find((home) => home.id === editingHomeId) ?? null;
 
   return (
     <Stack gap="lg" pb={120}>
@@ -147,26 +151,60 @@ export default function TimelineMobile({
         </Notification>
       )}
 
-      {homePosition && (
-        <Card withBorder shadow="sm" radius="md" padding="md">
-          <Stack gap="sm">
-            <div>
-              <Text fw={600}>{formatHomeSummary(homePosition, baseCurrency)}</Text>
-              <Text size="xs" c="dimmed">
-                Purchase month: {homePosition.purchaseMonth}
-              </Text>
-            </div>
-            <Group gap="sm">
-              <Button size="xs" variant="light" onClick={() => setEditingHome(true)}>
-                {t("timelineEdit")}
-              </Button>
-              <Button size="xs" color="red" variant="light" onClick={onHomePositionClear}>
-                Remove home
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-      )}
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <Text fw={600}>{t("homeDetailsTitle")}</Text>
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() => {
+              onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
+              setHomeToastOpen(true);
+            }}
+          >
+            {t("homeDetailsAddHome")}
+          </Button>
+        </Group>
+        {homePositions.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            {t("homeDetailsEmpty")}
+          </Text>
+        ) : (
+          homePositions.map((home, index) => (
+            <Card key={home.id} withBorder shadow="sm" radius="md" padding="md">
+              <Stack gap="sm">
+                <div>
+                  <Text fw={600}>
+                    {t("homeDetailsHomeLabel", { index: index + 1 })}
+                  </Text>
+                  <Text size="sm">{formatHomeSummary(home, baseCurrency)}</Text>
+                  <Text size="xs" c="dimmed">
+                    Purchase month: {home.purchaseMonth}
+                  </Text>
+                </div>
+                <Group gap="sm">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setEditingHomeId(home.id)}
+                  >
+                    {t("timelineEdit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    color="red"
+                    variant="light"
+                    onClick={() => onHomePositionRemove(home.id)}
+                    disabled={homePositions.length <= 1}
+                  >
+                    {t("homeDetailsRemoveHome")}
+                  </Button>
+                </Group>
+              </Stack>
+            </Card>
+          ))
+        )}
+      </Stack>
 
       {sortedEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
@@ -288,18 +326,18 @@ export default function TimelineMobile({
       </Modal>
 
       <Modal
-        opened={editingHome}
-        onClose={() => setEditingHome(false)}
+        opened={Boolean(editingHome)}
+        onClose={() => setEditingHomeId(null)}
         title={t("homeDetailsTitle")}
         fullScreen
       >
-        {homePosition && (
+        {editingHome && (
           <HomeDetailsForm
-            home={homePosition}
-            onCancel={() => setEditingHome(false)}
+            home={editingHome}
+            onCancel={() => setEditingHomeId(null)}
             onSave={(updated) => {
-              onHomePositionChange(updated);
-              setEditingHome(false);
+              onHomePositionUpdate(updated);
+              setEditingHomeId(null);
             }}
           />
         )}

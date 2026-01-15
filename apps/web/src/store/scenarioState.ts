@@ -1,4 +1,8 @@
-import { useScenarioStore, type Scenario } from "./scenarioStore";
+import {
+  normalizeScenarioList,
+  useScenarioStore,
+  type Scenario,
+} from "./scenarioStore";
 import { SCHEMA_VERSION } from "./scenarioSchema";
 
 export type ScenarioStoreSnapshot = {
@@ -32,18 +36,19 @@ export const exportScenarioState = (): ScenarioStatePayload => {
 };
 
 export const importScenarioState = (payload: ScenarioStatePayload) => {
+  const normalizedScenarios = normalizeScenarioList(payload.scenarios);
   const normalizedActiveScenarioId = normalizeActiveScenarioId(
-    payload.scenarios,
+    normalizedScenarios,
     payload.activeScenarioId
   );
 
   useScenarioStore.setState({
-    scenarios: payload.scenarios,
+    scenarios: normalizedScenarios,
     activeScenarioId: normalizedActiveScenarioId,
   });
 
   return {
-    scenarios: payload.scenarios,
+    scenarios: normalizedScenarios,
     activeScenarioId: normalizedActiveScenarioId,
   } satisfies ScenarioStoreSnapshot;
 };
