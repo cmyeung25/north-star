@@ -24,11 +24,12 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const upsertScenarioEvents = useScenarioStore(
     (state) => state.upsertScenarioEvents
   );
-  const upsertHomePosition = useScenarioStore(
-    (state) => state.upsertHomePosition
+  const addHomePosition = useScenarioStore((state) => state.addHomePosition);
+  const updateHomePosition = useScenarioStore(
+    (state) => state.updateHomePosition
   );
-  const clearHomePosition = useScenarioStore(
-    (state) => state.clearHomePosition
+  const removeHomePosition = useScenarioStore(
+    (state) => state.removeHomePosition
   );
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const events = scenario?.events ?? [];
-  const homePosition = scenario?.positions?.home;
+  const homePositions = scenario?.positions?.homes ?? [];
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
 
@@ -72,13 +73,14 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
     return (
       <TimelineDesktop
         events={events}
-        homePosition={homePosition ?? null}
+        homePositions={homePositions}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         scenarioId={scenario.id}
         onEventsChange={handleEventsChange}
-        onHomePositionChange={(home) => upsertHomePosition(scenario.id, home)}
-        onHomePositionClear={() => clearHomePosition(scenario.id)}
+        onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
+        onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
+        onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}
       />
     );
   }
@@ -86,13 +88,14 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   return (
     <TimelineMobile
       events={events}
-      homePosition={homePosition ?? null}
+      homePositions={homePositions}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
       scenarioId={scenario.id}
       onEventsChange={handleEventsChange}
-      onHomePositionChange={(home) => upsertHomePosition(scenario.id, home)}
-      onHomePositionClear={() => clearHomePosition(scenario.id)}
+      onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
+      onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
+      onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}
     />
   );
 }

@@ -4,16 +4,16 @@ import { Button, Group, NumberInput, Stack, TextInput, Title } from "@mantine/co
 import { useEffect, useState } from "react";
 import { t } from "../../lib/i18n";
 import { normalizeMonth } from "../../src/features/timeline/schema";
-import type { HomePosition } from "../../src/store/scenarioStore";
+import type { HomePosition, HomePositionDraft } from "../../src/store/scenarioStore";
 import {
   HomePositionSchema,
   getHomePositionErrors,
 } from "../../src/store/scenarioValidation";
 
 type HomeDetailsFormProps = {
-  home: HomePosition;
+  home: HomePositionDraft;
   onCancel: () => void;
-  onSave: (home: HomePosition) => void;
+  onSave: (home: HomePositionDraft) => void;
 };
 
 export default function HomeDetailsForm({
@@ -21,7 +21,7 @@ export default function HomeDetailsForm({
   onCancel,
   onSave,
 }: HomeDetailsFormProps) {
-  const [formValues, setFormValues] = useState<HomePosition>(home);
+  const [formValues, setFormValues] = useState<HomePositionDraft>(home);
   const [errors, setErrors] = useState<
     Partial<Record<keyof HomePosition, string>>
   >({});
@@ -31,9 +31,9 @@ export default function HomeDetailsForm({
     setErrors({});
   }, [home]);
 
-  const updateField = <K extends keyof HomePosition>(
+  const updateField = <K extends keyof HomePositionDraft>(
     key: K,
-    value: HomePosition[K]
+    value: HomePositionDraft[K]
   ) => {
     setFormValues((current) => ({ ...current, [key]: value }));
   };
@@ -41,7 +41,10 @@ export default function HomeDetailsForm({
   const handleNormalizeMonth = (value: string) => {
     const normalized = normalizeMonth(value);
     if (normalized) {
-      updateField("purchaseMonth", normalized as HomePosition["purchaseMonth"]);
+      updateField(
+        "purchaseMonth",
+        normalized as HomePositionDraft["purchaseMonth"]
+      );
     }
   };
 
@@ -58,7 +61,7 @@ export default function HomeDetailsForm({
       return;
     }
 
-    onSave(parsed.data);
+    onSave({ ...parsed.data, id: formValues.id });
   };
 
   return (

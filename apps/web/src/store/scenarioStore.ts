@@ -35,8 +35,13 @@ export type HomePosition = {
   feesOneTime?: number;
 };
 
+export type HomePositionDraft = HomePosition & {
+  id: string;
+};
+
 export type ScenarioPositions = {
   home?: HomePosition;
+  homes?: HomePositionDraft[];
 };
 
 export type Scenario = {
@@ -60,8 +65,9 @@ type ScenarioStoreState = {
   setActiveScenario: (id: string) => void;
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
   upsertScenarioEvents: (id: string, events: TimelineEvent[]) => void;
-  upsertHomePosition: (id: string, home: HomePosition) => void;
-  clearHomePosition: (id: string) => void;
+  addHomePosition: (id: string, home: HomePositionDraft) => void;
+  updateHomePosition: (id: string, home: HomePositionDraft) => void;
+  removeHomePosition: (id: string, homeId: string) => void;
   updateScenarioUpdatedAt: (id: string) => void;
   updateScenarioAssumptions: (
     id: string,
@@ -98,6 +104,7 @@ const now = () => Date.now();
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
 const createEventId = () => `event-${nanoid(10)}`;
+export const createHomePositionId = () => `home-${nanoid(8)}`;
 
 const duplicateEvents = (events?: TimelineEvent[]) =>
   events?.map((event) => ({
@@ -173,6 +180,56 @@ const initialScenarios: Scenario[] = [
   },
 ];
 
+const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePositionDraft => ({
+  id: "id" in home ? home.id : createHomePositionId(),
+  purchasePrice: home.purchasePrice,
+  downPayment: home.downPayment,
+  purchaseMonth: home.purchaseMonth,
+  annualAppreciationPct: home.annualAppreciationPct,
+  mortgageRatePct: home.mortgageRatePct,
+  mortgageTermYears: home.mortgageTermYears,
+  feesOneTime: home.feesOneTime,
+});
+
+const normalizeScenarioPositions = (
+  positions?: ScenarioPositions
+): ScenarioPositions | undefined => {
+  if (!positions) {
+    return positions;
+  }
+
+  if (positions.homes) {
+    return {
+      ...positions,
+      homes: positions.homes.map(ensureHomePositionId),
+    };
+  }
+
+  if (positions.home) {
+    return {
+      ...positions,
+      homes: [ensureHomePositionId(positions.home)],
+    };
+  }
+
+  return positions;
+};
+
+export const normalizeScenario = (scenario: Scenario): Scenario => {
+  const normalizedPositions = normalizeScenarioPositions(scenario.positions);
+  if (!normalizedPositions) {
+    return scenario;
+  }
+
+  return {
+    ...scenario,
+    positions: normalizedPositions,
+  };
+};
+
+export const normalizeScenarioList = (scenarios: Scenario[]) =>
+  scenarios.map((scenario) => normalizeScenario(scenario));
+
 export const getScenarioById = (scenarios: Scenario[], id: string | null) =>
   scenarios.find((scenario) => scenario.id === id) ?? null;
 
@@ -201,7 +258,7 @@ export const resolveScenarioIdFromQuery = (
 };
 
 export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
-  scenarios: initialScenarios,
+  scenarios: normalizeScenarioList(initialScenarios),
   activeScenarioId: initialScenarios[0]?.id ?? "",
   createScenario: (name, options) => {
     const newScenario: Scenario = {
@@ -316,37 +373,67 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       ),
     }));
   },
-  upsertHomePosition: (id, home) => {
+  addHomePosition: (id, home) => {
+    const nextHome = ensureHomePositionId(home);
     set((state) => ({
       scenarios: state.scenarios.map((scenario) =>
         scenario.id === id
           ? {
               ...scenario,
-              positions: {
+              positions: normalizeScenarioPositions({
                 ...(scenario.positions ?? {}),
-                home,
-              },
+                homes: [...(scenario.positions?.homes ?? []), nextHome],
+              }),
               updatedAt: now(),
             }
           : scenario
       ),
     }));
   },
-  clearHomePosition: (id) => {
+  updateHomePosition: (id, home) => {
+    const nextHome = ensureHomePositionId(home);
     set((state) => ({
       scenarios: state.scenarios.map((scenario) => {
         if (scenario.id !== id) {
           return scenario;
         }
 
-        const { home, ...rest } = scenario.positions ?? {};
-        void home;
-        const nextPositions =
-          Object.keys(rest).length > 0 ? rest : undefined;
+        const existingHomes = scenario.positions?.homes ?? [];
+        const hasMatch = existingHomes.some((entry) => entry.id === nextHome.id);
+        const nextHomes = hasMatch
+          ? existingHomes.map((entry) =>
+              entry.id === nextHome.id ? nextHome : entry
+            )
+          : [...existingHomes, nextHome];
 
         return {
           ...scenario,
-          positions: nextPositions,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            homes: nextHomes,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  removeHomePosition: (id, homeId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextHomes = (scenario.positions?.homes ?? []).filter(
+          (home) => home.id !== homeId
+        );
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            homes: nextHomes,
+          }),
           updatedAt: now(),
         };
       }),
@@ -428,13 +515,14 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     get().updateScenarioAssumptions(id, { baseMonth });
   },
   replaceScenario: (scenario) => {
+    const normalizedScenario = normalizeScenario(scenario);
     set((state) => {
-      const exists = state.scenarios.some((entry) => entry.id === scenario.id);
+      const exists = state.scenarios.some((entry) => entry.id === normalizedScenario.id);
       const scenarios = exists
         ? state.scenarios.map((entry) =>
-            entry.id === scenario.id ? scenario : entry
+            entry.id === normalizedScenario.id ? normalizedScenario : entry
           )
-        : [scenario, ...state.scenarios];
+        : [normalizedScenario, ...state.scenarios];
 
       const nextActiveScenarioId = state.activeScenarioId
         ? state.activeScenarioId
@@ -447,9 +535,10 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     });
   },
   replaceAllScenarios: (scenarios) => {
+    const normalizedScenarios = normalizeScenarioList(scenarios);
     set(() => ({
-      scenarios,
-      activeScenarioId: scenarios[0]?.id ?? "",
+      scenarios: normalizedScenarios,
+      activeScenarioId: normalizedScenarios[0]?.id ?? "",
     }));
   },
 }));

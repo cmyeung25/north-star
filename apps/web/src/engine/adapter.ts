@@ -1,5 +1,5 @@
 import type { ProjectionInput, ProjectionResult } from "@north-star/engine";
-import type { Scenario, TimelineEvent } from "../store/scenarioStore";
+import type { HomePosition, Scenario, TimelineEvent } from "../store/scenarioStore";
 import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
 
@@ -79,27 +79,39 @@ export const mapScenarioToEngineInput = (
   const enabledEvents = (scenario.events ?? []).filter((event) => event.enabled);
   const earliestStartMonth = getEarliestStartMonth(enabledEvents);
   const buyHomeEvent = getEarliestBuyHomeEvent(enabledEvents);
-  const homePosition = scenario.positions?.home ?? null;
+  const homePositions = scenario.positions?.homes;
+  const legacyHome = scenario.positions?.home ?? null;
+  const resolvedHomePositions =
+    homePositions ?? (legacyHome ? [legacyHome] : []);
   if (buyHomeEvent) {
     assertBuyHomeEventMonth(buyHomeEvent, { strict });
   }
-  if (!homePosition && buyHomeEvent && strict) {
-    throw new Error("buy_home event requires home details in scenario.positions.home.");
+  if (!resolvedHomePositions.length && buyHomeEvent && strict) {
+    throw new Error("buy_home event requires home details in scenario.positions.homes.");
   }
-  const validatedHome = homePosition
-    ? HomePositionSchema.safeParse(homePosition)
-    : null;
-  const resolvedHome =
-    validatedHome && !validatedHome.success
-      ? strict
-        ? (() => {
-            throw new Error("scenario.positions.home is invalid.");
-          })()
-        : null
-      : validatedHome?.success
-        ? validatedHome.data
-        : homePosition;
-  const homePurchaseMonth = resolvedHome?.purchaseMonth ?? null;
+  const validatedHomes = resolvedHomePositions.reduce<HomePosition[]>(
+    (result, homePosition) => {
+      const parsed = HomePositionSchema.safeParse(homePosition);
+      if (!parsed.success) {
+        if (strict) {
+          throw new Error("scenario.positions.homes is invalid.");
+        }
+        return result;
+      }
+      result.push(parsed.data);
+      return result;
+    },
+    []
+  );
+  const homePurchaseMonth = validatedHomes.reduce<string | null>(
+    (earliest, home) => {
+      if (!earliest || home.purchaseMonth < earliest) {
+        return home.purchaseMonth;
+      }
+      return earliest;
+    },
+    null
+  );
   const baseMonth =
     options.baseMonth ??
     scenario.assumptions.baseMonth ??
@@ -110,26 +122,27 @@ export const mapScenarioToEngineInput = (
     options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 240;
   const initialCash = options.initialCash ?? scenario.assumptions.initialCash ?? 0;
   const events = enabledEvents
-    // Strategy A: remove buy_home cashflow events to avoid double counting with positions.home.
+    // Strategy A: remove buy_home cashflow events to avoid double counting with positions.homes.
     // Only the earliest buy_home event is mapped into positions; any additional buy_home events are ignored.
     .filter((event) => event.type !== "buy_home")
     .map(mapEventToEngine);
-  const positions = resolvedHome
-    ? {
-        home: {
-          purchasePrice: resolvedHome.purchasePrice,
-          downPayment: resolvedHome.downPayment,
-          purchaseMonth: resolvedHome.purchaseMonth,
-          annualAppreciation: resolvedHome.annualAppreciationPct / 100,
-          feesOneTime: resolvedHome.feesOneTime,
-          mortgage: {
-            principal: resolvedHome.purchasePrice - resolvedHome.downPayment,
-            annualRate: resolvedHome.mortgageRatePct / 100,
-            termMonths: resolvedHome.mortgageTermYears * 12,
-          },
-        },
-      }
-    : undefined;
+  const positions =
+    validatedHomes.length > 0
+      ? {
+          homes: validatedHomes.map((home) => ({
+            purchasePrice: home.purchasePrice,
+            downPayment: home.downPayment,
+            purchaseMonth: home.purchaseMonth,
+            annualAppreciation: home.annualAppreciationPct / 100,
+            feesOneTime: home.feesOneTime,
+            mortgage: {
+              principal: home.purchasePrice - home.downPayment,
+              annualRate: home.mortgageRatePct / 100,
+              termMonths: home.mortgageTermYears * 12,
+            },
+          })),
+        }
+      : undefined;
 
   return {
     baseMonth,

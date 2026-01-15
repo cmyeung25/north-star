@@ -23,18 +23,21 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
 });
 
 describe("mapScenarioToEngineInput buy_home mapping", () => {
-  it("uses scenario.positions.home and removes buy_home events from the timeline", () => {
+  it("uses scenario.positions.homes and removes buy_home events from the timeline", () => {
     const scenario = buildScenario({
       positions: {
-        home: {
-          purchasePrice: 9000000,
-          downPayment: 2000000,
-          purchaseMonth: "2026-03",
-          annualAppreciationPct: 2.5,
-          mortgageRatePct: 4.1,
-          mortgageTermYears: 25,
-          feesOneTime: 300000,
-        },
+        homes: [
+          {
+            id: "home-1",
+            purchasePrice: 9000000,
+            downPayment: 2000000,
+            purchaseMonth: "2026-03",
+            annualAppreciationPct: 2.5,
+            mortgageRatePct: 4.1,
+            mortgageTermYears: 25,
+            feesOneTime: 300000,
+          },
+        ],
       },
       events: [
         {
@@ -66,18 +69,20 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
 
     const input = mapScenarioToEngineInput(scenario);
 
-    expect(input.positions?.home).toEqual({
-      purchasePrice: 9000000,
-      downPayment: 2000000,
-      purchaseMonth: "2026-03",
-      annualAppreciation: 0.025,
-      feesOneTime: 300000,
-      mortgage: {
-        principal: 7000000,
-        annualRate: 0.041,
-        termMonths: 300,
+    expect(input.positions?.homes).toEqual([
+      {
+        purchasePrice: 9000000,
+        downPayment: 2000000,
+        purchaseMonth: "2026-03",
+        annualAppreciation: 0.025,
+        feesOneTime: 300000,
+        mortgage: {
+          principal: 7000000,
+          annualRate: 0.041,
+          termMonths: 300,
+        },
       },
-    });
+    ]);
 
     expect(input.events).toHaveLength(1);
     expect(input.events[0]).toMatchObject({
@@ -107,7 +112,7 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
     });
 
     expect(() => mapScenarioToEngineInput(scenario, { strict: true })).toThrow(
-      "buy_home event requires home details in scenario.positions.home."
+      "buy_home event requires home details in scenario.positions.homes."
     );
   });
 
@@ -131,7 +136,7 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
 
     const input = mapScenarioToEngineInput(scenario, { strict: false });
 
-    expect(input.positions?.home).toBeUndefined();
+    expect(input.positions?.homes).toBeUndefined();
     expect(input.events).toHaveLength(0);
   });
 });
