@@ -242,6 +242,76 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     stressEvents,
   ]);
 
+  const handleApplyStress = () => {
+    setAppliedStress({
+      ...draftStress,
+      applyMonth: normalizeMonth(draftStress.applyMonth ?? "") ?? draftStress.applyMonth,
+    });
+  };
+
+  const handleRevertStress = () => {
+    const fallbackApplyMonth =
+      baselineInput?.baseMonth ??
+      scenario?.assumptions.baseMonth ??
+      new Date().toISOString().slice(0, 7);
+
+    setAppliedStress({
+      ...emptyStressState,
+      applyMonth: draftStress.applyMonth ?? fallbackApplyMonth,
+    });
+  };
+
+  const handleSaveScenario = () => {
+    if (!scenario) {
+      return;
+    }
+
+    const newScenario = createScenario(saveName || `${scenario.name} · Stress`, {
+      baseCurrency: scenario.baseCurrency,
+    });
+
+    updateScenarioAssumptions(newScenario.id, { ...scenario.assumptions });
+
+    const clonedEvents = (scenario.events ?? []).map((event) => ({
+      ...event,
+      id: `event-${nanoid(10)}`,
+    }));
+    const eventsToSave = [...clonedEvents, ...stressEvents];
+    if (eventsToSave.length > 0) {
+      upsertScenarioEvents(newScenario.id, eventsToSave);
+    }
+
+    setActiveScenario(newScenario.id);
+    router.push("/scenarios");
+  };
+
+  const handleScenarioChange = (nextScenarioId: string) => {
+    setActiveScenario(nextScenarioId);
+    router.push(buildScenarioUrl("/stress", nextScenarioId));
+  };
+
+  const shockMonthOptions = useMemo(() => {
+    if (!baselineInput?.baseMonth) {
+      return [];
+    }
+    const horizon = Math.min(baselineInput.horizonMonths ?? 12, 24);
+    return Array.from({ length: horizon }, (_, index) => {
+      const value = addMonths(baselineInput.baseMonth, index);
+      return { value, label: value };
+    });
+  }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
+
+  if (!scenario) {
+    return (
+      <Stack gap="sm" pb={isDesktop ? undefined : 120}>
+        <Title order={2}>Stress Test</Title>
+        <Text size="sm" c="dimmed">
+          Loading scenario details...
+        </Text>
+      </Stack>
+    );
+  }
+
   const activeStressBadges = [
     appliedStress.jobLossMonths
       ? {
@@ -267,73 +337,15 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       : null,
   ].filter(Boolean) as { key: string; label: string }[];
 
-  const handleApplyStress = () => {
-    setAppliedStress({
-      ...draftStress,
-      applyMonth: normalizeMonth(draftStress.applyMonth ?? "") ?? draftStress.applyMonth,
-    });
-  };
-
-  const handleRevertStress = () => {
-    const fallbackApplyMonth =
-      baselineInput?.baseMonth ??
-      scenario?.assumptions.baseMonth ??
-      new Date().toISOString().slice(0, 7);
-
-    setAppliedStress({
-      ...emptyStressState,
-      applyMonth: draftStress.applyMonth ?? fallbackApplyMonth,
-    });
-  };
-
-  const handleSaveScenario = () => {
-    const newScenario = createScenario(saveName || `${scenario.name} · Stress`, {
-      baseCurrency: scenario.baseCurrency,
-    });
-
-    updateScenarioAssumptions(newScenario.id, { ...scenario.assumptions });
-
-    const clonedEvents = (scenario.events ?? []).map((event) => ({
-      ...event,
-      id: `event-${nanoid(10)}`,
-    }));
-    const eventsToSave = [...clonedEvents, ...stressEvents];
-    if (eventsToSave.length > 0) {
-      upsertScenarioEvents(newScenario.id, eventsToSave);
-    }
-
-    setActiveScenario(newScenario.id);
-    router.push("/scenarios");
-  };
-
-  const handleScenarioChange = (nextScenarioId: string) => {
-    setActiveScenario(nextScenarioId);
-    router.push(buildScenarioUrl("/stress", nextScenarioId));
-  };
+  if (!baselineView || !afterView || !baselineProjection || !afterProjection) {
+    return null;
+  }
 
   const baselineKpis = baselineView.kpis;
   const afterKpis = afterView.kpis;
   const presetDeltas = presetComparison?.deltas ?? null;
   const presetBaselineSeries = presetComparison?.baselineView.cashSeries ?? [];
   const presetStressedSeries = presetComparison?.stressedView.cashSeries ?? [];
-
-  const shockMonthOptions = useMemo(() => {
-    if (!baselineInput?.baseMonth) {
-      return [];
-    }
-    const horizon = Math.min(baselineInput.horizonMonths ?? 12, 24);
-    return Array.from({ length: horizon }, (_, index) => {
-      const value = addMonths(baselineInput.baseMonth, index);
-      return { value, label: value };
-    });
-  }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
-
-  const isReady =
-    !!scenario && !!baselineView && !!afterView && !!baselineProjection && !!afterProjection;
-
-  if (!isReady) {
-    return null;
-  }
 
   const kpiCard = (label: string, value: string, helper: string) => (
     <Card withBorder radius="md" padding="md">
