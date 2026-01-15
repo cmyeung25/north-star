@@ -30,7 +30,12 @@ const buildProjection = (overrides: Partial<ProjectionResult> = {}): ProjectionR
     months: ["2025-01", "2025-02", "2025-03"],
     netCashflow: [0, 0, 0],
     cashBalance: [100, 80, 60],
-    assets: { housing: [0, 0, 0], total: [0, 0, 0] },
+    assets: {
+      housing: [0, 0, 0],
+      investments: [0, 0, 0],
+      insurance: [0, 0, 0],
+      total: [0, 0, 0],
+    },
     liabilities: { mortgage: [0, 0, 0], total: [0, 0, 0] },
     netWorth: [1000, 900, 800],
     lowestMonthlyBalance: { value: 60, index: 2, month: "2025-03" },

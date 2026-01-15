@@ -9,7 +9,7 @@ const buildProjection = (
   months: ["2024-01", "2024-02"],
   netCashflow: [0, 0],
   cashBalance: [0, 0],
-  assets: { housing: [0, 0], total: [0, 0] },
+  assets: { housing: [0, 0], investments: [0, 0], insurance: [0, 0], total: [0, 0] },
   liabilities: { mortgage: [0, 0], total: [0, 0] },
   netWorth: [1000, 1500],
   lowestMonthlyBalance: { value: 0, index: 0, month: "2024-01" },
