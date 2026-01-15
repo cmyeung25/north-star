@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   Group,
+  Menu,
   SimpleGrid,
   Stack,
   Text,
@@ -34,6 +35,11 @@ import {
   projectionToOverviewViewModel,
 } from "../../src/engine/adapter";
 import { useRentVsOwnComparison } from "../../src/engine/rentVsOwnComparison";
+import {
+  buildExportFilename,
+  downloadTextFile,
+  projectionToCSV,
+} from "../../src/export/projectionExport";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -168,6 +174,39 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     router.push(buildScenarioUrl("/overview", nextScenarioId));
   };
 
+  const exportDisabled = !projection;
+
+  const handleExportCsv = () => {
+    if (!selectedScenario || !projection) {
+      return;
+    }
+    const csv = projectionToCSV(projection);
+    downloadTextFile(
+      buildExportFilename(selectedScenario, "projection", "csv"),
+      "text/csv",
+      csv
+    );
+  };
+
+  const handleExportJson = () => {
+    if (!selectedScenario || !projection) {
+      return;
+    }
+    const payload = {
+      meta: {
+        baseMonth: projection.baseMonth,
+        horizonMonths: projection.months.length,
+        exportedAtIso: new Date().toISOString(),
+      },
+      projection,
+    };
+    downloadTextFile(
+      buildExportFilename(selectedScenario, "projection_raw", "json"),
+      "application/json",
+      JSON.stringify(payload, null, 2)
+    );
+  };
+
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap="sm">
@@ -178,9 +217,26 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               Snapshot of your plan health and momentum.
             </Text>
           </div>
-          <Button component={Link} href="/scenarios" variant="subtle">
-            Back to Scenarios
-          </Button>
+          <Group gap="xs">
+            <Menu position="bottom-end" withinPortal>
+              <Menu.Target>
+                <Button variant="light" disabled={exportDisabled}>
+                  Export
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={handleExportCsv} disabled={exportDisabled}>
+                  Export CSV
+                </Menu.Item>
+                <Menu.Item onClick={handleExportJson} disabled={exportDisabled}>
+                  Export JSON
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+            <Button component={Link} href="/scenarios" variant="subtle">
+              Back to Scenarios
+            </Button>
+          </Group>
         </Group>
 
         {isDesktop ? (
