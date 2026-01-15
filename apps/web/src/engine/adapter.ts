@@ -1,7 +1,12 @@
 // Shape note: Engine HomePosition originally accepted feesOneTime only for extra home costs.
 // Added fields mapped here: holdingCostMonthly (number) and holdingCostAnnualGrowth (decimal).
 // Back-compat: missing holding cost fields map to 0 in the engine input.
-import type { ProjectionInput, ProjectionResult } from "@north-star/engine";
+import {
+  applyEventAssumptionFallbacks,
+  type EventAssumptions,
+  type ProjectionInput,
+  type ProjectionResult,
+} from "@north-star/engine";
 import type { HomePosition, Scenario, TimelineEvent } from "../store/scenarioStore";
 import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
@@ -63,16 +68,28 @@ const assertBuyHomeEventMonth = (
 };
 
 const mapEventToEngine = (
-  event: TimelineEvent
-): ProjectionInput["events"][number] => ({
-  enabled: event.enabled,
-  startMonth: event.startMonth,
-  endMonth: event.endMonth ?? null,
-  monthlyAmount: event.monthlyAmount ?? 0,
-  oneTimeAmount: event.oneTimeAmount ?? 0,
-  // Store annualGrowthPct is a whole percent (e.g. 3 for 3%), engine expects decimal.
-  annualGrowthPct: (event.annualGrowthPct ?? 0) / 100,
-});
+  event: TimelineEvent,
+  assumptions: EventAssumptions
+): ProjectionInput["events"][number] => {
+  // Fallback rules (MVP): use assumptions when an event doesn't provide growth.
+  const withFallbacks = applyEventAssumptionFallbacks(
+    {
+      type: event.type,
+      annualGrowthPct: event.annualGrowthPct,
+    },
+    assumptions
+  );
+
+  return {
+    enabled: event.enabled,
+    startMonth: event.startMonth,
+    endMonth: event.endMonth ?? null,
+    monthlyAmount: event.monthlyAmount ?? 0,
+    oneTimeAmount: event.oneTimeAmount ?? 0,
+    // Store annualGrowthPct is a whole percent (e.g. 3 for 3%), engine expects decimal.
+    annualGrowthPct: (withFallbacks.annualGrowthPct ?? 0) / 100,
+  };
+};
 
 export const mapScenarioToEngineInput = (
   scenario: Scenario,
@@ -124,11 +141,16 @@ export const mapScenarioToEngineInput = (
   const horizonMonths =
     options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 240;
   const initialCash = options.initialCash ?? scenario.assumptions.initialCash ?? 0;
+  const assumptions: EventAssumptions = {
+    inflationRate: scenario.assumptions.inflationRate,
+    rentAnnualGrowthPct: scenario.assumptions.rentAnnualGrowthPct,
+    salaryGrowthRate: scenario.assumptions.salaryGrowthRate,
+  };
   const events = enabledEvents
     // Strategy A: remove buy_home cashflow events to avoid double counting with positions.homes.
     // Only the earliest buy_home event is mapped into positions; any additional buy_home events are ignored.
     .filter((event) => event.type !== "buy_home")
-    .map(mapEventToEngine);
+    .map((event) => mapEventToEngine(event, assumptions));
   const positions =
     validatedHomes.length > 0
       ? {
