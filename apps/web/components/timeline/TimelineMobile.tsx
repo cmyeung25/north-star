@@ -5,10 +5,10 @@ import {
   Badge,
   Button,
   Card,
-  Drawer,
   Group,
   Modal,
   Notification,
+  SegmentedControl,
   Stack,
   Switch,
   Text,
@@ -16,21 +16,24 @@ import {
 } from "@mantine/core";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { getEventGroup, getEventMeta, type EventGroup } from "@north-star/engine";
 import { t } from "../../lib/i18n";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm from "./TimelineEventForm";
 import HomeDetailsForm from "./HomeDetailsForm";
+import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
 import type { TimelineEvent } from "./types";
 import {
   createEventId,
   createHomePositionFromTemplate,
-  createEventFromTemplate,
-  eventTypeLabels,
+  eventFilterOptions,
+  getEventGroupLabel,
+  getEventImpactHint,
+  getEventLabel,
   formatCurrency,
   formatDateRange,
   formatHomeSummary,
   iconMap,
-  templateOptions,
 } from "./utils";
 import type { HomePositionDraft } from "../../src/store/scenarioStore";
 
@@ -64,7 +67,8 @@ export default function TimelineMobile({
   onHomePositionUpdate,
   onHomePositionRemove,
 }: TimelineMobileProps) {
-  const [templateOpen, setTemplateOpen] = useState(false);
+  const [addEventOpen, setAddEventOpen] = useState(false);
+  const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
@@ -73,6 +77,12 @@ export default function TimelineMobile({
     () => [...events].sort((a, b) => a.startMonth.localeCompare(b.startMonth)),
     [events]
   );
+  const filteredEvents = useMemo(() => {
+    if (activeGroup === "all") {
+      return sortedEvents;
+    }
+    return sortedEvents.filter((event) => getEventGroup(event.type) === activeGroup);
+  }, [activeGroup, sortedEvents]);
 
   const handleSave = (updated: TimelineEvent) => {
     onEventsChange(
@@ -102,22 +112,6 @@ export default function TimelineMobile({
     onEventsChange(events.filter((event) => event.id !== eventId));
   };
 
-  const handleTemplateSelect = (type: TimelineEvent["type"]) => {
-    if (type === "buy_home") {
-      onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
-      setHomeToastOpen(true);
-      setTemplateOpen(false);
-      return;
-    }
-
-    const newEvent = createEventFromTemplate(type, {
-      baseCurrency,
-      baseMonth,
-    });
-    onEventsChange([newEvent, ...events]);
-    setTemplateOpen(false);
-  };
-
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
@@ -137,6 +131,12 @@ export default function TimelineMobile({
           )}
         </div>
       </Group>
+
+      <SegmentedControl
+        data={eventFilterOptions}
+        value={activeGroup}
+        onChange={(value) => setActiveGroup(value as "all" | EventGroup)}
+      />
 
       {homeToastOpen && (
         <Notification color="teal" onClose={() => setHomeToastOpen(false)}>
@@ -210,18 +210,31 @@ export default function TimelineMobile({
         <Text c="dimmed" size="sm">
           Add your first event to start shaping the plan.
         </Text>
+      ) : filteredEvents.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No events in this group yet.
+        </Text>
       ) : (
         <Stack gap="md">
-          {sortedEvents.map((event) => (
+          {filteredEvents.map((event) => (
             <Card key={event.id} withBorder shadow="sm" radius="md" padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" align="flex-start">
                   <Group gap="sm">
                     <Text size="xl">{iconMap[event.type]}</Text>
                     <div>
+                      <Badge variant="light" color="gray" size="sm">
+                        {getEventGroupLabel(event.type)}
+                      </Badge>
                       <Text fw={600}>{event.name}</Text>
+                      <Text size="xs" c="dimmed">
+                        {getEventLabel(event.type)}
+                      </Text>
                       <Text size="sm" c="dimmed">
                         {formatDateRange(event.startMonth, event.endMonth ?? null)}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {getEventImpactHint(event.type)}
                       </Text>
                     </div>
                   </Group>
@@ -279,30 +292,21 @@ export default function TimelineMobile({
         </Stack>
       )}
 
-      <Button style={floatingButtonStyle} onClick={() => setTemplateOpen(true)}>
+      <Button style={floatingButtonStyle} onClick={() => setAddEventOpen(true)}>
         {t("timelineAddEvent")}
       </Button>
 
-      <Drawer
-        opened={templateOpen}
-        onClose={() => setTemplateOpen(false)}
-        position="bottom"
-        size="md"
-        title={t("timelineChooseTemplate")}
-        radius="md"
-      >
-        <Stack gap="sm">
-          {templateOptions.map((template) => (
-            <Button
-              key={template.type}
-              variant="light"
-              onClick={() => handleTemplateSelect(template.type)}
-            >
-              {iconMap[template.type]} {template.label}
-            </Button>
-          ))}
-        </Stack>
-      </Drawer>
+      <TimelineAddEventDrawer
+        opened={addEventOpen}
+        onClose={() => setAddEventOpen(false)}
+        baseCurrency={baseCurrency}
+        baseMonth={baseMonth}
+        onAddEvent={(event) => onEventsChange([event, ...events])}
+        onAddHomePosition={() => {
+          onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
+          setHomeToastOpen(true);
+        }}
+      />
 
       <Modal
         opened={Boolean(editingEvent)}
@@ -310,7 +314,7 @@ export default function TimelineMobile({
         title={
           editingEvent
             ? t("timelineEditTitle", {
-                type: eventTypeLabels[editingEvent.type],
+                type: getEventLabel(editingEvent.type),
               })
             : t("timelineEdit")
         }
@@ -319,6 +323,7 @@ export default function TimelineMobile({
         <TimelineEventForm
           event={editingEvent}
           baseCurrency={baseCurrency}
+          fields={editingEvent ? getEventMeta(editingEvent.type).fields : undefined}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
           submitLabel={t("timelineSaveChanges")}
