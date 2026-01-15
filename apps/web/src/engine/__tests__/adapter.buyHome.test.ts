@@ -23,8 +23,19 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
 });
 
 describe("mapScenarioToEngineInput buy_home mapping", () => {
-  it("maps the earliest buy_home event into positions.home and removes it from events", () => {
+  it("uses scenario.positions.home and removes buy_home events from the timeline", () => {
     const scenario = buildScenario({
+      positions: {
+        home: {
+          purchasePrice: 9000000,
+          downPayment: 2000000,
+          purchaseMonth: "2026-03",
+          annualAppreciationPct: 2.5,
+          mortgageRatePct: 4.1,
+          mortgageTermYears: 25,
+          feesOneTime: 300000,
+        },
+      },
       events: [
         {
           id: "event-rent",
@@ -56,15 +67,15 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
     const input = mapScenarioToEngineInput(scenario);
 
     expect(input.positions?.home).toEqual({
-      purchasePrice: 500000,
-      downPayment: 100000,
+      purchasePrice: 9000000,
+      downPayment: 2000000,
       purchaseMonth: "2026-03",
-      annualAppreciation: 0.03,
-      feesOneTime: 0,
+      annualAppreciation: 0.025,
+      feesOneTime: 300000,
       mortgage: {
-        principal: 400000,
-        annualRate: 0.03,
-        termMonths: 360,
+        principal: 7000000,
+        annualRate: 0.041,
+        termMonths: 300,
       },
     });
 
@@ -96,11 +107,11 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
     });
 
     expect(() => mapScenarioToEngineInput(scenario, { strict: true })).toThrow(
-      "buy_home event requires oneTimeAmount for down payment."
+      "buy_home event requires home details in scenario.positions.home."
     );
   });
 
-  it("skips mapping in lenient mode when buy_home lacks oneTimeAmount", () => {
+  it("skips mapping in lenient mode when buy_home has no home details", () => {
     const scenario = buildScenario({
       events: [
         {

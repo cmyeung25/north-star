@@ -9,6 +9,7 @@
   "scripts": {
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "build": "pnpm --filter @north-star/web build",
     "test": "turbo test",
     "format": "prettier --write ."
   },

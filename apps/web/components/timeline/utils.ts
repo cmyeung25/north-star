@@ -110,9 +110,11 @@ export const createEventFromTemplate = (
 };
 
 export const createHomePositionFromTemplate = (
-  baseMonth?: string | null
+  options?: { baseMonth?: string | null; purchaseMonth?: string | null }
 ): HomePosition => {
-  const purchaseMonth = getDefaultStartMonth(baseMonth);
+  const purchaseMonth = getDefaultStartMonth(
+    normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? null
+  );
   const purchasePrice = 9_000_000;
   const downPayment = 1_800_000;
 
@@ -121,23 +123,15 @@ export const createHomePositionFromTemplate = (
     downPayment,
     purchaseMonth,
     annualAppreciationPct: 2,
+    mortgageRatePct: 3.5,
+    mortgageTermYears: 30,
     feesOneTime: 300_000,
-    mortgage: {
-      principal: purchasePrice - downPayment,
-      annualRatePct: 3.5,
-      termMonths: 360,
-    },
   };
 };
 
 export const formatHomeSummary = (home: HomePosition, currency: string) => {
   const formattedPrice = formatCurrency(home.purchasePrice, currency);
-
-  if (!home.mortgage) {
-    return `Home: ${formattedPrice}`;
-  }
-
-  const termYears = Math.round(home.mortgage.termMonths / 12);
-  const rate = home.mortgage.annualRatePct.toFixed(1);
+  const termYears = Math.round(home.mortgageTermYears);
+  const rate = home.mortgageRatePct.toFixed(1);
   return `Home: ${formattedPrice} · Mortgage ${termYears}y @ ${rate}%`;
 };
