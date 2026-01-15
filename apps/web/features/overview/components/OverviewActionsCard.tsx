@@ -1,32 +1,34 @@
 import { Button, Card, Stack, Title } from "@mantine/core";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
+import { Link } from "../../../src/i18n/navigation";
 
 interface OverviewActionsCardProps {
   scenarioId: string;
 }
 
 export default function OverviewActionsCard({ scenarioId }: OverviewActionsCardProps) {
+  const t = useTranslations("overview");
   return (
     <Card withBorder radius="md" padding="md">
       <Stack gap="sm">
-        <Title order={4}>Quick actions</Title>
+        <Title order={4}>{t("actionsTitle")}</Title>
         <Button component={Link} href={buildScenarioUrl("/timeline", scenarioId)}>
-          Open Timeline
+          {t("actionsTimeline")}
         </Button>
         <Button
           component={Link}
           href={buildScenarioUrl("/stress", scenarioId)}
           variant="light"
         >
-          Run Stress Test
+          {t("actionsStress")}
         </Button>
         <Button
           component={Link}
           href={buildScenarioUrl("/settings", scenarioId)}
           variant="subtle"
         >
-          Settings
+          {t("actionsSettings")}
         </Button>
       </Stack>
     </Card>

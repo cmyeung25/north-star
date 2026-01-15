@@ -1,5 +1,5 @@
 import { Button, Group, Modal, Stack, Text } from "@mantine/core";
-import { t } from "../../../lib/i18n";
+import { useTranslations } from "next-intl";
 
 type ConfirmDeleteDialogProps = {
   opened: boolean;
@@ -14,23 +14,25 @@ export default function ConfirmDeleteDialog({
   onCancel,
   onConfirm,
 }: ConfirmDeleteDialogProps) {
+  const t = useTranslations("scenarios");
+  const common = useTranslations("common");
   return (
     <Modal
       opened={opened}
       onClose={onCancel}
-      title={t("scenariosDeleteTitle")}
+      title={t("deleteTitle")}
       centered
     >
       <Stack gap="md">
         <Text>
-          {t("scenariosConfirmDelete", { name: scenarioName })}
+          {t("confirmDelete", { name: scenarioName })}
         </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={onCancel}>
-            {t("scenariosCancel")}
+            {common("actionCancel")}
           </Button>
           <Button color="red" onClick={onConfirm}>
-            {t("scenariosDelete")}
+            {common("actionDelete")}
           </Button>
         </Group>
       </Stack>

@@ -14,7 +14,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
-import { t } from "../../lib/i18n";
+import { useTranslations } from "next-intl";
 import { normalizeMonth } from "../../src/features/timeline/schema";
 import type { HomePositionDraft, RentalDetails } from "../../src/store/scenarioStore";
 import {
@@ -33,6 +33,9 @@ export default function HomeDetailsForm({
   onCancel,
   onSave,
 }: HomeDetailsFormProps) {
+  const t = useTranslations("homes");
+  const common = useTranslations("common");
+  const validation = useTranslations("validation");
   const [formValues, setFormValues] = useState<HomePositionDraft>(home);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
 
@@ -144,7 +147,7 @@ export default function HomeDetailsForm({
 
     const parsed = HomePositionSchema.safeParse(nextValues);
     if (!parsed.success) {
-      setErrors(getHomePositionErrors(parsed.error));
+      setErrors(getHomePositionErrors(parsed.error, (key) => validation(key)));
       return;
     }
 
@@ -153,32 +156,32 @@ export default function HomeDetailsForm({
 
   return (
     <Stack gap="md">
-      <Title order={5}>{t("homeDetailsTitle")}</Title>
+      <Title order={5}>{t("title")}</Title>
       <Select
-        label={t("homeDetailsUsage")}
+        label={t("usageLabel")}
         value={usageValue}
         onChange={(value) =>
           updateField("usage", (value ?? "primary") as HomePositionDraft["usage"])
         }
         data={[
-          { value: "primary", label: t("homeDetailsUsagePrimary") },
-          { value: "investment", label: t("homeDetailsUsageInvestment") },
+          { value: "primary", label: t("usagePrimary") },
+          { value: "investment", label: t("usageInvestment") },
         ]}
       />
       <Select
-        label={t("homeDetailsMode")}
+        label={t("modeLabel")}
         value={modeValue}
         onChange={handleModeChange}
         data={[
-          { value: "new_purchase", label: t("homeDetailsModeNewPurchase") },
-          { value: "existing", label: t("homeDetailsModeExisting") },
+          { value: "new_purchase", label: t("modeNewPurchase") },
+          { value: "existing", label: t("modeExisting") },
         ]}
       />
       {modeValue === "existing" ? (
         <>
           <TextInput
-            label={t("homeDetailsExistingAsOfMonth")}
-            placeholder="YYYY-MM"
+            label={t("existingAsOfMonth")}
+            placeholder={common("yearMonthPlaceholder")}
             value={formValues.existing?.asOfMonth ?? ""}
             error={errors["existing.asOfMonth"] ?? errors.existing}
             onChange={(event) =>
@@ -195,7 +198,7 @@ export default function HomeDetailsForm({
             }
           />
           <NumberInput
-            label={t("homeDetailsExistingMarketValue")}
+            label={t("existingMarketValue")}
             value={formValues.existing?.marketValue ?? 0}
             error={errors["existing.marketValue"] ?? errors.existing}
             onChange={(value) =>
@@ -214,7 +217,7 @@ export default function HomeDetailsForm({
             min={0}
           />
           <NumberInput
-            label={t("homeDetailsExistingMortgageBalance")}
+            label={t("existingMortgageBalance")}
             value={formValues.existing?.mortgageBalance ?? 0}
             error={errors["existing.mortgageBalance"] ?? errors.existing}
             onChange={(value) =>
@@ -233,7 +236,7 @@ export default function HomeDetailsForm({
             min={0}
           />
           <NumberInput
-            label={t("homeDetailsExistingRemainingTerm")}
+            label={t("existingRemainingTerm")}
             value={formValues.existing?.remainingTermMonths ?? 0}
             error={errors["existing.remainingTermMonths"] ?? errors.existing}
             onChange={(value) =>
@@ -252,7 +255,7 @@ export default function HomeDetailsForm({
             max={600}
           />
           <NumberInput
-            label={t("homeDetailsExistingMortgageRate")}
+            label={t("existingMortgageRate")}
             value={formValues.existing?.annualRatePct ?? 0}
             error={errors["existing.annualRatePct"] ?? errors.existing}
             onChange={(value) =>
@@ -276,14 +279,14 @@ export default function HomeDetailsForm({
       ) : (
         <>
           <TextInput
-            label={t("homeDetailsPurchaseMonth")}
-            placeholder="YYYY-MM"
+            label={t("purchaseMonth")}
+            placeholder={common("yearMonthPlaceholder")}
             value={formValues.purchaseMonth ?? ""}
             error={errors.purchaseMonth}
             onChange={(event) => updateField("purchaseMonth", event.target.value)}
           />
           <NumberInput
-            label={t("homeDetailsPurchasePrice")}
+            label={t("purchasePrice")}
             value={formValues.purchasePrice ?? 0}
             error={errors.purchasePrice}
             onChange={(value) =>
@@ -293,7 +296,7 @@ export default function HomeDetailsForm({
             min={0}
           />
           <NumberInput
-            label={t("homeDetailsDownPayment")}
+            label={t("downPayment")}
             value={formValues.downPayment ?? 0}
             error={errors.downPayment}
             onChange={(value) =>
@@ -303,7 +306,7 @@ export default function HomeDetailsForm({
             min={0}
           />
           <NumberInput
-            label={t("homeDetailsMortgageRate")}
+            label={t("mortgageRate")}
             value={formValues.mortgageRatePct ?? 0}
             error={errors.mortgageRatePct}
             onChange={(value) =>
@@ -315,7 +318,7 @@ export default function HomeDetailsForm({
             suffix="%"
           />
           <NumberInput
-            label={t("homeDetailsMortgageTerm")}
+            label={t("mortgageTerm")}
             value={formValues.mortgageTermYears ?? 0}
             error={errors.mortgageTermYears}
             onChange={(value) =>
@@ -325,7 +328,7 @@ export default function HomeDetailsForm({
             max={50}
           />
           <NumberInput
-            label={t("homeDetailsFeesOneTime")}
+            label={t("feesOneTime")}
             value={formValues.feesOneTime ?? 0}
             error={errors.feesOneTime}
             onChange={(value) => updateField("feesOneTime", toPositiveNumber(value))}
@@ -335,7 +338,7 @@ export default function HomeDetailsForm({
         </>
       )}
       <NumberInput
-        label={t("homeDetailsAnnualAppreciation")}
+        label={t("annualAppreciation")}
         value={formValues.annualAppreciationPct}
         error={errors.annualAppreciationPct}
         onChange={(value) =>
@@ -347,7 +350,7 @@ export default function HomeDetailsForm({
         suffix="%"
       />
       <NumberInput
-        label={t("homeDetailsHoldingCostMonthly")}
+        label={t("holdingCostMonthly")}
         value={formValues.holdingCostMonthly ?? 0}
         error={errors.holdingCostMonthly}
         onChange={(value) =>
@@ -357,7 +360,7 @@ export default function HomeDetailsForm({
         min={0}
       />
       <NumberInput
-        label={t("homeDetailsHoldingCostGrowth")}
+        label={t("holdingCostGrowth")}
         value={formValues.holdingCostAnnualGrowthPct ?? 0}
         error={errors.holdingCostAnnualGrowthPct}
         onChange={(value) =>
@@ -369,14 +372,14 @@ export default function HomeDetailsForm({
         suffix="%"
       />
       <Switch
-        label={t("homeDetailsRentalEnabled")}
+        label={t("rentalEnabled")}
         checked={Boolean(formValues.rental)}
         onChange={(event) => handleRentalToggle(event.currentTarget.checked)}
       />
       {formValues.rental && (
         <>
           <NumberInput
-            label={t("homeDetailsRentalMonthly")}
+            label={t("rentalMonthly")}
             value={formValues.rental.rentMonthly ?? 0}
             error={errors["rental.rentMonthly"] ?? errors.rental}
             onChange={(value) =>
@@ -388,8 +391,8 @@ export default function HomeDetailsForm({
             min={0}
           />
           <TextInput
-            label={t("homeDetailsRentalStart")}
-            placeholder="YYYY-MM"
+            label={t("rentalStart")}
+            placeholder={common("yearMonthPlaceholder")}
             value={formValues.rental.rentStartMonth ?? ""}
             error={errors["rental.rentStartMonth"] ?? errors.rental}
             onChange={(event) =>
@@ -399,8 +402,8 @@ export default function HomeDetailsForm({
             }
           />
           <TextInput
-            label={t("homeDetailsRentalEnd")}
-            placeholder="YYYY-MM"
+            label={t("rentalEnd")}
+            placeholder={common("yearMonthPlaceholder")}
             value={formValues.rental.rentEndMonth ?? ""}
             error={errors["rental.rentEndMonth"] ?? errors.rental}
             onChange={(event) =>
@@ -410,7 +413,7 @@ export default function HomeDetailsForm({
             }
           />
           <NumberInput
-            label={t("homeDetailsRentalGrowth")}
+            label={t("rentalGrowth")}
             value={formValues.rental.rentAnnualGrowthPct ?? 0}
             error={errors["rental.rentAnnualGrowthPct"] ?? errors.rental}
             onChange={(value) =>
@@ -424,7 +427,7 @@ export default function HomeDetailsForm({
             suffix="%"
           />
           <NumberInput
-            label={t("homeDetailsRentalVacancy")}
+            label={t("rentalVacancy")}
             value={formValues.rental.vacancyRatePct ?? 0}
             error={errors["rental.vacancyRatePct"] ?? errors.rental}
             onChange={(value) =>
@@ -441,9 +444,9 @@ export default function HomeDetailsForm({
       )}
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
-          {t("eventFormCancel")}
+          {common("actionCancel")}
         </Button>
-        <Button onClick={handleSave}>{t("eventFormSave")}</Button>
+        <Button onClick={handleSave}>{common("actionSave")}</Button>
       </Group>
     </Stack>
   );

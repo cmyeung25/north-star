@@ -14,10 +14,10 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { getEventGroup, getEventMeta, type EventGroup } from "@north-star/engine";
-import { defaultCurrency, t } from "../../lib/i18n";
+import { useLocale, useTranslations } from "next-intl";
+import { defaultCurrency } from "../../lib/i18n";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm from "./TimelineEventForm";
 import HomeDetailsForm from "./HomeDetailsForm";
@@ -25,7 +25,7 @@ import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
 import type { TimelineEvent } from "./types";
 import {
   createHomePositionFromTemplate,
-  eventFilterOptions,
+  getEventFilterOptions,
   getEventGroupLabel,
   getEventImpactHint,
   getEventLabel,
@@ -34,6 +34,7 @@ import {
   iconMap,
 } from "./utils";
 import type { HomePositionDraft } from "../../src/store/scenarioStore";
+import { Link } from "../../src/i18n/navigation";
 
 interface TimelineDesktopProps {
   events: TimelineEvent[];
@@ -58,6 +59,10 @@ export default function TimelineDesktop({
   onHomePositionUpdate,
   onHomePositionRemove,
 }: TimelineDesktopProps) {
+  const t = useTranslations("timeline");
+  const common = useTranslations("common");
+  const homes = useTranslations("homes");
+  const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
@@ -98,23 +103,23 @@ export default function TimelineDesktop({
     <Stack gap="lg">
       <Group justify="space-between" align="flex-end">
         <div>
-          <Title order={2}>{t("timelineTitle")}</Title>
+          <Title order={2}>{t("title")}</Title>
           <Text c="dimmed" size="sm">
-            {t("timelineSubtitleDesktop")}
+            {t("subtitleDesktop")}
           </Text>
           {process.env.NODE_ENV === "development" && (
             <Text c="dimmed" size="xs">
-              Changes affect projections in Overview immediately.
+              {t("devHint")}
             </Text>
           )}
         </div>
         <Button onClick={() => setAddEventOpen(true)}>
-          {t("timelineAddEvent")}
+          {t("addEvent")}
         </Button>
       </Group>
 
       <SegmentedControl
-        data={eventFilterOptions}
+        data={getEventFilterOptions(t)}
         value={activeGroup}
         onChange={(value) => setActiveGroup(value as "all" | EventGroup)}
       />
@@ -123,10 +128,10 @@ export default function TimelineDesktop({
         <Notification color="teal" onClose={() => setHomeToastOpen(false)}>
           <Group justify="space-between" align="center" wrap="wrap">
             <Text size="sm">
-              Home position added. Check Overview for net worth impact.
+              {t("homeToast")}
             </Text>
             <Button component={Link} href={overviewUrl} size="xs" variant="light">
-              Open Overview
+              {t("goToOverview")}
             </Button>
           </Group>
         </Notification>
@@ -134,7 +139,7 @@ export default function TimelineDesktop({
 
       <Stack gap="sm">
         <Group justify="space-between" align="center">
-          <Text fw={600}>{t("homeDetailsTitle")}</Text>
+          <Text fw={600}>{homes("title")}</Text>
           <Button
             size="xs"
             variant="light"
@@ -143,12 +148,12 @@ export default function TimelineDesktop({
               setHomeToastOpen(true);
             }}
           >
-            {t("homeDetailsAddHome")}
+            {homes("addHome")}
           </Button>
         </Group>
         {homePositions.length === 0 ? (
           <Text c="dimmed" size="sm">
-            {t("homeDetailsEmpty")}
+            {homes("empty")}
           </Text>
         ) : (
           homePositions.map((home, index) => (
@@ -156,13 +161,15 @@ export default function TimelineDesktop({
               <Group justify="space-between" align="center" wrap="wrap">
                 <div>
                   <Text fw={600}>
-                    {t("homeDetailsHomeLabel", { index: index + 1 })}
+                    {homes("homeLabel", { index: index + 1 })}
                   </Text>
-                  <Text size="sm">{formatHomeSummary(home, baseCurrency)}</Text>
+                  <Text size="sm">
+                    {formatHomeSummary(homes, home, baseCurrency, locale)}
+                  </Text>
                   <Text size="xs" c="dimmed">
                     {(home.mode ?? "new_purchase") === "existing"
-                      ? `${t("homeDetailsExistingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
-                      : `${t("homeDetailsPurchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
+                      ? `${homes("existingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
+                      : `${homes("purchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
                   </Text>
                 </div>
                 <Group gap="sm">
@@ -171,7 +178,7 @@ export default function TimelineDesktop({
                     variant="light"
                     onClick={() => setEditingHomeId(home.id)}
                   >
-                    {t("timelineEdit")}
+                    {common("actionEdit")}
                   </Button>
                   <Button
                     size="xs"
@@ -180,7 +187,7 @@ export default function TimelineDesktop({
                     onClick={() => onHomePositionRemove(home.id)}
                     disabled={homePositions.length <= 1}
                   >
-                    {t("homeDetailsRemoveHome")}
+                    {homes("removeHome")}
                   </Button>
                 </Group>
               </Group>
@@ -191,28 +198,28 @@ export default function TimelineDesktop({
 
       {sortedEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
-          Add your first event to start shaping the plan.
+          {t("emptyAll")}
         </Text>
       ) : filteredEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
-          No events in this group yet.
+          {t("emptyGroup")}
         </Text>
       ) : (
         <Table striped highlightOnHover withColumnBorders>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>{t("timelineTableEnabled")}</Table.Th>
-              <Table.Th>Group</Table.Th>
-              <Table.Th>{t("timelineTableType")}</Table.Th>
-              <Table.Th>{t("timelineTableName")}</Table.Th>
-              <Table.Th>{t("timelineTableStart")}</Table.Th>
-              <Table.Th>{t("timelineTableEnd")}</Table.Th>
-              <Table.Th>Impact</Table.Th>
-              <Table.Th>{t("timelineTableMonthly")}</Table.Th>
-              <Table.Th>{t("timelineTableOneTime")}</Table.Th>
-              <Table.Th>{t("timelineTableGrowth")}</Table.Th>
-              <Table.Th>{t("timelineTableCurrency")}</Table.Th>
-              <Table.Th>{t("timelineTableActions")}</Table.Th>
+              <Table.Th>{t("tableEnabled")}</Table.Th>
+              <Table.Th>{t("tableGroup")}</Table.Th>
+              <Table.Th>{t("tableType")}</Table.Th>
+              <Table.Th>{t("tableName")}</Table.Th>
+              <Table.Th>{t("tableStart")}</Table.Th>
+              <Table.Th>{t("tableEnd")}</Table.Th>
+              <Table.Th>{t("tableImpact")}</Table.Th>
+              <Table.Th>{t("tableMonthly")}</Table.Th>
+              <Table.Th>{t("tableOneTime")}</Table.Th>
+              <Table.Th>{t("tableGrowth")}</Table.Th>
+              <Table.Th>{t("tableCurrency")}</Table.Th>
+              <Table.Th>{t("tableActions")}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -228,30 +235,30 @@ export default function TimelineDesktop({
                 </Table.Td>
                 <Table.Td>
                   <Badge variant="light" color="gray">
-                    {getEventGroupLabel(event.type)}
+                    {getEventGroupLabel(t, event.type)}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  {iconMap[event.type]} {getEventLabel(event.type)}
+                  {iconMap[event.type]} {getEventLabel(t, event.type)}
                 </Table.Td>
                 <Table.Td>{event.name}</Table.Td>
                 <Table.Td>{event.startMonth}</Table.Td>
-                <Table.Td>{event.endMonth ?? "—"}</Table.Td>
-                <Table.Td>{getEventImpactHint(event.type)}</Table.Td>
+                <Table.Td>{event.endMonth ?? t("tablePlaceholder")}</Table.Td>
+                <Table.Td>{getEventImpactHint(t, event.type)}</Table.Td>
                 <Table.Td>
                   {event.monthlyAmount !== 0
-                    ? formatCurrency(event.monthlyAmount, event.currency)
-                    : "—"}
+                    ? formatCurrency(event.monthlyAmount, event.currency, locale)
+                    : t("tablePlaceholder")}
                 </Table.Td>
                 <Table.Td>
                   {event.oneTimeAmount !== 0
-                    ? formatCurrency(event.oneTimeAmount, event.currency)
-                    : "—"}
+                    ? formatCurrency(event.oneTimeAmount, event.currency, locale)
+                    : t("tablePlaceholder")}
                 </Table.Td>
                 <Table.Td>
                   {event.annualGrowthPct && event.annualGrowthPct > 0
                     ? `${event.annualGrowthPct}%`
-                    : "—"}
+                    : t("tablePlaceholder")}
                 </Table.Td>
                 <Table.Td>{event.currency ?? defaultCurrency}</Table.Td>
                 <Table.Td>
@@ -260,7 +267,7 @@ export default function TimelineDesktop({
                     variant="light"
                     onClick={() => setEditingEvent(event)}
                   >
-                    {t("timelineEdit")}
+                    {common("actionEdit")}
                   </Button>
                 </Table.Td>
               </Table.Tr>
@@ -288,10 +295,10 @@ export default function TimelineDesktop({
         size="md"
         title={
           editingEvent
-            ? t("timelineEditTitle", {
-                type: getEventLabel(editingEvent.type),
+            ? t("editTitle", {
+                type: getEventLabel(t, editingEvent.type),
               })
-            : t("timelineEdit")
+            : common("actionEdit")
         }
       >
         <TimelineEventForm
@@ -300,6 +307,7 @@ export default function TimelineDesktop({
           fields={editingEvent ? getEventMeta(editingEvent.type).fields : undefined}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
+          submitLabel={common("actionSaveChanges")}
         />
       </Drawer>
 
@@ -308,7 +316,7 @@ export default function TimelineDesktop({
         onClose={() => setEditingHomeId(null)}
         position="right"
         size="md"
-        title={t("homeDetailsTitle")}
+        title={homes("title")}
       >
         {editingHome && (
           <HomeDetailsForm

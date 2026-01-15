@@ -111,9 +111,12 @@ const calculateHousingCostMonthly = (
     return total;
   }, 0);
 
+type Translator = (key: string, values?: Record<string, string | number>) => string;
+
 export const buildStressEvents = (
   params: AppliedStressState,
-  scenario: Scenario
+  scenario: Scenario,
+  t: Translator
 ): TimelineEvent[] => {
   const applyMonth = resolveApplyMonth(params, scenario);
   const events: TimelineEvent[] = [];
@@ -130,7 +133,7 @@ export const buildStressEvents = (
     events.push({
       id: `stress_jobloss_${params.jobLossMonths}m_${applyMonth}`,
       type: "custom",
-      name: `Stress: Job loss (${params.jobLossMonths}m)`,
+      name: t("stressEventJobLoss", { months: params.jobLossMonths }),
       startMonth: applyMonth,
       endMonth,
       monthlyAmount: -baselineIncomeMonthly,
@@ -156,7 +159,7 @@ export const buildStressEvents = (
     events.push({
       id: `stress_ratehike_${formatIdValue(params.rateHikePct)}pct_${applyMonth}`,
       type: "custom",
-      name: `Stress: Rate hike (+${params.rateHikePct}%)`,
+      name: t("stressEventRateHike", { rate: params.rateHikePct }),
       startMonth: applyMonth,
       endMonth: null,
       monthlyAmount: -deltaCost,
@@ -171,7 +174,7 @@ export const buildStressEvents = (
     events.push({
       id: `stress_medical_${formatIdValue(params.medicalAmount)}_${applyMonth}`,
       type: "custom",
-      name: "Stress: Medical expense",
+      name: t("stressEventMedical"),
       startMonth: applyMonth,
       endMonth: applyMonth,
       monthlyAmount: 0,

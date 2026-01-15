@@ -1,7 +1,7 @@
 import { Badge, Card, Group, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 import type { Scenario } from "../types";
-import { t } from "../../../lib/i18n";
+import { useLocale, useTranslations } from "next-intl";
 import { formatRelativeTime, formatRiskLevel, riskColorMap } from "../utils";
 import ScenarioKpiGrid from "./ScenarioKpiGrid";
 
@@ -18,6 +18,9 @@ export default function ScenarioCard({
   menu,
   footer,
 }: ScenarioCardProps) {
+  const t = useTranslations("scenarios");
+  const common = useTranslations("common");
+  const locale = useLocale();
   return (
     <Card withBorder shadow="sm" radius="md" padding="lg">
       <Stack gap="md">
@@ -27,8 +30,8 @@ export default function ScenarioCard({
               {scenario.name}
             </Text>
             <Text size="xs" c="dimmed">
-              {t("scenariosUpdated", {
-                time: formatRelativeTime(scenario.updatedAt),
+              {t("updatedAt", {
+                time: formatRelativeTime(common, scenario.updatedAt, locale),
               })}
             </Text>
           </div>
@@ -39,10 +42,10 @@ export default function ScenarioCard({
 
         <Group justify="space-between">
           <Badge color={riskColorMap[scenario.kpis.riskLevel]} variant="light">
-            {t("scenariosRisk")} {formatRiskLevel(scenario.kpis.riskLevel)}
+            {t("riskLabel")} {formatRiskLevel(common, scenario.kpis.riskLevel)}
           </Badge>
           <Text size="xs" c="dimmed">
-            {t("scenariosBaseCurrency")}: {scenario.baseCurrency}
+            {t("baseCurrency")}: {scenario.baseCurrency}
           </Text>
         </Group>
 

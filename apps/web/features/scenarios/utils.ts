@@ -1,8 +1,4 @@
-import {
-  formatCurrency as formatCurrencyWithLocale,
-  locale,
-  t,
-} from "../../lib/i18n";
+import { formatCurrency as formatCurrencyWithLocale } from "../../lib/i18n";
 import type { ScenarioRiskLevel } from "./types";
 
 export const riskColorMap: Record<ScenarioRiskLevel, string> = {
@@ -11,10 +7,16 @@ export const riskColorMap: Record<ScenarioRiskLevel, string> = {
   High: "red",
 };
 
-export const formatCurrency = (value: number, currency: string) =>
-  formatCurrencyWithLocale(value, currency);
+type Translator = (key: string, values?: Record<string, string | number>) => string;
 
-export const formatRelativeTime = (updatedAt: number) => {
+export const formatCurrency = (value: number, currency: string, locale: string) =>
+  formatCurrencyWithLocale(value, currency, locale);
+
+export const formatRelativeTime = (
+  t: Translator,
+  updatedAt: number,
+  locale: string
+) => {
   const diffMs = Date.now() - updatedAt;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
@@ -38,7 +40,7 @@ export const formatRelativeTime = (updatedAt: number) => {
   }).format(new Date(updatedAt));
 };
 
-export const formatRiskLevel = (riskLevel: ScenarioRiskLevel) => {
+export const formatRiskLevel = (t: Translator, riskLevel: ScenarioRiskLevel) => {
   switch (riskLevel) {
     case "Low":
       return t("riskLow");

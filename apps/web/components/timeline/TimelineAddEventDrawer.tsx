@@ -3,12 +3,12 @@
 import { Button, Drawer, Group, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { getEventMeta, type EventGroup, type EventType } from "@north-star/engine";
-import { t } from "../../lib/i18n";
+import { useTranslations } from "next-intl";
 import type { TimelineEvent } from "./types";
 import TimelineEventForm from "./TimelineEventForm";
 import {
   createEventFromTemplate,
-  eventFilterOptions,
+  getEventFilterOptions,
   getEventLabel,
   iconMap,
   listEventTypesForGroup,
@@ -33,6 +33,8 @@ export default function TimelineAddEventDrawer({
   onAddEvent,
   onAddHomePosition,
 }: TimelineAddEventDrawerProps) {
+  const t = useTranslations("timeline");
+  const common = useTranslations("common");
   const [step, setStep] = useState<AddEventStep>("group");
   const [selectedGroup, setSelectedGroup] = useState<EventGroup | null>(null);
   const [selectedType, setSelectedType] = useState<EventType | null>(null);
@@ -47,7 +49,9 @@ export default function TimelineAddEventDrawer({
     }
   }, [opened]);
 
-  const groupOptions = eventFilterOptions.filter((option) => option.value !== "all");
+  const groupOptions = getEventFilterOptions(t).filter(
+    (option) => option.value !== "all"
+  );
   const typeOptions = useMemo(
     () => (selectedGroup ? listEventTypesForGroup(selectedGroup) : []),
     [selectedGroup]
@@ -67,7 +71,7 @@ export default function TimelineAddEventDrawer({
 
     setSelectedType(type);
     setDraftEvent(
-      createEventFromTemplate(type, {
+      createEventFromTemplate(type, t, {
         baseCurrency,
         baseMonth,
       })
@@ -86,12 +90,12 @@ export default function TimelineAddEventDrawer({
       onClose={onClose}
       position="bottom"
       size="md"
-      title={t("timelineAddEvent")}
+      title={t("addEvent")}
     >
       {step === "group" && (
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
-            Choose a group to narrow the event types.
+            {t("chooseGroupHint")}
           </Text>
           <Stack gap="xs">
             {groupOptions.map((option) => (
@@ -113,16 +117,15 @@ export default function TimelineAddEventDrawer({
       {step === "type" && selectedGroup && (
         <Stack gap="sm">
           <Group justify="space-between" align="center">
-            <Text fw={600}>{t("timelineChooseTemplate")}</Text>
-            <Button variant="subtle" size="xs" onClick={() => setStep("group")}
-            >
-              Back
+            <Text fw={600}>{t("chooseTemplate")}</Text>
+            <Button variant="subtle" size="xs" onClick={() => setStep("group")}>
+              {common("actionBack")}
             </Button>
           </Group>
           <Stack gap="xs">
             {typeOptions.map((type) => (
               <Button key={type} variant="light" onClick={() => handleSelectType(type)}>
-                {iconMap[type]} {getEventLabel(type)}
+                {iconMap[type]} {getEventLabel(t, type)}
               </Button>
             ))}
           </Stack>
@@ -132,9 +135,9 @@ export default function TimelineAddEventDrawer({
       {step === "details" && draftEvent && selectedType && (
         <Stack gap="sm">
           <Group justify="space-between" align="center">
-            <Text fw={600}>{getEventLabel(selectedType)}</Text>
+            <Text fw={600}>{getEventLabel(t, selectedType)}</Text>
             <Button variant="subtle" size="xs" onClick={() => setStep("type")}>
-              Back
+              {common("actionBack")}
             </Button>
           </Group>
           <TimelineEventForm
@@ -143,7 +146,7 @@ export default function TimelineAddEventDrawer({
             fields={getEventMeta(selectedType).fields}
             onCancel={() => setStep("type")}
             onSave={handleSave}
-            submitLabel={t("timelineAddEvent")}
+            submitLabel={t("addEvent")}
           />
         </Stack>
       )}

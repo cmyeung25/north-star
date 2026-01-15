@@ -5,7 +5,6 @@ import { nanoid } from "nanoid";
 import {
   eventGroups,
   getEventGroup,
-  getEventMeta,
   listEventTypesByGroup,
   type EventGroup,
   type EventType,
@@ -13,7 +12,6 @@ import {
 import {
   defaultCurrency,
   formatCurrency as formatCurrencyWithLocale,
-  t,
 } from "../../lib/i18n";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
 import {
@@ -23,7 +21,7 @@ import {
 } from "../../src/store/scenarioStore";
 import type { TimelineEvent } from "./types";
 
-export const getEventLabel = (type: EventType) => getEventMeta(type).label;
+type Translator = (key: string, values?: Record<string, string | number>) => string;
 
 export const iconMap: Record<EventType, string> = {
   rent: "🏠",
@@ -37,26 +35,41 @@ export const iconMap: Record<EventType, string> = {
   custom: "✨",
 };
 
-export const groupLabels: Record<EventGroup, string> = {
-  income: "Income",
-  expense: "Expense",
-  housing: "Housing",
-  asset: "Asset",
-  debt: "Debt",
+const eventTypeLabelKeys: Record<EventType, string> = {
+  rent: "eventTypes.rent",
+  salary: "eventTypes.salary",
+  buy_home: "eventTypes.buyHome",
+  baby: "eventTypes.baby",
+  car: "eventTypes.car",
+  travel: "eventTypes.travel",
+  insurance: "eventTypes.insurance",
+  helper: "eventTypes.helper",
+  custom: "eventTypes.custom",
 };
 
-export const impactHints: Record<EventGroup, string> = {
-  income: "adds cash inflow",
-  expense: "adds cash outflow",
-  housing: "may affect cash + assets + liabilities",
-  asset: "may affect assets and/or cash",
-  debt: "may affect liabilities and cash",
+const groupLabelKeys: Record<EventGroup, string> = {
+  income: "groups.income",
+  expense: "groups.expense",
+  housing: "groups.housing",
+  asset: "groups.asset",
+  debt: "groups.debt",
 };
 
-export const eventFilterOptions = [
-  { label: "All", value: "all" },
+const impactHintKeys: Record<EventGroup, string> = {
+  income: "impactHints.income",
+  expense: "impactHints.expense",
+  housing: "impactHints.housing",
+  asset: "impactHints.asset",
+  debt: "impactHints.debt",
+};
+
+export const getEventLabel = (t: Translator, type: EventType) =>
+  t(eventTypeLabelKeys[type]);
+
+export const getEventFilterOptions = (t: Translator) => [
+  { label: t("filters.all"), value: "all" },
   ...eventGroups.map((group) => ({
-    label: groupLabels[group],
+    label: t(groupLabelKeys[group]),
     value: group,
   })),
 ];
@@ -64,18 +77,22 @@ export const eventFilterOptions = [
 export const listEventTypesForGroup = (group: EventGroup) =>
   listEventTypesByGroup(group);
 
-export const getEventGroupLabel = (type: EventType) =>
-  groupLabels[getEventGroup(type)];
+export const getEventGroupLabel = (t: Translator, type: EventType) =>
+  t(groupLabelKeys[getEventGroup(type)]);
 
-export const getEventImpactHint = (type: EventType) =>
-  impactHints[getEventGroup(type)];
+export const getEventImpactHint = (t: Translator, type: EventType) =>
+  t(impactHintKeys[getEventGroup(type)]);
 
-export const formatCurrency = (amount: number, currency: string) =>
-  formatCurrencyWithLocale(amount, currency);
+export const formatCurrency = (amount: number, currency: string, locale: string) =>
+  formatCurrencyWithLocale(amount, currency, locale);
 
-export const formatDateRange = (start: string, end: string | null) => {
+export const formatDateRange = (
+  t: Translator,
+  start: string,
+  end: string | null
+) => {
   if (!end) {
-    return `${start} → ${t("timelineOngoing")}`;
+    return `${start} → ${t("ongoing")}`;
   }
 
   return `${start} → ${end}`;
@@ -113,9 +130,10 @@ type CreateEventOptions = {
 
 export const createEventFromTemplate = (
   type: EventType,
+  t: Translator,
   options: CreateEventOptions = {}
 ): TimelineEvent => {
-  const label = getEventLabel(type);
+  const label = getEventLabel(t, type);
   const defaults = templateDefaults[type];
   const startMonth = getDefaultStartMonth(options.baseMonth);
 
@@ -164,22 +182,39 @@ export const createHomePositionFromTemplate = (
   };
 };
 
-export const formatHomeSummary = (home: HomePosition, currency: string) => {
+export const formatHomeSummary = (
+  t: Translator,
+  home: HomePosition,
+  currency: string,
+  locale: string
+) => {
   const usageLabel =
-    (home.usage ?? "primary") === "investment" ? "Investment" : "Primary";
+    (home.usage ?? "primary") === "investment"
+      ? t("homeSummary.investment")
+      : t("homeSummary.primary");
   const mode = home.mode ?? "new_purchase";
   const displayValue =
     mode === "existing" && home.existing
       ? home.existing.marketValue
       : home.purchasePrice ?? 0;
-  const formattedPrice = formatCurrency(displayValue, currency);
+  const formattedPrice = formatCurrency(displayValue, currency, locale);
 
   if (mode === "existing" && home.existing) {
     const rate = home.existing.annualRatePct.toFixed(1);
-    return `${usageLabel} home: ${formattedPrice} · Existing mortgage ${home.existing.remainingTermMonths}m @ ${rate}%`;
+    return t("homeSummary.existing", {
+      usage: usageLabel,
+      price: formattedPrice,
+      termMonths: home.existing.remainingTermMonths,
+      rate,
+    });
   }
 
   const termYears = Math.round(home.mortgageTermYears ?? 0);
   const rate = (home.mortgageRatePct ?? 0).toFixed(1);
-  return `${usageLabel} home: ${formattedPrice} · Mortgage ${termYears}y @ ${rate}%`;
+  return t("homeSummary.newPurchase", {
+    usage: usageLabel,
+    price: formattedPrice,
+    termYears,
+    rate,
+  });
 };

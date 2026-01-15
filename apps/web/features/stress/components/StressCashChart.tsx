@@ -1,4 +1,5 @@
 import { Card, Group, Stack, Text } from "@mantine/core";
+import { useTranslations } from "next-intl";
 import type { TimeSeriesPoint } from "../types";
 
 type StressCashChartProps = {
@@ -29,6 +30,7 @@ export default function StressCashChart({
   baseline,
   stressed,
 }: StressCashChartProps) {
+  const t = useTranslations("stress");
   const baselinePath = buildPath(baseline);
   const stressedPath = buildPath(stressed);
 
@@ -36,7 +38,7 @@ export default function StressCashChart({
     <Card withBorder padding="lg" radius="md" shadow="sm">
       <Stack gap="sm">
         <Group justify="space-between">
-          <Text fw={600}>Cash balance trend</Text>
+          <Text fw={600}>{t("cashTrendTitle")}</Text>
           <Group gap="md">
             <Group gap={6}>
               <span
@@ -49,7 +51,7 @@ export default function StressCashChart({
                 }}
               />
               <Text size="xs" c="dimmed">
-                Baseline
+                {t("baselineLabel")}
               </Text>
             </Group>
             <Group gap={6}>
@@ -63,7 +65,7 @@ export default function StressCashChart({
                 }}
               />
               <Text size="xs" c="dimmed">
-                Stressed
+                {t("stressedLabel")}
               </Text>
             </Group>
           </Group>

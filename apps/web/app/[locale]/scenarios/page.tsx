@@ -16,20 +16,20 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { t } from "../../lib/i18n";
-import ScenarioActionsMenu from "../../features/scenarios/components/ScenarioActionsMenu";
-import ScenarioCard from "../../features/scenarios/components/ScenarioCard";
-import ConfirmDeleteDialog from "../../features/scenarios/components/ConfirmDeleteDialog";
-import NewScenarioModal from "../../features/scenarios/components/NewScenarioModal";
-import RenameScenarioModal from "../../features/scenarios/components/RenameScenarioModal";
-import type { Scenario } from "../../features/scenarios/types";
-import { formatRelativeTime } from "../../features/scenarios/utils";
+import { useLocale, useTranslations } from "next-intl";
+import ScenarioActionsMenu from "../../../features/scenarios/components/ScenarioActionsMenu";
+import ScenarioCard from "../../../features/scenarios/components/ScenarioCard";
+import ConfirmDeleteDialog from "../../../features/scenarios/components/ConfirmDeleteDialog";
+import NewScenarioModal from "../../../features/scenarios/components/NewScenarioModal";
+import RenameScenarioModal from "../../../features/scenarios/components/RenameScenarioModal";
+import type { Scenario } from "../../../features/scenarios/types";
+import { formatRelativeTime } from "../../../features/scenarios/utils";
 import {
   getActiveScenario,
   getScenarioById,
   useScenarioStore,
-} from "../../src/store/scenarioStore";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+} from "../../../src/store/scenarioStore";
+import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 
 const floatingButtonStyle = {
   position: "fixed" as const,
@@ -46,6 +46,9 @@ type ToastState = {
 export default function ScenariosPage() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("scenarios");
+  const common = useTranslations("common");
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const createScenario = useScenarioStore((state) => state.createScenario);
@@ -90,18 +93,18 @@ export default function ScenariosPage() {
     }
     setActiveScenario(id);
     setSelectedScenarioId(id);
-    showToast(t("scenariosActiveUpdated"), "teal");
+    showToast(t("activeUpdated"), "teal");
   };
 
   const handleCreateScenario = (name: string) => {
     const newScenario = createScenario(name);
     setSelectedScenarioId(newScenario.id);
-    showToast(t("scenariosCreated"), "teal");
+    showToast(t("created"), "teal");
   };
 
   const handleRenameScenario = (id: string, newName: string) => {
     renameScenario(id, newName);
-    showToast(t("scenariosRenamed"), "teal");
+    showToast(t("renamed"), "teal");
   };
 
   const handleDuplicateScenario = (id: string) => {
@@ -111,12 +114,12 @@ export default function ScenariosPage() {
     }
     setSelectedScenarioId(copy.id);
     setRenameScenarioTarget(copy);
-    showToast(t("scenariosDuplicated"), "teal");
+    showToast(t("duplicated"), "teal");
   };
 
   const handleDeleteScenario = (id: string) => {
     if (scenarios.length <= 1) {
-      showToast(t("scenariosDeleteMinimum"), "red");
+      showToast(t("deleteMinimum"), "red");
       return;
     }
 
@@ -131,14 +134,14 @@ export default function ScenariosPage() {
     setSelectedScenarioId(nextActive?.id ?? remaining[0]?.id ?? "");
 
     if (id === activeScenarioId && nextActive) {
-      showToast(t("scenariosActiveSwitched", { name: nextActive.name }), "yellow");
+      showToast(t("activeSwitched", { name: nextActive.name }), "yellow");
     } else {
-      showToast(t("scenariosDeleted"), "teal");
+      showToast(t("deleted"), "teal");
     }
   };
 
   const handleOpenTimeline = (scenarioId: string) => {
-    router.push(buildScenarioUrl("/timeline", scenarioId));
+    router.push(`/${locale}${buildScenarioUrl("/timeline", scenarioId)}`);
   };
 
   if (!selectedScenario) {
@@ -148,9 +151,9 @@ export default function ScenariosPage() {
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap={4}>
-        <Title order={2}>{t("scenariosTitle")}</Title>
+        <Title order={2}>{t("title")}</Title>
         <Text c="dimmed" size="sm">
-          {t("scenariosSubtitle")}
+          {t("subtitle")}
         </Text>
       </Stack>
 
@@ -164,9 +167,9 @@ export default function ScenariosPage() {
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
           <Stack gap="md">
             <Group justify="space-between">
-              <Text fw={600}>{t("scenariosYourScenarios")}</Text>
+              <Text fw={600}>{t("yourScenarios")}</Text>
               <Button onClick={() => setNewModalOpen(true)}>
-                {t("scenariosNewScenario")}
+                {t("newScenario")}
               </Button>
             </Group>
 
@@ -188,14 +191,14 @@ export default function ScenariosPage() {
                     <Box>
                       <Text fw={600}>{scenario.name}</Text>
                       <Text size="xs" c="dimmed">
-                        {t("scenariosUpdated", {
-                          time: formatRelativeTime(scenario.updatedAt),
+                        {t("updatedAt", {
+                          time: formatRelativeTime(common, scenario.updatedAt, locale),
                         })}
                       </Text>
                     </Box>
                     {scenario.id === activeScenarioId && (
                       <Badge color="teal" variant="light">
-                        {t("scenariosActive")}
+                        {t("active")}
                       </Badge>
                     )}
                   </Group>
@@ -213,33 +216,33 @@ export default function ScenariosPage() {
                     onClick={() => handleSetActiveScenario(selectedScenario.id)}
                     disabled={selectedScenario.id === activeScenarioId}
                   >
-                    {t("scenariosSetActive")}
+                    {t("setActive")}
                   </Button>
                   <Button
                     variant="light"
                     onClick={() => handleOpenTimeline(selectedScenario.id)}
                     disabled={selectedScenario.id !== activeScenarioId}
                   >
-                    {t("scenariosGoToTimeline")}
+                    {t("goToTimeline")}
                   </Button>
                   <Button
                     variant="default"
                     onClick={() => setRenameScenarioTarget(selectedScenario)}
                   >
-                    {t("scenariosRename")}
+                    {t("rename")}
                   </Button>
                   <Button
                     variant="default"
                     onClick={() => handleDuplicateScenario(selectedScenario.id)}
                   >
-                    {t("scenariosDuplicate")}
+                    {t("duplicate")}
                   </Button>
                   <Button
                     color="red"
                     variant="light"
                     onClick={() => setDeleteScenarioTarget(selectedScenario)}
                   >
-                    {t("scenariosDelete")}
+                    {t("delete")}
                   </Button>
                 </Group>
               }
@@ -267,14 +270,14 @@ export default function ScenariosPage() {
                         onClick={() => handleSetActiveScenario(scenario.id)}
                         disabled={scenario.id === activeScenarioId}
                       >
-                        {t("scenariosSetActive")}
+                        {t("setActive")}
                       </Button>
                       <Button
                         variant="light"
                         onClick={() => handleOpenTimeline(scenario.id)}
                         disabled={scenario.id !== activeScenarioId}
                       >
-                        {t("scenariosGoToTimeline")}
+                        {t("goToTimeline")}
                       </Button>
                     </Group>
                   }
@@ -287,7 +290,7 @@ export default function ScenariosPage() {
 
       {!isDesktop && (
         <Button style={floatingButtonStyle} onClick={() => setNewModalOpen(true)}>
-          {t("scenariosNewScenario")}
+          {t("newScenario")}
         </Button>
       )}
 

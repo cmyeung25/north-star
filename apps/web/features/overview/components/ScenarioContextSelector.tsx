@@ -1,4 +1,5 @@
 import { Group, SegmentedControl, Text } from "@mantine/core";
+import { useTranslations } from "next-intl";
 
 interface ScenarioOption {
   label: string;
@@ -16,10 +17,11 @@ export default function ScenarioContextSelector({
   value,
   onChange,
 }: ScenarioContextSelectorProps) {
+  const t = useTranslations("overview");
   return (
     <Group justify="space-between" align="center" wrap="nowrap">
       <Text size="sm" c="dimmed" fw={500}>
-        Active Scenario
+        {t("activeScenario")}
       </Text>
       <SegmentedControl
         data={options}
