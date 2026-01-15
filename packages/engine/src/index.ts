@@ -3,7 +3,6 @@
 // Back-compat: missing holdingCostMonthly/holdingCostAnnualGrowth should be treated as 0.
 import type { Event } from "@north-star/types";
 
-import { computeHomeValueSeries } from "./home";
 import { computeMortgageSchedule } from "./mortgage";
 
 export type EngineEvent = Event & {
@@ -14,10 +13,12 @@ export type EngineEvent = Event & {
 };
 
 export type HomePosition = {
-  purchasePrice: number;
+  usage?: "primary" | "investment";
+  mode?: "new_purchase" | "existing";
+  purchasePrice?: number;
   annualAppreciation: number;
-  purchaseMonth: string;
-  downPayment: number;
+  purchaseMonth?: string;
+  downPayment?: number;
   mortgage?: {
     principal: number;
     annualRate: number;
@@ -26,6 +27,20 @@ export type HomePosition = {
   feesOneTime?: number;
   holdingCostMonthly?: number;
   holdingCostAnnualGrowth?: number;
+  existing?: {
+    asOfMonth: string;
+    marketValue: number;
+    mortgageBalance: number;
+    remainingTermMonths: number;
+    annualRate: number;
+  };
+  rental?: {
+    rentMonthly: number;
+    rentStartMonth: string;
+    rentEndMonth?: string;
+    rentAnnualGrowth?: number;
+    vacancyRate?: number;
+  };
 };
 
 export type PositionsInput = {
@@ -130,6 +145,81 @@ export function expandEventToSeries(
   return series;
 }
 
+const computeHomeSeriesFromValue = ({
+  initialValue,
+  annualAppreciation,
+  startIndex,
+  horizonMonths,
+}: {
+  initialValue: number;
+  annualAppreciation: number;
+  startIndex: number;
+  horizonMonths: number;
+}): number[] => {
+  const series = Array.from({ length: horizonMonths }, () => 0);
+  if (initialValue <= 0 || horizonMonths <= 0) {
+    return series;
+  }
+
+  const monthlyGrowth = Math.pow(1 + annualAppreciation, 1 / 12) - 1;
+  if (startIndex >= horizonMonths) {
+    return series;
+  }
+
+  const start = Math.max(0, startIndex);
+  const valueAtStart =
+    startIndex < 0
+      ? initialValue * Math.pow(1 + monthlyGrowth, -startIndex)
+      : initialValue;
+
+  series[start] = valueAtStart;
+  for (let i = start + 1; i < horizonMonths; i += 1) {
+    series[i] = series[i - 1] * (1 + monthlyGrowth);
+  }
+
+  return series;
+};
+
+const computeMortgageScheduleWithOffset = ({
+  principal,
+  annualRate,
+  termMonths,
+  startIndex,
+  horizonMonths,
+}: {
+  principal: number;
+  annualRate: number;
+  termMonths: number;
+  startIndex: number;
+  horizonMonths: number;
+}) => {
+  if (startIndex >= 0) {
+    return computeMortgageSchedule({
+      principal,
+      annualRate,
+      termMonths,
+      startIndex,
+      horizonMonths,
+    });
+  }
+
+  const offset = Math.max(0, -startIndex);
+  const expanded = computeMortgageSchedule({
+    principal,
+    annualRate,
+    termMonths,
+    startIndex: 0,
+    horizonMonths: horizonMonths + offset,
+  });
+
+  return {
+    paymentMonthly: expanded.paymentMonthly,
+    interestSeries: expanded.interestSeries.slice(offset, offset + horizonMonths),
+    principalSeries: expanded.principalSeries.slice(offset, offset + horizonMonths),
+    balanceSeries: expanded.balanceSeries.slice(offset, offset + horizonMonths),
+  };
+};
+
 export function computeProjection(input: ProjectionInput): ProjectionResult {
   const horizonMonths = input.horizonMonths;
   const months = buildMonthRange(input.baseMonth, horizonMonths);
@@ -147,9 +237,16 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
 
   const homes = input.positions?.homes ?? (input.positions?.home ? [input.positions.home] : []);
   for (const home of homes) {
-    const purchaseIndex = monthIndex(input.baseMonth, home.purchaseMonth);
-    if (purchaseIndex >= 0 && purchaseIndex < horizonMonths) {
-      netCashflow[purchaseIndex] -= home.downPayment;
+    const mode = home.mode ?? "new_purchase";
+    const purchaseMonth =
+      mode === "existing" && home.existing ? home.existing.asOfMonth : home.purchaseMonth;
+    const startIndex = purchaseMonth
+      ? monthIndex(input.baseMonth, purchaseMonth)
+      : horizonMonths;
+    const purchaseIndex = startIndex;
+
+    if (mode === "new_purchase" && purchaseIndex >= 0 && purchaseIndex < horizonMonths) {
+      netCashflow[purchaseIndex] -= home.downPayment ?? 0;
       if (home.feesOneTime) {
         netCashflow[purchaseIndex] -= home.feesOneTime;
       }
@@ -158,18 +255,22 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     const holdingCostMonthly = home.holdingCostMonthly ?? 0;
     const holdingCostAnnualGrowth = home.holdingCostAnnualGrowth ?? 0;
     if (holdingCostMonthly > 0 && horizonMonths > 0) {
-      const startIndex = Math.max(0, purchaseIndex);
-      for (let i = startIndex; i < horizonMonths; i += 1) {
-        const monthsSincePurchase = i - purchaseIndex;
-        const cost = holdingCostMonthly * Math.pow(1 + holdingCostAnnualGrowth, monthsSincePurchase / 12);
+      const holdingStartIndex = Math.max(0, startIndex);
+      for (let i = holdingStartIndex; i < horizonMonths; i += 1) {
+        const monthsSincePurchase = i - startIndex;
+        const cost =
+          holdingCostMonthly *
+          Math.pow(1 + holdingCostAnnualGrowth, monthsSincePurchase / 12);
         netCashflow[i] -= cost;
       }
     }
 
-    const homeSeries = computeHomeValueSeries({
-      purchasePrice: home.purchasePrice,
+    const assetValue =
+      mode === "existing" && home.existing ? home.existing.marketValue : home.purchasePrice ?? 0;
+    const homeSeries = computeHomeSeriesFromValue({
+      initialValue: assetValue,
       annualAppreciation: home.annualAppreciation,
-      startIndex: purchaseIndex,
+      startIndex,
       horizonMonths,
     });
 
@@ -177,12 +278,21 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       assetsHousing[i] += homeSeries[i];
     }
 
-    if (home.mortgage) {
-      const schedule = computeMortgageSchedule({
-        principal: home.mortgage.principal,
-        annualRate: home.mortgage.annualRate,
-        termMonths: home.mortgage.termMonths,
-        startIndex: purchaseIndex,
+    const mortgageDetails =
+      mode === "existing" && home.existing
+        ? {
+            principal: home.existing.mortgageBalance,
+            annualRate: home.existing.annualRate,
+            termMonths: home.existing.remainingTermMonths,
+          }
+        : home.mortgage;
+
+    if (mortgageDetails) {
+      const schedule = computeMortgageScheduleWithOffset({
+        principal: mortgageDetails.principal,
+        annualRate: mortgageDetails.annualRate,
+        termMonths: mortgageDetails.termMonths,
+        startIndex,
         horizonMonths,
       });
 
@@ -192,6 +302,25 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
           netCashflow[i] -= payment;
         }
         liabilitiesMortgage[i] += schedule.balanceSeries[i];
+      }
+    }
+
+    if (home.rental && home.rental.rentMonthly > 0) {
+      const rentStartIndex = monthIndex(input.baseMonth, home.rental.rentStartMonth);
+      const rentEndIndex = home.rental.rentEndMonth
+        ? monthIndex(input.baseMonth, home.rental.rentEndMonth)
+        : horizonMonths - 1;
+      const rentAnnualGrowth = home.rental.rentAnnualGrowth ?? 0;
+      const vacancyRate = home.rental.vacancyRate ?? 0;
+
+      for (let i = 0; i < horizonMonths; i += 1) {
+        if (i < rentStartIndex || i > rentEndIndex) {
+          continue;
+        }
+        const yearsSinceStart = Math.floor((i - rentStartIndex) / 12);
+        const multiplier = Math.pow(1 + rentAnnualGrowth, yearsSinceStart);
+        const income = home.rental.rentMonthly * multiplier * (1 - vacancyRate);
+        netCashflow[i] += income;
       }
     }
   }

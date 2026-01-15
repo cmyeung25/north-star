@@ -50,8 +50,10 @@ const getRentEvent = (scenario: Scenario): TimelineEvent | null => {
 const getHomePositions = (scenario: Scenario) =>
   scenario.positions?.homes ?? (scenario.positions?.home ? [scenario.positions.home] : []);
 
+const isPrimaryHome = (home: { usage?: string }) => (home.usage ?? "primary") === "primary";
+
 const getAssumptionsSummary = (scenario: Scenario, rentEvent: TimelineEvent | null): RentVsOwnAssumptions => {
-  const homes = getHomePositions(scenario);
+  const homes = getHomePositions(scenario).filter((home) => isPrimaryHome(home));
   const ownFeesOneTime = homes.reduce((total, home) => total + (home.feesOneTime ?? 0), 0);
   const ownHoldingCostMonthly = homes.reduce(
     (total, home) => total + (home.holdingCostMonthly ?? 0),

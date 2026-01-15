@@ -40,6 +40,8 @@ const buildHomePosition = (draft: OnboardingDraft, baseMonth: string): HomePosit
 
   return {
     id: createHomePositionId(),
+    usage: "primary",
+    mode: "new_purchase",
     purchasePrice: DEFAULT_HOME_PRICE,
     downPayment,
     purchaseMonth: baseMonth,

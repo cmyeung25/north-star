@@ -41,7 +41,9 @@ export const toRentComparisonScenario = (baseScenario: Scenario): Scenario => {
 
   if (scenario.positions) {
     delete scenario.positions.home;
-    scenario.positions.homes = [];
+    scenario.positions.homes = (scenario.positions.homes ?? []).filter(
+      (home) => (home.usage ?? "primary") === "investment"
+    );
   }
 
   const events = (scenario.events ?? []).filter(

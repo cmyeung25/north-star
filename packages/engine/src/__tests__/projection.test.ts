@@ -163,4 +163,36 @@ describe("computeProjection", () => {
     expect(mediumRisk.riskLevel).toBe("Medium");
     expect(lowRisk.riskLevel).toBe("Low");
   });
+
+  it("handles existing homes without down payment and with rental income", () => {
+    const result = computeProjection({
+      baseMonth: "2025-01",
+      horizonMonths: 2,
+      initialCash: 0,
+      events: [],
+      positions: {
+        homes: [
+          {
+            mode: "existing",
+            annualAppreciation: 0,
+            existing: {
+              asOfMonth: "2025-01",
+              marketValue: 100000,
+              mortgageBalance: 50000,
+              remainingTermMonths: 1,
+              annualRate: 0,
+            },
+            rental: {
+              rentMonthly: 1000,
+              rentStartMonth: "2025-01",
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.assets.housing[0]).toBeCloseTo(100000, 2);
+    expect(result.liabilities.mortgage[0]).toBeCloseTo(0, 2);
+    expect(result.netCashflow[0]).toBeCloseTo(-49000, 2);
+  });
 });

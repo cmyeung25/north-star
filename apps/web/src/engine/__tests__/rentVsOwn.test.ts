@@ -42,7 +42,7 @@ describe("rent vs own comparison", () => {
     expect(result?.netWorthDeltaAtHorizon).toBe(2);
   });
 
-  it("removes housing positions and buy_home events", () => {
+  it("removes primary housing positions and buy_home events", () => {
     const scenario = buildScenario({
       events: [
         {
@@ -74,8 +74,19 @@ describe("rent vs own comparison", () => {
         homes: [
           {
             id: "home-1",
+            usage: "primary",
             purchasePrice: 9000000,
             downPayment: 2000000,
+            purchaseMonth: "2026-01",
+            annualAppreciationPct: 2,
+            mortgageRatePct: 3.5,
+            mortgageTermYears: 30,
+          },
+          {
+            id: "home-2",
+            usage: "investment",
+            purchasePrice: 5000000,
+            downPayment: 1000000,
             purchaseMonth: "2026-01",
             annualAppreciationPct: 2,
             mortgageRatePct: 3.5,
@@ -87,7 +98,8 @@ describe("rent vs own comparison", () => {
 
     const rentScenario = toRentComparisonScenario(scenario);
 
-    expect(rentScenario.positions?.homes ?? []).toHaveLength(0);
+    expect(rentScenario.positions?.homes ?? []).toHaveLength(1);
+    expect(rentScenario.positions?.homes?.[0]?.usage).toBe("investment");
     expect(rentScenario.positions?.home).toBeUndefined();
     expect(rentScenario.events?.some((event) => event.type === "buy_home")).toBe(
       false

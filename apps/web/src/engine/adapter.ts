@@ -131,8 +131,15 @@ export const mapScenarioToEngineInput = (
   );
   const homePurchaseMonth = validatedHomes.reduce<string | null>(
     (earliest, home) => {
-      if (!earliest || home.purchaseMonth < earliest) {
-        return home.purchaseMonth;
+      const candidate =
+        (home.mode ?? "new_purchase") === "existing"
+          ? home.existing?.asOfMonth
+          : home.purchaseMonth;
+      if (!candidate) {
+        return earliest;
+      }
+      if (!earliest || candidate < earliest) {
+        return candidate;
       }
       return earliest;
     },
@@ -160,21 +167,59 @@ export const mapScenarioToEngineInput = (
   const positions =
     validatedHomes.length > 0
       ? {
-          homes: validatedHomes.map((home) => ({
-            purchasePrice: home.purchasePrice,
-            downPayment: home.downPayment,
-            purchaseMonth: home.purchaseMonth,
-            annualAppreciation: home.annualAppreciationPct / 100,
-            feesOneTime: home.feesOneTime,
-            holdingCostMonthly: home.holdingCostMonthly ?? 0,
-            holdingCostAnnualGrowth:
-              (home.holdingCostAnnualGrowthPct ?? 0) / 100,
-            mortgage: {
-              principal: home.purchasePrice - home.downPayment,
-              annualRate: home.mortgageRatePct / 100,
-              termMonths: home.mortgageTermYears * 12,
-            },
-          })),
+          homes: validatedHomes.map((home) => {
+            const mode = home.mode ?? "new_purchase";
+            const usage = home.usage ?? "primary";
+            const rental = home.rental
+              ? {
+                  rentMonthly: home.rental.rentMonthly,
+                  rentStartMonth: home.rental.rentStartMonth,
+                  rentEndMonth: home.rental.rentEndMonth ?? undefined,
+                  rentAnnualGrowth: (home.rental.rentAnnualGrowthPct ?? 0) / 100,
+                  vacancyRate: (home.rental.vacancyRatePct ?? 0) / 100,
+                }
+              : undefined;
+
+            if (mode === "existing" && home.existing) {
+              return {
+                usage,
+                mode,
+                purchasePrice: home.purchasePrice ?? home.existing.marketValue,
+                annualAppreciation: home.annualAppreciationPct / 100,
+                feesOneTime: home.feesOneTime,
+                holdingCostMonthly: home.holdingCostMonthly ?? 0,
+                holdingCostAnnualGrowth:
+                  (home.holdingCostAnnualGrowthPct ?? 0) / 100,
+                existing: {
+                  asOfMonth: home.existing.asOfMonth,
+                  marketValue: home.existing.marketValue,
+                  mortgageBalance: home.existing.mortgageBalance,
+                  remainingTermMonths: home.existing.remainingTermMonths,
+                  annualRate: (home.existing.annualRatePct ?? 0) / 100,
+                },
+                rental,
+              };
+            }
+
+            return {
+              usage,
+              mode,
+              purchasePrice: home.purchasePrice ?? 0,
+              downPayment: home.downPayment ?? 0,
+              purchaseMonth: home.purchaseMonth ?? baseMonth,
+              annualAppreciation: home.annualAppreciationPct / 100,
+              feesOneTime: home.feesOneTime,
+              holdingCostMonthly: home.holdingCostMonthly ?? 0,
+              holdingCostAnnualGrowth:
+                (home.holdingCostAnnualGrowthPct ?? 0) / 100,
+              mortgage: {
+                principal: (home.purchasePrice ?? 0) - (home.downPayment ?? 0),
+                annualRate: (home.mortgageRatePct ?? 0) / 100,
+                termMonths: (home.mortgageTermYears ?? 0) * 12,
+              },
+              rental,
+            };
+          }),
         }
       : undefined;
 
