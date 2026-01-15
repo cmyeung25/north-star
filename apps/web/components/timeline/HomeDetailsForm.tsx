@@ -1,3 +1,6 @@
+// Shape note: Home details originally captured price/downPayment/mortgage/appreciation (+feesOneTime).
+// Added fields: holdingCostMonthly and holdingCostAnnualGrowthPct (percent in UI).
+// Back-compat: missing fields default to 0 and do not break saved scenarios.
 "use client";
 
 import { Button, Group, NumberInput, Stack, TextInput, Title } from "@mantine/core";
@@ -130,6 +133,28 @@ export default function HomeDetailsForm({
         }
         thousandSeparator=","
         min={0}
+      />
+      <NumberInput
+        label={t("homeDetailsHoldingCostMonthly")}
+        value={formValues.holdingCostMonthly ?? 0}
+        error={errors.holdingCostMonthly}
+        onChange={(value) =>
+          updateField("holdingCostMonthly", Number(value ?? 0))
+        }
+        thousandSeparator=","
+        min={0}
+      />
+      <NumberInput
+        label={t("homeDetailsHoldingCostGrowth")}
+        value={formValues.holdingCostAnnualGrowthPct ?? 0}
+        error={errors.holdingCostAnnualGrowthPct}
+        onChange={(value) =>
+          updateField("holdingCostAnnualGrowthPct", Number(value ?? 0))
+        }
+        min={0}
+        max={100}
+        decimalScale={2}
+        suffix="%"
       />
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>

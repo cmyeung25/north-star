@@ -1,3 +1,6 @@
+// Shape note: UI home details previously labeled only one-time fees.
+// Added labels for monthly holding cost and holding cost growth percent.
+// Back-compat: new labels are optional additions for expanded home inputs.
 export const locale = "zh-HK";
 export const defaultCurrency = "HKD";
 
@@ -106,6 +109,8 @@ const translations = {
     homeDetailsMortgageTerm: "按揭年期 (年)",
     homeDetailsAnnualAppreciation: "每年增值 %",
     homeDetailsFeesOneTime: "一次性費用",
+    homeDetailsHoldingCostMonthly: "每月持有成本",
+    homeDetailsHoldingCostGrowth: "持有成本年度增長 %",
     currencyHkdLabel: "港幣 (HKD)",
     eventTypeRent: "租屋",
     eventTypeBuyHome: "買樓",

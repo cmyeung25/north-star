@@ -1,3 +1,6 @@
+// Shape note: Scenario positions.homes entries originally held price/downPayment/purchaseMonth/annualAppreciationPct/mortgage info (+feesOneTime).
+// Added fields: holdingCostMonthly and holdingCostAnnualGrowthPct (percent for UI storage).
+// Back-compat: missing holding cost fields default to 0 in adapters/engine.
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
@@ -23,6 +26,8 @@ export type ScenarioAssumptions = {
   emergencyFundMonths?: number;
   mortgageRatePct?: number;
   mortgageTermYears?: number;
+  rentMonthly?: number;
+  rentAnnualGrowthPct?: number;
 };
 
 export type HomePosition = {
@@ -33,6 +38,8 @@ export type HomePosition = {
   mortgageRatePct: number;
   mortgageTermYears: number;
   feesOneTime?: number;
+  holdingCostMonthly?: number;
+  holdingCostAnnualGrowthPct?: number;
 };
 
 export type HomePositionDraft = HomePosition & {
@@ -189,6 +196,8 @@ const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePosit
   mortgageRatePct: home.mortgageRatePct,
   mortgageTermYears: home.mortgageTermYears,
   feesOneTime: home.feesOneTime,
+  holdingCostMonthly: home.holdingCostMonthly,
+  holdingCostAnnualGrowthPct: home.holdingCostAnnualGrowthPct,
 });
 
 const normalizeScenarioPositions = (

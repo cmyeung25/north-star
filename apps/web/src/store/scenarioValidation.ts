@@ -1,3 +1,6 @@
+// Shape note: HomePosition schema originally validated purchase/downPayment/month/appreciation/mortgage (+feesOneTime).
+// Added fields: holdingCostMonthly and holdingCostAnnualGrowthPct (percent) with non-negative bounds.
+// Back-compat: absence of new fields is allowed.
 import { z } from "zod";
 import type { HomePosition } from "./scenarioStore";
 
@@ -27,6 +30,15 @@ export const HomePositionSchema = z
     feesOneTime: z
       .number()
       .min(0, "One-time fees must be 0 or higher.")
+      .optional(),
+    holdingCostMonthly: z
+      .number()
+      .min(0, "Monthly holding cost must be 0 or higher.")
+      .optional(),
+    holdingCostAnnualGrowthPct: z
+      .number()
+      .min(0, "Holding cost growth must be 0 or higher.")
+      .max(100, "Holding cost growth must be 100 or lower.")
       .optional(),
   })
   .refine((data) => data.downPayment <= data.purchasePrice, {

@@ -1,3 +1,6 @@
+// Shape note: Engine HomePosition originally accepted feesOneTime only for extra home costs.
+// Added fields mapped here: holdingCostMonthly (number) and holdingCostAnnualGrowth (decimal).
+// Back-compat: missing holding cost fields map to 0 in the engine input.
 import type { ProjectionInput, ProjectionResult } from "@north-star/engine";
 import type { HomePosition, Scenario, TimelineEvent } from "../store/scenarioStore";
 import { HomePositionSchema } from "../store/scenarioValidation";
@@ -135,6 +138,9 @@ export const mapScenarioToEngineInput = (
             purchaseMonth: home.purchaseMonth,
             annualAppreciation: home.annualAppreciationPct / 100,
             feesOneTime: home.feesOneTime,
+            holdingCostMonthly: home.holdingCostMonthly ?? 0,
+            holdingCostAnnualGrowth:
+              (home.holdingCostAnnualGrowthPct ?? 0) / 100,
             mortgage: {
               principal: home.purchasePrice - home.downPayment,
               annualRate: home.mortgageRatePct / 100,

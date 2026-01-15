@@ -1,3 +1,6 @@
+// Shape note: HomePosition originally included purchasePrice/downPayment/purchaseMonth/annualAppreciation/mortgage (+feesOneTime).
+// Added fields: holdingCostMonthly, holdingCostAnnualGrowth (decimal, optional).
+// Back-compat: missing holdingCostMonthly/holdingCostAnnualGrowth should be treated as 0.
 import type { Event } from "@north-star/types";
 
 import { computeHomeValueSeries } from "./home";
@@ -21,6 +24,8 @@ export type HomePosition = {
     termMonths: number;
   };
   feesOneTime?: number;
+  holdingCostMonthly?: number;
+  holdingCostAnnualGrowth?: number;
 };
 
 export type PositionsInput = {
@@ -147,6 +152,17 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       netCashflow[purchaseIndex] -= home.downPayment;
       if (home.feesOneTime) {
         netCashflow[purchaseIndex] -= home.feesOneTime;
+      }
+    }
+
+    const holdingCostMonthly = home.holdingCostMonthly ?? 0;
+    const holdingCostAnnualGrowth = home.holdingCostAnnualGrowth ?? 0;
+    if (holdingCostMonthly > 0 && horizonMonths > 0) {
+      const startIndex = Math.max(0, purchaseIndex);
+      for (let i = startIndex; i < horizonMonths; i += 1) {
+        const monthsSincePurchase = i - purchaseIndex;
+        const cost = holdingCostMonthly * Math.pow(1 + holdingCostAnnualGrowth, monthsSincePurchase / 12);
+        netCashflow[i] -= cost;
       }
     }
 
