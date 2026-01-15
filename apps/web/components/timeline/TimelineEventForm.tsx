@@ -18,7 +18,7 @@ import type { TimelineEvent } from "./types";
 interface TimelineEventFormProps {
   event: TimelineEvent | null;
   baseCurrency: string;
-  fields?: EventField[];
+  fields?: readonly EventField[];
   onCancel: () => void;
   onSave: (event: TimelineEvent) => void;
   submitLabel?: string;

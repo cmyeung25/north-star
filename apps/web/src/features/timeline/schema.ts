@@ -2,6 +2,8 @@ import { z } from "zod";
 import { eventTypes, type EventType } from "@north-star/engine";
 import { defaultCurrency } from "../../../lib/i18n";
 
+export type { EventType } from "@north-star/engine";
+
 const eventTypeValues = eventTypes as [EventType, ...EventType[]];
 
 export const EventTypeSchema = z.enum(eventTypeValues);

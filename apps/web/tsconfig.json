@@ -3,9 +3,7 @@
   "compilerOptions": {
     "jsx": "preserve",
     "incremental": true,
-    "types": [
-      "node"
-    ],
+    "types": ["node", "vitest/globals"],
     "allowJs": true,
     "isolatedModules": true,
     "plugins": [

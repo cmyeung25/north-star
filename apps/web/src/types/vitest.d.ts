@@ -14,6 +14,7 @@ declare module "vitest" {
     toMatchObject: (...args: unknown[]) => void;
     toBeUndefined: (...args: unknown[]) => void;
     toBeNull: (...args: unknown[]) => void;
+    toBeCloseTo: (...args: unknown[]) => void;
     toThrow: (...args: unknown[]) => void;
   };
 
