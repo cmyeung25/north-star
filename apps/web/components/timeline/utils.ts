@@ -1,3 +1,6 @@
+// Shape note: HomePosition template originally set purchase/mortgage/appreciation (+feesOneTime).
+// Added defaults for holdingCostMonthly and holdingCostAnnualGrowthPct.
+// Back-compat: new fields default to 0 for older scenarios.
 import { nanoid } from "nanoid";
 import {
   defaultCurrency,
@@ -131,6 +134,8 @@ export const createHomePositionFromTemplate = (
     mortgageRatePct: 3.5,
     mortgageTermYears: 30,
     feesOneTime: 300_000,
+    holdingCostMonthly: 0,
+    holdingCostAnnualGrowthPct: 0,
   };
 };
 

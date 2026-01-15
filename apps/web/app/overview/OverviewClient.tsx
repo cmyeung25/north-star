@@ -1,3 +1,6 @@
+// Shape note: Overview now consumes rent-vs-own insights derived from homes[] fees/holding costs.
+// Added fields: feesOneTime + holdingCostMonthly + holdingCostAnnualGrowthPct from scenario positions.
+// Back-compat: when no rent event exists, the card shows \"Rent not configured\".
 "use client";
 
 import {
@@ -22,6 +25,7 @@ import KpiCard from "../../features/overview/components/KpiCard";
 import KpiCarousel from "../../features/overview/components/KpiCarousel";
 import NetWorthChart from "../../features/overview/components/NetWorthChart";
 import OverviewActionsCard from "../../features/overview/components/OverviewActionsCard";
+import RentVsOwnCard from "../../features/overview/components/RentVsOwnCard";
 import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
 import type { RiskLevel } from "../../features/overview/types";
 import { formatCurrency } from "../../lib/i18n";
@@ -29,6 +33,7 @@ import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
 } from "../../src/engine/adapter";
+import { useRentVsOwnComparison } from "../../src/engine/rentVsOwnComparison";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -117,6 +122,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const cashSeries = overviewViewModel?.cashSeries ?? [];
   const netWorthSeries = overviewViewModel?.netWorthSeries ?? [];
   const computedKpis = overviewViewModel?.kpis;
+  const rentVsOwn = useRentVsOwnComparison(selectedScenario);
 
   const insights = useMemo(() => {
     if (!computedKpis) {
@@ -245,13 +251,21 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       )}
 
       {isDesktop ? (
-        <SimpleGrid cols={2} spacing="md">
+        <SimpleGrid cols={3} spacing="md">
           <InsightsCard insights={insights} />
+          <RentVsOwnCard
+            comparison={rentVsOwn}
+            currency={selectedScenario.baseCurrency}
+          />
           <OverviewActionsCard scenarioId={selectedScenario.id} />
         </SimpleGrid>
       ) : (
         <Stack gap="md">
           <InsightsCard insights={insights} />
+          <RentVsOwnCard
+            comparison={rentVsOwn}
+            currency={selectedScenario.baseCurrency}
+          />
           <Card withBorder radius="md" padding="md">
             <Stack gap="sm">
               <Button
