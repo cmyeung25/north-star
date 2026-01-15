@@ -88,11 +88,37 @@
     "netWorthTitle": "資產淨值",
     "breakdownTitle": "每月明細",
     "breakdownEmpty": "目前沒有推算資料。",
+    "breakdownTabs": {
+      "cashflow": "現金流明細",
+      "assets": "資產明細"
+    },
     "breakdownMonth": "月份",
     "breakdownCash": "現金",
+    "breakdownNet": "淨額",
+    "breakdownInflow": "流入",
+    "breakdownOutflow": "流出",
+    "breakdownItem": "項目",
+    "breakdownAmount": "金額",
+    "breakdownNoItems": "本月份沒有細項。",
     "breakdownAssets": "資產",
     "breakdownLiabilities": "負債",
     "breakdownNetWorth": "資產淨值",
+    "breakdownLabels": {
+      "cash": "現金",
+      "investment": "投資 #{index}",
+      "insurance": "保險 #{index}",
+      "downPayment": "首期金額",
+      "feesOneTime": "一次性費用",
+      "holdingCost": "持有成本",
+      "mortgageInterest": "按揭利息",
+      "mortgagePrincipal": "按揭本金",
+      "rentalIncome": "租金收入",
+      "mortgageBalance": "按揭結餘",
+      "contribution": "供款",
+      "premium": "保費",
+      "payout": "賠付",
+      "taxBenefit": "稅務扣減"
+    },
     "monthLabel": "月份 {month}",
     "lowestPointLabel": "最低點",
     "lowestPointSummary": "最低：{value}（{month}）",
@@ -166,14 +192,16 @@
       "income": "收入",
       "expense": "支出",
       "housing": "住房",
-      "asset": "資產",
+      "investment": "投資",
+      "insurance": "保險",
       "debt": "負債"
     },
     "impactHints": {
       "income": "增加現金流入",
       "expense": "增加現金流出",
       "housing": "可能影響現金、資產與負債",
-      "asset": "可能影響資產及／或現金",
+      "investment": "影響現金及投資結餘",
+      "insurance": "影響現金、保費及賠付",
       "debt": "可能影響負債與現金"
     },
     "eventTypes": {
@@ -187,6 +215,7 @@
       "insuranceProduct": "保險產品",
       "insurancePremium": "保費",
       "insurancePayout": "保險給付",
+      "taxBenefit": "稅務扣減",
       "helper": "家傭",
       "investmentContribution": "投資供款",
       "investmentWithdrawal": "投資提領",
@@ -194,16 +223,20 @@
     },
     "insuranceTemplateLabel": "範本",
     "insuranceTemplates": {
-      "pay_5_years": "繳費 5 年",
-      "hk_annuity": "香港年金（可扣稅）",
-      "withdraw_after_8_years": "8 年後提領"
+      "savings_pay_2_return_5": "儲蓄（供款 2 年，5 年後回報）",
+      "hk_annuity_tax_deduct_pay_5_withdraw_8": "港式年金（供款 5 年，8 年後提取）"
     },
     "insuranceParams": {
-      "premiumYears": "繳費年期",
-      "taxDeductionAnnual": "每年扣稅金額",
-      "taxDeductionYears": "扣稅年期",
-      "withdrawalAfterYears": "幾年後提領",
-      "withdrawalAmount": "提領金額"
+      "premiumMonthly": "每月保費",
+      "premiumAnnual": "每年保費",
+      "payMonths": "供款期（月）",
+      "returnMonthOffset": "回報期（月）",
+      "returnAmount": "回報金額",
+      "annualPremium": "每年保費",
+      "payYears": "供款年期",
+      "withdrawAfterYears": "提取年期",
+      "withdrawAmount": "提取金額",
+      "taxBenefitAnnual": "每年扣稅額"
     },
     "eventFormName": "名稱",
     "eventFormStartMonth": "開始月份",

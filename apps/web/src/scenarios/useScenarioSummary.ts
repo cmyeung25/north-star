@@ -21,9 +21,13 @@ export const useScenarioSummary = (scenarioId?: string | null) => {
     () => (scenarioId ? getScenarioById(scenarios, scenarioId) : null),
     [scenarioId, scenarios]
   );
+  const scenarioKey = useMemo(
+    () => (scenario ? `${scenario.id}:${scenario.updatedAt}` : null),
+    [scenario]
+  );
 
   const summary = useMemo(() => {
-    if (!scenario) {
+    if (!scenario || !scenarioKey) {
       return null;
     }
 
@@ -32,7 +36,7 @@ export const useScenarioSummary = (scenarioId?: string | null) => {
     const overviewViewModel = projectionToOverviewViewModel(projection);
 
     return { kpis: overviewViewModel.kpis };
-  }, [scenario]);
+  }, [scenario, scenarioKey]);
 
   return { scenario, summary };
 };

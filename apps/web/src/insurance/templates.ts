@@ -1,9 +1,8 @@
-import type { TimelineEvent } from "../store/scenarioStore";
+import type { ScenarioAssumptions, TimelineEvent } from "../store/scenarioStore";
 
 export type InsuranceTemplateId =
-  | "pay_5_years"
-  | "hk_annuity"
-  | "withdraw_after_8_years";
+  | "savings_pay_2_return_5"
+  | "hk_annuity_tax_deduct_pay_5_withdraw_8";
 
 export type InsuranceTemplateParam = {
   key: string;
@@ -16,7 +15,8 @@ export type InsuranceTemplate = {
   params: InsuranceTemplateParam[];
   buildEvents: (
     event: TimelineEvent,
-    params: Record<string, number>
+    params: Record<string, number>,
+    assumptions?: ScenarioAssumptions
   ) => Array<Omit<TimelineEvent, "id" | "templateId" | "templateParams" | "derived" | "sourceId">>;
 };
 
@@ -39,14 +39,15 @@ const endMonthFromDuration = (startMonth: string, durationMonths: number) => {
 const buildPremiumEvent = (
   event: TimelineEvent,
   nameSuffix: string,
-  durationMonths: number
+  durationMonths: number,
+  monthlyAmount: number
 ): TimelineEvent => ({
   ...event,
   type: "insurance_premium",
   name: `${event.name} ${nameSuffix}`.trim(),
   startMonth: event.startMonth,
   endMonth: endMonthFromDuration(event.startMonth, durationMonths),
-  monthlyAmount: Math.abs(event.monthlyAmount ?? 0),
+  monthlyAmount: Math.abs(monthlyAmount),
   oneTimeAmount: 0,
   annualGrowthPct: 0,
 });
@@ -55,10 +56,11 @@ const buildMonthlyBenefitEvent = (
   event: TimelineEvent,
   nameSuffix: string,
   monthlyAmount: number,
-  durationMonths: number
+  durationMonths: number,
+  type: TimelineEvent["type"] = "insurance_payout"
 ): TimelineEvent => ({
   ...event,
-  type: "insurance_payout",
+  type,
   name: `${event.name} ${nameSuffix}`.trim(),
   startMonth: event.startMonth,
   endMonth: endMonthFromDuration(event.startMonth, durationMonths),
@@ -85,57 +87,71 @@ const buildOneTimePayoutEvent = (
 
 export const insuranceTemplates: InsuranceTemplate[] = [
   {
-    id: "pay_5_years",
-    params: [{ key: "premiumYears", defaultValue: 5, min: 1 }],
+    id: "savings_pay_2_return_5",
+    params: [
+      { key: "premiumMonthly", defaultValue: 0, min: 0 },
+      { key: "premiumAnnual", defaultValue: 0, min: 0 },
+      { key: "payMonths", defaultValue: 24, min: 1 },
+      { key: "returnMonthOffset", defaultValue: 60, min: 1 },
+      { key: "returnAmount", defaultValue: 60000, min: 0 },
+    ],
     buildEvents: (event, params) => {
-      const premiumYears = params.premiumYears ?? 5;
-      const premiumMonths = Math.max(Math.round(premiumYears * 12), 1);
-      return [buildPremiumEvent(event, "premium", premiumMonths)];
+      const premiumMonthlyParam = params.premiumMonthly ?? 0;
+      const premiumAnnualParam = params.premiumAnnual ?? 0;
+      const premiumMonthly =
+        premiumMonthlyParam > 0
+          ? premiumMonthlyParam
+          : premiumAnnualParam > 0
+            ? premiumAnnualParam / 12
+            : event.monthlyAmount ?? 0;
+      const premiumMonths = Math.max(Math.round(params.payMonths ?? 24), 1);
+      const payoutAfterMonths = Math.max(Math.round(params.returnMonthOffset ?? 60), 0);
+      const payoutAmount = params.returnAmount ?? 0;
+
+      return [
+        buildPremiumEvent(event, "premium", premiumMonths, premiumMonthly),
+        buildOneTimePayoutEvent(event, "return", payoutAmount, payoutAfterMonths),
+      ];
     },
   },
   {
-    id: "hk_annuity",
+    id: "hk_annuity_tax_deduct_pay_5_withdraw_8",
     params: [
-      { key: "premiumYears", defaultValue: 5, min: 1 },
-      { key: "taxDeductionAnnual", defaultValue: 6000, min: 0 },
-      { key: "taxDeductionYears", defaultValue: 5, min: 0 },
+      { key: "annualPremium", defaultValue: 60000, min: 0 },
+      { key: "payYears", defaultValue: 5, min: 1 },
+      { key: "withdrawAfterYears", defaultValue: 8, min: 1 },
+      { key: "withdrawAmount", defaultValue: 120000, min: 0 },
+      { key: "taxBenefitAnnual", defaultValue: 6000, min: 0 },
     ],
     buildEvents: (event, params) => {
-      const premiumYears = params.premiumYears ?? 5;
-      const taxYears = params.taxDeductionYears ?? 0;
-      const premiumMonths = Math.max(Math.round(premiumYears * 12), 1);
-      const taxMonths = Math.max(Math.round(taxYears * 12), 0);
-      const taxMonthly =
-        taxMonths > 0 ? (params.taxDeductionAnnual ?? 0) / 12 : 0;
+      const annualPremium = params.annualPremium ?? 0;
+      const payYears = params.payYears ?? 5;
+      const withdrawAfterYears = params.withdrawAfterYears ?? 8;
+      const taxBenefitAnnual = params.taxBenefitAnnual ?? 0;
+      const withdrawAmount = params.withdrawAmount ?? 0;
+      const premiumMonths = Math.max(Math.round(payYears * 12), 1);
+      const payoutAfterMonths = Math.max(Math.round(withdrawAfterYears * 12), 0);
+      const monthlyPremium = annualPremium / 12;
+      const taxBenefitMonthly = taxBenefitAnnual / 12;
 
       const events: TimelineEvent[] = [
-        buildPremiumEvent(event, "premium", premiumMonths),
+        buildPremiumEvent(event, "premium", premiumMonths, monthlyPremium),
       ];
-      if (taxMonthly > 0 && taxMonths > 0) {
+      if (taxBenefitMonthly > 0) {
         events.push(
-          buildMonthlyBenefitEvent(event, "tax benefit", taxMonthly, taxMonths)
+          buildMonthlyBenefitEvent(
+            event,
+            "tax benefit",
+            taxBenefitMonthly,
+            premiumMonths,
+            "tax_benefit"
+          )
         );
       }
+      events.push(
+        buildOneTimePayoutEvent(event, "withdrawal", withdrawAmount, payoutAfterMonths)
+      );
       return events;
-    },
-  },
-  {
-    id: "withdraw_after_8_years",
-    params: [
-      { key: "premiumYears", defaultValue: 5, min: 1 },
-      { key: "withdrawalAfterYears", defaultValue: 8, min: 1 },
-      { key: "withdrawalAmount", defaultValue: 120000, min: 0 },
-    ],
-    buildEvents: (event, params) => {
-      const premiumYears = params.premiumYears ?? 5;
-      const payoutAfterYears = params.withdrawalAfterYears ?? 8;
-      const premiumMonths = Math.max(Math.round(premiumYears * 12), 1);
-      const payoutAfterMonths = Math.max(Math.round(payoutAfterYears * 12), 0);
-      const payoutAmount = params.withdrawalAmount ?? 0;
-      return [
-        buildPremiumEvent(event, "premium", premiumMonths),
-        buildOneTimePayoutEvent(event, "withdrawal", payoutAmount, payoutAfterMonths),
-      ];
     },
   },
 ];
@@ -151,3 +167,25 @@ export const buildTemplateParams = (
     acc[param.key] = params?.[param.key] ?? param.defaultValue;
     return acc;
   }, {});
+
+export const buildDerivedEvents = (
+  event: TimelineEvent,
+  assumptions?: ScenarioAssumptions
+): TimelineEvent[] => {
+  if (event.type !== "insurance_product" || !event.enabled) {
+    return [];
+  }
+
+  const template = getInsuranceTemplate(event.templateId);
+  const templateParams = buildTemplateParams(template, event.templateParams);
+  const derivedEvents = template.buildEvents(event, templateParams, assumptions);
+
+  return derivedEvents.map((derivedEvent, index) => ({
+    ...derivedEvent,
+    id: `${event.id}-derived-${index}`,
+    derived: true,
+    sourceId: event.id,
+    templateId: undefined,
+    templateParams: undefined,
+  }));
+};

@@ -20,7 +20,7 @@ import { computeProjection } from "@north-star/engine";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import ProjectionBreakdownModal from "../../../components/ProjectionBreakdownModal";
+import ProjectionDetailsModal from "../../../components/ProjectionDetailsModal";
 import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
 import InsightsCard from "../../../features/overview/components/InsightsCard";
 import KpiCard from "../../../features/overview/components/KpiCard";
@@ -35,7 +35,12 @@ import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
-import { getMonthlyRows } from "../../../src/engine/projectionSelectors";
+import { expandDerivedEvents } from "../../../src/engine/scenarioTransforms";
+import {
+  createBreakdownLabelResolver,
+  getAssetBreakdownRows,
+  getCashflowBreakdownRows,
+} from "../../../src/engine/projectionSelectors";
 import {
   buildExportFilename,
   downloadTextFile,
@@ -100,6 +105,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const t = useTranslations("overview");
   const common = useTranslations("common");
   const exportT = useTranslations("export");
+  const homesT = useTranslations("homes");
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
@@ -135,9 +141,47 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     () => (projection ? projectionToOverviewViewModel(projection) : null),
     [projection]
   );
-  const breakdownRows = useMemo(
-    () => (projection ? getMonthlyRows(projection) : []),
-    [projection]
+  const scenarioForLabels = useMemo(
+    () => (selectedScenario ? expandDerivedEvents(selectedScenario) : null),
+    [selectedScenario]
+  );
+  const breakdownLabelResolver = useMemo(() => {
+    if (!scenarioForLabels) {
+      return null;
+    }
+    return createBreakdownLabelResolver(scenarioForLabels, {
+      cashLabel: t("breakdownLabels.cash"),
+      homeLabel: (index, name) => name ?? homesT("homeLabel", { index }),
+      investmentLabel: (index) => t("breakdownLabels.investment", { index }),
+      insuranceLabel: (index) => t("breakdownLabels.insurance", { index }),
+      suffixLabels: {
+        down_payment: t("breakdownLabels.downPayment"),
+        fees_one_time: t("breakdownLabels.feesOneTime"),
+        holding_cost: t("breakdownLabels.holdingCost"),
+        mortgage_interest: t("breakdownLabels.mortgageInterest"),
+        mortgage_principal: t("breakdownLabels.mortgagePrincipal"),
+        rental_income: t("breakdownLabels.rentalIncome"),
+        mortgage: t("breakdownLabels.mortgageBalance"),
+        contribution: t("breakdownLabels.contribution"),
+        premium: t("breakdownLabels.premium"),
+        payout: t("breakdownLabels.payout"),
+        tax_benefit: t("breakdownLabels.taxBenefit"),
+      },
+    });
+  }, [homesT, scenarioForLabels, t]);
+  const cashflowRows = useMemo(
+    () =>
+      projection && breakdownLabelResolver
+        ? getCashflowBreakdownRows(projection, breakdownLabelResolver)
+        : [],
+    [breakdownLabelResolver, projection]
+  );
+  const assetRows = useMemo(
+    () =>
+      projection && breakdownLabelResolver
+        ? getAssetBreakdownRows(projection, breakdownLabelResolver)
+        : [],
+    [breakdownLabelResolver, projection]
   );
 
   const cashSeries = overviewViewModel?.cashSeries ?? [];
@@ -375,10 +419,11 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           </Card>
         </Stack>
       )}
-      <ProjectionBreakdownModal
+      <ProjectionDetailsModal
         opened={breakdownOpen}
         onClose={() => setBreakdownOpen(false)}
-        rows={breakdownRows}
+        cashflowRows={cashflowRows}
+        assetRows={assetRows}
         currency={selectedScenario.baseCurrency}
       />
     </Stack>

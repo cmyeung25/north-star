@@ -1,6 +1,12 @@
 import type { EventType } from "../features/timeline/schema";
 
-export type EventGroup = "income" | "expense" | "housing" | "asset" | "debt";
+export type EventGroup =
+  | "income"
+  | "expense"
+  | "housing"
+  | "investment"
+  | "insurance"
+  | "debt";
 
 export type EventSign = 1 | -1;
 
@@ -18,13 +24,14 @@ const eventCatalog: Record<EventType, EventMeta> = {
   baby: { group: "expense", sign: -1 },
   car: { group: "expense", sign: -1 },
   travel: { group: "expense", sign: -1 },
-  insurance: { group: "expense", sign: -1 },
-  insurance_product: { group: "expense", sign: -1 },
-  insurance_premium: { group: "expense", sign: -1 },
-  insurance_payout: { group: "income", sign: 1 },
+  insurance: { group: "insurance", sign: -1 },
+  insurance_product: { group: "insurance", sign: -1 },
+  insurance_premium: { group: "insurance", sign: -1 },
+  insurance_payout: { group: "insurance", sign: 1 },
   helper: { group: "expense", sign: -1 },
-  investment_contribution: { group: "asset", sign: -1 },
-  investment_withdrawal: { group: "asset", sign: 1 },
+  investment_contribution: { group: "investment", sign: -1 },
+  investment_withdrawal: { group: "investment", sign: 1 },
+  tax_benefit: { group: "insurance", sign: 1 },
   custom: { group: "expense", sign: -1 },
 };
 

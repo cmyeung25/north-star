@@ -6,6 +6,7 @@ import type { Event } from "@north-star/types";
 import { computeMortgageSchedule } from "./mortgage";
 
 export type EngineEvent = Event & {
+  id?: string;
   type?: string;
   meta?: {
     category?: "cashflow" | "asset" | "liability";
@@ -13,6 +14,8 @@ export type EngineEvent = Event & {
 };
 
 export type HomePosition = {
+  id?: string;
+  name?: string;
   usage?: "primary" | "investment";
   mode?: "new_purchase" | "existing";
   purchasePrice?: number;
@@ -46,6 +49,7 @@ export type HomePosition = {
 export type InvestmentAssetClass = "equity" | "bond" | "fund" | "crypto";
 
 export type InvestmentPosition = {
+  id?: string;
   assetClass: InvestmentAssetClass;
   marketValue: number;
   expectedAnnualReturn?: number;
@@ -55,6 +59,7 @@ export type InvestmentPosition = {
 export type InsuranceType = "life" | "savings" | "accident" | "medical";
 
 export type InsurancePosition = {
+  id?: string;
   insuranceType: InsuranceType;
   premiumMonthly: number;
   hasCashValue?: boolean;
@@ -99,6 +104,18 @@ export type ProjectionResult = {
   runwayMonths: number;
   netWorthYear5: number;
   riskLevel: "Low" | "Medium" | "High";
+  breakdown?: {
+    cashflow: {
+      months: string[];
+      byKey: Record<string, number[]>;
+      totals: number[];
+    };
+    assets: {
+      months: string[];
+      assetsByKey: Record<string, number[]>;
+      liabilitiesByKey: Record<string, number[]>;
+    };
+  };
 };
 
 export function parseMonth(value: string): { year: number; month: number } {
@@ -253,16 +270,62 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const assetsInvestments = Array.from({ length: horizonMonths }, () => 0);
   const assetsInsurance = Array.from({ length: horizonMonths }, () => 0);
   const liabilitiesMortgage = Array.from({ length: horizonMonths }, () => 0);
+  const cashflowLedger = {
+    months,
+    byKey: {} as Record<string, number[]>,
+    totals: Array.from({ length: horizonMonths }, () => 0),
+  };
+  const assetsLedger = {
+    months,
+    assetsByKey: {} as Record<string, number[]>,
+    liabilitiesByKey: {} as Record<string, number[]>,
+  };
 
-  for (const event of input.events) {
+  const ensureLedgerSeries = (ledger: Record<string, number[]>, key: string) => {
+    if (!ledger[key]) {
+      ledger[key] = Array.from({ length: horizonMonths }, () => 0);
+    }
+    return ledger[key];
+  };
+
+  const addCashflow = (key: string, index: number, amount: number) => {
+    if (!amount) {
+      return;
+    }
+    const series = ensureLedgerSeries(cashflowLedger.byKey, key);
+    series[index] += amount;
+    cashflowLedger.totals[index] += amount;
+  };
+
+  const addAsset = (key: string, index: number, amount: number) => {
+    if (!amount && amount !== 0) {
+      return;
+    }
+    const series = ensureLedgerSeries(assetsLedger.assetsByKey, key);
+    series[index] += amount;
+  };
+
+  const addLiability = (key: string, index: number, amount: number) => {
+    if (!amount && amount !== 0) {
+      return;
+    }
+    const series = ensureLedgerSeries(assetsLedger.liabilitiesByKey, key);
+    series[index] += amount;
+  };
+
+  for (const [eventIndex, event] of input.events.entries()) {
     const series = expandEventToSeries(event, input.baseMonth, horizonMonths);
+    const eventKey = `event:${event.id ?? event.type ?? `event-${eventIndex + 1}`}`;
     for (let i = 0; i < horizonMonths; i += 1) {
       netCashflow[i] += series[i];
+      if (series[i] !== 0) {
+        addCashflow(eventKey, i, series[i]);
+      }
     }
   }
 
   const homes = input.positions?.homes ?? (input.positions?.home ? [input.positions.home] : []);
-  for (const home of homes) {
+  homes.forEach((home, homeIndex) => {
     const mode = home.mode ?? "new_purchase";
     const purchaseMonth =
       mode === "existing" && home.existing ? home.existing.asOfMonth : home.purchaseMonth;
@@ -270,11 +333,17 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       ? monthIndex(input.baseMonth, purchaseMonth)
       : horizonMonths;
     const purchaseIndex = startIndex;
+    const homeId = home.id ?? `home-${homeIndex + 1}`;
 
     if (mode === "new_purchase" && purchaseIndex >= 0 && purchaseIndex < horizonMonths) {
-      netCashflow[purchaseIndex] -= home.downPayment ?? 0;
+      const downPayment = home.downPayment ?? 0;
+      if (downPayment) {
+        netCashflow[purchaseIndex] -= downPayment;
+        addCashflow(`home:${homeId}:down_payment`, purchaseIndex, -downPayment);
+      }
       if (home.feesOneTime) {
         netCashflow[purchaseIndex] -= home.feesOneTime;
+        addCashflow(`home:${homeId}:fees_one_time`, purchaseIndex, -home.feesOneTime);
       }
     }
 
@@ -288,6 +357,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
           holdingCostMonthly *
           Math.pow(1 + holdingCostAnnualGrowth, monthsSincePurchase / 12);
         netCashflow[i] -= cost;
+        addCashflow(`home:${homeId}:holding_cost`, i, -cost);
       }
     }
 
@@ -302,6 +372,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
 
     for (let i = 0; i < horizonMonths; i += 1) {
       assetsHousing[i] += homeSeries[i];
+      addAsset(`home:${homeId}`, i, homeSeries[i]);
     }
 
     const mortgageDetails =
@@ -327,7 +398,22 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
         if (payment !== 0) {
           netCashflow[i] -= payment;
         }
+        if (schedule.interestSeries[i]) {
+          addCashflow(
+            `home:${homeId}:mortgage_interest`,
+            i,
+            -schedule.interestSeries[i]
+          );
+        }
+        if (schedule.principalSeries[i]) {
+          addCashflow(
+            `home:${homeId}:mortgage_principal`,
+            i,
+            -schedule.principalSeries[i]
+          );
+        }
         liabilitiesMortgage[i] += schedule.balanceSeries[i];
+        addLiability(`home:${homeId}:mortgage`, i, schedule.balanceSeries[i]);
       }
     }
 
@@ -347,43 +433,56 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
         const multiplier = Math.pow(1 + rentAnnualGrowth, yearsSinceStart);
         const income = home.rental.rentMonthly * multiplier * (1 - vacancyRate);
         netCashflow[i] += income;
+        addCashflow(`home:${homeId}:rental_income`, i, income);
       }
     }
-  }
+  });
 
   const investments = input.positions?.investments ?? [];
-  for (const investment of investments) {
+  investments.forEach((investment, investmentIndex) => {
     const marketValue = investment.marketValue ?? 0;
     const annualReturn = investment.expectedAnnualReturn ?? 0;
     const monthlyReturn = Math.pow(1 + annualReturn, 1 / 12) - 1;
     const monthlyContribution = investment.monthlyContribution ?? 0;
     const series = Array.from({ length: horizonMonths }, () => 0);
+    const investmentId = investment.id ?? `investment-${investmentIndex + 1}`;
 
     if (horizonMonths > 0) {
       series[0] = marketValue + monthlyContribution;
       netCashflow[0] -= monthlyContribution;
+      if (monthlyContribution) {
+        addCashflow(`investment:${investmentId}:contribution`, 0, -monthlyContribution);
+      }
     }
 
     for (let i = 1; i < horizonMonths; i += 1) {
       series[i] = series[i - 1] * (1 + monthlyReturn) + monthlyContribution;
       netCashflow[i] -= monthlyContribution;
+      if (monthlyContribution) {
+        addCashflow(`investment:${investmentId}:contribution`, i, -monthlyContribution);
+      }
     }
 
     for (let i = 0; i < horizonMonths; i += 1) {
       assetsInvestments[i] += series[i];
+      addAsset(`investment:${investmentId}`, i, series[i]);
     }
-  }
+  });
 
   const insurances = input.positions?.insurances ?? [];
-  for (const insurance of insurances) {
+  insurances.forEach((insurance, insuranceIndex) => {
     const premiumMonthly = insurance.premiumMonthly ?? 0;
     const cashValue = insurance.hasCashValue ? insurance.cashValue ?? 0 : 0;
     const annualGrowth = insurance.cashValueAnnualGrowth ?? 0;
     const monthlyGrowth = Math.pow(1 + annualGrowth, 1 / 12) - 1;
     const series = Array.from({ length: horizonMonths }, () => 0);
+    const insuranceId = insurance.id ?? `insurance-${insuranceIndex + 1}`;
 
     for (let i = 0; i < horizonMonths; i += 1) {
       netCashflow[i] -= premiumMonthly;
+      if (premiumMonthly) {
+        addCashflow(`insurance:${insuranceId}:premium`, i, -premiumMonthly);
+      }
     }
 
     if (insurance.hasCashValue && horizonMonths > 0) {
@@ -395,13 +494,15 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
 
     for (let i = 0; i < horizonMonths; i += 1) {
       assetsInsurance[i] += series[i];
+      addAsset(`insurance:${insuranceId}`, i, series[i]);
     }
-  }
+  });
 
   const cashBalance: number[] = [];
   for (let i = 0; i < horizonMonths; i += 1) {
     const prior = i === 0 ? initialCash : cashBalance[i - 1];
     cashBalance[i] = prior + netCashflow[i];
+    addAsset("cash", i, cashBalance[i]);
   }
 
   const assetsTotal = assetsHousing.map(
@@ -482,6 +583,10 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     runwayMonths,
     netWorthYear5,
     riskLevel,
+    breakdown: {
+      cashflow: cashflowLedger,
+      assets: assetsLedger,
+    },
   };
 }
 
