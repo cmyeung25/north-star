@@ -7,7 +7,13 @@ import {
   type ProjectionInput,
   type ProjectionResult,
 } from "@north-star/engine";
-import type { HomePosition, Scenario, TimelineEvent } from "../store/scenarioStore";
+import type {
+  HomePosition,
+  InsurancePosition,
+  InvestmentPosition,
+  Scenario,
+  TimelineEvent,
+} from "../store/scenarioStore";
 import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
 import { getEventSign } from "../events/eventCatalog";
@@ -159,67 +165,107 @@ export const mapScenarioToEngineInput = (
     rentAnnualGrowthPct: scenario.assumptions.rentAnnualGrowthPct,
     salaryGrowthRate: scenario.assumptions.salaryGrowthRate,
   };
+  const investmentReturnAssumptions = scenario.assumptions.investmentReturnAssumptions ?? {};
   const events = enabledEvents
     // Strategy A: remove buy_home cashflow events to avoid double counting with positions.homes.
     // Only the earliest buy_home event is mapped into positions; any additional buy_home events are ignored.
     .filter((event) => event.type !== "buy_home")
     .map((event) => mapEventToEngine(event, assumptions));
-  const positions =
+  const mappedHomes =
     validatedHomes.length > 0
-      ? {
-          homes: validatedHomes.map((home) => {
-            const mode = home.mode ?? "new_purchase";
-            const usage = home.usage ?? "primary";
-            const rental = home.rental
-              ? {
-                  rentMonthly: home.rental.rentMonthly,
-                  rentStartMonth: home.rental.rentStartMonth,
-                  rentEndMonth: home.rental.rentEndMonth ?? undefined,
-                  rentAnnualGrowth: (home.rental.rentAnnualGrowthPct ?? 0) / 100,
-                  vacancyRate: (home.rental.vacancyRatePct ?? 0) / 100,
-                }
-              : undefined;
+      ? validatedHomes.map((home) => {
+          const mode = home.mode ?? "new_purchase";
+          const usage = home.usage ?? "primary";
+          const rental = home.rental
+            ? {
+                rentMonthly: home.rental.rentMonthly,
+                rentStartMonth: home.rental.rentStartMonth,
+                rentEndMonth: home.rental.rentEndMonth ?? undefined,
+                rentAnnualGrowth: (home.rental.rentAnnualGrowthPct ?? 0) / 100,
+                vacancyRate: (home.rental.vacancyRatePct ?? 0) / 100,
+              }
+            : undefined;
 
-            if (mode === "existing" && home.existing) {
-              return {
-                usage,
-                mode,
-                purchasePrice: home.purchasePrice ?? home.existing.marketValue,
-                annualAppreciation: home.annualAppreciationPct / 100,
-                feesOneTime: home.feesOneTime,
-                holdingCostMonthly: home.holdingCostMonthly ?? 0,
-                holdingCostAnnualGrowth:
-                  (home.holdingCostAnnualGrowthPct ?? 0) / 100,
-                existing: {
-                  asOfMonth: home.existing.asOfMonth,
-                  marketValue: home.existing.marketValue,
-                  mortgageBalance: home.existing.mortgageBalance,
-                  remainingTermMonths: home.existing.remainingTermMonths,
-                  annualRate: (home.existing.annualRatePct ?? 0) / 100,
-                },
-                rental,
-              };
-            }
-
+          if (mode === "existing" && home.existing) {
             return {
               usage,
               mode,
-              purchasePrice: home.purchasePrice ?? 0,
-              downPayment: home.downPayment ?? 0,
-              purchaseMonth: home.purchaseMonth ?? baseMonth,
+              purchasePrice: home.purchasePrice ?? home.existing.marketValue,
               annualAppreciation: home.annualAppreciationPct / 100,
               feesOneTime: home.feesOneTime,
               holdingCostMonthly: home.holdingCostMonthly ?? 0,
-              holdingCostAnnualGrowth:
-                (home.holdingCostAnnualGrowthPct ?? 0) / 100,
-              mortgage: {
-                principal: (home.purchasePrice ?? 0) - (home.downPayment ?? 0),
-                annualRate: (home.mortgageRatePct ?? 0) / 100,
-                termMonths: (home.mortgageTermYears ?? 0) * 12,
+              holdingCostAnnualGrowth: (home.holdingCostAnnualGrowthPct ?? 0) / 100,
+              existing: {
+                asOfMonth: home.existing.asOfMonth,
+                marketValue: home.existing.marketValue,
+                mortgageBalance: home.existing.mortgageBalance,
+                remainingTermMonths: home.existing.remainingTermMonths,
+                annualRate: (home.existing.annualRatePct ?? 0) / 100,
               },
               rental,
             };
-          }),
+          }
+
+          return {
+            usage,
+            mode,
+            purchasePrice: home.purchasePrice ?? 0,
+            downPayment: home.downPayment ?? 0,
+            purchaseMonth: home.purchaseMonth ?? baseMonth,
+            annualAppreciation: home.annualAppreciationPct / 100,
+            feesOneTime: home.feesOneTime,
+            holdingCostMonthly: home.holdingCostMonthly ?? 0,
+            holdingCostAnnualGrowth: (home.holdingCostAnnualGrowthPct ?? 0) / 100,
+            mortgage: {
+              principal: (home.purchasePrice ?? 0) - (home.downPayment ?? 0),
+              annualRate: (home.mortgageRatePct ?? 0) / 100,
+              termMonths: (home.mortgageTermYears ?? 0) * 12,
+            },
+            rental,
+          };
+        })
+      : undefined;
+
+  const mappedInvestments = scenario.positions?.investments
+    ? scenario.positions.investments.map((investment: InvestmentPosition) => {
+        const assumedReturn =
+          investment.expectedAnnualReturnPct ??
+          investmentReturnAssumptions[investment.assetClass] ??
+          0;
+
+        return {
+          assetClass: investment.assetClass,
+          marketValue: investment.marketValue ?? 0,
+          expectedAnnualReturn: assumedReturn / 100,
+          monthlyContribution: investment.monthlyContribution ?? 0,
+        };
+      })
+    : undefined;
+
+  const mappedInsurances = scenario.positions?.insurances
+    ? scenario.positions.insurances.map((insurance: InsurancePosition) => {
+        const premiumMonthly =
+          insurance.premiumMode === "annual"
+            ? insurance.premiumAmount / 12
+            : insurance.premiumAmount;
+
+        return {
+          insuranceType: insurance.insuranceType,
+          premiumMonthly,
+          hasCashValue: insurance.hasCashValue,
+          cashValue: insurance.cashValueAsOf ?? 0,
+          cashValueAnnualGrowth: (insurance.cashValueAnnualGrowthPct ?? 0) / 100,
+          coverageMeta: insurance.coverageMeta,
+        };
+      })
+    : undefined;
+
+  const positions =
+    mappedHomes || mappedInvestments || mappedInsurances
+      ? {
+          homes: mappedHomes,
+          investments: mappedInvestments,
+          insurances: mappedInsurances,
         }
       : undefined;
 

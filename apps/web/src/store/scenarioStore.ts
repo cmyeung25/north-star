@@ -28,10 +28,17 @@ export type ScenarioAssumptions = {
   mortgageTermYears?: number;
   rentMonthly?: number;
   rentAnnualGrowthPct?: number;
+  investmentReturnAssumptions?: Partial<Record<InvestmentAssetClass, number>>;
 };
 
 export type HomeUsage = "primary" | "investment";
 export type HomeMode = "new_purchase" | "existing";
+
+export type InvestmentAssetClass = "equity" | "bond" | "fund" | "crypto";
+
+export type InsuranceType = "life" | "savings" | "accident" | "medical";
+
+export type InsurancePremiumMode = "monthly" | "annual";
 
 export type ExistingHomeDetails = {
   asOfMonth: string;
@@ -69,9 +76,28 @@ export type HomePositionDraft = HomePosition & {
   id: string;
 };
 
+export type InvestmentPosition = {
+  assetClass: InvestmentAssetClass;
+  marketValue: number;
+  expectedAnnualReturnPct?: number;
+  monthlyContribution?: number;
+};
+
+export type InsurancePosition = {
+  insuranceType: InsuranceType;
+  premiumMode: InsurancePremiumMode;
+  premiumAmount: number;
+  hasCashValue?: boolean;
+  cashValueAsOf?: number;
+  cashValueAnnualGrowthPct?: number;
+  coverageMeta?: Record<string, unknown>;
+};
+
 export type ScenarioPositions = {
   home?: HomePosition;
   homes?: HomePositionDraft[];
+  investments?: InvestmentPosition[];
+  insurances?: InsurancePosition[];
 };
 
 export type ScenarioMeta = {
@@ -153,6 +179,12 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
   return {
     home: positions.home ? { ...positions.home } : undefined,
     homes: positions.homes ? positions.homes.map((home) => ({ ...home })) : undefined,
+    investments: positions.investments
+      ? positions.investments.map((investment) => ({ ...investment }))
+      : undefined,
+    insurances: positions.insurances
+      ? positions.insurances.map((insurance) => ({ ...insurance }))
+      : undefined,
   };
 };
 

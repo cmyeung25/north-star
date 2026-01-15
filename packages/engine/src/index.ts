@@ -43,9 +43,31 @@ export type HomePosition = {
   };
 };
 
+export type InvestmentAssetClass = "equity" | "bond" | "fund" | "crypto";
+
+export type InvestmentPosition = {
+  assetClass: InvestmentAssetClass;
+  marketValue: number;
+  expectedAnnualReturn?: number;
+  monthlyContribution?: number;
+};
+
+export type InsuranceType = "life" | "savings" | "accident" | "medical";
+
+export type InsurancePosition = {
+  insuranceType: InsuranceType;
+  premiumMonthly: number;
+  hasCashValue?: boolean;
+  cashValue?: number;
+  cashValueAnnualGrowth?: number;
+  coverageMeta?: Record<string, unknown>;
+};
+
 export type PositionsInput = {
   home?: HomePosition;
   homes?: HomePosition[];
+  investments?: InvestmentPosition[];
+  insurances?: InsurancePosition[];
 };
 
 export type ProjectionInput = {
@@ -63,6 +85,8 @@ export type ProjectionResult = {
   cashBalance: number[];
   assets: {
     housing: number[];
+    investments: number[];
+    insurance: number[];
     total: number[];
   };
   liabilities: {
@@ -226,6 +250,8 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const netCashflow = Array.from({ length: horizonMonths }, () => 0);
   const initialCash = input.initialCash ?? 0;
   const assetsHousing = Array.from({ length: horizonMonths }, () => 0);
+  const assetsInvestments = Array.from({ length: horizonMonths }, () => 0);
+  const assetsInsurance = Array.from({ length: horizonMonths }, () => 0);
   const liabilitiesMortgage = Array.from({ length: horizonMonths }, () => 0);
 
   for (const event of input.events) {
@@ -325,13 +351,62 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     }
   }
 
+  const investments = input.positions?.investments ?? [];
+  for (const investment of investments) {
+    const marketValue = investment.marketValue ?? 0;
+    const annualReturn = investment.expectedAnnualReturn ?? 0;
+    const monthlyReturn = Math.pow(1 + annualReturn, 1 / 12) - 1;
+    const monthlyContribution = investment.monthlyContribution ?? 0;
+    const series = Array.from({ length: horizonMonths }, () => 0);
+
+    if (horizonMonths > 0) {
+      series[0] = marketValue + monthlyContribution;
+      netCashflow[0] -= monthlyContribution;
+    }
+
+    for (let i = 1; i < horizonMonths; i += 1) {
+      series[i] = series[i - 1] * (1 + monthlyReturn) + monthlyContribution;
+      netCashflow[i] -= monthlyContribution;
+    }
+
+    for (let i = 0; i < horizonMonths; i += 1) {
+      assetsInvestments[i] += series[i];
+    }
+  }
+
+  const insurances = input.positions?.insurances ?? [];
+  for (const insurance of insurances) {
+    const premiumMonthly = insurance.premiumMonthly ?? 0;
+    const cashValue = insurance.hasCashValue ? insurance.cashValue ?? 0 : 0;
+    const annualGrowth = insurance.cashValueAnnualGrowth ?? 0;
+    const monthlyGrowth = Math.pow(1 + annualGrowth, 1 / 12) - 1;
+    const series = Array.from({ length: horizonMonths }, () => 0);
+
+    for (let i = 0; i < horizonMonths; i += 1) {
+      netCashflow[i] -= premiumMonthly;
+    }
+
+    if (insurance.hasCashValue && horizonMonths > 0) {
+      series[0] = cashValue;
+      for (let i = 1; i < horizonMonths; i += 1) {
+        series[i] = series[i - 1] * (1 + monthlyGrowth);
+      }
+    }
+
+    for (let i = 0; i < horizonMonths; i += 1) {
+      assetsInsurance[i] += series[i];
+    }
+  }
+
   const cashBalance: number[] = [];
   for (let i = 0; i < horizonMonths; i += 1) {
     const prior = i === 0 ? initialCash : cashBalance[i - 1];
     cashBalance[i] = prior + netCashflow[i];
   }
 
-  const assetsTotal = assetsHousing.map((value) => value);
+  const assetsTotal = assetsHousing.map(
+    (value, index) => value + assetsInvestments[index] + assetsInsurance[index]
+  );
   const liabilitiesTotal = liabilitiesMortgage.map((value) => value);
   const netWorth = cashBalance.map(
     (cash, index) => cash + assetsTotal[index] - liabilitiesTotal[index]
@@ -393,6 +468,8 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     cashBalance,
     assets: {
       housing: assetsHousing,
+      investments: assetsInvestments,
+      insurance: assetsInsurance,
       total: assetsTotal,
     },
     liabilities: {
