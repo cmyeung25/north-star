@@ -342,9 +342,12 @@ export default function HomeDetailsForm({
         value={formValues.annualAppreciationPct}
         error={errors.annualAppreciationPct}
         onChange={(value) =>
-          updateField("annualAppreciationPct", toPositiveNumber(value))
+          updateField(
+            "annualAppreciationPct",
+            Math.min(Math.max(Number(value ?? 0), -100), 100)
+          )
         }
-        min={0}
+        min={-100}
         max={100}
         decimalScale={2}
         suffix="%"

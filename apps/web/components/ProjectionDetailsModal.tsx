@@ -44,7 +44,7 @@ export default function ProjectionDetailsModal({
       onClose={onClose}
       title={t("breakdownTitle")}
       centered
-      size="lg"
+      size="xl"
     >
       {!hasRows ? (
         <Text size="sm" c="dimmed">
@@ -84,22 +84,24 @@ export default function ProjectionDetailsModal({
                           {t("breakdownNoItems")}
                         </Text>
                       ) : (
-                        <Table striped withTableBorder>
-                          <Table.Thead>
-                            <Table.Tr>
-                              <Table.Th>{t("breakdownItem")}</Table.Th>
-                              <Table.Th>{t("breakdownAmount")}</Table.Th>
-                            </Table.Tr>
-                          </Table.Thead>
-                          <Table.Tbody>
-                            {row.items.map((item) => (
-                              <Table.Tr key={item.key}>
-                                <Table.Td>{item.label}</Table.Td>
-                                <Table.Td>{formatValue(item.value)}</Table.Td>
+                        <ScrollArea h={240}>
+                          <Table striped withTableBorder>
+                            <Table.Thead>
+                              <Table.Tr>
+                                <Table.Th>{t("breakdownItem")}</Table.Th>
+                                <Table.Th>{t("breakdownAmount")}</Table.Th>
                               </Table.Tr>
-                            ))}
-                          </Table.Tbody>
-                        </Table>
+                            </Table.Thead>
+                            <Table.Tbody>
+                              {row.items.map((item) => (
+                                <Table.Tr key={item.key}>
+                                  <Table.Td>{item.label}</Table.Td>
+                                  <Table.Td>{formatValue(item.value)}</Table.Td>
+                                </Table.Tr>
+                              ))}
+                            </Table.Tbody>
+                          </Table>
+                        </ScrollArea>
                       )}
                     </Accordion.Panel>
                   </Accordion.Item>
@@ -145,22 +147,24 @@ export default function ProjectionDetailsModal({
                               {t("breakdownNoItems")}
                             </Text>
                           ) : (
-                            <Table striped withTableBorder>
-                              <Table.Thead>
-                                <Table.Tr>
-                                  <Table.Th>{t("breakdownItem")}</Table.Th>
-                                  <Table.Th>{t("breakdownAmount")}</Table.Th>
-                                </Table.Tr>
-                              </Table.Thead>
-                              <Table.Tbody>
-                                {row.assets.map((item) => (
-                                  <Table.Tr key={item.key}>
-                                    <Table.Td>{item.label}</Table.Td>
-                                    <Table.Td>{formatValue(item.value)}</Table.Td>
+                            <ScrollArea h={200}>
+                              <Table striped withTableBorder>
+                                <Table.Thead>
+                                  <Table.Tr>
+                                    <Table.Th>{t("breakdownItem")}</Table.Th>
+                                    <Table.Th>{t("breakdownAmount")}</Table.Th>
                                   </Table.Tr>
-                                ))}
-                              </Table.Tbody>
-                            </Table>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                  {row.assets.map((item) => (
+                                    <Table.Tr key={item.key}>
+                                      <Table.Td>{item.label}</Table.Td>
+                                      <Table.Td>{formatValue(item.value)}</Table.Td>
+                                    </Table.Tr>
+                                  ))}
+                                </Table.Tbody>
+                              </Table>
+                            </ScrollArea>
                           )}
                         </div>
                         <div>
@@ -172,22 +176,24 @@ export default function ProjectionDetailsModal({
                               {t("breakdownNoItems")}
                             </Text>
                           ) : (
-                            <Table striped withTableBorder>
-                              <Table.Thead>
-                                <Table.Tr>
-                                  <Table.Th>{t("breakdownItem")}</Table.Th>
-                                  <Table.Th>{t("breakdownAmount")}</Table.Th>
-                                </Table.Tr>
-                              </Table.Thead>
-                              <Table.Tbody>
-                                {row.liabilities.map((item) => (
-                                  <Table.Tr key={item.key}>
-                                    <Table.Td>{item.label}</Table.Td>
-                                    <Table.Td>{formatValue(item.value)}</Table.Td>
+                            <ScrollArea h={200}>
+                              <Table striped withTableBorder>
+                                <Table.Thead>
+                                  <Table.Tr>
+                                    <Table.Th>{t("breakdownItem")}</Table.Th>
+                                    <Table.Th>{t("breakdownAmount")}</Table.Th>
                                   </Table.Tr>
-                                ))}
-                              </Table.Tbody>
-                            </Table>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                  {row.liabilities.map((item) => (
+                                    <Table.Tr key={item.key}>
+                                      <Table.Td>{item.label}</Table.Td>
+                                      <Table.Td>{formatValue(item.value)}</Table.Td>
+                                    </Table.Tr>
+                                  ))}
+                                </Table.Tbody>
+                              </Table>
+                            </ScrollArea>
                           )}
                         </div>
                       </Stack>

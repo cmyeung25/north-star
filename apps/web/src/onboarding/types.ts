@@ -6,8 +6,17 @@ export type InsuranceType = "life" | "savings" | "accident" | "medical";
 
 export type InsurancePremiumMode = "monthly" | "annual";
 
+export type OnboardingMemberKind = "person" | "pet";
+
+export type OnboardingMember = {
+  id: string;
+  name: string;
+  kind: OnboardingMemberKind;
+};
+
 export type OnboardingDraft = {
   initialCash: number;
+  members: OnboardingMember[];
   housingStatus: HousingStatus;
   rentMonthly: number;
   existingHome: {

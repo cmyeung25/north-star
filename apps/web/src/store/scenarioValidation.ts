@@ -65,7 +65,7 @@ export const HomePositionSchema = z
       .optional(),
     annualAppreciationPct: z
       .number({ required_error: "validation.annualAppreciationRequired" })
-      .min(0, "validation.annualAppreciationMin")
+      .min(-100, "validation.annualAppreciationMin")
       .max(100, "validation.annualAppreciationMax"),
     mortgageRatePct: z
       .number()

@@ -3,8 +3,10 @@ import { defaultCurrency } from "../../lib/i18n";
 import type { OnboardingDraft } from "../onboarding/types";
 import {
   createHomePositionId,
+  createMemberId,
   type HomePositionDraft,
   type Scenario,
+  type ScenarioMember,
   type TimelineEvent,
 } from "../store/scenarioStore";
 
@@ -20,6 +22,9 @@ const DEFAULT_INVESTMENT_RETURN_PCTS = {
   fund: 5,
   crypto: 8,
 } as const;
+
+const clampPct = (value: number, min = -100, max = 100) =>
+  Math.min(Math.max(value, min), max);
 
 const getCurrentMonth = () => {
   const today = new Date();
@@ -47,7 +52,7 @@ const buildExistingHomePosition = (
   mode: "existing",
   annualAppreciationPct:
     typeof draft.existingHome.appreciationPct === "number"
-      ? Math.max(0, draft.existingHome.appreciationPct)
+      ? clampPct(draft.existingHome.appreciationPct)
       : DEFAULT_HOME_APPRECIATION,
   holdingCostMonthly: Math.max(0, draft.existingHome.holdingCostMonthly ?? 0),
   holdingCostAnnualGrowthPct: 0,
@@ -66,6 +71,23 @@ export const applyOnboardingToScenario = (
 ): Scenario => {
   const baseMonth = getCurrentMonth();
   const currency = baseScenario.baseCurrency ?? defaultCurrency;
+  const members: ScenarioMember[] =
+    draft.members.map((member) => ({
+      id: member.id,
+      name: member.name.trim() || "本人",
+      kind: member.kind as ScenarioMember["kind"],
+    })) ?? [];
+  const normalizedMembers: ScenarioMember[] =
+    members.length > 0
+      ? members
+      : [
+          {
+            id: createMemberId(),
+            name: "本人",
+            kind: "person",
+          },
+        ];
+  const defaultMemberId = normalizedMembers[0]?.id;
   const salaryMonthly = Math.max(0, draft.salaryMonthly);
   const rentMonthly = Math.max(0, draft.rentMonthly);
   const recurringExpenses = (draft.expenseItems ?? [])
@@ -90,6 +112,7 @@ export const applyOnboardingToScenario = (
       monthlyAmount: salaryMonthly,
       annualGrowthPct: DEFAULT_SALARY_GROWTH_RATE,
       currency,
+      memberId: defaultMemberId,
     }),
   ];
 
@@ -103,6 +126,7 @@ export const applyOnboardingToScenario = (
         monthlyAmount: expense.monthlyAmount,
         annualGrowthPct: DEFAULT_INFLATION_RATE,
         currency,
+        memberId: defaultMemberId,
       })
     );
   });
@@ -117,6 +141,7 @@ export const applyOnboardingToScenario = (
         monthlyAmount: item.annualAmount / 12,
         annualGrowthPct: DEFAULT_INFLATION_RATE,
         currency,
+        memberId: defaultMemberId,
       })
     );
   });
@@ -131,6 +156,7 @@ export const applyOnboardingToScenario = (
         monthlyAmount: rentMonthly,
         annualGrowthPct: DEFAULT_RENT_GROWTH_RATE,
         currency,
+        memberId: defaultMemberId,
       })
     );
   }
@@ -201,6 +227,7 @@ export const applyOnboardingToScenario = (
   return {
     ...baseScenario,
     updatedAt: Date.now(),
+    members: normalizedMembers,
     assumptions: {
       ...baseScenario.assumptions,
       baseMonth,

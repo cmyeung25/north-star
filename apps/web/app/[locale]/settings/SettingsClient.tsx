@@ -143,7 +143,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     return () => {
       active = false;
     };
-  }, [authState.status, authState.user]);
+  }, [authState.status, authState.user, errors]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

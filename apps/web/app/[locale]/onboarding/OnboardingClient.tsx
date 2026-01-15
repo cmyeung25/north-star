@@ -18,7 +18,11 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { applyOnboardingToScenario } from "../../../src/engine/onboardingTransforms";
 import type { OnboardingDraft } from "../../../src/onboarding/types";
-import { getActiveScenario, useScenarioStore } from "../../../src/store/scenarioStore";
+import {
+  createMemberId,
+  getActiveScenario,
+  useScenarioStore,
+} from "../../../src/store/scenarioStore";
 
 type DraftErrors = Partial<Record<keyof OnboardingDraft, string>>;
 
@@ -48,6 +52,13 @@ export default function OnboardingClient() {
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<OnboardingDraft>(() => ({
     initialCash: 0,
+    members: [
+      {
+        id: createMemberId(),
+        name: t("defaultMemberName"),
+        kind: "person",
+      },
+    ],
     housingStatus: "rent",
     rentMonthly: 0,
     existingHome: {
@@ -88,6 +99,34 @@ export default function OnboardingClient() {
     value: OnboardingDraft[K]
   ) => {
     setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateMember = (
+    index: number,
+    patch: Partial<OnboardingDraft["members"][number]>
+  ) => {
+    setDraft((current) => {
+      const next = [...current.members];
+      next[index] = { ...next[index], ...patch };
+      return { ...current, members: next };
+    });
+  };
+
+  const addMember = () => {
+    setDraft((current) => ({
+      ...current,
+      members: [
+        ...current.members,
+        { id: createMemberId(), name: "", kind: "person" },
+      ],
+    }));
+  };
+
+  const removeMember = (index: number) => {
+    setDraft((current) => ({
+      ...current,
+      members: current.members.filter((_, memberIndex) => memberIndex !== index),
+    }));
   };
 
   const updateExpenseItem = (
@@ -236,7 +275,8 @@ export default function OnboardingClient() {
         }
         if (
           typeof draft.existingHome.appreciationPct === "number" &&
-          draft.existingHome.appreciationPct < 0
+          (draft.existingHome.appreciationPct < -100 ||
+            draft.existingHome.appreciationPct > 100)
         ) {
           nextErrors.existingHome = validation("annualAppreciationMin");
         }
@@ -377,6 +417,46 @@ export default function OnboardingClient() {
               <Text size="sm" c="dimmed">
                 {t("initialCashHint")}
               </Text>
+              <Stack gap="sm">
+                <Text fw={600}>{t("membersTitle")}</Text>
+                {draft.members.map((member, index) => (
+                  <Group key={member.id} align="flex-end" wrap="nowrap">
+                    <TextInput
+                      label={index === 0 ? t("memberNameLabel") : undefined}
+                      placeholder={t("memberNamePlaceholder")}
+                      value={member.name}
+                      onChange={(event) =>
+                        updateMember(index, { name: event.currentTarget.value })
+                      }
+                      style={{ flex: 2 }}
+                    />
+                    <Select
+                      label={index === 0 ? t("memberKindLabel") : undefined}
+                      value={member.kind}
+                      onChange={(value) =>
+                        updateMember(index, {
+                          kind: (value ?? "person") as OnboardingDraft["members"][number]["kind"],
+                        })
+                      }
+                      data={[
+                        { value: "person", label: t("memberKindPerson") },
+                        { value: "pet", label: t("memberKindPet") },
+                      ]}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      onClick={() => removeMember(index)}
+                    >
+                      {t("removeMember")}
+                    </Button>
+                  </Group>
+                ))}
+                <Button variant="light" onClick={addMember}>
+                  {t("addMember")}
+                </Button>
+              </Stack>
             </Stack>
           )}
 
@@ -475,7 +555,8 @@ export default function OnboardingClient() {
                         appreciationPct: Number(value ?? 0),
                       })
                     }
-                    min={0}
+                    min={-100}
+                    max={100}
                   />
                 </Stack>
               )}

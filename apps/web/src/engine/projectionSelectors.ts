@@ -53,6 +53,9 @@ type BreakdownLabelTokens = {
 const buildEventLookup = (scenario: Scenario) =>
   new Map((scenario.events ?? []).map((event) => [event.id, event]));
 
+const buildMemberLookup = (scenario: Scenario) =>
+  new Map((scenario.members ?? []).map((member) => [member.id, member]));
+
 type HomeLookupEntry = {
   home: NonNullable<Scenario["positions"]>["homes"] extends Array<infer Item>
     ? Item | NonNullable<Scenario["positions"]>["home"]
@@ -78,6 +81,7 @@ export const createBreakdownLabelResolver = (
   labels: BreakdownLabelTokens
 ) => {
   const eventLookup = buildEventLookup(scenario);
+  const memberLookup = buildMemberLookup(scenario);
   const homeLookup = buildHomeLookup(scenario);
 
   return (key: string) => {
@@ -88,7 +92,11 @@ export const createBreakdownLabelResolver = (
     if (key.startsWith("event:")) {
       const [, eventId] = key.split(":");
       const event = eventLookup.get(eventId);
-      return event?.name ?? event?.type ?? key;
+      const baseLabel = event?.name ?? event?.type ?? key;
+      const memberName = event?.memberId
+        ? memberLookup.get(event.memberId)?.name
+        : undefined;
+      return memberName ? `${baseLabel} · ${memberName}` : baseLabel;
     }
 
     if (key.startsWith("home:")) {

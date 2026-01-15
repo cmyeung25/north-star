@@ -34,7 +34,7 @@ import {
   formatHomeSummary,
   iconMap,
 } from "./utils";
-import type { HomePositionDraft } from "../../src/store/scenarioStore";
+import type { HomePositionDraft, ScenarioMember } from "../../src/store/scenarioStore";
 import { Link } from "../../src/i18n/navigation";
 
 const floatingButtonStyle = {
@@ -47,6 +47,7 @@ const floatingButtonStyle = {
 interface TimelineMobileProps {
   events: TimelineEvent[];
   homePositions: HomePositionDraft[];
+  members: ScenarioMember[];
   baseCurrency: string;
   baseMonth?: string | null;
   scenarioId: string;
@@ -59,6 +60,7 @@ interface TimelineMobileProps {
 export default function TimelineMobile({
   events,
   homePositions,
+  members,
   baseCurrency,
   baseMonth,
   scenarioId,
@@ -203,7 +205,6 @@ export default function TimelineMobile({
                     color="red"
                     variant="light"
                     onClick={() => onHomePositionRemove(home.id)}
-                    disabled={homePositions.length <= 1}
                   >
                     {homes("removeHome")}
                   </Button>
@@ -310,6 +311,7 @@ export default function TimelineMobile({
         onClose={() => setAddEventOpen(false)}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
+        members={members}
         onAddEvent={(event) => onEventsChange([event, ...events])}
         onAddHomePosition={() => {
           onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
@@ -332,6 +334,7 @@ export default function TimelineMobile({
         <TimelineEventForm
           event={editingEvent}
           baseCurrency={baseCurrency}
+          members={members}
           fields={editingEvent ? getEventMeta(editingEvent.type).fields : undefined}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}

@@ -185,6 +185,7 @@ export const buildDerivedEvents = (
     id: `${event.id}-derived-${index}`,
     derived: true,
     sourceId: event.id,
+    memberId: event.memberId,
     templateId: undefined,
     templateParams: undefined,
   }));

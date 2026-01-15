@@ -34,6 +34,7 @@ const buildFallbackRentEvent = (scenario: Scenario): TimelineEvent | null => {
     oneTimeAmount: 0,
     annualGrowthPct: scenario.assumptions.rentAnnualGrowthPct ?? 0,
     currency: scenario.baseCurrency,
+    memberId: scenario.members?.[0]?.id,
   };
 };
 
