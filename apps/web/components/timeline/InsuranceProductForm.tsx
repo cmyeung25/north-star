@@ -18,10 +18,12 @@ import {
   insuranceTemplates,
 } from "../../src/insurance/templates";
 import type { TimelineEvent } from "./types";
+import type { ScenarioMember } from "../../src/store/scenarioStore";
 
 type InsuranceProductFormProps = {
   event: TimelineEvent;
   baseCurrency: string;
+  members: ScenarioMember[];
   onCancel: () => void;
   onSave: (event: TimelineEvent) => void;
   submitLabel?: string;
@@ -30,6 +32,7 @@ type InsuranceProductFormProps = {
 export default function InsuranceProductForm({
   event,
   baseCurrency,
+  members,
   onCancel,
   onSave,
   submitLabel,
@@ -114,6 +117,14 @@ export default function InsuranceProductForm({
     value: templateOption.id,
     label: t(`insuranceTemplates.${templateOption.id}`),
   }));
+  const memberOptions = [
+    { value: "household", label: t("memberHousehold") },
+    ...members.map((member) => ({
+      value: member.id,
+      label: member.name,
+    })),
+  ];
+  const memberValue = formValues.memberId ?? "household";
 
   return (
     <Stack gap="md">
@@ -129,6 +140,14 @@ export default function InsuranceProductForm({
         error={errors.startMonth}
         onChange={(eventChange) => updateField("startMonth", eventChange.target.value)}
         onBlur={(eventChange) => handleNormalizeMonth(eventChange.target.value)}
+      />
+      <Select
+        label={t("memberLabel")}
+        data={memberOptions}
+        value={memberValue}
+        onChange={(value) =>
+          updateField("memberId", value === "household" ? undefined : value ?? undefined)
+        }
       />
       <NumberInput
         label={t("eventFormMonthlyAmount")}

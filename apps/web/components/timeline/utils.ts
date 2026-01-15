@@ -150,6 +150,7 @@ const templateDefaults: Record<
 type CreateEventOptions = {
   baseCurrency?: string;
   baseMonth?: string | null;
+  memberId?: string;
 };
 
 export const createEventFromTemplate = (
@@ -178,6 +179,7 @@ export const createEventFromTemplate = (
       oneTimeAmount: defaults.oneTimeAmount,
       annualGrowthPct: defaults.annualGrowthPct,
       currency: options.baseCurrency ?? defaultCurrency,
+      memberId: options.memberId,
       templateId: insuranceTemplate?.id,
       templateParams,
     },

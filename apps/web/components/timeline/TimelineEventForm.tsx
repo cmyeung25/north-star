@@ -14,10 +14,12 @@ import type { EventField, EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
 import type { TimelineEvent } from "./types";
+import type { ScenarioMember } from "../../src/store/scenarioStore";
 
 interface TimelineEventFormProps {
   event: TimelineEvent | null;
   baseCurrency: string;
+  members: ScenarioMember[];
   fields?: readonly EventField[];
   onCancel: () => void;
   onSave: (event: TimelineEvent) => void;
@@ -27,6 +29,7 @@ interface TimelineEventFormProps {
 export default function TimelineEventForm({
   event,
   baseCurrency,
+  members,
   fields,
   onCancel,
   onSave,
@@ -131,6 +134,14 @@ export default function TimelineEventForm({
   const currencyOptions = [
     { value: baseCurrency, label: baseCurrency },
   ];
+  const memberOptions = [
+    { value: "household", label: t("memberHousehold") },
+    ...members.map((member) => ({
+      value: member.id,
+      label: member.name,
+    })),
+  ];
+  const memberValue = formValues.memberId ?? "household";
 
   return (
     <Stack gap="md">
@@ -141,6 +152,14 @@ export default function TimelineEventForm({
           onChange={(eventChange) => updateField("name", eventChange.target.value)}
         />
       )}
+      <Select
+        label={t("memberLabel")}
+        data={memberOptions}
+        value={memberValue}
+        onChange={(value) =>
+          updateField("memberId", value === "household" ? undefined : value ?? undefined)
+        }
+      />
       {shouldShowField("startMonth") && (
         <TextInput
           label={t("eventFormStartMonth")}

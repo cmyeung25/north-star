@@ -40,6 +40,14 @@ export type InsuranceType = "life" | "savings" | "accident" | "medical";
 
 export type InsurancePremiumMode = "monthly" | "annual";
 
+export type ScenarioMemberKind = "person" | "pet";
+
+export type ScenarioMember = {
+  id: string;
+  name: string;
+  kind: ScenarioMemberKind;
+};
+
 export type ExistingHomeDetails = {
   asOfMonth: string;
   marketValue: number;
@@ -111,6 +119,7 @@ export type Scenario = {
   updatedAt: number;
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
+  members?: ScenarioMember[];
   events?: TimelineEvent[];
   positions?: ScenarioPositions;
   meta?: ScenarioMeta;
@@ -165,10 +174,32 @@ const now = () => Date.now();
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
 export const createHomePositionId = () => `home-${nanoid(8)}`;
+export const createMemberId = () => `member-${nanoid(8)}`;
+
+const DEFAULT_MEMBER_NAME = "本人";
+
+const normalizeMembers = (members?: ScenarioMember[]): ScenarioMember[] => {
+  if (members && members.length > 0) {
+    return members.map((member) => ({ ...member }));
+  }
+
+  return [
+    {
+      id: createMemberId(),
+      name: DEFAULT_MEMBER_NAME,
+      kind: "person",
+    },
+  ];
+};
 
 const cloneEvents = (events?: TimelineEvent[]) =>
   events?.map((event) => ({
     ...event,
+  }));
+
+const cloneMembers = (members?: ScenarioMember[]) =>
+  members?.map((member) => ({
+    ...member,
   }));
 
 const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | undefined => {
@@ -201,6 +232,7 @@ const initialScenarios: Scenario[] = [
       riskLevel: "Medium",
     },
     assumptions: { ...defaultAssumptions },
+    members: normalizeMembers(),
     events: [
       {
         id: "event-plan-a-rent",
@@ -273,13 +305,19 @@ const normalizeScenarioPositions = (
 
 export const normalizeScenario = (scenario: Scenario): Scenario => {
   const normalizedPositions = normalizeScenarioPositions(scenario.positions);
+  const normalizedMembers = normalizeMembers(scenario.members);
+
   if (!normalizedPositions) {
-    return scenario;
+    return {
+      ...scenario,
+      members: normalizedMembers,
+    };
   }
 
   return {
     ...scenario,
     positions: normalizedPositions,
+    members: normalizedMembers,
   };
 };
 
@@ -324,6 +362,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       updatedAt: now(),
       kpis: { ...defaultKpis },
       assumptions: { ...defaultAssumptions },
+      members: normalizeMembers(),
       events: [],
     };
 
@@ -359,6 +398,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       updatedAt: now(),
       kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
+      members: cloneMembers(source.members) ?? normalizeMembers(),
       events: cloneEvents(source.events),
       positions: clonePositions(source.positions),
       meta: source.meta ? { ...source.meta } : undefined,
@@ -487,13 +527,22 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         const nextHomes = (scenario.positions?.homes ?? []).filter(
           (home) => home.id !== homeId
         );
+        const { home: _legacyHome, ...otherPositions } = scenario.positions ?? {};
+        const nextPositions: ScenarioPositions | undefined = scenario.positions
+          ? {
+              ...otherPositions,
+              homes: nextHomes,
+            }
+          : undefined;
+        const nextEvents =
+          nextHomes.length === 0
+            ? (scenario.events ?? []).filter((event) => event.type !== "buy_home")
+            : scenario.events;
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            homes: nextHomes,
-          }),
+          events: nextEvents,
+          positions: normalizeScenarioPositions(nextPositions),
           updatedAt: now(),
         };
       }),

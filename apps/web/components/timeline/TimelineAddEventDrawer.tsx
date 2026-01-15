@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getEventMeta, type EventGroup, type EventType } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import type { TimelineEvent } from "./types";
+import type { ScenarioMember } from "../../src/store/scenarioStore";
 import InsuranceProductForm from "./InsuranceProductForm";
 import TimelineEventForm from "./TimelineEventForm";
 import {
@@ -22,6 +23,7 @@ interface TimelineAddEventDrawerProps {
   onClose: () => void;
   baseCurrency: string;
   baseMonth?: string | null;
+  members: ScenarioMember[];
   onAddEvent: (event: TimelineEvent) => void;
   onAddHomePosition: () => void;
 }
@@ -31,6 +33,7 @@ export default function TimelineAddEventDrawer({
   onClose,
   baseCurrency,
   baseMonth,
+  members,
   onAddEvent,
   onAddHomePosition,
 }: TimelineAddEventDrawerProps) {
@@ -75,6 +78,7 @@ export default function TimelineAddEventDrawer({
       createEventFromTemplate(type, t, {
         baseCurrency,
         baseMonth,
+        memberId: members[0]?.id,
       })
     );
     setStep("details");
@@ -145,6 +149,7 @@ export default function TimelineAddEventDrawer({
             <InsuranceProductForm
               event={draftEvent}
               baseCurrency={baseCurrency}
+              members={members}
               onCancel={() => setStep("type")}
               onSave={handleSave}
               submitLabel={t("addEvent")}
@@ -153,6 +158,7 @@ export default function TimelineAddEventDrawer({
             <TimelineEventForm
               event={draftEvent}
               baseCurrency={baseCurrency}
+              members={members}
               fields={getEventMeta(selectedType).fields}
               onCancel={() => setStep("type")}
               onSave={handleSave}

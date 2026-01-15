@@ -49,6 +49,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const events = scenario?.events ?? [];
   const homePositions = scenario?.positions?.homes ?? [];
+  const members = scenario?.members ?? [];
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
 
@@ -74,6 +75,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       <TimelineDesktop
         events={events}
         homePositions={homePositions}
+        members={members}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         scenarioId={scenario.id}
@@ -89,6 +91,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
     <TimelineMobile
       events={events}
       homePositions={homePositions}
+      members={members}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
       scenarioId={scenario.id}
