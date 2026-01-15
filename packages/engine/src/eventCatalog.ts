@@ -23,7 +23,7 @@ export type EventMeta = {
   label: string;
   group: EventGroup;
   defaultSign: EventDefaultSign;
-  fields: readonly EventField[];
+  fields: EventField[];
 };
 
 const baseFields: EventField[] = [

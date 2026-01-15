@@ -242,6 +242,53 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     stressEvents,
   ]);
 
+  const shockMonthOptions = useMemo(() => {
+    if (!baselineInput?.baseMonth) {
+      return [];
+    }
+    const horizon = Math.min(baselineInput.horizonMonths ?? 12, 24);
+    return Array.from({ length: horizon }, (_, index) => {
+      const value = addMonths(baselineInput.baseMonth, index);
+      return { value, label: value };
+    });
+  }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
+
+  if (!scenario || !baselineView || !afterView || !baselineProjection || !afterProjection) {
+    return null;
+  }
+
+  const scenarioData = scenario;
+  const baselineKpis = baselineView.kpis;
+  const afterKpis = afterView.kpis;
+  const presetDeltas = presetComparison?.deltas ?? null;
+  const presetBaselineSeries = presetComparison?.baselineView.cashSeries ?? [];
+  const presetStressedSeries = presetComparison?.stressedView.cashSeries ?? [];
+
+  const activeStressBadges = [
+    appliedStress.jobLossMonths
+      ? {
+          key: "jobloss",
+          label: `Job loss (${appliedStress.jobLossMonths}m)`,
+        }
+      : null,
+    appliedStress.rateHikePct
+      ? {
+          key: "ratehike",
+          label: `Rate hike (+${appliedStress.rateHikePct}%)`,
+        }
+      : null,
+    typeof appliedStress.medicalAmount === "number" &&
+    appliedStress.medicalAmount > 0
+      ? {
+          key: "medical",
+          label: `Medical expense (${formatCurrency(
+            appliedStress.medicalAmount,
+            scenarioData.baseCurrency
+          )})`,
+        }
+      : null,
+  ].filter(Boolean) as { key: string; label: string }[];
+
   const handleApplyStress = () => {
     setAppliedStress({
       ...draftStress,
@@ -252,7 +299,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   const handleRevertStress = () => {
     const fallbackApplyMonth =
       baselineInput?.baseMonth ??
-      scenario?.assumptions.baseMonth ??
+      scenarioData.assumptions.baseMonth ??
       new Date().toISOString().slice(0, 7);
 
     setAppliedStress({
@@ -262,12 +309,8 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   };
 
   const handleSaveScenario = () => {
-    if (!scenario) {
-      return;
-    }
-
-    const newScenario = createScenario(saveName || `${scenario.name} · Stress`, {
-      baseCurrency: scenario.baseCurrency,
+    const newScenario = createScenario(saveName || `${scenarioData.name} · Stress`, {
+      baseCurrency: scenarioData.baseCurrency,
     });
 
     updateScenarioAssumptions(newScenario.id, { ...scenario.assumptions });
@@ -289,63 +332,6 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     setActiveScenario(nextScenarioId);
     router.push(buildScenarioUrl("/stress", nextScenarioId));
   };
-
-  const shockMonthOptions = useMemo(() => {
-    if (!baselineInput?.baseMonth) {
-      return [];
-    }
-    const horizon = Math.min(baselineInput.horizonMonths ?? 12, 24);
-    return Array.from({ length: horizon }, (_, index) => {
-      const value = addMonths(baselineInput.baseMonth, index);
-      return { value, label: value };
-    });
-  }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
-
-  if (!scenario) {
-    return (
-      <Stack gap="sm" pb={isDesktop ? undefined : 120}>
-        <Title order={2}>Stress Test</Title>
-        <Text size="sm" c="dimmed">
-          Loading scenario details...
-        </Text>
-      </Stack>
-    );
-  }
-
-  const activeStressBadges = [
-    appliedStress.jobLossMonths
-      ? {
-          key: "jobloss",
-          label: `Job loss (${appliedStress.jobLossMonths}m)`,
-        }
-      : null,
-    appliedStress.rateHikePct
-      ? {
-          key: "ratehike",
-          label: `Rate hike (+${appliedStress.rateHikePct}%)`,
-        }
-      : null,
-    typeof appliedStress.medicalAmount === "number" &&
-    appliedStress.medicalAmount > 0
-      ? {
-          key: "medical",
-          label: `Medical expense (${formatCurrency(
-            appliedStress.medicalAmount,
-            scenario.baseCurrency
-          )})`,
-        }
-      : null,
-  ].filter(Boolean) as { key: string; label: string }[];
-
-  if (!baselineView || !afterView || !baselineProjection || !afterProjection) {
-    return null;
-  }
-
-  const baselineKpis = baselineView.kpis;
-  const afterKpis = afterView.kpis;
-  const presetDeltas = presetComparison?.deltas ?? null;
-  const presetBaselineSeries = presetComparison?.baselineView.cashSeries ?? [];
-  const presetStressedSeries = presetComparison?.stressedView.cashSeries ?? [];
 
   const kpiCard = (label: string, value: string, helper: string) => (
     <Card withBorder radius="md" padding="md">

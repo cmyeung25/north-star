@@ -1,7 +1,5 @@
 import { z } from "zod";
 import { eventTypes, type EventType } from "@north-star/engine";
-
-export type { EventType } from "@north-star/engine";
 import { defaultCurrency } from "../../../lib/i18n";
 
 const eventTypeValues = eventTypes as [EventType, ...EventType[]];
