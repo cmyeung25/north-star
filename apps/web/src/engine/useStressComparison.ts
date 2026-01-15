@@ -60,8 +60,6 @@ export const useStressComparison = (
   preset: StressPreset | null,
   options: StressComparisonOptions = {}
 ) => {
-  const scenarioKey = useMemo(() => (scenario ? JSON.stringify(scenario) : ""), [scenario]);
-
   return useMemo(() => {
     if (!scenario) {
       return null;
@@ -90,5 +88,5 @@ export const useStressComparison = (
       stressedView,
       deltas,
     };
-  }, [options.shockMonth, preset, scenario, scenarioKey]);
+  }, [options.shockMonth, preset, scenario]);
 };
