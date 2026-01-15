@@ -110,14 +110,23 @@ const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
 const now = () => Date.now();
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
-const createEventId = () => `event-${nanoid(10)}`;
 export const createHomePositionId = () => `home-${nanoid(8)}`;
 
-const duplicateEvents = (events?: TimelineEvent[]) =>
+const cloneEvents = (events?: TimelineEvent[]) =>
   events?.map((event) => ({
     ...event,
-    id: createEventId(),
   }));
+
+const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | undefined => {
+  if (!positions) {
+    return positions;
+  }
+
+  return {
+    home: positions.home ? { ...positions.home } : undefined,
+    homes: positions.homes ? positions.homes.map((home) => ({ ...home })) : undefined,
+  };
+};
 
 const initialScenarios: Scenario[] = [
   {
@@ -308,14 +317,17 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     const copy: Scenario = {
       ...source,
       id: createScenarioId(),
-      name: `Copy of ${source.name}`,
+      name: `${source.name} (Copy)`,
       updatedAt: now(),
+      kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
-      events: duplicateEvents(source.events),
+      events: cloneEvents(source.events),
+      positions: clonePositions(source.positions),
     };
 
     set((state) => ({
       scenarios: [copy, ...state.scenarios],
+      activeScenarioId: copy.id,
     }));
 
     return copy;
