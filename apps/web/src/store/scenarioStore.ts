@@ -51,6 +51,10 @@ export type ScenarioPositions = {
   homes?: HomePositionDraft[];
 };
 
+export type ScenarioMeta = {
+  onboardingVersion?: number;
+};
+
 export type Scenario = {
   id: string;
   name: string;
@@ -60,6 +64,7 @@ export type Scenario = {
   assumptions: ScenarioAssumptions;
   events?: TimelineEvent[];
   positions?: ScenarioPositions;
+  meta?: ScenarioMeta;
 };
 
 type ScenarioStoreState = {
@@ -323,6 +328,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       assumptions: { ...source.assumptions },
       events: cloneEvents(source.events),
       positions: clonePositions(source.positions),
+      meta: source.meta ? { ...source.meta } : undefined,
     };
 
     set((state) => ({
