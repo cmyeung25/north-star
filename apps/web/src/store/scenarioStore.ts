@@ -25,19 +25,14 @@ export type ScenarioAssumptions = {
   mortgageTermYears?: number;
 };
 
-export type HomeMortgage = {
-  principal: number;
-  annualRatePct: number;
-  termMonths: number;
-};
-
 export type HomePosition = {
   purchasePrice: number;
   downPayment: number;
   purchaseMonth: string;
   annualAppreciationPct: number;
+  mortgageRatePct: number;
+  mortgageTermYears: number;
   feesOneTime?: number;
-  mortgage?: HomeMortgage;
 };
 
 export type ScenarioPositions = {

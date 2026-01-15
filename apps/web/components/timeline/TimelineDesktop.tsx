@@ -18,6 +18,7 @@ import { useMemo, useState } from "react";
 import { defaultCurrency, t } from "../../lib/i18n";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm from "./TimelineEventForm";
+import HomeDetailsForm from "./HomeDetailsForm";
 import type { TimelineEvent } from "./types";
 import {
   createHomePositionFromTemplate,
@@ -53,6 +54,7 @@ export default function TimelineDesktop({
 }: TimelineDesktopProps) {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
+  const [editingHome, setEditingHome] = useState(false);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
 
   const sortedEvents = useMemo(
@@ -77,7 +79,7 @@ export default function TimelineDesktop({
 
   const handleTemplateSelect = (type: TimelineEvent["type"]) => {
     if (type === "buy_home") {
-      onHomePositionChange(createHomePositionFromTemplate(baseMonth));
+      onHomePositionChange(createHomePositionFromTemplate({ baseMonth }));
       setHomeToastOpen(true);
       setTemplateOpen(false);
       return;
@@ -135,8 +137,8 @@ export default function TimelineDesktop({
               </Text>
             </div>
             <Group gap="sm">
-              <Button size="xs" variant="light" disabled>
-                Edit (coming soon)
+              <Button size="xs" variant="light" onClick={() => setEditingHome(true)}>
+                {t("timelineEdit")}
               </Button>
               <Button size="xs" color="red" variant="light" onClick={onHomePositionClear}>
                 Remove home
@@ -251,6 +253,25 @@ export default function TimelineDesktop({
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
         />
+      </Drawer>
+
+      <Drawer
+        opened={editingHome}
+        onClose={() => setEditingHome(false)}
+        position="right"
+        size="md"
+        title={t("homeDetailsTitle")}
+      >
+        {homePosition && (
+          <HomeDetailsForm
+            home={homePosition}
+            onCancel={() => setEditingHome(false)}
+            onSave={(updated) => {
+              onHomePositionChange(updated);
+              setEditingHome(false);
+            }}
+          />
+        )}
       </Drawer>
     </Stack>
   );
