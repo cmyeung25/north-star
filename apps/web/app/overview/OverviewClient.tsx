@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   Group,
+  Menu,
   SimpleGrid,
   Stack,
   Text,
@@ -33,6 +34,11 @@ import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
 } from "../../src/engine/adapter";
+import {
+  buildExportFilename,
+  downloadTextFile,
+  projectionToCSV,
+} from "../../src/export/projectionExport";
 import { useRentVsOwnComparison } from "../../src/engine/rentVsOwnComparison";
 import {
   getScenarioById,
@@ -168,6 +174,35 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     router.push(buildScenarioUrl("/overview", nextScenarioId));
   };
 
+  const handleExportCsv = () => {
+    if (!projection || !selectedScenario) {
+      return;
+    }
+    const csv = projectionToCSV(projection);
+    const filename = buildExportFilename(selectedScenario, "projection", "csv");
+    downloadTextFile(filename, "text/csv;charset=utf-8", csv);
+  };
+
+  const handleExportJson = () => {
+    if (!projection || !selectedScenario) {
+      return;
+    }
+    const payload = {
+      meta: {
+        baseMonth: projection.baseMonth,
+        horizonMonths: projection.months.length,
+        exportedAtIso: new Date().toISOString(),
+      },
+      projection,
+    };
+    const filename = buildExportFilename(selectedScenario, "projection_raw", "json");
+    downloadTextFile(
+      filename,
+      "application/json;charset=utf-8",
+      JSON.stringify(payload, null, 2)
+    );
+  };
+
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap="sm">
@@ -178,9 +213,26 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               Snapshot of your plan health and momentum.
             </Text>
           </div>
-          <Button component={Link} href="/scenarios" variant="subtle">
-            Back to Scenarios
-          </Button>
+          <Group gap="sm">
+            <Menu position="bottom-end" withArrow>
+              <Menu.Target>
+                <Button variant="light" disabled={!projection}>
+                  Export
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={handleExportCsv} disabled={!projection}>
+                  Export CSV
+                </Menu.Item>
+                <Menu.Item onClick={handleExportJson} disabled={!projection}>
+                  Export JSON
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+            <Button component={Link} href="/scenarios" variant="subtle">
+              Back to Scenarios
+            </Button>
+          </Group>
         </Group>
 
         {isDesktop ? (

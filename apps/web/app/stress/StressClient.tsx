@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
 import StressCashChart from "../../features/stress/components/StressCashChart";
-import { formatCurrency } from "../../lib/i18n";
+import { defaultCurrency, formatCurrency } from "../../lib/i18n";
 import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
@@ -100,6 +100,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   );
 
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
+  const baseCurrency = scenario?.baseCurrency ?? defaultCurrency;
 
   const baselineInput = useMemo(() => {
     if (!scenario) {
@@ -283,7 +284,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
           key: "medical",
           label: `Medical expense (${formatCurrency(
             appliedStress.medicalAmount,
-            scenarioData.baseCurrency
+            baseCurrency
           )})`,
         }
       : null,
@@ -447,7 +448,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
             presetDeltas
               ? formatCurrency(
                   presetDeltas.netWorthDeltaAtHorizon,
-                  scenario.baseCurrency
+                  baseCurrency
                 )
               : "N/A",
             "Stressed minus baseline"
@@ -457,7 +458,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
             presetDeltas?.cashDeltaAtHorizon != null
               ? formatCurrency(
                   presetDeltas.cashDeltaAtHorizon,
-                  scenario.baseCurrency
+                  baseCurrency
                 )
               : "N/A",
             "Stressed minus baseline"
@@ -578,7 +579,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {kpiCard(
             "Lowest Balance",
-            formatCurrency(baselineKpis.lowestMonthlyBalance, scenario.baseCurrency),
+            formatCurrency(baselineKpis.lowestMonthlyBalance, baseCurrency),
             "Lowest point across forecast"
           )}
           {kpiCard(
@@ -588,7 +589,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
           )}
           {kpiCard(
             "5Y Net Worth",
-            formatCurrency(baselineKpis.netWorthYear5, scenario.baseCurrency),
+            formatCurrency(baselineKpis.netWorthYear5, baseCurrency),
             "Projected net worth"
           )}
           {kpiCard(
@@ -611,7 +612,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {kpiCard(
             "Lowest Balance",
-            formatCurrency(afterKpis.lowestMonthlyBalance, scenario.baseCurrency),
+            formatCurrency(afterKpis.lowestMonthlyBalance, baseCurrency),
             "After applied stress"
           )}
           {kpiCard(
@@ -621,7 +622,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
           )}
           {kpiCard(
             "5Y Net Worth",
-            formatCurrency(afterKpis.netWorthYear5, scenario.baseCurrency),
+            formatCurrency(afterKpis.netWorthYear5, baseCurrency),
             "After applied stress"
           )}
           {kpiCard("Risk Level", afterKpis.riskLevel, "Stress-adjusted risk")}
