@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getEventMeta, type EventGroup, type EventType } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import type { TimelineEvent } from "./types";
+import InsuranceProductForm from "./InsuranceProductForm";
 import TimelineEventForm from "./TimelineEventForm";
 import {
   createEventFromTemplate,
@@ -140,14 +141,24 @@ export default function TimelineAddEventDrawer({
               {common("actionBack")}
             </Button>
           </Group>
-          <TimelineEventForm
-            event={draftEvent}
-            baseCurrency={baseCurrency}
-            fields={getEventMeta(selectedType).fields}
-            onCancel={() => setStep("type")}
-            onSave={handleSave}
-            submitLabel={t("addEvent")}
-          />
+          {selectedType === "insurance_product" ? (
+            <InsuranceProductForm
+              event={draftEvent}
+              baseCurrency={baseCurrency}
+              onCancel={() => setStep("type")}
+              onSave={handleSave}
+              submitLabel={t("addEvent")}
+            />
+          ) : (
+            <TimelineEventForm
+              event={draftEvent}
+              baseCurrency={baseCurrency}
+              fields={getEventMeta(selectedType).fields}
+              onCancel={() => setStep("type")}
+              onSave={handleSave}
+              submitLabel={t("addEvent")}
+            />
+          )}
         </Stack>
       )}
     </Drawer>

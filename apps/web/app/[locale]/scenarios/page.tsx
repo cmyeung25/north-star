@@ -14,7 +14,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import ScenarioActionsMenu from "../../../features/scenarios/components/ScenarioActionsMenu";
@@ -24,6 +24,7 @@ import NewScenarioModal from "../../../features/scenarios/components/NewScenario
 import RenameScenarioModal from "../../../features/scenarios/components/RenameScenarioModal";
 import type { Scenario } from "../../../features/scenarios/types";
 import { formatRelativeTime } from "../../../features/scenarios/utils";
+import { useScenarioSummary } from "../../../src/scenarios/useScenarioSummary";
 import {
   getActiveScenario,
   getScenarioById,
@@ -42,6 +43,31 @@ type ToastState = {
   message: string;
   color?: string;
 };
+
+type ScenarioCardWithSummaryProps = {
+  scenario: Scenario;
+  actions?: ReactNode;
+  menu?: ReactNode;
+  footer?: ReactNode;
+};
+
+function ScenarioCardWithSummary({
+  scenario,
+  actions,
+  menu,
+  footer,
+}: ScenarioCardWithSummaryProps) {
+  const { summary } = useScenarioSummary(scenario.id);
+  return (
+    <ScenarioCard
+      scenario={scenario}
+      kpis={summary?.kpis}
+      actions={actions}
+      menu={menu}
+      footer={footer}
+    />
+  );
+}
 
 export default function ScenariosPage() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -81,6 +107,7 @@ export default function ScenariosPage() {
       scenarios[0]
     );
   }, [activeScenario, scenarios, selectedScenarioId]);
+  const { summary: selectedSummary } = useScenarioSummary(selectedScenario?.id);
 
   const showToast = (message: string, color?: string) => {
     setToast({ message, color });
@@ -210,6 +237,7 @@ export default function ScenariosPage() {
           <Stack gap="md">
             <ScenarioCard
               scenario={selectedScenario}
+              kpis={selectedSummary?.kpis}
               actions={
                 <Group wrap="wrap" gap="sm">
                   <Button
@@ -254,7 +282,7 @@ export default function ScenariosPage() {
           <Group wrap="nowrap" gap="md" align="stretch">
             {scenarios.map((scenario) => (
               <Box key={scenario.id} style={{ minWidth: 280, width: "80%" }}>
-                <ScenarioCard
+                <ScenarioCardWithSummary
                   scenario={scenario}
                   menu={
                     <ScenarioActionsMenu

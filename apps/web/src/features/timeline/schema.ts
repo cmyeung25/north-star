@@ -21,6 +21,10 @@ export const TimelineEventSchema = z.object({
   oneTimeAmount: z.number().default(0),
   annualGrowthPct: z.number().default(0),
   currency: z.string().default(defaultCurrency),
+  templateId: z.string().optional(),
+  templateParams: z.record(z.number()).optional(),
+  derived: z.boolean().optional(),
+  sourceId: z.string().optional(),
 });
 
 export type TimelineEvent = z.infer<typeof TimelineEventSchema>;
@@ -75,5 +79,9 @@ export const normalizeEvent = (
     oneTimeAmount: Number(event.oneTimeAmount ?? 0),
     annualGrowthPct: clampAnnualGrowthPct(Number(event.annualGrowthPct ?? 0)),
     currency: event.currency ?? options.baseCurrency ?? defaultCurrency,
+    templateId: event.templateId,
+    templateParams: event.templateParams,
+    derived: event.derived,
+    sourceId: event.sourceId,
   });
 };

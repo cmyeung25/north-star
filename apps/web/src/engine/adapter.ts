@@ -17,6 +17,7 @@ import type {
 import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
 import { getEventSign } from "../events/eventCatalog";
+import { expandDerivedEvents } from "./scenarioTransforms";
 
 type AdapterOptions = {
   baseMonth?: string;
@@ -107,12 +108,15 @@ export const mapScenarioToEngineInput = (
   scenario: Scenario,
   options: AdapterOptions = {}
 ): ProjectionInput => {
+  const expandedScenario = expandDerivedEvents(scenario);
   const strict = options.strict ?? true;
-  const enabledEvents = (scenario.events ?? []).filter((event) => event.enabled);
+  const enabledEvents = (expandedScenario.events ?? []).filter(
+    (event) => event.enabled
+  );
   const earliestStartMonth = getEarliestStartMonth(enabledEvents);
   const buyHomeEvent = getEarliestBuyHomeEvent(enabledEvents);
-  const homePositions = scenario.positions?.homes;
-  const legacyHome = scenario.positions?.home ?? null;
+  const homePositions = expandedScenario.positions?.homes;
+  const legacyHome = expandedScenario.positions?.home ?? null;
   const resolvedHomePositions =
     homePositions ?? (legacyHome ? [legacyHome] : []);
   if (buyHomeEvent) {
@@ -153,23 +157,27 @@ export const mapScenarioToEngineInput = (
   );
   const baseMonth =
     options.baseMonth ??
-    scenario.assumptions.baseMonth ??
+    expandedScenario.assumptions.baseMonth ??
     earliestStartMonth ??
     homePurchaseMonth ??
     formatMonth(new Date());
   const horizonMonths =
-    options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 240;
-  const initialCash = options.initialCash ?? scenario.assumptions.initialCash ?? 0;
+    options.horizonMonths ?? expandedScenario.assumptions.horizonMonths ?? 240;
+  const initialCash =
+    options.initialCash ?? expandedScenario.assumptions.initialCash ?? 0;
   const assumptions: EventAssumptions = {
-    inflationRate: scenario.assumptions.inflationRate,
-    rentAnnualGrowthPct: scenario.assumptions.rentAnnualGrowthPct,
-    salaryGrowthRate: scenario.assumptions.salaryGrowthRate,
+    inflationRate: expandedScenario.assumptions.inflationRate,
+    rentAnnualGrowthPct: expandedScenario.assumptions.rentAnnualGrowthPct,
+    salaryGrowthRate: expandedScenario.assumptions.salaryGrowthRate,
   };
-  const investmentReturnAssumptions = scenario.assumptions.investmentReturnAssumptions ?? {};
+  const investmentReturnAssumptions =
+    expandedScenario.assumptions.investmentReturnAssumptions ?? {};
   const events = enabledEvents
     // Strategy A: remove buy_home cashflow events to avoid double counting with positions.homes.
     // Only the earliest buy_home event is mapped into positions; any additional buy_home events are ignored.
-    .filter((event) => event.type !== "buy_home")
+    .filter(
+      (event) => event.type !== "buy_home" && event.type !== "insurance_product"
+    )
     .map((event) => mapEventToEngine(event, assumptions));
   const mappedHomes =
     validatedHomes.length > 0
@@ -226,8 +234,8 @@ export const mapScenarioToEngineInput = (
         })
       : undefined;
 
-  const mappedInvestments = scenario.positions?.investments
-    ? scenario.positions.investments.map((investment: InvestmentPosition) => {
+  const mappedInvestments = expandedScenario.positions?.investments
+    ? expandedScenario.positions.investments.map((investment: InvestmentPosition) => {
         const assumedReturn =
           investment.expectedAnnualReturnPct ??
           investmentReturnAssumptions[investment.assetClass] ??
@@ -242,8 +250,8 @@ export const mapScenarioToEngineInput = (
       })
     : undefined;
 
-  const mappedInsurances = scenario.positions?.insurances
-    ? scenario.positions.insurances.map((insurance: InsurancePosition) => {
+  const mappedInsurances = expandedScenario.positions?.insurances
+    ? expandedScenario.positions.insurances.map((insurance: InsurancePosition) => {
         const premiumMonthly =
           insurance.premiumMode === "annual"
             ? insurance.premiumAmount / 12

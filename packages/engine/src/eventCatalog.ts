@@ -96,10 +96,46 @@ export const eventCatalog = {
     defaultSign: "outflow",
     fields: baseFields,
   },
+  insurance_product: {
+    label: "Insurance product",
+    group: "expense",
+    defaultSign: "outflow",
+    fields: [
+      { key: "name", input: "text" },
+      { key: "startMonth", input: "month" },
+      { key: "monthlyAmount", input: "number" },
+      { key: "currency", input: "currency" },
+      { key: "enabled", input: "toggle" },
+    ],
+  },
+  insurance_premium: {
+    label: "Insurance premium",
+    group: "expense",
+    defaultSign: "outflow",
+    fields: recurringFields,
+  },
+  insurance_payout: {
+    label: "Insurance payout",
+    group: "income",
+    defaultSign: "inflow",
+    fields: baseFields,
+  },
   helper: {
     label: "Helper",
     group: "expense",
     defaultSign: "outflow",
+    fields: baseFields,
+  },
+  investment_contribution: {
+    label: "Investment contribution",
+    group: "asset",
+    defaultSign: "outflow",
+    fields: baseFields,
+  },
+  investment_withdrawal: {
+    label: "Investment withdrawal",
+    group: "asset",
+    defaultSign: "inflow",
     fields: baseFields,
   },
   custom: {

@@ -15,6 +15,10 @@ import {
 } from "../../lib/i18n";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
 import {
+  buildTemplateParams,
+  getInsuranceTemplate,
+} from "../../src/insurance/templates";
+import {
   createHomePositionId,
   type HomePosition,
   type HomePositionDraft,
@@ -31,7 +35,12 @@ export const iconMap: Record<EventType, string> = {
   car: "🚗",
   travel: "✈️",
   insurance: "🛡️",
+  insurance_product: "📄",
+  insurance_premium: "🧾",
+  insurance_payout: "💰",
   helper: "🤝",
+  investment_contribution: "📈",
+  investment_withdrawal: "📉",
   custom: "✨",
 };
 
@@ -43,7 +52,12 @@ const eventTypeLabelKeys: Record<EventType, string> = {
   car: "eventTypes.car",
   travel: "eventTypes.travel",
   insurance: "eventTypes.insurance",
+  insurance_product: "eventTypes.insuranceProduct",
+  insurance_premium: "eventTypes.insurancePremium",
+  insurance_payout: "eventTypes.insurancePayout",
   helper: "eventTypes.helper",
+  investment_contribution: "eventTypes.investmentContribution",
+  investment_withdrawal: "eventTypes.investmentWithdrawal",
   custom: "eventTypes.custom",
 };
 
@@ -119,7 +133,12 @@ const templateDefaults: Record<
   car: { monthlyAmount: 600, oneTimeAmount: 20000, annualGrowthPct: 0 },
   travel: { monthlyAmount: 0, oneTimeAmount: 4000, annualGrowthPct: 0 },
   insurance: { monthlyAmount: 250, oneTimeAmount: 0, annualGrowthPct: 0 },
+  insurance_product: { monthlyAmount: 300, oneTimeAmount: 0, annualGrowthPct: 0 },
+  insurance_premium: { monthlyAmount: 300, oneTimeAmount: 0, annualGrowthPct: 0 },
+  insurance_payout: { monthlyAmount: 0, oneTimeAmount: 15000, annualGrowthPct: 0 },
   helper: { monthlyAmount: 600, oneTimeAmount: 0, annualGrowthPct: 0 },
+  investment_contribution: { monthlyAmount: 500, oneTimeAmount: 0, annualGrowthPct: 0 },
+  investment_withdrawal: { monthlyAmount: 0, oneTimeAmount: 5000, annualGrowthPct: 0 },
   custom: { monthlyAmount: 0, oneTimeAmount: 0, annualGrowthPct: 0 },
 };
 
@@ -136,6 +155,11 @@ export const createEventFromTemplate = (
   const label = getEventLabel(t, type);
   const defaults = templateDefaults[type];
   const startMonth = getDefaultStartMonth(options.baseMonth);
+  const insuranceTemplate =
+    type === "insurance_product" ? getInsuranceTemplate() : null;
+  const templateParams = insuranceTemplate
+    ? buildTemplateParams(insuranceTemplate)
+    : undefined;
 
   return normalizeEvent(
     {
@@ -149,6 +173,8 @@ export const createEventFromTemplate = (
       oneTimeAmount: defaults.oneTimeAmount,
       annualGrowthPct: defaults.annualGrowthPct,
       currency: options.baseCurrency ?? defaultCurrency,
+      templateId: insuranceTemplate?.id,
+      templateParams,
     },
     {
       baseCurrency: options.baseCurrency ?? defaultCurrency,

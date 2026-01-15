@@ -175,6 +175,7 @@ export default function TimelineEventForm({
           value={formValues.monthlyAmount}
           onChange={(value) => updateField("monthlyAmount", Number(value ?? 0))}
           thousandSeparator=","
+          min={0}
         />
       )}
       {shouldShowField("oneTimeAmount") && (
@@ -183,6 +184,7 @@ export default function TimelineEventForm({
           value={formValues.oneTimeAmount}
           onChange={(value) => updateField("oneTimeAmount", Number(value ?? 0))}
           thousandSeparator=","
+          min={0}
         />
       )}
       {shouldShowField("annualGrowthPct") && (

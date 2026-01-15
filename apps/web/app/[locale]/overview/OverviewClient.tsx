@@ -17,9 +17,10 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { computeProjection } from "@north-star/engine";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import ProjectionBreakdownModal from "../../../components/ProjectionBreakdownModal";
 import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
 import InsightsCard from "../../../features/overview/components/InsightsCard";
 import KpiCard from "../../../features/overview/components/KpiCard";
@@ -34,6 +35,7 @@ import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
+import { getMonthlyRows } from "../../../src/engine/projectionSelectors";
 import {
   buildExportFilename,
   downloadTextFile,
@@ -102,6 +104,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const scenarioIdFromQuery = scenarioId ?? null;
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   useEffect(() => {
     if (
@@ -130,6 +133,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const overviewViewModel = useMemo(
     () => (projection ? projectionToOverviewViewModel(projection) : null),
+    [projection]
+  );
+  const breakdownRows = useMemo(
+    () => (projection ? getMonthlyRows(projection) : []),
     [projection]
   );
 
@@ -284,19 +291,34 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
       {isDesktop ? (
         <SimpleGrid cols={2} spacing="md">
-          <CashBalanceChart data={cashSeries} title={t("cashBalanceTitle")} />
+          <CashBalanceChart
+            data={cashSeries}
+            title={t("cashBalanceTitle")}
+            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+          />
           <Stack gap="xs">
-            <NetWorthChart data={netWorthSeries} title={t("netWorthTitle")} />
+            <NetWorthChart
+              data={netWorthSeries}
+              title={t("netWorthTitle")}
+              onClick={projection ? () => setBreakdownOpen(true) : undefined}
+            />
           </Stack>
         </SimpleGrid>
       ) : (
         <Stack gap="md">
-          <CashBalanceChart data={cashSeries} title={t("cashBalanceTitle")} />
+          <CashBalanceChart
+            data={cashSeries}
+            title={t("cashBalanceTitle")}
+            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+          />
           <Accordion variant="separated" radius="md">
             <Accordion.Item value="net-worth">
               <Accordion.Control>{t("netWorthTitle")}</Accordion.Control>
               <Accordion.Panel>
-                <NetWorthChart data={netWorthSeries} />
+                <NetWorthChart
+                  data={netWorthSeries}
+                  onClick={projection ? () => setBreakdownOpen(true) : undefined}
+                />
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
@@ -353,6 +375,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           </Card>
         </Stack>
       )}
+      <ProjectionBreakdownModal
+        opened={breakdownOpen}
+        onClose={() => setBreakdownOpen(false)}
+        rows={breakdownRows}
+        currency={selectedScenario.baseCurrency}
+      />
     </Stack>
   );
 }
