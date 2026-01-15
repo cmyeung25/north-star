@@ -1,12 +1,13 @@
 "use client";
 
 import {
+  Badge,
   Button,
   Card,
   Drawer,
   Group,
-  Modal,
   Notification,
+  SegmentedControl,
   Stack,
   Switch,
   Table,
@@ -15,19 +16,22 @@ import {
 } from "@mantine/core";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { getEventGroup, getEventMeta, type EventGroup } from "@north-star/engine";
 import { defaultCurrency, t } from "../../lib/i18n";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm from "./TimelineEventForm";
 import HomeDetailsForm from "./HomeDetailsForm";
+import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
 import type { TimelineEvent } from "./types";
 import {
   createHomePositionFromTemplate,
-  createEventFromTemplate,
-  eventTypeLabels,
+  eventFilterOptions,
+  getEventGroupLabel,
+  getEventImpactHint,
+  getEventLabel,
   formatCurrency,
   formatHomeSummary,
   iconMap,
-  templateOptions,
 } from "./utils";
 import type { HomePositionDraft } from "../../src/store/scenarioStore";
 
@@ -54,7 +58,8 @@ export default function TimelineDesktop({
   onHomePositionUpdate,
   onHomePositionRemove,
 }: TimelineDesktopProps) {
-  const [templateOpen, setTemplateOpen] = useState(false);
+  const [addEventOpen, setAddEventOpen] = useState(false);
+  const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
@@ -63,6 +68,12 @@ export default function TimelineDesktop({
     () => [...events].sort((a, b) => a.startMonth.localeCompare(b.startMonth)),
     [events]
   );
+  const filteredEvents = useMemo(() => {
+    if (activeGroup === "all") {
+      return sortedEvents;
+    }
+    return sortedEvents.filter((event) => getEventGroup(event.type) === activeGroup);
+  }, [activeGroup, sortedEvents]);
 
   const handleSave = (updated: TimelineEvent) => {
     onEventsChange(
@@ -77,22 +88,6 @@ export default function TimelineDesktop({
         event.id === eventId ? { ...event, enabled } : event
       )
     );
-  };
-
-  const handleTemplateSelect = (type: TimelineEvent["type"]) => {
-    if (type === "buy_home") {
-      onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
-      setHomeToastOpen(true);
-      setTemplateOpen(false);
-      return;
-    }
-
-    const newEvent = createEventFromTemplate(type, {
-      baseCurrency,
-      baseMonth,
-    });
-    onEventsChange([newEvent, ...events]);
-    setTemplateOpen(false);
   };
 
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
@@ -113,10 +108,16 @@ export default function TimelineDesktop({
             </Text>
           )}
         </div>
-        <Button onClick={() => setTemplateOpen(true)}>
+        <Button onClick={() => setAddEventOpen(true)}>
           {t("timelineAddEvent")}
         </Button>
       </Group>
+
+      <SegmentedControl
+        data={eventFilterOptions}
+        value={activeGroup}
+        onChange={(value) => setActiveGroup(value as "all" | EventGroup)}
+      />
 
       {homeToastOpen && (
         <Notification color="teal" onClose={() => setHomeToastOpen(false)}>
@@ -190,15 +191,21 @@ export default function TimelineDesktop({
         <Text c="dimmed" size="sm">
           Add your first event to start shaping the plan.
         </Text>
+      ) : filteredEvents.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No events in this group yet.
+        </Text>
       ) : (
         <Table striped highlightOnHover withColumnBorders>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>{t("timelineTableEnabled")}</Table.Th>
+              <Table.Th>Group</Table.Th>
               <Table.Th>{t("timelineTableType")}</Table.Th>
               <Table.Th>{t("timelineTableName")}</Table.Th>
               <Table.Th>{t("timelineTableStart")}</Table.Th>
               <Table.Th>{t("timelineTableEnd")}</Table.Th>
+              <Table.Th>Impact</Table.Th>
               <Table.Th>{t("timelineTableMonthly")}</Table.Th>
               <Table.Th>{t("timelineTableOneTime")}</Table.Th>
               <Table.Th>{t("timelineTableGrowth")}</Table.Th>
@@ -207,7 +214,7 @@ export default function TimelineDesktop({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {sortedEvents.map((event) => (
+            {filteredEvents.map((event) => (
               <Table.Tr key={event.id}>
                 <Table.Td>
                   <Switch
@@ -218,11 +225,17 @@ export default function TimelineDesktop({
                   />
                 </Table.Td>
                 <Table.Td>
-                  {iconMap[event.type]} {eventTypeLabels[event.type]}
+                  <Badge variant="light" color="gray">
+                    {getEventGroupLabel(event.type)}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  {iconMap[event.type]} {getEventLabel(event.type)}
                 </Table.Td>
                 <Table.Td>{event.name}</Table.Td>
                 <Table.Td>{event.startMonth}</Table.Td>
                 <Table.Td>{event.endMonth ?? "—"}</Table.Td>
+                <Table.Td>{getEventImpactHint(event.type)}</Table.Td>
                 <Table.Td>
                   {event.monthlyAmount !== 0
                     ? formatCurrency(event.monthlyAmount, event.currency)
@@ -254,23 +267,17 @@ export default function TimelineDesktop({
         </Table>
       )}
 
-      <Modal
-        opened={templateOpen}
-        onClose={() => setTemplateOpen(false)}
-        title={t("timelineChooseTemplate")}
-      >
-        <Stack gap="sm">
-          {templateOptions.map((template) => (
-            <Button
-              key={template.type}
-              variant="light"
-              onClick={() => handleTemplateSelect(template.type)}
-            >
-              {iconMap[template.type]} {template.label}
-            </Button>
-          ))}
-        </Stack>
-      </Modal>
+      <TimelineAddEventDrawer
+        opened={addEventOpen}
+        onClose={() => setAddEventOpen(false)}
+        baseCurrency={baseCurrency}
+        baseMonth={baseMonth}
+        onAddEvent={(event) => onEventsChange([event, ...events])}
+        onAddHomePosition={() => {
+          onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
+          setHomeToastOpen(true);
+        }}
+      />
 
       <Drawer
         opened={Boolean(editingEvent)}
@@ -280,7 +287,7 @@ export default function TimelineDesktop({
         title={
           editingEvent
             ? t("timelineEditTitle", {
-                type: eventTypeLabels[editingEvent.type],
+                type: getEventLabel(editingEvent.type),
               })
             : t("timelineEdit")
         }
@@ -288,6 +295,7 @@ export default function TimelineDesktop({
         <TimelineEventForm
           event={editingEvent}
           baseCurrency={baseCurrency}
+          fields={editingEvent ? getEventMeta(editingEvent.type).fields : undefined}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
         />

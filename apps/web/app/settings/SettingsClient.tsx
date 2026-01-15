@@ -488,6 +488,19 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       </Modal>
 
       <Card withBorder radius="md" padding="md">
+        <Stack gap="xs">
+          <Text fw={600}>How it works</Text>
+          <Text size="sm" c="dimmed">
+            Assumptions are global defaults. Events can override them.
+          </Text>
+          <Text size="sm" c="dimmed">
+            If an event param is empty or undefined, the engine adapter may fall back to
+            assumptions.
+          </Text>
+        </Stack>
+      </Card>
+
+      <Card withBorder radius="md" padding="md">
         <Stack gap="md">
           <Stack gap={6}>
             <Text fw={600}>Planning horizon</Text>
