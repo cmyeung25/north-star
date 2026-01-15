@@ -5,6 +5,9 @@ export type OnboardingDraft = {
   housingStatus: HousingStatus;
   rentMonthly: number;
   salaryMonthly: number;
-  expenseMonthly: number;
+  expenseItems: Array<{
+    label: string;
+    monthlyAmount: number;
+  }>;
   travelAnnual: number;
 };

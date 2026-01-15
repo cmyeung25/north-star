@@ -59,9 +59,14 @@ export const applyOnboardingToScenario = (
   const baseMonth = getCurrentMonth();
   const currency = baseScenario.baseCurrency ?? defaultCurrency;
   const salaryMonthly = Math.max(0, draft.salaryMonthly);
-  const recurringMonthly = Math.max(0, draft.expenseMonthly);
   const travelMonthly = Math.max(0, draft.travelAnnual / 12);
   const rentMonthly = Math.max(0, draft.rentMonthly);
+  const recurringExpenses = (draft.expenseItems ?? [])
+    .map((item, index) => ({
+      label: item.label.trim() || `Expense ${index + 1}`,
+      monthlyAmount: Math.max(0, item.monthlyAmount),
+    }))
+    .filter((item) => item.monthlyAmount > 0);
 
   const events: TimelineEvent[] = [
     buildEvent({
@@ -74,15 +79,6 @@ export const applyOnboardingToScenario = (
       currency,
     }),
     buildEvent({
-      type: "custom",
-      name: "Recurring Expenses",
-      startMonth: baseMonth,
-      endMonth: null,
-      monthlyAmount: recurringMonthly,
-      annualGrowthPct: DEFAULT_INFLATION_RATE,
-      currency,
-    }),
-    buildEvent({
       type: "travel",
       name: "Travel",
       startMonth: baseMonth,
@@ -92,6 +88,20 @@ export const applyOnboardingToScenario = (
       currency,
     }),
   ];
+
+  recurringExpenses.forEach((expense) => {
+    events.push(
+      buildEvent({
+        type: "custom",
+        name: expense.label,
+        startMonth: baseMonth,
+        endMonth: null,
+        monthlyAmount: expense.monthlyAmount,
+        annualGrowthPct: DEFAULT_INFLATION_RATE,
+        currency,
+      })
+    );
+  });
 
   if (draft.housingStatus === "rent") {
     events.push(

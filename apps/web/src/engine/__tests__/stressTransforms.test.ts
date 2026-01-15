@@ -68,7 +68,7 @@ describe("applyStressPreset", () => {
       events: [
         {
           id: "event-early-income",
-          type: "custom",
+          type: "salary",
           name: "Side income",
           startMonth: "2026-02",
           endMonth: null,
@@ -80,7 +80,7 @@ describe("applyStressPreset", () => {
         },
         {
           id: "event-income",
-          type: "custom",
+          type: "salary",
           name: "Salary",
           startMonth: "2026-03",
           endMonth: null,

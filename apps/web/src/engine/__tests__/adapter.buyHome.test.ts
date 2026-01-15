@@ -89,7 +89,7 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
     expect(input.events).toHaveLength(1);
     expect(input.events[0]).toMatchObject({
       startMonth: "2025-01",
-      monthlyAmount: 1800,
+      monthlyAmount: -1800,
       oneTimeAmount: 0,
       annualGrowthPct: 0.02,
     });
