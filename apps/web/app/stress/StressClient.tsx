@@ -242,12 +242,27 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     stressEvents,
   ]);
 
-  const isReady =
-    !!scenario && !!baselineView && !!afterView && !!baselineProjection && !!afterProjection;
+  const shockMonthOptions = useMemo(() => {
+    if (!baselineInput?.baseMonth) {
+      return [];
+    }
+    const horizon = Math.min(baselineInput.horizonMonths ?? 12, 24);
+    return Array.from({ length: horizon }, (_, index) => {
+      const value = addMonths(baselineInput.baseMonth, index);
+      return { value, label: value };
+    });
+  }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
 
-  if (!isReady) {
+  if (!scenario || !baselineView || !afterView || !baselineProjection || !afterProjection) {
     return null;
   }
+
+  const scenarioData = scenario;
+  const baselineKpis = baselineView.kpis;
+  const afterKpis = afterView.kpis;
+  const presetDeltas = presetComparison?.deltas ?? null;
+  const presetBaselineSeries = presetComparison?.baselineView.cashSeries ?? [];
+  const presetStressedSeries = presetComparison?.stressedView.cashSeries ?? [];
 
   const activeStressBadges = [
     appliedStress.jobLossMonths
@@ -268,7 +283,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
           key: "medical",
           label: `Medical expense (${formatCurrency(
             appliedStress.medicalAmount,
-            scenario.baseCurrency
+            scenarioData.baseCurrency
           )})`,
         }
       : null,
@@ -284,7 +299,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   const handleRevertStress = () => {
     const fallbackApplyMonth =
       baselineInput?.baseMonth ??
-      scenario?.assumptions.baseMonth ??
+      scenarioData.assumptions.baseMonth ??
       new Date().toISOString().slice(0, 7);
 
     setAppliedStress({
@@ -294,8 +309,8 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   };
 
   const handleSaveScenario = () => {
-    const newScenario = createScenario(saveName || `${scenario.name} · Stress`, {
-      baseCurrency: scenario.baseCurrency,
+    const newScenario = createScenario(saveName || `${scenarioData.name} · Stress`, {
+      baseCurrency: scenarioData.baseCurrency,
     });
 
     updateScenarioAssumptions(newScenario.id, { ...scenario.assumptions });
@@ -317,23 +332,6 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     setActiveScenario(nextScenarioId);
     router.push(buildScenarioUrl("/stress", nextScenarioId));
   };
-
-  const baselineKpis = baselineView.kpis;
-  const afterKpis = afterView.kpis;
-  const presetDeltas = presetComparison?.deltas ?? null;
-  const presetBaselineSeries = presetComparison?.baselineView.cashSeries ?? [];
-  const presetStressedSeries = presetComparison?.stressedView.cashSeries ?? [];
-
-  const shockMonthOptions = useMemo(() => {
-    if (!baselineInput?.baseMonth) {
-      return [];
-    }
-    const horizon = Math.min(baselineInput.horizonMonths ?? 12, 24);
-    return Array.from({ length: horizon }, (_, index) => {
-      const value = addMonths(baselineInput.baseMonth, index);
-      return { value, label: value };
-    });
-  }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
 
   const kpiCard = (label: string, value: string, helper: string) => (
     <Card withBorder radius="md" padding="md">

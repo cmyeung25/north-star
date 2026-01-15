@@ -119,7 +119,7 @@ export const computeComparisonMetrics = (
 
   let breakevenIndex = -1;
   for (let index = 0; index < length; index += 1) {
-    if ((ownSeries[index]?.netWorth ?? 0) >= (rentSeries[index]?.netWorth ?? 0)) {
+    if ((ownSeries[index]?.netWorth ?? 0) > (rentSeries[index]?.netWorth ?? 0)) {
       breakevenIndex = index;
       break;
     }

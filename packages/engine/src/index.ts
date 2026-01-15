@@ -281,3 +281,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
 
 export { computeHomeValueSeries } from "./home";
 export { computeMortgageSchedule } from "./mortgage";
+export * from "./eventCatalog";
+export * from "./eventFallbacks";
+export * from "./eventCatalog";
+export * from "./eventFallbacks";

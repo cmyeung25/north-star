@@ -1,18 +1,10 @@
 import { z } from "zod";
+import { eventTypes, type EventType } from "@north-star/engine";
 import { defaultCurrency } from "../../../lib/i18n";
 
-export const EventTypeSchema = z.enum([
-  "rent",
-  "buy_home",
-  "baby",
-  "car",
-  "travel",
-  "insurance",
-  "helper",
-  "custom",
-]);
+const eventTypeValues = eventTypes as [EventType, ...EventType[]];
 
-export type EventType = z.infer<typeof EventTypeSchema>;
+export const EventTypeSchema = z.enum(eventTypeValues);
 
 const monthPattern = /^\d{4}-\d{2}$/;
 

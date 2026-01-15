@@ -10,6 +10,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
+import type { EventField, EventFieldKey } from "@north-star/engine";
 import { t } from "../../lib/i18n";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
 import type { TimelineEvent } from "./types";
@@ -17,6 +18,7 @@ import type { TimelineEvent } from "./types";
 interface TimelineEventFormProps {
   event: TimelineEvent | null;
   baseCurrency: string;
+  fields?: EventField[];
   onCancel: () => void;
   onSave: (event: TimelineEvent) => void;
   submitLabel?: string;
@@ -25,6 +27,7 @@ interface TimelineEventFormProps {
 export default function TimelineEventForm({
   event,
   baseCurrency,
+  fields,
   onCancel,
   onSave,
   submitLabel = t("eventFormSave"),
@@ -42,6 +45,10 @@ export default function TimelineEventForm({
   if (!formValues) {
     return null;
   }
+
+  const fieldKeys = fields?.map((field) => field.key) ?? [];
+  const shouldShowField = (key: EventFieldKey) =>
+    fieldKeys.length === 0 || fieldKeys.includes(key);
 
   const updateField = <K extends keyof TimelineEvent>(
     key: K,
@@ -86,11 +93,11 @@ export default function TimelineEventForm({
       : null;
     const nextErrors: { startMonth?: string; endMonth?: string } = {};
 
-    if (!normalizedStartMonth) {
+    if (shouldShowField("startMonth") && !normalizedStartMonth) {
       nextErrors.startMonth = "Use YYYY-MM (e.g. 2025-01).";
     }
 
-    if (formValues.endMonth) {
+    if (shouldShowField("endMonth") && formValues.endMonth) {
       if (!normalizedEndMonth) {
         nextErrors.endMonth = "Use YYYY-MM (e.g. 2025-12).";
       } else if (
@@ -124,72 +131,88 @@ export default function TimelineEventForm({
 
   return (
     <Stack gap="md">
-      <TextInput
-        label={t("eventFormName")}
-        value={formValues.name}
-        onChange={(eventChange) => updateField("name", eventChange.target.value)}
-      />
-      <TextInput
-        label={t("eventFormStartMonth")}
-        placeholder={t("eventFormStartMonthPlaceholder")}
-        value={formValues.startMonth}
-        error={errors.startMonth}
-        onChange={(eventChange) =>
-          updateField("startMonth", eventChange.target.value)
-        }
-        onBlur={(eventChange) =>
-          handleNormalizeMonth("startMonth", eventChange.target.value)
-        }
-      />
-      <TextInput
-        label={t("eventFormEndMonth")}
-        placeholder={t("eventFormEndMonthPlaceholder")}
-        value={formValues.endMonth ?? ""}
-        error={errors.endMonth}
-        onChange={(eventChange) =>
-          updateField("endMonth", eventChange.target.value || null)
-        }
-        onBlur={(eventChange) =>
-          handleNormalizeMonth("endMonth", eventChange.target.value)
-        }
-      />
-      <NumberInput
-        label={t("eventFormMonthlyAmount")}
-        value={formValues.monthlyAmount}
-        onChange={(value) => updateField("monthlyAmount", Number(value ?? 0))}
-        thousandSeparator=","
-      />
-      <NumberInput
-        label={t("eventFormOneTimeAmount")}
-        value={formValues.oneTimeAmount}
-        onChange={(value) => updateField("oneTimeAmount", Number(value ?? 0))}
-        thousandSeparator=","
-      />
-      <NumberInput
-        label={t("eventFormAnnualGrowth")}
-        value={formValues.annualGrowthPct}
-        onChange={(value) => {
-          const nextValue = Math.min(Math.max(Number(value ?? 0), 0), 100);
-          updateField("annualGrowthPct", nextValue);
-        }}
-        min={0}
-        max={100}
-        decimalScale={2}
-        suffix="%"
-      />
-      <Select
-        label={t("eventFormCurrency")}
-        data={currencyOptions}
-        value={formValues.currency}
-        onChange={(value) => updateField("currency", value ?? baseCurrency)}
-      />
-      <Switch
-        label={t("eventFormEnabled")}
-        checked={formValues.enabled}
-        onChange={(eventChange) =>
-          updateField("enabled", eventChange.currentTarget.checked)
-        }
-      />
+      {shouldShowField("name") && (
+        <TextInput
+          label={t("eventFormName")}
+          value={formValues.name}
+          onChange={(eventChange) => updateField("name", eventChange.target.value)}
+        />
+      )}
+      {shouldShowField("startMonth") && (
+        <TextInput
+          label={t("eventFormStartMonth")}
+          placeholder={t("eventFormStartMonthPlaceholder")}
+          value={formValues.startMonth}
+          error={errors.startMonth}
+          onChange={(eventChange) =>
+            updateField("startMonth", eventChange.target.value)
+          }
+          onBlur={(eventChange) =>
+            handleNormalizeMonth("startMonth", eventChange.target.value)
+          }
+        />
+      )}
+      {shouldShowField("endMonth") && (
+        <TextInput
+          label={t("eventFormEndMonth")}
+          placeholder={t("eventFormEndMonthPlaceholder")}
+          value={formValues.endMonth ?? ""}
+          error={errors.endMonth}
+          onChange={(eventChange) =>
+            updateField("endMonth", eventChange.target.value || null)
+          }
+          onBlur={(eventChange) =>
+            handleNormalizeMonth("endMonth", eventChange.target.value)
+          }
+        />
+      )}
+      {shouldShowField("monthlyAmount") && (
+        <NumberInput
+          label={t("eventFormMonthlyAmount")}
+          value={formValues.monthlyAmount}
+          onChange={(value) => updateField("monthlyAmount", Number(value ?? 0))}
+          thousandSeparator=","
+        />
+      )}
+      {shouldShowField("oneTimeAmount") && (
+        <NumberInput
+          label={t("eventFormOneTimeAmount")}
+          value={formValues.oneTimeAmount}
+          onChange={(value) => updateField("oneTimeAmount", Number(value ?? 0))}
+          thousandSeparator=","
+        />
+      )}
+      {shouldShowField("annualGrowthPct") && (
+        <NumberInput
+          label={t("eventFormAnnualGrowth")}
+          value={formValues.annualGrowthPct}
+          onChange={(value) => {
+            const nextValue = Math.min(Math.max(Number(value ?? 0), 0), 100);
+            updateField("annualGrowthPct", nextValue);
+          }}
+          min={0}
+          max={100}
+          decimalScale={2}
+          suffix="%"
+        />
+      )}
+      {shouldShowField("currency") && (
+        <Select
+          label={t("eventFormCurrency")}
+          data={currencyOptions}
+          value={formValues.currency}
+          onChange={(value) => updateField("currency", value ?? baseCurrency)}
+        />
+      )}
+      {shouldShowField("enabled") && (
+        <Switch
+          label={t("eventFormEnabled")}
+          checked={formValues.enabled}
+          onChange={(eventChange) =>
+            updateField("enabled", eventChange.currentTarget.checked)
+          }
+        />
+      )}
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
           {t("eventFormCancel")}

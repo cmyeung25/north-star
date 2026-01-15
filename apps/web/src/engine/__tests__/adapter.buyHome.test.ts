@@ -69,20 +69,22 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
 
     const input = mapScenarioToEngineInput(scenario);
 
-    expect(input.positions?.homes).toEqual([
-      {
-        purchasePrice: 9000000,
-        downPayment: 2000000,
-        purchaseMonth: "2026-03",
-        annualAppreciation: 0.025,
-        feesOneTime: 300000,
-        mortgage: {
-          principal: 7000000,
-          annualRate: 0.041,
-          termMonths: 300,
-        },
+    const home = input.positions?.homes?.[0];
+
+    expect(home).toMatchObject({
+      purchasePrice: 9000000,
+      downPayment: 2000000,
+      purchaseMonth: "2026-03",
+      annualAppreciation: 0.025,
+      feesOneTime: 300000,
+      holdingCostMonthly: 0,
+      holdingCostAnnualGrowth: 0,
+      mortgage: {
+        principal: 7000000,
+        termMonths: 300,
       },
-    ]);
+    });
+    expect(home?.mortgage?.annualRate).toBeCloseTo(0.041);
 
     expect(input.events).toHaveLength(1);
     expect(input.events[0]).toMatchObject({

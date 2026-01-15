@@ -3,6 +3,14 @@
 // Back-compat: new fields default to 0 for older scenarios.
 import { nanoid } from "nanoid";
 import {
+  eventGroups,
+  getEventGroup,
+  getEventMeta,
+  listEventTypesByGroup,
+  type EventGroup,
+  type EventType,
+} from "@north-star/engine";
+import {
   defaultCurrency,
   formatCurrency as formatCurrencyWithLocale,
   t,
@@ -13,21 +21,13 @@ import {
   type HomePosition,
   type HomePositionDraft,
 } from "../../src/store/scenarioStore";
-import type { EventType, TimelineEvent } from "./types";
+import type { TimelineEvent } from "./types";
 
-export const eventTypeLabels: Record<EventType, string> = {
-  rent: t("eventTypeRent"),
-  buy_home: t("eventTypeBuyHome"),
-  baby: t("eventTypeBaby"),
-  car: t("eventTypeCar"),
-  travel: t("eventTypeTravel"),
-  insurance: t("eventTypeInsurance"),
-  helper: t("eventTypeHelper"),
-  custom: t("eventTypeCustom"),
-};
+export const getEventLabel = (type: EventType) => getEventMeta(type).label;
 
 export const iconMap: Record<EventType, string> = {
   rent: "🏠",
+  salary: "💼",
   buy_home: "🏡",
   baby: "🍼",
   car: "🚗",
@@ -37,16 +37,38 @@ export const iconMap: Record<EventType, string> = {
   custom: "✨",
 };
 
-export const templateOptions: Array<{ label: string; type: EventType }> = [
-  { label: t("eventTypeRent"), type: "rent" },
-  { label: t("eventTypeBuyHome"), type: "buy_home" },
-  { label: t("eventTypeBaby"), type: "baby" },
-  { label: t("eventTypeCar"), type: "car" },
-  { label: t("eventTypeTravel"), type: "travel" },
-  { label: t("eventTypeInsurance"), type: "insurance" },
-  { label: t("eventTypeHelper"), type: "helper" },
-  { label: t("eventTypeCustom"), type: "custom" },
+export const groupLabels: Record<EventGroup, string> = {
+  income: "Income",
+  expense: "Expense",
+  housing: "Housing",
+  asset: "Asset",
+  debt: "Debt",
+};
+
+export const impactHints: Record<EventGroup, string> = {
+  income: "adds cash inflow",
+  expense: "adds cash outflow",
+  housing: "may affect cash + assets + liabilities",
+  asset: "may affect assets and/or cash",
+  debt: "may affect liabilities and cash",
+};
+
+export const eventFilterOptions = [
+  { label: "All", value: "all" },
+  ...eventGroups.map((group) => ({
+    label: groupLabels[group],
+    value: group,
+  })),
 ];
+
+export const listEventTypesForGroup = (group: EventGroup) =>
+  listEventTypesByGroup(group);
+
+export const getEventGroupLabel = (type: EventType) =>
+  groupLabels[getEventGroup(type)];
+
+export const getEventImpactHint = (type: EventType) =>
+  impactHints[getEventGroup(type)];
 
 export const formatCurrency = (amount: number, currency: string) =>
   formatCurrencyWithLocale(amount, currency);
@@ -74,6 +96,7 @@ const templateDefaults: Record<
   { monthlyAmount: number; oneTimeAmount: number; annualGrowthPct: number }
 > = {
   rent: { monthlyAmount: 1800, oneTimeAmount: 0, annualGrowthPct: 3 },
+  salary: { monthlyAmount: 6000, oneTimeAmount: 0, annualGrowthPct: 3 },
   buy_home: { monthlyAmount: 0, oneTimeAmount: 800000, annualGrowthPct: 0 },
   baby: { monthlyAmount: 900, oneTimeAmount: 5000, annualGrowthPct: 2 },
   car: { monthlyAmount: 600, oneTimeAmount: 20000, annualGrowthPct: 0 },
@@ -92,7 +115,7 @@ export const createEventFromTemplate = (
   type: EventType,
   options: CreateEventOptions = {}
 ): TimelineEvent => {
-  const label = eventTypeLabels[type];
+  const label = getEventLabel(type);
   const defaults = templateDefaults[type];
   const startMonth = getDefaultStartMonth(options.baseMonth);
 
