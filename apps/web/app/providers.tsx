@@ -12,8 +12,8 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { isFirebaseConfigured } from "../lib/firebaseClient";
 import { t } from "../lib/i18n";
 import { useAuthState } from "../src/hooks/useAuthState";
@@ -27,6 +27,7 @@ import {
   initializeSettingsPersistence,
 } from "../src/store/settingsPersistence";
 import { useSettingsStore } from "../src/store/settingsStore";
+import { getActiveScenario, useScenarioStore } from "../src/store/scenarioStore";
 
 const theme = createTheme({
   primaryColor: "indigo",
@@ -51,8 +52,17 @@ const navItems = [
 export default function Providers({ children }: { children: ReactNode }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const pathname = usePathname();
+  const router = useRouter();
   const authState = useAuthState();
   const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
+  const scenarios = useScenarioStore((state) => state.scenarios);
+  const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const [scenarioHydrated, setScenarioHydrated] = useState(false);
+
+  const activeScenario = useMemo(
+    () => getActiveScenario(scenarios, activeScenarioId),
+    [activeScenarioId, scenarios]
+  );
 
   const isSignedIn = authState.status === "signed-in";
   const statusLabel = isSignedIn
@@ -71,6 +81,7 @@ export default function Providers({ children }: { children: ReactNode }) {
       if (!active) {
         return;
       }
+      setScenarioHydrated(true);
       cleanup = initializeScenarioPersistence();
       settingsCleanup = initializeSettingsPersistence();
     };
@@ -87,6 +98,16 @@ export default function Providers({ children }: { children: ReactNode }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!scenarioHydrated || pathname === "/onboarding") {
+      return;
+    }
+
+    if (activeScenario && activeScenario.meta?.onboardingVersion !== 1) {
+      router.replace("/onboarding");
+    }
+  }, [activeScenario, pathname, router, scenarioHydrated]);
 
   useEffect(() => {
     if (
