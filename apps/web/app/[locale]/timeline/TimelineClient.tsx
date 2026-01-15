@@ -2,14 +2,14 @@
 
 import { useMediaQuery } from "@mantine/hooks";
 import { useEffect, useMemo } from "react";
-import TimelineDesktop from "../../components/timeline/TimelineDesktop";
-import TimelineMobile from "../../components/timeline/TimelineMobile";
-import { normalizeEvent } from "../../src/features/timeline/schema";
+import TimelineDesktop from "../../../components/timeline/TimelineDesktop";
+import TimelineMobile from "../../../components/timeline/TimelineMobile";
+import { normalizeEvent } from "../../../src/features/timeline/schema";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
-} from "../../src/store/scenarioStore";
+} from "../../../src/store/scenarioStore";
 
 type TimelineClientProps = {
   scenarioId?: string;
