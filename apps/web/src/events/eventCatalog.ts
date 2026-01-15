@@ -19,7 +19,12 @@ const eventCatalog: Record<EventType, EventMeta> = {
   car: { group: "expense", sign: -1 },
   travel: { group: "expense", sign: -1 },
   insurance: { group: "expense", sign: -1 },
+  insurance_product: { group: "expense", sign: -1 },
+  insurance_premium: { group: "expense", sign: -1 },
+  insurance_payout: { group: "income", sign: 1 },
   helper: { group: "expense", sign: -1 },
+  investment_contribution: { group: "asset", sign: -1 },
+  investment_withdrawal: { group: "asset", sign: 1 },
   custom: { group: "expense", sign: -1 },
 };
 

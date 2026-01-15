@@ -1,32 +1,34 @@
 import { Card, SimpleGrid, Stack, Text } from "@mantine/core";
-import type { Scenario } from "../types";
+import type { Scenario, ScenarioKpis } from "../types";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../utils";
 
 type ScenarioKpiGridProps = {
   scenario: Scenario;
+  kpis?: ScenarioKpis;
 };
 
-export default function ScenarioKpiGrid({ scenario }: ScenarioKpiGridProps) {
+export default function ScenarioKpiGrid({ scenario, kpis }: ScenarioKpiGridProps) {
   const t = useTranslations("scenarios");
   const locale = useLocale();
-  const kpis = [
+  const resolvedKpis = kpis ?? scenario.kpis;
+  const kpiItems = [
     {
       label: t("lowestBalance"),
       value: formatCurrency(
-        scenario.kpis.lowestMonthlyBalance,
+        resolvedKpis.lowestMonthlyBalance,
         scenario.baseCurrency,
         locale
       ),
     },
     {
       label: t("runway"),
-      value: t("runwayValue", { months: scenario.kpis.runwayMonths }),
+      value: t("runwayValue", { months: resolvedKpis.runwayMonths }),
     },
     {
       label: t("netWorth5y"),
       value: formatCurrency(
-        scenario.kpis.netWorthYear5,
+        resolvedKpis.netWorthYear5,
         scenario.baseCurrency,
         locale
       ),
@@ -35,7 +37,7 @@ export default function ScenarioKpiGrid({ scenario }: ScenarioKpiGridProps) {
 
   return (
     <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-      {kpis.map((kpi) => (
+      {kpiItems.map((kpi) => (
         <Card key={kpi.label} withBorder radius="md" padding="sm">
           <Stack gap={4}>
             <Text size="xs" c="dimmed">

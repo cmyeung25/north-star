@@ -15,11 +15,13 @@ import type { TimeSeriesPoint } from "../types";
 interface CashBalanceChartProps {
   data: TimeSeriesPoint[];
   title?: string;
+  onClick?: () => void;
 }
 
 export default function CashBalanceChart({
   data,
   title,
+  onClick,
 }: CashBalanceChartProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
@@ -31,7 +33,23 @@ export default function CashBalanceChart({
   }, null);
 
   return (
-    <Card withBorder radius="md" padding="md">
+    <Card
+      withBorder
+      radius="md"
+      padding="md"
+      onClick={onClick}
+      style={{ cursor: onClick ? "pointer" : undefined }}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (!onClick) {
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+    >
       <Stack gap="sm">
         <Text fw={600}>{title ?? t("cashBalanceTitle")}</Text>
         <div style={{ width: "100%", height: 240 }}>
