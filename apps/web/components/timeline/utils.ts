@@ -38,6 +38,7 @@ export const iconMap: Record<EventType, string> = {
   insurance_product: "📄",
   insurance_premium: "🧾",
   insurance_payout: "💰",
+  tax_benefit: "🏷️",
   helper: "🤝",
   investment_contribution: "📈",
   investment_withdrawal: "📉",
@@ -55,6 +56,7 @@ const eventTypeLabelKeys: Record<EventType, string> = {
   insurance_product: "eventTypes.insuranceProduct",
   insurance_premium: "eventTypes.insurancePremium",
   insurance_payout: "eventTypes.insurancePayout",
+  tax_benefit: "eventTypes.taxBenefit",
   helper: "eventTypes.helper",
   investment_contribution: "eventTypes.investmentContribution",
   investment_withdrawal: "eventTypes.investmentWithdrawal",
@@ -65,7 +67,8 @@ const groupLabelKeys: Record<EventGroup, string> = {
   income: "groups.income",
   expense: "groups.expense",
   housing: "groups.housing",
-  asset: "groups.asset",
+  investment: "groups.investment",
+  insurance: "groups.insurance",
   debt: "groups.debt",
 };
 
@@ -73,7 +76,8 @@ const impactHintKeys: Record<EventGroup, string> = {
   income: "impactHints.income",
   expense: "impactHints.expense",
   housing: "impactHints.housing",
-  asset: "impactHints.asset",
+  investment: "impactHints.investment",
+  insurance: "impactHints.insurance",
   debt: "impactHints.debt",
 };
 
@@ -136,6 +140,7 @@ const templateDefaults: Record<
   insurance_product: { monthlyAmount: 300, oneTimeAmount: 0, annualGrowthPct: 0 },
   insurance_premium: { monthlyAmount: 300, oneTimeAmount: 0, annualGrowthPct: 0 },
   insurance_payout: { monthlyAmount: 0, oneTimeAmount: 15000, annualGrowthPct: 0 },
+  tax_benefit: { monthlyAmount: 0, oneTimeAmount: 6000, annualGrowthPct: 0 },
   helper: { monthlyAmount: 600, oneTimeAmount: 0, annualGrowthPct: 0 },
   investment_contribution: { monthlyAmount: 500, oneTimeAmount: 0, annualGrowthPct: 0 },
   investment_withdrawal: { monthlyAmount: 0, oneTimeAmount: 5000, annualGrowthPct: 0 },

@@ -88,11 +88,37 @@
     "netWorthTitle": "Net Worth",
     "breakdownTitle": "Monthly breakdown",
     "breakdownEmpty": "No projection data available.",
+    "breakdownTabs": {
+      "cashflow": "Cashflow breakdown",
+      "assets": "Asset breakdown"
+    },
     "breakdownMonth": "Month",
     "breakdownCash": "Cash",
+    "breakdownNet": "Net",
+    "breakdownInflow": "Inflow",
+    "breakdownOutflow": "Outflow",
+    "breakdownItem": "Item",
+    "breakdownAmount": "Amount",
+    "breakdownNoItems": "No items for this month.",
     "breakdownAssets": "Assets",
     "breakdownLiabilities": "Liabilities",
     "breakdownNetWorth": "Net worth",
+    "breakdownLabels": {
+      "cash": "Cash",
+      "investment": "Investment #{index}",
+      "insurance": "Insurance #{index}",
+      "downPayment": "Down payment",
+      "feesOneTime": "One-time fees",
+      "holdingCost": "Holding cost",
+      "mortgageInterest": "Mortgage interest",
+      "mortgagePrincipal": "Mortgage principal",
+      "rentalIncome": "Rental income",
+      "mortgageBalance": "Mortgage balance",
+      "contribution": "Contribution",
+      "premium": "Premium",
+      "payout": "Payout",
+      "taxBenefit": "Tax benefit"
+    },
     "monthLabel": "Month {month}",
     "lowestPointLabel": "Lowest point",
     "lowestPointSummary": "Lowest: {value} in {month}",
@@ -166,14 +192,16 @@
       "income": "Income",
       "expense": "Expense",
       "housing": "Housing",
-      "asset": "Asset",
+      "investment": "Investment",
+      "insurance": "Insurance",
       "debt": "Debt"
     },
     "impactHints": {
       "income": "adds cash inflow",
       "expense": "adds cash outflow",
       "housing": "may affect cash + assets + liabilities",
-      "asset": "may affect assets and/or cash",
+      "investment": "affects cash and investment balances",
+      "insurance": "affects cash, premiums, and payouts",
       "debt": "may affect liabilities and cash"
     },
     "eventTypes": {
@@ -187,6 +215,7 @@
       "insuranceProduct": "Insurance product",
       "insurancePremium": "Insurance premium",
       "insurancePayout": "Insurance payout",
+      "taxBenefit": "Tax benefit",
       "helper": "Helper",
       "investmentContribution": "Investment contribution",
       "investmentWithdrawal": "Investment withdrawal",
@@ -194,16 +223,20 @@
     },
     "insuranceTemplateLabel": "Template",
     "insuranceTemplates": {
-      "pay_5_years": "Pay for 5 years",
-      "hk_annuity": "HK annuity (tax deductible)",
-      "withdraw_after_8_years": "Withdraw after 8 years"
+      "savings_pay_2_return_5": "Savings (pay 2 years, return after 5)",
+      "hk_annuity_tax_deduct_pay_5_withdraw_8": "HK annuity (pay 5 years, withdraw after 8)"
     },
     "insuranceParams": {
-      "premiumYears": "Premium years",
-      "taxDeductionAnnual": "Annual tax deduction",
-      "taxDeductionYears": "Tax deduction years",
-      "withdrawalAfterYears": "Withdrawal after (years)",
-      "withdrawalAmount": "Withdrawal amount"
+      "premiumMonthly": "Monthly premium",
+      "premiumAnnual": "Annual premium",
+      "payMonths": "Pay duration (months)",
+      "returnMonthOffset": "Return after (months)",
+      "returnAmount": "Return amount",
+      "annualPremium": "Annual premium",
+      "payYears": "Pay years",
+      "withdrawAfterYears": "Withdraw after (years)",
+      "withdrawAmount": "Withdraw amount",
+      "taxBenefitAnnual": "Annual tax benefit"
     },
     "eventFormName": "Name",
     "eventFormStartMonth": "Start month",

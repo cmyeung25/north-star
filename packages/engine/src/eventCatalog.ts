@@ -1,4 +1,10 @@
-export type EventGroup = "income" | "expense" | "housing" | "asset" | "debt";
+export type EventGroup =
+  | "income"
+  | "expense"
+  | "housing"
+  | "investment"
+  | "insurance"
+  | "debt";
 
 export type EventDefaultSign = "inflow" | "outflow" | "mixed";
 
@@ -92,13 +98,13 @@ export const eventCatalog = {
   },
   insurance: {
     label: "Insurance",
-    group: "expense",
+    group: "insurance",
     defaultSign: "outflow",
     fields: baseFields,
   },
   insurance_product: {
     label: "Insurance product",
-    group: "expense",
+    group: "insurance",
     defaultSign: "outflow",
     fields: [
       { key: "name", input: "text" },
@@ -110,13 +116,20 @@ export const eventCatalog = {
   },
   insurance_premium: {
     label: "Insurance premium",
-    group: "expense",
+    group: "insurance",
     defaultSign: "outflow",
-    fields: recurringFields,
+    fields: [
+      { key: "name", input: "text" },
+      { key: "startMonth", input: "month" },
+      { key: "endMonth", input: "month" },
+      { key: "monthlyAmount", input: "number" },
+      { key: "currency", input: "currency" },
+      { key: "enabled", input: "toggle" },
+    ],
   },
   insurance_payout: {
     label: "Insurance payout",
-    group: "income",
+    group: "insurance",
     defaultSign: "inflow",
     fields: baseFields,
   },
@@ -128,13 +141,19 @@ export const eventCatalog = {
   },
   investment_contribution: {
     label: "Investment contribution",
-    group: "asset",
+    group: "investment",
     defaultSign: "outflow",
-    fields: baseFields,
+    fields: recurringFields,
   },
   investment_withdrawal: {
     label: "Investment withdrawal",
-    group: "asset",
+    group: "investment",
+    defaultSign: "inflow",
+    fields: baseFields,
+  },
+  tax_benefit: {
+    label: "Tax benefit",
+    group: "insurance",
     defaultSign: "inflow",
     fields: baseFields,
   },
@@ -150,7 +169,14 @@ export type EventType = keyof typeof eventCatalog;
 
 export const eventTypes = Object.keys(eventCatalog) as EventType[];
 
-export const eventGroups: EventGroup[] = ["income", "expense", "housing", "asset", "debt"];
+export const eventGroups: EventGroup[] = [
+  "income",
+  "expense",
+  "housing",
+  "investment",
+  "insurance",
+  "debt",
+];
 
 export const getEventMeta = (type: EventType): EventMeta => eventCatalog[type];
 

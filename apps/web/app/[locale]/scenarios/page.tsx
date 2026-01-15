@@ -14,7 +14,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import ScenarioActionsMenu from "../../../features/scenarios/components/ScenarioActionsMenu";
@@ -99,6 +99,12 @@ export default function ScenariosPage() {
     () => getActiveScenario(scenarios, activeScenarioId),
     [activeScenarioId, scenarios]
   );
+
+  useEffect(() => {
+    if (activeScenarioId && activeScenarioId !== selectedScenarioId) {
+      setSelectedScenarioId(activeScenarioId);
+    }
+  }, [activeScenarioId, selectedScenarioId]);
 
   const selectedScenario = useMemo(() => {
     return (

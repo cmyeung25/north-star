@@ -26,6 +26,8 @@ type AdapterOptions = {
   strict?: boolean;
 };
 
+type HomePositionWithId = HomePosition & { id?: string };
+
 const formatMonth = (date: Date) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${date.getFullYear()}-${month}`;
@@ -94,6 +96,7 @@ const mapEventToEngine = (
   };
 
   return {
+    id: event.id,
     enabled: event.enabled,
     startMonth: event.startMonth,
     endMonth: event.endMonth ?? null,
@@ -125,7 +128,7 @@ export const mapScenarioToEngineInput = (
   if (!resolvedHomePositions.length && buyHomeEvent && strict) {
     throw new Error("buy_home event requires home details in scenario.positions.homes.");
   }
-  const validatedHomes = resolvedHomePositions.reduce<HomePosition[]>(
+  const validatedHomes = resolvedHomePositions.reduce<HomePositionWithId[]>(
     (result, homePosition) => {
       const parsed = HomePositionSchema.safeParse(homePosition);
       if (!parsed.success) {
@@ -134,7 +137,11 @@ export const mapScenarioToEngineInput = (
         }
         return result;
       }
-      result.push(parsed.data);
+      const homeId = (homePosition as { id?: string }).id;
+      result.push({
+        ...parsed.data,
+        id: homeId,
+      });
       return result;
     },
     []
@@ -196,6 +203,7 @@ export const mapScenarioToEngineInput = (
 
           if (mode === "existing" && home.existing) {
             return {
+              id: home.id,
               usage,
               mode,
               purchasePrice: home.purchasePrice ?? home.existing.marketValue,
@@ -215,6 +223,7 @@ export const mapScenarioToEngineInput = (
           }
 
           return {
+            id: home.id,
             usage,
             mode,
             purchasePrice: home.purchasePrice ?? 0,
