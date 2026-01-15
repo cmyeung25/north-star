@@ -26,6 +26,8 @@ import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
 } from "../../src/engine/adapter";
+import { useStressComparison } from "../../src/engine/useStressComparison";
+import type { StressPreset } from "../../src/engine/stressTransforms";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -47,6 +49,14 @@ const emptyStressState: AppliedStressState = {
   rateHikePct: null,
   medicalAmount: null,
   applyMonth: null,
+};
+
+const addMonths = (baseMonth: string, offset: number) => {
+  const [year, month] = baseMonth.split("-").map(Number);
+  const totalMonths = year * 12 + (month - 1) + offset;
+  const nextYear = Math.floor(totalMonths / 12);
+  const nextMonth = String((totalMonths % 12) + 1).padStart(2, "0");
+  return `${nextYear}-${nextMonth}`;
 };
 
 export default function StressClient({ scenarioId }: StressClientProps) {
@@ -71,6 +81,8 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     emptyStressState
   );
   const [saveName, setSaveName] = useState("");
+  const [activePreset, setActivePreset] = useState<StressPreset | null>(null);
+  const [shockMonth, setShockMonth] = useState<string | null>(null);
 
   useEffect(() => {
     if (
@@ -96,6 +108,15 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     return mapScenarioToEngineInput(scenario);
   }, [scenario]);
 
+  const normalizedShockMonth = useMemo(
+    () => normalizeMonth(shockMonth ?? "") ?? shockMonth ?? undefined,
+    [shockMonth]
+  );
+
+  const presetComparison = useStressComparison(scenario, activePreset, {
+    shockMonth: normalizedShockMonth,
+  });
+
   useEffect(() => {
     if (!scenario) {
       return;
@@ -105,8 +126,12 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       normalizeMonth(scenario.assumptions.baseMonth ?? "") ??
       baselineInput?.baseMonth ??
       null;
+    const defaultShockMonth = baselineInput?.baseMonth
+      ? addMonths(baselineInput.baseMonth, 1)
+      : defaultApplyMonth;
 
     setSaveName(`${scenario.name} · Stress`);
+    setShockMonth(defaultShockMonth);
     setDraftStress((previous) => ({
       ...previous,
       applyMonth: defaultApplyMonth,
@@ -295,6 +320,20 @@ export default function StressClient({ scenarioId }: StressClientProps) {
 
   const baselineKpis = baselineView.kpis;
   const afterKpis = afterView.kpis;
+  const presetDeltas = presetComparison?.deltas ?? null;
+  const presetBaselineSeries = presetComparison?.baselineView.cashSeries ?? [];
+  const presetStressedSeries = presetComparison?.stressedView.cashSeries ?? [];
+
+  const shockMonthOptions = useMemo(() => {
+    if (!baselineInput?.baseMonth) {
+      return [];
+    }
+    const horizon = Math.min(baselineInput.horizonMonths ?? 12, 24);
+    return Array.from({ length: horizon }, (_, index) => {
+      const value = addMonths(baselineInput.baseMonth, index);
+      return { value, label: value };
+    });
+  }, [baselineInput?.baseMonth, baselineInput?.horizonMonths]);
 
   const kpiCard = (label: string, value: string, helper: string) => (
     <Card withBorder radius="md" padding="md">
@@ -348,6 +387,97 @@ export default function StressClient({ scenarioId }: StressClientProps) {
           </Group>
         )}
       </Stack>
+
+      <Card withBorder radius="md" padding="lg">
+        <Stack gap="md">
+          <Group justify="space-between" align="flex-start">
+            <div>
+              <Text fw={600}>Stress Presets</Text>
+              <Text size="sm" c="dimmed">
+                Compare baseline vs. a single preset stress scenario.
+              </Text>
+            </div>
+            {activePreset && (
+              <Badge variant="light" color="red">
+                {activePreset === "RATE_HIKE_2" && "Rate hike +2%"}
+                {activePreset === "INCOME_DROP_20" && "Income drop -20%"}
+                {activePreset === "INFLATION_PLUS_2" && "Inflation +2%"}
+              </Badge>
+            )}
+          </Group>
+          <Group gap="sm" wrap="wrap">
+            <Button
+              variant={activePreset === "RATE_HIKE_2" ? "filled" : "light"}
+              onClick={() => setActivePreset("RATE_HIKE_2")}
+            >
+              Rate +2%
+            </Button>
+            <Button
+              variant={activePreset === "INCOME_DROP_20" ? "filled" : "light"}
+              onClick={() => setActivePreset("INCOME_DROP_20")}
+            >
+              Income -20%
+            </Button>
+            <Button
+              variant={activePreset === "INFLATION_PLUS_2" ? "filled" : "light"}
+              onClick={() => setActivePreset("INFLATION_PLUS_2")}
+            >
+              Inflation +2%
+            </Button>
+            <Button variant="default" onClick={() => setActivePreset(null)}>
+              Clear
+            </Button>
+          </Group>
+          {activePreset === "INCOME_DROP_20" && (
+            <Select
+              label="Shock month"
+              placeholder="Select month"
+              data={shockMonthOptions}
+              value={shockMonth}
+              onChange={(value) => setShockMonth(value)}
+              allowDeselect={false}
+            />
+          )}
+        </Stack>
+      </Card>
+
+      <Stack gap="md">
+        <Text fw={600}>Preset KPI Delta</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {kpiCard(
+            "Net Worth (End)",
+            presetDeltas
+              ? formatCurrency(
+                  presetDeltas.netWorthDeltaAtHorizon,
+                  scenario.baseCurrency
+                )
+              : "N/A",
+            "Stressed minus baseline"
+          )}
+          {kpiCard(
+            "Cash (End)",
+            presetDeltas?.cashDeltaAtHorizon != null
+              ? formatCurrency(
+                  presetDeltas.cashDeltaAtHorizon,
+                  scenario.baseCurrency
+                )
+              : "N/A",
+            "Stressed minus baseline"
+          )}
+          {kpiCard(
+            "Breakeven Delta",
+            presetDeltas?.breakevenDeltaMonths != null
+              ? `${presetDeltas.breakevenDeltaMonths} months`
+              : "N/A",
+            "Months until stressed meets baseline"
+          )}
+        </SimpleGrid>
+      </Stack>
+
+      <StressCashChart
+        baseline={presetBaselineSeries}
+        stressed={presetStressedSeries}
+      />
 
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
