@@ -110,6 +110,7 @@ export default function ScenariosPage() {
       return;
     }
     setSelectedScenarioId(copy.id);
+    setRenameScenarioTarget(copy);
     showToast(t("scenariosDuplicated"), "teal");
   };
 
