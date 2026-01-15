@@ -17,24 +17,25 @@ import {
   Title,
 } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { signInWithGoogle, signOutUser } from "../../lib/authActions";
-import { isFirebaseConfigured } from "../../lib/firebaseClient";
+import { useLocale, useTranslations } from "next-intl";
+import { signInWithGoogle, signOutUser } from "../../../lib/authActions";
+import { isFirebaseConfigured } from "../../../lib/firebaseClient";
 import {
   downloadCloudStateToLocal,
   fetchCloudSummary,
   requiresSchemaUpgrade,
   uploadLocalStateToCloud,
   type CloudSummary,
-} from "../../lib/sync/firestoreSync";
-import { useAuthState } from "../../src/hooks/useAuthState";
+} from "../../../lib/sync/firestoreSync";
+import { useAuthState } from "../../../src/hooks/useAuthState";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
-} from "../../src/store/scenarioStore";
-import { useSettingsStore } from "../../src/store/settingsStore";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+} from "../../../src/store/scenarioStore";
+import { useSettingsStore } from "../../../src/store/settingsStore";
+import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
+import { Link } from "../../../src/i18n/navigation";
 
 type SettingsClientProps = {
   scenarioId?: string;
@@ -45,17 +46,19 @@ type ToastState = {
   color?: string;
 };
 
-const horizonOptions = [
-  { value: "120", label: "10y" },
-  { value: "240", label: "20y" },
-  { value: "360", label: "30y" },
-];
-
-const baseMonthHelper = "Leave empty to auto-use the earliest event start month.";
-
 const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
 
 export default function SettingsClient({ scenarioId }: SettingsClientProps) {
+  const locale = useLocale();
+  const t = useTranslations("assumptions");
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
+  const horizonOptions = [
+    { value: "120", label: t("horizon10y") },
+    { value: "240", label: t("horizon20y") },
+    { value: "360", label: t("horizon30y") },
+  ];
+  const baseMonthHelper = t("baseMonthHelper");
   const authState = useAuthState();
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
@@ -129,7 +132,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
           setSyncError(
             error instanceof Error
               ? error.message
-              : "Unable to load cloud sync status."
+              : errors("syncStatusLoadFailed")
           );
         }
       }
@@ -187,15 +190,17 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const hasConflict = isSignedIn && cloudHasData && localHasData;
   const autoSyncStatusLabel = isSignedIn
     ? autoSyncEnabled
-      ? "Auto-sync: On"
-      : "Auto-sync: Off"
-    : "Auto-sync: Sign in to enable";
+      ? common("autoSyncOn")
+      : common("autoSyncOff")
+    : common("autoSyncSignIn");
   const autoSyncDetails = isSignedIn && autoSyncEnabled
     ? isOnline
       ? lastAutoSyncAt
-        ? `Last sync: ${new Date(lastAutoSyncAt).toLocaleString()}`
-        : "Last sync: not yet"
-      : "Offline: changes saved locally and will sync when online."
+        ? common("lastSyncAt", {
+            time: new Date(lastAutoSyncAt).toLocaleString(locale),
+          })
+        : common("lastSyncNotYet")
+      : common("offlineSyncNotice")
     : null;
 
   const refreshCloudSummary = async () => {
@@ -214,7 +219,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     }
 
     if (schemaUpgradeRequired) {
-      setSyncError("App update required before syncing.");
+      setSyncError(errors("syncUpgradeRequired"));
       return;
     }
 
@@ -228,13 +233,13 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     try {
       const result = await uploadLocalStateToCloud(authState.user.uid);
       showSyncToast(
-        `Uploaded ${result.scenarioCount} scenarios to cloud.`,
+        common("syncUploadSuccess", { count: result.scenarioCount }),
         "teal"
       );
       await refreshCloudSummary();
     } catch (error) {
       setSyncError(
-        error instanceof Error ? error.message : "Upload failed. Try again."
+        error instanceof Error ? error.message : errors("uploadFailed")
       );
     } finally {
       setSyncingAction(null);
@@ -247,7 +252,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     }
 
     if (schemaUpgradeRequired) {
-      setSyncError("App update required before syncing.");
+      setSyncError(errors("syncUpgradeRequired"));
       return;
     }
 
@@ -261,13 +266,13 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     try {
       const result = await downloadCloudStateToLocal(authState.user.uid);
       showSyncToast(
-        `Replaced local data with ${result.scenarioCount} cloud scenarios.`,
+        common("syncDownloadSuccess", { count: result.scenarioCount }),
         "teal"
       );
       await refreshCloudSummary();
     } catch (error) {
       setSyncError(
-        error instanceof Error ? error.message : "Download failed. Try again."
+        error instanceof Error ? error.message : errors("downloadFailed")
       );
     } finally {
       setSyncingAction(null);
@@ -281,7 +286,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       return;
     }
     updateScenarioAssumptions(scenario.id, patch);
-    showToast("Saved", "teal");
+    showToast(common("saved"), "teal");
   };
 
   if (!scenario) {
@@ -295,20 +300,21 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     ? String(assumptions.horizonMonths)
     : "240";
 
+  const lastSyncedLabel = cloudSummary?.lastSyncedAt
+    ? common("lastSyncedAt", {
+        time: new Date(cloudSummary.lastSyncedAt).toLocaleString(locale),
+      })
+    : common("notSyncedYet");
   const syncStatusLabel = isSignedIn
-    ? `Signed in · ${
-        cloudSummary?.lastSyncedAt
-          ? `Last synced: ${new Date(cloudSummary.lastSyncedAt).toLocaleString()}`
-          : "Not synced yet"
-      }`
-    : "Local mode · Data stored on this device";
+    ? common("signedInStatus", { status: lastSyncedLabel })
+    : common("localModeStatus");
 
   return (
     <Stack gap="xl">
       <Stack gap={4}>
-        <Title order={2}>Settings</Title>
+        <Title order={2}>{common("settingsTitle")}</Title>
         <Text c="dimmed" size="sm">
-          Customize assumptions for {scenario.name}.
+          {common("settingsSubtitle", { name: scenario.name })}
         </Text>
       </Stack>
 
@@ -321,14 +327,13 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       <Card withBorder radius="md" padding="md" id="sync">
         <Stack gap="md">
           <Group justify="space-between" align="center">
-            <Text fw={600}>Sync & Account</Text>
+            <Text fw={600}>{common("syncTitle")}</Text>
             <Text size="xs" c="dimmed">
               {syncStatusLabel}
             </Text>
           </Group>
           <Text size="sm" c="dimmed">
-            Local-first planning keeps your data on this device. Sign in only if
-            you want to back up or sync across devices.
+            {common("syncSubtitle")}
           </Text>
 
           {syncToast && (
@@ -354,14 +359,13 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
 
           {!isFirebaseConfigured && !isSignedIn && (
             <Notification color="yellow">
-              Firebase is not configured yet. Add environment variables to enable
-              sign-in and cloud sync.
+              {common("firebaseNotConfigured")}
             </Notification>
           )}
 
           {schemaUpgradeRequired && (
             <Notification color="yellow">
-              App update required before syncing.
+              {errors("syncUpgradeRequired")}
             </Notification>
           )}
 
@@ -376,16 +380,16 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                     setSyncError(
                       error instanceof Error
                         ? error.message
-                        : "Sign-in failed. Try again."
+                        : errors("signInFailed")
                     );
                   }
                 }}
                 disabled={!isFirebaseConfigured}
               >
-                Sign in to sync
+                {common("signInToSync")}
               </Button>
               <Text size="xs" c="dimmed">
-                You can keep using the app without signing in.
+                {common("signInHint")}
               </Text>
             </Group>
           )}
@@ -393,19 +397,18 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
           <Stack gap="sm">
             {hasConflict && (
               <Notification color="orange">
-                Cloud data already exists. Choose which data to keep before
-                syncing.
+                {common("syncConflictNotice")}
               </Notification>
             )}
             <Stack gap={4}>
               <Switch
-                label="Auto-sync when signed in"
+                label={common("autoSyncLabel")}
                 checked={autoSyncEnabled}
                 disabled={!isSignedIn}
                 onChange={(event) =>
                   setAutoSyncEnabled(event.currentTarget.checked)
                 }
-                description="Uses last-write-wins at the scenario level (newer updatedAt wins; revision breaks ties)."
+                description={common("autoSyncDescription")}
               />
               <Text size="xs" c="dimmed">
                 {autoSyncStatusLabel}
@@ -421,7 +424,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                     loading={syncingAction === "upload"}
                     disabled={schemaUpgradeRequired}
                   >
-                    Upload local data to cloud
+                    {common("uploadLocalToCloud")}
                   </Button>
                   <Button
                     size="sm"
@@ -430,13 +433,15 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                     loading={syncingAction === "download"}
                     disabled={schemaUpgradeRequired}
                   >
-                    Replace local data with cloud data
+                    {common("downloadCloudToLocal")}
                   </Button>
                 </Group>
                 <Divider />
                 <Group justify="space-between" align="center">
                   <Text size="sm" c="dimmed">
-                    Signed in as {authState.user?.email ?? "Google user"}.
+                    {common("signedInAs", {
+                      email: authState.user?.email ?? common("googleUser"),
+                    })}
                   </Text>
                   <Button
                     size="xs"
@@ -446,7 +451,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                       setCloudSummary(null);
                     }}
                   >
-                    Sign out
+                    {common("signOut")}
                   </Button>
                 </Group>
               </>
@@ -458,12 +463,12 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       <Modal
         opened={conflictModalOpen}
         onClose={() => setConflictModalOpen(false)}
-        title="Resolve sync conflict"
+        title={common("resolveSyncTitle")}
         centered
       >
         <Stack>
           <Text size="sm">
-            Both local and cloud data exist. Choose which data source to keep.
+            {common("resolveSyncSubtitle")}
           </Text>
           <Group grow>
             <Button
@@ -472,7 +477,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                 await handleUpload(true);
               }}
             >
-              Use local data
+              {common("useLocalData")}
             </Button>
             <Button
               variant="light"
@@ -481,7 +486,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                 await handleDownload(true);
               }}
             >
-              Use cloud data
+              {common("useCloudData")}
             </Button>
           </Group>
         </Stack>
@@ -489,13 +494,12 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="xs">
-          <Text fw={600}>How it works</Text>
+          <Text fw={600}>{common("assumptionsHowTitle")}</Text>
           <Text size="sm" c="dimmed">
-            Assumptions are global defaults. Events can override them.
+            {common("assumptionsHowLine1")}
           </Text>
           <Text size="sm" c="dimmed">
-            If an event param is empty or undefined, the engine adapter may fall back to
-            assumptions.
+            {common("assumptionsHowLine2")}
           </Text>
         </Stack>
       </Card>
@@ -503,7 +507,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       <Card withBorder radius="md" padding="md">
         <Stack gap="md">
           <Stack gap={6}>
-            <Text fw={600}>Planning horizon</Text>
+            <Text fw={600}>{t("planningHorizon")}</Text>
             <SegmentedControl
               data={horizonOptions}
               value={horizonValue}
@@ -514,7 +518,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
           </Stack>
 
           <NumberInput
-            label="Initial cash"
+            label={t("initialCash")}
             value={assumptions.initialCash}
             min={0}
             step={1000}
@@ -528,8 +532,8 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
 
           <Stack gap={6}>
             <TextInput
-              label="Base month"
-              placeholder="YYYY-MM"
+              label={t("baseMonth")}
+              placeholder={common("yearMonthPlaceholder")}
               value={baseMonthInput}
               onChange={(event) => {
                 const nextValue = event.currentTarget.value;
@@ -553,14 +557,14 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                   handleAssumptionChange({ baseMonth: null });
                 }}
               >
-                Auto
+                {common("actionAuto")}
               </Button>
             </Group>
           </Stack>
 
           <Group grow>
             <NumberInput
-              label="Inflation rate (%)"
+              label={t("inflationRate")}
               value={assumptions.inflationRate ?? ""}
               min={0}
               step={0.1}
@@ -572,7 +576,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
               }
             />
             <NumberInput
-              label="Salary growth (%)"
+              label={t("salaryGrowth")}
               value={assumptions.salaryGrowthRate ?? ""}
               min={0}
               step={0.1}
@@ -587,9 +591,11 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
 
           <Stack gap="xs">
             <Group justify="space-between">
-              <Text fw={600}>Emergency fund target</Text>
+              <Text fw={600}>{t("emergencyFundTarget")}</Text>
               <Text size="sm" c="dimmed">
-                {assumptions.emergencyFundMonths ?? 6} months
+                {t("emergencyFundValue", {
+                  months: assumptions.emergencyFundMonths ?? 6,
+                })}
               </Text>
             </Group>
             <Slider
@@ -607,14 +613,14 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
 
       <Group>
         <Button component={Link} href={buildScenarioUrl("/overview", scenario.id)}>
-          Open Overview
+          {common("openOverview")}
         </Button>
         <Button
           component={Link}
           href={buildScenarioUrl("/timeline", scenario.id)}
           variant="light"
         >
-          Open Timeline
+          {common("openTimeline")}
         </Button>
       </Group>
     </Stack>

@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../../../lib/i18n";
 import type { TimeSeriesPoint } from "../types";
 
@@ -18,8 +19,10 @@ interface CashBalanceChartProps {
 
 export default function CashBalanceChart({
   data,
-  title = "Cash Balance",
+  title,
 }: CashBalanceChartProps) {
+  const t = useTranslations("overview");
+  const locale = useLocale();
   const lowestPoint = data.reduce<TimeSeriesPoint | null>((lowest, point) => {
     if (!lowest || point.value < lowest.value) {
       return point;
@@ -30,7 +33,7 @@ export default function CashBalanceChart({
   return (
     <Card withBorder radius="md" padding="md">
       <Stack gap="sm">
-        <Text fw={600}>{title}</Text>
+        <Text fw={600}>{title ?? t("cashBalanceTitle")}</Text>
         <div style={{ width: "100%", height: 240 }}>
           <ResponsiveContainer>
             <LineChart data={data} margin={{ left: 8, right: 12 }}>
@@ -38,11 +41,13 @@ export default function CashBalanceChart({
               <YAxis
                 tick={{ fontSize: 10 }}
                 width={72}
-                tickFormatter={(value) => formatCurrency(Number(value))}
+                tickFormatter={(value) => formatCurrency(Number(value), undefined, locale)}
               />
               <Tooltip
-                formatter={(value) => formatCurrency(Number(value))}
-                labelFormatter={(label) => `Month ${label}`}
+                formatter={(value) =>
+                  formatCurrency(Number(value), undefined, locale)
+                }
+                labelFormatter={(label) => t("monthLabel", { month: label })}
               />
               <Line
                 type="monotone"
@@ -58,7 +63,7 @@ export default function CashBalanceChart({
                   r={4}
                   fill="#fa5252"
                   stroke="#fa5252"
-                  label={{ value: "Lowest point", position: "top" }}
+                  label={{ value: t("lowestPointLabel"), position: "top" }}
                 />
               )}
             </LineChart>
@@ -66,7 +71,10 @@ export default function CashBalanceChart({
         </div>
         {lowestPoint && (
           <Text size="xs" c="dimmed">
-            Lowest: {formatCurrency(lowestPoint.value)} in {lowestPoint.month}
+            {t("lowestPointSummary", {
+              value: formatCurrency(lowestPoint.value, undefined, locale),
+              month: lowestPoint.month,
+            })}
           </Text>
         )}
       </Stack>

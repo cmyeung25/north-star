@@ -17,9 +17,9 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { computeProjection } from "@north-star/engine";
-import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import CashBalanceChart from "../../features/overview/components/CashBalanceChart";
 import InsightsCard from "../../features/overview/components/InsightsCard";
 import KpiCard from "../../features/overview/components/KpiCard";
@@ -46,36 +46,40 @@ import {
   useScenarioStore,
 } from "../../src/store/scenarioStore";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+import { Link } from "../../src/i18n/navigation";
 
 type OverviewClientProps = {
   scenarioId?: string;
 };
 
-const buildInsights = (kpis: {
+type OverviewKpis = {
   lowestMonthlyBalance: number;
   runwayMonths: number;
   riskLevel: RiskLevel;
-}) => {
+};
+
+const buildInsights = (
+  t: (key: string, values?: Record<string, string | number>) => string,
+  kpis: OverviewKpis
+) => {
   const insights: string[] = [];
 
   if (kpis.lowestMonthlyBalance < 0) {
-    insights.push(
-      "Cash balance dips below zero — consider trimming discretionary spend."
-    );
+    insights.push(t("insightNegativeCash"));
   } else {
-    insights.push("Cash buffer remains positive across the forecast window.");
+    insights.push(t("insightPositiveCash"));
   }
 
   if (kpis.runwayMonths < 12) {
-    insights.push("Runway is under 12 months. Prioritize savings or reduce fixed costs.");
+    insights.push(t("insightRunwayShort"));
   } else if (kpis.runwayMonths < 24) {
-    insights.push("Runway is stable but could be extended with small optimizations.");
+    insights.push(t("insightRunwayStable"));
   } else {
-    insights.push("Runway comfortably exceeds 24 months, supporting growth plans.");
+    insights.push(t("insightRunwayLong"));
   }
 
   if (kpis.riskLevel === "High") {
-    insights.push("High risk exposure detected. Stress-test expenses and income shocks.");
+    insights.push(t("insightHighRisk"));
   }
 
   return insights.slice(0, 3);
@@ -90,6 +94,10 @@ const riskBadgeColor: Record<RiskLevel, string> = {
 export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("overview");
+  const common = useTranslations("common");
+  const exportT = useTranslations("export");
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
@@ -135,8 +143,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       return [];
     }
 
-    return buildInsights(computedKpis);
-  }, [computedKpis]);
+    return buildInsights(t, computedKpis);
+  }, [computedKpis, t]);
 
   if (!selectedScenario) {
     return null;
@@ -147,31 +155,39 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const kpiItems = [
     {
-      label: "Lowest Balance",
-      value: formatCurrency(computedKpis?.lowestMonthlyBalance ?? 0),
-      helper: "Lowest point across forecast",
+      label: t("kpiLowestBalance"),
+      value: formatCurrency(
+        computedKpis?.lowestMonthlyBalance ?? 0,
+        selectedScenario.baseCurrency,
+        locale
+      ),
+      helper: t("kpiLowestBalanceHelper"),
     },
     {
-      label: "Runway",
-      value: `${computedKpis?.runwayMonths ?? 0} months`,
-      helper: "Time until cash runs out",
+      label: t("kpiRunway"),
+      value: t("kpiRunwayValue", { months: computedKpis?.runwayMonths ?? 0 }),
+      helper: t("kpiRunwayHelper"),
     },
     {
-      label: "5Y Net Worth",
-      value: formatCurrency(computedKpis?.netWorthYear5 ?? 0),
-      helper: "Projected net worth",
+      label: t("kpiNetWorth"),
+      value: formatCurrency(
+        computedKpis?.netWorthYear5 ?? 0,
+        selectedScenario.baseCurrency,
+        locale
+      ),
+      helper: t("kpiNetWorthHelper"),
     },
     {
-      label: "Risk Level",
-      value: computedKpis?.riskLevel ?? "Low",
-      badgeLabel: computedKpis?.riskLevel ?? "Low",
+      label: t("kpiRisk"),
+      value: common(`risk${computedKpis?.riskLevel ?? "Low"}`),
+      badgeLabel: common(`risk${computedKpis?.riskLevel ?? "Low"}`),
       badgeColor: riskBadgeColor[computedKpis?.riskLevel ?? "Low"],
     },
   ];
 
   const handleScenarioChange = (nextScenarioId: string) => {
     setActiveScenario(nextScenarioId);
-    router.push(buildScenarioUrl("/overview", nextScenarioId));
+    router.push(`/${locale}${buildScenarioUrl("/overview", nextScenarioId)}`);
   };
 
   const handleExportCsv = () => {
@@ -208,29 +224,29 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <div>
-            <Title order={2}>Overview</Title>
+            <Title order={2}>{t("title")}</Title>
             <Text size="sm" c="dimmed">
-              Snapshot of your plan health and momentum.
+              {t("subtitle")}
             </Text>
           </div>
           <Group gap="sm">
             <Menu position="bottom-end" withArrow>
               <Menu.Target>
                 <Button variant="light" disabled={!projection}>
-                  Export
+                  {exportT("export")}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Item onClick={handleExportCsv} disabled={!projection}>
-                  Export CSV
+                  {exportT("exportCsv")}
                 </Menu.Item>
                 <Menu.Item onClick={handleExportJson} disabled={!projection}>
-                  Export JSON
+                  {exportT("exportJson")}
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
             <Button component={Link} href="/scenarios" variant="subtle">
-              Back to Scenarios
+              {t("backToScenarios")}
             </Button>
           </Group>
         </Group>
@@ -250,7 +266,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               {selectedScenario.name}
             </Badge>
             <Button component={Link} href="/scenarios" variant="subtle" size="xs">
-              Change
+              {common("actionChange")}
             </Button>
           </Group>
         )}
@@ -268,17 +284,17 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
       {isDesktop ? (
         <SimpleGrid cols={2} spacing="md">
-          <CashBalanceChart data={cashSeries} title="Cash Balance" />
+          <CashBalanceChart data={cashSeries} title={t("cashBalanceTitle")} />
           <Stack gap="xs">
-            <NetWorthChart data={netWorthSeries} title="Net Worth" />
+            <NetWorthChart data={netWorthSeries} title={t("netWorthTitle")} />
           </Stack>
         </SimpleGrid>
       ) : (
         <Stack gap="md">
-          <CashBalanceChart data={cashSeries} title="Cash Balance" />
+          <CashBalanceChart data={cashSeries} title={t("cashBalanceTitle")} />
           <Accordion variant="separated" radius="md">
             <Accordion.Item value="net-worth">
-              <Accordion.Control>Net Worth</Accordion.Control>
+              <Accordion.Control>{t("netWorthTitle")}</Accordion.Control>
               <Accordion.Panel>
                 <NetWorthChart data={netWorthSeries} />
               </Accordion.Panel>
@@ -290,13 +306,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       {!hasEnabledEvents && (
         <Card withBorder radius="md" padding="md">
           <Stack gap="sm" align="flex-start">
-            <Text size="sm">Add events in Timeline to see your projection.</Text>
+            <Text size="sm">{t("emptyTimeline")}</Text>
             <Button
               component={Link}
               href={buildScenarioUrl("/timeline", selectedScenario.id)}
               size="xs"
             >
-              Add Events
+              {t("addEventsCta")}
             </Button>
           </Stack>
         </Card>
@@ -324,14 +340,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 component={Link}
                 href={buildScenarioUrl("/timeline", selectedScenario.id)}
               >
-                Open Timeline
+                {t("actionsTimeline")}
               </Button>
               <Button
                 component={Link}
                 href={buildScenarioUrl("/stress", selectedScenario.id)}
                 variant="light"
               >
-                Run Stress Test
+                {t("actionsStress")}
               </Button>
             </Stack>
           </Card>

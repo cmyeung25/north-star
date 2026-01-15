@@ -2,15 +2,11 @@
 // Added data: feesOneTime totals, holdingCostMonthly totals, growth percent summary.
 // Back-compat: shows "Rent not configured" when no rent event exists.
 import { Card, List, Stack, Text, Title } from "@mantine/core";
+import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../../../lib/i18n";
 import type { RentVsOwnComparison } from "../../../src/engine/rentVsOwnComparison";
 
 const formatPct = (value: number) => `${value.toFixed(1)}%`;
-
-const formatDelta = (value: number, currency: string) => {
-  const label = formatCurrency(Math.abs(value), currency);
-  return value >= 0 ? `+${label}` : `-${label}`;
-};
 
 type RentVsOwnCardProps = {
   comparison: RentVsOwnComparison | null;
@@ -18,65 +14,83 @@ type RentVsOwnCardProps = {
 };
 
 export default function RentVsOwnCard({ comparison, currency }: RentVsOwnCardProps) {
+  const t = useTranslations("overview");
+  const assumptionsT = useTranslations("assumptions");
+  const locale = useLocale();
   const assumptions = comparison?.assumptions ?? {
     rentAnnualGrowthPct: null,
     ownFeesOneTime: 0,
     ownHoldingCostMonthly: 0,
     holdingCostAnnualGrowthPct: 0,
   };
+  const formatDelta = (value: number) => {
+    const label = formatCurrency(Math.abs(value), currency, locale);
+    return value >= 0 ? `+${label}` : `-${label}`;
+  };
 
   return (
     <Card withBorder radius="md" padding="md">
       <Stack gap="sm">
-        <Title order={4}>Rent vs Own</Title>
+        <Title order={4}>{t("rentVsOwnTitle")}</Title>
         {!comparison || comparison.status === "rent-missing" ? (
           <Text size="sm" c="dimmed">
-            Rent not configured.
+            {t("rentNotConfigured")}
           </Text>
         ) : comparison.status === "insufficient-data" ? (
           <Text size="sm" c="dimmed">
-            Not enough projection data to compare yet.
+            {t("rentVsOwnInsufficient")}
           </Text>
         ) : (
           <Stack gap="xs">
             <Text size="sm">
-              Net worth delta (end):{" "}
-              {formatDelta(comparison.netWorthDeltaAtHorizon ?? 0, currency)}
+              {t("netWorthDeltaEnd", {
+                value: formatDelta(comparison.netWorthDeltaAtHorizon ?? 0),
+              })}
             </Text>
             {comparison.cashDeltaAtHorizon != null && (
               <Text size="sm">
-                Cash delta (end):{" "}
-                {formatDelta(comparison.cashDeltaAtHorizon, currency)}
+                {t("cashDeltaEnd", { value: formatDelta(comparison.cashDeltaAtHorizon) })}
               </Text>
             )}
             <Text size="sm">
-              Breakeven:{" "}
-              {comparison.breakevenLabel ?? "No breakeven within horizon"}
+              {t("breakevenLabel", {
+                value: comparison.breakevenLabel ?? t("noBreakeven"),
+              })}
             </Text>
           </Stack>
         )}
         <Stack gap={4}>
           <Text size="sm" fw={600}>
-            Assumptions
+            {assumptionsT("title")}
           </Text>
           <List size="sm" spacing="xs">
             <List.Item>
-              Rent escalation:{" "}
-              {assumptions.rentAnnualGrowthPct != null
-                ? formatPct(assumptions.rentAnnualGrowthPct)
-                : "N/A"}
+              {assumptionsT("rentEscalation", {
+                value:
+                  assumptions.rentAnnualGrowthPct != null
+                    ? formatPct(assumptions.rentAnnualGrowthPct)
+                    : assumptionsT("notAvailable"),
+              })}
             </List.Item>
             <List.Item>
-              Own one-time fees:{" "}
-              {formatCurrency(assumptions.ownFeesOneTime, currency)}
+              {assumptionsT("ownFeesOneTime", {
+                value: formatCurrency(assumptions.ownFeesOneTime, currency, locale),
+              })}
             </List.Item>
             <List.Item>
-              Own holding cost:{" "}
-              {formatCurrency(assumptions.ownHoldingCostMonthly, currency)}/mo
+              {assumptionsT("ownHoldingCost", {
+                value: formatCurrency(
+                  assumptions.ownHoldingCostMonthly,
+                  currency,
+                  locale
+                ),
+                suffix: assumptionsT("perMonthSuffix"),
+              })}
             </List.Item>
             <List.Item>
-              Holding cost growth:{" "}
-              {formatPct(assumptions.holdingCostAnnualGrowthPct)}
+              {assumptionsT("holdingCostGrowth", {
+                value: formatPct(assumptions.holdingCostAnnualGrowthPct),
+              })}
             </List.Item>
           </List>
         </Stack>

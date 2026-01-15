@@ -1,37 +1,25 @@
 import { Card, List, Stack, Text, Title } from "@mantine/core";
+import { useTranslations } from "next-intl";
 import type { Kpis } from "../types";
 
 type StressInsightsCardProps = {
   riskLevel: Kpis["riskLevel"];
 };
 
-const insightsMap: Record<Kpis["riskLevel"], string[]> = {
-  Low: [
-    "Cash runway remains resilient under current assumptions.",
-    "Consider setting automated buffers for short-term shocks.",
-  ],
-  Medium: [
-    "Projected cash dips below comfort level in the stress window.",
-    "Review discretionary spend or short-term credit options.",
-  ],
-  High: [
-    "Runway could shorten quickly without immediate interventions.",
-    "Prioritize liquidity planning and consider income buffers.",
-  ],
-};
-
 export default function StressInsightsCard({
   riskLevel,
 }: StressInsightsCardProps) {
+  const t = useTranslations("stress");
+  const insights = t.raw(`insights.${riskLevel.toLowerCase()}`) as string[];
   return (
     <Card withBorder radius="md" shadow="sm" padding="lg">
       <Stack gap="sm">
-        <Title order={5}>Insights</Title>
+        <Title order={5}>{t("insightsTitle")}</Title>
         <Text size="sm" c="dimmed">
-          Suggested next steps based on current stress signals.
+          {t("insightsSubtitle")}
         </Text>
         <List spacing="xs" size="sm">
-          {insightsMap[riskLevel].map((insight) => (
+          {insights.map((insight) => (
             <List.Item key={insight}>{insight}</List.Item>
           ))}
         </List>

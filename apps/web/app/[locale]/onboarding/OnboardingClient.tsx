@@ -15,23 +15,27 @@ import {
 } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { applyOnboardingToScenario } from "../../src/engine/onboardingTransforms";
-import type { OnboardingDraft } from "../../src/onboarding/types";
-import { getActiveScenario, useScenarioStore } from "../../src/store/scenarioStore";
-
-const steps = [
-  "Basics",
-  "Housing",
-  "Income & Expenses",
-  "Annual Budgets",
-  "Investments",
-  "Insurance",
-] as const;
+import { useLocale, useTranslations } from "next-intl";
+import { applyOnboardingToScenario } from "../../../src/engine/onboardingTransforms";
+import type { OnboardingDraft } from "../../../src/onboarding/types";
+import { getActiveScenario, useScenarioStore } from "../../../src/store/scenarioStore";
 
 type DraftErrors = Partial<Record<keyof OnboardingDraft, string>>;
 
 export default function OnboardingClient() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("onboarding");
+  const common = useTranslations("common");
+  const validation = useTranslations("validation");
+  const steps = [
+    t("steps.basics"),
+    t("steps.housing"),
+    t("steps.incomeExpenses"),
+    t("steps.annualBudgets"),
+    t("steps.investments"),
+    t("steps.insurance"),
+  ];
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
@@ -42,7 +46,7 @@ export default function OnboardingClient() {
   );
 
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<OnboardingDraft>({
+  const [draft, setDraft] = useState<OnboardingDraft>(() => ({
     initialCash: 0,
     housingStatus: "rent",
     rentMonthly: 0,
@@ -56,10 +60,10 @@ export default function OnboardingClient() {
     },
     salaryMonthly: 0,
     expenseItems: [{ label: "", monthlyAmount: 0 }],
-    annualBudgetItems: [{ label: "Travel", annualAmount: 0 }],
+    annualBudgetItems: [{ label: t("defaultAnnualBudgetItem"), annualAmount: 0 }],
     investments: [],
     insurances: [],
-  });
+  }));
   const [errors, setErrors] = useState<DraftErrors>({});
 
   const totalMonthlyExpenses = useMemo(
@@ -202,64 +206,64 @@ export default function OnboardingClient() {
 
     if (index === 0) {
       if (draft.initialCash < 0) {
-        nextErrors.initialCash = "Initial cash must be 0 or higher.";
+        nextErrors.initialCash = validation("initialCashMin");
       }
     }
 
     if (index === 1) {
       if (draft.housingStatus === "rent") {
         if (draft.rentMonthly <= 0) {
-          nextErrors.rentMonthly = "Enter a monthly rent amount.";
+          nextErrors.rentMonthly = validation("rentMonthlyRequired");
         }
       } else {
         if (draft.existingHome.marketValue <= 0) {
-          nextErrors.existingHome = "Enter a home market value.";
+          nextErrors.existingHome = validation("existingHomeMarketValue");
         }
         if (draft.existingHome.mortgageBalance < 0) {
-          nextErrors.existingHome = "Mortgage balance must be 0 or higher.";
+          nextErrors.existingHome = validation("mortgageBalanceNonNegative");
         }
         if (draft.existingHome.annualRatePct < 0) {
-          nextErrors.existingHome = "Mortgage rate must be 0 or higher.";
+          nextErrors.existingHome = validation("mortgageRateMin");
         }
         if (draft.existingHome.remainingTermMonths < 1) {
-          nextErrors.existingHome = "Remaining term must be at least 1 month.";
+          nextErrors.existingHome = validation("remainingTermMin");
         }
         if (
           typeof draft.existingHome.holdingCostMonthly === "number" &&
           draft.existingHome.holdingCostMonthly < 0
         ) {
-          nextErrors.existingHome = "Holding costs must be 0 or higher.";
+          nextErrors.existingHome = validation("holdingCostMonthlyMin");
         }
         if (
           typeof draft.existingHome.appreciationPct === "number" &&
           draft.existingHome.appreciationPct < 0
         ) {
-          nextErrors.existingHome = "Appreciation must be 0 or higher.";
+          nextErrors.existingHome = validation("annualAppreciationMin");
         }
       }
     }
 
     if (index === 2) {
       if (draft.salaryMonthly <= 0) {
-        nextErrors.salaryMonthly = "Enter a monthly salary amount.";
+        nextErrors.salaryMonthly = validation("salaryMonthlyRequired");
       }
       if (draft.expenseItems.length === 0) {
-        nextErrors.expenseItems = "Add at least one recurring expense item.";
+        nextErrors.expenseItems = validation("expenseItemsRequired");
       }
       if (draft.expenseItems.some((item) => item.monthlyAmount < 0)) {
-        nextErrors.expenseItems = "Expense amounts must be 0 or higher.";
+        nextErrors.expenseItems = validation("expenseItemsNonNegative");
       }
     }
 
     if (index === 3) {
       if (draft.annualBudgetItems.some((item) => item.annualAmount < 0)) {
-        nextErrors.annualBudgetItems = "Annual budget amounts must be 0 or higher.";
+        nextErrors.annualBudgetItems = validation("annualBudgetNonNegative");
       }
     }
 
     if (index === 4) {
       if (draft.investments.some((item) => item.marketValue < 0)) {
-        nextErrors.investments = "Investment values must be 0 or higher.";
+        nextErrors.investments = validation("investmentValuesNonNegative");
       }
       if (
         draft.investments.some(
@@ -268,7 +272,7 @@ export default function OnboardingClient() {
             item.expectedAnnualReturnPct < 0
         )
       ) {
-        nextErrors.investments = "Investment returns must be 0 or higher.";
+        nextErrors.investments = validation("investmentReturnsNonNegative");
       }
       if (
         draft.investments.some(
@@ -277,20 +281,20 @@ export default function OnboardingClient() {
             item.monthlyContribution < 0
         )
       ) {
-        nextErrors.investments = "Contributions must be 0 or higher.";
+        nextErrors.investments = validation("investmentContributionsNonNegative");
       }
     }
 
     if (index === 5) {
       if (draft.insurances.some((item) => item.premiumAmount < 0)) {
-        nextErrors.insurances = "Premiums must be 0 or higher.";
+        nextErrors.insurances = validation("premiumsNonNegative");
       }
       if (
         draft.insurances.some(
           (item) => typeof item.cashValueAsOf === "number" && item.cashValueAsOf < 0
         )
       ) {
-        nextErrors.insurances = "Cash values must be 0 or higher.";
+        nextErrors.insurances = validation("cashValueNonNegative");
       }
       if (
         draft.insurances.some(
@@ -299,7 +303,7 @@ export default function OnboardingClient() {
             item.cashValueAnnualGrowthPct < 0
         )
       ) {
-        nextErrors.insurances = "Cash value growth must be 0 or higher.";
+        nextErrors.insurances = validation("cashValueGrowthNonNegative");
       }
     }
 
@@ -335,7 +339,7 @@ export default function OnboardingClient() {
 
     const updatedScenario = applyOnboardingToScenario(activeScenario, draft);
     replaceScenario(updatedScenario);
-    router.push("/overview");
+    router.push(`/${locale}/overview`);
   };
 
   if (!activeScenario) {
@@ -345,9 +349,9 @@ export default function OnboardingClient() {
   return (
     <Stack gap="xl">
       <Stack gap={4}>
-        <Title order={2}>Welcome to North Star</Title>
+        <Title order={2}>{t("title")}</Title>
         <Text size="sm" c="dimmed">
-          Answer a few questions to set up your baseline plan.
+          {t("subtitle")}
         </Text>
       </Stack>
 
@@ -355,7 +359,7 @@ export default function OnboardingClient() {
         <Stack gap="lg">
           <Stack gap={4}>
             <Text size="xs" c="dimmed">
-              Step {step + 1} of {steps.length}
+              {t("stepLabel", { step: step + 1, total: steps.length })}
             </Text>
             <Title order={4}>{steps[step]}</Title>
           </Stack>
@@ -363,7 +367,7 @@ export default function OnboardingClient() {
           {step === 0 && (
             <Stack gap="md">
               <NumberInput
-                label="Initial cash"
+                label={t("initialCash")}
                 value={draft.initialCash}
                 error={errors.initialCash}
                 onChange={(value) => updateDraft("initialCash", Number(value ?? 0))}
@@ -371,7 +375,7 @@ export default function OnboardingClient() {
                 min={0}
               />
               <Text size="sm" c="dimmed">
-                We’ll use this as your starting cash balance.
+                {t("initialCashHint")}
               </Text>
             </Stack>
           )}
@@ -384,13 +388,13 @@ export default function OnboardingClient() {
                   updateDraft("housingStatus", value as OnboardingDraft["housingStatus"])
                 }
                 data={[
-                  { label: "Renting", value: "rent" },
-                  { label: "Own existing home", value: "own_existing" },
+                  { label: t("housingRenting"), value: "rent" },
+                  { label: t("housingOwnExisting"), value: "own_existing" },
                 ]}
               />
               {draft.housingStatus === "rent" ? (
                 <NumberInput
-                  label="Monthly rent"
+                  label={t("monthlyRent")}
                   value={draft.rentMonthly}
                   error={errors.rentMonthly}
                   onChange={(value) => updateDraft("rentMonthly", Number(value ?? 0))}
@@ -400,7 +404,7 @@ export default function OnboardingClient() {
               ) : (
                 <Stack gap="sm">
                   <NumberInput
-                    label="Current market value"
+                    label={t("currentMarketValue")}
                     value={draft.existingHome.marketValue}
                     error={errors.existingHome}
                     onChange={(value) =>
@@ -414,7 +418,7 @@ export default function OnboardingClient() {
                   />
                   <Group grow>
                     <NumberInput
-                      label="Mortgage balance"
+                      label={t("mortgageBalance")}
                       value={draft.existingHome.mortgageBalance}
                       onChange={(value) =>
                         updateDraft("existingHome", {
@@ -426,7 +430,7 @@ export default function OnboardingClient() {
                       min={0}
                     />
                     <NumberInput
-                      label="Annual rate (%)"
+                      label={t("annualRate")}
                       value={draft.existingHome.annualRatePct}
                       onChange={(value) =>
                         updateDraft("existingHome", {
@@ -439,7 +443,7 @@ export default function OnboardingClient() {
                   </Group>
                   <Group grow>
                     <NumberInput
-                      label="Remaining term (months)"
+                      label={t("remainingTerm")}
                       value={draft.existingHome.remainingTermMonths}
                       onChange={(value) =>
                         updateDraft("existingHome", {
@@ -450,7 +454,7 @@ export default function OnboardingClient() {
                       min={1}
                     />
                     <NumberInput
-                      label="Monthly holding cost (optional)"
+                      label={t("holdingCostMonthlyOptional")}
                       value={draft.existingHome.holdingCostMonthly ?? 0}
                       onChange={(value) =>
                         updateDraft("existingHome", {
@@ -463,7 +467,7 @@ export default function OnboardingClient() {
                     />
                   </Group>
                   <NumberInput
-                    label="Annual appreciation (%) (optional)"
+                    label={t("annualAppreciationOptional")}
                     value={draft.existingHome.appreciationPct ?? 0}
                     onChange={(value) =>
                       updateDraft("existingHome", {
@@ -481,7 +485,7 @@ export default function OnboardingClient() {
           {step === 2 && (
             <Stack gap="md">
               <NumberInput
-                label="Monthly salary"
+                label={t("monthlySalary")}
                 value={draft.salaryMonthly}
                 error={errors.salaryMonthly}
                 onChange={(value) =>
@@ -494,8 +498,8 @@ export default function OnboardingClient() {
                 {draft.expenseItems.map((item, index) => (
                   <Group key={`expense-item-${index}`} align="flex-end" wrap="nowrap">
                     <TextInput
-                      label={index === 0 ? "Expense item" : undefined}
-                      placeholder="Groceries, childcare, etc."
+                      label={index === 0 ? t("expenseItemLabel") : undefined}
+                      placeholder={t("expenseItemPlaceholder")}
                       value={item.label}
                       onChange={(event) =>
                         updateExpenseItem(index, { label: event.currentTarget.value })
@@ -503,7 +507,7 @@ export default function OnboardingClient() {
                       style={{ flex: 2 }}
                     />
                     <NumberInput
-                      label={index === 0 ? "Monthly amount" : undefined}
+                      label={index === 0 ? t("expenseMonthlyAmount") : undefined}
                       value={item.monthlyAmount}
                       onChange={(value) =>
                         updateExpenseItem(index, {
@@ -519,7 +523,7 @@ export default function OnboardingClient() {
                       color="red"
                       onClick={() => removeExpenseItem(index)}
                     >
-                      Remove
+                      {common("actionRemove")}
                     </Button>
                   </Group>
                 ))}
@@ -530,10 +534,12 @@ export default function OnboardingClient() {
                 )}
                 <Group justify="space-between">
                   <Button variant="light" onClick={addExpenseItem}>
-                    Add expense item
+                    {t("addExpenseItem")}
                   </Button>
                   <Text size="sm" c="dimmed">
-                    Total monthly expenses: {totalMonthlyExpenses.toLocaleString()}
+                    {t("totalMonthlyExpenses", {
+                      value: totalMonthlyExpenses.toLocaleString(locale),
+                    })}
                   </Text>
                 </Group>
               </Stack>
@@ -550,8 +556,8 @@ export default function OnboardingClient() {
                     wrap="nowrap"
                   >
                     <TextInput
-                      label={index === 0 ? "Annual budget item" : undefined}
-                      placeholder="Travel, education, etc."
+                      label={index === 0 ? t("annualBudgetLabel") : undefined}
+                      placeholder={t("annualBudgetPlaceholder")}
                       value={item.label}
                       onChange={(event) =>
                         updateAnnualBudgetItem(index, {
@@ -561,7 +567,7 @@ export default function OnboardingClient() {
                       style={{ flex: 2 }}
                     />
                     <NumberInput
-                      label={index === 0 ? "Annual amount" : undefined}
+                      label={index === 0 ? t("annualAmount") : undefined}
                       value={item.annualAmount}
                       onChange={(value) =>
                         updateAnnualBudgetItem(index, {
@@ -577,7 +583,7 @@ export default function OnboardingClient() {
                       color="red"
                       onClick={() => removeAnnualBudgetItem(index)}
                     >
-                      Remove
+                      {common("actionRemove")}
                     </Button>
                   </Group>
                 ))}
@@ -588,11 +594,13 @@ export default function OnboardingClient() {
                 )}
                 <Group justify="space-between">
                   <Button variant="light" onClick={addAnnualBudgetItem}>
-                    Add annual budget item
+                    {t("addAnnualBudgetItem")}
                   </Button>
                   <Text size="sm" c="dimmed">
-                    Total annual budget: {totalAnnualBudget.toLocaleString()} (
-                    {(totalAnnualBudget / 12).toLocaleString()}/mo)
+                    {t("totalAnnualBudget", {
+                      annual: totalAnnualBudget.toLocaleString(locale),
+                      monthly: (totalAnnualBudget / 12).toLocaleString(locale),
+                    })}
                   </Text>
                 </Group>
               </Stack>
@@ -606,12 +614,12 @@ export default function OnboardingClient() {
                   <Stack key={`investment-${index}`} gap="xs">
                     <Group align="flex-end" wrap="nowrap">
                       <Select
-                        label={index === 0 ? "Asset class" : undefined}
+                        label={index === 0 ? t("assetClass") : undefined}
                         data={[
-                          { value: "equity", label: "Equity" },
-                          { value: "bond", label: "Bond" },
-                          { value: "fund", label: "Fund" },
-                          { value: "crypto", label: "Crypto" },
+                          { value: "equity", label: t("assetClassEquity") },
+                          { value: "bond", label: t("assetClassBond") },
+                          { value: "fund", label: t("assetClassFund") },
+                          { value: "crypto", label: t("assetClassCrypto") },
                         ]}
                         value={item.assetClass}
                         onChange={(value) =>
@@ -624,7 +632,7 @@ export default function OnboardingClient() {
                         style={{ flex: 1 }}
                       />
                       <NumberInput
-                        label={index === 0 ? "Market value" : undefined}
+                        label={index === 0 ? t("marketValue") : undefined}
                         value={item.marketValue}
                         onChange={(value) =>
                           updateInvestment(index, {
@@ -636,7 +644,7 @@ export default function OnboardingClient() {
                         style={{ flex: 1 }}
                       />
                       <NumberInput
-                        label={index === 0 ? "Expected return (%)" : undefined}
+                        label={index === 0 ? t("expectedReturn") : undefined}
                         value={item.expectedAnnualReturnPct ?? undefined}
                         onChange={(value) =>
                           updateInvestment(index, {
@@ -648,7 +656,7 @@ export default function OnboardingClient() {
                         style={{ flex: 1 }}
                       />
                       <NumberInput
-                        label={index === 0 ? "Monthly contribution" : undefined}
+                        label={index === 0 ? t("monthlyContribution") : undefined}
                         value={item.monthlyContribution ?? undefined}
                         onChange={(value) =>
                           updateInvestment(index, {
@@ -665,7 +673,7 @@ export default function OnboardingClient() {
                         color="red"
                         onClick={() => removeInvestment(index)}
                       >
-                        Remove
+                        {common("actionRemove")}
                       </Button>
                     </Group>
                   </Stack>
@@ -676,7 +684,7 @@ export default function OnboardingClient() {
                   </Text>
                 )}
                 <Button variant="light" onClick={addInvestment}>
-                  Add investment
+                  {t("addInvestment")}
                 </Button>
               </Stack>
             </Stack>
@@ -689,12 +697,12 @@ export default function OnboardingClient() {
                   <Stack key={`insurance-${index}`} gap="xs">
                     <Group align="flex-end" wrap="nowrap">
                       <Select
-                        label={index === 0 ? "Insurance type" : undefined}
+                        label={index === 0 ? t("insuranceType") : undefined}
                         data={[
-                          { value: "life", label: "Life" },
-                          { value: "savings", label: "Savings" },
-                          { value: "accident", label: "Accident" },
-                          { value: "medical", label: "Medical" },
+                          { value: "life", label: t("insuranceLife") },
+                          { value: "savings", label: t("insuranceSavings") },
+                          { value: "accident", label: t("insuranceAccident") },
+                          { value: "medical", label: t("insuranceMedical") },
                         ]}
                         value={item.insuranceType}
                         onChange={(value) =>
@@ -715,12 +723,12 @@ export default function OnboardingClient() {
                           })
                         }
                         data={[
-                          { value: "monthly", label: "Monthly" },
-                          { value: "annual", label: "Annual" },
+                          { value: "monthly", label: t("premiumMonthly") },
+                          { value: "annual", label: t("premiumAnnual") },
                         ]}
                       />
                       <NumberInput
-                        label={index === 0 ? "Premium amount" : undefined}
+                        label={index === 0 ? t("premiumAmount") : undefined}
                         value={item.premiumAmount}
                         onChange={(value) =>
                           updateInsurance(index, {
@@ -736,12 +744,12 @@ export default function OnboardingClient() {
                         color="red"
                         onClick={() => removeInsurance(index)}
                       >
-                        Remove
+                        {common("actionRemove")}
                       </Button>
                     </Group>
                     <Group align="flex-end" wrap="nowrap">
                       <Switch
-                        label="Has cash value"
+                        label={t("hasCashValue")}
                         checked={item.hasCashValue ?? false}
                         onChange={(event) =>
                           updateInsurance(index, {
@@ -752,7 +760,7 @@ export default function OnboardingClient() {
                       {item.hasCashValue && (
                         <>
                           <NumberInput
-                            label="Cash value as of today"
+                            label={t("cashValueAsOf")}
                             value={item.cashValueAsOf ?? 0}
                             onChange={(value) =>
                               updateInsurance(index, {
@@ -765,7 +773,7 @@ export default function OnboardingClient() {
                             style={{ flex: 1 }}
                           />
                           <NumberInput
-                            label="Cash value growth (%)"
+                            label={t("cashValueGrowth")}
                             value={item.cashValueAnnualGrowthPct ?? 0}
                             onChange={(value) =>
                               updateInsurance(index, {
@@ -779,7 +787,7 @@ export default function OnboardingClient() {
                         </>
                       )}
                       <TextInput
-                        label="Coverage notes (optional)"
+                        label={t("coverageNotes")}
                         value={(item.coverageMeta?.notes as string) ?? ""}
                         onChange={(event) =>
                           updateInsurance(index, {
@@ -800,7 +808,7 @@ export default function OnboardingClient() {
                   </Text>
                 )}
                 <Button variant="light" onClick={addInsurance}>
-                  Add insurance policy
+                  {t("addInsurance")}
                 </Button>
               </Stack>
             </Stack>
@@ -808,12 +816,12 @@ export default function OnboardingClient() {
 
           <Group justify="space-between">
             <Button variant="subtle" onClick={handleBack} disabled={step === 0}>
-              Back
+              {common("actionBack")}
             </Button>
             {step < steps.length - 1 ? (
-              <Button onClick={handleNext}>Continue</Button>
+              <Button onClick={handleNext}>{common("actionContinue")}</Button>
             ) : (
-              <Button onClick={handleSubmit}>Finish setup</Button>
+              <Button onClick={handleSubmit}>{t("finishSetup")}</Button>
             )}
           </Group>
         </Stack>

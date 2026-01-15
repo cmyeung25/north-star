@@ -1,4 +1,5 @@
 import { Button, Group, Paper } from "@mantine/core";
+import { useTranslations } from "next-intl";
 
 type StickyActionBarProps = {
   onSave: () => void;
@@ -9,6 +10,8 @@ export default function StickyActionBar({
   onSave,
   onRevert,
 }: StickyActionBarProps) {
+  const t = useTranslations("stress");
+  const common = useTranslations("common");
   return (
     <Paper
       withBorder
@@ -19,10 +22,10 @@ export default function StickyActionBar({
     >
       <Group grow>
         <Button size="md" onClick={onSave}>
-          Save as Scenario
+          {t("saveScenario")}
         </Button>
         <Button size="md" variant="light" onClick={onRevert}>
-          Revert
+          {common("actionRevert")}
         </Button>
       </Group>
     </Paper>

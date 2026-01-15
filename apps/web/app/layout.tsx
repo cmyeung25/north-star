@@ -1,36 +1,33 @@
 import "@mantine/core/styles.css";
 import "./globals.css";
-import type { Metadata } from "next";
-import { ColorSchemeScript } from "@mantine/core";
-import Providers from "./providers";
 import type { ReactNode } from "react";
-import { t } from "../lib/i18n";
+import { ColorSchemeScript } from "@mantine/core";
+import { cookies, headers } from "next/headers";
+import { defaultLocale, locales, type Locale } from "../src/i18n/routing";
 
-export const metadata: Metadata = {
-  title: t("appName"),
-  description: t("appDescription"),
-  manifest: "/manifest.json",
-  applicationName: t("appName"),
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: t("appName"),
-  },
+const resolveLocale = (): Locale => {
+  const localeFromHeader = headers().get("x-next-intl-locale");
+  if (localeFromHeader && locales.includes(localeFromHeader as Locale)) {
+    return localeFromHeader as Locale;
+  }
+
+  const localeFromCookie = cookies().get("NEXT_LOCALE")?.value;
+  if (localeFromCookie && locales.includes(localeFromCookie as Locale)) {
+    return localeFromCookie as Locale;
+  }
+
+  return defaultLocale;
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
+  const locale = resolveLocale();
+
   return (
-    <html lang="zh-HK">
+    <html lang={locale}>
       <head>
         <ColorSchemeScript defaultColorScheme="light" />
       </head>
-      <body>
-        <Providers>{children}</Providers>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

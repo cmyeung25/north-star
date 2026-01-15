@@ -7,45 +7,45 @@ import type { HomePosition } from "./scenarioStore";
 const monthPattern = /^\d{4}-\d{2}$/;
 
 const existingSchema = z.object({
-  asOfMonth: z.string().regex(monthPattern, "Use YYYY-MM (e.g. 2025-01)."),
+  asOfMonth: z.string().regex(monthPattern, "validation.useYearMonth"),
   marketValue: z
-    .number({ required_error: "Market value is required." })
-    .positive("Market value must be greater than 0."),
+    .number({ required_error: "validation.marketValueRequired" })
+    .positive("validation.marketValuePositive"),
   mortgageBalance: z
-    .number({ required_error: "Mortgage balance is required." })
-    .min(0, "Mortgage balance must be 0 or higher."),
+    .number({ required_error: "validation.mortgageBalanceRequired" })
+    .min(0, "validation.mortgageBalanceNonNegative"),
   remainingTermMonths: z
-    .number({ required_error: "Remaining term is required." })
-    .min(1, "Remaining term must be at least 1 month.")
-    .max(600, "Remaining term must be 600 months or less."),
+    .number({ required_error: "validation.remainingTermRequired" })
+    .min(1, "validation.remainingTermMin")
+    .max(600, "validation.remainingTermMax"),
   annualRatePct: z
-    .number({ required_error: "Mortgage rate is required." })
-    .min(0, "Mortgage rate must be 0 or higher.")
-    .max(100, "Mortgage rate must be 100 or lower."),
+    .number({ required_error: "validation.mortgageRateRequired" })
+    .min(0, "validation.mortgageRateMin")
+    .max(100, "validation.mortgageRateMax"),
 });
 
 const rentalSchema = z
   .object({
     rentMonthly: z
-      .number({ required_error: "Monthly rent is required." })
-      .min(0, "Monthly rent must be 0 or higher."),
+      .number({ required_error: "validation.rentMonthlyRequired" })
+      .min(0, "validation.rentMonthlyMin"),
     rentStartMonth: z
       .string()
-      .regex(monthPattern, "Use YYYY-MM (e.g. 2025-01)."),
+      .regex(monthPattern, "validation.useYearMonth"),
     rentEndMonth: z
       .string()
-      .regex(monthPattern, "Use YYYY-MM (e.g. 2025-01).")
+      .regex(monthPattern, "validation.useYearMonth")
       .optional()
       .nullable(),
     rentAnnualGrowthPct: z
       .number()
-      .min(0, "Rent growth must be 0 or higher.")
-      .max(100, "Rent growth must be 100 or lower.")
+      .min(0, "validation.rentGrowthMin")
+      .max(100, "validation.rentGrowthMax")
       .optional(),
     vacancyRatePct: z
       .number()
-      .min(0, "Vacancy rate must be 0 or higher.")
-      .max(100, "Vacancy rate must be 100 or lower.")
+      .min(0, "validation.vacancyRateMin")
+      .max(100, "validation.vacancyRateMax")
       .optional(),
   })
   .optional();
@@ -54,38 +54,41 @@ export const HomePositionSchema = z
   .object({
     usage: z.enum(["primary", "investment"]).optional(),
     mode: z.enum(["new_purchase", "existing"]).optional(),
-    purchasePrice: z.number().positive("Purchase price must be greater than 0.").optional(),
-    downPayment: z.number().min(0, "Down payment must be 0 or higher.").optional(),
+    purchasePrice: z
+      .number()
+      .positive("validation.purchasePricePositive")
+      .optional(),
+    downPayment: z.number().min(0, "validation.downPaymentMin").optional(),
     purchaseMonth: z
       .string()
-      .regex(monthPattern, "Use YYYY-MM (e.g. 2025-01).")
+      .regex(monthPattern, "validation.useYearMonth")
       .optional(),
     annualAppreciationPct: z
-      .number({ required_error: "Annual appreciation is required." })
-      .min(0, "Annual appreciation must be 0 or higher.")
-      .max(100, "Annual appreciation must be 100 or lower."),
+      .number({ required_error: "validation.annualAppreciationRequired" })
+      .min(0, "validation.annualAppreciationMin")
+      .max(100, "validation.annualAppreciationMax"),
     mortgageRatePct: z
       .number()
-      .min(0, "Mortgage rate must be 0 or higher.")
-      .max(100, "Mortgage rate must be 100 or lower.")
+      .min(0, "validation.mortgageRateMin")
+      .max(100, "validation.mortgageRateMax")
       .optional(),
     mortgageTermYears: z
       .number()
-      .min(1, "Mortgage term must be at least 1 year.")
-      .max(50, "Mortgage term must be 50 years or less.")
+      .min(1, "validation.mortgageTermMin")
+      .max(50, "validation.mortgageTermMax")
       .optional(),
     feesOneTime: z
       .number()
-      .min(0, "One-time fees must be 0 or higher.")
+      .min(0, "validation.feesOneTimeMin")
       .optional(),
     holdingCostMonthly: z
       .number()
-      .min(0, "Monthly holding cost must be 0 or higher.")
+      .min(0, "validation.holdingCostMonthlyMin")
       .optional(),
     holdingCostAnnualGrowthPct: z
       .number()
-      .min(0, "Holding cost growth must be 0 or higher.")
-      .max(100, "Holding cost growth must be 100 or lower.")
+      .min(0, "validation.holdingCostGrowthMin")
+      .max(100, "validation.holdingCostGrowthMax")
       .optional(),
     existing: existingSchema.optional(),
     rental: rentalSchema,
@@ -96,7 +99,7 @@ export const HomePositionSchema = z
       if (!data.existing) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Existing home details are required.",
+          message: "validation.existingHomeRequired",
           path: ["existing"],
         });
       }
@@ -106,35 +109,35 @@ export const HomePositionSchema = z
     if (typeof data.purchasePrice !== "number") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Purchase price is required.",
+        message: "validation.purchasePriceRequired",
         path: ["purchasePrice"],
       });
     }
     if (typeof data.downPayment !== "number") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Down payment is required.",
+        message: "validation.downPaymentRequired",
         path: ["downPayment"],
       });
     }
     if (!data.purchaseMonth) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Purchase month is required.",
+        message: "validation.purchaseMonthRequired",
         path: ["purchaseMonth"],
       });
     }
     if (typeof data.mortgageRatePct !== "number") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Mortgage rate is required.",
+        message: "validation.mortgageRateRequired",
         path: ["mortgageRatePct"],
       });
     }
     if (typeof data.mortgageTermYears !== "number") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Mortgage term is required.",
+        message: "validation.mortgageTermRequired",
         path: ["mortgageTermYears"],
       });
     }
@@ -146,19 +149,22 @@ export const HomePositionSchema = z
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Down payment must not exceed purchase price.",
+        message: "validation.downPaymentExceedsPrice",
         path: ["downPayment"],
       });
     }
   });
 
-export const getHomePositionErrors = (error: z.ZodError<HomePosition>) => {
+export const getHomePositionErrors = (
+  error: z.ZodError<HomePosition>,
+  translate?: (key: string) => string
+) => {
   const result: Partial<Record<string, string>> = {};
 
   for (const issue of error.issues) {
     const field = issue.path.join(".");
     if (field && !result[field]) {
-      result[field] = issue.message;
+      result[field] = translate ? translate(issue.message) : issue.message;
     }
   }
 

@@ -14,10 +14,9 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { getEventGroup, getEventMeta, type EventGroup } from "@north-star/engine";
-import { t } from "../../lib/i18n";
+import { useLocale, useTranslations } from "next-intl";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm from "./TimelineEventForm";
 import HomeDetailsForm from "./HomeDetailsForm";
@@ -26,7 +25,7 @@ import type { TimelineEvent } from "./types";
 import {
   createEventId,
   createHomePositionFromTemplate,
-  eventFilterOptions,
+  getEventFilterOptions,
   getEventGroupLabel,
   getEventImpactHint,
   getEventLabel,
@@ -36,6 +35,7 @@ import {
   iconMap,
 } from "./utils";
 import type { HomePositionDraft } from "../../src/store/scenarioStore";
+import { Link } from "../../src/i18n/navigation";
 
 const floatingButtonStyle = {
   position: "fixed" as const,
@@ -67,6 +67,10 @@ export default function TimelineMobile({
   onHomePositionUpdate,
   onHomePositionRemove,
 }: TimelineMobileProps) {
+  const t = useTranslations("timeline");
+  const common = useTranslations("common");
+  const homes = useTranslations("homes");
+  const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
@@ -103,7 +107,7 @@ export default function TimelineMobile({
     const copy = {
       ...event,
       id: createEventId(),
-      name: t("timelineCopyName", { name: event.name }),
+      name: t("copyName", { name: event.name }),
     };
     onEventsChange([copy, ...events]);
   };
@@ -120,20 +124,20 @@ export default function TimelineMobile({
     <Stack gap="lg" pb={120}>
       <Group justify="space-between">
         <div>
-          <Title order={2}>{t("timelineTitle")}</Title>
+          <Title order={2}>{t("title")}</Title>
           <Text c="dimmed" size="sm">
-            {t("timelineSubtitleMobile")}
+            {t("subtitleMobile")}
           </Text>
           {process.env.NODE_ENV === "development" && (
             <Text c="dimmed" size="xs">
-              Changes affect projections in Overview immediately.
+              {t("devHint")}
             </Text>
           )}
         </div>
       </Group>
 
       <SegmentedControl
-        data={eventFilterOptions}
+        data={getEventFilterOptions(t)}
         value={activeGroup}
         onChange={(value) => setActiveGroup(value as "all" | EventGroup)}
       />
@@ -142,10 +146,10 @@ export default function TimelineMobile({
         <Notification color="teal" onClose={() => setHomeToastOpen(false)}>
           <Stack gap="xs">
             <Text size="sm">
-              Home position added. Check Overview for net worth impact.
+              {t("homeToast")}
             </Text>
             <Button component={Link} href={overviewUrl} size="xs" variant="light">
-              Open Overview
+              {t("goToOverview")}
             </Button>
           </Stack>
         </Notification>
@@ -153,7 +157,7 @@ export default function TimelineMobile({
 
       <Stack gap="sm">
         <Group justify="space-between" align="center">
-          <Text fw={600}>{t("homeDetailsTitle")}</Text>
+          <Text fw={600}>{homes("title")}</Text>
           <Button
             size="xs"
             variant="light"
@@ -162,12 +166,12 @@ export default function TimelineMobile({
               setHomeToastOpen(true);
             }}
           >
-            {t("homeDetailsAddHome")}
+            {homes("addHome")}
           </Button>
         </Group>
         {homePositions.length === 0 ? (
           <Text c="dimmed" size="sm">
-            {t("homeDetailsEmpty")}
+            {homes("empty")}
           </Text>
         ) : (
           homePositions.map((home, index) => (
@@ -175,13 +179,15 @@ export default function TimelineMobile({
               <Stack gap="sm">
                 <div>
                   <Text fw={600}>
-                    {t("homeDetailsHomeLabel", { index: index + 1 })}
+                    {homes("homeLabel", { index: index + 1 })}
                   </Text>
-                  <Text size="sm">{formatHomeSummary(home, baseCurrency)}</Text>
+                  <Text size="sm">
+                    {formatHomeSummary(homes, home, baseCurrency, locale)}
+                  </Text>
                   <Text size="xs" c="dimmed">
                     {(home.mode ?? "new_purchase") === "existing"
-                      ? `${t("homeDetailsExistingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
-                      : `${t("homeDetailsPurchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
+                      ? `${homes("existingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
+                      : `${homes("purchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
                   </Text>
                 </div>
                 <Group gap="sm">
@@ -190,7 +196,7 @@ export default function TimelineMobile({
                     variant="light"
                     onClick={() => setEditingHomeId(home.id)}
                   >
-                    {t("timelineEdit")}
+                    {common("actionEdit")}
                   </Button>
                   <Button
                     size="xs"
@@ -199,7 +205,7 @@ export default function TimelineMobile({
                     onClick={() => onHomePositionRemove(home.id)}
                     disabled={homePositions.length <= 1}
                   >
-                    {t("homeDetailsRemoveHome")}
+                    {homes("removeHome")}
                   </Button>
                 </Group>
               </Stack>
@@ -210,11 +216,11 @@ export default function TimelineMobile({
 
       {sortedEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
-          Add your first event to start shaping the plan.
+          {t("emptyAll")}
         </Text>
       ) : filteredEvents.length === 0 ? (
         <Text c="dimmed" size="sm">
-          No events in this group yet.
+          {t("emptyGroup")}
         </Text>
       ) : (
         <Stack gap="md">
@@ -226,17 +232,17 @@ export default function TimelineMobile({
                     <Text size="xl">{iconMap[event.type]}</Text>
                     <div>
                       <Badge variant="light" color="gray" size="sm">
-                        {getEventGroupLabel(event.type)}
+                        {getEventGroupLabel(t, event.type)}
                       </Badge>
                       <Text fw={600}>{event.name}</Text>
                       <Text size="xs" c="dimmed">
-                        {getEventLabel(event.type)}
+                        {getEventLabel(t, event.type)}
                       </Text>
                       <Text size="sm" c="dimmed">
-                        {formatDateRange(event.startMonth, event.endMonth ?? null)}
+                        {formatDateRange(t, event.startMonth, event.endMonth ?? null)}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {getEventImpactHint(event.type)}
+                        {getEventImpactHint(t, event.type)}
                       </Text>
                     </div>
                   </Group>
@@ -245,35 +251,36 @@ export default function TimelineMobile({
                     onChange={(eventChange) =>
                       handleToggle(event.id, eventChange.currentTarget.checked)
                     }
+                    label={t("tableEnabled")}
                   />
                 </Group>
 
                 <Group gap="xs">
                   {event.monthlyAmount !== 0 && (
                     <Badge variant="light" color="indigo">
-                      {t("timelineMonthlyLabel")} {" "}
-                      {formatCurrency(event.monthlyAmount, event.currency)}
+                      {t("monthlyLabel")}{" "}
+                      {formatCurrency(event.monthlyAmount, event.currency, locale)}
                     </Badge>
                   )}
                   {event.oneTimeAmount !== 0 && (
                     <Badge variant="light" color="grape">
-                      {t("timelineOneTimeLabel")} {" "}
-                      {formatCurrency(event.oneTimeAmount, event.currency)}
+                      {t("oneTimeLabel")}{" "}
+                      {formatCurrency(event.oneTimeAmount, event.currency, locale)}
                     </Badge>
                   )}
                   {event.monthlyAmount === 0 && event.oneTimeAmount === 0 && (
-                      <Badge variant="outline">{t("timelineNoAmounts")}</Badge>
-                    )}
+                    <Badge variant="outline">{t("noAmounts")}</Badge>
+                  )}
                 </Group>
 
                 <Group justify="space-between">
                   <Button size="xs" onClick={() => setEditingEvent(event)}>
-                    {t("timelineEdit")}
+                    {common("actionEdit")}
                   </Button>
                   <Group gap="xs">
                     <ActionIcon
                       variant="subtle"
-                      aria-label={t("timelineDuplicateAria", { name: event.name })}
+                      aria-label={t("duplicateAria", { name: event.name })}
                       onClick={() => handleDuplicate(event)}
                     >
                       ⧉
@@ -281,7 +288,7 @@ export default function TimelineMobile({
                     <ActionIcon
                       variant="subtle"
                       color="red"
-                      aria-label={t("timelineDeleteAria", { name: event.name })}
+                      aria-label={t("deleteAria", { name: event.name })}
                       onClick={() => handleDelete(event.id)}
                     >
                       🗑️
@@ -295,7 +302,7 @@ export default function TimelineMobile({
       )}
 
       <Button style={floatingButtonStyle} onClick={() => setAddEventOpen(true)}>
-        {t("timelineAddEvent")}
+        {t("addEvent")}
       </Button>
 
       <TimelineAddEventDrawer
@@ -315,10 +322,10 @@ export default function TimelineMobile({
         onClose={() => setEditingEvent(null)}
         title={
           editingEvent
-            ? t("timelineEditTitle", {
-                type: getEventLabel(editingEvent.type),
+            ? t("editTitle", {
+                type: getEventLabel(t, editingEvent.type),
               })
-            : t("timelineEdit")
+            : common("actionEdit")
         }
         fullScreen
       >
@@ -328,14 +335,14 @@ export default function TimelineMobile({
           fields={editingEvent ? getEventMeta(editingEvent.type).fields : undefined}
           onCancel={() => setEditingEvent(null)}
           onSave={handleSave}
-          submitLabel={t("timelineSaveChanges")}
+          submitLabel={common("actionSaveChanges")}
         />
       </Modal>
 
       <Modal
         opened={Boolean(editingHome)}
         onClose={() => setEditingHomeId(null)}
-        title={t("homeDetailsTitle")}
+        title={homes("title")}
         fullScreen
       >
         {editingHome && (

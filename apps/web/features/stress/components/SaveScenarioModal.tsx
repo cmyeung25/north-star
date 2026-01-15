@@ -7,6 +7,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 type SaveScenarioModalProps = {
   opened: boolean;
@@ -21,6 +22,8 @@ export default function SaveScenarioModal({
   onClose,
   onSave,
 }: SaveScenarioModalProps) {
+  const t = useTranslations("stress");
+  const common = useTranslations("common");
   const [name, setName] = useState(defaultName);
   const [includeSummary, setIncludeSummary] = useState(true);
 
@@ -32,24 +35,26 @@ export default function SaveScenarioModal({
   }, [defaultName, opened]);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Save as Scenario" centered>
+    <Modal opened={opened} onClose={onClose} title={t("saveScenario")} centered>
       <Stack gap="md">
         <TextInput
-          label="Scenario name"
-          placeholder="e.g. Plan A · Job loss"
+          label={t("scenarioNameLabel")}
+          placeholder={t("scenarioNamePlaceholder")}
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
         />
         <Switch
-          label="Include stress summary in name"
+          label={t("includeSummaryLabel")}
           checked={includeSummary}
           onChange={(event) => setIncludeSummary(event.currentTarget.checked)}
         />
         <Group justify="flex-end">
           <Button variant="subtle" onClick={onClose}>
-            Cancel
+            {common("actionCancel")}
           </Button>
-          <Button onClick={() => onSave(name, includeSummary)}>Confirm</Button>
+          <Button onClick={() => onSave(name, includeSummary)}>
+            {common("actionConfirm")}
+          </Button>
         </Group>
       </Stack>
     </Modal>

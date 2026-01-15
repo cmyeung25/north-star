@@ -1,6 +1,6 @@
 import { Card, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { Scenario } from "../types";
-import { t } from "../../../lib/i18n";
+import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../utils";
 
 type ScenarioKpiGridProps = {
@@ -8,21 +8,28 @@ type ScenarioKpiGridProps = {
 };
 
 export default function ScenarioKpiGrid({ scenario }: ScenarioKpiGridProps) {
+  const t = useTranslations("scenarios");
+  const locale = useLocale();
   const kpis = [
     {
-      label: t("scenariosLowestBalance"),
+      label: t("lowestBalance"),
       value: formatCurrency(
         scenario.kpis.lowestMonthlyBalance,
-        scenario.baseCurrency
+        scenario.baseCurrency,
+        locale
       ),
     },
     {
-      label: t("scenariosRunway"),
-      value: `${scenario.kpis.runwayMonths} ${t("scenariosMonthsSuffix")}`,
+      label: t("runway"),
+      value: t("runwayValue", { months: scenario.kpis.runwayMonths }),
     },
     {
-      label: t("scenariosNetWorth5y"),
-      value: formatCurrency(scenario.kpis.netWorthYear5, scenario.baseCurrency),
+      label: t("netWorth5y"),
+      value: formatCurrency(
+        scenario.kpis.netWorthYear5,
+        scenario.baseCurrency,
+        locale
+      ),
     },
   ];
 

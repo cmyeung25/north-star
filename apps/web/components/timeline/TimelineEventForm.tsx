@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import type { EventField, EventFieldKey } from "@north-star/engine";
-import { t } from "../../lib/i18n";
+import { useTranslations } from "next-intl";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
 import type { TimelineEvent } from "./types";
 
@@ -30,8 +30,11 @@ export default function TimelineEventForm({
   fields,
   onCancel,
   onSave,
-  submitLabel = t("eventFormSave"),
+  submitLabel,
 }: TimelineEventFormProps) {
+  const t = useTranslations("timeline");
+  const common = useTranslations("common");
+  const validation = useTranslations("validation");
   const [formValues, setFormValues] = useState<TimelineEvent | null>(event);
   const [errors, setErrors] = useState<{ startMonth?: string; endMonth?: string }>(
     {}
@@ -94,17 +97,17 @@ export default function TimelineEventForm({
     const nextErrors: { startMonth?: string; endMonth?: string } = {};
 
     if (shouldShowField("startMonth") && !normalizedStartMonth) {
-      nextErrors.startMonth = "Use YYYY-MM (e.g. 2025-01).";
+      nextErrors.startMonth = validation("useYearMonth");
     }
 
     if (shouldShowField("endMonth") && formValues.endMonth) {
       if (!normalizedEndMonth) {
-        nextErrors.endMonth = "Use YYYY-MM (e.g. 2025-12).";
+        nextErrors.endMonth = validation("useYearMonth");
       } else if (
         normalizedStartMonth &&
         normalizedEndMonth < normalizedStartMonth
       ) {
-        nextErrors.endMonth = "End month must be after the start month.";
+        nextErrors.endMonth = validation("endMonthAfterStart");
       }
     }
 
@@ -141,7 +144,7 @@ export default function TimelineEventForm({
       {shouldShowField("startMonth") && (
         <TextInput
           label={t("eventFormStartMonth")}
-          placeholder={t("eventFormStartMonthPlaceholder")}
+          placeholder={common("yearMonthPlaceholder")}
           value={formValues.startMonth}
           error={errors.startMonth}
           onChange={(eventChange) =>
@@ -155,7 +158,7 @@ export default function TimelineEventForm({
       {shouldShowField("endMonth") && (
         <TextInput
           label={t("eventFormEndMonth")}
-          placeholder={t("eventFormEndMonthPlaceholder")}
+          placeholder={common("yearMonthOptionalPlaceholder")}
           value={formValues.endMonth ?? ""}
           error={errors.endMonth}
           onChange={(eventChange) =>
@@ -215,9 +218,9 @@ export default function TimelineEventForm({
       )}
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
-          {t("eventFormCancel")}
+          {common("actionCancel")}
         </Button>
-        <Button onClick={handleSave}>{submitLabel}</Button>
+        <Button onClick={handleSave}>{submitLabel ?? common("actionSave")}</Button>
       </Group>
     </Stack>
   );

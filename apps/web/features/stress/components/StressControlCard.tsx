@@ -8,6 +8,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { useTranslations } from "next-intl";
 
 const activeBadgeStyle = { textTransform: "uppercase" as const };
 
@@ -35,6 +36,8 @@ export default function StressControlCard({
   onApply,
   isApplied,
 }: StressControlCardProps) {
+  const t = useTranslations("stress");
+  const common = useTranslations("common");
   return (
     <Card withBorder padding="lg" radius="md" shadow="sm">
       <Stack gap="sm">
@@ -47,7 +50,7 @@ export default function StressControlCard({
           </Stack>
           {isApplied && (
             <Badge color="teal" variant="light" style={activeBadgeStyle}>
-              Active
+              {t("activeBadge")}
             </Badge>
           )}
         </Group>
@@ -58,7 +61,7 @@ export default function StressControlCard({
           data={options}
         />
         <Button size="md" onClick={onApply} fullWidth>
-          Apply
+          {common("actionApply")}
         </Button>
       </Stack>
     </Card>

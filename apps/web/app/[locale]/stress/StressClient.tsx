@@ -19,26 +19,27 @@ import { computeProjection } from "@north-star/engine";
 import { nanoid } from "nanoid";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import ScenarioContextSelector from "../../features/overview/components/ScenarioContextSelector";
-import StressCashChart from "../../features/stress/components/StressCashChart";
-import { defaultCurrency, formatCurrency } from "../../lib/i18n";
+import { useLocale, useTranslations } from "next-intl";
+import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
+import StressCashChart from "../../../features/stress/components/StressCashChart";
+import { defaultCurrency, formatCurrency } from "../../../lib/i18n";
 import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
-} from "../../src/engine/adapter";
-import { useStressComparison } from "../../src/engine/useStressComparison";
-import type { StressPreset } from "../../src/engine/stressTransforms";
+} from "../../../src/engine/adapter";
+import { useStressComparison } from "../../../src/engine/useStressComparison";
+import type { StressPreset } from "../../../src/engine/stressTransforms";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
-} from "../../src/store/scenarioStore";
+} from "../../../src/store/scenarioStore";
 import {
   buildStressEvents,
   type AppliedStressState,
-} from "../../src/features/stress/stressEvents";
-import { normalizeMonth } from "../../src/features/timeline/schema";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+} from "../../../src/features/stress/stressEvents";
+import { normalizeMonth } from "../../../src/features/timeline/schema";
+import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 
 type StressClientProps = {
   scenarioId?: string;
@@ -62,6 +63,10 @@ const addMonths = (baseMonth: string, offset: number) => {
 export default function StressClient({ scenarioId }: StressClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("stress");
+  const common = useTranslations("common");
+  const overviewT = useTranslations("overview");
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -131,7 +136,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       ? addMonths(baselineInput.baseMonth, 1)
       : defaultApplyMonth;
 
-    setSaveName(`${scenario.name} · Stress`);
+    setSaveName(`${scenario.name} · ${t("stressSuffix")}`);
     setShockMonth(defaultShockMonth);
     setDraftStress((previous) => ({
       ...previous,
@@ -147,8 +152,8 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     if (!scenario) {
       return [];
     }
-    return buildStressEvents(appliedStress, scenario);
-  }, [appliedStress, scenario]);
+    return buildStressEvents(appliedStress, scenario, t);
+  }, [appliedStress, scenario, t]);
 
   const afterInput = useMemo(() => {
     if (!scenario || !baselineInput) {
@@ -191,7 +196,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
 
   const applyMonthError =
     draftStress.applyMonth && !normalizeMonth(draftStress.applyMonth)
-      ? "Use YYYY-MM"
+      ? common("yearMonthPlaceholder")
       : undefined;
 
   const hasActiveStresses = stressEvents.length > 0;
@@ -207,11 +212,11 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     );
 
     if (afterProjection.lowestMonthlyBalance.value < 0) {
-      notes.push("Cash balance drops below zero after stress is applied.");
+      notes.push(t("insightCashBelowZero"));
     }
 
     if (afterProjection.runwayMonths < 3) {
-      notes.push("Emergency runway falls below 3 months.");
+      notes.push(t("insightRunwayBelowThree"));
     }
 
     if (
@@ -219,19 +224,19 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       afterProjection.lowestMonthlyBalance.index <
         baselineProjection.lowestMonthlyBalance.index
     ) {
-      notes.push("The lowest cash month arrives sooner than the baseline plan.");
+      notes.push(t("insightEarlierLowMonth"));
     }
 
     if (appliedStress.jobLossMonths && jobLossEvent?.monthlyAmount === 0) {
-      notes.push("No income to offset in the selected apply month.");
+      notes.push(t("insightNoIncomeOffset"));
     }
 
     if (notes.length === 0) {
-      notes.push("Stress impact is muted relative to the baseline projection.");
+      notes.push(t("insightMutedImpact"));
     }
 
     if (notes.length < 2) {
-      notes.push("Try increasing shocks to surface additional downside risks.");
+      notes.push(t("insightIncreaseShocks"));
     }
 
     return notes.slice(0, 3);
@@ -269,23 +274,22 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     appliedStress.jobLossMonths
       ? {
           key: "jobloss",
-          label: `Job loss (${appliedStress.jobLossMonths}m)`,
+          label: t("stressBadgeJobLoss", { months: appliedStress.jobLossMonths }),
         }
       : null,
     appliedStress.rateHikePct
       ? {
           key: "ratehike",
-          label: `Rate hike (+${appliedStress.rateHikePct}%)`,
+          label: t("stressBadgeRateHike", { rate: appliedStress.rateHikePct }),
         }
       : null,
     typeof appliedStress.medicalAmount === "number" &&
     appliedStress.medicalAmount > 0
       ? {
           key: "medical",
-          label: `Medical expense (${formatCurrency(
-            appliedStress.medicalAmount,
-            baseCurrency
-          )})`,
+          label: t("stressBadgeMedical", {
+            value: formatCurrency(appliedStress.medicalAmount, baseCurrency, locale),
+          }),
         }
       : null,
   ].filter(Boolean) as { key: string; label: string }[];
@@ -310,7 +314,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   };
 
   const handleSaveScenario = () => {
-    const newScenario = createScenario(saveName || `${scenarioData.name} · Stress`, {
+    const newScenario = createScenario(saveName || `${scenarioData.name} · ${t("stressSuffix")}`, {
       baseCurrency: scenarioData.baseCurrency,
     });
 
@@ -326,12 +330,12 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     }
 
     setActiveScenario(newScenario.id);
-    router.push("/scenarios");
+    router.push(`/${locale}/scenarios`);
   };
 
   const handleScenarioChange = (nextScenarioId: string) => {
     setActiveScenario(nextScenarioId);
-    router.push(buildScenarioUrl("/stress", nextScenarioId));
+    router.push(`/${locale}${buildScenarioUrl("/stress", nextScenarioId)}`);
   };
 
   const kpiCard = (label: string, value: string, helper: string) => (
@@ -355,9 +359,9 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <div>
-            <Title order={2}>Stress Test</Title>
+            <Title order={2}>{t("title")}</Title>
             <Text size="sm" c="dimmed">
-              Apply downside shocks to see how the plan reacts.
+              {t("subtitle")}
             </Text>
           </div>
         </Group>
@@ -379,9 +383,9 @@ export default function StressClient({ scenarioId }: StressClientProps) {
             <Button
               variant="subtle"
               size="xs"
-              onClick={() => router.push("/scenarios")}
+              onClick={() => router.push(`/${locale}/scenarios`)}
             >
-              Change
+              {common("actionChange")}
             </Button>
           </Group>
         )}
@@ -391,16 +395,16 @@ export default function StressClient({ scenarioId }: StressClientProps) {
         <Stack gap="md">
           <Group justify="space-between" align="flex-start">
             <div>
-              <Text fw={600}>Stress Presets</Text>
+              <Text fw={600}>{t("presetsTitle")}</Text>
               <Text size="sm" c="dimmed">
-                Compare baseline vs. a single preset stress scenario.
+                {t("presetsSubtitle")}
               </Text>
             </div>
             {activePreset && (
               <Badge variant="light" color="red">
-                {activePreset === "RATE_HIKE_2" && "Rate hike +2%"}
-                {activePreset === "INCOME_DROP_20" && "Income drop -20%"}
-                {activePreset === "INFLATION_PLUS_2" && "Inflation +2%"}
+                {activePreset === "RATE_HIKE_2" && t("presetRateHike")}
+                {activePreset === "INCOME_DROP_20" && t("presetIncomeDrop")}
+                {activePreset === "INFLATION_PLUS_2" && t("presetInflationPlus")}
               </Badge>
             )}
           </Group>
@@ -409,28 +413,28 @@ export default function StressClient({ scenarioId }: StressClientProps) {
               variant={activePreset === "RATE_HIKE_2" ? "filled" : "light"}
               onClick={() => setActivePreset("RATE_HIKE_2")}
             >
-              Rate +2%
+              {t("presetRateHike")}
             </Button>
             <Button
               variant={activePreset === "INCOME_DROP_20" ? "filled" : "light"}
               onClick={() => setActivePreset("INCOME_DROP_20")}
             >
-              Income -20%
+              {t("presetIncomeDrop")}
             </Button>
             <Button
               variant={activePreset === "INFLATION_PLUS_2" ? "filled" : "light"}
               onClick={() => setActivePreset("INFLATION_PLUS_2")}
             >
-              Inflation +2%
+              {t("presetInflationPlus")}
             </Button>
             <Button variant="default" onClick={() => setActivePreset(null)}>
-              Clear
+              {common("actionClear")}
             </Button>
           </Group>
           {activePreset === "INCOME_DROP_20" && (
             <Select
-              label="Shock month"
-              placeholder="Select month"
+              label={t("shockMonth")}
+              placeholder={common("selectPlaceholder")}
               data={shockMonthOptions}
               value={shockMonth}
               onChange={(value) => setShockMonth(value)}
@@ -441,34 +445,36 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       </Card>
 
       <Stack gap="md">
-        <Text fw={600}>Preset KPI Delta</Text>
+        <Text fw={600}>{t("presetDeltaTitle")}</Text>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {kpiCard(
-            "Net Worth (End)",
+            t("presetNetWorthEnd"),
             presetDeltas
               ? formatCurrency(
                   presetDeltas.netWorthDeltaAtHorizon,
-                  baseCurrency
+                  baseCurrency,
+                  locale
                 )
-              : "N/A",
-            "Stressed minus baseline"
+              : common("notAvailable"),
+            t("presetDeltaHelper")
           )}
           {kpiCard(
-            "Cash (End)",
+            t("presetCashEnd"),
             presetDeltas?.cashDeltaAtHorizon != null
               ? formatCurrency(
                   presetDeltas.cashDeltaAtHorizon,
-                  baseCurrency
+                  baseCurrency,
+                  locale
                 )
-              : "N/A",
-            "Stressed minus baseline"
+              : common("notAvailable"),
+            t("presetDeltaHelper")
           )}
           {kpiCard(
-            "Breakeven Delta",
+            t("presetBreakevenDelta"),
             presetDeltas?.breakevenDeltaMonths != null
-              ? `${presetDeltas.breakevenDeltaMonths} months`
-              : "N/A",
-            "Months until stressed meets baseline"
+              ? t("monthsValue", { months: presetDeltas.breakevenDeltaMonths })
+              : common("notAvailable"),
+            t("presetBreakevenHelper")
           )}
         </SimpleGrid>
       </Stack>
@@ -482,9 +488,9 @@ export default function StressClient({ scenarioId }: StressClientProps) {
         <Stack gap="md">
           <Group justify="space-between" align="flex-start">
             <div>
-              <Text fw={600}>Stress Controls</Text>
+              <Text fw={600}>{t("controlsTitle")}</Text>
               <Text size="sm" c="dimmed">
-                Select stress tests and choose when they take effect.
+                {t("controlsSubtitle")}
               </Text>
             </div>
             <Group gap="xs">
@@ -495,19 +501,19 @@ export default function StressClient({ scenarioId }: StressClientProps) {
                   </Badge>
                 ))
               ) : (
-                <Badge variant="light">No active stresses</Badge>
+                <Badge variant="light">{t("noActiveStresses")}</Badge>
               )}
             </Group>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             <Select
-              label="Job loss duration"
-              placeholder="Select months"
+              label={t("jobLossDuration")}
+              placeholder={common("selectPlaceholder")}
               value={draftStress.jobLossMonths?.toString() ?? null}
               data={[
-                { value: "3", label: "3 months" },
-                { value: "6", label: "6 months" },
-                { value: "12", label: "12 months" },
+                { value: "3", label: t("monthsValue", { months: 3 }) },
+                { value: "6", label: t("monthsValue", { months: 6 }) },
+                { value: "12", label: t("monthsValue", { months: 12 }) },
               ]}
               clearable
               onChange={(value) =>
@@ -518,13 +524,13 @@ export default function StressClient({ scenarioId }: StressClientProps) {
               }
             />
             <Select
-              label="Interest rate hike"
-              placeholder="Select hike"
+              label={t("interestRateHike")}
+              placeholder={common("selectPlaceholder")}
               value={draftStress.rateHikePct?.toString() ?? null}
               data={[
-                { value: "0.5", label: "+0.5%" },
-                { value: "1", label: "+1%" },
-                { value: "2", label: "+2%" },
+                { value: "0.5", label: t("rateValue", { rate: 0.5 }) },
+                { value: "1", label: t("rateValue", { rate: 1 }) },
+                { value: "2", label: t("rateValue", { rate: 2 }) },
               ]}
               clearable
               onChange={(value) =>
@@ -537,7 +543,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
               }
             />
             <NumberInput
-              label="Medical expense"
+              label={t("medicalExpense")}
               value={draftStress.medicalAmount ?? ""}
               onChange={(value) =>
                 setDraftStress((previous) => ({
@@ -547,12 +553,12 @@ export default function StressClient({ scenarioId }: StressClientProps) {
                 }))
               }
               min={0}
-              placeholder="One-time amount"
+              placeholder={t("oneTimeAmountPlaceholder")}
               thousandSeparator
             />
             <TextInput
-              label="Apply month"
-              placeholder="YYYY-MM"
+              label={t("applyMonth")}
+              placeholder={common("yearMonthPlaceholder")}
               value={draftStress.applyMonth ?? ""}
               onChange={(event) =>
                 setDraftStress((previous) => ({
@@ -565,67 +571,71 @@ export default function StressClient({ scenarioId }: StressClientProps) {
           </SimpleGrid>
           <Group justify="flex-end">
             <Button variant="default" onClick={handleRevertStress}>
-              Revert
+              {common("actionRevert")}
             </Button>
             <Button variant="light" onClick={handleApplyStress}>
-              {hasActiveStresses ? "Recalculate" : "Apply Stress"}
+              {hasActiveStresses ? common("actionRecalculate") : common("actionApply")}
             </Button>
           </Group>
         </Stack>
       </Card>
 
       <Stack gap="md">
-        <Text fw={600}>Baseline KPIs</Text>
+        <Text fw={600}>{t("baselineKpisTitle")}</Text>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {kpiCard(
-            "Lowest Balance",
-            formatCurrency(baselineKpis.lowestMonthlyBalance, baseCurrency),
-            "Lowest point across forecast"
+            overviewT("kpiLowestBalance"),
+            formatCurrency(baselineKpis.lowestMonthlyBalance, baseCurrency, locale),
+            overviewT("kpiLowestBalanceHelper")
           )}
           {kpiCard(
-            "Runway",
-            `${baselineKpis.runwayMonths} months`,
-            "Time until cash runs out"
+            overviewT("kpiRunway"),
+            t("monthsValue", { months: baselineKpis.runwayMonths }),
+            overviewT("kpiRunwayHelper")
           )}
           {kpiCard(
-            "5Y Net Worth",
-            formatCurrency(baselineKpis.netWorthYear5, baseCurrency),
-            "Projected net worth"
+            overviewT("kpiNetWorth"),
+            formatCurrency(baselineKpis.netWorthYear5, baseCurrency, locale),
+            overviewT("kpiNetWorthHelper")
           )}
           {kpiCard(
-            "Risk Level",
-            baselineKpis.riskLevel,
-            "Current risk posture"
+            overviewT("kpiRisk"),
+            common(`risk${baselineKpis.riskLevel}`),
+            t("riskPostureHelper")
           )}
         </SimpleGrid>
       </Stack>
 
       <Stack gap="md">
         <Group justify="space-between">
-          <Text fw={600}>After Stress KPIs</Text>
+          <Text fw={600}>{t("afterStressKpisTitle")}</Text>
           {!hasActiveStresses && (
             <Text size="sm" c="dimmed">
-              No stresses applied yet.
+              {t("noStressesApplied")}
             </Text>
           )}
         </Group>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {kpiCard(
-            "Lowest Balance",
-            formatCurrency(afterKpis.lowestMonthlyBalance, baseCurrency),
-            "After applied stress"
+            overviewT("kpiLowestBalance"),
+            formatCurrency(afterKpis.lowestMonthlyBalance, baseCurrency, locale),
+            t("afterAppliedHelper")
           )}
           {kpiCard(
-            "Runway",
-            `${afterKpis.runwayMonths} months`,
-            "After applied stress"
+            overviewT("kpiRunway"),
+            t("monthsValue", { months: afterKpis.runwayMonths }),
+            t("afterAppliedHelper")
           )}
           {kpiCard(
-            "5Y Net Worth",
-            formatCurrency(afterKpis.netWorthYear5, baseCurrency),
-            "After applied stress"
+            overviewT("kpiNetWorth"),
+            formatCurrency(afterKpis.netWorthYear5, baseCurrency, locale),
+            t("afterAppliedHelper")
           )}
-          {kpiCard("Risk Level", afterKpis.riskLevel, "Stress-adjusted risk")}
+          {kpiCard(
+            overviewT("kpiRisk"),
+            common(`risk${afterKpis.riskLevel}`),
+            t("stressAdjustedRisk")
+          )}
         </SimpleGrid>
       </Stack>
 
@@ -636,7 +646,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
 
       <Card withBorder radius="md" padding="lg">
         <Stack gap="sm">
-          <Text fw={600}>Insights</Text>
+          <Text fw={600}>{t("insightsTitle")}</Text>
           <List spacing="xs" size="sm">
             {insights.map((insight) => (
               <List.Item key={insight}>{insight}</List.Item>
@@ -647,19 +657,18 @@ export default function StressClient({ scenarioId }: StressClientProps) {
 
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
-          <Text fw={600}>Save as Scenario</Text>
+          <Text fw={600}>{t("saveScenarioTitle")}</Text>
           <TextInput
-            label="Scenario name"
+            label={t("scenarioNameLabel")}
             value={saveName}
             onChange={(event) => setSaveName(event.currentTarget.value)}
           />
           <Group justify="space-between">
             <Text size="sm" c="dimmed">
-              This will create a new scenario with the stress events applied to
-              the timeline.
+              {t("saveScenarioHint")}
             </Text>
             <Button onClick={handleSaveScenario} disabled={!hasActiveStresses}>
-              Save as Scenario
+              {t("saveScenario")}
             </Button>
           </Group>
         </Stack>
