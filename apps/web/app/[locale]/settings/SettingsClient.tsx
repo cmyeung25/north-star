@@ -8,6 +8,7 @@ import {
   Modal,
   Notification,
   NumberInput,
+  Select,
   SegmentedControl,
   Slider,
   Stack,
@@ -32,10 +33,15 @@ import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
+  createBudgetRuleId,
+  createMemberId,
 } from "../../../src/store/scenarioStore";
 import { useSettingsStore } from "../../../src/store/settingsStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
+import { buildMonthRange } from "@north-star/engine";
+import { getMemberAgeYears } from "../../../src/domain/members/age";
+import { compileBudgetRuleToMonthlySeries } from "../../../src/domain/budget/compileBudgetRules";
 
 type SettingsClientProps = {
   scenarioId?: string;
@@ -51,6 +57,8 @@ const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
 export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const locale = useLocale();
   const t = useTranslations("assumptions");
+  const membersText = useTranslations("members");
+  const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
   const errors = useTranslations("errors");
   const horizonOptions = [
@@ -67,6 +75,16 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
+  const addScenarioMember = useScenarioStore((state) => state.addScenarioMember);
+  const updateScenarioMember = useScenarioStore(
+    (state) => state.updateScenarioMember
+  );
+  const removeScenarioMember = useScenarioStore(
+    (state) => state.removeScenarioMember
+  );
+  const addBudgetRule = useScenarioStore((state) => state.addBudgetRule);
+  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
+  const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
   const lastAutoSyncAt = useSettingsStore((state) => state.lastAutoSyncAt);
   const autoSyncError = useSettingsStore((state) => state.autoSyncError);
@@ -294,11 +312,36 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   }
 
   const { assumptions } = scenario;
+  const members = scenario.members ?? [];
+  const budgetRules = scenario.budgetRules ?? [];
   const horizonValue = horizonOptions.some(
     (option) => Number(option.value) === assumptions.horizonMonths
   )
     ? String(assumptions.horizonMonths)
     : "240";
+  const horizonEndMonth =
+    assumptions.baseMonth && assumptions.horizonMonths > 0
+      ? buildMonthRange(assumptions.baseMonth, assumptions.horizonMonths).at(-1) ??
+        null
+      : null;
+  const formatAgeYears = (value: number) =>
+    Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+  const formatCurrency = (value: number) => {
+    if (!scenario.baseCurrency) {
+      return value.toLocaleString(locale);
+    }
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: scenario.baseCurrency,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+  const budgetRulePreviews = new Map(
+    budgetRules.map((rule) => [
+      rule.id,
+      compileBudgetRuleToMonthlySeries(rule, scenario),
+    ])
+  );
 
   const lastSyncedLabel = cloudSummary?.lastSyncedAt
     ? common("lastSyncedAt", {
@@ -608,6 +651,392 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
               }
             />
           </Stack>
+        </Stack>
+      </Card>
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="md">
+          <Group justify="space-between" align="center">
+            <Text fw={600}>{membersText("title")}</Text>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => {
+                addScenarioMember(scenario.id, {
+                  id: createMemberId(),
+                  name: membersText("defaultName"),
+                  kind: "person",
+                  ageAtBaseMonth: 0,
+                });
+                showToast(common("saved"), "teal");
+              }}
+            >
+              {membersText("addMember")}
+            </Button>
+          </Group>
+          <Text size="sm" c="dimmed">
+            {membersText("subtitle")}
+          </Text>
+          <Stack gap="sm">
+            {members.map((member, index) => {
+              const hasBirthMonth =
+                typeof member.birthMonth === "string" &&
+                isValidBaseMonth(member.birthMonth);
+              const hasAgeAtBase = typeof member.ageAtBaseMonth === "number";
+              const baseMonthValue = assumptions.baseMonth;
+              const validBaseMonth =
+                baseMonthValue && isValidBaseMonth(baseMonthValue)
+                  ? baseMonthValue
+                  : null;
+              const canCalculateAge = Boolean(validBaseMonth);
+              const baseAge =
+                canCalculateAge && (hasBirthMonth || hasAgeAtBase)
+                  ? getMemberAgeYears(member, validBaseMonth!, validBaseMonth!)
+                  : null;
+              const endAge =
+                canCalculateAge && horizonEndMonth && (hasBirthMonth || hasAgeAtBase)
+                  ? getMemberAgeYears(member, horizonEndMonth!, validBaseMonth!)
+                  : null;
+              const showAgeError = !hasBirthMonth && !hasAgeAtBase;
+
+              return (
+                <Card key={member.id} withBorder radius="md" padding="md">
+                  <Stack gap="sm">
+                    <Group justify="space-between" align="center">
+                      <Text fw={600}>
+                        {membersText("memberLabel", { index: index + 1 })}
+                      </Text>
+                      <Button
+                        size="xs"
+                        color="red"
+                        variant="light"
+                        disabled={members.length <= 1}
+                        onClick={() => {
+                          removeScenarioMember(scenario.id, member.id);
+                          showToast(common("saved"), "teal");
+                        }}
+                      >
+                        {membersText("removeMember")}
+                      </Button>
+                    </Group>
+                    <Group grow>
+                      <TextInput
+                        label={membersText("nameLabel")}
+                        value={member.name}
+                        onChange={(event) =>
+                          updateScenarioMember(scenario.id, member.id, {
+                            name: event.currentTarget.value,
+                          })
+                        }
+                      />
+                      <Select
+                        label={membersText("kindLabel")}
+                        data={[
+                          { value: "person", label: membersText("kindPerson") },
+                          { value: "pet", label: membersText("kindPet") },
+                        ]}
+                        value={member.kind}
+                        onChange={(value) => {
+                          if (!value) {
+                            return;
+                          }
+                          updateScenarioMember(scenario.id, member.id, {
+                            kind: value as typeof member.kind,
+                          });
+                        }}
+                      />
+                    </Group>
+                    <Group grow>
+                      <TextInput
+                        label={membersText("birthMonthLabel")}
+                        placeholder={common("yearMonthPlaceholder")}
+                        value={member.birthMonth ?? ""}
+                        onChange={(event) => {
+                          const nextValue = event.currentTarget.value.trim();
+                          if (nextValue === "" || isValidBaseMonth(nextValue)) {
+                            updateScenarioMember(scenario.id, member.id, {
+                              birthMonth: nextValue === "" ? undefined : nextValue,
+                            });
+                          }
+                        }}
+                      />
+                      <NumberInput
+                        label={membersText("ageAtBaseLabel")}
+                        value={member.ageAtBaseMonth ?? ""}
+                        min={0}
+                        step={0.5}
+                        decimalScale={2}
+                        onChange={(value) =>
+                          updateScenarioMember(scenario.id, member.id, {
+                            ageAtBaseMonth: typeof value === "number" ? value : undefined,
+                          })
+                        }
+                      />
+                    </Group>
+                    {showAgeError && (
+                      <Text size="xs" c="red">
+                        {membersText("ageRequired")}
+                      </Text>
+                    )}
+                    <Group gap="xl" wrap="wrap">
+                      <Text size="sm" c="dimmed">
+                        {membersText("baseAgeLabel")}:{" "}
+                        {baseAge === null ? t("notAvailable") : formatAgeYears(baseAge)}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        {membersText("endAgeLabel")}:{" "}
+                        {endAge === null ? t("notAvailable") : formatAgeYears(endAge)}
+                      </Text>
+                    </Group>
+                  </Stack>
+                </Card>
+              );
+            })}
+          </Stack>
+        </Stack>
+      </Card>
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="md">
+          <Group justify="space-between" align="center">
+            <Text fw={600}>{budgetText("title")}</Text>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => {
+                const nextRule = {
+                  id: createBudgetRuleId(),
+                  name: budgetText("defaultRuleName", {
+                    index: budgetRules.length + 1,
+                  }),
+                  enabled: true,
+                  memberId: members[0]?.id,
+                  category: "health" as const,
+                  ageBand: { fromYears: 0, toYears: 3 },
+                  monthlyAmount: 0,
+                };
+                addBudgetRule(scenario.id, nextRule);
+                showToast(common("saved"), "teal");
+              }}
+            >
+              {budgetText("addRule")}
+            </Button>
+          </Group>
+          <Text size="sm" c="dimmed">
+            {budgetText("subtitle")}
+          </Text>
+          {budgetRules.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {budgetText("empty")}
+            </Text>
+          ) : (
+            <Stack gap="sm">
+              {budgetRules.map((rule) => {
+                const preview = budgetRulePreviews.get(rule.id) ?? [];
+                const previewSlice = preview.slice(0, 12);
+
+                return (
+                  <Card key={rule.id} withBorder radius="md" padding="md">
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="center">
+                        <Text fw={600}>{rule.name}</Text>
+                        <Group gap="sm">
+                          <Switch
+                            checked={rule.enabled}
+                            label={budgetText("enabledLabel")}
+                            onChange={(event) =>
+                              updateBudgetRule(scenario.id, rule.id, {
+                                enabled: event.currentTarget.checked,
+                              })
+                            }
+                          />
+                          <Button
+                            size="xs"
+                            color="red"
+                            variant="light"
+                            onClick={() => {
+                              removeBudgetRule(scenario.id, rule.id);
+                              showToast(common("saved"), "teal");
+                            }}
+                          >
+                            {budgetText("removeRule")}
+                          </Button>
+                        </Group>
+                      </Group>
+                      <Group grow>
+                        <TextInput
+                          label={budgetText("nameLabel")}
+                          value={rule.name}
+                          onChange={(event) =>
+                            updateBudgetRule(scenario.id, rule.id, {
+                              name: event.currentTarget.value,
+                            })
+                          }
+                        />
+                        <Select
+                          label={budgetText("memberLabel")}
+                          data={[
+                            { value: "household", label: budgetText("memberHousehold") },
+                            ...members.map((member) => ({
+                              value: member.id,
+                              label: member.name,
+                            })),
+                          ]}
+                          value={rule.memberId ?? "household"}
+                          onChange={(value) =>
+                            updateBudgetRule(scenario.id, rule.id, {
+                              memberId:
+                                value && value !== "household" ? value : undefined,
+                            })
+                          }
+                        />
+                      </Group>
+                      <Group grow>
+                        <Select
+                          label={budgetText("categoryLabel")}
+                          data={[
+                            { value: "health", label: budgetText("categoryHealth") },
+                            {
+                              value: "childcare",
+                              label: budgetText("categoryChildcare"),
+                            },
+                            {
+                              value: "education",
+                              label: budgetText("categoryEducation"),
+                            },
+                            {
+                              value: "eldercare",
+                              label: budgetText("categoryEldercare"),
+                            },
+                            { value: "petcare", label: budgetText("categoryPetcare") },
+                          ]}
+                          value={rule.category}
+                          onChange={(value) => {
+                            if (!value) {
+                              return;
+                            }
+                            updateBudgetRule(scenario.id, rule.id, {
+                              category: value as typeof rule.category,
+                            });
+                          }}
+                        />
+                        <NumberInput
+                          label={budgetText("monthlyAmountLabel")}
+                          value={rule.monthlyAmount}
+                          min={0}
+                          step={100}
+                          thousandSeparator=","
+                          onChange={(value) =>
+                            updateBudgetRule(scenario.id, rule.id, {
+                              monthlyAmount: typeof value === "number" ? value : 0,
+                            })
+                          }
+                        />
+                      </Group>
+                      <Group grow>
+                        <NumberInput
+                          label={budgetText("ageFromLabel")}
+                          value={rule.ageBand.fromYears}
+                          min={0}
+                          step={0.5}
+                          decimalScale={2}
+                          onChange={(value) =>
+                            updateBudgetRule(scenario.id, rule.id, {
+                              ageBand: {
+                                ...rule.ageBand,
+                                fromYears: typeof value === "number" ? value : 0,
+                              },
+                            })
+                          }
+                        />
+                        <NumberInput
+                          label={budgetText("ageToLabel")}
+                          value={rule.ageBand.toYears}
+                          min={0}
+                          step={0.5}
+                          decimalScale={2}
+                          onChange={(value) =>
+                            updateBudgetRule(scenario.id, rule.id, {
+                              ageBand: {
+                                ...rule.ageBand,
+                                toYears: typeof value === "number" ? value : 0,
+                              },
+                            })
+                          }
+                        />
+                      </Group>
+                      <Group grow>
+                        <NumberInput
+                          label={budgetText("annualGrowthLabel")}
+                          value={rule.annualGrowthPct ?? ""}
+                          min={0}
+                          step={0.1}
+                          decimalScale={2}
+                          onChange={(value) =>
+                            updateBudgetRule(scenario.id, rule.id, {
+                              annualGrowthPct:
+                                typeof value === "number" ? value : undefined,
+                            })
+                          }
+                        />
+                        <TextInput
+                          label={budgetText("startMonthLabel")}
+                          placeholder={common("yearMonthOptionalPlaceholder")}
+                          value={rule.startMonth ?? ""}
+                          onChange={(event) => {
+                            const nextValue = event.currentTarget.value.trim();
+                            if (nextValue === "" || isValidBaseMonth(nextValue)) {
+                              updateBudgetRule(scenario.id, rule.id, {
+                                startMonth: nextValue === "" ? undefined : nextValue,
+                              });
+                            }
+                          }}
+                        />
+                        <TextInput
+                          label={budgetText("endMonthLabel")}
+                          placeholder={common("yearMonthOptionalPlaceholder")}
+                          value={rule.endMonth ?? ""}
+                          onChange={(event) => {
+                            const nextValue = event.currentTarget.value.trim();
+                            if (nextValue === "" || isValidBaseMonth(nextValue)) {
+                              updateBudgetRule(scenario.id, rule.id, {
+                                endMonth: nextValue === "" ? undefined : nextValue,
+                              });
+                            }
+                          }}
+                        />
+                      </Group>
+                      <Stack gap={4}>
+                        <Text fw={600} size="sm">
+                          {budgetText("previewTitle")}
+                        </Text>
+                        {previewSlice.length === 0 ? (
+                          <Text size="sm" c="dimmed">
+                            {budgetText("previewEmpty")}
+                          </Text>
+                        ) : (
+                          <Stack gap={2}>
+                            {previewSlice.map((entry) => (
+                              <Text key={`${rule.id}-${entry.month}`} size="sm">
+                                {entry.month} · {formatCurrency(entry.amountSigned)}
+                              </Text>
+                            ))}
+                            {preview.length > previewSlice.length && (
+                              <Text size="xs" c="dimmed">
+                                {budgetText("previewMore", {
+                                  count: preview.length - previewSlice.length,
+                                })}
+                              </Text>
+                            )}
+                          </Stack>
+                        )}
+                      </Stack>
+                    </Stack>
+                  </Card>
+                );
+              })}
+            </Stack>
+          )}
         </Stack>
       </Card>
 

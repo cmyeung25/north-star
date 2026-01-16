@@ -30,6 +30,7 @@ import type {
   ScenarioEventRef,
   ScenarioEventView,
 } from "./types";
+import type { BudgetRuleMonthlyEntry } from "../../src/domain/budget/compileBudgetRules";
 import {
   buildEventTreeRows,
   createDefinitionCopy,
@@ -69,6 +70,7 @@ interface TimelineMobileProps {
   scenarios: Scenario[];
   homePositions: HomePositionDraft[];
   members: ScenarioMember[];
+  budgetLedger: BudgetRuleMonthlyEntry[];
   baseCurrency: string;
   baseMonth?: string | null;
   assumptions: { baseMonth: string | null; horizonMonths: number };
@@ -89,6 +91,7 @@ export default function TimelineMobile({
   scenarios,
   homePositions,
   members,
+  budgetLedger,
   baseCurrency,
   baseMonth,
   assumptions,
@@ -105,6 +108,7 @@ export default function TimelineMobile({
   const t = useTranslations("timeline");
   const common = useTranslations("common");
   const homes = useTranslations("homes");
+  const budgetText = useTranslations("budgetRules");
   const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -125,6 +129,13 @@ export default function TimelineMobile({
     [activeGroup, collapsedGroups, eventViews]
   );
   const hasEvents = eventViews.length > 0;
+  const budgetTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    budgetLedger.forEach((entry) => {
+      totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amountSigned);
+    });
+    return Array.from(totals.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [budgetLedger]);
 
   const parentGroupOptions = useMemo(
     () =>
@@ -439,6 +450,33 @@ export default function TimelineMobile({
           })}
         </Stack>
       )}
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Text fw={600}>{budgetText("timelineTitle")}</Text>
+          <Text size="sm" c="dimmed">
+            {budgetText("timelineSubtitle")}
+          </Text>
+          {budgetTotals.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {budgetText("timelineEmpty")}
+            </Text>
+          ) : (
+            <Stack gap={2}>
+              {budgetTotals.slice(0, 12).map(([month, amount]) => (
+                <Text key={month} size="sm">
+                  {month} · {formatCurrency(amount, baseCurrency, locale)}
+                </Text>
+              ))}
+              {budgetTotals.length > 12 && (
+                <Text size="xs" c="dimmed">
+                  {budgetText("previewMore", { count: budgetTotals.length - 12 })}
+                </Text>
+              )}
+            </Stack>
+          )}
+        </Stack>
+      </Card>
 
       <Button style={floatingButtonStyle} onClick={() => setAddEventOpen(true)}>
         {t("addEvent")}
