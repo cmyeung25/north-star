@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@mantine/core':
+    hash: ixituw265wobrteus3ogv3zyni
+    path: patches/@mantine__core.patch
+
 importers:
 
   .:
@@ -37,7 +42,7 @@ importers:
     dependencies:
       '@mantine/core':
         specifier: ^8.3.12
-        version: 8.3.12(@mantine/hooks@8.3.12(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 8.3.12(patch_hash=ixituw265wobrteus3ogv3zyni)(@mantine/hooks@8.3.12(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@mantine/form':
         specifier: ^8.3.12
         version: 8.3.12(react@18.3.1)
@@ -3699,7 +3704,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@mantine/core@8.3.12(@mantine/hooks@8.3.12(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@mantine/core@8.3.12(patch_hash=ixituw265wobrteus3ogv3zyni)(@mantine/hooks@8.3.12(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@floating-ui/react': 0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@mantine/hooks': 8.3.12(react@18.3.1)
