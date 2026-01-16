@@ -1,0 +1,90 @@
+diff --git a/cjs/components/SegmentedControl/SegmentedControl.cjs b/cjs/components/SegmentedControl/SegmentedControl.cjs
+index fccdc134b75068308e40430921dd47f11e470c11..23b02cdbd27e116522eb5c17a869bb0c9ef1a594 100644
+--- a/cjs/components/SegmentedControl/SegmentedControl.cjs
++++ b/cjs/components/SegmentedControl/SegmentedControl.cjs
+@@ -89,11 +89,15 @@ const SegmentedControl = factory.factory((_props, ref) => {
+   const initialized = hooks.useMounted();
+   const [key, setKey] = React.useState(hooks.randomId());
+   const [parent, setParent] = React.useState(null);
+-  const [refs, setRefs] = React.useState({});
+-  const setElementRef = (element, val) => {
+-    refs[val] = element;
+-    setRefs(refs);
+-  };
++  const [refsVersion, setRefsVersion] = React.useState(0);
++  const refs = React.useRef({});
++  const setElementRef = React.useCallback((element, val) => {
++    if (refs.current[val] === element) {
++      return;
++    }
++    refs.current[val] = element;
++    setRefsVersion((current) => current + 1);
++  }, []);
+   const [_value, handleValueChange] = hooks.useUncontrolled({
+     value,
+     defaultValue,
+@@ -173,13 +177,13 @@ const SegmentedControl = factory.factory((_props, ref) => {
+         typeof _value === "string" && /* @__PURE__ */ jsxRuntime.jsx(
+           FloatingIndicator.FloatingIndicator,
+           {
+-            target: refs[_value],
++            target: refs.current[_value],
+             parent,
+             component: "span",
+             transitionDuration: "var(--sc-transition-duration)",
+             ...getStyles("indicator")
+           },
+-          key
++          `${key}-${refsVersion}`
+         ),
+         controls
+       ]
+diff --git a/esm/components/SegmentedControl/SegmentedControl.mjs b/esm/components/SegmentedControl/SegmentedControl.mjs
+index 34e7fb1214e075f09a82ead803110fcf3ff3c744..1c4c6a420c8e70e405a1843b7779d1dc3716be42 100644
+--- a/esm/components/SegmentedControl/SegmentedControl.mjs
++++ b/esm/components/SegmentedControl/SegmentedControl.mjs
+@@ -1,6 +1,6 @@
+ 'use client';
+ import { jsx, jsxs } from 'react/jsx-runtime';
+-import { useState, createElement } from 'react';
++import { useState, useCallback, useRef, createElement } from 'react';
+ import { useMounted, randomId, useUncontrolled, useId, useMergedRef, useShallowEffect } from '@mantine/hooks';
+ import '../../core/utils/units-converters/rem.mjs';
+ import { getFontSize, getSize, getRadius } from '../../core/utils/get-size/get-size.mjs';
+@@ -87,11 +87,15 @@ const SegmentedControl = factory((_props, ref) => {
+   const initialized = useMounted();
+   const [key, setKey] = useState(randomId());
+   const [parent, setParent] = useState(null);
+-  const [refs, setRefs] = useState({});
+-  const setElementRef = (element, val) => {
+-    refs[val] = element;
+-    setRefs(refs);
+-  };
++  const [refsVersion, setRefsVersion] = useState(0);
++  const refs = useRef({});
++  const setElementRef = useCallback((element, val) => {
++    if (refs.current[val] === element) {
++      return;
++    }
++    refs.current[val] = element;
++    setRefsVersion((current) => current + 1);
++  }, []);
+   const [_value, handleValueChange] = useUncontrolled({
+     value,
+     defaultValue,
+@@ -171,13 +175,13 @@ const SegmentedControl = factory((_props, ref) => {
+         typeof _value === "string" && /* @__PURE__ */ jsx(
+           FloatingIndicator,
+           {
+-            target: refs[_value],
++            target: refs.current[_value],
+             parent,
+             component: "span",
+             transitionDuration: "var(--sc-transition-duration)",
+             ...getStyles("indicator")
+           },
+-          key
++          `${key}-${refsVersion}`
+         ),
+         controls
+       ]
