@@ -1,0 +1,38 @@
+diff --git a/cjs/components/SegmentedControl/SegmentedControl.cjs b/cjs/components/SegmentedControl/SegmentedControl.cjs
+index fccdc134b75068308e40430921dd47f11e470c11..f1048ea9ee3e8661d1404251b4abc35c4e507c46 100644
+--- a/cjs/components/SegmentedControl/SegmentedControl.cjs
++++ b/cjs/components/SegmentedControl/SegmentedControl.cjs
+@@ -91,8 +91,12 @@ const SegmentedControl = factory.factory((_props, ref) => {
+   const [parent, setParent] = React.useState(null);
+   const [refs, setRefs] = React.useState({});
+   const setElementRef = (element, val) => {
+-    refs[val] = element;
+-    setRefs(refs);
++    setRefs((prev) => {
++      if (prev[val] === element) {
++        return prev;
++      }
++      return { ...prev, [val]: element };
++    });
+   };
+   const [_value, handleValueChange] = hooks.useUncontrolled({
+     value,
+diff --git a/esm/components/SegmentedControl/SegmentedControl.mjs b/esm/components/SegmentedControl/SegmentedControl.mjs
+index 34e7fb1214e075f09a82ead803110fcf3ff3c744..bb51c7900039096bd710c8bdc17bd1ff00299253 100644
+--- a/esm/components/SegmentedControl/SegmentedControl.mjs
++++ b/esm/components/SegmentedControl/SegmentedControl.mjs
+@@ -89,8 +89,12 @@ const SegmentedControl = factory((_props, ref) => {
+   const [parent, setParent] = useState(null);
+   const [refs, setRefs] = useState({});
+   const setElementRef = (element, val) => {
+-    refs[val] = element;
+-    setRefs(refs);
++    setRefs((prev) => {
++      if (prev[val] === element) {
++        return prev;
++      }
++      return { ...prev, [val]: element };
++    });
+   };
+   const [_value, handleValueChange] = useUncontrolled({
+     value,
