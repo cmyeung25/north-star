@@ -28,6 +28,7 @@ interface TimelineAddEventDrawerProps {
   onClose: () => void;
   baseCurrency: string;
   baseMonth?: string | null;
+  assumptions: { baseMonth: string | null; horizonMonths: number };
   members: ScenarioMember[];
   parentGroupOptions: Array<{ value: string; label: string }>;
   onAddDefinition: (definition: EventDefinition) => void;
@@ -39,6 +40,7 @@ export default function TimelineAddEventDrawer({
   onClose,
   baseCurrency,
   baseMonth,
+  assumptions,
   members,
   parentGroupOptions,
   onAddDefinition,
@@ -209,6 +211,7 @@ export default function TimelineAddEventDrawer({
             <TimelineEventForm
               event={draftEvent}
               baseCurrency={baseCurrency}
+              assumptions={assumptions}
               members={members}
               fields={getEventMeta(selectedType).fields}
               showMember

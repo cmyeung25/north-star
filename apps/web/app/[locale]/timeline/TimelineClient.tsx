@@ -61,6 +61,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const members = scenario?.members ?? [];
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
+  const assumptions = scenario?.assumptions ?? { baseMonth: null, horizonMonths: 0 };
 
   if (!scenario) {
     return null;
@@ -75,6 +76,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         members={members}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
+        assumptions={assumptions}
         scenarioId={scenario.id}
         onAddDefinition={(definition) => {
           addEventDefinition(definition);
@@ -99,6 +101,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       members={members}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
+      assumptions={assumptions}
       scenarioId={scenario.id}
       onAddDefinition={(definition) => {
         addEventDefinition(definition);

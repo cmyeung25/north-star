@@ -7,6 +7,9 @@
     "typecheck": {
       "outputs": []
     },
+    "build": {
+      "outputs": []
+    },
     "test": {
       "outputs": ["coverage/**"]
     }
