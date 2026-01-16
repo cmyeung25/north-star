@@ -57,6 +57,7 @@ interface TimelineDesktopProps {
   members: ScenarioMember[];
   baseCurrency: string;
   baseMonth?: string | null;
+  assumptions: { baseMonth: string | null; horizonMonths: number };
   scenarioId: string;
   onAddDefinition: (definition: EventDefinition) => void;
   onUpdateDefinition: (id: string, patch: Partial<EventDefinition>) => void;
@@ -73,6 +74,7 @@ export default function TimelineDesktop({
   members,
   baseCurrency,
   baseMonth,
+  assumptions,
   scenarioId,
   onAddDefinition,
   onUpdateDefinition,
@@ -392,6 +394,7 @@ export default function TimelineDesktop({
         onClose={() => setAddEventOpen(false)}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
+        assumptions={assumptions}
         members={members}
         parentGroupOptions={parentGroupOptions}
         onAddDefinition={(definition) => onAddDefinition(definition)}
@@ -503,6 +506,7 @@ export default function TimelineDesktop({
                       }
                     )}
                     baseCurrency={baseCurrency}
+                    assumptions={assumptions}
                     members={members}
                     fields={getEventMeta(editingEvent.definition.type).fields}
                     showMember
@@ -522,6 +526,7 @@ export default function TimelineDesktop({
                     }
                   )}
                   baseCurrency={baseCurrency}
+                  assumptions={assumptions}
                   members={members}
                   fields={[
                     { key: "startMonth", input: "month" },

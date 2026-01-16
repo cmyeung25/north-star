@@ -263,6 +263,13 @@
     "eventFormAnnualGrowth": "Annual growth %",
     "eventFormCurrency": "Currency",
     "eventFormEnabled": "Enabled",
+    "cashflowPreviewTitle": "Cashflow preview",
+    "cashflowPreviewEmpty": "Update the dates or amounts to see a preview.",
+    "cashflowPreviewDisabled": "Preview is disabled for this event.",
+    "cashflowPreviewTotal": "Total cashflow",
+    "cashflowPreviewIncome": "Total income",
+    "cashflowPreviewExpense": "Total expense",
+    "cashflowPreviewPeak": "Peak month",
     "memberLabel": "Member",
     "memberHousehold": "Household",
     "timelineEventPlan": "{label} plan"

@@ -9,17 +9,22 @@ import {
   Switch,
   TextInput,
 } from "@mantine/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { EventField, EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
 import type { TimelineEvent } from "./types";
-import type { ScenarioMember } from "../../src/store/scenarioStore";
+import type { ScenarioAssumptions, ScenarioMember } from "../../src/store/scenarioStore";
+import { buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
+import { compileEventToMonthlyCashflowSeries } from "../../src/domain/events/compiler";
+import { getEventSign } from "../../src/events/eventCatalog";
+import CashflowPreviewChart from "./CashflowPreviewChart";
 
 interface TimelineEventFormProps {
   event: TimelineEvent | null;
   baseCurrency: string;
   members: ScenarioMember[];
+  assumptions: Pick<ScenarioAssumptions, "baseMonth" | "horizonMonths">;
   fields?: readonly EventField[];
   showMember?: boolean;
   onCancel: () => void;
@@ -31,6 +36,7 @@ export default function TimelineEventForm({
   event,
   baseCurrency,
   members,
+  assumptions,
   fields,
   showMember = true,
   onCancel,
@@ -49,10 +55,6 @@ export default function TimelineEventForm({
     setFormValues(event);
     setErrors({});
   }, [event]);
-
-  if (!formValues) {
-    return null;
-  }
 
   const fieldKeys = fields?.map((field) => field.key) ?? [];
   const shouldShowField = (key: EventFieldKey) =>
@@ -132,6 +134,24 @@ export default function TimelineEventForm({
 
     onSave(normalizedEvent);
   };
+
+  const previewSeries = useMemo(() => {
+    if (!formValues || !assumptions.baseMonth) {
+      return [];
+    }
+
+    const definition = buildDefinitionFromTimelineEvent(formValues);
+    return compileEventToMonthlyCashflowSeries({
+      definition,
+      ref: { refId: definition.id, enabled: formValues.enabled },
+      assumptions,
+      signByType: getEventSign,
+    });
+  }, [assumptions, formValues]);
+
+  if (!formValues) {
+    return null;
+  }
 
   const currencyOptions = [
     { value: baseCurrency, label: baseCurrency },
@@ -225,6 +245,13 @@ export default function TimelineEventForm({
           max={100}
           decimalScale={2}
           suffix="%"
+        />
+      )}
+      {(shouldShowField("monthlyAmount") || shouldShowField("oneTimeAmount")) && (
+        <CashflowPreviewChart
+          series={previewSeries}
+          currency={formValues.currency ?? baseCurrency}
+          disabled={!formValues.enabled}
         />
       )}
       {shouldShowField("currency") && (

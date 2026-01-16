@@ -64,6 +64,7 @@ interface TimelineMobileProps {
   members: ScenarioMember[];
   baseCurrency: string;
   baseMonth?: string | null;
+  assumptions: { baseMonth: string | null; horizonMonths: number };
   scenarioId: string;
   onAddDefinition: (definition: EventDefinition) => void;
   onUpdateDefinition: (id: string, patch: Partial<EventDefinition>) => void;
@@ -81,6 +82,7 @@ export default function TimelineMobile({
   members,
   baseCurrency,
   baseMonth,
+  assumptions,
   scenarioId,
   onAddDefinition,
   onUpdateDefinition,
@@ -419,6 +421,7 @@ export default function TimelineMobile({
         onClose={() => setAddEventOpen(false)}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
+        assumptions={assumptions}
         members={members}
         parentGroupOptions={parentGroupOptions}
         onAddDefinition={(definition) => onAddDefinition(definition)}
@@ -529,6 +532,7 @@ export default function TimelineMobile({
                       }
                     )}
                     baseCurrency={baseCurrency}
+                    assumptions={assumptions}
                     members={members}
                     fields={getEventMeta(editingEvent.definition.type).fields}
                     showMember
@@ -548,6 +552,7 @@ export default function TimelineMobile({
                     }
                   )}
                   baseCurrency={baseCurrency}
+                  assumptions={assumptions}
                   members={members}
                   fields={[
                     { key: "startMonth", input: "month" },

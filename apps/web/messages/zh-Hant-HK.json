@@ -263,6 +263,13 @@
     "eventFormAnnualGrowth": "年度增長 %",
     "eventFormCurrency": "貨幣",
     "eventFormEnabled": "啟用",
+    "cashflowPreviewTitle": "現金流預覽",
+    "cashflowPreviewEmpty": "調整日期或金額以查看預覽。",
+    "cashflowPreviewDisabled": "此事件已停用預覽。",
+    "cashflowPreviewTotal": "合計現金流",
+    "cashflowPreviewIncome": "合計收入",
+    "cashflowPreviewExpense": "合計支出",
+    "cashflowPreviewPeak": "峰值月份",
     "memberLabel": "成員",
     "memberHousehold": "家庭共同",
     "timelineEventPlan": "{label} 計劃"
