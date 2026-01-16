@@ -41,7 +41,10 @@ import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
-import { compileBudgetRuleToMonthlySeries } from "../../../src/domain/budget/compileBudgetRules";
+import {
+  compileBudgetRuleToMonthlySeries,
+  type BudgetRuleMonthlyEntry,
+} from "../../../src/domain/budget/compileBudgetRules";
 import DataManagementSection from "../../../components/DataManagementSection";
 
 type SettingsClientProps = {
@@ -359,10 +362,28 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       maximumFractionDigits: 0,
     }).format(value);
   };
+  const buildZeroPreview = (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
+    if (!assumptions.baseMonth || assumptions.horizonMonths <= 0) {
+      return [];
+    }
+    return buildMonthRange(assumptions.baseMonth, assumptions.horizonMonths).map(
+      (month) => ({
+        month,
+        amountSigned: 0,
+        sourceRuleId: rule.id,
+        memberId: rule.memberId,
+        label: rule.name,
+        category: rule.category,
+      })
+    );
+  };
+
   const budgetRulePreviews = new Map(
     budgetRules.map((rule) => [
       rule.id,
-      compileBudgetRuleToMonthlySeries(rule, scenario),
+      rule.enabled
+        ? compileBudgetRuleToMonthlySeries(rule, scenario)
+        : buildZeroPreview(rule),
     ])
   );
 
@@ -859,6 +880,10 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
               {budgetRules.map((rule) => {
                 const preview = budgetRulePreviews.get(rule.id) ?? [];
                 const previewSlice = preview.slice(0, 12);
+                const previewTotal = preview.reduce(
+                  (total, entry) => total + entry.amountSigned,
+                  0
+                );
 
                 return (
                   <Card key={rule.id} withBorder radius="md" padding="md">
@@ -1032,9 +1057,16 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                         />
                       </Group>
                       <Stack gap={4}>
-                        <Text fw={600} size="sm">
-                          {budgetText("previewTitle")}
-                        </Text>
+                        <Group justify="space-between" align="center">
+                          <Text fw={600} size="sm">
+                            {budgetText("previewTitle")}
+                          </Text>
+                          <Text size="sm" c="dimmed">
+                            {budgetText("previewTotal", {
+                              total: formatCurrency(previewTotal),
+                            })}
+                          </Text>
+                        </Group>
                         {previewSlice.length === 0 ? (
                           <Text size="sm" c="dimmed">
                             {budgetText("previewEmpty")}

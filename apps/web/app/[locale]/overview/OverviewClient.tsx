@@ -42,6 +42,10 @@ import {
 } from "../../../src/engine/projectionSelectors";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import {
+  compileAllBudgetRules,
+  sumByMonth,
+} from "../../../src/domain/budget/compileBudgetRules";
+import {
   buildExportFilename,
   downloadTextFile,
   projectionToCSV,
@@ -185,6 +189,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const netWorthSeries = overviewViewModel?.netWorthSeries ?? [];
   const computedKpis = overviewViewModel?.kpis;
   const rentVsOwn = useRentVsOwnComparison(selectedScenario, eventLibrary);
+  const budgetTotals = useMemo(() => {
+    if (!selectedScenario) {
+      return [];
+    }
+    const ledger = compileAllBudgetRules(selectedScenario);
+    return sumByMonth(ledger);
+  }, [selectedScenario]);
+  const budgetTotalsPreview = budgetTotals.slice(0, 12);
 
   const insights = useMemo(() => {
     if (!computedKpis) {
@@ -418,6 +430,40 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           </Card>
         </Stack>
       )}
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="xs">
+          <Text fw={600}>{t("budgetPreviewTitle")}</Text>
+          <Text size="sm" c="dimmed">
+            {t("budgetPreviewSubtitle")}
+          </Text>
+          {budgetTotalsPreview.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {t("budgetPreviewEmpty")}
+            </Text>
+          ) : (
+            <Stack gap={2}>
+              {budgetTotalsPreview.map((entry) => (
+                <Text key={`budget-${entry.month}`} size="sm">
+                  {entry.month} ·{" "}
+                  {formatCurrency(
+                    entry.totalAmountSigned,
+                    selectedScenario.baseCurrency,
+                    locale
+                  )}
+                </Text>
+              ))}
+              {budgetTotals.length > budgetTotalsPreview.length && (
+                <Text size="xs" c="dimmed">
+                  {t("budgetPreviewMore", {
+                    count: budgetTotals.length - budgetTotalsPreview.length,
+                  })}
+                </Text>
+              )}
+            </Stack>
+          )}
+        </Stack>
+      </Card>
       <ProjectionDetailsModal
         opened={breakdownOpen}
         onClose={() => setBreakdownOpen(false)}
