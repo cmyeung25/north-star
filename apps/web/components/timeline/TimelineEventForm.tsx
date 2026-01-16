@@ -15,7 +15,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { buildMonthRange, type EventField, type EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
-import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
+import { normalizeEvent } from "../../src/features/timeline/schema";
+import { isValidMonthStr, normalizeMonthInput } from "../../src/utils/month";
 import type { TimelineEvent } from "./types";
 import type { ScenarioAssumptions, ScenarioMember } from "../../src/store/scenarioStore";
 import { buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
@@ -87,6 +88,8 @@ export default function TimelineEventForm({
   const [errors, setErrors] = useState<{ startMonth?: string; endMonth?: string }>(
     {}
   );
+  const [startMonthInput, setStartMonthInput] = useState(event?.startMonth ?? "");
+  const [endMonthInput, setEndMonthInput] = useState(event?.endMonth ?? "");
   const [cashflowMode, setCashflowMode] = useState<"view" | "edit">("view");
   const [scheduleDraft, setScheduleDraft] = useState<Record<string, number>>({});
   const [ruleMode, setRuleMode] = useState<EventRule["mode"]>(initialRuleMode);
@@ -96,6 +99,8 @@ export default function TimelineEventForm({
   useEffect(() => {
     setFormValues(event);
     setErrors({});
+    setStartMonthInput(event?.startMonth ?? "");
+    setEndMonthInput(event?.endMonth ?? "");
     setCashflowMode("view");
     setRuleMode(initialRuleMode ?? "params");
     setScheduleDraft(buildScheduleMap(schedule));
@@ -119,22 +124,35 @@ export default function TimelineEventForm({
     );
   };
 
-  const handleNormalizeMonth = (
-    key: "startMonth" | "endMonth",
-    value: string | null
-  ) => {
+  const handleNormalizeMonth = (key: "startMonth" | "endMonth", value: string) => {
     if (!formValues) {
       return;
     }
-    const normalized = value ? normalizeMonth(value) : null;
-    if (!normalized && value) {
+
+    const normalized = normalizeMonthInput(value);
+    if (normalized.status === "valid" && normalized.month) {
+      if (key === "startMonth") {
+        setStartMonthInput(normalized.month);
+        updateField("startMonth", normalized.month as TimelineEvent["startMonth"]);
+      } else {
+        setEndMonthInput(normalized.month);
+        updateField("endMonth", normalized.month as TimelineEvent["endMonth"]);
+      }
+      setErrors((current) => ({ ...current, [key]: undefined }));
       return;
     }
-    if (key === "startMonth") {
-      updateField("startMonth", (normalized ?? value ?? "") as TimelineEvent["startMonth"]);
+
+    if (normalized.status === "empty") {
+      if (key === "startMonth") {
+        updateField("startMonth", "" as TimelineEvent["startMonth"]);
+      } else {
+        updateField("endMonth", null as TimelineEvent["endMonth"]);
+      }
+      setErrors((current) => ({ ...current, [key]: undefined }));
       return;
     }
-    updateField("endMonth", (normalized ?? null) as TimelineEvent["endMonth"]);
+
+    setErrors((current) => ({ ...current, [key]: validation("useYearMonth") }));
   };
 
   const handleSave = () => {
@@ -142,22 +160,24 @@ export default function TimelineEventForm({
       return;
     }
 
-    const normalizedStartMonth = normalizeMonth(formValues.startMonth);
-    const normalizedEndMonth = formValues.endMonth
-      ? normalizeMonth(formValues.endMonth)
-      : null;
+    const normalizedStartMonth = normalizeMonthInput(startMonthInput);
+    const normalizedEndMonth = normalizeMonthInput(endMonthInput);
     const nextErrors: { startMonth?: string; endMonth?: string } = {};
 
-    if (shouldShowField("startMonth") && !normalizedStartMonth) {
+    if (
+      shouldShowField("startMonth") &&
+      (normalizedStartMonth.status !== "valid" || !normalizedStartMonth.month)
+    ) {
       nextErrors.startMonth = validation("useYearMonth");
     }
 
-    if (shouldShowField("endMonth") && formValues.endMonth) {
-      if (!normalizedEndMonth) {
+    if (shouldShowField("endMonth") && endMonthInput.trim() !== "") {
+      if (normalizedEndMonth.status !== "valid" || !normalizedEndMonth.month) {
         nextErrors.endMonth = validation("useYearMonth");
       } else if (
-        normalizedStartMonth &&
-        normalizedEndMonth < normalizedStartMonth
+        normalizedStartMonth.status === "valid" &&
+        normalizedStartMonth.month &&
+        normalizedEndMonth.month < normalizedStartMonth.month
       ) {
         nextErrors.endMonth = validation("endMonthAfterStart");
       }
@@ -171,8 +191,8 @@ export default function TimelineEventForm({
     const normalizedEvent = normalizeEvent(
       {
         ...formValues,
-        startMonth: normalizedStartMonth ?? formValues.startMonth,
-        endMonth: normalizedEndMonth,
+        startMonth: normalizedStartMonth.month ?? formValues.startMonth,
+        endMonth: normalizedEndMonth.status === "valid" ? normalizedEndMonth.month : null,
       },
       { baseCurrency }
     );
@@ -195,12 +215,18 @@ export default function TimelineEventForm({
     });
   };
 
-  const baseMonth = assumptions.baseMonth ?? formValues?.startMonth ?? null;
+  const baseMonth = assumptions.baseMonth ?? null;
+  const fallbackMonth = isValidMonthStr(formValues?.startMonth ?? "")
+    ? formValues?.startMonth ?? null
+    : null;
+  const previewBaseMonth = isValidMonthStr(baseMonth ?? "") ? baseMonth : fallbackMonth;
   const horizonMonths = assumptions.horizonMonths ?? 0;
   const horizonMonthsList = useMemo(
     () =>
-      baseMonth && horizonMonths > 0 ? buildMonthRange(baseMonth, horizonMonths) : [],
-    [baseMonth, horizonMonths]
+      previewBaseMonth && horizonMonths > 0
+        ? buildMonthRange(previewBaseMonth, horizonMonths)
+        : [],
+    [previewBaseMonth, horizonMonths]
   );
   const scheduleEntries = useMemo(
     () => buildScheduleEntries(scheduleDraft),
@@ -211,21 +237,28 @@ export default function TimelineEventForm({
     if (!formValues || !assumptions.baseMonth) {
       return [];
     }
+    if (!isValidMonthStr(assumptions.baseMonth)) {
+      return [];
+    }
 
     const definition = buildDefinitionFromTimelineEvent(formValues);
-    return compileEventToMonthlyCashflowSeries({
-      definition: {
-        ...definition,
-        rule: {
-          ...definition.rule,
-          mode: ruleMode,
-          schedule: ruleMode === "schedule" ? scheduleEntries : undefined,
+    try {
+      return compileEventToMonthlyCashflowSeries({
+        definition: {
+          ...definition,
+          rule: {
+            ...definition.rule,
+            mode: ruleMode,
+            schedule: ruleMode === "schedule" ? scheduleEntries : undefined,
+          },
         },
-      },
-      ref: { refId: definition.id, enabled: formValues.enabled },
-      assumptions,
-      signByType: getEventSign,
-    });
+        ref: { refId: definition.id, enabled: formValues.enabled },
+        assumptions,
+        signByType: getEventSign,
+      });
+    } catch {
+      return [];
+    }
   }, [assumptions, formValues, ruleMode, scheduleEntries]);
 
   const editableSeries = useMemo(() => {
@@ -308,11 +341,23 @@ export default function TimelineEventForm({
         <TextInput
           label={t("eventFormStartMonth")}
           placeholder={common("yearMonthPlaceholder")}
-          value={formValues.startMonth}
+          value={startMonthInput}
           error={errors.startMonth}
-          onChange={(eventChange) =>
-            updateField("startMonth", eventChange.target.value)
-          }
+          onChange={(eventChange) => {
+            const nextValue = eventChange.target.value;
+            setStartMonthInput(nextValue);
+            const normalized = normalizeMonthInput(nextValue);
+            if (normalized.status === "valid" && normalized.month) {
+              updateField("startMonth", normalized.month as TimelineEvent["startMonth"]);
+            } else if (normalized.status === "empty") {
+              updateField("startMonth", "" as TimelineEvent["startMonth"]);
+            } else {
+              updateField("startMonth", "" as TimelineEvent["startMonth"]);
+            }
+            if (errors.startMonth) {
+              setErrors((current) => ({ ...current, startMonth: undefined }));
+            }
+          }}
           onBlur={(eventChange) =>
             handleNormalizeMonth("startMonth", eventChange.target.value)
           }
@@ -322,11 +367,23 @@ export default function TimelineEventForm({
         <TextInput
           label={t("eventFormEndMonth")}
           placeholder={common("yearMonthOptionalPlaceholder")}
-          value={formValues.endMonth ?? ""}
+          value={endMonthInput}
           error={errors.endMonth}
-          onChange={(eventChange) =>
-            updateField("endMonth", eventChange.target.value || null)
-          }
+          onChange={(eventChange) => {
+            const nextValue = eventChange.target.value;
+            setEndMonthInput(nextValue);
+            const normalized = normalizeMonthInput(nextValue);
+            if (normalized.status === "valid" && normalized.month) {
+              updateField("endMonth", normalized.month as TimelineEvent["endMonth"]);
+            } else if (normalized.status === "empty") {
+              updateField("endMonth", null as TimelineEvent["endMonth"]);
+            } else {
+              updateField("endMonth", null as TimelineEvent["endMonth"]);
+            }
+            if (errors.endMonth) {
+              setErrors((current) => ({ ...current, endMonth: undefined }));
+            }
+          }}
           onBlur={(eventChange) =>
             handleNormalizeMonth("endMonth", eventChange.target.value)
           }
