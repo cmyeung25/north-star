@@ -35,12 +35,12 @@ import {
   mapScenarioToEngineInput,
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
-import { expandDerivedEvents } from "../../../src/engine/scenarioTransforms";
 import {
   createBreakdownLabelResolver,
   getAssetBreakdownRows,
   getCashflowBreakdownRows,
 } from "../../../src/engine/projectionSelectors";
+import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import {
   buildExportFilename,
   downloadTextFile,
@@ -107,6 +107,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const exportT = useTranslations("export");
   const homesT = useTranslations("homes");
   const scenarios = useScenarioStore((state) => state.scenarios);
+  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const scenarioIdFromQuery = scenarioId ?? null;
@@ -133,23 +134,19 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     if (!selectedScenario) {
       return null;
     }
-    const input = mapScenarioToEngineInput(selectedScenario);
+    const input = mapScenarioToEngineInput(selectedScenario, eventLibrary);
     return computeProjection(input);
-  }, [selectedScenario]);
+  }, [eventLibrary, selectedScenario]);
 
   const overviewViewModel = useMemo(
     () => (projection ? projectionToOverviewViewModel(projection) : null),
     [projection]
   );
-  const scenarioForLabels = useMemo(
-    () => (selectedScenario ? expandDerivedEvents(selectedScenario) : null),
-    [selectedScenario]
-  );
   const breakdownLabelResolver = useMemo(() => {
-    if (!scenarioForLabels) {
+    if (!selectedScenario) {
       return null;
     }
-    return createBreakdownLabelResolver(scenarioForLabels, {
+    return createBreakdownLabelResolver(selectedScenario, eventLibrary, {
       cashLabel: t("breakdownLabels.cash"),
       homeLabel: (index, name) => name ?? homesT("homeLabel", { index }),
       investmentLabel: (index) => t("breakdownLabels.investment", { index }),
@@ -168,7 +165,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         tax_benefit: t("breakdownLabels.taxBenefit"),
       },
     });
-  }, [homesT, scenarioForLabels, t]);
+  }, [eventLibrary, homesT, selectedScenario, t]);
   const cashflowRows = useMemo(
     () =>
       projection && breakdownLabelResolver
@@ -187,7 +184,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const cashSeries = overviewViewModel?.cashSeries ?? [];
   const netWorthSeries = overviewViewModel?.netWorthSeries ?? [];
   const computedKpis = overviewViewModel?.kpis;
-  const rentVsOwn = useRentVsOwnComparison(selectedScenario);
+  const rentVsOwn = useRentVsOwnComparison(selectedScenario, eventLibrary);
 
   const insights = useMemo(() => {
     if (!computedKpis) {
@@ -202,7 +199,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   }
 
   const hasEnabledEvents =
-    (selectedScenario.events ?? []).filter((event) => event.enabled).length > 0;
+    buildScenarioTimelineEvents(selectedScenario, eventLibrary).filter(
+      (event) => event.enabled
+    ).length > 0;
 
   const kpiItems = [
     {

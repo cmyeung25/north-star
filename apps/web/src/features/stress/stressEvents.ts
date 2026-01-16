@@ -1,5 +1,8 @@
-import type { Scenario, TimelineEvent } from "../../store/scenarioStore";
+import type { Scenario } from "../../store/scenarioStore";
 import { normalizeMonth } from "../timeline/schema";
+import type { EventDefinition } from "../../domain/events/types";
+import { buildScenarioTimelineEvents } from "../../domain/events/utils";
+import type { TimelineEvent } from "../../features/timeline/schema";
 
 export type AppliedStressState = {
   jobLossMonths?: 3 | 6 | 12 | null;
@@ -35,7 +38,11 @@ const getEarliestEnabledMonth = (events: TimelineEvent[]) =>
     return earliest;
   }, null);
 
-const resolveApplyMonth = (params: AppliedStressState, scenario: Scenario) => {
+const resolveApplyMonth = (
+  params: AppliedStressState,
+  scenario: Scenario,
+  eventLibrary: EventDefinition[]
+) => {
   const normalized = normalizeMonth(params.applyMonth ?? "");
   if (normalized) {
     return normalized;
@@ -46,7 +53,9 @@ const resolveApplyMonth = (params: AppliedStressState, scenario: Scenario) => {
     return scenarioBaseMonth;
   }
 
-  const earliestEventMonth = getEarliestEnabledMonth(scenario.events ?? []);
+  const earliestEventMonth = getEarliestEnabledMonth(
+    buildScenarioTimelineEvents(scenario, eventLibrary)
+  );
   return earliestEventMonth ?? getCurrentMonth();
 };
 
@@ -116,12 +125,13 @@ type Translator = (key: string, values?: Record<string, string | number>) => str
 export const buildStressEvents = (
   params: AppliedStressState,
   scenario: Scenario,
+  eventLibrary: EventDefinition[],
   t: Translator
 ): TimelineEvent[] => {
-  const applyMonth = resolveApplyMonth(params, scenario);
+  const applyMonth = resolveApplyMonth(params, scenario, eventLibrary);
   const events: TimelineEvent[] = [];
   const baseCurrency = scenario.baseCurrency;
-  const sourceEvents = scenario.events ?? [];
+  const sourceEvents = buildScenarioTimelineEvents(scenario, eventLibrary);
 
   if (params.jobLossMonths) {
     const baselineIncomeMonthly = calculateBaselineIncomeMonthly(
@@ -136,7 +146,7 @@ export const buildStressEvents = (
       name: t("stressEventJobLoss", { months: params.jobLossMonths }),
       startMonth: applyMonth,
       endMonth,
-      monthlyAmount: -baselineIncomeMonthly,
+      monthlyAmount: baselineIncomeMonthly,
       oneTimeAmount: 0,
       annualGrowthPct: 0,
       enabled: true,
@@ -162,7 +172,7 @@ export const buildStressEvents = (
       name: t("stressEventRateHike", { rate: params.rateHikePct }),
       startMonth: applyMonth,
       endMonth: null,
-      monthlyAmount: -deltaCost,
+      monthlyAmount: deltaCost,
       oneTimeAmount: 0,
       annualGrowthPct: 0,
       enabled: true,
@@ -178,7 +188,7 @@ export const buildStressEvents = (
       startMonth: applyMonth,
       endMonth: applyMonth,
       monthlyAmount: 0,
-      oneTimeAmount: -params.medicalAmount,
+      oneTimeAmount: params.medicalAmount,
       annualGrowthPct: 0,
       enabled: true,
       currency: baseCurrency,

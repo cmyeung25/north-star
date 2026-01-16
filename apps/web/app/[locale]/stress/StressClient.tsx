@@ -30,6 +30,10 @@ import {
 import { useStressComparison } from "../../../src/engine/useStressComparison";
 import type { StressPreset } from "../../../src/engine/stressTransforms";
 import {
+  buildDefinitionFromTimelineEvent,
+  buildScenarioTimelineEvents,
+} from "../../../src/domain/events/utils";
+import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
@@ -69,12 +73,15 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   const overviewT = useTranslations("overview");
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
+  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const createScenario = useScenarioStore((state) => state.createScenario);
-  const upsertScenarioEvents = useScenarioStore(
-    (state) => state.upsertScenarioEvents
+  const upsertScenarioEventRefs = useScenarioStore(
+    (state) => state.upsertScenarioEventRefs
   );
+  const addScenarioEventRef = useScenarioStore((state) => state.addScenarioEventRef);
+  const addEventDefinition = useScenarioStore((state) => state.addEventDefinition);
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
@@ -111,15 +118,15 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     if (!scenario) {
       return null;
     }
-    return mapScenarioToEngineInput(scenario);
-  }, [scenario]);
+    return mapScenarioToEngineInput(scenario, eventLibrary);
+  }, [eventLibrary, scenario]);
 
   const normalizedShockMonth = useMemo(
     () => normalizeMonth(shockMonth ?? "") ?? shockMonth ?? undefined,
     [shockMonth]
   );
 
-  const presetComparison = useStressComparison(scenario, activePreset, {
+  const presetComparison = useStressComparison(scenario, eventLibrary, activePreset, {
     shockMonth: normalizedShockMonth,
   });
 
@@ -152,24 +159,23 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     if (!scenario) {
       return [];
     }
-    return buildStressEvents(appliedStress, scenario, t);
-  }, [appliedStress, scenario, t]);
+    return buildStressEvents(appliedStress, scenario, eventLibrary, t);
+  }, [appliedStress, eventLibrary, scenario, t]);
 
   const afterInput = useMemo(() => {
     if (!scenario || !baselineInput) {
       return null;
     }
-    const combinedScenario = {
-      ...scenario,
-      events: [...(scenario.events ?? []), ...stressEvents],
-    };
+    const baseEvents = buildScenarioTimelineEvents(scenario, eventLibrary);
+    const combinedEvents = [...baseEvents, ...stressEvents];
 
-    return mapScenarioToEngineInput(combinedScenario, {
+    return mapScenarioToEngineInput(scenario, eventLibrary, {
+      eventsOverride: combinedEvents,
       baseMonth: baselineInput.baseMonth,
       horizonMonths: baselineInput.horizonMonths,
       initialCash: baselineInput.initialCash,
     });
-  }, [baselineInput, scenario, stressEvents]);
+  }, [baselineInput, eventLibrary, scenario, stressEvents]);
 
   const baselineProjection = useMemo(() => {
     if (!baselineInput) {
@@ -321,14 +327,22 @@ export default function StressClient({ scenarioId }: StressClientProps) {
 
     updateScenarioAssumptions(newScenario.id, { ...scenario.assumptions });
 
-    const clonedEvents = (scenario.events ?? []).map((event) => ({
-      ...event,
-      id: `event-${nanoid(10)}`,
+    const clonedEventRefs = (scenario.eventRefs ?? []).map((ref) => ({
+      ...ref,
+      overrides: ref.overrides ? { ...ref.overrides } : undefined,
     }));
-    const eventsToSave = [...clonedEvents, ...stressEvents];
-    if (eventsToSave.length > 0) {
-      upsertScenarioEvents(newScenario.id, eventsToSave);
-    }
+    upsertScenarioEventRefs(newScenario.id, clonedEventRefs);
+
+    stressEvents.forEach((event) => {
+      const definition = {
+        ...buildDefinitionFromTimelineEvent({
+          ...event,
+          id: `event-${nanoid(10)}`,
+        }),
+      };
+      addEventDefinition(definition);
+      addScenarioEventRef(newScenario.id, { refId: definition.id, enabled: true });
+    });
 
     setActiveScenario(newScenario.id);
     router.push(`/${locale}/scenarios`);

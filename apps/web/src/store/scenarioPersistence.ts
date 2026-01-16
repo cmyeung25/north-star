@@ -4,6 +4,7 @@ import {
   type Scenario,
   useScenarioStore,
 } from "./scenarioStore";
+import type { EventDefinition } from "../domain/events/types";
 import { SCHEMA_VERSION } from "./scenarioSchema";
 import { normalizeActiveScenarioId } from "./scenarioState";
 
@@ -12,6 +13,7 @@ const SAVE_DEBOUNCE_MS = 500;
 
 type ScenarioStoreSnapshot = {
   scenarios: Scenario[];
+  eventLibrary: EventDefinition[];
   activeScenarioId: string;
 };
 
@@ -32,6 +34,7 @@ const isPersistedScenarioState = (
   return (
     typeof record.schemaVersion === "number" &&
     Array.isArray(record.scenarios) &&
+    Array.isArray(record.eventLibrary) &&
     typeof record.activeScenarioId === "string"
   );
 };
@@ -57,6 +60,7 @@ export const loadFromIndexedDB = async () => {
   return {
     ...value,
     scenarios: normalizedScenarios,
+    eventLibrary: value.eventLibrary,
     activeScenarioId: normalizeActiveScenarioId(
       normalizedScenarios,
       value.activeScenarioId
@@ -72,6 +76,7 @@ export const saveToIndexedDB = async (state: ScenarioStoreSnapshot) => {
   await set(STORAGE_KEY, {
     schemaVersion: SCHEMA_VERSION,
     scenarios: state.scenarios,
+    eventLibrary: state.eventLibrary,
     activeScenarioId: state.activeScenarioId,
     savedAt: Date.now(),
   });
@@ -87,6 +92,7 @@ export const hydrateScenarioStore = async () => {
   if (persisted) {
     useScenarioStore.setState({
       scenarios: normalizeScenarioList(persisted.scenarios),
+      eventLibrary: persisted.eventLibrary,
       activeScenarioId: persisted.activeScenarioId,
     });
     return;
@@ -95,6 +101,7 @@ export const hydrateScenarioStore = async () => {
   const snapshot = useScenarioStore.getState();
   await saveToIndexedDB({
     scenarios: snapshot.scenarios,
+    eventLibrary: snapshot.eventLibrary,
     activeScenarioId: snapshot.activeScenarioId,
   });
 };
@@ -119,6 +126,7 @@ export const initializeScenarioPersistence = () => {
   const unsubscribe = useScenarioStore.subscribe((state) => {
     scheduleSave({
       scenarios: state.scenarios,
+      eventLibrary: state.eventLibrary,
       activeScenarioId: state.activeScenarioId,
     });
   });

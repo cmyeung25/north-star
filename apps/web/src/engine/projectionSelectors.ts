@@ -1,4 +1,5 @@
 import type { ProjectionResult } from "@north-star/engine";
+import type { EventDefinition } from "../domain/events/types";
 import type { Scenario } from "../store/scenarioStore";
 
 export type ProjectionMonthlyRow = {
@@ -50,8 +51,8 @@ type BreakdownLabelTokens = {
   suffixLabels: Record<string, string>;
 };
 
-const buildEventLookup = (scenario: Scenario) =>
-  new Map((scenario.events ?? []).map((event) => [event.id, event]));
+const buildEventLookup = (eventLibrary: EventDefinition[]) =>
+  new Map(eventLibrary.map((definition) => [definition.id, definition]));
 
 const buildMemberLookup = (scenario: Scenario) =>
   new Map((scenario.members ?? []).map((member) => [member.id, member]));
@@ -78,9 +79,10 @@ const buildHomeLookup = (scenario: Scenario) => {
 
 export const createBreakdownLabelResolver = (
   scenario: Scenario,
+  eventLibrary: EventDefinition[],
   labels: BreakdownLabelTokens
 ) => {
-  const eventLookup = buildEventLookup(scenario);
+  const eventLookup = buildEventLookup(eventLibrary);
   const memberLookup = buildMemberLookup(scenario);
   const homeLookup = buildHomeLookup(scenario);
 
@@ -92,7 +94,7 @@ export const createBreakdownLabelResolver = (
     if (key.startsWith("event:")) {
       const [, eventId] = key.split(":");
       const event = eventLookup.get(eventId);
-      const baseLabel = event?.name ?? event?.type ?? key;
+      const baseLabel = event?.title ?? event?.type ?? key;
       const memberName = event?.memberId
         ? memberLookup.get(event.memberId)?.name
         : undefined;

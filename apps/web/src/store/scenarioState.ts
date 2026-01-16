@@ -3,10 +3,12 @@ import {
   useScenarioStore,
   type Scenario,
 } from "./scenarioStore";
+import type { EventDefinition } from "../domain/events/types";
 import { SCHEMA_VERSION } from "./scenarioSchema";
 
 export type ScenarioStoreSnapshot = {
   scenarios: Scenario[];
+  eventLibrary: EventDefinition[];
   activeScenarioId: string;
 };
 
@@ -31,6 +33,7 @@ export const exportScenarioState = (): ScenarioStatePayload => {
   return {
     schemaVersion: SCHEMA_VERSION,
     scenarios: snapshot.scenarios,
+    eventLibrary: snapshot.eventLibrary,
     activeScenarioId: snapshot.activeScenarioId,
   };
 };
@@ -44,11 +47,13 @@ export const importScenarioState = (payload: ScenarioStatePayload) => {
 
   useScenarioStore.setState({
     scenarios: normalizedScenarios,
+    eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
   });
 
   return {
     scenarios: normalizedScenarios,
+    eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
   } satisfies ScenarioStoreSnapshot;
 };

@@ -4,7 +4,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { useEffect, useMemo } from "react";
 import TimelineDesktop from "../../../components/timeline/TimelineDesktop";
 import TimelineMobile from "../../../components/timeline/TimelineMobile";
-import { normalizeEvent } from "../../../src/features/timeline/schema";
+import { buildScenarioEventViews } from "../../../src/domain/events/utils";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -19,10 +19,19 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
+  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
-  const upsertScenarioEvents = useScenarioStore(
-    (state) => state.upsertScenarioEvents
+  const addEventDefinition = useScenarioStore((state) => state.addEventDefinition);
+  const updateEventDefinition = useScenarioStore(
+    (state) => state.updateEventDefinition
+  );
+  const addScenarioEventRef = useScenarioStore((state) => state.addScenarioEventRef);
+  const updateScenarioEventRef = useScenarioStore(
+    (state) => state.updateScenarioEventRef
+  );
+  const removeScenarioEventRef = useScenarioStore(
+    (state) => state.removeScenarioEventRef
   );
   const addHomePosition = useScenarioStore((state) => state.addHomePosition);
   const updateHomePosition = useScenarioStore(
@@ -47,24 +56,11 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
     [activeScenarioId, scenarioIdFromQuery, scenarios]
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
-  const events = scenario?.events ?? [];
+  const eventViews = scenario ? buildScenarioEventViews(scenario, eventLibrary) : [];
   const homePositions = scenario?.positions?.homes ?? [];
   const members = scenario?.members ?? [];
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
-
-  const handleEventsChange = (updatedEvents: typeof events) => {
-    if (!scenario) {
-      return;
-    }
-    const normalizedEvents = updatedEvents.map((event) =>
-      normalizeEvent(event, {
-        baseCurrency: scenario.baseCurrency,
-        fallbackMonth: scenario.assumptions.baseMonth,
-      })
-    );
-    upsertScenarioEvents(scenario.id, normalizedEvents);
-  };
 
   if (!scenario) {
     return null;
@@ -73,13 +69,21 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   if (isDesktop) {
     return (
       <TimelineDesktop
-        events={events}
+        eventViews={eventViews}
+        eventLibrary={eventLibrary}
         homePositions={homePositions}
         members={members}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         scenarioId={scenario.id}
-        onEventsChange={handleEventsChange}
+        onAddDefinition={(definition) => {
+          addEventDefinition(definition);
+          addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+        }}
+        onUpdateDefinition={updateEventDefinition}
+        onUpdateEventRef={(refId, patch) =>
+          updateScenarioEventRef(scenario.id, refId, patch)
+        }
         onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
         onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
         onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}
@@ -89,13 +93,22 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
 
   return (
     <TimelineMobile
-      events={events}
+      eventViews={eventViews}
+      eventLibrary={eventLibrary}
       homePositions={homePositions}
       members={members}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
       scenarioId={scenario.id}
-      onEventsChange={handleEventsChange}
+      onAddDefinition={(definition) => {
+        addEventDefinition(definition);
+        addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+      }}
+      onUpdateDefinition={updateEventDefinition}
+      onUpdateEventRef={(refId, patch) =>
+        updateScenarioEventRef(scenario.id, refId, patch)
+      }
+      onRemoveEventRef={(refId) => removeScenarioEventRef(scenario.id, refId)}
       onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
       onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
       onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}

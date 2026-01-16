@@ -15,6 +15,7 @@ import {
 } from "../../src/store/scenarioState";
 import { saveToIndexedDB } from "../../src/store/scenarioPersistence";
 import type { Scenario } from "../../src/store/scenarioStore";
+import type { EventDefinition } from "../../src/domain/events/types";
 
 const ensureFirestore = () => {
   const firestore = getFirestoreDb();
@@ -41,6 +42,7 @@ type CloudScenarioDocument = {
 type CloudMetaDocument = {
   lastSyncedAt?: number;
   schemaVersion?: number;
+  eventLibrary?: EventDefinition[];
 };
 
 const getMetaRef = (uid: string) =>
@@ -57,6 +59,7 @@ const parseMeta = (value: CloudMetaDocument | undefined) => ({
     typeof value?.lastSyncedAt === "number" ? value.lastSyncedAt : null,
   schemaVersion:
     typeof value?.schemaVersion === "number" ? value.schemaVersion : null,
+  eventLibrary: Array.isArray(value?.eventLibrary) ? value?.eventLibrary : [],
 });
 
 export const fetchCloudSummary = async (uid: string): Promise<CloudSummary> => {
@@ -111,6 +114,7 @@ export const uploadLocalStateToCloud = async (uid: string) => {
     {
       lastSyncedAt: now,
       schemaVersion: snapshot.schemaVersion,
+      eventLibrary: snapshot.eventLibrary,
     } satisfies CloudMetaDocument,
     { merge: true }
   );
@@ -149,6 +153,7 @@ export const downloadCloudStateToLocal = async (uid: string) => {
   const payload: ScenarioStatePayload = {
     schemaVersion: meta.schemaVersion,
     scenarios,
+    eventLibrary: meta.eventLibrary,
     activeScenarioId: scenarios[0]?.id ?? "",
   };
 
@@ -161,6 +166,7 @@ export const downloadCloudStateToLocal = async (uid: string) => {
     {
       lastSyncedAt: now,
       schemaVersion: meta.schemaVersion,
+      eventLibrary: meta.eventLibrary,
     } satisfies CloudMetaDocument,
     { merge: true }
   );

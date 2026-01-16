@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mapScenarioToEngineInput } from "../adapter";
 import type { Scenario } from "../../store/scenarioStore";
+import type { EventDefinition } from "../../domain/events/types";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   id: "scenario-test",
@@ -18,9 +19,11 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     initialCash: 0,
     baseMonth: null,
   },
-  events: [],
+  eventRefs: [],
   ...overrides,
 });
+
+const buildEventLibrary = (entries: EventDefinition[]): EventDefinition[] => entries;
 
 describe("mapScenarioToEngineInput buy_home mapping", () => {
   it("uses scenario.positions.homes and removes buy_home events from the timeline", () => {
@@ -39,35 +42,46 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
           },
         ],
       },
-      events: [
-        {
-          id: "event-rent",
-          type: "rent",
-          name: "Rent",
-          startMonth: "2025-01",
-          endMonth: null,
-          enabled: true,
-          monthlyAmount: 1800,
-          oneTimeAmount: 0,
-          annualGrowthPct: 2,
-          currency: "USD",
-        },
-        {
-          id: "event-buy-home",
-          type: "buy_home",
-          name: "Buy Home",
-          startMonth: "2026-03",
-          endMonth: null,
-          enabled: true,
-          monthlyAmount: 2000,
-          oneTimeAmount: 100000,
-          annualGrowthPct: 3,
-          currency: "USD",
-        },
+      eventRefs: [
+        { refId: "event-rent", enabled: true },
+        { refId: "event-buy-home", enabled: true },
       ],
     });
 
-    const input = mapScenarioToEngineInput(scenario);
+    const eventLibrary = buildEventLibrary([
+      {
+        id: "event-rent",
+        title: "Rent",
+        type: "rent",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2025-01",
+          endMonth: null,
+          monthlyAmount: 1800,
+          oneTimeAmount: 0,
+          annualGrowthPct: 2,
+        },
+        currency: "USD",
+      },
+      {
+        id: "event-buy-home",
+        title: "Buy Home",
+        type: "buy_home",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2026-03",
+          endMonth: null,
+          monthlyAmount: 2000,
+          oneTimeAmount: 100000,
+          annualGrowthPct: 3,
+        },
+        currency: "USD",
+      },
+    ]);
+
+    const input = mapScenarioToEngineInput(scenario, eventLibrary);
 
     const home = input.positions?.homes?.[0];
 
@@ -97,46 +111,58 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
 
   it("throws in strict mode when buy_home lacks oneTimeAmount", () => {
     const scenario = buildScenario({
-      events: [
-        {
-          id: "event-buy-home",
-          type: "buy_home",
-          name: "Buy Home",
+      eventRefs: [{ refId: "event-buy-home", enabled: true }],
+    });
+
+    const eventLibrary = buildEventLibrary([
+      {
+        id: "event-buy-home",
+        title: "Buy Home",
+        type: "buy_home",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
           startMonth: "2026-03",
           endMonth: null,
-          enabled: true,
           monthlyAmount: 2000,
           oneTimeAmount: undefined as unknown as number,
           annualGrowthPct: 3,
-          currency: "USD",
         },
-      ],
-    });
+        currency: "USD",
+      },
+    ]);
 
-    expect(() => mapScenarioToEngineInput(scenario, { strict: true })).toThrow(
+    expect(() =>
+      mapScenarioToEngineInput(scenario, eventLibrary, { strict: true })
+    ).toThrow(
       "buy_home event requires home details in scenario.positions.homes."
     );
   });
 
   it("skips mapping in lenient mode when buy_home has no home details", () => {
     const scenario = buildScenario({
-      events: [
-        {
-          id: "event-buy-home",
-          type: "buy_home",
-          name: "Buy Home",
+      eventRefs: [{ refId: "event-buy-home", enabled: true }],
+    });
+
+    const eventLibrary = buildEventLibrary([
+      {
+        id: "event-buy-home",
+        title: "Buy Home",
+        type: "buy_home",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
           startMonth: "2026-03",
           endMonth: null,
-          enabled: true,
           monthlyAmount: 2000,
           oneTimeAmount: undefined as unknown as number,
           annualGrowthPct: 3,
-          currency: "USD",
         },
-      ],
-    });
+        currency: "USD",
+      },
+    ]);
 
-    const input = mapScenarioToEngineInput(scenario, { strict: false });
+    const input = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
 
     expect(input.positions?.homes).toBeUndefined();
     expect(input.events).toHaveLength(0);

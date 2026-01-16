@@ -1,8 +1,10 @@
 // Shape note: Scenario positions.homes originally held price/mortgage/appreciation (+feesOneTime).
 // Added fields: holdingCostMonthly + holdingCostAnnualGrowthPct (percent) for rent-vs-own comparisons.
 // Back-compat: transform clears housing positions regardless of legacy home/home[] shapes.
-import type { Scenario, TimelineEvent } from "../store/scenarioStore";
-import { buildDerivedEvents } from "../insurance/templates";
+import type { Scenario } from "../store/scenarioStore";
+import type { EventDefinition } from "../domain/events/types";
+import type { TimelineEvent } from "../features/timeline/schema";
+import { buildScenarioTimelineEvents } from "../domain/events/utils";
 
 const getCurrentMonth = () => {
   const today = new Date();
@@ -38,32 +40,11 @@ const buildFallbackRentEvent = (scenario: Scenario): TimelineEvent | null => {
   };
 };
 
-export const expandDerivedEvents = (baseScenario: Scenario): Scenario => {
-  const scenario = cloneScenario(baseScenario);
-  const events = scenario.events ?? [];
-  const baseEvents = events.filter((event) => !event.derived);
-  const derivedEvents = baseEvents.flatMap((event) =>
-    event.type === "insurance_product"
-      ? buildDerivedEvents(event, scenario.assumptions)
-      : []
-  );
-
-  scenario.events = [...baseEvents, ...derivedEvents];
-
-  return scenario;
-};
-
-export const toRentComparisonScenario = (baseScenario: Scenario): Scenario => {
-  const scenario = cloneScenario(baseScenario);
-
-  if (scenario.positions) {
-    delete scenario.positions.home;
-    scenario.positions.homes = (scenario.positions.homes ?? []).filter(
-      (home) => (home.usage ?? "primary") === "investment"
-    );
-  }
-
-  const events = (scenario.events ?? []).filter(
+export const buildRentComparisonEvents = (
+  scenario: Scenario,
+  eventLibrary: EventDefinition[]
+): TimelineEvent[] => {
+  const events = buildScenarioTimelineEvents(scenario, eventLibrary).filter(
     (event) => event.type !== "buy_home"
   );
 
@@ -74,7 +55,18 @@ export const toRentComparisonScenario = (baseScenario: Scenario): Scenario => {
     }
   }
 
-  scenario.events = events;
+  return events;
+};
+
+export const buildRentComparisonScenario = (baseScenario: Scenario): Scenario => {
+  const scenario = cloneScenario(baseScenario);
+
+  if (scenario.positions) {
+    delete scenario.positions.home;
+    scenario.positions.homes = (scenario.positions.homes ?? []).filter(
+      (home) => (home.usage ?? "primary") === "investment"
+    );
+  }
 
   return scenario;
 };

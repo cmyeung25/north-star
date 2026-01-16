@@ -41,8 +41,10 @@ export default function OnboardingClient() {
     t("steps.insurance"),
   ];
   const scenarios = useScenarioStore((state) => state.scenarios);
+  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
+  const setEventLibrary = useScenarioStore((state) => state.setEventLibrary);
 
   const activeScenario = useMemo(
     () => getActiveScenario(scenarios, activeScenarioId),
@@ -377,7 +379,9 @@ export default function OnboardingClient() {
       return;
     }
 
-    const updatedScenario = applyOnboardingToScenario(activeScenario, draft);
+    const { scenario: updatedScenario, eventLibrary: nextEventLibrary } =
+      applyOnboardingToScenario(activeScenario, draft, eventLibrary);
+    setEventLibrary(nextEventLibrary);
     replaceScenario(updatedScenario);
     router.push(`/${locale}/overview`);
   };

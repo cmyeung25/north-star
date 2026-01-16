@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { computeComparisonMetrics } from "../rentVsOwnComparison";
-import { toRentComparisonScenario } from "../scenarioTransforms";
+import {
+  buildRentComparisonEvents,
+  buildRentComparisonScenario,
+} from "../scenarioTransforms";
 import type { Scenario } from "../../store/scenarioStore";
+import type { EventDefinition } from "../../domain/events/types";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   id: "scenario-test",
@@ -19,7 +23,7 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     initialCash: 0,
     baseMonth: "2026-01",
   },
-  events: [],
+  eventRefs: [],
   ...overrides,
 });
 
@@ -44,31 +48,9 @@ describe("rent vs own comparison", () => {
 
   it("removes primary housing positions and buy_home events", () => {
     const scenario = buildScenario({
-      events: [
-        {
-          id: "event-buy-home",
-          type: "buy_home",
-          name: "Buy Home",
-          startMonth: "2026-01",
-          endMonth: null,
-          enabled: true,
-          monthlyAmount: 0,
-          oneTimeAmount: 500000,
-          annualGrowthPct: 0,
-          currency: "HKD",
-        },
-        {
-          id: "event-rent",
-          type: "rent",
-          name: "Rent",
-          startMonth: "2026-01",
-          endMonth: null,
-          enabled: true,
-          monthlyAmount: 1800,
-          oneTimeAmount: 0,
-          annualGrowthPct: 3,
-          currency: "HKD",
-        },
+      eventRefs: [
+        { refId: "event-buy-home", enabled: true },
+        { refId: "event-rent", enabled: true },
       ],
       positions: {
         homes: [
@@ -96,14 +78,46 @@ describe("rent vs own comparison", () => {
       },
     });
 
-    const rentScenario = toRentComparisonScenario(scenario);
+    const eventLibrary: EventDefinition[] = [
+      {
+        id: "event-buy-home",
+        title: "Buy Home",
+        type: "buy_home",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2026-01",
+          endMonth: null,
+          monthlyAmount: 0,
+          oneTimeAmount: 500000,
+          annualGrowthPct: 0,
+        },
+        currency: "HKD",
+      },
+      {
+        id: "event-rent",
+        title: "Rent",
+        type: "rent",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2026-01",
+          endMonth: null,
+          monthlyAmount: 1800,
+          oneTimeAmount: 0,
+          annualGrowthPct: 3,
+        },
+        currency: "HKD",
+      },
+    ];
+
+    const rentScenario = buildRentComparisonScenario(scenario);
+    const rentEvents = buildRentComparisonEvents(rentScenario, eventLibrary);
 
     expect(rentScenario.positions?.homes ?? []).toHaveLength(1);
     expect(rentScenario.positions?.homes?.[0]?.usage).toBe("investment");
     expect(rentScenario.positions?.home).toBeUndefined();
-    expect(rentScenario.events?.some((event) => event.type === "buy_home")).toBe(
-      false
-    );
-    expect(rentScenario.events?.some((event) => event.type === "rent")).toBe(true);
+    expect(rentEvents.some((event) => event.type === "buy_home")).toBe(false);
+    expect(rentEvents.some((event) => event.type === "rent")).toBe(true);
   });
 });

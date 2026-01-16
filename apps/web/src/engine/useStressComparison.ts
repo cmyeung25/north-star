@@ -1,6 +1,7 @@
 import { computeProjection, type ProjectionResult } from "@north-star/engine";
 import { useMemo } from "react";
 import type { Scenario } from "../store/scenarioStore";
+import type { EventDefinition } from "../domain/events/types";
 import { mapScenarioToEngineInput, projectionToOverviewViewModel } from "./adapter";
 import { normalizeProjection } from "./rentVsOwnComparison";
 import { applyStressPreset, type StressPreset } from "./stressTransforms";
@@ -57,6 +58,7 @@ type StressComparisonOptions = {
 
 export const useStressComparison = (
   scenario: Scenario | null,
+  eventLibrary: EventDefinition[],
   preset: StressPreset | null,
   options: StressComparisonOptions = {}
 ) => {
@@ -65,11 +67,13 @@ export const useStressComparison = (
       return null;
     }
 
-    const baselineInput = mapScenarioToEngineInput(scenario);
+    const baselineInput = mapScenarioToEngineInput(scenario, eventLibrary);
     const stressedScenario = preset
-      ? applyStressPreset(scenario, preset, { shockMonth: options.shockMonth })
+      ? applyStressPreset(scenario, eventLibrary, preset, {
+          shockMonth: options.shockMonth,
+        })
       : scenario;
-    const stressedInput = mapScenarioToEngineInput(stressedScenario, {
+    const stressedInput = mapScenarioToEngineInput(stressedScenario, eventLibrary, {
       baseMonth: baselineInput.baseMonth,
       horizonMonths: baselineInput.horizonMonths,
       initialCash: baselineInput.initialCash,
@@ -88,5 +92,5 @@ export const useStressComparison = (
       stressedView,
       deltas,
     };
-  }, [options.shockMonth, preset, scenario]);
+  }, [eventLibrary, options.shockMonth, preset, scenario]);
 };

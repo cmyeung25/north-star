@@ -12,18 +12,20 @@ import type {
   InsurancePosition,
   InvestmentPosition,
   Scenario,
-  TimelineEvent,
 } from "../store/scenarioStore";
 import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
 import { getEventSign } from "../events/eventCatalog";
-import { expandDerivedEvents } from "./scenarioTransforms";
+import type { EventDefinition } from "../domain/events/types";
+import { buildScenarioTimelineEvents } from "../domain/events/utils";
+import type { TimelineEvent } from "../features/timeline/schema";
 
 type AdapterOptions = {
   baseMonth?: string;
   horizonMonths?: number;
   initialCash?: number;
   strict?: boolean;
+  eventsOverride?: TimelineEvent[];
 };
 
 type HomePositionWithId = HomePosition & { id?: string };
@@ -109,17 +111,17 @@ const mapEventToEngine = (
 
 export const mapScenarioToEngineInput = (
   scenario: Scenario,
+  eventLibrary: EventDefinition[],
   options: AdapterOptions = {}
 ): ProjectionInput => {
-  const expandedScenario = expandDerivedEvents(scenario);
   const strict = options.strict ?? true;
-  const enabledEvents = (expandedScenario.events ?? []).filter(
-    (event) => event.enabled
-  );
+  const resolvedEvents =
+    options.eventsOverride ?? buildScenarioTimelineEvents(scenario, eventLibrary);
+  const enabledEvents = resolvedEvents.filter((event) => event.enabled);
   const earliestStartMonth = getEarliestStartMonth(enabledEvents);
   const buyHomeEvent = getEarliestBuyHomeEvent(enabledEvents);
-  const homePositions = expandedScenario.positions?.homes;
-  const legacyHome = expandedScenario.positions?.home ?? null;
+  const homePositions = scenario.positions?.homes;
+  const legacyHome = scenario.positions?.home ?? null;
   const resolvedHomePositions =
     homePositions ?? (legacyHome ? [legacyHome] : []);
   if (buyHomeEvent) {
@@ -164,21 +166,21 @@ export const mapScenarioToEngineInput = (
   );
   const baseMonth =
     options.baseMonth ??
-    expandedScenario.assumptions.baseMonth ??
+    scenario.assumptions.baseMonth ??
     earliestStartMonth ??
     homePurchaseMonth ??
     formatMonth(new Date());
   const horizonMonths =
-    options.horizonMonths ?? expandedScenario.assumptions.horizonMonths ?? 240;
+    options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 240;
   const initialCash =
-    options.initialCash ?? expandedScenario.assumptions.initialCash ?? 0;
+    options.initialCash ?? scenario.assumptions.initialCash ?? 0;
   const assumptions: EventAssumptions = {
-    inflationRate: expandedScenario.assumptions.inflationRate,
-    rentAnnualGrowthPct: expandedScenario.assumptions.rentAnnualGrowthPct,
-    salaryGrowthRate: expandedScenario.assumptions.salaryGrowthRate,
+    inflationRate: scenario.assumptions.inflationRate,
+    rentAnnualGrowthPct: scenario.assumptions.rentAnnualGrowthPct,
+    salaryGrowthRate: scenario.assumptions.salaryGrowthRate,
   };
   const investmentReturnAssumptions =
-    expandedScenario.assumptions.investmentReturnAssumptions ?? {};
+    scenario.assumptions.investmentReturnAssumptions ?? {};
   const events = enabledEvents
     // Strategy A: remove buy_home cashflow events to avoid double counting with positions.homes.
     // Only the earliest buy_home event is mapped into positions; any additional buy_home events are ignored.
@@ -243,8 +245,8 @@ export const mapScenarioToEngineInput = (
         })
       : undefined;
 
-  const mappedInvestments = expandedScenario.positions?.investments
-    ? expandedScenario.positions.investments.map((investment: InvestmentPosition) => {
+  const mappedInvestments = scenario.positions?.investments
+    ? scenario.positions.investments.map((investment: InvestmentPosition) => {
         const assumedReturn =
           investment.expectedAnnualReturnPct ??
           investmentReturnAssumptions[investment.assetClass] ??
@@ -259,8 +261,8 @@ export const mapScenarioToEngineInput = (
       })
     : undefined;
 
-  const mappedInsurances = expandedScenario.positions?.insurances
-    ? expandedScenario.positions.insurances.map((insurance: InsurancePosition) => {
+  const mappedInsurances = scenario.positions?.insurances
+    ? scenario.positions.insurances.map((insurance: InsurancePosition) => {
         const premiumMonthly =
           insurance.premiumMode === "annual"
             ? insurance.premiumAmount / 12
