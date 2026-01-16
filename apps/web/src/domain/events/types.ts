@@ -1,12 +1,18 @@
 import type { EventType } from "../../features/timeline/schema";
 
+export type EventRuleScheduleEntry = {
+  month: string;
+  amount: number;
+};
+
 export type EventRule = {
-  mode: "params";
+  mode: "params" | "schedule";
   startMonth?: string;
   endMonth?: string | null;
   monthlyAmount?: number;
   oneTimeAmount?: number;
   annualGrowthPct?: number;
+  schedule?: EventRuleScheduleEntry[];
 };
 
 export type EventDefinitionKind = "group" | "cashflow";
@@ -27,7 +33,13 @@ export type EventDefinition = {
 export type EventRuleOverrides = Partial<
   Pick<
     EventRule,
-    "startMonth" | "endMonth" | "monthlyAmount" | "oneTimeAmount" | "annualGrowthPct"
+    | "startMonth"
+    | "endMonth"
+    | "monthlyAmount"
+    | "oneTimeAmount"
+    | "annualGrowthPct"
+    | "mode"
+    | "schedule"
   >
 >;
 

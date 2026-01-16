@@ -15,11 +15,16 @@ export const buildEventLibraryMap = (eventLibrary: EventDefinition[]) =>
 export const resolveEventRule = (
   definition: EventDefinition,
   ref: ScenarioEventRef
-): EventRule => ({
-  ...definition.rule,
-  ...ref.overrides,
-  mode: "params",
-});
+): EventRule => {
+  const mergedRule = {
+    ...definition.rule,
+    ...ref.overrides,
+  };
+  return {
+    ...mergedRule,
+    mode: mergedRule.mode ?? "params",
+  };
+};
 
 export const buildTimelineEventFromDefinition = (
   definition: EventDefinition,

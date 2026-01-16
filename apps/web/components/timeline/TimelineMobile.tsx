@@ -20,7 +20,7 @@ import { useMemo, useState } from "react";
 import { getEventMeta, type EventField, type EventGroup } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
-import TimelineEventForm from "./TimelineEventForm";
+import TimelineEventForm, { type TimelineEventFormResult } from "./TimelineEventForm";
 import InsuranceProductForm from "./InsuranceProductForm";
 import HomeDetailsForm from "./HomeDetailsForm";
 import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
@@ -28,7 +28,6 @@ import type {
   EventDefinition,
   ScenarioEventRef,
   ScenarioEventView,
-  TimelineEvent,
 } from "./types";
 import {
   buildEventTreeRows,
@@ -48,6 +47,7 @@ import { Link } from "../../src/i18n/navigation";
 import {
   buildDefinitionFromTimelineEvent,
   buildTimelineEventFromDefinition,
+  resolveEventRule,
 } from "../../src/domain/events/utils";
 
 const floatingButtonStyle = {
@@ -105,6 +105,9 @@ export default function TimelineMobile({
   const [groupTitle, setGroupTitle] = useState("");
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
+  const scenarioRule = editingEvent
+    ? resolveEventRule(editingEvent.definition, editingEvent.ref)
+    : null;
 
   const eventRows = useMemo(
     () => buildEventTreeRows(eventViews, activeGroup, collapsedGroups),
@@ -123,15 +126,20 @@ export default function TimelineMobile({
     [eventLibrary]
   );
 
-  const handleSaveShared = (updated: TimelineEvent) => {
+  const handleSaveShared = ({ event: updated, ruleMode, schedule }: TimelineEventFormResult) => {
     if (!editingEvent) {
       return;
     }
     const nextDefinition = buildDefinitionFromTimelineEvent(updated);
+    const nextRule = {
+      ...nextDefinition.rule,
+      mode: ruleMode,
+      schedule: ruleMode === "schedule" ? schedule : undefined,
+    };
     onUpdateDefinition(editingEvent.definition.id, {
       title: nextDefinition.title,
       type: nextDefinition.type,
-      rule: nextDefinition.rule,
+      rule: nextRule,
       currency: nextDefinition.currency,
       memberId: nextDefinition.memberId,
       templateId: nextDefinition.templateId,
@@ -141,7 +149,11 @@ export default function TimelineMobile({
     setEditingEvent(null);
   };
 
-  const handleSaveOverride = (updated: TimelineEvent) => {
+  const handleSaveOverride = ({
+    event: updated,
+    ruleMode,
+    schedule,
+  }: TimelineEventFormResult) => {
     if (!editingEvent) {
       return;
     }
@@ -152,6 +164,8 @@ export default function TimelineMobile({
         monthlyAmount: updated.monthlyAmount,
         oneTimeAmount: updated.oneTimeAmount,
         annualGrowthPct: updated.annualGrowthPct,
+        mode: ruleMode,
+        schedule: ruleMode === "schedule" ? schedule : undefined,
       },
     });
     setEditingEvent(null);
@@ -518,7 +532,9 @@ export default function TimelineMobile({
                     baseCurrency={baseCurrency}
                     members={members}
                     onCancel={() => setEditingEvent(null)}
-                    onSave={handleSaveShared}
+                    onSave={(event) =>
+                      handleSaveShared({ event, ruleMode: "params" })
+                    }
                     submitLabel={common("actionSaveChanges")}
                   />
                 ) : (
@@ -536,6 +552,9 @@ export default function TimelineMobile({
                     members={members}
                     fields={getEventMeta(editingEvent.definition.type).fields}
                     showMember
+                    ruleMode={editingEvent.definition.rule.mode}
+                    schedule={editingEvent.definition.rule.schedule}
+                    allowCashflowEdit
                     onCancel={() => setEditingEvent(null)}
                     onSave={handleSaveShared}
                     submitLabel={common("actionSaveChanges")}
@@ -554,6 +573,8 @@ export default function TimelineMobile({
                   baseCurrency={baseCurrency}
                   assumptions={assumptions}
                   members={members}
+                  ruleMode={scenarioRule?.mode}
+                  schedule={scenarioRule?.schedule}
                   fields={[
                     { key: "startMonth", input: "month" },
                     { key: "endMonth", input: "month" },
@@ -562,6 +583,7 @@ export default function TimelineMobile({
                     { key: "annualGrowthPct", input: "percent" },
                   ] satisfies EventField[]}
                   showMember={false}
+                  allowCashflowEdit
                   onCancel={() => setEditingEvent(null)}
                   onSave={handleSaveOverride}
                   submitLabel={t("saveOverride")}

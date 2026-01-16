@@ -270,6 +270,12 @@
     "cashflowPreviewIncome": "合計收入",
     "cashflowPreviewExpense": "合計支出",
     "cashflowPreviewPeak": "峰值月份",
+    "cashflowViewMode": "檢視模式",
+    "cashflowEditMode": "編輯現金流",
+    "cashflowEditHint": "點擊月份以修改現金流金額。",
+    "cashflowRevertToParams": "還原參數模式",
+    "cashflowEditTitle": "編輯現金流月份",
+    "cashflowEditAmount": "金額",
     "memberLabel": "成員",
     "memberHousehold": "家庭共同",
     "timelineEventPlan": "{label} 計劃"

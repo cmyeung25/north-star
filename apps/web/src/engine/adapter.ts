@@ -2,8 +2,6 @@
 // Added fields mapped here: holdingCostMonthly (number) and holdingCostAnnualGrowth (decimal).
 // Back-compat: missing holding cost fields map to 0 in the engine input.
 import {
-  applyEventAssumptionFallbacks,
-  type EventAssumptions,
   type ProjectionInput,
   type ProjectionResult,
 } from "@north-star/engine";
@@ -17,6 +15,7 @@ import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
 import { getEventSign } from "../events/eventCatalog";
 import type { EventDefinition } from "../domain/events/types";
+import { compileScenarioCashflows } from "../domain/events/compiler";
 import { buildScenarioTimelineEvents } from "../domain/events/utils";
 import type { TimelineEvent } from "../features/timeline/schema";
 
@@ -79,35 +78,24 @@ const assertBuyHomeEventMonth = (
   }
 };
 
-const mapEventToEngine = (
-  event: TimelineEvent,
-  assumptions: EventAssumptions
-): ProjectionInput["events"][number] => {
-  // Fallback rules (MVP): use assumptions when an event doesn't provide growth.
-  const withFallbacks = applyEventAssumptionFallbacks(
-    {
-      type: event.type,
-      annualGrowthPct: event.annualGrowthPct,
-    },
-    assumptions
-  );
-  const sign = getEventSign(event.type);
-  const applySign = (value: number | null | undefined) => {
-    const absValue = Math.abs(value ?? 0);
-    return absValue === 0 ? 0 : sign * absValue;
-  };
-
-  return {
-    id: event.id,
-    enabled: event.enabled,
-    startMonth: event.startMonth,
-    endMonth: event.endMonth ?? null,
-    monthlyAmount: applySign(event.monthlyAmount),
-    oneTimeAmount: applySign(event.oneTimeAmount),
-    // Store annualGrowthPct is a whole percent (e.g. 3 for 3%), engine expects decimal.
-    annualGrowthPct: (withFallbacks.annualGrowthPct ?? 0) / 100,
-  };
-};
+const buildEngineEventsFromCashflows = (
+  cashflows: ReturnType<typeof compileScenarioCashflows>
+): ProjectionInput["events"] =>
+  cashflows
+    .filter((entry) => entry.amountSigned !== 0)
+    .filter(
+      (entry) => entry.category !== "buy_home" && entry.category !== "insurance_product"
+    )
+    .map((entry) => ({
+      id: `${entry.sourceEventId}:${entry.month}`,
+      type: entry.category,
+      enabled: true,
+      startMonth: entry.month,
+      endMonth: entry.month,
+      monthlyAmount: 0,
+      oneTimeAmount: entry.amountSigned,
+      annualGrowthPct: 0,
+    }));
 
 export const mapScenarioToEngineInput = (
   scenario: Scenario,
@@ -174,20 +162,14 @@ export const mapScenarioToEngineInput = (
     options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 240;
   const initialCash =
     options.initialCash ?? scenario.assumptions.initialCash ?? 0;
-  const assumptions: EventAssumptions = {
-    inflationRate: scenario.assumptions.inflationRate,
-    rentAnnualGrowthPct: scenario.assumptions.rentAnnualGrowthPct,
-    salaryGrowthRate: scenario.assumptions.salaryGrowthRate,
-  };
   const investmentReturnAssumptions =
     scenario.assumptions.investmentReturnAssumptions ?? {};
-  const events = enabledEvents
-    // Strategy A: remove buy_home cashflow events to avoid double counting with positions.homes.
-    // Only the earliest buy_home event is mapped into positions; any additional buy_home events are ignored.
-    .filter(
-      (event) => event.type !== "buy_home" && event.type !== "insurance_product"
-    )
-    .map((event) => mapEventToEngine(event, assumptions));
+  const cashflowLedger = compileScenarioCashflows({
+    scenario,
+    eventLibrary,
+    signByType: getEventSign,
+  });
+  const events = buildEngineEventsFromCashflows(cashflowLedger);
   const mappedHomes =
     validatedHomes.length > 0
       ? validatedHomes.map((home) => {
