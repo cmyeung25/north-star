@@ -41,6 +41,9 @@
     "syncDownloadSuccess": "Replaced local data with {count} cloud scenarios.",
     "settingsTitle": "Settings",
     "settingsSubtitle": "Customize assumptions for {name}.",
+    "settingsMissingScenario": "We couldn't find the scenario for these settings.",
+    "settingsRecoveryTitle": "Restore your data",
+    "settingsRecoveryDescription": "Load a saved snapshot or restart onboarding to regenerate default data.",
     "syncTitle": "Sync & Account",
     "syncSubtitle": "Local-first planning keeps your data on this device. Sign in only if you want to back up or sync across devices.",
     "firebaseNotConfigured": "Firebase is not configured yet. Add environment variables to enable sign-in and cloud sync.",
@@ -622,7 +625,10 @@
   "dataManagement": {
     "title": "Data management",
     "subtitle": "Save snapshots, export backups, or restore data from this device.",
-    "openButton": "Manage",
+    "autosaveTitle": "Local autosave",
+    "autosaveDescription": "Autosave keeps your latest changes stored on this device.",
+    "autosaveLastSaved": "Last saved: {time}",
+    "autosaveEmpty": "No autosave found yet.",
     "modalTitle": "Local Save & Load",
     "saveSnapshotTitle": "Save snapshot",
     "saveSnapshotDescription": "Create a backup of your current data.",
@@ -650,7 +656,14 @@
     "clearTitle": "Clear local data",
     "clearDescription": "Removes autosave and all snapshots from this browser.",
     "clearButton": "Clear local data",
-    "clearConfirm": "Clear all local autosave and snapshots?"
+    "clearConfirm": "Clear all local autosave and snapshots?",
+    "dangerTitle": "Danger zone",
+    "dangerDescription": "This action cannot be undone. Proceed carefully.",
+    "resetTitle": "Reset app state",
+    "resetDescription": "Restore the default scenarios and restart onboarding.",
+    "resetButton": "Reset app state",
+    "resetConfirm": "Reset everything to defaults? This will overwrite current data.",
+    "resetSuccess": "App state reset."
   },
   "scenarios": {
     "title": "Scenarios",

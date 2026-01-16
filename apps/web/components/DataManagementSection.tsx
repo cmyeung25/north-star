@@ -2,9 +2,9 @@
 
 import {
   Button,
+  Card,
   Divider,
   Group,
-  Modal,
   Notification,
   ScrollArea,
   SegmentedControl,
@@ -20,34 +20,34 @@ import {
   exportJSON,
   importJSON,
   listSnapshots,
+  loadAutosave,
   loadSnapshot,
   saveSnapshot,
   type SnapshotEntry,
 } from "../src/persistence/storage";
 import {
   hydrateFromPersistedState,
+  resetScenarioStore,
   selectPersistedState,
   useScenarioStore,
 } from "../src/store/scenarioStore";
 
-type DataManagementModalProps = {
-  opened: boolean;
-  onClose: () => void;
+type DataManagementSectionProps = {
   onNotify: (message: string, color?: string) => void;
 };
 
 type ImportMode = "replace" | "snapshot";
+
+type AutosaveState = {
+  savedAt: string | null;
+};
 
 const formatSnapshotName = (
   snapshot: SnapshotEntry,
   fallback: string
 ): string => snapshot.name?.trim() || fallback;
 
-export default function DataManagementModal({
-  opened,
-  onClose,
-  onNotify,
-}: DataManagementModalProps) {
+export default function DataManagementSection({ onNotify }: DataManagementSectionProps) {
   const locale = useLocale();
   const t = useTranslations("dataManagement");
   const payload = useScenarioStore((state) => selectPersistedState(state));
@@ -56,19 +56,28 @@ export default function DataManagementModal({
   const [snapshotName, setSnapshotName] = useState("");
   const [importMode, setImportMode] = useState<ImportMode>("replace");
   const [error, setError] = useState<string | null>(null);
+  const [autosaveState, setAutosaveState] = useState<AutosaveState>({
+    savedAt: null,
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const refreshSnapshots = () => {
     setSnapshots(listSnapshots());
   };
 
-  useEffect(() => {
-    if (!opened) {
+  const refreshAutosave = () => {
+    const result = loadAutosave();
+    if (!result.ok || !result.value) {
+      setAutosaveState({ savedAt: null });
       return;
     }
-    setError(null);
+    setAutosaveState({ savedAt: result.value.savedAt });
+  };
+
+  useEffect(() => {
     refreshSnapshots();
-  }, [opened]);
+    refreshAutosave();
+  }, []);
 
   const handleSaveSnapshot = () => {
     setError(null);
@@ -80,6 +89,7 @@ export default function DataManagementModal({
 
     setSnapshotName("");
     refreshSnapshots();
+    refreshAutosave();
     onNotify(t("saveSnapshotButton"), "teal");
   };
 
@@ -96,6 +106,7 @@ export default function DataManagementModal({
     }
 
     hydrateFromPersistedState(result.value.payload);
+    refreshAutosave();
     onNotify(t("loadButton"), "teal");
   };
 
@@ -147,6 +158,7 @@ export default function DataManagementModal({
     }
 
     hydrateFromPersistedState(result.value.payload);
+    refreshAutosave();
     onNotify(t("importSuccessReplace"), "teal");
   };
 
@@ -163,7 +175,19 @@ export default function DataManagementModal({
     }
 
     refreshSnapshots();
+    refreshAutosave();
     onNotify(t("clearButton"), "teal");
+  };
+
+  const handleReset = () => {
+    setError(null);
+    if (!window.confirm(t("resetConfirm"))) {
+      return;
+    }
+
+    resetScenarioStore();
+    refreshAutosave();
+    onNotify(t("resetSuccess"), "teal");
   };
 
   const handleOpenFile = () => {
@@ -180,14 +204,37 @@ export default function DataManagementModal({
     await handleImport(file);
   };
 
+  const autosaveLabel = autosaveState.savedAt
+    ? t("autosaveLastSaved", {
+        time: new Date(autosaveState.savedAt).toLocaleString(locale),
+      })
+    : t("autosaveEmpty");
+
   return (
-    <Modal opened={opened} onClose={onClose} title={t("modalTitle")} centered>
+    <Card withBorder radius="md" padding="md">
       <Stack gap="lg">
+        <Stack gap={4}>
+          <Text fw={600}>{t("title")}</Text>
+          <Text size="sm" c="dimmed">
+            {t("subtitle")}
+          </Text>
+        </Stack>
+
         {error && (
           <Notification color="red" onClose={() => setError(null)}>
             {error}
           </Notification>
         )}
+
+        <Stack gap="xs">
+          <Text fw={600}>{t("autosaveTitle")}</Text>
+          <Text size="sm" c="dimmed">
+            {t("autosaveDescription")}
+          </Text>
+          <Text size="sm">{autosaveLabel}</Text>
+        </Stack>
+
+        <Divider />
 
         <Stack gap="xs">
           <Text fw={600}>{t("saveSnapshotTitle")}</Text>
@@ -215,7 +262,7 @@ export default function DataManagementModal({
               {t("snapshotsEmpty")}
             </Text>
           ) : (
-            <ScrollArea h={180} offsetScrollbars>
+            <ScrollArea h={200} offsetScrollbars>
               <Stack gap="sm">
                 {snapshots.map((snapshot) => (
                   <Stack key={snapshot.id} gap={4} p="xs">
@@ -298,15 +345,36 @@ export default function DataManagementModal({
         <Divider />
 
         <Stack gap="xs">
-          <Text fw={600}>{t("clearTitle")}</Text>
+          <Text fw={600}>{t("dangerTitle")}</Text>
           <Text size="sm" c="dimmed">
-            {t("clearDescription")}
+            {t("dangerDescription")}
           </Text>
-          <Button color="red" variant="light" onClick={handleClear}>
-            {t("clearButton")}
-          </Button>
+          <Stack gap="sm">
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <div>
+                <Text fw={500}>{t("clearTitle")}</Text>
+                <Text size="xs" c="dimmed">
+                  {t("clearDescription")}
+                </Text>
+              </div>
+              <Button color="red" variant="light" onClick={handleClear}>
+                {t("clearButton")}
+              </Button>
+            </Group>
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <div>
+                <Text fw={500}>{t("resetTitle")}</Text>
+                <Text size="xs" c="dimmed">
+                  {t("resetDescription")}
+                </Text>
+              </div>
+              <Button color="red" variant="light" onClick={handleReset}>
+                {t("resetButton")}
+              </Button>
+            </Group>
+          </Stack>
         </Stack>
       </Stack>
-    </Modal>
+    </Card>
   );
 }
