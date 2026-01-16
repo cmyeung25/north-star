@@ -9,7 +9,6 @@ import {
   Notification,
   NumberInput,
   Select,
-  SegmentedControl,
   Slider,
   Stack,
   Switch,
@@ -597,13 +596,24 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
         <Stack gap="md">
           <Stack gap={6}>
             <Text fw={600}>{t("planningHorizon")}</Text>
-            <SegmentedControl
-              data={horizonOptions}
-              value={horizonValue}
-              onChange={(value) =>
-                handleAssumptionChange({ horizonMonths: Number(value) })
-              }
-            />
+            <Group role="group" aria-label={t("planningHorizon")} gap="xs">
+              {horizonOptions.map((option) => {
+                const isSelected = horizonValue === option.value;
+                return (
+                  <Button
+                    key={option.value}
+                    size="sm"
+                    variant={isSelected ? "filled" : "light"}
+                    aria-pressed={isSelected}
+                    onClick={() =>
+                      handleAssumptionChange({ horizonMonths: Number(option.value) })
+                    }
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </Group>
           </Stack>
 
           <NumberInput

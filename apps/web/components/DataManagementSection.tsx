@@ -7,7 +7,6 @@ import {
   Group,
   Notification,
   ScrollArea,
-  SegmentedControl,
   Stack,
   Text,
   TextInput,
@@ -321,14 +320,25 @@ export default function DataManagementSection({ onNotify }: DataManagementSectio
             <Text size="sm" fw={500}>
               {t("importModeLabel")}
             </Text>
-            <SegmentedControl
-              data={[
+            <Group role="group" aria-label={t("importModeLabel")} gap="xs">
+              {[
                 { value: "replace", label: t("importModeReplace") },
                 { value: "snapshot", label: t("importModeSnapshot") },
-              ]}
-              value={importMode}
-              onChange={(value) => setImportMode(value as ImportMode)}
-            />
+              ].map((option) => {
+                const isSelected = importMode === option.value;
+                return (
+                  <Button
+                    key={option.value}
+                    size="sm"
+                    variant={isSelected ? "filled" : "light"}
+                    aria-pressed={isSelected}
+                    onClick={() => setImportMode(option.value as ImportMode)}
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </Group>
           </Stack>
           <Group>
             <Button onClick={handleOpenFile}>{t("importButton")}</Button>
