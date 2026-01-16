@@ -41,6 +41,9 @@
     "syncDownloadSuccess": "已用雲端 {count} 個情境取代本機資料。",
     "settingsTitle": "設定",
     "settingsSubtitle": "自訂 {name} 的假設條件。",
+    "settingsMissingScenario": "找不到對應的情境資料。",
+    "settingsRecoveryTitle": "復原你的資料",
+    "settingsRecoveryDescription": "載入已儲存的快照，或重新開始導覽以重建預設資料。",
     "syncTitle": "同步與帳戶",
     "syncSubtitle": "本機優先規劃會把資料保存在此裝置。只有需要備份或跨裝置同步時才登入。",
     "firebaseNotConfigured": "尚未設定 Firebase。請加入環境變數以啟用登入與雲端同步。",
@@ -622,7 +625,10 @@
   "dataManagement": {
     "title": "資料管理",
     "subtitle": "儲存快照、匯出備份，或從此裝置還原資料。",
-    "openButton": "管理",
+    "autosaveTitle": "本機自動儲存",
+    "autosaveDescription": "自動儲存會把最新變更保存在此裝置。",
+    "autosaveLastSaved": "最後儲存：{time}",
+    "autosaveEmpty": "尚未找到自動儲存。",
     "modalTitle": "本機儲存與載入",
     "saveSnapshotTitle": "儲存快照",
     "saveSnapshotDescription": "為目前資料建立備份。",
@@ -650,7 +656,14 @@
     "clearTitle": "清除本機資料",
     "clearDescription": "移除本機自動儲存與所有快照。",
     "clearButton": "清除本機資料",
-    "clearConfirm": "確定清除本機自動儲存與所有快照？"
+    "clearConfirm": "確定清除本機自動儲存與所有快照？",
+    "dangerTitle": "危險區域",
+    "dangerDescription": "此動作無法復原，請小心操作。",
+    "resetTitle": "重設應用狀態",
+    "resetDescription": "還原預設情境並重新開始導覽。",
+    "resetButton": "重設應用狀態",
+    "resetConfirm": "確定要重設為預設值嗎？這會覆寫現有資料。",
+    "resetSuccess": "已重設應用狀態。"
   },
   "scenarios": {
     "title": "情境",

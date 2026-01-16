@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import IntlProvider from "./IntlProvider";
 import Providers from "../providers";
 import { defaultLocale, locales, type Locale } from "../../src/i18n/routing";
 
@@ -51,8 +51,8 @@ export default async function LocaleLayout({
   const messages = await getMessages({ locale });
 
   return (
-    <NextIntlClientProvider messages={messages} locale={locale}>
+    <IntlProvider messages={messages} locale={locale}>
       <Providers>{children}</Providers>
-    </NextIntlClientProvider>
+    </IntlProvider>
   );
 }

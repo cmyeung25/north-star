@@ -485,6 +485,14 @@ export const resolveScenarioIdFromQuery = (
   return scenarios[0]?.id ?? "";
 };
 
+export const resetScenarioStore = () => {
+  useScenarioStore.setState({
+    scenarios: normalizeScenarioList(initialScenarios),
+    eventLibrary: initialEventLibrary,
+    activeScenarioId: initialScenarios[0]?.id ?? "",
+  });
+};
+
 export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   scenarios: normalizeScenarioList(initialScenarios),
   eventLibrary: initialEventLibrary,
