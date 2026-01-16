@@ -1,6 +1,6 @@
-import { buildMonthRange, monthIndex } from "@north-star/engine";
+import { buildMonthRange } from "@north-star/engine";
 import type { BudgetRule, Scenario } from "../../store/scenarioStore";
-import { getMemberAgeYears } from "../members/age";
+import { getMemberAgeYears, monthsBetween } from "../members/age";
 
 export type BudgetRuleMonthlyEntry = {
   month: string;
@@ -8,6 +8,7 @@ export type BudgetRuleMonthlyEntry = {
   sourceRuleId: string;
   memberId?: string;
   label: string;
+  category: string;
 };
 
 export const compileBudgetRuleToMonthlySeries = (
@@ -25,19 +26,15 @@ export const compileBudgetRuleToMonthlySeries = (
     return [];
   }
 
-  const startMonth = rule.startMonth ?? baseMonth;
-  const endMonth = rule.endMonth ?? null;
-  const startIndex = monthIndex(baseMonth, startMonth);
-  const endIndex = endMonth ? monthIndex(baseMonth, endMonth) : horizonMonths - 1;
-  const rangeStart = Math.max(0, startIndex);
-  const rangeEnd = Math.min(horizonMonths - 1, endIndex);
-
-  if (rangeStart > rangeEnd) {
+  const months = buildMonthRange(baseMonth, horizonMonths);
+  const horizonEndMonth = months.at(-1);
+  if (!horizonEndMonth) {
     return [];
   }
 
-  const months = buildMonthRange(baseMonth, horizonMonths);
-  const monthlyAmount = Math.abs(rule.monthlyAmount ?? 0);
+  const effectiveStartMonth = rule.startMonth ?? baseMonth;
+  const effectiveEndMonth = rule.endMonth ?? horizonEndMonth;
+  const monthlyAmountBase = -Math.abs(rule.monthlyAmount ?? 0);
   const annualGrowthPct = rule.annualGrowthPct ?? 0;
   const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);
   const member = rule.memberId
@@ -47,31 +44,32 @@ export const compileBudgetRuleToMonthlySeries = (
   if (rule.memberId && !member) {
     return [];
   }
-  if (monthlyAmount === 0) {
-    return [];
-  }
 
   const series: BudgetRuleMonthlyEntry[] = [];
 
-  for (let i = rangeStart; i <= rangeEnd; i += 1) {
-    const month = months[i];
-    if (member) {
-      const ageYears = getMemberAgeYears(member, month, baseMonth);
-      if (ageYears < rule.ageBand.fromYears || ageYears >= rule.ageBand.toYears) {
-        continue;
-      }
-    }
+  for (const month of months) {
+    const withinEffectiveRange =
+      monthsBetween(effectiveStartMonth, month) >= 0 &&
+      monthsBetween(month, effectiveEndMonth) >= 0;
+    const withinAgeBand = member
+      ? (() => {
+          const ageYears = getMemberAgeYears(member, month, baseMonth);
+          return ageYears >= rule.ageBand.fromYears && ageYears < rule.ageBand.toYears;
+        })()
+      : true;
 
-    const monthsSinceStart = i - startIndex;
+    const monthsSinceStart = monthsBetween(effectiveStartMonth, month);
     const grownMonthlyAmount =
-      monthlyAmount * Math.pow(monthlyFactor, monthsSinceStart);
-
+      withinEffectiveRange && withinAgeBand
+        ? monthlyAmountBase * Math.pow(monthlyFactor, Math.max(monthsSinceStart, 0))
+        : 0;
     series.push({
       month,
-      amountSigned: -Math.abs(grownMonthlyAmount),
+      amountSigned: Math.round(grownMonthlyAmount),
       sourceRuleId: rule.id,
       memberId: rule.memberId,
       label: rule.name,
+      category: rule.category,
     });
   }
 
@@ -82,3 +80,20 @@ export const compileAllBudgetRules = (scenario: Scenario): BudgetRuleMonthlyEntr
   (scenario.budgetRules ?? [])
     .filter((rule) => rule.enabled)
     .flatMap((rule) => compileBudgetRuleToMonthlySeries(rule, scenario));
+
+export const sumByMonth = (
+  ledger: BudgetRuleMonthlyEntry[]
+): Array<{ month: string; totalAmountSigned: number }> => {
+  const totals = new Map<string, number>();
+
+  ledger.forEach((entry) => {
+    totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amountSigned);
+  });
+
+  return Array.from(totals.entries())
+    .map(([month, totalAmountSigned]) => ({
+      month,
+      totalAmountSigned,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+};

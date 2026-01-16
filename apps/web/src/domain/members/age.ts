@@ -7,10 +7,21 @@ const parseYearMonth = (value: string): YearMonth => {
   return { year, month };
 };
 
+const formatYearMonth = (value: YearMonth): string =>
+  `${value.year}-${String(value.month).padStart(2, "0")}`;
+
 export const monthsBetween = (aMonth: string, bMonth: string): number => {
   const a = parseYearMonth(aMonth);
   const b = parseYearMonth(bMonth);
   return (b.year - a.year) * 12 + (b.month - a.month);
+};
+
+export const addMonths = (baseMonth: string, delta: number): string => {
+  const base = parseYearMonth(baseMonth);
+  const totalMonths = base.year * 12 + (base.month - 1) + delta;
+  const nextYear = Math.floor(totalMonths / 12);
+  const nextMonth = (totalMonths % 12) + 1;
+  return formatYearMonth({ year: nextYear, month: nextMonth });
 };
 
 export const getMemberAgeMonths = (
