@@ -13,7 +13,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   clearLocalData,
   deleteSnapshot,
@@ -50,7 +50,8 @@ const formatSnapshotName = (
 export default function DataManagementSection({ onNotify }: DataManagementSectionProps) {
   const locale = useLocale();
   const t = useTranslations("dataManagement");
-  const payload = useScenarioStore((state) => selectPersistedState(state));
+  const scenarioState = useScenarioStore();
+  const payload = useMemo(() => selectPersistedState(scenarioState), [scenarioState]);
 
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([]);
   const [snapshotName, setSnapshotName] = useState("");
