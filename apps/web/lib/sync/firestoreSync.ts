@@ -13,7 +13,7 @@ import {
   importScenarioState,
   type ScenarioStatePayload,
 } from "../../src/store/scenarioState";
-import { saveToIndexedDB } from "../../src/store/scenarioPersistence";
+import { saveAutosave } from "../../src/persistence/storage";
 import type { Scenario } from "../../src/store/scenarioStore";
 import type { EventDefinition } from "../../src/domain/events/types";
 
@@ -158,7 +158,10 @@ export const downloadCloudStateToLocal = async (uid: string) => {
   };
 
   const normalized = importScenarioState(payload);
-  await saveToIndexedDB(normalized);
+  const autosaveResult = saveAutosave(normalized);
+  if (!autosaveResult.ok) {
+    console.warn(autosaveResult.error);
+  }
 
   const now = Date.now();
   await setDoc(

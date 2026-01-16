@@ -1,109 +1,33 @@
-import { get, set } from "idb-keyval";
+import { loadAutosave, saveAutosave } from "../persistence/storage";
 import {
-  normalizeScenarioList,
-  type Scenario,
+  hydrateFromPersistedState,
+  selectPersistedState,
   useScenarioStore,
 } from "./scenarioStore";
-import type { EventDefinition } from "../domain/events/types";
-import { SCHEMA_VERSION } from "./scenarioSchema";
-import { normalizeActiveScenarioId } from "./scenarioState";
 
-const STORAGE_KEY = "north-star-scenarios";
-const SAVE_DEBOUNCE_MS = 500;
-
-type ScenarioStoreSnapshot = {
-  scenarios: Scenario[];
-  eventLibrary: EventDefinition[];
-  activeScenarioId: string;
-};
-
-type PersistedScenarioState = ScenarioStoreSnapshot & {
-  schemaVersion: number;
-  savedAt: number;
-};
-
-const isPersistedScenarioState = (
-  value: unknown
-): value is PersistedScenarioState => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const record = value as PersistedScenarioState;
-
-  return (
-    typeof record.schemaVersion === "number" &&
-    Array.isArray(record.scenarios) &&
-    Array.isArray(record.eventLibrary) &&
-    typeof record.activeScenarioId === "string"
-  );
-};
-
-export const loadFromIndexedDB = async () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const value = await get(STORAGE_KEY);
-
-  if (!isPersistedScenarioState(value)) {
-    return null;
-  }
-
-  if (value.schemaVersion !== SCHEMA_VERSION) {
-    // Schema mismatch falls back to defaults; future migrations can live here.
-    return null;
-  }
-
-  const normalizedScenarios = normalizeScenarioList(value.scenarios);
-
-  return {
-    ...value,
-    scenarios: normalizedScenarios,
-    eventLibrary: value.eventLibrary,
-    activeScenarioId: normalizeActiveScenarioId(
-      normalizedScenarios,
-      value.activeScenarioId
-    ),
-  };
-};
-
-export const saveToIndexedDB = async (state: ScenarioStoreSnapshot) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  await set(STORAGE_KEY, {
-    schemaVersion: SCHEMA_VERSION,
-    scenarios: state.scenarios,
-    eventLibrary: state.eventLibrary,
-    activeScenarioId: state.activeScenarioId,
-    savedAt: Date.now(),
-  });
-};
+const SAVE_DEBOUNCE_MS = 800;
 
 export const hydrateScenarioStore = async () => {
   if (typeof window === "undefined") {
     return;
   }
 
-  const persisted = await loadFromIndexedDB();
+  const persisted = loadAutosave();
 
-  if (persisted) {
-    useScenarioStore.setState({
-      scenarios: normalizeScenarioList(persisted.scenarios),
-      eventLibrary: persisted.eventLibrary,
-      activeScenarioId: persisted.activeScenarioId,
-    });
+  if (persisted.ok && persisted.value) {
+    hydrateFromPersistedState(persisted.value.payload);
     return;
   }
 
-  const snapshot = useScenarioStore.getState();
-  await saveToIndexedDB({
-    scenarios: snapshot.scenarios,
-    eventLibrary: snapshot.eventLibrary,
-    activeScenarioId: snapshot.activeScenarioId,
-  });
+  if (!persisted.ok) {
+    window.alert(`Autosave could not be loaded: ${persisted.error}`);
+  }
+
+  const snapshot = selectPersistedState(useScenarioStore.getState());
+  const saved = saveAutosave(snapshot);
+  if (!saved.ok) {
+    console.warn(saved.error);
+  }
 };
 
 export const initializeScenarioPersistence = () => {
@@ -113,22 +37,21 @@ export const initializeScenarioPersistence = () => {
 
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
-  const scheduleSave = (state: ScenarioStoreSnapshot) => {
+  const scheduleSave = (state: ReturnType<typeof selectPersistedState>) => {
     if (timeout) {
       clearTimeout(timeout);
     }
 
     timeout = setTimeout(() => {
-      void saveToIndexedDB(state);
+      const result = saveAutosave(state);
+      if (!result.ok) {
+        console.warn(result.error);
+      }
     }, SAVE_DEBOUNCE_MS);
   };
 
   const unsubscribe = useScenarioStore.subscribe((state) => {
-    scheduleSave({
-      scenarios: state.scenarios,
-      eventLibrary: state.eventLibrary,
-      activeScenarioId: state.activeScenarioId,
-    });
+    scheduleSave(selectPersistedState(state));
   });
 
   return () => {

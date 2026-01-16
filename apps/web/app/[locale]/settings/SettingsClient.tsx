@@ -42,6 +42,7 @@ import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
 import { compileBudgetRuleToMonthlySeries } from "../../../src/domain/budget/compileBudgetRules";
+import DataManagementModal from "../../../components/DataManagementModal";
 
 type SettingsClientProps = {
   scenarioId?: string;
@@ -61,6 +62,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
   const errors = useTranslations("errors");
+  const dataText = useTranslations("dataManagement");
   const horizonOptions = [
     { value: "120", label: t("horizon10y") },
     { value: "240", label: t("horizon20y") },
@@ -99,6 +101,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     null
   );
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [dataModalOpen, setDataModalOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine
   );
@@ -534,6 +537,30 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
           </Group>
         </Stack>
       </Modal>
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="center">
+            <Text fw={600}>{dataText("title")}</Text>
+            <Button
+              size="sm"
+              variant="light"
+              onClick={() => setDataModalOpen(true)}
+            >
+              {dataText("openButton")}
+            </Button>
+          </Group>
+          <Text size="sm" c="dimmed">
+            {dataText("subtitle")}
+          </Text>
+        </Stack>
+      </Card>
+
+      <DataManagementModal
+        opened={dataModalOpen}
+        onClose={() => setDataModalOpen(false)}
+        onNotify={showToast}
+      />
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="xs">
