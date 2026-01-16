@@ -5,7 +5,11 @@ import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
 import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
-import { buildEventLibraryMap } from "../domain/events/utils";
+import {
+  buildEventRuleOverrides,
+  type DuplicateCluster,
+} from "../domain/events/mergeDuplicates";
+import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -138,6 +142,11 @@ type ScenarioStoreState = {
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
   upsertScenarioEventRefs: (id: string, eventRefs: ScenarioEventRef[]) => void;
   addScenarioEventRef: (id: string, ref: ScenarioEventRef) => void;
+  addEventToScenarios: (
+    definition: EventDefinition,
+    scenarioIds: string[],
+    overrides?: ScenarioEventRef["overrides"]
+  ) => void;
   updateScenarioEventRef: (
     id: string,
     refId: string,
@@ -154,6 +163,7 @@ type ScenarioStoreState = {
   addHomePosition: (id: string, home: HomePositionDraft) => void;
   updateHomePosition: (id: string, home: HomePositionDraft) => void;
   removeHomePosition: (id: string, homeId: string) => void;
+  mergeDuplicateEvents: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
   updateScenarioUpdatedAt: (id: string) => void;
   updateScenarioAssumptions: (
     id: string,
@@ -518,6 +528,31 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       ),
     }));
   },
+  addEventToScenarios: (definition, scenarioIds, overrides) => {
+    const scenarioIdSet = new Set(scenarioIds);
+    set((state) => ({
+      eventLibrary: [...state.eventLibrary, { ...definition }],
+      scenarios: state.scenarios.map((scenario) => {
+        if (!scenarioIdSet.has(scenario.id)) {
+          return scenario;
+        }
+        const existingRefs = scenario.eventRefs ?? [];
+        if (existingRefs.some((ref) => ref.refId === definition.id)) {
+          return scenario;
+        }
+        const nextRef: ScenarioEventRef = {
+          refId: definition.id,
+          enabled: true,
+          overrides: overrides ? { ...overrides } : undefined,
+        };
+        return {
+          ...scenario,
+          eventRefs: [...existingRefs, nextRef],
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
   updateScenarioEventRef: (id, refId, patch) => {
     set((state) => ({
       scenarios: state.scenarios.map((scenario) =>
@@ -671,6 +706,63 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         };
       }),
     }));
+  },
+  mergeDuplicateEvents: (cluster, baseDefinitionId) => {
+    set((state) => {
+      const baseDefinition = state.eventLibrary.find(
+        (definition) => definition.id === baseDefinitionId
+      );
+      if (!baseDefinition) {
+        return state;
+      }
+
+      const candidatesByScenario = new Map<string, Map<string, DuplicateCluster["candidates"][number]>>();
+      cluster.candidates.forEach((candidate) => {
+        const existing = candidatesByScenario.get(candidate.scenarioId);
+        if (existing) {
+          existing.set(candidate.ref.refId, candidate);
+          return;
+        }
+        candidatesByScenario.set(
+          candidate.scenarioId,
+          new Map([[candidate.ref.refId, candidate]])
+        );
+      });
+
+      const updatedScenarios = state.scenarios.map((scenario) => {
+        const candidates = candidatesByScenario.get(scenario.id);
+        if (!candidates) {
+          return scenario;
+        }
+
+        const nextRefs = (scenario.eventRefs ?? []).map((ref) => {
+          const candidate = candidates.get(ref.refId);
+          if (!candidate) {
+            return ref;
+          }
+          const effectiveRule =
+            candidate.effectiveRule ??
+            resolveEventRule(candidate.definition, candidate.ref);
+          const overrides = buildEventRuleOverrides(baseDefinition.rule, effectiveRule);
+          return {
+            ...ref,
+            refId: baseDefinitionId,
+            overrides,
+          };
+        });
+
+        return {
+          ...scenario,
+          eventRefs: nextRefs,
+          updatedAt: now(),
+        };
+      });
+
+      return {
+        ...state,
+        scenarios: updatedScenarios,
+      };
+    });
   },
   updateScenarioUpdatedAt: (id) => {
     set((state) => ({

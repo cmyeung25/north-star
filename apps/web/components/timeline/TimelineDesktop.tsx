@@ -31,11 +31,13 @@ import TimelineEventForm, { type TimelineEventFormResult } from "./TimelineEvent
 import InsuranceProductForm from "./InsuranceProductForm";
 import HomeDetailsForm from "./HomeDetailsForm";
 import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
+import MergeDuplicatesModal from "./MergeDuplicatesModal";
 import type {
   EventDefinition,
   ScenarioEventRef,
   ScenarioEventView,
 } from "./types";
+import type { DuplicateCluster } from "../../src/domain/events/mergeDuplicates";
 import {
   buildEventTreeRows,
   createHomePositionFromTemplate,
@@ -47,29 +49,36 @@ import {
   formatHomeSummary,
   iconMap,
 } from "./utils";
-import type { HomePositionDraft, ScenarioMember } from "../../src/store/scenarioStore";
+import type {
+  HomePositionDraft,
+  Scenario,
+  ScenarioMember,
+} from "../../src/store/scenarioStore";
 import { Link } from "../../src/i18n/navigation";
 
 interface TimelineDesktopProps {
   eventViews: ScenarioEventView[];
   eventLibrary: EventDefinition[];
+  scenarios: Scenario[];
   homePositions: HomePositionDraft[];
   members: ScenarioMember[];
   baseCurrency: string;
   baseMonth?: string | null;
   assumptions: { baseMonth: string | null; horizonMonths: number };
   scenarioId: string;
-  onAddDefinition: (definition: EventDefinition) => void;
+  onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onUpdateDefinition: (id: string, patch: Partial<EventDefinition>) => void;
   onUpdateEventRef: (refId: string, patch: Partial<ScenarioEventRef>) => void;
   onHomePositionAdd: (home: HomePositionDraft) => void;
   onHomePositionUpdate: (home: HomePositionDraft) => void;
   onHomePositionRemove: (homeId: string) => void;
+  onMergeDuplicates: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
 }
 
 export default function TimelineDesktop({
   eventViews,
   eventLibrary,
+  scenarios,
   homePositions,
   members,
   baseCurrency,
@@ -82,12 +91,14 @@ export default function TimelineDesktop({
   onHomePositionAdd,
   onHomePositionUpdate,
   onHomePositionRemove,
+  onMergeDuplicates,
 }: TimelineDesktopProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
   const homes = useTranslations("homes");
   const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
   const [editScope, setEditScope] = useState<"shared" | "scenario">("shared");
@@ -191,9 +202,12 @@ export default function TimelineDesktop({
             </Text>
           )}
         </div>
-        <Button onClick={() => setAddEventOpen(true)}>
-          {t("addEvent")}
-        </Button>
+        <Group gap="sm">
+          <Button variant="light" onClick={() => setMergeOpen(true)}>
+            {t("mergeDuplicates")}
+          </Button>
+          <Button onClick={() => setAddEventOpen(true)}>{t("addEvent")}</Button>
+        </Group>
       </Group>
 
       <SegmentedControl
@@ -410,12 +424,25 @@ export default function TimelineDesktop({
         baseMonth={baseMonth}
         assumptions={assumptions}
         members={members}
+        scenarioOptions={scenarios.map((scenario) => ({
+          value: scenario.id,
+          label: scenario.name,
+        }))}
+        defaultScenarioId={scenarioId}
         parentGroupOptions={parentGroupOptions}
-        onAddDefinition={(definition) => onAddDefinition(definition)}
+        onAddDefinition={(definition, scenarioIds) => onAddDefinition(definition, scenarioIds)}
         onAddHomePosition={() => {
           onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
           setHomeToastOpen(true);
         }}
+      />
+
+      <MergeDuplicatesModal
+        opened={mergeOpen}
+        onClose={() => setMergeOpen(false)}
+        scenarios={scenarios}
+        eventLibrary={eventLibrary}
+        onMerge={onMergeDuplicates}
       />
 
       <Drawer

@@ -1,6 +1,15 @@
 "use client";
 
-import { Button, Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Button,
+  Checkbox,
+  Drawer,
+  Group,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { getEventMeta, type EventGroup, type EventType } from "@north-star/engine";
 import { useTranslations } from "next-intl";
@@ -30,8 +39,10 @@ interface TimelineAddEventDrawerProps {
   baseMonth?: string | null;
   assumptions: { baseMonth: string | null; horizonMonths: number };
   members: ScenarioMember[];
+  scenarioOptions: Array<{ value: string; label: string }>;
+  defaultScenarioId: string;
   parentGroupOptions: Array<{ value: string; label: string }>;
-  onAddDefinition: (definition: EventDefinition) => void;
+  onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onAddHomePosition: () => void;
 }
 
@@ -42,6 +53,8 @@ export default function TimelineAddEventDrawer({
   baseMonth,
   assumptions,
   members,
+  scenarioOptions,
+  defaultScenarioId,
   parentGroupOptions,
   onAddDefinition,
   onAddHomePosition,
@@ -54,6 +67,9 @@ export default function TimelineAddEventDrawer({
   const [draftDefinition, setDraftDefinition] = useState<EventDefinition | null>(null);
   const [parentId, setParentId] = useState<string | null>(null);
   const [groupTitle, setGroupTitle] = useState("");
+  const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([
+    defaultScenarioId,
+  ]);
 
   useEffect(() => {
     if (!opened) {
@@ -63,8 +79,9 @@ export default function TimelineAddEventDrawer({
       setDraftDefinition(null);
       setParentId(null);
       setGroupTitle("");
+      setSelectedScenarioIds([defaultScenarioId]);
     }
-  }, [opened]);
+  }, [defaultScenarioId, opened]);
 
   const eventGroupOptions = getEventFilterOptions(t).filter(
     (option) => option.value !== "all"
@@ -99,10 +116,15 @@ export default function TimelineAddEventDrawer({
 
   const handleSave = (result: TimelineEventFormResult) => {
     const baseDefinition = buildDefinitionFromTimelineEvent(result.event);
-    onAddDefinition({
-      ...baseDefinition,
-      parentId: parentId ?? undefined,
-    });
+    const targets =
+      selectedScenarioIds.length > 0 ? selectedScenarioIds : [defaultScenarioId];
+    onAddDefinition(
+      {
+        ...baseDefinition,
+        parentId: parentId ?? undefined,
+      },
+      targets
+    );
     onClose();
   };
 
@@ -111,8 +133,11 @@ export default function TimelineAddEventDrawer({
       return;
     }
 
+    const targets =
+      selectedScenarioIds.length > 0 ? selectedScenarioIds : [defaultScenarioId];
     onAddDefinition(
-      createGroupDefinition(groupTitle.trim(), { parentId: parentId ?? undefined })
+      createGroupDefinition(groupTitle.trim(), { parentId: parentId ?? undefined }),
+      targets
     );
     onClose();
   };
@@ -198,6 +223,26 @@ export default function TimelineAddEventDrawer({
             value={parentId ?? ""}
             onChange={(value) => setParentId(value || null)}
           />
+          <Stack gap="xs">
+            <Text fw={600}>{t("applyToLabel")}</Text>
+            <Text size="xs" c="dimmed">
+              {t("applyToHint")}
+            </Text>
+            <Checkbox.Group
+              value={selectedScenarioIds}
+              onChange={(value) => setSelectedScenarioIds(value)}
+            >
+              <Stack gap={4}>
+                {scenarioOptions.map((option) => (
+                  <Checkbox
+                    key={option.value}
+                    value={option.value}
+                    label={option.label}
+                  />
+                ))}
+              </Stack>
+            </Checkbox.Group>
+          </Stack>
           {selectedType === "insurance_product" ? (
             <InsuranceProductForm
               event={draftEvent}
