@@ -216,6 +216,42 @@ type ScenarioStoreState = {
   replaceAllScenarios: (scenarios: Scenario[]) => void;
 };
 
+export type ScenarioStorePersistedState = Pick<
+  ScenarioStoreState,
+  "scenarios" | "eventLibrary" | "activeScenarioId"
+>;
+
+export const selectPersistedState = (
+  state: ScenarioStoreState
+): ScenarioStorePersistedState => ({
+  scenarios: state.scenarios,
+  eventLibrary: state.eventLibrary,
+  activeScenarioId: state.activeScenarioId,
+});
+
+export const hydrateFromPersistedState = (
+  payload: ScenarioStorePersistedState
+): ScenarioStorePersistedState => {
+  const normalizedScenarios = normalizeScenarioList(payload.scenarios);
+  const normalizedActiveScenarioId = normalizedScenarios.some(
+    (scenario) => scenario.id === payload.activeScenarioId
+  )
+    ? payload.activeScenarioId
+    : normalizedScenarios[0]?.id ?? "";
+
+  useScenarioStore.setState({
+    scenarios: normalizedScenarios,
+    eventLibrary: payload.eventLibrary,
+    activeScenarioId: normalizedActiveScenarioId,
+  });
+
+  return {
+    scenarios: normalizedScenarios,
+    eventLibrary: payload.eventLibrary,
+    activeScenarioId: normalizedActiveScenarioId,
+  };
+};
+
 const defaultKpis: ScenarioKpis = {
   lowestMonthlyBalance: -8000,
   runwayMonths: 14,

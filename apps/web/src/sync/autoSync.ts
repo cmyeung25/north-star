@@ -7,8 +7,12 @@ import {
 } from "firebase/firestore";
 import { getFirestoreDb } from "../../lib/firebaseClient";
 import { SCHEMA_VERSION } from "../store/scenarioSchema";
-import { saveToIndexedDB } from "../store/scenarioPersistence";
-import { useScenarioStore, type Scenario } from "../store/scenarioStore";
+import { saveAutosave } from "../persistence/storage";
+import {
+  selectPersistedState,
+  useScenarioStore,
+  type Scenario,
+} from "../store/scenarioStore";
 import { useSettingsStore } from "../store/settingsStore";
 
 type CloudScenarioDocument = {
@@ -105,11 +109,10 @@ const updateLastAutoSyncAt = (timestamp: number) => {
 
 const persistScenarioSnapshot = async () => {
   const snapshot = useScenarioStore.getState();
-  await saveToIndexedDB({
-    scenarios: snapshot.scenarios,
-    eventLibrary: snapshot.eventLibrary,
-    activeScenarioId: snapshot.activeScenarioId,
-  });
+  const result = saveAutosave(selectPersistedState(snapshot));
+  if (!result.ok) {
+    console.warn(result.error);
+  }
 };
 
 const applyRemoteScenario = async (
