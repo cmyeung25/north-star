@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import TimelineDesktop from "../../../components/timeline/TimelineDesktop";
 import TimelineMobile from "../../../components/timeline/TimelineMobile";
 import { buildScenarioEventViews } from "../../../src/domain/events/utils";
+import { compileAllBudgetRules } from "../../../src/domain/budget/compileBudgetRules";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -61,6 +62,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const eventViews = scenario ? buildScenarioEventViews(scenario, eventLibrary) : [];
+  const budgetLedger = scenario ? compileAllBudgetRules(scenario) : [];
   const homePositions = scenario?.positions?.homes ?? [];
   const members = scenario?.members ?? [];
   const baseCurrency = scenario?.baseCurrency ?? "";
@@ -79,6 +81,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         scenarios={scenarios}
         homePositions={homePositions}
         members={members}
+        budgetLedger={budgetLedger}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         assumptions={assumptions}
@@ -112,6 +115,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       scenarios={scenarios}
       homePositions={homePositions}
       members={members}
+      budgetLedger={budgetLedger}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
       assumptions={assumptions}

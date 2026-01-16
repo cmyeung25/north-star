@@ -51,6 +51,31 @@ export type ScenarioMember = {
   id: string;
   name: string;
   kind: ScenarioMemberKind;
+  birthMonth?: string;
+  ageAtBaseMonth?: number;
+};
+
+export type BudgetCategory =
+  | "health"
+  | "childcare"
+  | "education"
+  | "eldercare"
+  | "petcare";
+
+export type BudgetRule = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  memberId?: string;
+  category: BudgetCategory;
+  ageBand: {
+    fromYears: number;
+    toYears: number;
+  };
+  monthlyAmount: number;
+  annualGrowthPct?: number;
+  startMonth?: string;
+  endMonth?: string;
 };
 
 export type ExistingHomeDetails = {
@@ -125,6 +150,7 @@ export type Scenario = {
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
   members?: ScenarioMember[];
+  budgetRules?: BudgetRule[];
   eventRefs?: ScenarioEventRef[];
   positions?: ScenarioPositions;
   meta?: ScenarioMeta;
@@ -160,6 +186,20 @@ type ScenarioStoreState = {
   ) => void;
   removeEventDefinition: (id: string) => void;
   setEventLibrary: (eventLibrary: EventDefinition[]) => void;
+  addScenarioMember: (id: string, member: ScenarioMember) => void;
+  updateScenarioMember: (
+    id: string,
+    memberId: string,
+    patch: Partial<ScenarioMember>
+  ) => void;
+  removeScenarioMember: (id: string, memberId: string) => void;
+  addBudgetRule: (id: string, rule: BudgetRule) => void;
+  updateBudgetRule: (
+    id: string,
+    ruleId: string,
+    patch: Partial<BudgetRule>
+  ) => void;
+  removeBudgetRule: (id: string, ruleId: string) => void;
   addHomePosition: (id: string, home: HomePositionDraft) => void;
   updateHomePosition: (id: string, home: HomePositionDraft) => void;
   removeHomePosition: (id: string, homeId: string) => void;
@@ -201,6 +241,7 @@ const now = () => Date.now();
 const createScenarioId = () => `scenario-${nanoid(8)}`;
 export const createHomePositionId = () => `home-${nanoid(8)}`;
 export const createMemberId = () => `member-${nanoid(8)}`;
+export const createBudgetRuleId = () => `budget-${nanoid(8)}`;
 
 const DEFAULT_MEMBER_NAME = "本人";
 
@@ -218,6 +259,12 @@ const normalizeMembers = (members?: ScenarioMember[]): ScenarioMember[] => {
   ];
 };
 
+const normalizeBudgetRules = (rules?: BudgetRule[]): BudgetRule[] =>
+  rules?.map((rule) => ({
+    ...rule,
+    ageBand: { ...rule.ageBand },
+  })) ?? [];
+
 const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
   eventRefs?.map((ref) => ({
     ...ref,
@@ -227,6 +274,12 @@ const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
 const cloneMembers = (members?: ScenarioMember[]) =>
   members?.map((member) => ({
     ...member,
+  }));
+
+const cloneBudgetRules = (rules?: BudgetRule[]) =>
+  rules?.map((rule) => ({
+    ...rule,
+    ageBand: { ...rule.ageBand },
   }));
 
 const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | undefined => {
@@ -293,6 +346,7 @@ const initialScenarios: Scenario[] = [
     },
     assumptions: { ...defaultAssumptions },
     members: normalizeMembers(),
+    budgetRules: [],
     eventRefs: [
       { refId: "event-plan-a-rent", enabled: true },
       { refId: "event-plan-a-baby", enabled: true },
@@ -345,11 +399,13 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
   const normalizedPositions = normalizeScenarioPositions(scenario.positions);
   const normalizedMembers = normalizeMembers(scenario.members);
   const normalizedEventRefs = scenario.eventRefs ?? [];
+  const normalizedBudgetRules = normalizeBudgetRules(scenario.budgetRules);
 
   if (!normalizedPositions) {
     return {
       ...scenario,
       members: normalizedMembers,
+      budgetRules: normalizedBudgetRules,
       eventRefs: normalizedEventRefs,
     };
   }
@@ -358,6 +414,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     ...scenario,
     positions: normalizedPositions,
     members: normalizedMembers,
+    budgetRules: normalizedBudgetRules,
     eventRefs: normalizedEventRefs,
   };
 };
@@ -405,6 +462,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       kpis: { ...defaultKpis },
       assumptions: { ...defaultAssumptions },
       members: normalizeMembers(),
+      budgetRules: [],
       eventRefs: [],
     };
 
@@ -441,6 +499,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
       members: cloneMembers(source.members) ?? normalizeMembers(),
+      budgetRules: cloneBudgetRules(source.budgetRules),
       eventRefs: cloneEventRefs(source.eventRefs),
       positions: clonePositions(source.positions),
       meta: source.meta ? { ...source.meta } : undefined,
@@ -625,6 +684,100 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   setEventLibrary: (eventLibrary) => {
     set(() => ({
       eventLibrary,
+    }));
+  },
+  addScenarioMember: (id, member) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              members: [...(scenario.members ?? []), { ...member }],
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateScenarioMember: (id, memberId, patch) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              members: (scenario.members ?? []).map((member) =>
+                member.id === memberId ? { ...member, ...patch } : member
+              ),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  removeScenarioMember: (id, memberId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              members: (scenario.members ?? []).filter(
+                (member) => member.id !== memberId
+              ),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  addBudgetRule: (id, rule) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              budgetRules: [...(scenario.budgetRules ?? []), { ...rule }],
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateBudgetRule: (id, ruleId, patch) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              budgetRules: (scenario.budgetRules ?? []).map((rule) =>
+                rule.id === ruleId
+                  ? {
+                      ...rule,
+                      ...patch,
+                      ageBand: patch.ageBand
+                        ? { ...patch.ageBand }
+                        : { ...rule.ageBand },
+                    }
+                  : rule
+              ),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  removeBudgetRule: (id, ruleId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              budgetRules: (scenario.budgetRules ?? []).filter(
+                (rule) => rule.id !== ruleId
+              ),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
     }));
   },
   addHomePosition: (id, home) => {
