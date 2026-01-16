@@ -21,6 +21,7 @@ interface TimelineEventFormProps {
   baseCurrency: string;
   members: ScenarioMember[];
   fields?: readonly EventField[];
+  showMember?: boolean;
   onCancel: () => void;
   onSave: (event: TimelineEvent) => void;
   submitLabel?: string;
@@ -31,6 +32,7 @@ export default function TimelineEventForm({
   baseCurrency,
   members,
   fields,
+  showMember = true,
   onCancel,
   onSave,
   submitLabel,
@@ -152,14 +154,19 @@ export default function TimelineEventForm({
           onChange={(eventChange) => updateField("name", eventChange.target.value)}
         />
       )}
-      <Select
-        label={t("memberLabel")}
-        data={memberOptions}
-        value={memberValue}
-        onChange={(value) =>
-          updateField("memberId", value === "household" ? undefined : value ?? undefined)
-        }
-      />
+      {showMember && (
+        <Select
+          label={t("memberLabel")}
+          data={memberOptions}
+          value={memberValue}
+          onChange={(value) =>
+            updateField(
+              "memberId",
+              value === "household" ? undefined : value ?? undefined
+            )
+          }
+        />
+      )}
       {shouldShowField("startMonth") && (
         <TextInput
           label={t("eventFormStartMonth")}

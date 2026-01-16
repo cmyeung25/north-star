@@ -16,6 +16,7 @@ export type ScenarioSummary = {
 
 export const useScenarioSummary = (scenarioId?: string | null) => {
   const scenarios = useScenarioStore((state) => state.scenarios);
+  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
 
   const scenario = useMemo(
     () => (scenarioId ? getScenarioById(scenarios, scenarioId) : null),
@@ -31,12 +32,12 @@ export const useScenarioSummary = (scenarioId?: string | null) => {
       return null;
     }
 
-    const input = mapScenarioToEngineInput(scenario, { strict: false });
+    const input = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
     const projection = computeProjection(input);
     const overviewViewModel = projectionToOverviewViewModel(projection);
 
     return { kpis: overviewViewModel.kpis };
-  }, [scenario, scenarioKey]);
+  }, [eventLibrary, scenario, scenarioKey]);
 
   return { scenario, summary };
 };

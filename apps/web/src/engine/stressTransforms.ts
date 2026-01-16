@@ -1,6 +1,9 @@
-import type { Scenario, TimelineEvent } from "../store/scenarioStore";
+import type { Scenario } from "../store/scenarioStore";
 import { normalizeMonth } from "../features/timeline/schema";
 import { getEventSign } from "../events/eventCatalog";
+import type { EventDefinition } from "../domain/events/types";
+import { buildScenarioTimelineEvents, resolveEventRule } from "../domain/events/utils";
+import type { TimelineEvent } from "../features/timeline/schema";
 
 export type StressPreset = "RATE_HIKE_2" | "INCOME_DROP_20" | "INFLATION_PLUS_2";
 
@@ -29,7 +32,11 @@ const getEarliestEnabledMonth = (events: TimelineEvent[]) =>
     return earliest;
   }, null);
 
-const resolveShockMonth = (scenario: Scenario, options: StressPresetOptions) => {
+const resolveShockMonth = (
+  scenario: Scenario,
+  eventLibrary: EventDefinition[],
+  options: StressPresetOptions
+) => {
   const normalized = normalizeMonth(options.shockMonth ?? "");
   if (normalized) {
     return normalized;
@@ -40,20 +47,21 @@ const resolveShockMonth = (scenario: Scenario, options: StressPresetOptions) => 
     return scenarioBaseMonth;
   }
 
-  const earliestEventMonth = getEarliestEnabledMonth(scenario.events ?? []);
+  const earliestEventMonth = getEarliestEnabledMonth(
+    buildScenarioTimelineEvents(scenario, eventLibrary)
+  );
   return earliestEventMonth ?? getCurrentMonth();
 };
 
-const isIncomeEvent = (event: TimelineEvent) => getEventSign(event.type) === 1;
-
-const isExpenseEvent = (event: TimelineEvent) => getEventSign(event.type) === -1;
 
 export const applyStressPreset = (
   baseScenario: Scenario,
+  eventLibrary: EventDefinition[],
   preset: StressPreset,
   options: StressPresetOptions = {}
 ): Scenario => {
   const scenario = cloneScenario(baseScenario);
+  const libraryMap = new Map(eventLibrary.map((definition) => [definition.id, definition]));
 
   switch (preset) {
     case "RATE_HIKE_2": {
@@ -97,17 +105,28 @@ export const applyStressPreset = (
     }
     case "INCOME_DROP_20": {
       // Reduce income-like events by 20% starting from shockMonth.
-      const shockMonth = resolveShockMonth(scenario, options);
-      scenario.events = (scenario.events ?? []).map((event) => {
-        if (!event.enabled || !isIncomeEvent(event)) {
-          return event;
+      const shockMonth = resolveShockMonth(scenario, eventLibrary, options);
+      scenario.eventRefs = (scenario.eventRefs ?? []).map((ref) => {
+        const definition = libraryMap.get(ref.refId);
+        if (!definition || definition.kind !== "cashflow") {
+          return ref;
         }
-        if (event.startMonth < shockMonth) {
-          return event;
+        if (!ref.enabled) {
+          return ref;
+        }
+        const rule = resolveEventRule(definition, ref);
+        if (!rule.startMonth || rule.startMonth < shockMonth) {
+          return ref;
+        }
+        if (getEventSign(definition.type) !== 1) {
+          return ref;
         }
         return {
-          ...event,
-          monthlyAmount: (event.monthlyAmount ?? 0) * 0.8,
+          ...ref,
+          overrides: {
+            ...ref.overrides,
+            monthlyAmount: (rule.monthlyAmount ?? 0) * 0.8,
+          },
         };
       });
       break;
@@ -121,13 +140,24 @@ export const applyStressPreset = (
         break;
       }
 
-      scenario.events = (scenario.events ?? []).map((event) => {
-        if (!event.enabled || !isExpenseEvent(event)) {
-          return event;
+      scenario.eventRefs = (scenario.eventRefs ?? []).map((ref) => {
+        const definition = libraryMap.get(ref.refId);
+        if (!definition || definition.kind !== "cashflow") {
+          return ref;
+        }
+        if (!ref.enabled) {
+          return ref;
+        }
+        const rule = resolveEventRule(definition, ref);
+        if (getEventSign(definition.type) !== -1) {
+          return ref;
         }
         return {
-          ...event,
-          monthlyAmount: (event.monthlyAmount ?? 0) * 1.1,
+          ...ref,
+          overrides: {
+            ...ref.overrides,
+            monthlyAmount: (rule.monthlyAmount ?? 0) * 1.1,
+          },
         };
       });
       break;

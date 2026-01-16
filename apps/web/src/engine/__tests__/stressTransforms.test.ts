@@ -3,6 +3,8 @@ import type { ProjectionResult } from "@north-star/engine";
 import { applyStressPreset } from "../stressTransforms";
 import { computeStressDeltas } from "../useStressComparison";
 import type { Scenario } from "../../store/scenarioStore";
+import type { EventDefinition } from "../../domain/events/types";
+import { resolveEventRule } from "../../domain/events/utils";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   id: "scenario-test",
@@ -20,7 +22,7 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     initialCash: 0,
     baseMonth: null,
   },
-  events: [],
+  eventRefs: [],
   ...overrides,
 });
 
@@ -63,47 +65,67 @@ describe("applyStressPreset", () => {
       },
     });
 
-    const stressed = applyStressPreset(scenario, "RATE_HIKE_2");
+    const stressed = applyStressPreset(scenario, [], "RATE_HIKE_2");
 
     expect(stressed.positions?.homes?.[0]?.mortgageRatePct).toBe(100);
   });
 
   it("reduces income events by 20% starting from the shock month", () => {
     const scenario = buildScenario({
-      events: [
-        {
-          id: "event-early-income",
-          type: "salary",
-          name: "Side income",
-          startMonth: "2026-02",
-          endMonth: null,
-          enabled: true,
-          monthlyAmount: 10000,
-          oneTimeAmount: 0,
-          annualGrowthPct: 0,
-          currency: "USD",
-        },
-        {
-          id: "event-income",
-          type: "salary",
-          name: "Salary",
-          startMonth: "2026-03",
-          endMonth: null,
-          enabled: true,
-          monthlyAmount: 10000,
-          oneTimeAmount: 0,
-          annualGrowthPct: 0,
-          currency: "USD",
-        },
+      eventRefs: [
+        { refId: "event-early-income", enabled: true },
+        { refId: "event-income", enabled: true },
       ],
     });
 
-    const stressed = applyStressPreset(scenario, "INCOME_DROP_20", {
+    const eventLibrary: EventDefinition[] = [
+      {
+        id: "event-early-income",
+        title: "Side income",
+        type: "salary",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2026-02",
+          endMonth: null,
+          monthlyAmount: 10000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+        currency: "USD",
+      },
+      {
+        id: "event-income",
+        title: "Salary",
+        type: "salary",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2026-03",
+          endMonth: null,
+          monthlyAmount: 10000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+        currency: "USD",
+      },
+    ];
+
+    const stressed = applyStressPreset(scenario, eventLibrary, "INCOME_DROP_20", {
       shockMonth: "2026-03",
     });
 
-    expect(stressed.events?.[0]?.monthlyAmount).toBe(10000);
-    expect(stressed.events?.[1]?.monthlyAmount).toBe(8000);
+    const earlyRef = stressed.eventRefs?.[0];
+    const laterRef = stressed.eventRefs?.[1];
+    if (!earlyRef || !laterRef) {
+      throw new Error("Expected stress refs to be present.");
+    }
+
+    const earlyRule = resolveEventRule(eventLibrary[0], earlyRef);
+    const laterRule = resolveEventRule(eventLibrary[1], laterRef);
+
+    expect(earlyRule.monthlyAmount).toBe(10000);
+    expect(laterRule.monthlyAmount).toBe(8000);
   });
 });
 

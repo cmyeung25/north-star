@@ -1,13 +1,14 @@
 import { nanoid } from "nanoid";
 import { defaultCurrency } from "../../lib/i18n";
 import type { OnboardingDraft } from "../onboarding/types";
+import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
+import { buildDefinitionFromTimelineEvent } from "../domain/events/utils";
 import {
   createHomePositionId,
   createMemberId,
   type HomePositionDraft,
   type Scenario,
   type ScenarioMember,
-  type TimelineEvent,
 } from "../store/scenarioStore";
 
 const ONBOARDING_VERSION = 1;
@@ -31,17 +32,21 @@ const getCurrentMonth = () => {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const buildEvent = (
-  partial: Omit<TimelineEvent, "id" | "currency" | "enabled" | "oneTimeAmount"> & {
+const buildEventDefinition = (
+  partial: Omit<
+    Parameters<typeof buildDefinitionFromTimelineEvent>[0],
+    "id" | "enabled" | "oneTimeAmount"
+  > & {
     currency?: string;
   }
-): TimelineEvent => ({
-  id: `event-${nanoid(8)}`,
-  enabled: true,
-  oneTimeAmount: 0,
-  currency: partial.currency ?? defaultCurrency,
-  ...partial,
-});
+): EventDefinition =>
+  buildDefinitionFromTimelineEvent({
+    id: `event-${nanoid(8)}`,
+    enabled: true,
+    oneTimeAmount: 0,
+    ...partial,
+    currency: partial.currency ?? defaultCurrency,
+  });
 
 const buildExistingHomePosition = (
   draft: OnboardingDraft,
@@ -67,8 +72,9 @@ const buildExistingHomePosition = (
 
 export const applyOnboardingToScenario = (
   baseScenario: Scenario,
-  draft: OnboardingDraft
-): Scenario => {
+  draft: OnboardingDraft,
+  eventLibrary: EventDefinition[]
+): { scenario: Scenario; eventLibrary: EventDefinition[] } => {
   const baseMonth = getCurrentMonth();
   const currency = baseScenario.baseCurrency ?? defaultCurrency;
   const members: ScenarioMember[] =
@@ -103,8 +109,8 @@ export const applyOnboardingToScenario = (
     }))
     .filter((item) => item.annualAmount > 0);
 
-  const events: TimelineEvent[] = [
-    buildEvent({
+  const eventDefinitions: EventDefinition[] = [
+    buildEventDefinition({
       type: "salary",
       name: "Salary",
       startMonth: baseMonth,
@@ -117,8 +123,8 @@ export const applyOnboardingToScenario = (
   ];
 
   recurringExpenses.forEach((expense) => {
-    events.push(
-      buildEvent({
+    eventDefinitions.push(
+      buildEventDefinition({
         type: "custom",
         name: expense.label,
         startMonth: baseMonth,
@@ -132,8 +138,8 @@ export const applyOnboardingToScenario = (
   });
 
   annualBudgetItems.forEach((item) => {
-    events.push(
-      buildEvent({
+    eventDefinitions.push(
+      buildEventDefinition({
         type: "custom",
         name: item.label,
         startMonth: baseMonth,
@@ -147,8 +153,8 @@ export const applyOnboardingToScenario = (
   });
 
   if (draft.housingStatus === "rent") {
-    events.push(
-      buildEvent({
+    eventDefinitions.push(
+      buildEventDefinition({
         type: "rent",
         name: "Rent",
         startMonth: baseMonth,
@@ -224,10 +230,14 @@ export const applyOnboardingToScenario = (
           })),
         };
 
-  return {
+  const scenario: Scenario = {
     ...baseScenario,
     updatedAt: Date.now(),
     members: normalizedMembers,
+    eventRefs: eventDefinitions.map<ScenarioEventRef>((definition) => ({
+      refId: definition.id,
+      enabled: true,
+    })),
     assumptions: {
       ...baseScenario.assumptions,
       baseMonth,
@@ -239,11 +249,15 @@ export const applyOnboardingToScenario = (
       rentMonthly: draft.housingStatus === "rent" ? rentMonthly : undefined,
       investmentReturnAssumptions: DEFAULT_INVESTMENT_RETURN_PCTS,
     },
-    events,
     positions,
     meta: {
       ...baseScenario.meta,
       onboardingVersion: ONBOARDING_VERSION,
     },
+  };
+
+  return {
+    scenario,
+    eventLibrary: [...eventLibrary, ...eventDefinitions],
   };
 };

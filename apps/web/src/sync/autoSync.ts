@@ -107,6 +107,7 @@ const persistScenarioSnapshot = async () => {
   const snapshot = useScenarioStore.getState();
   await saveToIndexedDB({
     scenarios: snapshot.scenarios,
+    eventLibrary: snapshot.eventLibrary,
     activeScenarioId: snapshot.activeScenarioId,
   });
 };

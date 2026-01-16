@@ -1,22 +1,27 @@
 "use client";
 
-import { Button, Drawer, Group, Stack, Text } from "@mantine/core";
+import { Button, Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { getEventMeta, type EventGroup, type EventType } from "@north-star/engine";
 import { useTranslations } from "next-intl";
-import type { TimelineEvent } from "./types";
+import type { EventDefinition, TimelineEvent } from "./types";
+import {
+  buildDefinitionFromTimelineEvent,
+  buildTimelineEventFromDefinition,
+} from "../../src/domain/events/utils";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
 import InsuranceProductForm from "./InsuranceProductForm";
 import TimelineEventForm from "./TimelineEventForm";
 import {
-  createEventFromTemplate,
+  createEventDefinitionFromTemplate,
+  createGroupDefinition,
   getEventFilterOptions,
   getEventLabel,
   iconMap,
   listEventTypesForGroup,
 } from "./utils";
 
-type AddEventStep = "group" | "type" | "details";
+type AddEventStep = "group" | "type" | "details" | "groupDetails";
 
 interface TimelineAddEventDrawerProps {
   opened: boolean;
@@ -24,7 +29,8 @@ interface TimelineAddEventDrawerProps {
   baseCurrency: string;
   baseMonth?: string | null;
   members: ScenarioMember[];
-  onAddEvent: (event: TimelineEvent) => void;
+  parentGroupOptions: Array<{ value: string; label: string }>;
+  onAddDefinition: (definition: EventDefinition) => void;
   onAddHomePosition: () => void;
 }
 
@@ -34,7 +40,8 @@ export default function TimelineAddEventDrawer({
   baseCurrency,
   baseMonth,
   members,
-  onAddEvent,
+  parentGroupOptions,
+  onAddDefinition,
   onAddHomePosition,
 }: TimelineAddEventDrawerProps) {
   const t = useTranslations("timeline");
@@ -42,18 +49,22 @@ export default function TimelineAddEventDrawer({
   const [step, setStep] = useState<AddEventStep>("group");
   const [selectedGroup, setSelectedGroup] = useState<EventGroup | null>(null);
   const [selectedType, setSelectedType] = useState<EventType | null>(null);
-  const [draftEvent, setDraftEvent] = useState<TimelineEvent | null>(null);
+  const [draftDefinition, setDraftDefinition] = useState<EventDefinition | null>(null);
+  const [parentId, setParentId] = useState<string | null>(null);
+  const [groupTitle, setGroupTitle] = useState("");
 
   useEffect(() => {
     if (!opened) {
       setStep("group");
       setSelectedGroup(null);
       setSelectedType(null);
-      setDraftEvent(null);
+      setDraftDefinition(null);
+      setParentId(null);
+      setGroupTitle("");
     }
   }, [opened]);
 
-  const groupOptions = getEventFilterOptions(t).filter(
+  const eventGroupOptions = getEventFilterOptions(t).filter(
     (option) => option.value !== "all"
   );
   const typeOptions = useMemo(
@@ -74,8 +85,8 @@ export default function TimelineAddEventDrawer({
     }
 
     setSelectedType(type);
-    setDraftEvent(
-      createEventFromTemplate(type, t, {
+    setDraftDefinition(
+      createEventDefinitionFromTemplate(type, t, {
         baseCurrency,
         baseMonth,
         memberId: members[0]?.id,
@@ -85,9 +96,40 @@ export default function TimelineAddEventDrawer({
   };
 
   const handleSave = (event: TimelineEvent) => {
-    onAddEvent(event);
+    const baseDefinition = buildDefinitionFromTimelineEvent(event);
+    onAddDefinition({
+      ...baseDefinition,
+      parentId: parentId ?? undefined,
+    });
     onClose();
   };
+
+  const handleSaveGroup = () => {
+    if (!groupTitle.trim()) {
+      return;
+    }
+
+    onAddDefinition(
+      createGroupDefinition(groupTitle.trim(), { parentId: parentId ?? undefined })
+    );
+    onClose();
+  };
+
+  const parentOptions = useMemo(
+    () => [{ value: "", label: t("groupNone") }, ...parentGroupOptions],
+    [parentGroupOptions, t]
+  );
+
+  const draftEvent = draftDefinition
+    ? buildTimelineEventFromDefinition(
+        draftDefinition,
+        { refId: draftDefinition.id, enabled: true },
+        {
+          baseCurrency,
+          fallbackMonth: baseMonth,
+        }
+      )
+    : null;
 
   return (
     <Drawer
@@ -103,7 +145,7 @@ export default function TimelineAddEventDrawer({
             {t("chooseGroupHint")}
           </Text>
           <Stack gap="xs">
-            {groupOptions.map((option) => (
+            {eventGroupOptions.map((option) => (
               <Button
                 key={option.value}
                 variant="light"
@@ -115,6 +157,9 @@ export default function TimelineAddEventDrawer({
                 {option.label}
               </Button>
             ))}
+            <Button variant="subtle" onClick={() => setStep("groupDetails")}>
+              {t("addGroup")}
+            </Button>
           </Stack>
         </Stack>
       )}
@@ -145,6 +190,12 @@ export default function TimelineAddEventDrawer({
               {common("actionBack")}
             </Button>
           </Group>
+          <Select
+            label={t("groupParent")}
+            data={parentOptions}
+            value={parentId ?? ""}
+            onChange={(value) => setParentId(value || null)}
+          />
           {selectedType === "insurance_product" ? (
             <InsuranceProductForm
               event={draftEvent}
@@ -160,11 +211,40 @@ export default function TimelineAddEventDrawer({
               baseCurrency={baseCurrency}
               members={members}
               fields={getEventMeta(selectedType).fields}
+              showMember
               onCancel={() => setStep("type")}
               onSave={handleSave}
               submitLabel={t("addEvent")}
             />
           )}
+        </Stack>
+      )}
+
+      {step === "groupDetails" && (
+        <Stack gap="sm">
+          <Group justify="space-between" align="center">
+            <Text fw={600}>{t("groupTitle")}</Text>
+            <Button variant="subtle" size="xs" onClick={() => setStep("group")}>
+              {common("actionBack")}
+            </Button>
+          </Group>
+          <TextInput
+            label={t("groupName")}
+            value={groupTitle}
+            onChange={(eventChange) => setGroupTitle(eventChange.target.value)}
+          />
+          <Select
+            label={t("groupParent")}
+            data={parentOptions}
+            value={parentId ?? ""}
+            onChange={(value) => setParentId(value || null)}
+          />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={onClose}>
+              {common("actionCancel")}
+            </Button>
+            <Button onClick={handleSaveGroup}>{t("addGroup")}</Button>
+          </Group>
         </Stack>
       )}
     </Drawer>

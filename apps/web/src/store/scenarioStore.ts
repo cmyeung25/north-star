@@ -4,7 +4,8 @@
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
-import type { TimelineEvent } from "../features/timeline/schema";
+import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
+import { buildEventLibraryMap } from "../domain/events/utils";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -120,13 +121,14 @@ export type Scenario = {
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
   members?: ScenarioMember[];
-  events?: TimelineEvent[];
+  eventRefs?: ScenarioEventRef[];
   positions?: ScenarioPositions;
   meta?: ScenarioMeta;
 };
 
 type ScenarioStoreState = {
   scenarios: Scenario[];
+  eventLibrary: EventDefinition[];
   activeScenarioId: string;
   createScenario: (name: string, options?: { baseCurrency?: string }) => Scenario;
   renameScenario: (id: string, name: string) => void;
@@ -134,7 +136,21 @@ type ScenarioStoreState = {
   deleteScenario: (id: string) => void;
   setActiveScenario: (id: string) => void;
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
-  upsertScenarioEvents: (id: string, events: TimelineEvent[]) => void;
+  upsertScenarioEventRefs: (id: string, eventRefs: ScenarioEventRef[]) => void;
+  addScenarioEventRef: (id: string, ref: ScenarioEventRef) => void;
+  updateScenarioEventRef: (
+    id: string,
+    refId: string,
+    patch: Partial<ScenarioEventRef>
+  ) => void;
+  removeScenarioEventRef: (id: string, refId: string) => void;
+  addEventDefinition: (definition: EventDefinition) => void;
+  updateEventDefinition: (
+    id: string,
+    patch: Partial<EventDefinition>
+  ) => void;
+  removeEventDefinition: (id: string) => void;
+  setEventLibrary: (eventLibrary: EventDefinition[]) => void;
   addHomePosition: (id: string, home: HomePositionDraft) => void;
   updateHomePosition: (id: string, home: HomePositionDraft) => void;
   removeHomePosition: (id: string, homeId: string) => void;
@@ -192,9 +208,10 @@ const normalizeMembers = (members?: ScenarioMember[]): ScenarioMember[] => {
   ];
 };
 
-const cloneEvents = (events?: TimelineEvent[]) =>
-  events?.map((event) => ({
-    ...event,
+const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
+  eventRefs?.map((ref) => ({
+    ...ref,
+    overrides: ref.overrides ? { ...ref.overrides } : undefined,
   }));
 
 const cloneMembers = (members?: ScenarioMember[]) =>
@@ -219,6 +236,39 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
   };
 };
 
+const initialEventLibrary: EventDefinition[] = [
+  {
+    id: "event-plan-a-rent",
+    title: "City Center Lease",
+    type: "rent",
+    kind: "cashflow",
+    rule: {
+      mode: "params",
+      startMonth: "2024-09",
+      endMonth: null,
+      monthlyAmount: 1800,
+      oneTimeAmount: 0,
+      annualGrowthPct: 3,
+    },
+    currency: defaultCurrency,
+  },
+  {
+    id: "event-plan-a-baby",
+    title: "Newborn Expenses",
+    type: "baby",
+    kind: "cashflow",
+    rule: {
+      mode: "params",
+      startMonth: "2025-06",
+      endMonth: "2026-06",
+      monthlyAmount: 950,
+      oneTimeAmount: 5000,
+      annualGrowthPct: 2,
+    },
+    currency: defaultCurrency,
+  },
+];
+
 const initialScenarios: Scenario[] = [
   {
     id: "scenario-plan-a",
@@ -233,31 +283,9 @@ const initialScenarios: Scenario[] = [
     },
     assumptions: { ...defaultAssumptions },
     members: normalizeMembers(),
-    events: [
-      {
-        id: "event-plan-a-rent",
-        type: "rent",
-        name: "City Center Lease",
-        startMonth: "2024-09",
-        endMonth: null,
-        enabled: true,
-        monthlyAmount: 1800,
-        oneTimeAmount: 0,
-        annualGrowthPct: 3,
-        currency: defaultCurrency,
-      },
-      {
-        id: "event-plan-a-baby",
-        type: "baby",
-        name: "Newborn Expenses",
-        startMonth: "2025-06",
-        endMonth: "2026-06",
-        enabled: true,
-        monthlyAmount: 950,
-        oneTimeAmount: 5000,
-        annualGrowthPct: 2,
-        currency: defaultCurrency,
-      },
+    eventRefs: [
+      { refId: "event-plan-a-rent", enabled: true },
+      { refId: "event-plan-a-baby", enabled: true },
     ],
   },
 ];
@@ -306,11 +334,13 @@ const normalizeScenarioPositions = (
 export const normalizeScenario = (scenario: Scenario): Scenario => {
   const normalizedPositions = normalizeScenarioPositions(scenario.positions);
   const normalizedMembers = normalizeMembers(scenario.members);
+  const normalizedEventRefs = scenario.eventRefs ?? [];
 
   if (!normalizedPositions) {
     return {
       ...scenario,
       members: normalizedMembers,
+      eventRefs: normalizedEventRefs,
     };
   }
 
@@ -318,6 +348,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     ...scenario,
     positions: normalizedPositions,
     members: normalizedMembers,
+    eventRefs: normalizedEventRefs,
   };
 };
 
@@ -353,6 +384,7 @@ export const resolveScenarioIdFromQuery = (
 
 export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   scenarios: normalizeScenarioList(initialScenarios),
+  eventLibrary: initialEventLibrary,
   activeScenarioId: initialScenarios[0]?.id ?? "",
   createScenario: (name, options) => {
     const newScenario: Scenario = {
@@ -363,7 +395,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       kpis: { ...defaultKpis },
       assumptions: { ...defaultAssumptions },
       members: normalizeMembers(),
-      events: [],
+      eventRefs: [],
     };
 
     set((state) => ({
@@ -399,7 +431,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
       members: cloneMembers(source.members) ?? normalizeMembers(),
-      events: cloneEvents(source.events),
+      eventRefs: cloneEventRefs(source.eventRefs),
       positions: clonePositions(source.positions),
       meta: source.meta ? { ...source.meta } : undefined,
     };
@@ -460,17 +492,104 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       ),
     }));
   },
-  upsertScenarioEvents: (id, events) => {
+  upsertScenarioEventRefs: (id, eventRefs) => {
     set((state) => ({
       scenarios: state.scenarios.map((scenario) =>
         scenario.id === id
           ? {
               ...scenario,
-              events,
+              eventRefs,
               updatedAt: now(),
             }
           : scenario
       ),
+    }));
+  },
+  addScenarioEventRef: (id, ref) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              eventRefs: [...(scenario.eventRefs ?? []), { ...ref }],
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateScenarioEventRef: (id, refId, patch) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              eventRefs: (scenario.eventRefs ?? []).map((ref) =>
+                ref.refId === refId
+                  ? {
+                      ...ref,
+                      ...patch,
+                      overrides: patch.overrides
+                        ? { ...patch.overrides }
+                        : ref.overrides,
+                    }
+                  : ref
+              ),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  removeScenarioEventRef: (id, refId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              eventRefs: (scenario.eventRefs ?? []).filter((ref) => ref.refId !== refId),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  addEventDefinition: (definition) => {
+    set((state) => ({
+      eventLibrary: [...state.eventLibrary, { ...definition }],
+    }));
+  },
+  updateEventDefinition: (id, patch) => {
+    set((state) => ({
+      eventLibrary: state.eventLibrary.map((definition) =>
+        definition.id === id
+          ? {
+              ...definition,
+              ...patch,
+              rule: patch.rule
+                ? {
+                    ...definition.rule,
+                    ...patch.rule,
+                    mode: "params",
+                  }
+                : definition.rule,
+            }
+          : definition
+      ),
+    }));
+  },
+  removeEventDefinition: (id) => {
+    set((state) => ({
+      eventLibrary: state.eventLibrary.filter((definition) => definition.id !== id),
+      scenarios: state.scenarios.map((scenario) => ({
+        ...scenario,
+        eventRefs: (scenario.eventRefs ?? []).filter((ref) => ref.refId !== id),
+      })),
+    }));
+  },
+  setEventLibrary: (eventLibrary) => {
+    set(() => ({
+      eventLibrary,
     }));
   },
   addHomePosition: (id, home) => {
@@ -535,14 +654,18 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
               homes: nextHomes,
             }
           : undefined;
-        const nextEvents =
+        const eventLibraryMap = buildEventLibraryMap(get().eventLibrary);
+        const nextEventRefs =
           nextHomes.length === 0
-            ? (scenario.events ?? []).filter((event) => event.type !== "buy_home")
-            : scenario.events;
+            ? (scenario.eventRefs ?? []).filter((ref) => {
+                const definition = eventLibraryMap.get(ref.refId);
+                return definition?.type !== "buy_home";
+              })
+            : scenario.eventRefs;
 
         return {
           ...scenario,
-          events: nextEvents,
+          eventRefs: nextEventRefs,
           positions: normalizeScenarioPositions(nextPositions),
           updatedAt: now(),
         };

@@ -18,7 +18,7 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     initialCash: 0,
     baseMonth: null,
   },
-  events: [],
+  eventRefs: [],
   ...overrides,
 });
 
@@ -41,7 +41,7 @@ describe("mapScenarioToEngineInput home details", () => {
       },
     });
 
-    const input = mapScenarioToEngineInput(scenario);
+    const input = mapScenarioToEngineInput(scenario, []);
 
     expect(input.positions?.homes?.[0]?.purchasePrice).toBe(9000000);
     expect(input.positions?.homes?.[0]?.mortgage?.principal).toBe(7000000);
@@ -75,7 +75,7 @@ describe("mapScenarioToEngineInput home details", () => {
       },
     });
 
-    const input = mapScenarioToEngineInput(scenario);
+    const input = mapScenarioToEngineInput(scenario, []);
     const home = input.positions?.homes?.[0];
 
     expect(home?.mode).toBe("existing");

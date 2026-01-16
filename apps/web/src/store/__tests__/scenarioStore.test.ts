@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { EventDefinition } from "../../domain/events/types";
 import { useScenarioStore, type Scenario } from "../scenarioStore";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
@@ -18,18 +19,10 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     baseMonth: "2024-01",
     inflationRate: 2,
   },
-  events: [
+  eventRefs: [
     {
-      id: "event-1",
-      type: "rent",
-      name: "Starter Rent",
-      startMonth: "2024-01",
-      endMonth: null,
+      refId: "event-1",
       enabled: true,
-      monthlyAmount: 1800,
-      oneTimeAmount: 0,
-      annualGrowthPct: 2,
-      currency: "USD",
     },
   ],
   positions: {
@@ -51,10 +44,29 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   ...overrides,
 });
 
+const buildEventLibrary = (): EventDefinition[] => [
+  {
+    id: "event-1",
+    title: "Starter Rent",
+    type: "rent",
+    kind: "cashflow",
+    rule: {
+      mode: "params",
+      startMonth: "2024-01",
+      endMonth: null,
+      monthlyAmount: 1800,
+      oneTimeAmount: 0,
+      annualGrowthPct: 2,
+    },
+    currency: "USD",
+  },
+];
+
 beforeEach(() => {
   const scenario = buildScenario();
   useScenarioStore.setState({
     scenarios: [scenario],
+    eventLibrary: buildEventLibrary(),
     activeScenarioId: scenario.id,
   });
 });
@@ -71,9 +83,9 @@ describe("duplicateScenario", () => {
     expect(copy?.name).toBe(`${source.name} (Copy)`);
     expect(copy?.assumptions).toEqual(source.assumptions);
     expect(copy?.kpis).toEqual(source.kpis);
-    expect(copy?.events).toEqual(source.events);
+    expect(copy?.eventRefs).toEqual(source.eventRefs);
     expect(copy?.positions).toEqual(source.positions);
-    expect(copy?.events?.[0]).not.toBe(source.events?.[0]);
+    expect(copy?.eventRefs?.[0]).not.toBe(source.eventRefs?.[0]);
     expect(copy?.positions?.homes?.[0]).not.toBe(source.positions?.homes?.[0]);
   });
 
@@ -87,7 +99,7 @@ describe("duplicateScenario", () => {
     }
 
     copy.assumptions.horizonMonths = 300;
-    copy.events?.[0] && (copy.events[0].name = "Updated Rent");
+    copy.eventRefs?.[0] && (copy.eventRefs[0].enabled = false);
     copy.positions?.homes?.[0] && (copy.positions.homes[0].purchasePrice = 750000);
 
     const original = useScenarioStore
@@ -95,7 +107,7 @@ describe("duplicateScenario", () => {
       .scenarios.find((scenario) => scenario.id === source.id);
 
     expect(original?.assumptions.horizonMonths).toBe(240);
-    expect(original?.events?.[0].name).toBe("Starter Rent");
+    expect(original?.eventRefs?.[0].enabled).toBe(true);
     expect(original?.positions?.homes?.[0].purchasePrice).toBe(600000);
   });
 });

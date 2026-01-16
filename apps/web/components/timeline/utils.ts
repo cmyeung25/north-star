@@ -13,7 +13,7 @@ import {
   defaultCurrency,
   formatCurrency as formatCurrencyWithLocale,
 } from "../../lib/i18n";
-import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
+import { normalizeMonth } from "../../src/features/timeline/schema";
 import {
   buildTemplateParams,
   getInsuranceTemplate,
@@ -23,7 +23,11 @@ import {
   type HomePosition,
   type HomePositionDraft,
 } from "../../src/store/scenarioStore";
-import type { TimelineEvent } from "./types";
+import type {
+  EventDefinition,
+  ScenarioEventRef,
+  ScenarioEventView,
+} from "./types";
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -153,11 +157,11 @@ type CreateEventOptions = {
   memberId?: string;
 };
 
-export const createEventFromTemplate = (
+export const createEventDefinitionFromTemplate = (
   type: EventType,
   t: Translator,
   options: CreateEventOptions = {}
-): TimelineEvent => {
+): EventDefinition => {
   const label = getEventLabel(t, type);
   const defaults = templateDefaults[type];
   const startMonth = getDefaultStartMonth(options.baseMonth);
@@ -167,28 +171,50 @@ export const createEventFromTemplate = (
     ? buildTemplateParams(insuranceTemplate)
     : undefined;
 
-  return normalizeEvent(
-    {
-      id: createEventId(),
-      type,
-      name: t("timelineEventPlan", { label }),
+  return {
+    id: createEventId(),
+    title: t("timelineEventPlan", { label }),
+    type,
+    kind: "cashflow",
+    rule: {
+      mode: "params",
       startMonth,
       endMonth: null,
-      enabled: true,
       monthlyAmount: defaults.monthlyAmount,
       oneTimeAmount: defaults.oneTimeAmount,
       annualGrowthPct: defaults.annualGrowthPct,
-      currency: options.baseCurrency ?? defaultCurrency,
-      memberId: options.memberId,
-      templateId: insuranceTemplate?.id,
-      templateParams,
     },
-    {
-      baseCurrency: options.baseCurrency ?? defaultCurrency,
-      fallbackMonth: startMonth,
-    }
-  );
+    currency: options.baseCurrency ?? defaultCurrency,
+    memberId: options.memberId,
+    templateId: insuranceTemplate?.id,
+    templateParams,
+  };
 };
+
+export const createGroupDefinition = (
+  title: string,
+  options: { parentId?: string }
+): EventDefinition => ({
+  id: createEventId(),
+  title,
+  type: "custom",
+  kind: "group",
+  parentId: options.parentId,
+  rule: {
+    mode: "params",
+  },
+});
+
+export const createScenarioEventRef = (definitionId: string): ScenarioEventRef => ({
+  refId: definitionId,
+  enabled: true,
+});
+
+export const createDefinitionCopy = (definition: EventDefinition, title: string) => ({
+  ...definition,
+  id: createEventId(),
+  title,
+});
 
 export const createHomePositionFromTemplate = (
   options?: { baseMonth?: string | null; purchaseMonth?: string | null }
@@ -250,4 +276,83 @@ export const formatHomeSummary = (
     termYears,
     rate,
   });
+};
+
+const getSortKey = (view: ScenarioEventView) => {
+  const startMonth = view.rule.startMonth ?? "9999-12";
+  return `${startMonth}-${view.definition.title}`;
+};
+
+const sortViews = (views: ScenarioEventView[]) =>
+  [...views].sort((a, b) => getSortKey(a).localeCompare(getSortKey(b)));
+
+export type EventTreeRow = {
+  view: ScenarioEventView;
+  depth: number;
+  hasChildren: boolean;
+};
+
+export const buildEventTreeRows = (
+  views: ScenarioEventView[],
+  activeGroup: "all" | EventGroup,
+  collapsed: Record<string, boolean>
+): EventTreeRow[] => {
+  const viewMap = new Map(views.map((view) => [view.definition.id, view]));
+  const childrenMap = new Map<string, ScenarioEventView[]>();
+  const roots: ScenarioEventView[] = [];
+
+  views.forEach((view) => {
+    const parentId = view.definition.parentId;
+    if (parentId && viewMap.has(parentId)) {
+      const bucket = childrenMap.get(parentId) ?? [];
+      bucket.push(view);
+      childrenMap.set(parentId, bucket);
+      return;
+    }
+    roots.push(view);
+  });
+
+  const rows: EventTreeRow[] = [];
+
+  const shouldIncludeCashflow = (view: ScenarioEventView) =>
+    activeGroup === "all" || getEventGroup(view.definition.type) === activeGroup;
+
+  const walk = (view: ScenarioEventView, depth: number): boolean => {
+    const children = sortViews(childrenMap.get(view.definition.id) ?? []);
+    let hasMatchingChild = false;
+
+    children.forEach((child) => {
+      const childMatches = walk(child, depth + 1);
+      hasMatchingChild = hasMatchingChild || childMatches;
+    });
+
+    const isGroup = view.definition.kind === "group";
+    const shouldInclude = isGroup
+      ? activeGroup === "all" || hasMatchingChild
+      : shouldIncludeCashflow(view);
+
+    if (!shouldInclude) {
+      return false;
+    }
+
+    rows.push({
+      view,
+      depth,
+      hasChildren: children.length > 0,
+    });
+
+    if (!isGroup || !collapsed[view.definition.id]) {
+      children.forEach((child) => {
+        walk(child, depth + 1);
+      });
+    }
+
+    return true;
+  };
+
+  sortViews(roots).forEach((view) => {
+    walk(view, 0);
+  });
+
+  return rows;
 };

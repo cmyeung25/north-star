@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ActionIcon,
   Badge,
   Button,
   Card,
@@ -8,22 +9,35 @@ import {
   Group,
   Notification,
   SegmentedControl,
+  Select,
   Stack,
   Switch,
   Table,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useMemo, useState } from "react";
-import { getEventGroup, getEventMeta, type EventGroup } from "@north-star/engine";
+import { getEventMeta, type EventField, type EventGroup } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { defaultCurrency } from "../../lib/i18n";
+import {
+  buildDefinitionFromTimelineEvent,
+  buildTimelineEventFromDefinition,
+} from "../../src/domain/events/utils";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm from "./TimelineEventForm";
+import InsuranceProductForm from "./InsuranceProductForm";
 import HomeDetailsForm from "./HomeDetailsForm";
 import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
-import type { TimelineEvent } from "./types";
+import type {
+  EventDefinition,
+  ScenarioEventRef,
+  ScenarioEventView,
+  TimelineEvent,
+} from "./types";
 import {
+  buildEventTreeRows,
   createHomePositionFromTemplate,
   getEventFilterOptions,
   getEventGroupLabel,
@@ -37,26 +51,32 @@ import type { HomePositionDraft, ScenarioMember } from "../../src/store/scenario
 import { Link } from "../../src/i18n/navigation";
 
 interface TimelineDesktopProps {
-  events: TimelineEvent[];
+  eventViews: ScenarioEventView[];
+  eventLibrary: EventDefinition[];
   homePositions: HomePositionDraft[];
   members: ScenarioMember[];
   baseCurrency: string;
   baseMonth?: string | null;
   scenarioId: string;
-  onEventsChange: (events: TimelineEvent[]) => void;
+  onAddDefinition: (definition: EventDefinition) => void;
+  onUpdateDefinition: (id: string, patch: Partial<EventDefinition>) => void;
+  onUpdateEventRef: (refId: string, patch: Partial<ScenarioEventRef>) => void;
   onHomePositionAdd: (home: HomePositionDraft) => void;
   onHomePositionUpdate: (home: HomePositionDraft) => void;
   onHomePositionRemove: (homeId: string) => void;
 }
 
 export default function TimelineDesktop({
-  events,
+  eventViews,
+  eventLibrary,
   homePositions,
   members,
   baseCurrency,
   baseMonth,
   scenarioId,
-  onEventsChange,
+  onAddDefinition,
+  onUpdateDefinition,
+  onUpdateEventRef,
   onHomePositionAdd,
   onHomePositionUpdate,
   onHomePositionRemove,
@@ -67,34 +87,74 @@ export default function TimelineDesktop({
   const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
-  const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
+  const [editScope, setEditScope] = useState<"shared" | "scenario">("shared");
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [editingParentId, setEditingParentId] = useState<string | null>(null);
+  const [groupTitle, setGroupTitle] = useState("");
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
 
-  const sortedEvents = useMemo(
-    () => [...events].sort((a, b) => a.startMonth.localeCompare(b.startMonth)),
-    [events]
+  const eventRows = useMemo(
+    () => buildEventTreeRows(eventViews, activeGroup, collapsedGroups),
+    [activeGroup, collapsedGroups, eventViews]
   );
-  const filteredEvents = useMemo(() => {
-    if (activeGroup === "all") {
-      return sortedEvents;
-    }
-    return sortedEvents.filter((event) => getEventGroup(event.type) === activeGroup);
-  }, [activeGroup, sortedEvents]);
+  const hasEvents = eventViews.length > 0;
 
-  const handleSave = (updated: TimelineEvent) => {
-    onEventsChange(
-      events.map((event) => (event.id === updated.id ? updated : event))
-    );
+  const parentGroupOptions = useMemo(
+    () =>
+      eventLibrary
+        .filter((definition) => definition.kind === "group")
+        .map((definition) => ({
+          value: definition.id,
+          label: definition.title,
+        })),
+    [eventLibrary]
+  );
+
+  const handleSaveShared = (updated: TimelineEvent) => {
+    if (!editingEvent) {
+      return;
+    }
+    const nextDefinition = buildDefinitionFromTimelineEvent(updated);
+    onUpdateDefinition(editingEvent.definition.id, {
+      title: nextDefinition.title,
+      type: nextDefinition.type,
+      rule: nextDefinition.rule,
+      currency: nextDefinition.currency,
+      memberId: nextDefinition.memberId,
+      templateId: nextDefinition.templateId,
+      templateParams: nextDefinition.templateParams,
+      parentId: editingParentId ?? undefined,
+    });
+    setEditingEvent(null);
+  };
+
+  const handleSaveOverride = (updated: TimelineEvent) => {
+    if (!editingEvent) {
+      return;
+    }
+    onUpdateEventRef(editingEvent.ref.refId, {
+      overrides: {
+        startMonth: updated.startMonth,
+        endMonth: updated.endMonth,
+        monthlyAmount: updated.monthlyAmount,
+        oneTimeAmount: updated.oneTimeAmount,
+        annualGrowthPct: updated.annualGrowthPct,
+      },
+    });
     setEditingEvent(null);
   };
 
   const handleToggle = (eventId: string, enabled: boolean) => {
-    onEventsChange(
-      events.map((event) =>
-        event.id === eventId ? { ...event, enabled } : event
-      )
-    );
+    onUpdateEventRef(eventId, { enabled });
+  };
+
+  const handleEditOpen = (view: ScenarioEventView) => {
+    setEditingEvent(view);
+    setEditScope("shared");
+    setEditingParentId(view.definition.parentId ?? null);
+    setGroupTitle(view.definition.title);
   };
 
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
@@ -197,13 +257,9 @@ export default function TimelineDesktop({
         )}
       </Stack>
 
-      {sortedEvents.length === 0 ? (
+      {eventRows.length === 0 ? (
         <Text c="dimmed" size="sm">
-          {t("emptyAll")}
-        </Text>
-      ) : filteredEvents.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          {t("emptyGroup")}
+          {hasEvents ? t("emptyGroup") : t("emptyAll")}
         </Text>
       ) : (
         <Table striped highlightOnHover withColumnBorders>
@@ -224,55 +280,109 @@ export default function TimelineDesktop({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {filteredEvents.map((event) => (
-              <Table.Tr key={event.id}>
-                <Table.Td>
-                  <Switch
-                    checked={event.enabled}
-                    onChange={(eventChange) =>
-                      handleToggle(event.id, eventChange.currentTarget.checked)
-                    }
-                  />
-                </Table.Td>
-                <Table.Td>
-                  <Badge variant="light" color="gray">
-                    {getEventGroupLabel(t, event.type)}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  {iconMap[event.type]} {getEventLabel(t, event.type)}
-                </Table.Td>
-                <Table.Td>{event.name}</Table.Td>
-                <Table.Td>{event.startMonth}</Table.Td>
-                <Table.Td>{event.endMonth ?? t("tablePlaceholder")}</Table.Td>
-                <Table.Td>{getEventImpactHint(t, event.type)}</Table.Td>
-                <Table.Td>
-                  {event.monthlyAmount !== 0
-                    ? formatCurrency(event.monthlyAmount, event.currency, locale)
-                    : t("tablePlaceholder")}
-                </Table.Td>
-                <Table.Td>
-                  {event.oneTimeAmount !== 0
-                    ? formatCurrency(event.oneTimeAmount, event.currency, locale)
-                    : t("tablePlaceholder")}
-                </Table.Td>
-                <Table.Td>
-                  {event.annualGrowthPct && event.annualGrowthPct > 0
-                    ? `${event.annualGrowthPct}%`
-                    : t("tablePlaceholder")}
-                </Table.Td>
-                <Table.Td>{event.currency ?? defaultCurrency}</Table.Td>
-                <Table.Td>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() => setEditingEvent(event)}
-                  >
-                    {common("actionEdit")}
-                  </Button>
-                </Table.Td>
-              </Table.Tr>
-            ))}
+            {eventRows.map(({ view, depth, hasChildren }) => {
+              const rule = view.rule;
+              const isGroup = view.definition.kind === "group";
+              const monthlyAmount = rule.monthlyAmount ?? 0;
+              const oneTimeAmount = rule.oneTimeAmount ?? 0;
+              const annualGrowthPct = rule.annualGrowthPct ?? 0;
+              const eventCurrency = view.definition.currency ?? defaultCurrency;
+              const hasOverrides =
+                Boolean(view.ref.overrides) &&
+                Object.keys(view.ref.overrides ?? {}).length > 0;
+              const collapsed = collapsedGroups[view.definition.id] ?? false;
+
+              return (
+                <Table.Tr key={view.definition.id}>
+                  <Table.Td>
+                    <Switch
+                      checked={view.ref.enabled}
+                      onChange={(eventChange) =>
+                        handleToggle(
+                          view.definition.id,
+                          eventChange.currentTarget.checked
+                        )
+                      }
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color="gray">
+                      {isGroup
+                        ? t("groupLabel")
+                        : getEventGroupLabel(t, view.definition.type)}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    {isGroup
+                      ? t("groupNode")
+                      : `${iconMap[view.definition.type]} ${getEventLabel(
+                          t,
+                          view.definition.type
+                        )}`}
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap="xs" style={{ paddingLeft: depth * 16 }}>
+                      <Text fw={isGroup ? 600 : undefined}>
+                        {view.definition.title}
+                      </Text>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>{rule.startMonth ?? t("tablePlaceholder")}</Table.Td>
+                  <Table.Td>{rule.endMonth ?? t("tablePlaceholder")}</Table.Td>
+                  <Table.Td>
+                    {isGroup
+                      ? t("tablePlaceholder")
+                      : getEventImpactHint(t, view.definition.type)}
+                  </Table.Td>
+                  <Table.Td>
+                    {isGroup || monthlyAmount === 0
+                      ? t("tablePlaceholder")
+                      : formatCurrency(monthlyAmount, eventCurrency, locale)}
+                  </Table.Td>
+                  <Table.Td>
+                    {isGroup || oneTimeAmount === 0
+                      ? t("tablePlaceholder")
+                      : formatCurrency(oneTimeAmount, eventCurrency, locale)}
+                  </Table.Td>
+                  <Table.Td>
+                    {!isGroup && annualGrowthPct > 0
+                      ? `${annualGrowthPct}%`
+                      : t("tablePlaceholder")}
+                  </Table.Td>
+                  <Table.Td>{isGroup ? t("tablePlaceholder") : eventCurrency}</Table.Td>
+                  <Table.Td>
+                    <Group gap="xs" wrap="nowrap">
+                      {isGroup && hasChildren && (
+                        <ActionIcon
+                          variant="subtle"
+                          onClick={() =>
+                            setCollapsedGroups((current) => ({
+                              ...current,
+                              [view.definition.id]: !collapsed,
+                            }))
+                          }
+                          aria-label={collapsed ? t("expandGroup") : t("collapseGroup")}
+                        >
+                          {collapsed ? "▸" : "▾"}
+                        </ActionIcon>
+                      )}
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => handleEditOpen(view)}
+                      >
+                        {common("actionEdit")}
+                      </Button>
+                      {hasOverrides && !isGroup && (
+                        <Badge variant="light" color="indigo">
+                          {t("overrideBadge")}
+                        </Badge>
+                      )}
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
           </Table.Tbody>
         </Table>
       )}
@@ -283,7 +393,8 @@ export default function TimelineDesktop({
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         members={members}
-        onAddEvent={(event) => onEventsChange([event, ...events])}
+        parentGroupOptions={parentGroupOptions}
+        onAddDefinition={(definition) => onAddDefinition(definition)}
         onAddHomePosition={() => {
           onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
           setHomeToastOpen(true);
@@ -297,21 +408,137 @@ export default function TimelineDesktop({
         size="md"
         title={
           editingEvent
-            ? t("editTitle", {
-                type: getEventLabel(t, editingEvent.type),
-              })
+            ? editingEvent.definition.kind === "group"
+              ? t("groupEditTitle")
+              : t("editTitle", {
+                  type: getEventLabel(t, editingEvent.definition.type),
+                })
             : common("actionEdit")
         }
       >
-        <TimelineEventForm
-          event={editingEvent}
-          baseCurrency={baseCurrency}
-          members={members}
-          fields={editingEvent ? getEventMeta(editingEvent.type).fields : undefined}
-          onCancel={() => setEditingEvent(null)}
-          onSave={handleSave}
-          submitLabel={common("actionSaveChanges")}
-        />
+        {editingEvent && editingEvent.definition.kind === "group" ? (
+          <Stack gap="md">
+            <TextInput
+              label={t("groupName")}
+              value={groupTitle}
+              onChange={(eventChange) => setGroupTitle(eventChange.target.value)}
+            />
+            <Select
+              label={t("groupParent")}
+              data={[
+                { value: "", label: t("groupNone") },
+                ...parentGroupOptions.filter(
+                  (option) => option.value !== editingEvent.definition.id
+                ),
+              ]}
+              value={editingParentId ?? ""}
+              onChange={(value) => setEditingParentId(value || null)}
+            />
+            <Group justify="flex-end">
+              <Button variant="subtle" onClick={() => setEditingEvent(null)}>
+                {common("actionCancel")}
+              </Button>
+              <Button
+                onClick={() => {
+                  onUpdateDefinition(editingEvent.definition.id, {
+                    title: groupTitle.trim() || editingEvent.definition.title,
+                    parentId: editingParentId ?? undefined,
+                  });
+                  setEditingEvent(null);
+                }}
+              >
+                {common("actionSaveChanges")}
+              </Button>
+            </Group>
+          </Stack>
+        ) : (
+          editingEvent && (
+            <Stack gap="md">
+              <SegmentedControl
+                data={[
+                  { value: "shared", label: t("editShared") },
+                  { value: "scenario", label: t("editScenario") },
+                ]}
+                value={editScope}
+                onChange={(value) => setEditScope(value as "shared" | "scenario")}
+              />
+              {editScope === "shared" && (
+                <Select
+                  label={t("groupParent")}
+                  data={[
+                    { value: "", label: t("groupNone") },
+                    ...parentGroupOptions.filter(
+                      (option) => option.value !== editingEvent.definition.id
+                    ),
+                  ]}
+                  value={editingParentId ?? ""}
+                  onChange={(value) => setEditingParentId(value || null)}
+                />
+              )}
+              {editScope === "shared" ? (
+                editingEvent.definition.type === "insurance_product" ? (
+                  <InsuranceProductForm
+                    event={buildTimelineEventFromDefinition(
+                      editingEvent.definition,
+                      editingEvent.ref,
+                      {
+                        baseCurrency,
+                        fallbackMonth: baseMonth,
+                      }
+                    )}
+                    baseCurrency={baseCurrency}
+                    members={members}
+                    onCancel={() => setEditingEvent(null)}
+                    onSave={handleSaveShared}
+                    submitLabel={common("actionSaveChanges")}
+                  />
+                ) : (
+                  <TimelineEventForm
+                    event={buildTimelineEventFromDefinition(
+                      editingEvent.definition,
+                      editingEvent.ref,
+                      {
+                        baseCurrency,
+                        fallbackMonth: baseMonth,
+                      }
+                    )}
+                    baseCurrency={baseCurrency}
+                    members={members}
+                    fields={getEventMeta(editingEvent.definition.type).fields}
+                    showMember
+                    onCancel={() => setEditingEvent(null)}
+                    onSave={handleSaveShared}
+                    submitLabel={common("actionSaveChanges")}
+                  />
+                )
+              ) : (
+                <TimelineEventForm
+                  event={buildTimelineEventFromDefinition(
+                    editingEvent.definition,
+                    editingEvent.ref,
+                    {
+                      baseCurrency,
+                      fallbackMonth: baseMonth,
+                    }
+                  )}
+                  baseCurrency={baseCurrency}
+                  members={members}
+                  fields={[
+                    { key: "startMonth", input: "month" },
+                    { key: "endMonth", input: "month" },
+                    { key: "monthlyAmount", input: "number" },
+                    { key: "oneTimeAmount", input: "number" },
+                    { key: "annualGrowthPct", input: "percent" },
+                  ] satisfies EventField[]}
+                  showMember={false}
+                  onCancel={() => setEditingEvent(null)}
+                  onSave={handleSaveOverride}
+                  submitLabel={t("saveOverride")}
+                />
+              )}
+            </Stack>
+          )
+        )}
       </Drawer>
 
       <Drawer

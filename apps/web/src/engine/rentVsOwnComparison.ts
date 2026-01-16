@@ -3,9 +3,15 @@
 // Back-compat: missing cash series is handled by omitting cash deltas.
 import { computeProjection, type ProjectionResult } from "@north-star/engine";
 import { useMemo } from "react";
-import type { Scenario, TimelineEvent } from "../store/scenarioStore";
+import type { Scenario } from "../store/scenarioStore";
+import type { EventDefinition } from "../domain/events/types";
+import type { TimelineEvent } from "../features/timeline/schema";
 import { mapScenarioToEngineInput } from "./adapter";
-import { toRentComparisonScenario } from "./scenarioTransforms";
+import {
+  buildRentComparisonEvents,
+  buildRentComparisonScenario,
+} from "./scenarioTransforms";
+import { buildScenarioTimelineEvents } from "../domain/events/utils";
 
 export type NormalizedProjectionPoint = {
   month: string;
@@ -36,8 +42,11 @@ export type RentVsOwnComparison = {
 
 const monthPattern = /^\d{4}-\d{2}$/;
 
-const getRentEvent = (scenario: Scenario): TimelineEvent | null => {
-  const rentEvents = (scenario.events ?? []).filter(
+const getRentEvent = (
+  scenario: Scenario,
+  eventLibrary: EventDefinition[]
+): TimelineEvent | null => {
+  const rentEvents = buildScenarioTimelineEvents(scenario, eventLibrary).filter(
     (event) => event.type === "rent" && event.enabled
   );
   if (!rentEvents.length) {
@@ -145,14 +154,15 @@ export const computeComparisonMetrics = (
 };
 
 export const useRentVsOwnComparison = (
-  scenario: Scenario | null
+  scenario: Scenario | null,
+  eventLibrary: EventDefinition[]
 ): RentVsOwnComparison | null =>
   useMemo(() => {
     if (!scenario) {
       return null;
     }
 
-    const rentEvent = getRentEvent(scenario);
+    const rentEvent = getRentEvent(scenario, eventLibrary);
     const assumptions = getAssumptionsSummary(scenario, rentEvent);
 
     if (!rentEvent) {
@@ -162,9 +172,16 @@ export const useRentVsOwnComparison = (
       };
     }
 
-    const ownProjection = computeProjection(mapScenarioToEngineInput(scenario));
-    const rentScenario = toRentComparisonScenario(scenario);
-    const rentProjection = computeProjection(mapScenarioToEngineInput(rentScenario));
+    const ownProjection = computeProjection(
+      mapScenarioToEngineInput(scenario, eventLibrary)
+    );
+    const rentScenario = buildRentComparisonScenario(scenario);
+    const rentEvents = buildRentComparisonEvents(rentScenario, eventLibrary);
+    const rentProjection = computeProjection(
+      mapScenarioToEngineInput(rentScenario, eventLibrary, {
+        eventsOverride: rentEvents,
+      })
+    );
 
     const ownSeries = normalizeProjection(ownProjection);
     const rentSeries = normalizeProjection(rentProjection);
@@ -182,4 +199,4 @@ export const useRentVsOwnComparison = (
       assumptions,
       ...metrics,
     };
-  }, [scenario]);
+  }, [eventLibrary, scenario]);
