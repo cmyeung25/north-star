@@ -4,14 +4,14 @@ import { Button, Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/
 import { useEffect, useMemo, useState } from "react";
 import { getEventMeta, type EventGroup, type EventType } from "@north-star/engine";
 import { useTranslations } from "next-intl";
-import type { EventDefinition, TimelineEvent } from "./types";
+import type { EventDefinition } from "./types";
 import {
   buildDefinitionFromTimelineEvent,
   buildTimelineEventFromDefinition,
 } from "../../src/domain/events/utils";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
 import InsuranceProductForm from "./InsuranceProductForm";
-import TimelineEventForm from "./TimelineEventForm";
+import TimelineEventForm, { type TimelineEventFormResult } from "./TimelineEventForm";
 import {
   createEventDefinitionFromTemplate,
   createGroupDefinition,
@@ -97,8 +97,8 @@ export default function TimelineAddEventDrawer({
     setStep("details");
   };
 
-  const handleSave = (event: TimelineEvent) => {
-    const baseDefinition = buildDefinitionFromTimelineEvent(event);
+  const handleSave = (result: TimelineEventFormResult) => {
+    const baseDefinition = buildDefinitionFromTimelineEvent(result.event);
     onAddDefinition({
       ...baseDefinition,
       parentId: parentId ?? undefined,
@@ -204,7 +204,7 @@ export default function TimelineAddEventDrawer({
               baseCurrency={baseCurrency}
               members={members}
               onCancel={() => setStep("type")}
-              onSave={handleSave}
+              onSave={(event) => handleSave({ event, ruleMode: "params" })}
               submitLabel={t("addEvent")}
             />
           ) : (

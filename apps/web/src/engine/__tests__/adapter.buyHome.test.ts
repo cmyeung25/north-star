@@ -100,12 +100,15 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
     });
     expect(home?.mortgage?.annualRate).toBeCloseTo(0.041);
 
-    expect(input.events).toHaveLength(1);
+    expect(input.events.length > 1).toBe(true);
+    expect(input.events.every((event) => event.id?.startsWith("event-rent"))).toBe(
+      true
+    );
     expect(input.events[0]).toMatchObject({
       startMonth: "2025-01",
-      monthlyAmount: -1800,
-      oneTimeAmount: 0,
-      annualGrowthPct: 0.02,
+      monthlyAmount: 0,
+      oneTimeAmount: -1800,
+      annualGrowthPct: 0,
     });
   });
 

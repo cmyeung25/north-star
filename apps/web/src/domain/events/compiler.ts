@@ -31,6 +31,14 @@ const applySignedAmount = (value: number | null | undefined, sign: 1 | -1) => {
   return absValue === 0 ? 0 : sign * absValue;
 };
 
+const buildScheduleMap = (
+  schedule?: Array<{ month: string; amount: number }>
+): Record<string, number> =>
+  (schedule ?? []).reduce<Record<string, number>>((result, entry) => {
+    result[entry.month] = Math.abs(entry.amount ?? 0);
+    return result;
+  }, {});
+
 export const compileEventToMonthlyCashflowSeries = ({
   definition,
   ref,
@@ -49,11 +57,26 @@ export const compileEventToMonthlyCashflowSeries = ({
   const baseMonth = assumptions.baseMonth ?? effectiveRule.startMonth ?? null;
   const horizonMonths = assumptions.horizonMonths ?? 0;
 
-  if (!baseMonth || horizonMonths <= 0 || !effectiveRule.startMonth) {
+  if (!baseMonth || horizonMonths <= 0) {
     return [];
   }
 
   const sign = signByType(definition.type);
+
+  if (effectiveRule.mode === "schedule") {
+    const scheduleMap = buildScheduleMap(effectiveRule.schedule);
+    const months = buildMonthRange(baseMonth, horizonMonths);
+    return months.map((month) => ({
+      month,
+      amount: applySignedAmount(scheduleMap[month] ?? 0, sign),
+      sourceEventId: definition.id,
+    }));
+  }
+
+  if (!effectiveRule.startMonth) {
+    return [];
+  }
+
   const monthlyAmount = Math.abs(effectiveRule.monthlyAmount ?? 0);
   const oneTimeAmount = Math.abs(effectiveRule.oneTimeAmount ?? 0);
   const annualGrowthPct = effectiveRule.annualGrowthPct ?? 0;

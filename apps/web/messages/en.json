@@ -270,6 +270,12 @@
     "cashflowPreviewIncome": "Total income",
     "cashflowPreviewExpense": "Total expense",
     "cashflowPreviewPeak": "Peak month",
+    "cashflowViewMode": "View mode",
+    "cashflowEditMode": "Edit cashflow",
+    "cashflowEditHint": "Click a month to edit its cashflow amount.",
+    "cashflowRevertToParams": "Revert to params",
+    "cashflowEditTitle": "Edit cashflow month",
+    "cashflowEditAmount": "Amount",
     "memberLabel": "Member",
     "memberHousehold": "Household",
     "timelineEventPlan": "{label} plan"

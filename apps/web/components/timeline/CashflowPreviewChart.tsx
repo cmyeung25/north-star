@@ -13,6 +13,7 @@ type CashflowPreviewChartProps = {
   series: CashflowPreviewPoint[];
   currency: string;
   disabled?: boolean;
+  onSelectMonth?: (point: CashflowPreviewPoint) => void;
 };
 
 const getLabelStride = (length: number) => {
@@ -26,6 +27,7 @@ export default function CashflowPreviewChart({
   series,
   currency,
   disabled = false,
+  onSelectMonth,
 }: CashflowPreviewChartProps) {
   const t = useTranslations("timeline");
   const locale = useLocale();
@@ -106,6 +108,19 @@ export default function CashflowPreviewChart({
                   position: "relative",
                   flex: 1,
                   minWidth: 4,
+                  cursor: onSelectMonth ? "pointer" : "default",
+                }}
+                role={onSelectMonth ? "button" : undefined}
+                tabIndex={onSelectMonth ? 0 : undefined}
+                onClick={() => onSelectMonth?.(point)}
+                onKeyDown={(event) => {
+                  if (!onSelectMonth) {
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelectMonth(point);
+                  }
                 }}
               >
                 <div
