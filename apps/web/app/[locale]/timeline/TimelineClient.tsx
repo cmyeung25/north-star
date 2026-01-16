@@ -23,6 +23,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const addEventDefinition = useScenarioStore((state) => state.addEventDefinition);
+  const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
   const updateEventDefinition = useScenarioStore(
     (state) => state.updateEventDefinition
   );
@@ -32,6 +33,9 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   );
   const removeScenarioEventRef = useScenarioStore(
     (state) => state.removeScenarioEventRef
+  );
+  const mergeDuplicateEvents = useScenarioStore(
+    (state) => state.mergeDuplicateEvents
   );
   const addHomePosition = useScenarioStore((state) => state.addHomePosition);
   const updateHomePosition = useScenarioStore(
@@ -72,15 +76,20 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       <TimelineDesktop
         eventViews={eventViews}
         eventLibrary={eventLibrary}
+        scenarios={scenarios}
         homePositions={homePositions}
         members={members}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         assumptions={assumptions}
         scenarioId={scenario.id}
-        onAddDefinition={(definition) => {
-          addEventDefinition(definition);
-          addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+        onAddDefinition={(definition, scenarioIds) => {
+          if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
+            addEventDefinition(definition);
+            addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+            return;
+          }
+          addEventToScenarios(definition, scenarioIds);
         }}
         onUpdateDefinition={updateEventDefinition}
         onUpdateEventRef={(refId, patch) =>
@@ -89,6 +98,9 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
         onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
         onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}
+        onMergeDuplicates={(cluster, baseDefinitionId) =>
+          mergeDuplicateEvents(cluster, baseDefinitionId)
+        }
       />
     );
   }
@@ -97,15 +109,20 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
     <TimelineMobile
       eventViews={eventViews}
       eventLibrary={eventLibrary}
+      scenarios={scenarios}
       homePositions={homePositions}
       members={members}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
       assumptions={assumptions}
       scenarioId={scenario.id}
-      onAddDefinition={(definition) => {
-        addEventDefinition(definition);
-        addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+      onAddDefinition={(definition, scenarioIds) => {
+        if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
+          addEventDefinition(definition);
+          addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+          return;
+        }
+        addEventToScenarios(definition, scenarioIds);
       }}
       onUpdateDefinition={updateEventDefinition}
       onUpdateEventRef={(refId, patch) =>
@@ -115,6 +132,9 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
       onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
       onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}
+      onMergeDuplicates={(cluster, baseDefinitionId) =>
+        mergeDuplicateEvents(cluster, baseDefinitionId)
+      }
     />
   );
 }

@@ -24,6 +24,7 @@ import TimelineEventForm, { type TimelineEventFormResult } from "./TimelineEvent
 import InsuranceProductForm from "./InsuranceProductForm";
 import HomeDetailsForm from "./HomeDetailsForm";
 import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
+import MergeDuplicatesModal from "./MergeDuplicatesModal";
 import type {
   EventDefinition,
   ScenarioEventRef,
@@ -42,13 +43,18 @@ import {
   formatHomeSummary,
   iconMap,
 } from "./utils";
-import type { HomePositionDraft, ScenarioMember } from "../../src/store/scenarioStore";
+import type {
+  HomePositionDraft,
+  Scenario,
+  ScenarioMember,
+} from "../../src/store/scenarioStore";
 import { Link } from "../../src/i18n/navigation";
 import {
   buildDefinitionFromTimelineEvent,
   buildTimelineEventFromDefinition,
   resolveEventRule,
 } from "../../src/domain/events/utils";
+import type { DuplicateCluster } from "../../src/domain/events/mergeDuplicates";
 
 const floatingButtonStyle = {
   position: "fixed" as const,
@@ -60,24 +66,27 @@ const floatingButtonStyle = {
 interface TimelineMobileProps {
   eventViews: ScenarioEventView[];
   eventLibrary: EventDefinition[];
+  scenarios: Scenario[];
   homePositions: HomePositionDraft[];
   members: ScenarioMember[];
   baseCurrency: string;
   baseMonth?: string | null;
   assumptions: { baseMonth: string | null; horizonMonths: number };
   scenarioId: string;
-  onAddDefinition: (definition: EventDefinition) => void;
+  onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onUpdateDefinition: (id: string, patch: Partial<EventDefinition>) => void;
   onUpdateEventRef: (refId: string, patch: Partial<ScenarioEventRef>) => void;
   onRemoveEventRef: (refId: string) => void;
   onHomePositionAdd: (home: HomePositionDraft) => void;
   onHomePositionUpdate: (home: HomePositionDraft) => void;
   onHomePositionRemove: (homeId: string) => void;
+  onMergeDuplicates: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
 }
 
 export default function TimelineMobile({
   eventViews,
   eventLibrary,
+  scenarios,
   homePositions,
   members,
   baseCurrency,
@@ -91,12 +100,14 @@ export default function TimelineMobile({
   onHomePositionAdd,
   onHomePositionUpdate,
   onHomePositionRemove,
+  onMergeDuplicates,
 }: TimelineMobileProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
   const homes = useTranslations("homes");
   const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
   const [editScope, setEditScope] = useState<"shared" | "scenario">("shared");
@@ -180,7 +191,7 @@ export default function TimelineMobile({
       view.definition,
       t("copyName", { name: view.definition.title })
     );
-    onAddDefinition(copy);
+    onAddDefinition(copy, [scenarioId]);
   };
 
   const handleDelete = (eventId: string) => {
@@ -212,6 +223,9 @@ export default function TimelineMobile({
             </Text>
           )}
         </div>
+        <Button size="xs" variant="light" onClick={() => setMergeOpen(true)}>
+          {t("mergeDuplicates")}
+        </Button>
       </Group>
 
       <SegmentedControl
@@ -437,12 +451,25 @@ export default function TimelineMobile({
         baseMonth={baseMonth}
         assumptions={assumptions}
         members={members}
+        scenarioOptions={scenarios.map((scenario) => ({
+          value: scenario.id,
+          label: scenario.name,
+        }))}
+        defaultScenarioId={scenarioId}
         parentGroupOptions={parentGroupOptions}
-        onAddDefinition={(definition) => onAddDefinition(definition)}
+        onAddDefinition={(definition, scenarioIds) => onAddDefinition(definition, scenarioIds)}
         onAddHomePosition={() => {
           onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
           setHomeToastOpen(true);
         }}
+      />
+
+      <MergeDuplicatesModal
+        opened={mergeOpen}
+        onClose={() => setMergeOpen(false)}
+        scenarios={scenarios}
+        eventLibrary={eventLibrary}
+        onMerge={onMergeDuplicates}
       />
 
       <Modal
