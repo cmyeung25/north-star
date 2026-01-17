@@ -10,10 +10,13 @@ import {
   type DuplicateCluster,
 } from "../domain/events/mergeDuplicates";
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
+import { isValidMonthStr } from "../utils/month";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
 export type ScenarioRiskLevel = "Low" | "Medium" | "High";
+
+export type OnboardingPersona = "A" | "B" | "C" | "D" | "E";
 
 export type ScenarioKpis = {
   lowestMonthlyBalance: number;
@@ -206,6 +209,11 @@ export type ScenarioMeta = {
   onboardingVersion?: number;
 };
 
+export type ScenarioClientComputed = {
+  onboardingPersona?: OnboardingPersona;
+  onboardingCompleted?: boolean;
+};
+
 export type Scenario = {
   id: string;
   name: string;
@@ -217,6 +225,7 @@ export type Scenario = {
   budgetRules?: BudgetRule[];
   eventRefs?: ScenarioEventRef[];
   positions?: ScenarioPositions;
+  clientComputed?: ScenarioClientComputed;
   meta?: ScenarioMeta;
 };
 
@@ -285,6 +294,14 @@ type ScenarioStoreState = {
   addCashBucketPosition: (id: string, bucket: CashBucketPosition) => void;
   updateCashBucketPosition: (id: string, bucket: CashBucketPosition) => void;
   removeCashBucketPosition: (id: string, bucketId: string) => void;
+  updateScenarioMeta: (id: string, patch: Partial<ScenarioMeta>) => void;
+  updateScenarioClientComputed: (
+    id: string,
+    patch: Partial<ScenarioClientComputed>
+  ) => void;
+  upsertScenarioMember: (id: string, member: ScenarioMember) => void;
+  upsertScenarioEventRef: (id: string, ref: ScenarioEventRef) => void;
+  upsertEventDefinition: (definition: EventDefinition) => void;
   mergeDuplicateEvents: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
   updateScenarioUpdatedAt: (id: string) => void;
   updateScenarioAssumptions: (
@@ -294,6 +311,7 @@ type ScenarioStoreState = {
   setScenarioHorizonMonths: (id: string, horizonMonths: number) => void;
   setScenarioInitialCash: (id: string, initialCash: number) => void;
   setScenarioBaseMonth: (id: string, baseMonth: string | null) => void;
+  setAssumptionsPartial: (id: string, patch: Partial<ScenarioAssumptions>) => void;
   replaceScenario: (scenario: Scenario) => void;
   replaceAllScenarios: (scenarios: Scenario[]) => void;
 };
@@ -356,7 +374,7 @@ const horizonRange = { min: 60, max: 480 };
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
+const isValidBaseMonth = (value: string) => isValidMonthStr(value);
 
 const now = () => Date.now();
 
@@ -408,6 +426,9 @@ const cloneBudgetRules = (rules?: BudgetRule[]) =>
     ...rule,
     ageBand: { ...rule.ageBand },
   }));
+
+const cloneClientComputed = (clientComputed?: ScenarioClientComputed) =>
+  clientComputed ? { ...clientComputed } : undefined;
 
 const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | undefined => {
   if (!positions) {
@@ -575,6 +596,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
   const normalizedMembers = normalizeMembers(scenario.members);
   const normalizedEventRefs = scenario.eventRefs ?? [];
   const normalizedBudgetRules = normalizeBudgetRules(scenario.budgetRules);
+  const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
   const normalizedAssumptions = {
     ...defaultAssumptions,
     ...scenario.assumptions,
@@ -587,6 +609,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
       members: normalizedMembers,
       budgetRules: normalizedBudgetRules,
       eventRefs: normalizedEventRefs,
+      clientComputed: normalizedClientComputed,
     };
   }
 
@@ -597,6 +620,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     members: normalizedMembers,
     budgetRules: normalizedBudgetRules,
     eventRefs: normalizedEventRefs,
+    clientComputed: normalizedClientComputed,
   };
 };
 
@@ -704,6 +728,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       budgetRules: cloneBudgetRules(source.budgetRules),
       eventRefs: cloneEventRefs(source.eventRefs),
       positions: clonePositions(source.positions),
+      clientComputed: cloneClientComputed(source.clientComputed),
       meta: source.meta ? { ...source.meta } : undefined,
     };
 
@@ -837,6 +862,37 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       ),
     }));
   },
+  upsertScenarioEventRef: (id, ref) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const existing = scenario.eventRefs ?? [];
+        const hasMatch = existing.some((entry) => entry.refId === ref.refId);
+        const nextRefs = hasMatch
+          ? existing.map((entry) =>
+              entry.refId === ref.refId
+                ? {
+                    ...entry,
+                    ...ref,
+                    overrides: ref.overrides
+                      ? { ...ref.overrides }
+                      : entry.overrides,
+                  }
+                : entry
+            )
+          : [...existing, { ...ref }];
+
+        return {
+          ...scenario,
+          eventRefs: nextRefs,
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
   removeScenarioEventRef: (id, refId) => {
     set((state) => ({
       scenarios: state.scenarios.map((scenario) =>
@@ -854,6 +910,18 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     set((state) => ({
       eventLibrary: [...state.eventLibrary, { ...definition }],
     }));
+  },
+  upsertEventDefinition: (definition) => {
+    set((state) => {
+      const hasMatch = state.eventLibrary.some((entry) => entry.id === definition.id);
+      return {
+        eventLibrary: hasMatch
+          ? state.eventLibrary.map((entry) =>
+              entry.id === definition.id ? { ...entry, ...definition } : entry
+            )
+          : [...state.eventLibrary, { ...definition }],
+      };
+    });
   },
   updateEventDefinition: (id, patch) => {
     set((state) => ({
@@ -914,6 +982,29 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             }
           : scenario
       ),
+    }));
+  },
+  upsertScenarioMember: (id, member) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const existingMembers = scenario.members ?? [];
+        const hasMatch = existingMembers.some((entry) => entry.id === member.id);
+        const nextMembers = hasMatch
+          ? existingMembers.map((entry) =>
+              entry.id === member.id ? { ...entry, ...member } : entry
+            )
+          : [...existingMembers, { ...member }];
+
+        return {
+          ...scenario,
+          members: nextMembers,
+          updatedAt: now(),
+        };
+      }),
     }));
   },
   removeScenarioMember: (id, memberId) => {
@@ -1458,6 +1549,32 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       };
     });
   },
+  updateScenarioMeta: (id, patch) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              meta: { ...(scenario.meta ?? {}), ...patch },
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateScenarioClientComputed: (id, patch) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              clientComputed: { ...(scenario.clientComputed ?? {}), ...patch },
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
   updateScenarioUpdatedAt: (id) => {
     set((state) => ({
       scenarios: state.scenarios.map((scenario) =>
@@ -1539,6 +1656,9 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   setScenarioBaseMonth: (id, baseMonth) => {
     get().updateScenarioAssumptions(id, { baseMonth });
+  },
+  setAssumptionsPartial: (id, patch) => {
+    get().updateScenarioAssumptions(id, patch);
   },
   replaceScenario: (scenario) => {
     const normalizedScenario = normalizeScenario(scenario);
