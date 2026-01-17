@@ -225,6 +225,101 @@ describe("position actions", () => {
   });
 });
 
+describe("onboarding writes", () => {
+  it("stores assumptions, positions, members, and budget rules", () => {
+    const {
+      updateScenarioAssumptions,
+      addHomePosition,
+      addCarPosition,
+      addInvestmentPosition,
+      addLoanPosition,
+      upsertScenarioMember,
+      addBudgetRule,
+    } = useScenarioStore.getState();
+    const scenario = useScenarioStore.getState().scenarios[0];
+
+    updateScenarioAssumptions(scenario.id, {
+      baseMonth: "2024-02",
+      horizonMonths: 240,
+      initialCash: 50000,
+    });
+
+    addHomePosition(scenario.id, {
+      id: "home-onboarding",
+      purchasePrice: 800000,
+      downPayment: 160000,
+      purchaseMonth: "2026-06",
+      annualAppreciationPct: 3,
+      mortgageRatePct: 4.5,
+      mortgageTermYears: 30,
+      feesOneTime: 9000,
+      holdingCostMonthly: 400,
+      holdingCostAnnualGrowthPct: 2,
+    });
+
+    addCarPosition(scenario.id, {
+      id: "car-onboarding",
+      purchaseMonth: "2025-09",
+      purchasePrice: 28000,
+      downPayment: 5000,
+      annualDepreciationRatePct: 12,
+      holdingCostMonthly: 150,
+      holdingCostAnnualGrowthPct: 2,
+    });
+
+    addInvestmentPosition(scenario.id, {
+      id: "investment-onboarding",
+      startMonth: "2024-02",
+      initialValue: 0,
+      expectedAnnualReturnPct: 5,
+      monthlyContribution: 1000,
+      assetClass: "fund",
+    });
+
+    addLoanPosition(scenario.id, {
+      id: "loan-onboarding",
+      startMonth: "2024-03",
+      principal: 25000,
+      annualInterestRatePct: 6,
+      termYears: 5,
+      monthlyPayment: 500,
+    });
+
+    upsertScenarioMember(scenario.id, {
+      id: "member-child",
+      name: "Child",
+      kind: "person",
+      birthMonth: "2024-08",
+    });
+
+    addBudgetRule(scenario.id, {
+      id: "budget-childcare",
+      name: "childcare",
+      enabled: true,
+      memberId: "member-child",
+      category: "childcare",
+      ageBand: { fromYears: 0, toYears: 6 },
+      monthlyAmount: 3000,
+      startMonth: "2024-08",
+      endMonth: "2030-08",
+    });
+
+    const updated = useScenarioStore.getState().scenarios[0];
+
+    expect(updated.assumptions.baseMonth).toBe("2024-02");
+    expect(updated.assumptions.initialCash).toBe(50000);
+    expect(updated.assumptions.horizonMonths).toBe(240);
+    expect(updated.positions?.homes).toHaveLength(2);
+    expect(updated.positions?.cars).toHaveLength(1);
+    expect(updated.positions?.investments).toHaveLength(1);
+    expect(updated.positions?.loans).toHaveLength(1);
+    expect(updated.members?.some((member) => member.id === "member-child")).toBe(true);
+    expect(updated.budgetRules?.some((rule) => rule.id === "budget-childcare")).toBe(
+      true
+    );
+  });
+});
+
 describe("selectHasExistingProfile", () => {
   it("returns false when there are no scenarios", () => {
     useScenarioStore.setState({
