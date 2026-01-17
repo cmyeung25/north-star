@@ -7,7 +7,7 @@ import { useLocale } from "next-intl";
 import OnboardingWizard from "../../../src/features/onboarding/OnboardingWizard";
 import {
   getActiveScenario,
-  resetScenarioStore,
+  resetAllLocalData,
   selectHasExistingProfile,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
@@ -42,7 +42,7 @@ export default function OnboardingClient() {
   };
 
   const handleReset = () => {
-    resetScenarioStore();
+    resetAllLocalData();
     setGateDismissed(true);
     setResetConfirmOpen(false);
   };

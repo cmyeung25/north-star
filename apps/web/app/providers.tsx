@@ -61,6 +61,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const [scenarioHydrated, setScenarioHydrated] = useState(false);
   const normalizedPathname = stripLocalePrefix(pathname, locale);
 
@@ -118,10 +119,28 @@ export default function Providers({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (scenarios.length > 0 && !scenarios.some((scenario) => scenario.id === activeScenarioId)) {
+      const fallbackId = scenarios[0]?.id;
+      if (fallbackId) {
+        setActiveScenario(fallbackId);
+        router.replace(`/${locale}/overview`);
+      }
+      return;
+    }
+
     if (activeScenario && activeScenario.clientComputed?.onboardingCompleted !== true) {
       router.replace(`/${locale}/onboarding`);
     }
-  }, [activeScenario, locale, normalizedPathname, router, scenarioHydrated]);
+  }, [
+    activeScenario,
+    activeScenarioId,
+    locale,
+    normalizedPathname,
+    router,
+    scenarioHydrated,
+    scenarios,
+    setActiveScenario,
+  ]);
 
   useEffect(() => {
     if (
