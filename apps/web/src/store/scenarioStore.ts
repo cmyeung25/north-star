@@ -224,6 +224,9 @@ type ScenarioStoreState = {
   scenarios: Scenario[];
   eventLibrary: EventDefinition[];
   activeScenarioId: string;
+  didHydrate: boolean;
+  isHydrating: boolean;
+  setHydrationState: (state: { didHydrate?: boolean; isHydrating?: boolean }) => void;
   createScenario: (name: string, options?: { baseCurrency?: string }) => Scenario;
   renameScenario: (id: string, name: string) => void;
   duplicateScenario: (id: string) => Scenario | null;
@@ -307,6 +310,9 @@ export const selectPersistedState = (
   eventLibrary: state.eventLibrary,
   activeScenarioId: state.activeScenarioId,
 });
+
+export const selectHasExistingProfile = (state: ScenarioStoreState): boolean =>
+  state.scenarios.length > 0 && Boolean(state.activeScenarioId);
 
 export const hydrateFromPersistedState = (
   payload: ScenarioStorePersistedState
@@ -625,10 +631,15 @@ export const resolveScenarioIdFromQuery = (
 };
 
 export const resetScenarioStore = () => {
+  const nextScenarios = normalizeScenarioList(initialScenarios).map((scenario) => ({
+    ...scenario,
+    updatedAt: now(),
+  }));
+
   useScenarioStore.setState({
-    scenarios: normalizeScenarioList(initialScenarios),
+    scenarios: nextScenarios,
     eventLibrary: initialEventLibrary,
-    activeScenarioId: initialScenarios[0]?.id ?? "",
+    activeScenarioId: nextScenarios[0]?.id ?? "",
   });
 };
 
@@ -636,6 +647,14 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   scenarios: normalizeScenarioList(initialScenarios),
   eventLibrary: initialEventLibrary,
   activeScenarioId: initialScenarios[0]?.id ?? "",
+  didHydrate: false,
+  isHydrating: false,
+  setHydrationState: (patch) => {
+    set((state) => ({
+      didHydrate: patch.didHydrate ?? state.didHydrate,
+      isHydrating: patch.isHydrating ?? state.isHydrating,
+    }));
+  },
   createScenario: (name, options) => {
     const newScenario: Scenario = {
       id: createScenarioId(),

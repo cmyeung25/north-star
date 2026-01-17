@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { EventDefinition } from "../../domain/events/types";
-import { useScenarioStore, type Scenario } from "../scenarioStore";
+import {
+  resetScenarioStore,
+  selectHasExistingProfile,
+  useScenarioStore,
+  type Scenario,
+} from "../scenarioStore";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   id: "scenario-original",
@@ -217,5 +222,45 @@ describe("position actions", () => {
 
     const removed = useScenarioStore.getState().scenarios[0].positions?.loans ?? [];
     expect(removed).toHaveLength(0);
+  });
+});
+
+describe("selectHasExistingProfile", () => {
+  it("returns false when there are no scenarios", () => {
+    useScenarioStore.setState({
+      scenarios: [],
+      eventLibrary: [],
+      activeScenarioId: "",
+    });
+
+    const result = selectHasExistingProfile(useScenarioStore.getState());
+
+    expect(result).toBe(false);
+  });
+
+  it("returns true when scenarios exist", () => {
+    const scenario = buildScenario();
+    useScenarioStore.setState({
+      scenarios: [scenario],
+      eventLibrary: buildEventLibrary(),
+      activeScenarioId: scenario.id,
+    });
+
+    const result = selectHasExistingProfile(useScenarioStore.getState());
+
+    expect(result).toBe(true);
+  });
+});
+
+describe("resetScenarioStore", () => {
+  it("restores initial scenarios and updates timestamps", () => {
+    const before = Date.now();
+
+    resetScenarioStore();
+
+    const state = useScenarioStore.getState();
+    expect(state.scenarios.length > 0).toBe(true);
+    expect(state.activeScenarioId).toBe(state.scenarios[0]?.id ?? "");
+    expect((state.scenarios[0]?.updatedAt ?? 0) >= before).toBe(true);
   });
 });

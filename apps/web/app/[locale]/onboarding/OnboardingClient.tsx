@@ -4,9 +4,11 @@ import {
   Button,
   Card,
   Group,
+  Modal,
   NumberInput,
   Select,
   SegmentedControl,
+  Skeleton,
   Stack,
   Switch,
   Text,
@@ -21,6 +23,8 @@ import type { OnboardingDraft } from "../../../src/onboarding/types";
 import {
   createMemberId,
   getActiveScenario,
+  resetScenarioStore,
+  selectHasExistingProfile,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
 
@@ -45,14 +49,18 @@ export default function OnboardingClient() {
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
   const setEventLibrary = useScenarioStore((state) => state.setEventLibrary);
+  const createScenario = useScenarioStore((state) => state.createScenario);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const hasExistingProfile = useScenarioStore(selectHasExistingProfile);
+  const didHydrate = useScenarioStore((state) => state.didHydrate);
+  const isHydrating = useScenarioStore((state) => state.isHydrating);
 
   const activeScenario = useMemo(
     () => getActiveScenario(scenarios, activeScenarioId),
     [activeScenarioId, scenarios]
   );
 
-  const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<OnboardingDraft>(() => ({
+  const buildInitialDraft = (): OnboardingDraft => ({
     initialCash: 0,
     members: [
       {
@@ -76,8 +84,13 @@ export default function OnboardingClient() {
     annualBudgetItems: [{ label: t("defaultAnnualBudgetItem"), annualAmount: 0 }],
     investments: [],
     insurances: [],
-  }));
+  });
+
+  const [step, setStep] = useState(0);
+  const [draft, setDraft] = useState<OnboardingDraft>(() => buildInitialDraft());
   const [errors, setErrors] = useState<DraftErrors>({});
+  const [gateDismissed, setGateDismissed] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   const totalMonthlyExpenses = useMemo(
     () =>
@@ -385,6 +398,91 @@ export default function OnboardingClient() {
     replaceScenario(updatedScenario);
     router.push(`/${locale}/overview`);
   };
+
+  const handleResume = () => {
+    router.push(`/${locale}/overview`);
+  };
+
+  const handleCreateNewPlan = () => {
+    const scenario = createScenario("New Plan");
+    setActiveScenario(scenario.id);
+    setGateDismissed(true);
+    setDraft(buildInitialDraft());
+    setErrors({});
+    setStep(0);
+  };
+
+  const handleReset = () => {
+    resetScenarioStore();
+    setGateDismissed(true);
+    setDraft(buildInitialDraft());
+    setErrors({});
+    setStep(0);
+    setResetConfirmOpen(false);
+  };
+
+  const showGate = hasExistingProfile && !gateDismissed;
+
+  if (!didHydrate || isHydrating) {
+    return (
+      <Stack gap="xl">
+        <Stack gap={4}>
+          <Skeleton height={28} width="40%" />
+          <Skeleton height={16} width="60%" />
+        </Stack>
+        <Card withBorder radius="md" padding="lg">
+          <Stack gap="lg">
+            <Skeleton height={18} width="30%" />
+            <Skeleton height={140} />
+            <Skeleton height={36} width="100%" />
+            <Skeleton height={36} width="100%" />
+          </Stack>
+        </Card>
+      </Stack>
+    );
+  }
+
+  if (showGate) {
+    return (
+      <Stack gap="xl">
+        <Stack gap={4}>
+          <Title order={2}>發現你之前已有計劃</Title>
+          <Text size="sm" c="dimmed">
+            你可以繼續上次計劃、建立新計劃，或重新開始。
+          </Text>
+        </Stack>
+        <Card withBorder radius="md" padding="lg">
+          <Stack gap="md">
+            <Button onClick={handleResume}>Resume</Button>
+            <Button variant="light" onClick={handleCreateNewPlan}>
+              Create New Plan
+            </Button>
+            <Button color="red" variant="light" onClick={() => setResetConfirmOpen(true)}>
+              Reset
+            </Button>
+          </Stack>
+        </Card>
+        <Modal
+          opened={resetConfirmOpen}
+          onClose={() => setResetConfirmOpen(false)}
+          title="確認重置"
+          centered
+        >
+          <Stack gap="md">
+            <Text size="sm">這會清除本機所有資料，確定要重置嗎？</Text>
+            <Group justify="flex-end">
+              <Button variant="subtle" onClick={() => setResetConfirmOpen(false)}>
+                取消
+              </Button>
+              <Button color="red" onClick={handleReset}>
+                確認重置
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+      </Stack>
+    );
+  }
 
   if (!activeScenario) {
     return null;
