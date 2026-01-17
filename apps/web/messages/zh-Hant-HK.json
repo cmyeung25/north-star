@@ -126,6 +126,14 @@
     "breakdownLiabilities": "負債",
     "breakdownNetWorth": "資產淨值",
     "breakdownPositionTotal": "Position 總計",
+    "breakdownPositionLabels": {
+      "home:mortgage": "按揭供款",
+      "home:holding": "持有成本",
+      "car:loan": "車貸供款",
+      "car:holding": "持有成本",
+      "investment:contribution": "每月供款",
+      "loan:repayment": "還款"
+    },
     "breakdownLabels": {
       "cash": "現金",
       "investment": "投資 #{index}",
@@ -201,6 +209,9 @@
     "subtitleMobile": "追蹤影響計劃的人生事件。",
     "subtitleDesktop": "以表格檢視事件並在側邊欄編輯。",
     "devHint": "變更會立即反映在總覽推算。",
+    "tabEvents": "事件",
+    "tabPositions": "Position",
+    "tabOverview": "總覽",
     "copyName": "{name}（副本）",
     "addEvent": "新增事件",
     "addGroup": "新增群組",

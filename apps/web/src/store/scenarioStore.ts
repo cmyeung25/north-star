@@ -248,7 +248,10 @@ type ScenarioStoreState = {
   didHydrate: boolean;
   isHydrating: boolean;
   setHydrationState: (state: { didHydrate?: boolean; isHydrating?: boolean }) => void;
-  createScenario: (name: string, options?: { baseCurrency?: string }) => Scenario;
+  createScenario: (
+    name: string,
+    options?: { baseCurrency?: string; onboardingCompleted?: boolean }
+  ) => Scenario;
   renameScenario: (id: string, name: string) => void;
   duplicateScenario: (id: string) => Scenario | null;
   deleteScenario: (id: string) => void;
@@ -700,6 +703,10 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       budgetRules: [],
       eventRefs: [],
       snapshots: [],
+      clientComputed:
+        options?.onboardingCompleted !== undefined
+          ? { onboardingCompleted: options.onboardingCompleted }
+          : undefined,
     };
 
     set((state) => ({

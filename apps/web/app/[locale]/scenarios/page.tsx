@@ -129,7 +129,7 @@ export default function ScenariosPage() {
   };
 
   const handleCreateScenario = (name: string) => {
-    const newScenario = createScenario(name);
+    const newScenario = createScenario(name, { onboardingCompleted: false });
     setSelectedScenarioId(newScenario.id);
     setActiveScenario(newScenario.id);
     showToast(t("created"), "teal");
@@ -195,7 +195,9 @@ export default function ScenariosPage() {
             </Text>
             <Button
               onClick={() => {
-                const scenario = createScenario(t("emptyDefaultName"));
+                const scenario = createScenario(t("emptyDefaultName"), {
+                  onboardingCompleted: false,
+                });
                 setActiveScenario(scenario.id);
                 router.push(`/${locale}/onboarding`);
               }}

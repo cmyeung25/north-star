@@ -145,6 +145,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     months,
     ledgerByMonth,
     summaryByMonth,
+    positionCashflowsByMonth,
     projectionNetCashflowByMonth,
     projectionNetCashflowMode,
   } = useProjectionWithLedger(selectedScenario, eventLibrary);
@@ -677,6 +678,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         onMonthChange={setCurrentMonth}
         ledgerByMonth={ledgerByMonth}
         summaryByMonth={summaryByMonth}
+        positionCashflowsByMonth={positionCashflowsByMonth}
         projectionNetCashflowByMonth={projectionNetCashflowByMonth}
         projectionNetCashflowMode={projectionNetCashflowMode}
         netWorthByMonth={netWorthByMonth}

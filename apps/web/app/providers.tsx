@@ -28,6 +28,7 @@ import {
 import { useSettingsStore } from "../src/store/settingsStore";
 import { getActiveScenario, useScenarioStore } from "../src/store/scenarioStore";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import ScenarioSwitcher from "../components/ScenarioSwitcher";
 import { Link } from "../src/i18n/navigation";
 
 const theme = createTheme({
@@ -183,6 +184,7 @@ export default function Providers({ children }: { children: ReactNode }) {
               {t("appName")}
             </Text>
             <Group gap="xs" align="center">
+              <ScenarioSwitcher />
               <Text size="xs" c="dimmed">
                 {statusLabel}
               </Text>
