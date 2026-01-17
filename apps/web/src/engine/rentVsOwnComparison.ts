@@ -173,14 +173,14 @@ export const useRentVsOwnComparison = (
     }
 
     const ownProjection = computeProjection(
-      mapScenarioToEngineInput(scenario, eventLibrary)
+      mapScenarioToEngineInput(scenario, eventLibrary).input
     );
     const rentScenario = buildRentComparisonScenario(scenario);
     const rentEvents = buildRentComparisonEvents(rentScenario, eventLibrary);
     const rentProjection = computeProjection(
       mapScenarioToEngineInput(rentScenario, eventLibrary, {
         eventsOverride: rentEvents,
-      })
+      }).input
     );
 
     const ownSeries = normalizeProjection(ownProjection);

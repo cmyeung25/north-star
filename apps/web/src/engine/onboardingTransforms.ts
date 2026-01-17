@@ -173,7 +173,8 @@ export const applyOnboardingToScenario = (
           homes: [buildExistingHomePosition(draft, baseMonth)],
           investments: draft.investments.map((investment) => ({
             assetClass: investment.assetClass,
-            marketValue: Math.max(0, investment.marketValue),
+            startMonth: baseMonth,
+            initialValue: Math.max(0, investment.marketValue),
             expectedAnnualReturnPct:
               typeof investment.expectedAnnualReturnPct === "number"
                 ? Math.max(0, investment.expectedAnnualReturnPct)
@@ -181,6 +182,14 @@ export const applyOnboardingToScenario = (
             monthlyContribution:
               typeof investment.monthlyContribution === "number"
                 ? investment.monthlyContribution
+                : undefined,
+            monthlyWithdrawal:
+              typeof investment.monthlyWithdrawal === "number"
+                ? investment.monthlyWithdrawal
+                : undefined,
+            feeAnnualRatePct:
+              typeof investment.feeAnnualRatePct === "number"
+                ? Math.max(0, investment.feeAnnualRatePct)
                 : undefined,
           })),
           insurances: draft.insurances.map((insurance) => ({
@@ -203,7 +212,8 @@ export const applyOnboardingToScenario = (
           homes: [],
           investments: draft.investments.map((investment) => ({
             assetClass: investment.assetClass,
-            marketValue: Math.max(0, investment.marketValue),
+            startMonth: baseMonth,
+            initialValue: Math.max(0, investment.marketValue),
             expectedAnnualReturnPct:
               typeof investment.expectedAnnualReturnPct === "number"
                 ? Math.max(0, investment.expectedAnnualReturnPct)
@@ -211,6 +221,14 @@ export const applyOnboardingToScenario = (
             monthlyContribution:
               typeof investment.monthlyContribution === "number"
                 ? investment.monthlyContribution
+                : undefined,
+            monthlyWithdrawal:
+              typeof investment.monthlyWithdrawal === "number"
+                ? investment.monthlyWithdrawal
+                : undefined,
+            feeAnnualRatePct:
+              typeof investment.feeAnnualRatePct === "number"
+                ? Math.max(0, investment.feeAnnualRatePct)
                 : undefined,
           })),
           insurances: draft.insurances.map((insurance) => ({

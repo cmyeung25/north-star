@@ -41,6 +41,8 @@ export type OnboardingDraft = {
     marketValue: number;
     expectedAnnualReturnPct?: number;
     monthlyContribution?: number;
+    monthlyWithdrawal?: number;
+    feeAnnualRatePct?: number;
   }>;
   insurances: Array<{
     insuranceType: InsuranceType;

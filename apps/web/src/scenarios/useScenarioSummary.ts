@@ -32,7 +32,7 @@ export const useScenarioSummary = (scenarioId?: string | null) => {
       return null;
     }
 
-    const input = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
+    const { input } = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
     const projection = computeProjection(input);
     const overviewViewModel = projectionToOverviewViewModel(projection);
 
