@@ -48,6 +48,7 @@ type TimelineEventDrawerCreateProps = TimelineEventDrawerBaseProps & {
   mode: "create";
   scenarioOptions: Array<{ value: string; label: string }>;
   defaultScenarioId: string;
+  defaultMonth?: string | null;
   onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onAddHomePosition: () => void;
   onCreateComplete?: (startMonth?: string | null) => void;
@@ -141,7 +142,10 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
   };
 
   const handleSelectType = (type: EventType) => {
-    if (props.mode === "create" && type === "buy_home") {
+    if (props.mode !== "create") {
+      return;
+    }
+    if (type === "buy_home") {
       props.onAddHomePosition();
       props.onClose();
       return;
@@ -151,7 +155,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     setDraftDefinition(
       createEventDefinitionFromTemplate(type, t, {
         baseCurrency: props.baseCurrency,
-        baseMonth: props.baseMonth,
+        baseMonth: props.defaultMonth ?? props.baseMonth,
         memberId: props.members[0]?.id,
       })
     );
