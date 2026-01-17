@@ -112,7 +112,7 @@ export const useProjectionWithLedger = (
       return emptyProjectionWithLedger;
     }
 
-    const input = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
+    const { input } = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
     const projection = computeProjection(input);
     const scenarioForLedger = {
       ...scenario,

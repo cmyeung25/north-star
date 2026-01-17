@@ -116,10 +116,14 @@ export type HomePositionDraft = HomePosition & {
 };
 
 export type InvestmentPosition = {
-  assetClass: InvestmentAssetClass;
-  marketValue: number;
+  id?: string;
+  assetClass?: InvestmentAssetClass;
+  startMonth: string;
+  initialValue: number;
   expectedAnnualReturnPct?: number;
   monthlyContribution?: number;
+  monthlyWithdrawal?: number;
+  feeAnnualRatePct?: number;
 };
 
 export type InsurancePosition = {
@@ -132,11 +136,49 @@ export type InsurancePosition = {
   coverageMeta?: Record<string, unknown>;
 };
 
+export type LoanPosition = {
+  id?: string;
+  startMonth: string;
+  principal: number;
+  annualInterestRatePct: number;
+  termYears: number;
+  monthlyPayment?: number;
+  feesOneTime?: number;
+};
+
+export type CarLoanDetails = {
+  principal: number;
+  annualInterestRatePct: number;
+  termYears: number;
+  monthlyPayment?: number;
+};
+
+export type CarPosition = {
+  id?: string;
+  purchaseMonth: string;
+  purchasePrice: number;
+  downPayment: number;
+  annualDepreciationRatePct: number;
+  holdingCostMonthly: number;
+  holdingCostAnnualGrowthPct: number;
+  loan?: CarLoanDetails;
+};
+
+export type CashBucketPosition = {
+  id?: string;
+  name?: string;
+  balance?: number;
+  asOfMonth?: string;
+};
+
 export type ScenarioPositions = {
   home?: HomePosition;
   homes?: HomePositionDraft[];
   investments?: InvestmentPosition[];
   insurances?: InsurancePosition[];
+  loans?: LoanPosition[];
+  cars?: CarPosition[];
+  cashBuckets?: CashBucketPosition[];
 };
 
 export type ScenarioMeta = {
@@ -333,6 +375,16 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
       : undefined,
     insurances: positions.insurances
       ? positions.insurances.map((insurance) => ({ ...insurance }))
+      : undefined,
+    loans: positions.loans ? positions.loans.map((loan) => ({ ...loan })) : undefined,
+    cars: positions.cars
+      ? positions.cars.map((car) => ({
+          ...car,
+          loan: car.loan ? { ...car.loan } : undefined,
+        }))
+      : undefined,
+    cashBuckets: positions.cashBuckets
+      ? positions.cashBuckets.map((bucket) => ({ ...bucket }))
       : undefined,
   };
 };

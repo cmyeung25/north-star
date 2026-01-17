@@ -81,7 +81,7 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
       },
     ]);
 
-    const input = mapScenarioToEngineInput(scenario, eventLibrary);
+    const { input } = mapScenarioToEngineInput(scenario, eventLibrary);
 
     const home = input.positions?.homes?.[0];
 
@@ -165,7 +165,7 @@ describe("mapScenarioToEngineInput buy_home mapping", () => {
       },
     ]);
 
-    const input = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
+    const { input } = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
 
     expect(input.positions?.homes).toBeUndefined();
     expect(input.events).toHaveLength(0);

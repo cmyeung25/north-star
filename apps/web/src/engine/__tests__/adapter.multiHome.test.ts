@@ -38,7 +38,7 @@ describe("mapScenarioToEngineInput multi-home support", () => {
       },
     });
 
-    const input = mapScenarioToEngineInput(scenario, []);
+    const { input } = mapScenarioToEngineInput(scenario, []);
 
     expect(input.positions?.homes).toHaveLength(1);
     expect(input.positions?.homes?.[0]?.purchasePrice).toBe(8_000_000);
@@ -72,7 +72,7 @@ describe("mapScenarioToEngineInput multi-home support", () => {
       },
     });
 
-    const input = mapScenarioToEngineInput(scenario, []);
+    const { input } = mapScenarioToEngineInput(scenario, []);
 
     expect(input.positions?.homes).toHaveLength(2);
     expect(input.positions?.homes?.[0]?.mortgage?.principal).toBe(8_000_000);

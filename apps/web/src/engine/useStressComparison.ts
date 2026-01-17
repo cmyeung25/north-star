@@ -67,7 +67,7 @@ export const useStressComparison = (
       return null;
     }
 
-    const baselineInput = mapScenarioToEngineInput(scenario, eventLibrary);
+    const { input: baselineInput } = mapScenarioToEngineInput(scenario, eventLibrary);
     const stressedScenario = preset
       ? applyStressPreset(scenario, eventLibrary, preset, {
           shockMonth: options.shockMonth,
@@ -77,7 +77,7 @@ export const useStressComparison = (
       baseMonth: baselineInput.baseMonth,
       horizonMonths: baselineInput.horizonMonths,
       initialCash: baselineInput.initialCash,
-    });
+    }).input;
 
     const baselineProjection = computeProjection(baselineInput);
     const stressedProjection = computeProjection(stressedInput);

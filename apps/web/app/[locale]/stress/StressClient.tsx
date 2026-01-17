@@ -118,7 +118,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     if (!scenario) {
       return null;
     }
-    return mapScenarioToEngineInput(scenario, eventLibrary);
+    return mapScenarioToEngineInput(scenario, eventLibrary).input;
   }, [eventLibrary, scenario]);
 
   const normalizedShockMonth = useMemo(
@@ -174,7 +174,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       baseMonth: baselineInput.baseMonth,
       horizonMonths: baselineInput.horizonMonths,
       initialCash: baselineInput.initialCash,
-    });
+    }).input;
   }, [baselineInput, eventLibrary, scenario, stressEvents]);
 
   const baselineProjection = useMemo(() => {
