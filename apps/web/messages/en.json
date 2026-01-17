@@ -113,6 +113,7 @@
     "breakdownSectionBudget": "Budget-derived",
     "breakdownSectionEvents": "Manual events",
     "breakdownSectionOther": "Other cashflows",
+    "breakdownSectionPosition": "Position cashflows",
     "breakdownMonth": "Month",
     "breakdownCash": "Cash",
     "breakdownNet": "Net",
@@ -124,6 +125,7 @@
     "breakdownAssets": "Assets",
     "breakdownLiabilities": "Liabilities",
     "breakdownNetWorth": "Net worth",
+    "breakdownPositionTotal": "Position total",
     "breakdownLabels": {
       "cash": "Cash",
       "investment": "Investment #{index}",
@@ -189,7 +191,10 @@
     "snapshotsCash": "Cash",
     "snapshotsAssets": "Assets",
     "snapshotsLiabilities": "Liabilities",
-    "snapshotsNetWorth": "Net worth"
+    "snapshotsNetWorth": "Net worth",
+    "fullscreenTitleCashBalance": "Cash Balance (fullscreen)",
+    "fullscreenTitleNetWorth": "Net Worth (fullscreen)",
+    "fullscreenTitleNetCashflow": "Net Cashflow (fullscreen)"
   },
   "timeline": {
     "title": "Timeline",

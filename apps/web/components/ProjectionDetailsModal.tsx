@@ -107,6 +107,14 @@ export default function ProjectionDetailsModal({
   const projectionNetCashflow = resolvedMonth
     ? projectionNetCashflowByMonth?.[resolvedMonth]
     : undefined;
+  const projectionNetCashflowValue =
+    resolvedMonth && projectionNetCashflowByMonth
+      ? projectionNetCashflowByMonth[resolvedMonth]
+      : undefined;
+  const positionCashflow =
+    projectionNetCashflowValue !== undefined
+      ? projectionNetCashflowValue - monthSummary.total
+      : 0;
   const doubleCountingWarning = hasDoubleCountingWarning(monthItems);
   const sortedItems = [...monthItems].sort(
     (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
@@ -136,8 +144,14 @@ export default function ProjectionDetailsModal({
       items: otherItems,
       hidden: otherItems.length === 0,
     },
+    {
+      key: "position",
+      label: t("breakdownSectionPosition"),
+      total: positionCashflow,
+      items: [],
+    },
   ];
-  const hasItems = monthItems.length > 0;
+  const hasItems = monthItems.length > 0 || positionCashflow !== 0;
   const defaultAccordionValues = sections
     .filter((section) => !section.hidden && section.items.length > 0)
     .map((section) => section.key);
@@ -201,7 +215,7 @@ export default function ProjectionDetailsModal({
           </Group>
 
           <Stack gap="xs">
-            <SimpleGrid cols={{ base: 1, sm: 4 }}>
+            <SimpleGrid cols={{ base: 1, sm: 5 }}>
               <Stack gap={2}>
                 <Text size="xs" c="dimmed">
                   {t("breakdownTotalNet")}
@@ -219,6 +233,12 @@ export default function ProjectionDetailsModal({
                   {t("breakdownEventTotal")}
                 </Text>
                 <Text fw={600}>{formatValue(monthSummary.bySource.event)}</Text>
+              </Stack>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {t("breakdownPositionTotal")}
+                </Text>
+                <Text fw={600}>{formatValue(positionCashflow)}</Text>
               </Stack>
               <Stack gap={2}>
                 <Text size="xs" c="dimmed">

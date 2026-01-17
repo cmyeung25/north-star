@@ -113,6 +113,7 @@
     "breakdownSectionBudget": "預算衍生",
     "breakdownSectionEvents": "手動事件",
     "breakdownSectionOther": "其他現金流",
+    "breakdownSectionPosition": "Position 現金流",
     "breakdownMonth": "月份",
     "breakdownCash": "現金",
     "breakdownNet": "淨額",
@@ -124,6 +125,7 @@
     "breakdownAssets": "資產",
     "breakdownLiabilities": "負債",
     "breakdownNetWorth": "資產淨值",
+    "breakdownPositionTotal": "Position 總計",
     "breakdownLabels": {
       "cash": "現金",
       "investment": "投資 #{index}",
@@ -189,7 +191,10 @@
     "snapshotsCash": "現金",
     "snapshotsAssets": "資產",
     "snapshotsLiabilities": "負債",
-    "snapshotsNetWorth": "淨值"
+    "snapshotsNetWorth": "淨值",
+    "fullscreenTitleCashBalance": "現金結餘（全螢幕）",
+    "fullscreenTitleNetWorth": "資產淨值（全螢幕）",
+    "fullscreenTitleNetCashflow": "淨現金流（全螢幕）"
   },
   "timeline": {
     "title": "時間線",
