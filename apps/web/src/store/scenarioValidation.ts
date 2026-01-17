@@ -2,7 +2,7 @@
 // Added fields: holdingCostMonthly and holdingCostAnnualGrowthPct (percent) with non-negative bounds.
 // Back-compat: absence of new fields is allowed.
 import { z } from "zod";
-import type { HomePosition } from "./scenarioStore";
+import type { CarPosition, HomePosition, InvestmentPosition, LoanPosition } from "./scenarioStore";
 
 const monthPattern = /^\d{4}-\d{2}$/;
 
@@ -157,6 +157,148 @@ export const HomePositionSchema = z
 
 export const getHomePositionErrors = (
   error: z.ZodError<HomePosition>,
+  translate?: (key: string) => string
+) => {
+  const result: Partial<Record<string, string>> = {};
+
+  for (const issue of error.issues) {
+    const field = issue.path.join(".");
+    if (field && !result[field]) {
+      result[field] = translate ? translate(issue.message) : issue.message;
+    }
+  }
+
+  return result;
+};
+
+export const CarPositionSchema = z
+  .object({
+    purchaseMonth: z
+      .string({ required_error: "validation.purchaseMonthRequired" })
+      .regex(monthPattern, "validation.useYearMonth"),
+    purchasePrice: z
+      .number({ required_error: "validation.purchasePriceRequired" })
+      .positive("validation.purchasePricePositive"),
+    downPayment: z.number().min(0, "validation.downPaymentMin"),
+    annualDepreciationRatePct: z
+      .number({ required_error: "validation.annualDepreciationRequired" })
+      .min(0, "validation.annualDepreciationMin")
+      .max(100, "validation.annualDepreciationMax"),
+    holdingCostMonthly: z
+      .number({ required_error: "validation.holdingCostMonthlyRequired" })
+      .min(0, "validation.holdingCostMonthlyMin"),
+    holdingCostAnnualGrowthPct: z
+      .number({ required_error: "validation.holdingCostGrowthRequired" })
+      .min(0, "validation.holdingCostGrowthMin")
+      .max(100, "validation.holdingCostGrowthMax"),
+    loan: z
+      .object({
+        principal: z
+          .number({ required_error: "validation.loanPrincipalRequired" })
+          .positive("validation.loanPrincipalPositive"),
+        annualInterestRatePct: z
+          .number({ required_error: "validation.loanRateRequired" })
+          .min(0, "validation.loanRateMin")
+          .max(100, "validation.loanRateMax"),
+        termYears: z
+          .number({ required_error: "validation.loanTermRequired" })
+          .min(1, "validation.loanTermMin")
+          .max(50, "validation.loanTermMax"),
+        monthlyPayment: z.number().min(0, "validation.loanPaymentMin").optional(),
+      })
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.downPayment > data.purchasePrice) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.downPaymentExceedsPrice",
+        path: ["downPayment"],
+      });
+    }
+  });
+
+export const InvestmentPositionSchema = z.object({
+  startMonth: z
+    .string({ required_error: "validation.startMonthRequired" })
+    .regex(monthPattern, "validation.useYearMonth"),
+  initialValue: z
+    .number({ required_error: "validation.initialValueRequired" })
+    .min(0, "validation.initialValueMin"),
+  assetClass: z.enum(["equity", "bond", "fund", "crypto"]).optional(),
+  expectedAnnualReturnPct: z
+    .number()
+    .min(-100, "validation.returnRateMin")
+    .max(100, "validation.returnRateMax")
+    .optional(),
+  monthlyContribution: z
+    .number()
+    .min(0, "validation.monthlyContributionMin")
+    .optional(),
+  monthlyWithdrawal: z
+    .number()
+    .min(0, "validation.monthlyWithdrawalMin")
+    .optional(),
+  feeAnnualRatePct: z
+    .number()
+    .min(0, "validation.feeRateMin")
+    .max(100, "validation.feeRateMax")
+    .optional(),
+});
+
+export const LoanPositionSchema = z.object({
+  startMonth: z
+    .string({ required_error: "validation.startMonthRequired" })
+    .regex(monthPattern, "validation.useYearMonth"),
+  principal: z
+    .number({ required_error: "validation.loanPrincipalRequired" })
+    .positive("validation.loanPrincipalPositive"),
+  annualInterestRatePct: z
+    .number({ required_error: "validation.loanRateRequired" })
+    .min(0, "validation.loanRateMin")
+    .max(100, "validation.loanRateMax"),
+  termYears: z
+    .number({ required_error: "validation.loanTermRequired" })
+    .min(1, "validation.loanTermMin")
+    .max(50, "validation.loanTermMax"),
+  monthlyPayment: z.number().min(0, "validation.loanPaymentMin").optional(),
+  feesOneTime: z.number().min(0, "validation.feesOneTimeMin").optional(),
+});
+
+export const getCarPositionErrors = (
+  error: z.ZodError<CarPosition>,
+  translate?: (key: string) => string
+) => {
+  const result: Partial<Record<string, string>> = {};
+
+  for (const issue of error.issues) {
+    const field = issue.path.join(".");
+    if (field && !result[field]) {
+      result[field] = translate ? translate(issue.message) : issue.message;
+    }
+  }
+
+  return result;
+};
+
+export const getInvestmentPositionErrors = (
+  error: z.ZodError<InvestmentPosition>,
+  translate?: (key: string) => string
+) => {
+  const result: Partial<Record<string, string>> = {};
+
+  for (const issue of error.issues) {
+    const field = issue.path.join(".");
+    if (field && !result[field]) {
+      result[field] = translate ? translate(issue.message) : issue.message;
+    }
+  }
+
+  return result;
+};
+
+export const getLoanPositionErrors = (
+  error: z.ZodError<LoanPosition>,
   translate?: (key: string) => string
 ) => {
   const result: Partial<Record<string, string>> = {};

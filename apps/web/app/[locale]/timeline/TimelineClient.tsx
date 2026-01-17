@@ -45,6 +45,21 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const removeHomePosition = useScenarioStore(
     (state) => state.removeHomePosition
   );
+  const addCarPosition = useScenarioStore((state) => state.addCarPosition);
+  const updateCarPosition = useScenarioStore((state) => state.updateCarPosition);
+  const removeCarPosition = useScenarioStore((state) => state.removeCarPosition);
+  const addInvestmentPosition = useScenarioStore(
+    (state) => state.addInvestmentPosition
+  );
+  const updateInvestmentPosition = useScenarioStore(
+    (state) => state.updateInvestmentPosition
+  );
+  const removeInvestmentPosition = useScenarioStore(
+    (state) => state.removeInvestmentPosition
+  );
+  const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
+  const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
+  const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
 
   useEffect(() => {
     if (
@@ -64,6 +79,9 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const eventViews = scenario ? buildScenarioEventViews(scenario, eventLibrary) : [];
   const budgetLedger = scenario ? compileAllBudgetRules(scenario) : [];
   const homePositions = scenario?.positions?.homes ?? [];
+  const carPositions = scenario?.positions?.cars ?? [];
+  const investmentPositions = scenario?.positions?.investments ?? [];
+  const loanPositions = scenario?.positions?.loans ?? [];
   const members = scenario?.members ?? [];
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
@@ -80,6 +98,9 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         eventLibrary={eventLibrary}
         scenarios={scenarios}
         homePositions={homePositions}
+        carPositions={carPositions}
+        investmentPositions={investmentPositions}
+        loanPositions={loanPositions}
         members={members}
         budgetLedger={budgetLedger}
         baseCurrency={baseCurrency}
@@ -101,6 +122,21 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
         onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
         onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}
+        onCarPositionAdd={(car) => addCarPosition(scenario.id, car)}
+        onCarPositionUpdate={(car) => updateCarPosition(scenario.id, car)}
+        onCarPositionRemove={(carId) => removeCarPosition(scenario.id, carId)}
+        onInvestmentPositionAdd={(investment) =>
+          addInvestmentPosition(scenario.id, investment)
+        }
+        onInvestmentPositionUpdate={(investment) =>
+          updateInvestmentPosition(scenario.id, investment)
+        }
+        onInvestmentPositionRemove={(investmentId) =>
+          removeInvestmentPosition(scenario.id, investmentId)
+        }
+        onLoanPositionAdd={(loan) => addLoanPosition(scenario.id, loan)}
+        onLoanPositionUpdate={(loan) => updateLoanPosition(scenario.id, loan)}
+        onLoanPositionRemove={(loanId) => removeLoanPosition(scenario.id, loanId)}
         onMergeDuplicates={(cluster, baseDefinitionId) =>
           mergeDuplicateEvents(cluster, baseDefinitionId)
         }
@@ -114,6 +150,9 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       eventLibrary={eventLibrary}
       scenarios={scenarios}
       homePositions={homePositions}
+      carPositions={carPositions}
+      investmentPositions={investmentPositions}
+      loanPositions={loanPositions}
       members={members}
       budgetLedger={budgetLedger}
       baseCurrency={baseCurrency}
@@ -136,6 +175,21 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       onHomePositionAdd={(home) => addHomePosition(scenario.id, home)}
       onHomePositionUpdate={(home) => updateHomePosition(scenario.id, home)}
       onHomePositionRemove={(homeId) => removeHomePosition(scenario.id, homeId)}
+      onCarPositionAdd={(car) => addCarPosition(scenario.id, car)}
+      onCarPositionUpdate={(car) => updateCarPosition(scenario.id, car)}
+      onCarPositionRemove={(carId) => removeCarPosition(scenario.id, carId)}
+      onInvestmentPositionAdd={(investment) =>
+        addInvestmentPosition(scenario.id, investment)
+      }
+      onInvestmentPositionUpdate={(investment) =>
+        updateInvestmentPosition(scenario.id, investment)
+      }
+      onInvestmentPositionRemove={(investmentId) =>
+        removeInvestmentPosition(scenario.id, investmentId)
+      }
+      onLoanPositionAdd={(loan) => addLoanPosition(scenario.id, loan)}
+      onLoanPositionUpdate={(loan) => updateLoanPosition(scenario.id, loan)}
+      onLoanPositionRemove={(loanId) => removeLoanPosition(scenario.id, loanId)}
       onMergeDuplicates={(cluster, baseDefinitionId) =>
         mergeDuplicateEvents(cluster, baseDefinitionId)
       }

@@ -5,6 +5,8 @@ import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
 import { buildDefinitionFromTimelineEvent } from "../domain/events/utils";
 import {
   createHomePositionId,
+  createInsurancePositionId,
+  createInvestmentPositionId,
   createMemberId,
   type HomePositionDraft,
   type Scenario,
@@ -172,6 +174,7 @@ export const applyOnboardingToScenario = (
       ? {
           homes: [buildExistingHomePosition(draft, baseMonth)],
           investments: draft.investments.map((investment) => ({
+            id: createInvestmentPositionId(),
             assetClass: investment.assetClass,
             startMonth: baseMonth,
             initialValue: Math.max(0, investment.marketValue),
@@ -193,6 +196,7 @@ export const applyOnboardingToScenario = (
                 : undefined,
           })),
           insurances: draft.insurances.map((insurance) => ({
+            id: createInsurancePositionId(),
             insuranceType: insurance.insuranceType,
             premiumMode: insurance.premiumMode,
             premiumAmount: Math.max(0, insurance.premiumAmount),
@@ -211,6 +215,7 @@ export const applyOnboardingToScenario = (
       : {
           homes: [],
           investments: draft.investments.map((investment) => ({
+            id: createInvestmentPositionId(),
             assetClass: investment.assetClass,
             startMonth: baseMonth,
             initialValue: Math.max(0, investment.marketValue),
@@ -232,6 +237,7 @@ export const applyOnboardingToScenario = (
                 : undefined,
           })),
           insurances: draft.insurances.map((insurance) => ({
+            id: createInsurancePositionId(),
             insuranceType: insurance.insuranceType,
             premiumMode: insurance.premiumMode,
             premiumAmount: Math.max(0, insurance.premiumAmount),

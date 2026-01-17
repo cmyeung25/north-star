@@ -20,8 +20,17 @@ import {
 } from "../../src/insurance/templates";
 import {
   createHomePositionId,
+  createCarPositionId,
+  createInvestmentPositionId,
+  createLoanPositionId,
+  type CarPosition,
+  type CarPositionDraft,
   type HomePosition,
   type HomePositionDraft,
+  type InvestmentPosition,
+  type InvestmentPositionDraft,
+  type LoanPosition,
+  type LoanPositionDraft,
 } from "../../src/store/scenarioStore";
 import type {
   EventDefinition,
@@ -241,6 +250,67 @@ export const createHomePositionFromTemplate = (
   };
 };
 
+export const createCarPositionFromTemplate = (
+  options?: { baseMonth?: string | null; purchaseMonth?: string | null }
+): CarPositionDraft => {
+  const purchaseMonth = getDefaultStartMonth(
+    normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? null
+  );
+
+  return {
+    id: createCarPositionId(),
+    purchaseMonth,
+    purchasePrice: 1_200_000,
+    downPayment: 240_000,
+    annualDepreciationRatePct: 12,
+    holdingCostMonthly: 1500,
+    holdingCostAnnualGrowthPct: 2,
+    loan: {
+      principal: 960_000,
+      annualInterestRatePct: 3.5,
+      termYears: 5,
+      monthlyPayment: 0,
+    },
+  };
+};
+
+export const createInvestmentPositionFromTemplate = (
+  options?: { baseMonth?: string | null; startMonth?: string | null }
+): InvestmentPositionDraft => {
+  const startMonth = getDefaultStartMonth(
+    normalizeMonth(options?.startMonth ?? "") ?? options?.baseMonth ?? null
+  );
+
+  return {
+    id: createInvestmentPositionId(),
+    startMonth,
+    initialValue: 200_000,
+    assetClass: "fund",
+    expectedAnnualReturnPct: 5,
+    monthlyContribution: 5000,
+    monthlyWithdrawal: 0,
+    feeAnnualRatePct: 0.6,
+  };
+};
+
+export const createLoanPositionFromTemplate = (
+  options?: { baseMonth?: string | null; startMonth?: string | null }
+): LoanPositionDraft => {
+  const startMonth = getDefaultStartMonth(
+    normalizeMonth(options?.startMonth ?? "") ?? options?.baseMonth ?? null
+  );
+
+  return {
+    id: createLoanPositionId(),
+    startMonth,
+    principal: 500_000,
+    annualInterestRatePct: 4,
+    termYears: 5,
+    monthlyPayment: 0,
+    feesOneTime: 0,
+  };
+};
+
 export const formatHomeSummary = (
   t: Translator,
   home: HomePosition,
@@ -275,6 +345,73 @@ export const formatHomeSummary = (
     price: formattedPrice,
     termYears,
     rate,
+  });
+};
+
+export const formatCarSummary = (
+  t: Translator,
+  car: CarPosition,
+  currency: string,
+  locale: string
+) => {
+  const formattedPrice = formatCurrency(car.purchasePrice ?? 0, currency, locale);
+  const rate = (car.annualDepreciationRatePct ?? 0).toFixed(1);
+  if (car.loan) {
+    const loanRate = (car.loan.annualInterestRatePct ?? 0).toFixed(1);
+    const loanTermYears = Math.round(car.loan.termYears ?? 0);
+    return t("carSummary.withLoan", {
+      price: formattedPrice,
+      rate,
+      loanTermYears,
+      loanRate,
+    });
+  }
+
+  return t("carSummary.noLoan", {
+    price: formattedPrice,
+    rate,
+  });
+};
+
+const assetClassLabelMap: Record<NonNullable<InvestmentPosition["assetClass"]>, string> =
+  {
+    equity: "assetClassEquity",
+    bond: "assetClassBond",
+    fund: "assetClassFund",
+    crypto: "assetClassCrypto",
+  };
+
+export const formatInvestmentSummary = (
+  t: Translator,
+  investment: InvestmentPosition,
+  currency: string,
+  locale: string
+) => {
+  const formattedValue = formatCurrency(investment.initialValue ?? 0, currency, locale);
+  const assetClassLabel = investment.assetClass
+    ? t(assetClassLabelMap[investment.assetClass])
+    : t("assetClassNone");
+
+  return t("investmentSummary.basic", {
+    value: formattedValue,
+    assetClass: assetClassLabel,
+  });
+};
+
+export const formatLoanSummary = (
+  t: Translator,
+  loan: LoanPosition,
+  currency: string,
+  locale: string
+) => {
+  const formattedPrincipal = formatCurrency(loan.principal ?? 0, currency, locale);
+  const rate = (loan.annualInterestRatePct ?? 0).toFixed(1);
+  const termYears = Math.round(loan.termYears ?? 0);
+
+  return t("loanSummary.basic", {
+    principal: formattedPrincipal,
+    rate,
+    termYears,
   });
 };
 

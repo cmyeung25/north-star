@@ -127,6 +127,7 @@ export type InvestmentPosition = {
 };
 
 export type InsurancePosition = {
+  id?: string;
   insuranceType: InsuranceType;
   premiumMode: InsurancePremiumMode;
   premiumAmount: number;
@@ -171,14 +172,34 @@ export type CashBucketPosition = {
   asOfMonth?: string;
 };
 
+export type InvestmentPositionDraft = InvestmentPosition & {
+  id: string;
+};
+
+export type InsurancePositionDraft = InsurancePosition & {
+  id: string;
+};
+
+export type LoanPositionDraft = LoanPosition & {
+  id: string;
+};
+
+export type CarPositionDraft = CarPosition & {
+  id: string;
+};
+
+export type CashBucketPositionDraft = CashBucketPosition & {
+  id: string;
+};
+
 export type ScenarioPositions = {
   home?: HomePosition;
   homes?: HomePositionDraft[];
-  investments?: InvestmentPosition[];
-  insurances?: InsurancePosition[];
-  loans?: LoanPosition[];
-  cars?: CarPosition[];
-  cashBuckets?: CashBucketPosition[];
+  investments?: InvestmentPositionDraft[];
+  insurances?: InsurancePositionDraft[];
+  loans?: LoanPositionDraft[];
+  cars?: CarPositionDraft[];
+  cashBuckets?: CashBucketPositionDraft[];
 };
 
 export type ScenarioMeta = {
@@ -246,6 +267,21 @@ type ScenarioStoreState = {
   addHomePosition: (id: string, home: HomePositionDraft) => void;
   updateHomePosition: (id: string, home: HomePositionDraft) => void;
   removeHomePosition: (id: string, homeId: string) => void;
+  addCarPosition: (id: string, car: CarPosition) => void;
+  updateCarPosition: (id: string, car: CarPosition) => void;
+  removeCarPosition: (id: string, carId: string) => void;
+  addInvestmentPosition: (id: string, investment: InvestmentPosition) => void;
+  updateInvestmentPosition: (id: string, investment: InvestmentPosition) => void;
+  removeInvestmentPosition: (id: string, investmentId: string) => void;
+  addLoanPosition: (id: string, loan: LoanPosition) => void;
+  updateLoanPosition: (id: string, loan: LoanPosition) => void;
+  removeLoanPosition: (id: string, loanId: string) => void;
+  addInsurancePosition: (id: string, insurance: InsurancePosition) => void;
+  updateInsurancePosition: (id: string, insurance: InsurancePosition) => void;
+  removeInsurancePosition: (id: string, insuranceId: string) => void;
+  addCashBucketPosition: (id: string, bucket: CashBucketPosition) => void;
+  updateCashBucketPosition: (id: string, bucket: CashBucketPosition) => void;
+  removeCashBucketPosition: (id: string, bucketId: string) => void;
   mergeDuplicateEvents: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
   updateScenarioUpdatedAt: (id: string) => void;
   updateScenarioAssumptions: (
@@ -320,6 +356,11 @@ const now = () => Date.now();
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
 export const createHomePositionId = () => `home-${nanoid(8)}`;
+export const createCarPositionId = () => `car-${nanoid(8)}`;
+export const createInvestmentPositionId = () => `investment-${nanoid(8)}`;
+export const createLoanPositionId = () => `loan-${nanoid(8)}`;
+export const createInsurancePositionId = () => `insurance-${nanoid(8)}`;
+export const createCashBucketPositionId = () => `cash-${nanoid(8)}`;
 export const createMemberId = () => `member-${nanoid(8)}`;
 export const createBudgetRuleId = () => `budget-${nanoid(8)}`;
 
@@ -461,6 +502,38 @@ const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePosit
   rental: home.rental ? { ...home.rental } : undefined,
 });
 
+const ensureInvestmentPositionId = (
+  investment: InvestmentPosition
+): InvestmentPositionDraft => ({
+  ...investment,
+  id: investment.id ?? createInvestmentPositionId(),
+});
+
+const ensureLoanPositionId = (loan: LoanPosition): LoanPositionDraft => ({
+  ...loan,
+  id: loan.id ?? createLoanPositionId(),
+});
+
+const ensureCarPositionId = (car: CarPosition): CarPositionDraft => ({
+  ...car,
+  id: car.id ?? createCarPositionId(),
+  loan: car.loan ? { ...car.loan } : undefined,
+});
+
+const ensureInsurancePositionId = (
+  insurance: InsurancePosition
+): InsurancePositionDraft => ({
+  ...insurance,
+  id: insurance.id ?? createInsurancePositionId(),
+});
+
+const ensureCashBucketPositionId = (
+  bucket: CashBucketPosition
+): CashBucketPositionDraft => ({
+  ...bucket,
+  id: bucket.id ?? createCashBucketPositionId(),
+});
+
 const normalizeScenarioPositions = (
   positions?: ScenarioPositions
 ): ScenarioPositions | undefined => {
@@ -468,21 +541,27 @@ const normalizeScenarioPositions = (
     return positions;
   }
 
-  if (positions.homes) {
-    return {
-      ...positions,
-      homes: positions.homes.map(ensureHomePositionId),
-    };
-  }
+  const normalizedHomes = positions.homes
+    ? positions.homes.map(ensureHomePositionId)
+    : positions.home
+      ? [ensureHomePositionId(positions.home)]
+      : undefined;
 
-  if (positions.home) {
-    return {
-      ...positions,
-      homes: [ensureHomePositionId(positions.home)],
-    };
-  }
-
-  return positions;
+  return {
+    ...positions,
+    homes: normalizedHomes,
+    investments: positions.investments
+      ? positions.investments.map(ensureInvestmentPositionId)
+      : positions.investments,
+    insurances: positions.insurances
+      ? positions.insurances.map(ensureInsurancePositionId)
+      : positions.insurances,
+    loans: positions.loans ? positions.loans.map(ensureLoanPositionId) : positions.loans,
+    cars: positions.cars ? positions.cars.map(ensureCarPositionId) : positions.cars,
+    cashBuckets: positions.cashBuckets
+      ? positions.cashBuckets.map(ensureCashBucketPositionId)
+      : positions.cashBuckets,
+  };
 };
 
 export const normalizeScenario = (scenario: Scenario): Scenario => {
@@ -959,6 +1038,345 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           ...scenario,
           eventRefs: nextEventRefs,
           positions: normalizeScenarioPositions(nextPositions),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  addCarPosition: (id, car) => {
+    const nextCar = ensureCarPositionId(car);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              positions: normalizeScenarioPositions({
+                ...(scenario.positions ?? {}),
+                cars: [...(scenario.positions?.cars ?? []), nextCar],
+              }),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateCarPosition: (id, car) => {
+    const nextCar = ensureCarPositionId(car);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const existingCars = scenario.positions?.cars ?? [];
+        const hasMatch = existingCars.some((entry) => entry.id === nextCar.id);
+        const nextCars = hasMatch
+          ? existingCars.map((entry) => (entry.id === nextCar.id ? nextCar : entry))
+          : [...existingCars, nextCar];
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            cars: nextCars,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  removeCarPosition: (id, carId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextCars = (scenario.positions?.cars ?? []).filter(
+          (car) => car.id !== carId
+        );
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            cars: nextCars,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  addInvestmentPosition: (id, investment) => {
+    const nextInvestment = ensureInvestmentPositionId(investment);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              positions: normalizeScenarioPositions({
+                ...(scenario.positions ?? {}),
+                investments: [
+                  ...(scenario.positions?.investments ?? []),
+                  nextInvestment,
+                ],
+              }),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateInvestmentPosition: (id, investment) => {
+    const nextInvestment = ensureInvestmentPositionId(investment);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const existingInvestments = scenario.positions?.investments ?? [];
+        const hasMatch = existingInvestments.some(
+          (entry) => entry.id === nextInvestment.id
+        );
+        const nextInvestments = hasMatch
+          ? existingInvestments.map((entry) =>
+              entry.id === nextInvestment.id ? nextInvestment : entry
+            )
+          : [...existingInvestments, nextInvestment];
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            investments: nextInvestments,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  removeInvestmentPosition: (id, investmentId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextInvestments = (scenario.positions?.investments ?? []).filter(
+          (investment) => investment.id !== investmentId
+        );
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            investments: nextInvestments,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  addLoanPosition: (id, loan) => {
+    const nextLoan = ensureLoanPositionId(loan);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              positions: normalizeScenarioPositions({
+                ...(scenario.positions ?? {}),
+                loans: [...(scenario.positions?.loans ?? []), nextLoan],
+              }),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateLoanPosition: (id, loan) => {
+    const nextLoan = ensureLoanPositionId(loan);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const existingLoans = scenario.positions?.loans ?? [];
+        const hasMatch = existingLoans.some((entry) => entry.id === nextLoan.id);
+        const nextLoans = hasMatch
+          ? existingLoans.map((entry) => (entry.id === nextLoan.id ? nextLoan : entry))
+          : [...existingLoans, nextLoan];
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            loans: nextLoans,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  removeLoanPosition: (id, loanId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextLoans = (scenario.positions?.loans ?? []).filter(
+          (loan) => loan.id !== loanId
+        );
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            loans: nextLoans,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  addInsurancePosition: (id, insurance) => {
+    const nextInsurance = ensureInsurancePositionId(insurance);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              positions: normalizeScenarioPositions({
+                ...(scenario.positions ?? {}),
+                insurances: [
+                  ...(scenario.positions?.insurances ?? []),
+                  nextInsurance,
+                ],
+              }),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateInsurancePosition: (id, insurance) => {
+    const nextInsurance = ensureInsurancePositionId(insurance);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const existingInsurances = scenario.positions?.insurances ?? [];
+        const hasMatch = existingInsurances.some(
+          (entry) => entry.id === nextInsurance.id
+        );
+        const nextInsurances = hasMatch
+          ? existingInsurances.map((entry) =>
+              entry.id === nextInsurance.id ? nextInsurance : entry
+            )
+          : [...existingInsurances, nextInsurance];
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            insurances: nextInsurances,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  removeInsurancePosition: (id, insuranceId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextInsurances = (scenario.positions?.insurances ?? []).filter(
+          (insurance) => insurance.id !== insuranceId
+        );
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            insurances: nextInsurances,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  addCashBucketPosition: (id, bucket) => {
+    const nextBucket = ensureCashBucketPositionId(bucket);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              positions: normalizeScenarioPositions({
+                ...(scenario.positions ?? {}),
+                cashBuckets: [
+                  ...(scenario.positions?.cashBuckets ?? []),
+                  nextBucket,
+                ],
+              }),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateCashBucketPosition: (id, bucket) => {
+    const nextBucket = ensureCashBucketPositionId(bucket);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const existingBuckets = scenario.positions?.cashBuckets ?? [];
+        const hasMatch = existingBuckets.some((entry) => entry.id === nextBucket.id);
+        const nextBuckets = hasMatch
+          ? existingBuckets.map((entry) =>
+              entry.id === nextBucket.id ? nextBucket : entry
+            )
+          : [...existingBuckets, nextBucket];
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            cashBuckets: nextBuckets,
+          }),
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  removeCashBucketPosition: (id, bucketId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextBuckets = (scenario.positions?.cashBuckets ?? []).filter(
+          (bucket) => bucket.id !== bucketId
+        );
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions({
+            ...(scenario.positions ?? {}),
+            cashBuckets: nextBuckets,
+          }),
           updatedAt: now(),
         };
       }),

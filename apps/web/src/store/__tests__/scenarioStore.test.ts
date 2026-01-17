@@ -111,3 +111,111 @@ describe("duplicateScenario", () => {
     expect(original?.positions?.homes?.[0].purchasePrice).toBe(600000);
   });
 });
+
+describe("position actions", () => {
+  it("adds, updates, and removes car positions", () => {
+    const { addCarPosition, updateCarPosition, removeCarPosition } =
+      useScenarioStore.getState();
+    const scenario = useScenarioStore.getState().scenarios[0];
+
+    addCarPosition(scenario.id, {
+      purchaseMonth: "2025-03",
+      purchasePrice: 30000,
+      downPayment: 5000,
+      annualDepreciationRatePct: 12,
+      holdingCostMonthly: 150,
+      holdingCostAnnualGrowthPct: 2,
+      loan: {
+        principal: 25000,
+        annualInterestRatePct: 4,
+        termYears: 5,
+        monthlyPayment: 500,
+      },
+    });
+
+    const added = useScenarioStore.getState().scenarios[0].positions?.cars ?? [];
+    expect(added).toHaveLength(1);
+    expect(added[0]?.id).not.toBeUndefined();
+
+    updateCarPosition(scenario.id, {
+      ...added[0],
+      holdingCostMonthly: 175,
+    });
+
+    const updated = useScenarioStore.getState().scenarios[0].positions?.cars ?? [];
+    expect(updated[0]?.holdingCostMonthly).toBe(175);
+
+    removeCarPosition(scenario.id, added[0]?.id ?? "");
+
+    const removed = useScenarioStore.getState().scenarios[0].positions?.cars ?? [];
+    expect(removed).toHaveLength(0);
+  });
+
+  it("adds, updates, and removes investment positions", () => {
+    const { addInvestmentPosition, updateInvestmentPosition, removeInvestmentPosition } =
+      useScenarioStore.getState();
+    const scenario = useScenarioStore.getState().scenarios[0];
+
+    addInvestmentPosition(scenario.id, {
+      startMonth: "2024-06",
+      initialValue: 15000,
+      expectedAnnualReturnPct: 6,
+      monthlyContribution: 500,
+      monthlyWithdrawal: 0,
+      feeAnnualRatePct: 0.4,
+      assetClass: "fund",
+    });
+
+    const added =
+      useScenarioStore.getState().scenarios[0].positions?.investments ?? [];
+    expect(added).toHaveLength(1);
+    expect(added[0]?.id).not.toBeUndefined();
+
+    updateInvestmentPosition(scenario.id, {
+      ...added[0],
+      monthlyContribution: 700,
+    });
+
+    const updated =
+      useScenarioStore.getState().scenarios[0].positions?.investments ?? [];
+    expect(updated[0]?.monthlyContribution).toBe(700);
+
+    removeInvestmentPosition(scenario.id, added[0]?.id ?? "");
+
+    const removed =
+      useScenarioStore.getState().scenarios[0].positions?.investments ?? [];
+    expect(removed).toHaveLength(0);
+  });
+
+  it("adds, updates, and removes loan positions", () => {
+    const { addLoanPosition, updateLoanPosition, removeLoanPosition } =
+      useScenarioStore.getState();
+    const scenario = useScenarioStore.getState().scenarios[0];
+
+    addLoanPosition(scenario.id, {
+      startMonth: "2024-08",
+      principal: 20000,
+      annualInterestRatePct: 5,
+      termYears: 3,
+      monthlyPayment: 600,
+      feesOneTime: 100,
+    });
+
+    const added = useScenarioStore.getState().scenarios[0].positions?.loans ?? [];
+    expect(added).toHaveLength(1);
+    expect(added[0]?.id).not.toBeUndefined();
+
+    updateLoanPosition(scenario.id, {
+      ...added[0],
+      monthlyPayment: 650,
+    });
+
+    const updated = useScenarioStore.getState().scenarios[0].positions?.loans ?? [];
+    expect(updated[0]?.monthlyPayment).toBe(650);
+
+    removeLoanPosition(scenario.id, added[0]?.id ?? "");
+
+    const removed = useScenarioStore.getState().scenarios[0].positions?.loans ?? [];
+    expect(removed).toHaveLength(0);
+  });
+});
