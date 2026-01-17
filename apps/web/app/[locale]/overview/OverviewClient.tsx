@@ -16,7 +16,6 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { computeProjection } from "@north-star/engine";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -32,14 +31,9 @@ import ScenarioContextSelector from "../../../features/overview/components/Scena
 import type { RiskLevel } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import {
-  mapScenarioToEngineInput,
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
-import {
-  createBreakdownLabelResolver,
-  getAssetBreakdownRows,
-  getCashflowBreakdownRows,
-} from "../../../src/engine/projectionSelectors";
+import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import {
   compileAllBudgetRules,
@@ -109,13 +103,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const t = useTranslations("overview");
   const common = useTranslations("common");
   const exportT = useTranslations("export");
-  const homesT = useTranslations("homes");
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const scenarioIdFromQuery = scenarioId ?? null;
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (
@@ -133,62 +127,31 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
 
   const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
-
-  const projection = useMemo(() => {
-    if (!selectedScenario) {
-      return null;
-    }
-    const input = mapScenarioToEngineInput(selectedScenario, eventLibrary);
-    return computeProjection(input);
-  }, [eventLibrary, selectedScenario]);
+  const {
+    projection,
+    months,
+    ledgerByMonth,
+    summaryByMonth,
+    projectionNetCashflowByMonth,
+    projectionNetCashflowMode,
+  } = useProjectionWithLedger(selectedScenario, eventLibrary);
 
   const overviewViewModel = useMemo(
     () => (projection ? projectionToOverviewViewModel(projection) : null),
     [projection]
-  );
-  const breakdownLabelResolver = useMemo(() => {
-    if (!selectedScenario) {
-      return null;
-    }
-    return createBreakdownLabelResolver(selectedScenario, eventLibrary, {
-      cashLabel: t("breakdownLabels.cash"),
-      homeLabel: (index, name) => name ?? homesT("homeLabel", { index }),
-      investmentLabel: (index) => t("breakdownLabels.investment", { index }),
-      insuranceLabel: (index) => t("breakdownLabels.insurance", { index }),
-      suffixLabels: {
-        down_payment: t("breakdownLabels.downPayment"),
-        fees_one_time: t("breakdownLabels.feesOneTime"),
-        holding_cost: t("breakdownLabels.holdingCost"),
-        mortgage_interest: t("breakdownLabels.mortgageInterest"),
-        mortgage_principal: t("breakdownLabels.mortgagePrincipal"),
-        rental_income: t("breakdownLabels.rentalIncome"),
-        mortgage: t("breakdownLabels.mortgageBalance"),
-        contribution: t("breakdownLabels.contribution"),
-        premium: t("breakdownLabels.premium"),
-        payout: t("breakdownLabels.payout"),
-        tax_benefit: t("breakdownLabels.taxBenefit"),
-      },
-    });
-  }, [eventLibrary, homesT, selectedScenario, t]);
-  const cashflowRows = useMemo(
-    () =>
-      projection && breakdownLabelResolver
-        ? getCashflowBreakdownRows(projection, breakdownLabelResolver)
-        : [],
-    [breakdownLabelResolver, projection]
-  );
-  const assetRows = useMemo(
-    () =>
-      projection && breakdownLabelResolver
-        ? getAssetBreakdownRows(projection, breakdownLabelResolver)
-        : [],
-    [breakdownLabelResolver, projection]
   );
 
   const cashSeries = overviewViewModel?.cashSeries ?? [];
   const netWorthSeries = overviewViewModel?.netWorthSeries ?? [];
   const computedKpis = overviewViewModel?.kpis;
   const rentVsOwn = useRentVsOwnComparison(selectedScenario, eventLibrary);
+  const memberLookup = useMemo(
+    () =>
+      Object.fromEntries(
+        (selectedScenario?.members ?? []).map((member) => [member.id, member.name])
+      ),
+    [selectedScenario]
+  );
   const budgetTotals = useMemo(() => {
     if (!selectedScenario) {
       return [];
@@ -205,6 +168,16 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
     return buildInsights(t, computedKpis);
   }, [computedKpis, t]);
+
+  useEffect(() => {
+    if (months.length === 0) {
+      setCurrentMonth(undefined);
+      return;
+    }
+    setCurrentMonth((previous) =>
+      previous && months.includes(previous) ? previous : months[0]
+    );
+  }, [months]);
 
   if (!selectedScenario) {
     return null;
@@ -224,11 +197,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         locale
       ),
       helper: t("kpiLowestBalanceHelper"),
+      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
+      detailsLabel: t("breakdownCta"),
     },
     {
       label: t("kpiRunway"),
       value: t("kpiRunwayValue", { months: computedKpis?.runwayMonths ?? 0 }),
       helper: t("kpiRunwayHelper"),
+      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
+      detailsLabel: t("breakdownCta"),
     },
     {
       label: t("kpiNetWorth"),
@@ -238,12 +215,16 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         locale
       ),
       helper: t("kpiNetWorthHelper"),
+      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
+      detailsLabel: t("breakdownCta"),
     },
     {
       label: t("kpiRisk"),
       value: common(`risk${computedKpis?.riskLevel ?? "Low"}`),
       badgeLabel: common(`risk${computedKpis?.riskLevel ?? "Low"}`),
       badgeColor: riskBadgeColor[computedKpis?.riskLevel ?? "Low"],
+      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
+      detailsLabel: t("breakdownCta"),
     },
   ];
 
@@ -467,9 +448,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       <ProjectionDetailsModal
         opened={breakdownOpen}
         onClose={() => setBreakdownOpen(false)}
-        cashflowRows={cashflowRows}
-        assetRows={assetRows}
+        months={months}
+        currentMonth={currentMonth}
+        onMonthChange={setCurrentMonth}
+        ledgerByMonth={ledgerByMonth}
+        summaryByMonth={summaryByMonth}
+        projectionNetCashflowByMonth={projectionNetCashflowByMonth}
+        projectionNetCashflowMode={projectionNetCashflowMode}
         currency={selectedScenario.baseCurrency}
+        memberLookup={memberLookup}
       />
     </Stack>
   );

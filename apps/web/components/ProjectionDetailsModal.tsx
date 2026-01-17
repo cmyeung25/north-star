@@ -2,41 +2,143 @@
 
 import {
   Accordion,
+  Badge,
+  Button,
   Group,
   Modal,
   ScrollArea,
+  Select,
+  SimpleGrid,
   Stack,
   Table,
-  Tabs,
   Text,
 } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../lib/i18n";
-import type {
-  AssetBreakdownRow,
-  CashflowBreakdownRow,
-} from "../src/engine/projectionSelectors";
+import type { CashflowItem } from "../src/domain/ledger/types";
+import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 
 type ProjectionDetailsModalProps = {
   opened: boolean;
   onClose: () => void;
-  cashflowRows: CashflowBreakdownRow[];
-  assetRows: AssetBreakdownRow[];
+  months: string[];
+  currentMonth?: string;
+  onMonthChange: (value: string) => void;
+  ledgerByMonth: Record<string, CashflowItem[]>;
+  summaryByMonth: Record<string, LedgerMonthSummary>;
+  projectionNetCashflowByMonth?: Record<string, number>;
+  projectionNetCashflowMode?: "netCashflow" | "cashDelta";
   currency: string;
+  memberLookup?: Record<string, string>;
+};
+
+const buildEmptySummary = (): LedgerMonthSummary => ({
+  total: 0,
+  bySource: {
+    budget: 0,
+    event: 0,
+    other: 0,
+  },
+  byCategory: {},
+});
+
+const normalizeKey = (value?: string) =>
+  value ? value.toLowerCase().replace(/\s+/g, " ").trim() : "";
+
+const hasDoubleCountingWarning = (items: CashflowItem[]) => {
+  const budgetItems = items.filter((item) => item.source === "budget");
+  const eventItems = items.filter((item) => item.source === "event");
+  if (budgetItems.length === 0 || eventItems.length === 0) {
+    return false;
+  }
+
+  const budgetKeys = new Set<string>();
+  const eventKeys = new Set<string>();
+
+  budgetItems.forEach((item) => {
+    const categoryKey = normalizeKey(item.category);
+    const labelKey = normalizeKey(item.label);
+    if (categoryKey) {
+      budgetKeys.add(categoryKey);
+    }
+    if (labelKey) {
+      budgetKeys.add(labelKey);
+    }
+  });
+
+  eventItems.forEach((item) => {
+    const categoryKey = normalizeKey(item.category);
+    const labelKey = normalizeKey(item.label);
+    if (categoryKey) {
+      eventKeys.add(categoryKey);
+    }
+    if (labelKey) {
+      eventKeys.add(labelKey);
+    }
+  });
+
+  return Array.from(budgetKeys).some((key) => eventKeys.has(key));
 };
 
 export default function ProjectionDetailsModal({
   opened,
   onClose,
-  cashflowRows,
-  assetRows,
+  months,
+  currentMonth,
+  onMonthChange,
+  ledgerByMonth,
+  summaryByMonth,
+  projectionNetCashflowByMonth,
+  projectionNetCashflowMode = "netCashflow",
   currency,
+  memberLookup,
 }: ProjectionDetailsModalProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
-  const hasRows = cashflowRows.length > 0 || assetRows.length > 0;
-
   const formatValue = (value: number) => formatCurrency(value, currency, locale);
+  const resolvedMonth = currentMonth ?? months[0];
+  const monthItems = resolvedMonth ? ledgerByMonth[resolvedMonth] ?? [] : [];
+  const monthSummary = resolvedMonth
+    ? summaryByMonth[resolvedMonth] ?? buildEmptySummary()
+    : buildEmptySummary();
+  const netCashflow = monthSummary.total;
+  const projectionNetCashflow = resolvedMonth
+    ? projectionNetCashflowByMonth?.[resolvedMonth]
+    : undefined;
+  const doubleCountingWarning = hasDoubleCountingWarning(monthItems);
+  const sortedItems = [...monthItems].sort(
+    (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
+  );
+  const budgetItems = sortedItems.filter((item) => item.source === "budget");
+  const eventItems = sortedItems.filter((item) => item.source === "event");
+  const otherItems = sortedItems.filter(
+    (item) => item.source !== "budget" && item.source !== "event"
+  );
+  const sections = [
+    {
+      key: "budget",
+      label: t("breakdownSectionBudget"),
+      total: monthSummary.bySource.budget,
+      items: budgetItems,
+    },
+    {
+      key: "event",
+      label: t("breakdownSectionEvents"),
+      total: monthSummary.bySource.event,
+      items: eventItems,
+    },
+    {
+      key: "other",
+      label: t("breakdownSectionOther"),
+      total: monthSummary.bySource.other,
+      items: otherItems,
+      hidden: otherItems.length === 0,
+    },
+  ];
+  const hasItems = monthItems.length > 0;
+  const defaultAccordionValues = sections
+    .filter((section) => !section.hidden && section.items.length > 0)
+    .map((section) => section.key);
 
   return (
     <Modal
@@ -46,45 +148,121 @@ export default function ProjectionDetailsModal({
       centered
       size="xl"
     >
-      {!hasRows ? (
+      {!resolvedMonth ? (
         <Text size="sm" c="dimmed">
           {t("breakdownEmpty")}
         </Text>
       ) : (
-        <Tabs defaultValue="cashflow">
-          <Tabs.List>
-            <Tabs.Tab value="cashflow">{t("breakdownTabs.cashflow")}</Tabs.Tab>
-            <Tabs.Tab value="assets">{t("breakdownTabs.assets")}</Tabs.Tab>
-          </Tabs.List>
+        <Stack gap="md">
+          <Group justify="space-between" wrap="wrap">
+            <Group gap="xs">
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={() => {
+                  const currentIndex = months.indexOf(resolvedMonth);
+                  const previousMonth = months[currentIndex - 1];
+                  if (previousMonth) {
+                    onMonthChange(previousMonth);
+                  }
+                }}
+                disabled={months.indexOf(resolvedMonth) <= 0}
+              >
+                {t("breakdownPrevMonth")}
+              </Button>
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={() => {
+                  const currentIndex = months.indexOf(resolvedMonth);
+                  const nextMonth = months[currentIndex + 1];
+                  if (nextMonth) {
+                    onMonthChange(nextMonth);
+                  }
+                }}
+                disabled={months.indexOf(resolvedMonth) >= months.length - 1}
+              >
+                {t("breakdownNextMonth")}
+              </Button>
+            </Group>
+            <Select
+              data={months.map((month) => ({ value: month, label: month }))}
+              value={resolvedMonth}
+              onChange={(value) => {
+                if (value) {
+                  onMonthChange(value);
+                }
+              }}
+              label={t("breakdownMonthLabel")}
+              maw={200}
+            />
+          </Group>
 
-          <Tabs.Panel value="cashflow" pt="sm">
+          <Stack gap="xs">
+            <SimpleGrid cols={{ base: 1, sm: 3 }}>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {t("breakdownTotalNet")}
+                </Text>
+                <Text fw={600}>{formatValue(netCashflow)}</Text>
+              </Stack>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {t("breakdownBudgetTotal")}
+                </Text>
+                <Text fw={600}>{formatValue(monthSummary.bySource.budget)}</Text>
+              </Stack>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {t("breakdownEventTotal")}
+                </Text>
+                <Text fw={600}>{formatValue(monthSummary.bySource.event)}</Text>
+              </Stack>
+            </SimpleGrid>
+            {projectionNetCashflow !== undefined && (
+              <Text size="xs" c="dimmed">
+                {projectionNetCashflowMode === "cashDelta"
+                  ? t("breakdownProjectionNetChange")
+                  : t("breakdownProjectionNetFlow")}
+                {" "}
+                {formatValue(projectionNetCashflow)}
+              </Text>
+            )}
+            {doubleCountingWarning && (
+              <Badge color="yellow" variant="light">
+                {t("breakdownDoubleCounting")}
+              </Badge>
+            )}
+          </Stack>
+
+          {!hasItems ? (
+            <Text size="sm" c="dimmed">
+              {t("breakdownEmptyMonth")}
+            </Text>
+          ) : (
             <ScrollArea h={360}>
-              <Accordion variant="separated" chevronPosition="right">
-                {cashflowRows.map((row) => (
-                  <Accordion.Item key={row.month} value={row.month}>
-                    <Accordion.Control>
-                      <Group justify="space-between" wrap="nowrap">
-                        <Text fw={600}>{row.month}</Text>
-                        <Group gap="md" wrap="nowrap">
-                          <Text size="sm">
-                            {t("breakdownNet")}: {formatValue(row.net)}
-                          </Text>
-                          <Text size="sm">
-                            {t("breakdownInflow")}: {formatValue(row.inflow)}
-                          </Text>
-                          <Text size="sm">
-                            {t("breakdownOutflow")}: {formatValue(row.outflow)}
-                          </Text>
+              <Accordion
+                variant="separated"
+                chevronPosition="right"
+                multiple
+                defaultValue={defaultAccordionValues}
+              >
+                {sections
+                  .filter((section) => !section.hidden)
+                  .map((section) => (
+                    <Accordion.Item key={section.key} value={section.key}>
+                      <Accordion.Control>
+                        <Group justify="space-between" wrap="nowrap">
+                          <Text fw={600}>{section.label}</Text>
+                          <Text size="sm">{formatValue(section.total)}</Text>
                         </Group>
-                      </Group>
-                    </Accordion.Control>
-                    <Accordion.Panel>
-                      {row.items.length === 0 ? (
-                        <Text size="sm" c="dimmed">
-                          {t("breakdownNoItems")}
-                        </Text>
-                      ) : (
-                        <ScrollArea h={240}>
+                      </Accordion.Control>
+                      <Accordion.Panel>
+                        {section.items.length === 0 ? (
+                          <Text size="sm" c="dimmed">
+                            {t("breakdownNoItems")}
+                          </Text>
+                        ) : (
                           <Table striped withTableBorder>
                             <Table.Thead>
                               <Table.Tr>
@@ -93,117 +271,41 @@ export default function ProjectionDetailsModal({
                               </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
-                              {row.items.map((item) => (
-                                <Table.Tr key={item.key}>
-                                  <Table.Td>{item.label}</Table.Td>
-                                  <Table.Td>{formatValue(item.value)}</Table.Td>
-                                </Table.Tr>
-                              ))}
+                              {section.items.map((item) => {
+                                const baseLabel =
+                                  item.label ?? item.category ?? item.sourceId;
+                                const memberName = item.memberId
+                                  ? memberLookup?.[item.memberId]
+                                  : null;
+                                const label = memberName
+                                  ? `${baseLabel} (${memberName})`
+                                  : baseLabel;
+                                return (
+                                  <Table.Tr
+                                    key={`${section.key}-${item.sourceId}-${item.month}-${item.amount}`}
+                                  >
+                                    <Table.Td>{label}</Table.Td>
+                                    <Table.Td>
+                                      <Text
+                                        c={item.amount < 0 ? "red" : "green"}
+                                        fw={500}
+                                      >
+                                        {formatValue(item.amount)}
+                                      </Text>
+                                    </Table.Td>
+                                  </Table.Tr>
+                                );
+                              })}
                             </Table.Tbody>
                           </Table>
-                        </ScrollArea>
-                      )}
-                    </Accordion.Panel>
-                  </Accordion.Item>
-                ))}
+                        )}
+                      </Accordion.Panel>
+                    </Accordion.Item>
+                  ))}
               </Accordion>
             </ScrollArea>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="assets" pt="sm">
-            <ScrollArea h={360}>
-              <Accordion variant="separated" chevronPosition="right">
-                {assetRows.map((row) => (
-                  <Accordion.Item key={row.month} value={row.month}>
-                    <Accordion.Control>
-                      <Group justify="space-between" wrap="nowrap">
-                        <Text fw={600}>{row.month}</Text>
-                        <Group gap="md" wrap="nowrap">
-                          <Text size="sm">
-                            {t("breakdownCash")}: {formatValue(row.cash)}
-                          </Text>
-                          <Text size="sm">
-                            {t("breakdownAssets")}: {formatValue(row.assetsTotal)}
-                          </Text>
-                          <Text size="sm">
-                            {t("breakdownLiabilities")}:
-                            {" "}
-                            {formatValue(row.liabilitiesTotal)}
-                          </Text>
-                          <Text size="sm">
-                            {t("breakdownNetWorth")}: {formatValue(row.netWorth)}
-                          </Text>
-                        </Group>
-                      </Group>
-                    </Accordion.Control>
-                    <Accordion.Panel>
-                      <Stack gap="md">
-                        <div>
-                          <Text fw={600} size="sm">
-                            {t("breakdownAssets")}
-                          </Text>
-                          {row.assets.length === 0 ? (
-                            <Text size="sm" c="dimmed">
-                              {t("breakdownNoItems")}
-                            </Text>
-                          ) : (
-                            <ScrollArea h={200}>
-                              <Table striped withTableBorder>
-                                <Table.Thead>
-                                  <Table.Tr>
-                                    <Table.Th>{t("breakdownItem")}</Table.Th>
-                                    <Table.Th>{t("breakdownAmount")}</Table.Th>
-                                  </Table.Tr>
-                                </Table.Thead>
-                                <Table.Tbody>
-                                  {row.assets.map((item) => (
-                                    <Table.Tr key={item.key}>
-                                      <Table.Td>{item.label}</Table.Td>
-                                      <Table.Td>{formatValue(item.value)}</Table.Td>
-                                    </Table.Tr>
-                                  ))}
-                                </Table.Tbody>
-                              </Table>
-                            </ScrollArea>
-                          )}
-                        </div>
-                        <div>
-                          <Text fw={600} size="sm">
-                            {t("breakdownLiabilities")}
-                          </Text>
-                          {row.liabilities.length === 0 ? (
-                            <Text size="sm" c="dimmed">
-                              {t("breakdownNoItems")}
-                            </Text>
-                          ) : (
-                            <ScrollArea h={200}>
-                              <Table striped withTableBorder>
-                                <Table.Thead>
-                                  <Table.Tr>
-                                    <Table.Th>{t("breakdownItem")}</Table.Th>
-                                    <Table.Th>{t("breakdownAmount")}</Table.Th>
-                                  </Table.Tr>
-                                </Table.Thead>
-                                <Table.Tbody>
-                                  {row.liabilities.map((item) => (
-                                    <Table.Tr key={item.key}>
-                                      <Table.Td>{item.label}</Table.Td>
-                                      <Table.Td>{formatValue(item.value)}</Table.Td>
-                                    </Table.Tr>
-                                  ))}
-                                </Table.Tbody>
-                              </Table>
-                            </ScrollArea>
-                          )}
-                        </div>
-                      </Stack>
-                    </Accordion.Panel>
-                  </Accordion.Item>
-                ))}
-              </Accordion>
-            </ScrollArea>
-          </Tabs.Panel>
-        </Tabs>
+          )}
+        </Stack>
       )}
     </Modal>
   );

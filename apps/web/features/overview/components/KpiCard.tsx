@@ -1,4 +1,4 @@
-import { Badge, Card, Group, Stack, Text } from "@mantine/core";
+import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
 
 interface KpiCardProps {
   label: string;
@@ -6,6 +6,8 @@ interface KpiCardProps {
   helper?: string;
   badgeLabel?: string;
   badgeColor?: string;
+  onDetails?: () => void;
+  detailsLabel?: string;
 }
 
 export default function KpiCard({
@@ -14,6 +16,8 @@ export default function KpiCard({
   helper,
   badgeLabel,
   badgeColor,
+  onDetails,
+  detailsLabel,
 }: KpiCardProps) {
   return (
     <Card withBorder radius="md" padding="md">
@@ -35,6 +39,11 @@ export default function KpiCard({
           <Text size="xs" c="dimmed">
             {helper}
           </Text>
+        )}
+        {onDetails && detailsLabel && (
+          <Button variant="subtle" size="xs" onClick={onDetails}>
+            {detailsLabel}
+          </Button>
         )}
       </Stack>
     </Card>

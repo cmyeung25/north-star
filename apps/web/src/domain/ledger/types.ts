@@ -1,7 +1,7 @@
 export type CashflowItem = {
   month: string;
   amount: number;
-  source: "event" | "budget";
+  source: "event" | "budget" | "home" | "other";
   sourceId: string;
   label?: string;
   category?: string;
