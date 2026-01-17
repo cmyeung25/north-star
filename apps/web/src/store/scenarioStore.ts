@@ -680,7 +680,19 @@ export const resolveScenarioIdFromQuery = (
   return scenarios[0]?.id ?? "";
 };
 
-export const resetScenarioStore = () => {
+export const resetAppState = () => {
+  const state = useScenarioStore.getState();
+  useScenarioStore.setState({
+    scenarios: normalizeScenarioList(state.scenarios),
+    eventLibrary: state.eventLibrary.map((event) => ({
+      ...event,
+      rule: { ...event.rule },
+    })),
+    activeScenarioId: state.activeScenarioId,
+  });
+};
+
+export const resetAllLocalData = () => {
   const nextScenarios = normalizeScenarioList(initialScenarios).map((scenario) => ({
     ...scenario,
     updatedAt: now(),
@@ -692,6 +704,8 @@ export const resetScenarioStore = () => {
     activeScenarioId: nextScenarios[0]?.id ?? "",
   });
 };
+
+export const resetScenarioStore = resetAllLocalData;
 
 export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   scenarios: normalizeScenarioList(initialScenarios),

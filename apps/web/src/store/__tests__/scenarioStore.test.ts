@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { EventDefinition } from "../../domain/events/types";
 import {
   normalizeScenario,
+  resetAppState,
   resetScenarioStore,
   selectHasExistingProfile,
   useScenarioStore,
@@ -427,5 +428,18 @@ describe("resetScenarioStore", () => {
     expect(state.scenarios.length > 0).toBe(true);
     expect(state.activeScenarioId).toBe(state.scenarios[0]?.id ?? "");
     expect((state.scenarios[0]?.updatedAt ?? 0) >= before).toBe(true);
+  });
+});
+
+describe("resetAppState", () => {
+  it("preserves scenarios and active scenario selection", () => {
+    const stateBefore = useScenarioStore.getState();
+    const scenarioId = stateBefore.activeScenarioId;
+
+    resetAppState();
+
+    const stateAfter = useScenarioStore.getState();
+    expect(stateAfter.scenarios).toHaveLength(stateBefore.scenarios.length);
+    expect(stateAfter.activeScenarioId).toBe(scenarioId);
   });
 });

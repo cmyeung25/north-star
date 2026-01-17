@@ -27,7 +27,7 @@ import {
 } from "../src/persistence/storage";
 import {
   hydrateFromPersistedState,
-  resetScenarioStore,
+  resetAppState,
   selectPersistedState,
   useScenarioStore,
 } from "../src/store/scenarioStore";
@@ -186,7 +186,7 @@ export default function DataManagementSection({ onNotify }: DataManagementSectio
       return;
     }
 
-    resetScenarioStore();
+    resetAppState();
     refreshAutosave();
     onNotify(t("resetSuccess"), "teal");
   };
