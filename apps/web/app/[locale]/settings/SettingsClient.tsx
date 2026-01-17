@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Badge,
   Button,
   Card,
   Divider,
@@ -46,6 +47,8 @@ import {
   type BudgetRuleMonthlyEntry,
 } from "../../../src/domain/budget/compileBudgetRules";
 import DataManagementSection from "../../../components/DataManagementSection";
+import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
+import { getEventMeta } from "../../../src/events/eventCatalog";
 
 type SettingsClientProps = {
   scenarioId?: string;
@@ -57,6 +60,7 @@ type ToastState = {
 };
 
 const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
+const isHousingCategory = (category: string) => category === "housing";
 
 export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const locale = useLocale();
@@ -74,6 +78,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const authState = useAuthState();
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
+  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const updateScenarioAssumptions = useScenarioStore(
@@ -125,6 +130,17 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     [activeScenarioId, scenarioIdFromQuery, scenarios]
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
+  const includeBudgetRulesInProjection =
+    scenario?.assumptions.includeBudgetRulesInProjection ?? true;
+  const hasExpenseEvents = useMemo(() => {
+    if (!scenario) {
+      return false;
+    }
+    const events = buildScenarioTimelineEvents(scenario, eventLibrary);
+    return events.some(
+      (event) => event.enabled && getEventMeta(event.type).group === "expense"
+    );
+  }, [eventLibrary, scenario]);
 
   useEffect(() => {
     if (!scenario) {
@@ -340,6 +356,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const { assumptions } = scenario;
   const members = scenario.members ?? [];
   const budgetRules = scenario.budgetRules ?? [];
+  const hasHousingRules = budgetRules.some((rule) => isHousingCategory(rule.category));
   const horizonValue = horizonOptions.some(
     (option) => Number(option.value) === assumptions.horizonMonths
   )
@@ -369,8 +386,9 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     return buildMonthRange(assumptions.baseMonth, assumptions.horizonMonths).map(
       (month) => ({
         month,
-        amountSigned: 0,
-        sourceRuleId: rule.id,
+        amount: 0,
+        source: "budget",
+        sourceId: rule.id,
         memberId: rule.memberId,
         label: rule.name,
         category: rule.category,
@@ -871,6 +889,32 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
           <Text size="sm" c="dimmed">
             {budgetText("subtitle")}
           </Text>
+          <Switch
+            checked={includeBudgetRulesInProjection}
+            label={budgetText("includeInProjection")}
+            onChange={(event) =>
+              updateScenarioAssumptions(scenario.id, {
+                includeBudgetRulesInProjection: event.currentTarget.checked,
+              })
+            }
+          />
+          {includeBudgetRulesInProjection && (
+            <Notification color="yellow" withCloseButton={false}>
+              <Group justify="space-between" align="center" wrap="nowrap">
+                <Text size="sm">{budgetText("projectionWarning")}</Text>
+                {hasExpenseEvents && (
+                  <Badge color="yellow" variant="light">
+                    {budgetText("projectionWarningBadge")}
+                  </Badge>
+                )}
+              </Group>
+            </Notification>
+          )}
+          {hasHousingRules && (
+            <Notification color="red" withCloseButton={false}>
+              <Text size="sm">{budgetText("housingWarning")}</Text>
+            </Notification>
+          )}
           {budgetRules.length === 0 ? (
             <Text size="sm" c="dimmed">
               {budgetText("empty")}
@@ -881,7 +925,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                 const preview = budgetRulePreviews.get(rule.id) ?? [];
                 const previewSlice = preview.slice(0, 12);
                 const previewTotal = preview.reduce(
-                  (total, entry) => total + entry.amountSigned,
+                  (total, entry) => total + entry.amount,
                   0
                 );
 
@@ -1075,7 +1119,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           <Stack gap={2}>
                             {previewSlice.map((entry) => (
                               <Text key={`${rule.id}-${entry.month}`} size="sm">
-                                {entry.month} · {formatCurrency(entry.amountSigned)}
+                                {entry.month} · {formatCurrency(entry.amount)}
                               </Text>
                             ))}
                             {preview.length > previewSlice.length && (

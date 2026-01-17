@@ -4,6 +4,7 @@
 import {
   type ProjectionInput,
   type ProjectionResult,
+  monthIndex,
 } from "@north-star/engine";
 import type {
   HomePosition,
@@ -18,6 +19,8 @@ import type { EventDefinition } from "../domain/events/types";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { buildScenarioTimelineEvents } from "../domain/events/utils";
 import type { TimelineEvent } from "../features/timeline/schema";
+import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
+import type { CashflowItem } from "../domain/ledger/types";
 
 type AdapterOptions = {
   baseMonth?: string;
@@ -79,23 +82,45 @@ const assertBuyHomeEventMonth = (
 };
 
 const buildEngineEventsFromCashflows = (
-  cashflows: ReturnType<typeof compileScenarioCashflows>
+  cashflows: CashflowItem[]
 ): ProjectionInput["events"] =>
   cashflows
-    .filter((entry) => entry.amountSigned !== 0)
+    .filter((entry) => entry.amount !== 0)
     .filter(
       (entry) => entry.category !== "buy_home" && entry.category !== "insurance_product"
     )
     .map((entry) => ({
-      id: `${entry.sourceEventId}:${entry.month}`,
+      id: `${entry.sourceId}:${entry.month}`,
       type: entry.category,
       enabled: true,
       startMonth: entry.month,
       endMonth: entry.month,
       monthlyAmount: 0,
-      oneTimeAmount: entry.amountSigned,
+      oneTimeAmount: entry.amount,
       annualGrowthPct: 0,
     }));
+
+const eventCashflowsToLedger = (
+  cashflows: ReturnType<typeof compileScenarioCashflows>
+): CashflowItem[] =>
+  cashflows.map((entry) => ({
+    month: entry.month,
+    amount: entry.amountSigned,
+    source: "event",
+    sourceId: entry.sourceEventId,
+    label: entry.title,
+    category: entry.category,
+  }));
+
+const filterCashflowsToHorizon = (
+  ledger: CashflowItem[],
+  baseMonth: string,
+  horizonMonths: number
+) =>
+  ledger.filter((entry) => {
+    const offset = monthIndex(baseMonth, entry.month);
+    return offset >= 0 && offset < horizonMonths;
+  });
 
 export const mapScenarioToEngineInput = (
   scenario: Scenario,
@@ -169,7 +194,18 @@ export const mapScenarioToEngineInput = (
     eventLibrary,
     signByType: getEventSign,
   });
-  const events = buildEngineEventsFromCashflows(cashflowLedger);
+  const eventLedger = eventCashflowsToLedger(cashflowLedger);
+  const includeBudgetRulesInProjection =
+    scenario.assumptions.includeBudgetRulesInProjection ?? true;
+  const budgetLedger = includeBudgetRulesInProjection
+    ? compileAllBudgetRules(scenario)
+    : [];
+  const combinedLedger = filterCashflowsToHorizon(
+    [...eventLedger, ...budgetLedger],
+    baseMonth,
+    horizonMonths
+  );
+  const events = buildEngineEventsFromCashflows(combinedLedger);
   const mappedHomes =
     validatedHomes.length > 0
       ? validatedHomes.map((home) => {

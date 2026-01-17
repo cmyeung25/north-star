@@ -419,7 +419,11 @@
     "previewMore": "+{count} 個月",
     "timelineTitle": "預算規則現金流",
     "timelineSubtitle": "由啟用規則彙總的每月支出。",
-    "timelineEmpty": "尚未有預算規則支出。"
+    "timelineEmpty": "尚未有預算規則支出。",
+    "includeInProjection": "將預算規則納入投影",
+    "projectionWarning": "預算規則已納入投影。如你亦手動建立同類支出事件，可能會重複計算。",
+    "projectionWarningBadge": "可能重複",
+    "housingWarning": "房屋相關預算規則不會納入投影，房產現金流會由房產模型處理。"
   },
   "onboarding": {
     "title": "歡迎使用北極星",

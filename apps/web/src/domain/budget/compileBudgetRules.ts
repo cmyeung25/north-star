@@ -1,21 +1,20 @@
 import { buildMonthRange } from "@north-star/engine";
 import type { BudgetRule, Scenario } from "../../store/scenarioStore";
 import { getMemberAgeYears, monthsBetween } from "../members/age";
+import type { CashflowItem } from "../ledger/types";
 
-export type BudgetRuleMonthlyEntry = {
-  month: string;
-  amountSigned: number;
-  sourceRuleId: string;
-  memberId?: string;
-  label: string;
-  category: string;
-};
+export type BudgetRuleMonthlyEntry = CashflowItem;
+
+const isHousingCategory = (category: string) => category === "housing";
 
 export const compileBudgetRuleToMonthlySeries = (
   rule: BudgetRule,
   scenario: Scenario
 ): BudgetRuleMonthlyEntry[] => {
   if (!rule.enabled) {
+    return [];
+  }
+  if (isHousingCategory(rule.category)) {
     return [];
   }
 
@@ -65,8 +64,9 @@ export const compileBudgetRuleToMonthlySeries = (
         : 0;
     series.push({
       month,
-      amountSigned: Math.round(grownMonthlyAmount),
-      sourceRuleId: rule.id,
+      amount: Math.round(grownMonthlyAmount),
+      source: "budget",
+      sourceId: rule.id,
       memberId: rule.memberId,
       label: rule.name,
       category: rule.category,
@@ -78,7 +78,7 @@ export const compileBudgetRuleToMonthlySeries = (
 
 export const compileAllBudgetRules = (scenario: Scenario): BudgetRuleMonthlyEntry[] =>
   (scenario.budgetRules ?? [])
-    .filter((rule) => rule.enabled)
+    .filter((rule) => rule.enabled && !isHousingCategory(rule.category))
     .flatMap((rule) => compileBudgetRuleToMonthlySeries(rule, scenario));
 
 export const sumByMonth = (
@@ -87,7 +87,7 @@ export const sumByMonth = (
   const totals = new Map<string, number>();
 
   ledger.forEach((entry) => {
-    totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amountSigned);
+    totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amount);
   });
 
   return Array.from(totals.entries())
