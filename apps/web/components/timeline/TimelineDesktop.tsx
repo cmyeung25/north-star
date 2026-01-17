@@ -31,6 +31,9 @@ import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import TimelineEventForm, { type TimelineEventFormResult } from "./TimelineEventForm";
 import InsuranceProductForm from "./InsuranceProductForm";
 import HomeDetailsForm from "./HomeDetailsForm";
+import CarDetailsForm from "./CarDetailsForm";
+import InvestmentDetailsForm from "./InvestmentDetailsForm";
+import LoanDetailsForm from "./LoanDetailsForm";
 import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
 import MergeDuplicatesModal from "./MergeDuplicatesModal";
 import type {
@@ -41,17 +44,26 @@ import type {
 import type { DuplicateCluster } from "../../src/domain/events/mergeDuplicates";
 import {
   buildEventTreeRows,
+  createCarPositionFromTemplate,
   createHomePositionFromTemplate,
+  createInvestmentPositionFromTemplate,
+  createLoanPositionFromTemplate,
   getEventFilterOptions,
   getEventGroupLabel,
   getEventImpactHint,
   getEventLabel,
   formatCurrency,
+  formatCarSummary,
   formatHomeSummary,
+  formatInvestmentSummary,
+  formatLoanSummary,
   iconMap,
 } from "./utils";
 import type {
+  CarPositionDraft,
   HomePositionDraft,
+  InvestmentPositionDraft,
+  LoanPositionDraft,
   Scenario,
   ScenarioMember,
 } from "../../src/store/scenarioStore";
@@ -62,6 +74,9 @@ interface TimelineDesktopProps {
   eventLibrary: EventDefinition[];
   scenarios: Scenario[];
   homePositions: HomePositionDraft[];
+  carPositions: CarPositionDraft[];
+  investmentPositions: InvestmentPositionDraft[];
+  loanPositions: LoanPositionDraft[];
   members: ScenarioMember[];
   budgetLedger: BudgetRuleMonthlyEntry[];
   baseCurrency: string;
@@ -74,6 +89,15 @@ interface TimelineDesktopProps {
   onHomePositionAdd: (home: HomePositionDraft) => void;
   onHomePositionUpdate: (home: HomePositionDraft) => void;
   onHomePositionRemove: (homeId: string) => void;
+  onCarPositionAdd: (car: CarPositionDraft) => void;
+  onCarPositionUpdate: (car: CarPositionDraft) => void;
+  onCarPositionRemove: (carId: string) => void;
+  onInvestmentPositionAdd: (investment: InvestmentPositionDraft) => void;
+  onInvestmentPositionUpdate: (investment: InvestmentPositionDraft) => void;
+  onInvestmentPositionRemove: (investmentId: string) => void;
+  onLoanPositionAdd: (loan: LoanPositionDraft) => void;
+  onLoanPositionUpdate: (loan: LoanPositionDraft) => void;
+  onLoanPositionRemove: (loanId: string) => void;
   onMergeDuplicates: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
 }
 
@@ -82,6 +106,9 @@ export default function TimelineDesktop({
   eventLibrary,
   scenarios,
   homePositions,
+  carPositions,
+  investmentPositions,
+  loanPositions,
   members,
   budgetLedger,
   baseCurrency,
@@ -94,11 +121,23 @@ export default function TimelineDesktop({
   onHomePositionAdd,
   onHomePositionUpdate,
   onHomePositionRemove,
+  onCarPositionAdd,
+  onCarPositionUpdate,
+  onCarPositionRemove,
+  onInvestmentPositionAdd,
+  onInvestmentPositionUpdate,
+  onInvestmentPositionRemove,
+  onLoanPositionAdd,
+  onLoanPositionUpdate,
+  onLoanPositionRemove,
   onMergeDuplicates,
 }: TimelineDesktopProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
   const homes = useTranslations("homes");
+  const cars = useTranslations("cars");
+  const investments = useTranslations("investments");
+  const loans = useTranslations("loans");
   const budgetText = useTranslations("budgetRules");
   const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
@@ -110,6 +149,11 @@ export default function TimelineDesktop({
   const [editingParentId, setEditingParentId] = useState<string | null>(null);
   const [groupTitle, setGroupTitle] = useState("");
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
+  const [editingCarId, setEditingCarId] = useState<string | null>(null);
+  const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(
+    null
+  );
+  const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
   const scenarioRule = editingEvent
     ? resolveEventRule(editingEvent.definition, editingEvent.ref)
@@ -198,6 +242,11 @@ export default function TimelineDesktop({
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
+  const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;
+  const editingInvestment =
+    investmentPositions.find((investment) => investment.id === editingInvestmentId) ??
+    null;
+  const editingLoan = loanPositions.find((loan) => loan.id === editingLoanId) ?? null;
 
   return (
     <Stack gap="lg">
@@ -290,6 +339,174 @@ export default function TimelineDesktop({
                     onClick={() => onHomePositionRemove(home.id)}
                   >
                     {homes("removeHome")}
+                  </Button>
+                </Group>
+              </Group>
+            </Card>
+          ))
+        )}
+      </Stack>
+
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <Text fw={600}>{cars("title")}</Text>
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() =>
+              onCarPositionAdd(createCarPositionFromTemplate({ baseMonth }))
+            }
+          >
+            {cars("addCar")}
+          </Button>
+        </Group>
+        {carPositions.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            {cars("empty")}
+          </Text>
+        ) : (
+          carPositions.map((car, index) => (
+            <Card key={car.id} withBorder padding="md" radius="md">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <div>
+                  <Text fw={600}>{cars("carLabel", { index: index + 1 })}</Text>
+                  <Text size="sm">
+                    {formatCarSummary(cars, car, baseCurrency, locale)}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {cars("purchaseMonth")}: {car.purchaseMonth ?? "--"}
+                  </Text>
+                </div>
+                <Group gap="sm">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setEditingCarId(car.id)}
+                  >
+                    {common("actionEdit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    color="red"
+                    variant="light"
+                    onClick={() => onCarPositionRemove(car.id)}
+                  >
+                    {cars("removeCar")}
+                  </Button>
+                </Group>
+              </Group>
+            </Card>
+          ))
+        )}
+      </Stack>
+
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <Text fw={600}>{investments("title")}</Text>
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() =>
+              onInvestmentPositionAdd(
+                createInvestmentPositionFromTemplate({ baseMonth })
+              )
+            }
+          >
+            {investments("addInvestment")}
+          </Button>
+        </Group>
+        {investmentPositions.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            {investments("empty")}
+          </Text>
+        ) : (
+          investmentPositions.map((investment, index) => (
+            <Card key={investment.id} withBorder padding="md" radius="md">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <div>
+                  <Text fw={600}>
+                    {investments("investmentLabel", { index: index + 1 })}
+                  </Text>
+                  <Text size="sm">
+                    {formatInvestmentSummary(
+                      investments,
+                      investment,
+                      baseCurrency,
+                      locale
+                    )}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {investments("startMonth")}: {investment.startMonth ?? "--"}
+                  </Text>
+                </div>
+                <Group gap="sm">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setEditingInvestmentId(investment.id)}
+                  >
+                    {common("actionEdit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    color="red"
+                    variant="light"
+                    onClick={() => onInvestmentPositionRemove(investment.id)}
+                  >
+                    {investments("removeInvestment")}
+                  </Button>
+                </Group>
+              </Group>
+            </Card>
+          ))
+        )}
+      </Stack>
+
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <Text fw={600}>{loans("title")}</Text>
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() =>
+              onLoanPositionAdd(createLoanPositionFromTemplate({ baseMonth }))
+            }
+          >
+            {loans("addLoan")}
+          </Button>
+        </Group>
+        {loanPositions.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            {loans("empty")}
+          </Text>
+        ) : (
+          loanPositions.map((loan, index) => (
+            <Card key={loan.id} withBorder padding="md" radius="md">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <div>
+                  <Text fw={600}>{loans("loanLabel", { index: index + 1 })}</Text>
+                  <Text size="sm">
+                    {formatLoanSummary(loans, loan, baseCurrency, locale)}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {loans("startMonth")}: {loan.startMonth ?? "--"}
+                  </Text>
+                </div>
+                <Group gap="sm">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setEditingLoanId(loan.id)}
+                  >
+                    {common("actionEdit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    color="red"
+                    variant="light"
+                    onClick={() => onLoanPositionRemove(loan.id)}
+                  >
+                    {loans("removeLoan")}
                   </Button>
                 </Group>
               </Group>
@@ -647,6 +864,63 @@ export default function TimelineDesktop({
             onSave={(updated) => {
               onHomePositionUpdate(updated);
               setEditingHomeId(null);
+            }}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        opened={Boolean(editingCar)}
+        onClose={() => setEditingCarId(null)}
+        position="right"
+        size="md"
+        title={cars("title")}
+      >
+        {editingCar && (
+          <CarDetailsForm
+            car={editingCar}
+            onCancel={() => setEditingCarId(null)}
+            onSave={(updated) => {
+              onCarPositionUpdate(updated);
+              setEditingCarId(null);
+            }}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        opened={Boolean(editingInvestment)}
+        onClose={() => setEditingInvestmentId(null)}
+        position="right"
+        size="md"
+        title={investments("title")}
+      >
+        {editingInvestment && (
+          <InvestmentDetailsForm
+            investment={editingInvestment}
+            onCancel={() => setEditingInvestmentId(null)}
+            onSave={(updated) => {
+              onInvestmentPositionUpdate(updated);
+              setEditingInvestmentId(null);
+            }}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        opened={Boolean(editingLoan)}
+        onClose={() => setEditingLoanId(null)}
+        position="right"
+        size="md"
+        title={loans("title")}
+      >
+        {editingLoan && (
+          <LoanDetailsForm
+            loan={editingLoan}
+            onCancel={() => setEditingLoanId(null)}
+            onSave={(updated) => {
+              onLoanPositionUpdate(updated);
+              setEditingLoanId(null);
             }}
           />
         )}
