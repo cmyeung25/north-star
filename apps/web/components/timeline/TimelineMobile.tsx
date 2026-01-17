@@ -14,8 +14,9 @@ import {
   Tabs,
   Text,
   Title,
+  UnstyledButton,
 } from "@mantine/core";
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { type EventGroup } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
@@ -30,7 +31,6 @@ import type {
   ScenarioEventRef,
   ScenarioEventView,
 } from "./types";
-import type { BudgetRuleMonthlyEntry } from "../../src/domain/budget/compileBudgetRules";
 import {
   buildEventTreeRows,
   createCarPositionFromTemplate,
@@ -77,7 +77,6 @@ interface TimelineMobileProps {
   investmentPositions: InvestmentPositionDraft[];
   loanPositions: LoanPositionDraft[];
   members: ScenarioMember[];
-  budgetLedger: BudgetRuleMonthlyEntry[];
   baseCurrency: string;
   baseMonth?: string | null;
   assumptions: { baseMonth: string | null; horizonMonths: number };
@@ -110,7 +109,6 @@ export default function TimelineMobile({
   investmentPositions,
   loanPositions,
   members,
-  budgetLedger,
   baseCurrency,
   baseMonth,
   assumptions,
@@ -139,7 +137,6 @@ export default function TimelineMobile({
   const cars = useTranslations("cars");
   const investments = useTranslations("investments");
   const loans = useTranslations("loans");
-  const budgetText = useTranslations("budgetRules");
   const locale = useLocale();
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -147,6 +144,8 @@ export default function TimelineMobile({
   const [activeTab, setActiveTab] = useState<"events" | "positions" | "overview">(
     "events"
   );
+  const [pendingScrollMonth, setPendingScrollMonth] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
@@ -156,20 +155,80 @@ export default function TimelineMobile({
   );
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
-  const eventListRef = useRef<HTMLDivElement | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    type: "event" | "home" | "car" | "investment" | "loan";
+    id: string;
+    label: string;
+  } | null>(null);
 
   const eventRows = useMemo(
     () => buildEventTreeRows(eventViews, activeGroup, collapsedGroups),
     [activeGroup, collapsedGroups, eventViews]
   );
   const hasEvents = eventViews.length > 0;
-  const budgetTotals = useMemo(() => {
-    const totals = new Map<string, number>();
-    budgetLedger.forEach((entry) => {
-      totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amount);
+  const monthGroups = useMemo(() => {
+    const groups: Array<{
+      month: string;
+      label: string;
+      rows: typeof eventRows;
+    }> = [];
+    const map = new Map<string, typeof eventRows>();
+    eventRows.forEach((row) => {
+      const month = row.view.rule.startMonth ?? "unscheduled";
+      const existing = map.get(month);
+      if (existing) {
+        existing.push(row);
+        return;
+      }
+      const rows: typeof eventRows = [row];
+      map.set(month, rows);
+      groups.push({
+        month,
+        label: month === "unscheduled" ? t("monthUnscheduled") : month,
+        rows,
+      });
     });
-    return Array.from(totals.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [budgetLedger]);
+    return groups;
+  }, [eventRows, t]);
+
+  const milestoneRows = useMemo(() => {
+    const normalizeMonths = (values: Array<string | null | undefined>) =>
+      Array.from(new Set(values.filter(Boolean) as string[])).sort();
+    const homeMonths = normalizeMonths(
+      homePositions.map((home) =>
+        (home.mode ?? "new_purchase") === "existing"
+          ? home.existing?.asOfMonth
+          : home.purchaseMonth
+      )
+    );
+    const carMonths = normalizeMonths(carPositions.map((car) => car.purchaseMonth));
+    const childMonths = normalizeMonths(
+      eventViews
+        .filter(
+          (view) => view.definition.kind === "cashflow" && view.definition.type === "baby"
+        )
+        .map((view) => view.rule.startMonth)
+    );
+    const retirementCandidates = normalizeMonths(
+      eventViews
+        .filter(
+          (view) =>
+            view.definition.kind === "cashflow" && view.definition.type === "salary"
+        )
+        .map((view) => view.rule.endMonth)
+    );
+    const retirementMonth = retirementCandidates[0];
+
+    return [
+      { label: t("overviewHome"), months: homeMonths },
+      { label: t("overviewCar"), months: carMonths },
+      { label: t("overviewChild"), months: childMonths },
+      {
+        label: t("overviewRetirement"),
+        months: retirementMonth ? [retirementMonth] : [],
+      },
+    ].filter((row) => row.months.length > 0);
+  }, [carPositions, eventViews, homePositions, t]);
 
   const parentGroupOptions = useMemo(
     () =>
@@ -194,8 +253,8 @@ export default function TimelineMobile({
     onAddDefinition(copy, [scenarioId]);
   };
 
-  const handleDelete = (eventId: string) => {
-    onRemoveEventRef(eventId);
+  const handleDelete = (eventId: string, name: string) => {
+    setConfirmDelete({ type: "event", id: eventId, label: name });
   };
 
   const handleEditOpen = (view: ScenarioEventView) => {
@@ -207,12 +266,8 @@ export default function TimelineMobile({
       return;
     }
     setActiveTab("events");
-    requestAnimationFrame(() => {
-      const target = eventListRef.current?.querySelector<HTMLElement>(
-        `[data-start-month="${startMonth}"]`
-      );
-      target?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    setSelectedMonth(startMonth);
+    setPendingScrollMonth(startMonth);
   };
 
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
@@ -223,6 +278,17 @@ export default function TimelineMobile({
     investmentPositions.find((investment) => investment.id === editingInvestmentId) ??
     null;
   const editingLoan = loanPositions.find((loan) => loan.id === editingLoanId) ?? null;
+
+  useEffect(() => {
+    if (!pendingScrollMonth) {
+      return;
+    }
+    const target = document.getElementById(`month-${pendingScrollMonth}`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPendingScrollMonth(null);
+    }
+  }, [monthGroups, pendingScrollMonth]);
 
   return (
     <Stack gap="lg" pb={120}>
@@ -257,150 +323,185 @@ export default function TimelineMobile({
         </Tabs.List>
 
         <Tabs.Panel value="events" pt="md">
-          <Stack gap="md" ref={eventListRef}>
+          <Stack gap="md">
             <SegmentedControl
               data={getEventFilterOptions(t)}
               value={activeGroup}
               onChange={(value) => setActiveGroup(value as "all" | EventGroup)}
             />
 
-            {eventRows.length === 0 ? (
+            {monthGroups.length === 0 ? (
               <Text c="dimmed" size="sm">
                 {hasEvents ? t("emptyGroup") : t("emptyAll")}
               </Text>
             ) : (
               <Stack gap="md">
-                {eventRows.map(({ view, depth, hasChildren }) => {
-                  const rule = view.rule;
-                  const isGroup = view.definition.kind === "group";
-                  const eventCurrency = view.definition.currency ?? baseCurrency;
-                  const monthlyAmount = rule.monthlyAmount ?? 0;
-                  const oneTimeAmount = rule.oneTimeAmount ?? 0;
-                  const collapsed = collapsedGroups[view.definition.id] ?? false;
-
+                {monthGroups.map(({ month, label, rows }) => {
+                  const monthKey = month === "unscheduled" ? "unscheduled" : month;
                   return (
-                    <Card
-                      key={view.definition.id}
-                      withBorder
-                      shadow="sm"
-                      radius="md"
-                      padding="md"
-                      data-start-month={rule.startMonth ?? undefined}
-                    >
-                      <Stack gap="sm">
-                        <Group justify="space-between" align="flex-start">
-                          <Group gap="sm">
-                            <Text size="xl">
-                              {isGroup ? "📁" : iconMap[view.definition.type]}
-                            </Text>
-                            <div>
-                              <Badge variant="light" color="gray" size="sm">
-                                {isGroup
-                                  ? t("groupLabel")
-                                  : getEventGroupLabel(t, view.definition.type)}
-                              </Badge>
-                              <Text fw={600} style={{ paddingLeft: depth * 12 }}>
-                                {view.definition.title}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {isGroup
-                                  ? t("groupNode")
-                                  : getEventLabel(t, view.definition.type)}
-                              </Text>
-                              {rule.startMonth ? (
-                                <Text size="sm" c="dimmed">
-                                  {formatDateRange(
-                                    t,
-                                    rule.startMonth,
-                                    rule.endMonth ?? null
-                                  )}
-                                </Text>
-                              ) : (
-                                <Text size="sm" c="dimmed">
-                                  {t("tablePlaceholder")}
-                                </Text>
-                              )}
-                              {!isGroup && (
-                                <Text size="xs" c="dimmed">
-                                  {getEventImpactHint(t, view.definition.type)}
-                                </Text>
-                              )}
-                            </div>
-                          </Group>
-                          <Switch
-                            checked={view.ref.enabled}
-                            onChange={(eventChange) =>
-                              handleToggle(
-                                view.definition.id,
-                                eventChange.currentTarget.checked
-                              )
-                            }
-                            label={t("tableEnabled")}
-                          />
-                        </Group>
-
-                        <Group gap="xs">
-                          {!isGroup && monthlyAmount !== 0 && (
-                            <Badge variant="light" color="indigo">
-                              {t("monthlyLabel")}{" "}
-                              {formatCurrency(monthlyAmount, eventCurrency, locale)}
-                            </Badge>
-                          )}
-                          {!isGroup && oneTimeAmount !== 0 && (
-                            <Badge variant="light" color="grape">
-                              {t("oneTimeLabel")}{" "}
-                              {formatCurrency(oneTimeAmount, eventCurrency, locale)}
-                            </Badge>
-                          )}
-                          {(isGroup || (monthlyAmount === 0 && oneTimeAmount === 0)) && (
-                            <Badge variant="outline">{t("noAmounts")}</Badge>
-                          )}
-                        </Group>
-
+                    <Fragment key={monthKey}>
+                      <UnstyledButton
+                        id={`month-${monthKey}`}
+                        data-month={monthKey}
+                        onClick={() => {
+                          if (month !== "unscheduled") {
+                            setSelectedMonth(month);
+                          }
+                        }}
+                      >
                         <Group justify="space-between">
-                          <Group gap="xs" wrap="nowrap">
-                            {isGroup && hasChildren && (
-                              <ActionIcon
-                                variant="subtle"
-                                onClick={() =>
-                                  setCollapsedGroups((current) => ({
-                                    ...current,
-                                    [view.definition.id]: !collapsed,
-                                  }))
-                                }
-                                aria-label={
-                                  collapsed ? t("expandGroup") : t("collapseGroup")
-                                }
-                              >
-                                {collapsed ? "▸" : "▾"}
-                              </ActionIcon>
-                            )}
-                            <Button size="xs" onClick={() => handleEditOpen(view)}>
-                              {common("actionEdit")}
-                            </Button>
-                          </Group>
-                          <Group gap="xs">
-                            <ActionIcon
-                              variant="subtle"
-                              aria-label={t("duplicateAria", {
-                                name: view.definition.title,
-                              })}
-                              onClick={() => handleDuplicate(view)}
-                            >
-                              ⧉
-                            </ActionIcon>
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              aria-label={t("deleteAria", { name: view.definition.title })}
-                              onClick={() => handleDelete(view.definition.id)}
-                            >
-                              🗑️
-                            </ActionIcon>
-                          </Group>
+                          <Text fw={600}>{label}</Text>
+                          {selectedMonth === month ? (
+                            <Badge variant="light">{t("monthSelected")}</Badge>
+                          ) : null}
                         </Group>
-                      </Stack>
-                    </Card>
+                      </UnstyledButton>
+                      {rows.map(({ view, depth, hasChildren }) => {
+                        const rule = view.rule;
+                        const isGroup = view.definition.kind === "group";
+                        const eventCurrency = view.definition.currency ?? baseCurrency;
+                        const monthlyAmount = rule.monthlyAmount ?? 0;
+                        const oneTimeAmount = rule.oneTimeAmount ?? 0;
+                        const collapsed = collapsedGroups[view.definition.id] ?? false;
+
+                        return (
+                          <Card
+                            key={view.definition.id}
+                            withBorder
+                            shadow="sm"
+                            radius="md"
+                            padding="md"
+                          >
+                            <Stack gap="sm">
+                              <Group justify="space-between" align="flex-start">
+                                <Group gap="sm">
+                                  <Text size="xl">
+                                    {isGroup ? "📁" : iconMap[view.definition.type]}
+                                  </Text>
+                                  <div>
+                                    <Badge variant="light" color="gray" size="sm">
+                                      {isGroup
+                                        ? t("groupLabel")
+                                        : getEventGroupLabel(t, view.definition.type)}
+                                    </Badge>
+                                    <Text fw={600} style={{ paddingLeft: depth * 12 }}>
+                                      {view.definition.title}
+                                    </Text>
+                                    <Text size="xs" c="dimmed">
+                                      {isGroup
+                                        ? t("groupNode")
+                                        : getEventLabel(t, view.definition.type)}
+                                    </Text>
+                                    {rule.startMonth ? (
+                                      <Text size="sm" c="dimmed">
+                                        {formatDateRange(
+                                          t,
+                                          rule.startMonth,
+                                          rule.endMonth ?? null
+                                        )}
+                                      </Text>
+                                    ) : (
+                                      <Text size="sm" c="dimmed">
+                                        {t("tablePlaceholder")}
+                                      </Text>
+                                    )}
+                                    {!isGroup && (
+                                      <Text size="xs" c="dimmed">
+                                        {getEventImpactHint(t, view.definition.type)}
+                                      </Text>
+                                    )}
+                                  </div>
+                                </Group>
+                                <Switch
+                                  checked={view.ref.enabled}
+                                  onChange={(eventChange) =>
+                                    handleToggle(
+                                      view.definition.id,
+                                      eventChange.currentTarget.checked
+                                    )
+                                  }
+                                  label={t("tableEnabled")}
+                                />
+                              </Group>
+
+                              <Group gap="xs">
+                                {!isGroup && monthlyAmount !== 0 && (
+                                  <Badge variant="light" color="indigo">
+                                    {t("monthlyLabel")}{" "}
+                                    {formatCurrency(
+                                      monthlyAmount,
+                                      eventCurrency,
+                                      locale
+                                    )}
+                                  </Badge>
+                                )}
+                                {!isGroup && oneTimeAmount !== 0 && (
+                                  <Badge variant="light" color="grape">
+                                    {t("oneTimeLabel")}{" "}
+                                    {formatCurrency(
+                                      oneTimeAmount,
+                                      eventCurrency,
+                                      locale
+                                    )}
+                                  </Badge>
+                                )}
+                                {(isGroup ||
+                                  (monthlyAmount === 0 && oneTimeAmount === 0)) && (
+                                  <Badge variant="outline">{t("noAmounts")}</Badge>
+                                )}
+                              </Group>
+
+                              <Group justify="space-between">
+                                <Group gap="xs" wrap="nowrap">
+                                  {isGroup && hasChildren && (
+                                    <ActionIcon
+                                      variant="subtle"
+                                      onClick={() =>
+                                        setCollapsedGroups((current) => ({
+                                          ...current,
+                                          [view.definition.id]: !collapsed,
+                                        }))
+                                      }
+                                      aria-label={
+                                        collapsed ? t("expandGroup") : t("collapseGroup")
+                                      }
+                                    >
+                                      {collapsed ? "▸" : "▾"}
+                                    </ActionIcon>
+                                  )}
+                                  <Button size="xs" onClick={() => handleEditOpen(view)}>
+                                    {common("actionEdit")}
+                                  </Button>
+                                </Group>
+                                <Group gap="xs">
+                                  <ActionIcon
+                                    variant="subtle"
+                                    aria-label={t("duplicateAria", {
+                                      name: view.definition.title,
+                                    })}
+                                    onClick={() => handleDuplicate(view)}
+                                  >
+                                    ⧉
+                                  </ActionIcon>
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="red"
+                                    aria-label={t("deleteAria", {
+                                      name: view.definition.title,
+                                    })}
+                                    onClick={() =>
+                                      handleDelete(view.definition.id, view.definition.title)
+                                    }
+                                  >
+                                    🗑️
+                                  </ActionIcon>
+                                </Group>
+                              </Group>
+                            </Stack>
+                          </Card>
+                        );
+                      })}
+                    </Fragment>
                   );
                 })}
               </Stack>
@@ -468,7 +569,13 @@ export default function TimelineMobile({
                           size="xs"
                           color="red"
                           variant="light"
-                          onClick={() => onHomePositionRemove(home.id)}
+                          onClick={() =>
+                            setConfirmDelete({
+                              type: "home",
+                              id: home.id,
+                              label: homes("homeLabel", { index: index + 1 }),
+                            })
+                          }
                         >
                           {homes("removeHome")}
                         </Button>
@@ -519,7 +626,13 @@ export default function TimelineMobile({
                           size="xs"
                           color="red"
                           variant="light"
-                          onClick={() => onCarPositionRemove(car.id)}
+                          onClick={() =>
+                            setConfirmDelete({
+                              type: "car",
+                              id: car.id,
+                              label: cars("carLabel", { index: index + 1 }),
+                            })
+                          }
                         >
                           {cars("removeCar")}
                         </Button>
@@ -587,7 +700,13 @@ export default function TimelineMobile({
                           size="xs"
                           color="red"
                           variant="light"
-                          onClick={() => onInvestmentPositionRemove(investment.id)}
+                          onClick={() =>
+                            setConfirmDelete({
+                              type: "investment",
+                              id: investment.id,
+                              label: investments("investmentLabel", { index: index + 1 }),
+                            })
+                          }
                         >
                           {investments("removeInvestment")}
                         </Button>
@@ -640,7 +759,13 @@ export default function TimelineMobile({
                           size="xs"
                           color="red"
                           variant="light"
-                          onClick={() => onLoanPositionRemove(loan.id)}
+                          onClick={() =>
+                            setConfirmDelete({
+                              type: "loan",
+                              id: loan.id,
+                              label: loans("loanLabel", { index: index + 1 }),
+                            })
+                          }
                         >
                           {loans("removeLoan")}
                         </Button>
@@ -655,90 +780,25 @@ export default function TimelineMobile({
 
         <Tabs.Panel value="overview" pt="md">
           <Stack gap="md">
-            {eventRows.length === 0 ? (
+            {milestoneRows.length === 0 ? (
               <Text c="dimmed" size="sm">
-                {hasEvents ? t("emptyGroup") : t("emptyAll")}
+                {t("overviewEmpty")}
               </Text>
             ) : (
               <Stack gap="md">
-                {eventRows.map(({ view, depth }) => {
-                  const rule = view.rule;
-                  const isGroup = view.definition.kind === "group";
-                  const eventCurrency = view.definition.currency ?? baseCurrency;
-                  const monthlyAmount = rule.monthlyAmount ?? 0;
-                  const oneTimeAmount = rule.oneTimeAmount ?? 0;
-
-                  return (
-                    <Card key={`overview-${view.definition.id}`} withBorder radius="md">
-                      <Stack gap="xs">
-                        <Group gap="sm">
-                          <Text size="lg">
-                            {isGroup ? "📁" : iconMap[view.definition.type]}
-                          </Text>
-                          <div>
-                            <Badge variant="light" color="gray" size="sm">
-                              {isGroup
-                                ? t("groupLabel")
-                                : getEventGroupLabel(t, view.definition.type)}
-                            </Badge>
-                            <Text fw={600} style={{ paddingLeft: depth * 12 }}>
-                              {view.definition.title}
-                            </Text>
-                          </div>
-                        </Group>
-                        <Text size="sm" c="dimmed">
-                          {rule.startMonth ?? t("tablePlaceholder")} ·{" "}
-                          {rule.endMonth ?? t("tablePlaceholder")}
-                        </Text>
-                        <Group gap="xs">
-                          {isGroup || monthlyAmount === 0 ? null : (
-                            <Badge variant="light" color="indigo">
-                              {t("monthlyLabel")}{" "}
-                              {formatCurrency(monthlyAmount, eventCurrency, locale)}
-                            </Badge>
-                          )}
-                          {isGroup || oneTimeAmount === 0 ? null : (
-                            <Badge variant="light" color="grape">
-                              {t("oneTimeLabel")}{" "}
-                              {formatCurrency(oneTimeAmount, eventCurrency, locale)}
-                            </Badge>
-                          )}
-                        </Group>
-                      </Stack>
-                    </Card>
-                  );
-                })}
+                <Card withBorder radius="md">
+                  <Stack gap="sm">
+                    <Text fw={600}>{t("overviewTitle")}</Text>
+                    {milestoneRows.map((row) => (
+                      <Group key={row.label} justify="space-between">
+                        <Text>{row.label}</Text>
+                        <Text c="dimmed">{row.months.join(", ")}</Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Card>
               </Stack>
             )}
-
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Text fw={600}>{budgetText("timelineTitle")}</Text>
-                <Text size="sm" c="dimmed">
-                  {budgetText("timelineSubtitle")}
-                </Text>
-                {budgetTotals.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    {budgetText("timelineEmpty")}
-                  </Text>
-                ) : (
-                  <Stack gap={2}>
-                    {budgetTotals.slice(0, 12).map(([month, amount]) => (
-                      <Text key={month} size="sm">
-                        {month} · {formatCurrency(amount, baseCurrency, locale)}
-                      </Text>
-                    ))}
-                    {budgetTotals.length > 12 && (
-                      <Text size="xs" c="dimmed">
-                        {budgetText("previewMore", {
-                          count: budgetTotals.length - 12,
-                        })}
-                      </Text>
-                    )}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
           </Stack>
         </Tabs.Panel>
       </Tabs>
@@ -768,6 +828,7 @@ export default function TimelineMobile({
           label: scenario.name,
         }))}
         defaultScenarioId={scenarioId}
+        defaultMonth={selectedMonth ?? baseMonth ?? null}
         parentGroupOptions={parentGroupOptions}
         onAddDefinition={(definition, scenarioIds) => onAddDefinition(definition, scenarioIds)}
         onAddHomePosition={() => {
@@ -798,6 +859,46 @@ export default function TimelineMobile({
         onUpdateDefinition={onUpdateDefinition}
         onUpdateEventRef={onUpdateEventRef}
       />
+
+      <Modal
+        opened={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        title={common("actionDelete")}
+        centered
+      >
+        <Stack gap="md">
+          <Text>
+            {common("confirmDelete", { name: confirmDelete?.label ?? "" })}
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={() => setConfirmDelete(null)}>
+              {common("actionCancel")}
+            </Button>
+            <Button
+              color="red"
+              onClick={() => {
+                if (!confirmDelete) {
+                  return;
+                }
+                if (confirmDelete.type === "event") {
+                  onRemoveEventRef(confirmDelete.id);
+                } else if (confirmDelete.type === "home") {
+                  onHomePositionRemove(confirmDelete.id);
+                } else if (confirmDelete.type === "car") {
+                  onCarPositionRemove(confirmDelete.id);
+                } else if (confirmDelete.type === "investment") {
+                  onInvestmentPositionRemove(confirmDelete.id);
+                } else if (confirmDelete.type === "loan") {
+                  onLoanPositionRemove(confirmDelete.id);
+                }
+                setConfirmDelete(null);
+              }}
+            >
+              {common("actionDelete")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={Boolean(editingHome)}
