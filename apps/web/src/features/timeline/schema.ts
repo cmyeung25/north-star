@@ -8,7 +8,7 @@ const eventTypeValues = eventTypes as [EventType, ...EventType[]];
 
 export const EventTypeSchema = z.enum(eventTypeValues);
 
-const monthPattern = /^\d{4}-\d{2}$/;
+const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export const TimelineEventSchema = z.object({
   id: z.string(),

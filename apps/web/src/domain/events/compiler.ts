@@ -2,6 +2,7 @@ import type { Scenario } from "../../store/scenarioStore";
 import type { EventDefinition, ScenarioEventRef } from "./types";
 import { buildScenarioEventViews, resolveEventRule } from "./utils";
 import { buildMonthRange, monthIndex } from "@north-star/engine";
+import { isValidMonthStr } from "../../utils/month";
 
 export type MonthlyCashflowPoint = {
   month: string;
@@ -57,7 +58,7 @@ export const compileEventToMonthlyCashflowSeries = ({
   const baseMonth = assumptions.baseMonth ?? effectiveRule.startMonth ?? null;
   const horizonMonths = assumptions.horizonMonths ?? 0;
 
-  if (!baseMonth || horizonMonths <= 0) {
+  if (!baseMonth || !isValidMonthStr(baseMonth) || horizonMonths <= 0) {
     return [];
   }
 
@@ -73,7 +74,11 @@ export const compileEventToMonthlyCashflowSeries = ({
     }));
   }
 
-  if (!effectiveRule.startMonth) {
+  if (!effectiveRule.startMonth || !isValidMonthStr(effectiveRule.startMonth)) {
+    return [];
+  }
+
+  if (effectiveRule.endMonth && !isValidMonthStr(effectiveRule.endMonth)) {
     return [];
   }
 
