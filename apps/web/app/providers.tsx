@@ -119,11 +119,20 @@ export default function Providers({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (scenarios.length === 0) {
+      if (normalizedPathname !== "/scenarios") {
+        router.replace(`/${locale}/onboarding`);
+      }
+      return;
+    }
+
     if (scenarios.length > 0 && !scenarios.some((scenario) => scenario.id === activeScenarioId)) {
       const fallbackId = scenarios[0]?.id;
       if (fallbackId) {
         setActiveScenario(fallbackId);
-        router.replace(`/${locale}/overview`);
+        if (normalizedPathname !== "/scenarios") {
+          router.replace(`/${locale}/overview`);
+        }
       }
       return;
     }

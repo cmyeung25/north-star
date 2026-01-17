@@ -419,15 +419,12 @@ describe("selectHasExistingProfile", () => {
 });
 
 describe("resetScenarioStore", () => {
-  it("restores initial scenarios and updates timestamps", () => {
-    const before = Date.now();
-
+  it("clears scenarios and active selection", () => {
     resetScenarioStore();
 
     const state = useScenarioStore.getState();
-    expect(state.scenarios.length > 0).toBe(true);
-    expect(state.activeScenarioId).toBe(state.scenarios[0]?.id ?? "");
-    expect((state.scenarios[0]?.updatedAt ?? 0) >= before).toBe(true);
+    expect(state.scenarios).toHaveLength(0);
+    expect(state.activeScenarioId).toBe("");
   });
 });
 

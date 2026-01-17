@@ -24,10 +24,12 @@ import CashBalanceChart from "../../../features/overview/components/CashBalanceC
 import InsightsCard from "../../../features/overview/components/InsightsCard";
 import KpiCard from "../../../features/overview/components/KpiCard";
 import KpiCarousel from "../../../features/overview/components/KpiCarousel";
+import NetCashflowChart from "../../../features/overview/components/NetCashflowChart";
 import NetWorthChart from "../../../features/overview/components/NetWorthChart";
 import OverviewActionsCard from "../../../features/overview/components/OverviewActionsCard";
 import RentVsOwnCard from "../../../features/overview/components/RentVsOwnCard";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
+import SnapshotsCard from "../../../features/overview/components/SnapshotsCard";
 import type { RiskLevel } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import {
@@ -49,9 +51,11 @@ import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
+  type ProjectionSnapshot,
 } from "../../../src/store/scenarioStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
+import { nanoid } from "nanoid";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -107,6 +111,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const addSnapshot = useScenarioStore((state) => state.addSnapshot);
+  const removeSnapshot = useScenarioStore((state) => state.removeSnapshot);
   const scenarioIdFromQuery = scenarioId ?? null;
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
@@ -143,6 +149,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const cashSeries = overviewViewModel?.cashSeries ?? [];
   const netWorthSeries = overviewViewModel?.netWorthSeries ?? [];
+  const netWorthByMonth = useMemo(
+    () =>
+      netWorthSeries.reduce<Record<string, number>>((acc, entry) => {
+        acc[entry.month] = entry.value;
+        return acc;
+      }, {}),
+    [netWorthSeries]
+  );
   const computedKpis = overviewViewModel?.kpis;
   const rentVsOwn = useRentVsOwnComparison(selectedScenario, eventLibrary);
   const memberLookup = useMemo(
@@ -160,6 +174,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     return sumByMonth(ledger);
   }, [selectedScenario]);
   const budgetTotalsPreview = budgetTotals.slice(0, 12);
+  const netCashflowSeries = useMemo(
+    () =>
+      months.map((month) => ({
+        month,
+        value: projectionNetCashflowByMonth?.[month] ?? 0,
+      })),
+    [months, projectionNetCashflowByMonth]
+  );
+  const snapshots = selectedScenario?.snapshots ?? [];
 
   const insights = useMemo(() => {
     if (!computedKpis) {
@@ -262,6 +285,130 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     );
   };
 
+  const createSnapshotForProjection = (
+    projectionData: NonNullable<typeof projection>,
+    monthIndex: number,
+    label: string
+  ): ProjectionSnapshot | null => {
+    if (monthIndex < 0 || monthIndex >= projectionData.months.length) {
+      return null;
+    }
+
+    return {
+      id: `snapshot-${nanoid(8)}`,
+      label,
+      monthIndex,
+      cash: projectionData.cashBalance[monthIndex] ?? 0,
+      assets: projectionData.assets.total[monthIndex] ?? 0,
+      liabilities: projectionData.liabilities.total[monthIndex] ?? 0,
+      netWorth: projectionData.netWorth[monthIndex] ?? 0,
+    };
+  };
+
+  const presetSnapshots = [
+    { label: t("snapshotsPresetLabel", { years: 5 }), monthIndex: 60 },
+    { label: t("snapshotsPresetLabel", { years: 10 }), monthIndex: 120 },
+    { label: t("snapshotsPresetLabel", { years: 15 }), monthIndex: 180 },
+    { label: t("snapshotsPresetLabel", { years: 20 }), monthIndex: 240 },
+    { label: t("snapshotsPresetLabel", { years: 30 }), monthIndex: 360 },
+  ].map((preset) => ({
+    ...preset,
+    disabled:
+      !projection ||
+      preset.monthIndex >= months.length ||
+      snapshots.some((snapshot) => snapshot.monthIndex === preset.monthIndex),
+  }));
+
+  const handleAddSnapshot = (preset: { label: string; monthIndex: number }) => {
+    if (!projection || !selectedScenario) {
+      return;
+    }
+    const snapshot = createSnapshotForProjection(
+      projection,
+      preset.monthIndex,
+      preset.label
+    );
+    if (!snapshot) {
+      return;
+    }
+    addSnapshot(selectedScenario.id, snapshot);
+  };
+
+  const handleDeleteSnapshot = (snapshotId: string) => {
+    if (!selectedScenario) {
+      return;
+    }
+    removeSnapshot(selectedScenario.id, snapshotId);
+  };
+
+  const sanitizeFilenamePart = (value: string) =>
+    value
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9_-]/g, "");
+
+  const buildSnapshotFilename = (ext: "csv" | "json") => {
+    const scenarioName = sanitizeFilenamePart(selectedScenario?.name || "scenario");
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    return `${scenarioName}_snapshots_${timestamp}.${ext}`;
+  };
+
+  const handleExportSnapshotsJson = () => {
+    if (!selectedScenario) {
+      return;
+    }
+    const payload = {
+      scenarioId: selectedScenario.id,
+      scenarioName: selectedScenario.name,
+      baseCurrency: selectedScenario.baseCurrency,
+      snapshots: snapshots.map((snapshot) => ({
+        ...snapshot,
+        month: months[snapshot.monthIndex] ?? null,
+      })),
+    };
+    downloadTextFile(
+      buildSnapshotFilename("json"),
+      "application/json;charset=utf-8",
+      JSON.stringify(payload, null, 2)
+    );
+  };
+
+  const csvEscape = (value: string) =>
+    /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+
+  const handleExportSnapshotsCsv = () => {
+    if (!selectedScenario) {
+      return;
+    }
+    const header = [
+      "label",
+      "month",
+      "monthIndex",
+      "cash",
+      "assets",
+      "liabilities",
+      "netWorth",
+    ];
+    const rows = snapshots.map((snapshot) =>
+      [
+        snapshot.label,
+        months[snapshot.monthIndex] ?? "",
+        snapshot.monthIndex,
+        snapshot.cash,
+        snapshot.assets,
+        snapshot.liabilities,
+        snapshot.netWorth,
+      ]
+        .map((value) => csvEscape(String(value)))
+        .join(",")
+    );
+    downloadTextFile(
+      buildSnapshotFilename("csv"),
+      "text/csv;charset=utf-8",
+      [header.join(","), ...rows].join("\n")
+    );
+  };
+
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap="sm">
@@ -326,19 +473,22 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       )}
 
       {isDesktop ? (
-        <SimpleGrid cols={2} spacing="md">
+        <SimpleGrid cols={3} spacing="md">
           <CashBalanceChart
             data={cashSeries}
             title={t("cashBalanceTitle")}
             onClick={projection ? () => setBreakdownOpen(true) : undefined}
           />
-          <Stack gap="xs">
-            <NetWorthChart
-              data={netWorthSeries}
-              title={t("netWorthTitle")}
-              onClick={projection ? () => setBreakdownOpen(true) : undefined}
-            />
-          </Stack>
+          <NetWorthChart
+            data={netWorthSeries}
+            title={t("netWorthTitle")}
+            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+          />
+          <NetCashflowChart
+            data={netCashflowSeries}
+            title={t("netCashflowTitle")}
+            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+          />
         </SimpleGrid>
       ) : (
         <Stack gap="md">
@@ -353,6 +503,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               <Accordion.Panel>
                 <NetWorthChart
                   data={netWorthSeries}
+                  onClick={projection ? () => setBreakdownOpen(true) : undefined}
+                />
+              </Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item value="net-cashflow">
+              <Accordion.Control>{t("netCashflowTitle")}</Accordion.Control>
+              <Accordion.Panel>
+                <NetCashflowChart
+                  data={netCashflowSeries}
                   onClick={projection ? () => setBreakdownOpen(true) : undefined}
                 />
               </Accordion.Panel>
@@ -445,6 +604,16 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           )}
         </Stack>
       </Card>
+      <SnapshotsCard
+        snapshots={snapshots}
+        months={months}
+        currency={selectedScenario.baseCurrency}
+        presets={presetSnapshots}
+        onAddSnapshot={handleAddSnapshot}
+        onDeleteSnapshot={handleDeleteSnapshot}
+        onExportCsv={handleExportSnapshotsCsv}
+        onExportJson={handleExportSnapshotsJson}
+      />
       <ProjectionDetailsModal
         opened={breakdownOpen}
         onClose={() => setBreakdownOpen(false)}
@@ -455,6 +624,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         summaryByMonth={summaryByMonth}
         projectionNetCashflowByMonth={projectionNetCashflowByMonth}
         projectionNetCashflowMode={projectionNetCashflowMode}
+        netWorthByMonth={netWorthByMonth}
         currency={selectedScenario.baseCurrency}
         memberLookup={memberLookup}
       />
