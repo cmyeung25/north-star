@@ -26,6 +26,7 @@ type ProjectionDetailsModalProps = {
   onMonthChange: (value: string) => void;
   ledgerByMonth: Record<string, CashflowItem[]>;
   summaryByMonth: Record<string, LedgerMonthSummary>;
+  positionCashflowsByMonth?: Record<string, CashflowItem[]>;
   projectionNetCashflowByMonth?: Record<string, number>;
   projectionNetCashflowMode?: "netCashflow" | "cashDelta";
   netWorthByMonth?: Record<string, number>;
@@ -89,6 +90,7 @@ export default function ProjectionDetailsModal({
   onMonthChange,
   ledgerByMonth,
   summaryByMonth,
+  positionCashflowsByMonth,
   projectionNetCashflowByMonth,
   projectionNetCashflowMode = "netCashflow",
   netWorthByMonth,
@@ -100,6 +102,9 @@ export default function ProjectionDetailsModal({
   const formatValue = (value: number) => formatCurrency(value, currency, locale);
   const resolvedMonth = currentMonth ?? months[0];
   const monthItems = resolvedMonth ? ledgerByMonth[resolvedMonth] ?? [] : [];
+  const positionItems = resolvedMonth
+    ? positionCashflowsByMonth?.[resolvedMonth] ?? []
+    : [];
   const monthSummary = resolvedMonth
     ? summaryByMonth[resolvedMonth] ?? buildEmptySummary()
     : buildEmptySummary();
@@ -107,14 +112,10 @@ export default function ProjectionDetailsModal({
   const projectionNetCashflow = resolvedMonth
     ? projectionNetCashflowByMonth?.[resolvedMonth]
     : undefined;
-  const projectionNetCashflowValue =
-    resolvedMonth && projectionNetCashflowByMonth
-      ? projectionNetCashflowByMonth[resolvedMonth]
-      : undefined;
-  const positionCashflow =
-    projectionNetCashflowValue !== undefined
-      ? projectionNetCashflowValue - monthSummary.total
-      : 0;
+  const positionCashflow = positionItems.reduce(
+    (total, item) => total + item.amount,
+    0
+  );
   const doubleCountingWarning = hasDoubleCountingWarning(monthItems);
   const sortedItems = [...monthItems].sort(
     (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
@@ -148,10 +149,11 @@ export default function ProjectionDetailsModal({
       key: "position",
       label: t("breakdownSectionPosition"),
       total: positionCashflow,
-      items: [],
+      items: positionItems,
+      hidden: positionItems.length === 0,
     },
   ];
-  const hasItems = monthItems.length > 0 || positionCashflow !== 0;
+  const hasItems = monthItems.length > 0 || positionItems.length > 0;
   const defaultAccordionValues = sections
     .filter((section) => !section.hidden && section.items.length > 0)
     .map((section) => section.key);
@@ -303,7 +305,9 @@ export default function ProjectionDetailsModal({
                             <Table.Tbody>
                               {section.items.map((item) => {
                                 const baseLabel =
-                                  item.label ?? item.category ?? item.sourceId;
+                                  item.source === "position"
+                                    ? t(`breakdownPositionLabels.${item.sourceId}`)
+                                    : item.label ?? item.category ?? item.sourceId;
                                 const memberName = item.memberId
                                   ? memberLookup?.[item.memberId]
                                   : null;

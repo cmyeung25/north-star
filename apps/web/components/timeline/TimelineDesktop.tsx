@@ -9,32 +9,24 @@ import {
   Group,
   Notification,
   SegmentedControl,
-  Select,
   Stack,
   Switch,
   Table,
+  Tabs,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
-import { useMemo, useState } from "react";
-import { getEventMeta, type EventField, type EventGroup } from "@north-star/engine";
+import { useMemo, useRef, useState } from "react";
+import { type EventGroup } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { defaultCurrency } from "../../lib/i18n";
-import {
-  buildDefinitionFromTimelineEvent,
-  buildTimelineEventFromDefinition,
-  resolveEventRule,
-} from "../../src/domain/events/utils";
 import type { BudgetRuleMonthlyEntry } from "../../src/domain/budget/compileBudgetRules";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
-import TimelineEventForm, { type TimelineEventFormResult } from "./TimelineEventForm";
-import InsuranceProductForm from "./InsuranceProductForm";
 import HomeDetailsForm from "./HomeDetailsForm";
 import CarDetailsForm from "./CarDetailsForm";
 import InvestmentDetailsForm from "./InvestmentDetailsForm";
 import LoanDetailsForm from "./LoanDetailsForm";
-import TimelineAddEventDrawer from "./TimelineAddEventDrawer";
+import TimelineEventDrawer from "./TimelineEventDrawer";
 import MergeDuplicatesModal from "./MergeDuplicatesModal";
 import type {
   EventDefinition,
@@ -143,11 +135,11 @@ export default function TimelineDesktop({
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
+  const [activeTab, setActiveTab] = useState<"events" | "positions" | "overview">(
+    "events"
+  );
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
-  const [editScope, setEditScope] = useState<"shared" | "scenario">("shared");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const [editingParentId, setEditingParentId] = useState<string | null>(null);
-  const [groupTitle, setGroupTitle] = useState("");
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
   const [editingCarId, setEditingCarId] = useState<string | null>(null);
   const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(
@@ -155,9 +147,7 @@ export default function TimelineDesktop({
   );
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
-  const scenarioRule = editingEvent
-    ? resolveEventRule(editingEvent.definition, editingEvent.ref)
-    : null;
+  const eventListRef = useRef<HTMLDivElement | null>(null);
 
   const eventRows = useMemo(
     () => buildEventTreeRows(eventViews, activeGroup, collapsedGroups),
@@ -183,60 +173,25 @@ export default function TimelineDesktop({
     [eventLibrary]
   );
 
-  const handleSaveShared = ({ event: updated, ruleMode, schedule }: TimelineEventFormResult) => {
-    if (!editingEvent) {
-      return;
-    }
-    const nextDefinition = buildDefinitionFromTimelineEvent(updated);
-    const nextRule = {
-      ...nextDefinition.rule,
-      mode: ruleMode,
-      schedule: ruleMode === "schedule" ? schedule : undefined,
-    };
-    onUpdateDefinition(editingEvent.definition.id, {
-      title: nextDefinition.title,
-      type: nextDefinition.type,
-      rule: nextRule,
-      currency: nextDefinition.currency,
-      memberId: nextDefinition.memberId,
-      templateId: nextDefinition.templateId,
-      templateParams: nextDefinition.templateParams,
-      parentId: editingParentId ?? undefined,
-    });
-    setEditingEvent(null);
-  };
-
-  const handleSaveOverride = ({
-    event: updated,
-    ruleMode,
-    schedule,
-  }: TimelineEventFormResult) => {
-    if (!editingEvent) {
-      return;
-    }
-    onUpdateEventRef(editingEvent.ref.refId, {
-      overrides: {
-        startMonth: updated.startMonth,
-        endMonth: updated.endMonth,
-        monthlyAmount: updated.monthlyAmount,
-        oneTimeAmount: updated.oneTimeAmount,
-        annualGrowthPct: updated.annualGrowthPct,
-        mode: ruleMode,
-        schedule: ruleMode === "schedule" ? schedule : undefined,
-      },
-    });
-    setEditingEvent(null);
-  };
-
   const handleToggle = (eventId: string, enabled: boolean) => {
     onUpdateEventRef(eventId, { enabled });
   };
 
   const handleEditOpen = (view: ScenarioEventView) => {
     setEditingEvent(view);
-    setEditScope("shared");
-    setEditingParentId(view.definition.parentId ?? null);
-    setGroupTitle(view.definition.title);
+  };
+
+  const handleCreateComplete = (startMonth?: string | null) => {
+    if (!startMonth) {
+      return;
+    }
+    setActiveTab("events");
+    requestAnimationFrame(() => {
+      const target = eventListRef.current?.querySelector<HTMLElement>(
+        `[data-start-month="${startMonth}"]`
+      );
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   };
 
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
@@ -262,417 +217,524 @@ export default function TimelineDesktop({
             </Text>
           )}
         </div>
-        <Group gap="sm">
-          <Button variant="light" onClick={() => setMergeOpen(true)}>
-            {t("mergeDuplicates")}
-          </Button>
-          <Button onClick={() => setAddEventOpen(true)}>{t("addEvent")}</Button>
-        </Group>
-      </Group>
-
-      <SegmentedControl
-        data={getEventFilterOptions(t)}
-        value={activeGroup}
-        onChange={(value) => setActiveGroup(value as "all" | EventGroup)}
-      />
-
-      {homeToastOpen && (
-        <Notification color="teal" onClose={() => setHomeToastOpen(false)}>
-          <Group justify="space-between" align="center" wrap="wrap">
-            <Text size="sm">
-              {t("homeToast")}
-            </Text>
-            <Button component={Link} href={overviewUrl} size="xs" variant="light">
-              {t("goToOverview")}
+        {activeTab === "events" && (
+          <Group gap="sm">
+            <Button variant="light" onClick={() => setMergeOpen(true)}>
+              {t("mergeDuplicates")}
+            </Button>
+            <Button
+              onClick={() => {
+                setActiveTab("events");
+                setAddEventOpen(true);
+              }}
+            >
+              {t("addEvent")}
             </Button>
           </Group>
-        </Notification>
-      )}
-
-      <Stack gap="sm">
-        <Group justify="space-between" align="center">
-          <Text fw={600}>{homes("title")}</Text>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() => {
-              onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
-              setHomeToastOpen(true);
-            }}
-          >
-            {homes("addHome")}
-          </Button>
-        </Group>
-        {homePositions.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            {homes("empty")}
-          </Text>
-        ) : (
-          homePositions.map((home, index) => (
-            <Card key={home.id} withBorder padding="md" radius="md">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <div>
-                  <Text fw={600}>
-                    {homes("homeLabel", { index: index + 1 })}
-                  </Text>
-                  <Text size="sm">
-                    {formatHomeSummary(homes, home, baseCurrency, locale)}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {(home.mode ?? "new_purchase") === "existing"
-                      ? `${homes("existingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
-                      : `${homes("purchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
-                  </Text>
-                </div>
-                <Group gap="sm">
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() => setEditingHomeId(home.id)}
-                  >
-                    {common("actionEdit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    color="red"
-                    variant="light"
-                    onClick={() => onHomePositionRemove(home.id)}
-                  >
-                    {homes("removeHome")}
-                  </Button>
-                </Group>
-              </Group>
-            </Card>
-          ))
         )}
-      </Stack>
+      </Group>
+      <Tabs
+        value={activeTab}
+        onChange={(value) => setActiveTab(value as "events" | "positions" | "overview")}
+        keepMounted={false}
+      >
+        <Tabs.List>
+          <Tabs.Tab value="events">{t("tabEvents")}</Tabs.Tab>
+          <Tabs.Tab value="positions">{t("tabPositions")}</Tabs.Tab>
+          <Tabs.Tab value="overview">{t("tabOverview")}</Tabs.Tab>
+        </Tabs.List>
 
-      <Stack gap="sm">
-        <Group justify="space-between" align="center">
-          <Text fw={600}>{cars("title")}</Text>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() =>
-              onCarPositionAdd(createCarPositionFromTemplate({ baseMonth }))
-            }
-          >
-            {cars("addCar")}
-          </Button>
-        </Group>
-        {carPositions.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            {cars("empty")}
-          </Text>
-        ) : (
-          carPositions.map((car, index) => (
-            <Card key={car.id} withBorder padding="md" radius="md">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <div>
-                  <Text fw={600}>{cars("carLabel", { index: index + 1 })}</Text>
-                  <Text size="sm">
-                    {formatCarSummary(cars, car, baseCurrency, locale)}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {cars("purchaseMonth")}: {car.purchaseMonth ?? "--"}
-                  </Text>
-                </div>
-                <Group gap="sm">
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() => setEditingCarId(car.id)}
-                  >
-                    {common("actionEdit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    color="red"
-                    variant="light"
-                    onClick={() => onCarPositionRemove(car.id)}
-                  >
-                    {cars("removeCar")}
-                  </Button>
-                </Group>
-              </Group>
-            </Card>
-          ))
-        )}
-      </Stack>
+        <Tabs.Panel value="events" pt="md">
+          <Stack gap="md">
+            <SegmentedControl
+              data={getEventFilterOptions(t)}
+              value={activeGroup}
+              onChange={(value) => setActiveGroup(value as "all" | EventGroup)}
+            />
 
-      <Stack gap="sm">
-        <Group justify="space-between" align="center">
-          <Text fw={600}>{investments("title")}</Text>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() =>
-              onInvestmentPositionAdd(
-                createInvestmentPositionFromTemplate({ baseMonth })
-              )
-            }
-          >
-            {investments("addInvestment")}
-          </Button>
-        </Group>
-        {investmentPositions.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            {investments("empty")}
-          </Text>
-        ) : (
-          investmentPositions.map((investment, index) => (
-            <Card key={investment.id} withBorder padding="md" radius="md">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <div>
-                  <Text fw={600}>
-                    {investments("investmentLabel", { index: index + 1 })}
-                  </Text>
-                  <Text size="sm">
-                    {formatInvestmentSummary(
-                      investments,
-                      investment,
-                      baseCurrency,
-                      locale
-                    )}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {investments("startMonth")}: {investment.startMonth ?? "--"}
-                  </Text>
-                </div>
-                <Group gap="sm">
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() => setEditingInvestmentId(investment.id)}
-                  >
-                    {common("actionEdit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    color="red"
-                    variant="light"
-                    onClick={() => onInvestmentPositionRemove(investment.id)}
-                  >
-                    {investments("removeInvestment")}
-                  </Button>
-                </Group>
-              </Group>
-            </Card>
-          ))
-        )}
-      </Stack>
+            <Stack gap="sm" ref={eventListRef}>
+              {eventRows.length === 0 ? (
+                <Text c="dimmed" size="sm">
+                  {hasEvents ? t("emptyGroup") : t("emptyAll")}
+                </Text>
+              ) : (
+                <Table striped highlightOnHover withColumnBorders>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>{t("tableEnabled")}</Table.Th>
+                      <Table.Th>{t("tableGroup")}</Table.Th>
+                      <Table.Th>{t("tableType")}</Table.Th>
+                      <Table.Th>{t("tableName")}</Table.Th>
+                      <Table.Th>{t("tableStart")}</Table.Th>
+                      <Table.Th>{t("tableEnd")}</Table.Th>
+                      <Table.Th>{t("tableImpact")}</Table.Th>
+                      <Table.Th>{t("tableMonthly")}</Table.Th>
+                      <Table.Th>{t("tableOneTime")}</Table.Th>
+                      <Table.Th>{t("tableGrowth")}</Table.Th>
+                      <Table.Th>{t("tableCurrency")}</Table.Th>
+                      <Table.Th>{t("tableActions")}</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {eventRows.map(({ view, depth, hasChildren }) => {
+                      const rule = view.rule;
+                      const isGroup = view.definition.kind === "group";
+                      const monthlyAmount = rule.monthlyAmount ?? 0;
+                      const oneTimeAmount = rule.oneTimeAmount ?? 0;
+                      const annualGrowthPct = rule.annualGrowthPct ?? 0;
+                      const eventCurrency = view.definition.currency ?? defaultCurrency;
+                      const hasOverrides =
+                        Boolean(view.ref.overrides) &&
+                        Object.keys(view.ref.overrides ?? {}).length > 0;
+                      const collapsed = collapsedGroups[view.definition.id] ?? false;
 
-      <Stack gap="sm">
-        <Group justify="space-between" align="center">
-          <Text fw={600}>{loans("title")}</Text>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() =>
-              onLoanPositionAdd(createLoanPositionFromTemplate({ baseMonth }))
-            }
-          >
-            {loans("addLoan")}
-          </Button>
-        </Group>
-        {loanPositions.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            {loans("empty")}
-          </Text>
-        ) : (
-          loanPositions.map((loan, index) => (
-            <Card key={loan.id} withBorder padding="md" radius="md">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <div>
-                  <Text fw={600}>{loans("loanLabel", { index: index + 1 })}</Text>
-                  <Text size="sm">
-                    {formatLoanSummary(loans, loan, baseCurrency, locale)}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {loans("startMonth")}: {loan.startMonth ?? "--"}
-                  </Text>
-                </div>
-                <Group gap="sm">
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() => setEditingLoanId(loan.id)}
-                  >
-                    {common("actionEdit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    color="red"
-                    variant="light"
-                    onClick={() => onLoanPositionRemove(loan.id)}
-                  >
-                    {loans("removeLoan")}
-                  </Button>
-                </Group>
-              </Group>
-            </Card>
-          ))
-        )}
-      </Stack>
-
-      {eventRows.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          {hasEvents ? t("emptyGroup") : t("emptyAll")}
-        </Text>
-      ) : (
-        <Table striped highlightOnHover withColumnBorders>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t("tableEnabled")}</Table.Th>
-              <Table.Th>{t("tableGroup")}</Table.Th>
-              <Table.Th>{t("tableType")}</Table.Th>
-              <Table.Th>{t("tableName")}</Table.Th>
-              <Table.Th>{t("tableStart")}</Table.Th>
-              <Table.Th>{t("tableEnd")}</Table.Th>
-              <Table.Th>{t("tableImpact")}</Table.Th>
-              <Table.Th>{t("tableMonthly")}</Table.Th>
-              <Table.Th>{t("tableOneTime")}</Table.Th>
-              <Table.Th>{t("tableGrowth")}</Table.Th>
-              <Table.Th>{t("tableCurrency")}</Table.Th>
-              <Table.Th>{t("tableActions")}</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {eventRows.map(({ view, depth, hasChildren }) => {
-              const rule = view.rule;
-              const isGroup = view.definition.kind === "group";
-              const monthlyAmount = rule.monthlyAmount ?? 0;
-              const oneTimeAmount = rule.oneTimeAmount ?? 0;
-              const annualGrowthPct = rule.annualGrowthPct ?? 0;
-              const eventCurrency = view.definition.currency ?? defaultCurrency;
-              const hasOverrides =
-                Boolean(view.ref.overrides) &&
-                Object.keys(view.ref.overrides ?? {}).length > 0;
-              const collapsed = collapsedGroups[view.definition.id] ?? false;
-
-              return (
-                <Table.Tr key={view.definition.id}>
-                  <Table.Td>
-                    <Switch
-                      checked={view.ref.enabled}
-                      onChange={(eventChange) =>
-                        handleToggle(
-                          view.definition.id,
-                          eventChange.currentTarget.checked
-                        )
-                      }
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="light" color="gray">
-                      {isGroup
-                        ? t("groupLabel")
-                        : getEventGroupLabel(t, view.definition.type)}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    {isGroup
-                      ? t("groupNode")
-                      : `${iconMap[view.definition.type]} ${getEventLabel(
-                          t,
-                          view.definition.type
-                        )}`}
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" style={{ paddingLeft: depth * 16 }}>
-                      <Text fw={isGroup ? 600 : undefined}>
-                        {view.definition.title}
-                      </Text>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>{rule.startMonth ?? t("tablePlaceholder")}</Table.Td>
-                  <Table.Td>{rule.endMonth ?? t("tablePlaceholder")}</Table.Td>
-                  <Table.Td>
-                    {isGroup
-                      ? t("tablePlaceholder")
-                      : getEventImpactHint(t, view.definition.type)}
-                  </Table.Td>
-                  <Table.Td>
-                    {isGroup || monthlyAmount === 0
-                      ? t("tablePlaceholder")
-                      : formatCurrency(monthlyAmount, eventCurrency, locale)}
-                  </Table.Td>
-                  <Table.Td>
-                    {isGroup || oneTimeAmount === 0
-                      ? t("tablePlaceholder")
-                      : formatCurrency(oneTimeAmount, eventCurrency, locale)}
-                  </Table.Td>
-                  <Table.Td>
-                    {!isGroup && annualGrowthPct > 0
-                      ? `${annualGrowthPct}%`
-                      : t("tablePlaceholder")}
-                  </Table.Td>
-                  <Table.Td>{isGroup ? t("tablePlaceholder") : eventCurrency}</Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      {isGroup && hasChildren && (
-                        <ActionIcon
-                          variant="subtle"
-                          onClick={() =>
-                            setCollapsedGroups((current) => ({
-                              ...current,
-                              [view.definition.id]: !collapsed,
-                            }))
-                          }
-                          aria-label={collapsed ? t("expandGroup") : t("collapseGroup")}
+                      return (
+                        <Table.Tr
+                          key={view.definition.id}
+                          data-start-month={rule.startMonth ?? undefined}
                         >
-                          {collapsed ? "▸" : "▾"}
-                        </ActionIcon>
-                      )}
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() => handleEditOpen(view)}
-                      >
-                        {common("actionEdit")}
-                      </Button>
-                      {hasOverrides && !isGroup && (
-                        <Badge variant="light" color="indigo">
-                          {t("overrideBadge")}
-                        </Badge>
-                      )}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
-      )}
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
-          <Text fw={600}>{budgetText("timelineTitle")}</Text>
-          <Text size="sm" c="dimmed">
-            {budgetText("timelineSubtitle")}
-          </Text>
-          {budgetTotals.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {budgetText("timelineEmpty")}
-            </Text>
-          ) : (
-            <Stack gap={2}>
-              {budgetTotals.slice(0, 12).map(([month, amount]) => (
-                <Text key={month} size="sm">
-                  {month} · {formatCurrency(amount, baseCurrency, locale)}
-                </Text>
-              ))}
-              {budgetTotals.length > 12 && (
-                <Text size="xs" c="dimmed">
-                  {budgetText("previewMore", { count: budgetTotals.length - 12 })}
-                </Text>
+                          <Table.Td>
+                            <Switch
+                              checked={view.ref.enabled}
+                              onChange={(eventChange) =>
+                                handleToggle(
+                                  view.definition.id,
+                                  eventChange.currentTarget.checked
+                                )
+                              }
+                            />
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge variant="light" color="gray">
+                              {isGroup
+                                ? t("groupLabel")
+                                : getEventGroupLabel(t, view.definition.type)}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            {isGroup
+                              ? t("groupNode")
+                              : `${iconMap[view.definition.type]} ${getEventLabel(
+                                  t,
+                                  view.definition.type
+                                )}`}
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap="xs" style={{ paddingLeft: depth * 16 }}>
+                              <Text fw={isGroup ? 600 : undefined}>
+                                {view.definition.title}
+                              </Text>
+                            </Group>
+                          </Table.Td>
+                          <Table.Td>
+                            {rule.startMonth ?? t("tablePlaceholder")}
+                          </Table.Td>
+                          <Table.Td>{rule.endMonth ?? t("tablePlaceholder")}</Table.Td>
+                          <Table.Td>
+                            {isGroup
+                              ? t("tablePlaceholder")
+                              : getEventImpactHint(t, view.definition.type)}
+                          </Table.Td>
+                          <Table.Td>
+                            {isGroup || monthlyAmount === 0
+                              ? t("tablePlaceholder")
+                              : formatCurrency(monthlyAmount, eventCurrency, locale)}
+                          </Table.Td>
+                          <Table.Td>
+                            {isGroup || oneTimeAmount === 0
+                              ? t("tablePlaceholder")
+                              : formatCurrency(oneTimeAmount, eventCurrency, locale)}
+                          </Table.Td>
+                          <Table.Td>
+                            {!isGroup && annualGrowthPct > 0
+                              ? `${annualGrowthPct}%`
+                              : t("tablePlaceholder")}
+                          </Table.Td>
+                          <Table.Td>
+                            {isGroup ? t("tablePlaceholder") : eventCurrency}
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap="xs" wrap="nowrap">
+                              {isGroup && hasChildren && (
+                                <ActionIcon
+                                  variant="subtle"
+                                  onClick={() =>
+                                    setCollapsedGroups((current) => ({
+                                      ...current,
+                                      [view.definition.id]: !collapsed,
+                                    }))
+                                  }
+                                  aria-label={
+                                    collapsed ? t("expandGroup") : t("collapseGroup")
+                                  }
+                                >
+                                  {collapsed ? "▸" : "▾"}
+                                </ActionIcon>
+                              )}
+                              <Button
+                                size="xs"
+                                variant="light"
+                                onClick={() => handleEditOpen(view)}
+                              >
+                                {common("actionEdit")}
+                              </Button>
+                              {hasOverrides && !isGroup && (
+                                <Badge variant="light" color="indigo">
+                                  {t("overrideBadge")}
+                                </Badge>
+                              )}
+                            </Group>
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
               )}
             </Stack>
-          )}
-        </Stack>
-      </Card>
+          </Stack>
+        </Tabs.Panel>
 
-      <TimelineAddEventDrawer
+        <Tabs.Panel value="positions" pt="md">
+          <Stack gap="md">
+            {homeToastOpen && (
+              <Notification color="teal" onClose={() => setHomeToastOpen(false)}>
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <Text size="sm">{t("homeToast")}</Text>
+                  <Button component={Link} href={overviewUrl} size="xs" variant="light">
+                    {t("goToOverview")}
+                  </Button>
+                </Group>
+              </Notification>
+            )}
+
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{homes("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => {
+                    onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
+                    setHomeToastOpen(true);
+                  }}
+                >
+                  {homes("addHome")}
+                </Button>
+              </Group>
+              {homePositions.length === 0 ? (
+                <Text c="dimmed" size="sm">
+                  {homes("empty")}
+                </Text>
+              ) : (
+                homePositions.map((home, index) => (
+                  <Card key={home.id} withBorder padding="md" radius="md">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <div>
+                        <Text fw={600}>
+                          {homes("homeLabel", { index: index + 1 })}
+                        </Text>
+                        <Text size="sm">
+                          {formatHomeSummary(homes, home, baseCurrency, locale)}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {(home.mode ?? "new_purchase") === "existing"
+                            ? `${homes("existingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
+                            : `${homes("purchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
+                        </Text>
+                      </div>
+                      <Group gap="sm">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setEditingHomeId(home.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          color="red"
+                          variant="light"
+                          onClick={() => onHomePositionRemove(home.id)}
+                        >
+                          {homes("removeHome")}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))
+              )}
+            </Stack>
+
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{cars("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    onCarPositionAdd(createCarPositionFromTemplate({ baseMonth }))
+                  }
+                >
+                  {cars("addCar")}
+                </Button>
+              </Group>
+              {carPositions.length === 0 ? (
+                <Text c="dimmed" size="sm">
+                  {cars("empty")}
+                </Text>
+              ) : (
+                carPositions.map((car, index) => (
+                  <Card key={car.id} withBorder padding="md" radius="md">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <div>
+                        <Text fw={600}>
+                          {cars("carLabel", { index: index + 1 })}
+                        </Text>
+                        <Text size="sm">
+                          {formatCarSummary(cars, car, baseCurrency, locale)}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {cars("purchaseMonth")}: {car.purchaseMonth ?? "--"}
+                        </Text>
+                      </div>
+                      <Group gap="sm">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setEditingCarId(car.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          color="red"
+                          variant="light"
+                          onClick={() => onCarPositionRemove(car.id)}
+                        >
+                          {cars("removeCar")}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))
+              )}
+            </Stack>
+
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{investments("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    onInvestmentPositionAdd(
+                      createInvestmentPositionFromTemplate({ baseMonth })
+                    )
+                  }
+                >
+                  {investments("addInvestment")}
+                </Button>
+              </Group>
+              {investmentPositions.length === 0 ? (
+                <Text c="dimmed" size="sm">
+                  {investments("empty")}
+                </Text>
+              ) : (
+                investmentPositions.map((investment, index) => (
+                  <Card key={investment.id} withBorder padding="md" radius="md">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <div>
+                        <Text fw={600}>
+                          {investments("investmentLabel", { index: index + 1 })}
+                        </Text>
+                        <Text size="sm">
+                          {formatInvestmentSummary(
+                            investments,
+                            investment,
+                            baseCurrency,
+                            locale
+                          )}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {investments("startMonth")}: {investment.startMonth ?? "--"}
+                        </Text>
+                      </div>
+                      <Group gap="sm">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setEditingInvestmentId(investment.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          color="red"
+                          variant="light"
+                          onClick={() => onInvestmentPositionRemove(investment.id)}
+                        >
+                          {investments("removeInvestment")}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))
+              )}
+            </Stack>
+
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{loans("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    onLoanPositionAdd(createLoanPositionFromTemplate({ baseMonth }))
+                  }
+                >
+                  {loans("addLoan")}
+                </Button>
+              </Group>
+              {loanPositions.length === 0 ? (
+                <Text c="dimmed" size="sm">
+                  {loans("empty")}
+                </Text>
+              ) : (
+                loanPositions.map((loan, index) => (
+                  <Card key={loan.id} withBorder padding="md" radius="md">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <div>
+                        <Text fw={600}>
+                          {loans("loanLabel", { index: index + 1 })}
+                        </Text>
+                        <Text size="sm">
+                          {formatLoanSummary(loans, loan, baseCurrency, locale)}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {loans("startMonth")}: {loan.startMonth ?? "--"}
+                        </Text>
+                      </div>
+                      <Group gap="sm">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setEditingLoanId(loan.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          color="red"
+                          variant="light"
+                          onClick={() => onLoanPositionRemove(loan.id)}
+                        >
+                          {loans("removeLoan")}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))
+              )}
+            </Stack>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="overview" pt="md">
+          <Stack gap="md">
+            {eventRows.length === 0 ? (
+              <Text c="dimmed" size="sm">
+                {hasEvents ? t("emptyGroup") : t("emptyAll")}
+              </Text>
+            ) : (
+              <Table striped highlightOnHover withColumnBorders>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>{t("tableGroup")}</Table.Th>
+                    <Table.Th>{t("tableName")}</Table.Th>
+                    <Table.Th>{t("tableStart")}</Table.Th>
+                    <Table.Th>{t("tableEnd")}</Table.Th>
+                    <Table.Th>{t("tableMonthly")}</Table.Th>
+                    <Table.Th>{t("tableOneTime")}</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {eventRows.map(({ view, depth }) => {
+                    const rule = view.rule;
+                    const isGroup = view.definition.kind === "group";
+                    const monthlyAmount = rule.monthlyAmount ?? 0;
+                    const oneTimeAmount = rule.oneTimeAmount ?? 0;
+                    const eventCurrency = view.definition.currency ?? defaultCurrency;
+
+                    return (
+                      <Table.Tr key={`overview-${view.definition.id}`}>
+                        <Table.Td>
+                          <Badge variant="light" color="gray">
+                            {isGroup
+                              ? t("groupLabel")
+                              : getEventGroupLabel(t, view.definition.type)}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="xs" style={{ paddingLeft: depth * 16 }}>
+                            <Text fw={isGroup ? 600 : undefined}>
+                              {view.definition.title}
+                            </Text>
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>{rule.startMonth ?? t("tablePlaceholder")}</Table.Td>
+                        <Table.Td>{rule.endMonth ?? t("tablePlaceholder")}</Table.Td>
+                        <Table.Td>
+                          {isGroup || monthlyAmount === 0
+                            ? t("tablePlaceholder")
+                            : formatCurrency(monthlyAmount, eventCurrency, locale)}
+                        </Table.Td>
+                        <Table.Td>
+                          {isGroup || oneTimeAmount === 0
+                            ? t("tablePlaceholder")
+                            : formatCurrency(oneTimeAmount, eventCurrency, locale)}
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            )}
+
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm">
+                <Text fw={600}>{budgetText("timelineTitle")}</Text>
+                <Text size="sm" c="dimmed">
+                  {budgetText("timelineSubtitle")}
+                </Text>
+                {budgetTotals.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    {budgetText("timelineEmpty")}
+                  </Text>
+                ) : (
+                  <Stack gap={2}>
+                    {budgetTotals.slice(0, 12).map(([month, amount]) => (
+                      <Text key={month} size="sm">
+                        {month} · {formatCurrency(amount, baseCurrency, locale)}
+                      </Text>
+                    ))}
+                    {budgetTotals.length > 12 && (
+                      <Text size="xs" c="dimmed">
+                        {budgetText("previewMore", {
+                          count: budgetTotals.length - 12,
+                        })}
+                      </Text>
+                    )}
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+          </Stack>
+        </Tabs.Panel>
+      </Tabs>
+
+      <TimelineEventDrawer
+        mode="create"
         opened={addEventOpen}
         onClose={() => setAddEventOpen(false)}
         baseCurrency={baseCurrency}
@@ -690,6 +752,7 @@ export default function TimelineDesktop({
           onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
           setHomeToastOpen(true);
         }}
+        onCreateComplete={handleCreateComplete}
       />
 
       <MergeDuplicatesModal
@@ -700,155 +763,19 @@ export default function TimelineDesktop({
         onMerge={onMergeDuplicates}
       />
 
-      <Drawer
+      <TimelineEventDrawer
+        mode="edit"
         opened={Boolean(editingEvent)}
         onClose={() => setEditingEvent(null)}
-        position="right"
-        size="md"
-        title={
-          editingEvent
-            ? editingEvent.definition.kind === "group"
-              ? t("groupEditTitle")
-              : t("editTitle", {
-                  type: getEventLabel(t, editingEvent.definition.type),
-                })
-            : common("actionEdit")
-        }
-      >
-        {editingEvent && editingEvent.definition.kind === "group" ? (
-          <Stack gap="md">
-            <TextInput
-              label={t("groupName")}
-              value={groupTitle}
-              onChange={(eventChange) => setGroupTitle(eventChange.target.value)}
-            />
-            <Select
-              label={t("groupParent")}
-              data={[
-                { value: "", label: t("groupNone") },
-                ...parentGroupOptions.filter(
-                  (option) => option.value !== editingEvent.definition.id
-                ),
-              ]}
-              value={editingParentId ?? ""}
-              onChange={(value) => setEditingParentId(value || null)}
-            />
-            <Group justify="flex-end">
-              <Button variant="subtle" onClick={() => setEditingEvent(null)}>
-                {common("actionCancel")}
-              </Button>
-              <Button
-                onClick={() => {
-                  onUpdateDefinition(editingEvent.definition.id, {
-                    title: groupTitle.trim() || editingEvent.definition.title,
-                    parentId: editingParentId ?? undefined,
-                  });
-                  setEditingEvent(null);
-                }}
-              >
-                {common("actionSaveChanges")}
-              </Button>
-            </Group>
-          </Stack>
-        ) : (
-          editingEvent && (
-            <Stack gap="md">
-              <SegmentedControl
-                data={[
-                  { value: "shared", label: t("editShared") },
-                  { value: "scenario", label: t("editScenario") },
-                ]}
-                value={editScope}
-                onChange={(value) => setEditScope(value as "shared" | "scenario")}
-              />
-              {editScope === "shared" && (
-                <Select
-                  label={t("groupParent")}
-                  data={[
-                    { value: "", label: t("groupNone") },
-                    ...parentGroupOptions.filter(
-                      (option) => option.value !== editingEvent.definition.id
-                    ),
-                  ]}
-                  value={editingParentId ?? ""}
-                  onChange={(value) => setEditingParentId(value || null)}
-                />
-              )}
-              {editScope === "shared" ? (
-                editingEvent.definition.type === "insurance_product" ? (
-                  <InsuranceProductForm
-                    event={buildTimelineEventFromDefinition(
-                      editingEvent.definition,
-                      editingEvent.ref,
-                      {
-                        baseCurrency,
-                        fallbackMonth: baseMonth,
-                      }
-                    )}
-                    baseCurrency={baseCurrency}
-                    members={members}
-                    onCancel={() => setEditingEvent(null)}
-                    onSave={(event) =>
-                      handleSaveShared({ event, ruleMode: "params" })
-                    }
-                    submitLabel={common("actionSaveChanges")}
-                  />
-                ) : (
-                  <TimelineEventForm
-                    event={buildTimelineEventFromDefinition(
-                      editingEvent.definition,
-                      editingEvent.ref,
-                      {
-                        baseCurrency,
-                        fallbackMonth: baseMonth,
-                      }
-                    )}
-                    baseCurrency={baseCurrency}
-                    assumptions={assumptions}
-                    members={members}
-                    fields={getEventMeta(editingEvent.definition.type).fields}
-                    showMember
-                    ruleMode={editingEvent.definition.rule.mode}
-                    schedule={editingEvent.definition.rule.schedule}
-                    allowCashflowEdit
-                    onCancel={() => setEditingEvent(null)}
-                    onSave={handleSaveShared}
-                    submitLabel={common("actionSaveChanges")}
-                  />
-                )
-              ) : (
-                <TimelineEventForm
-                  event={buildTimelineEventFromDefinition(
-                    editingEvent.definition,
-                    editingEvent.ref,
-                    {
-                      baseCurrency,
-                      fallbackMonth: baseMonth,
-                    }
-                  )}
-                  baseCurrency={baseCurrency}
-                  assumptions={assumptions}
-                  members={members}
-                  ruleMode={scenarioRule?.mode}
-                  schedule={scenarioRule?.schedule}
-                  fields={[
-                    { key: "startMonth", input: "month" },
-                    { key: "endMonth", input: "month" },
-                    { key: "monthlyAmount", input: "number" },
-                    { key: "oneTimeAmount", input: "number" },
-                    { key: "annualGrowthPct", input: "percent" },
-                  ] satisfies EventField[]}
-                  showMember={false}
-                  allowCashflowEdit
-                  onCancel={() => setEditingEvent(null)}
-                  onSave={handleSaveOverride}
-                  submitLabel={t("saveOverride")}
-                />
-              )}
-            </Stack>
-          )
-        )}
-      </Drawer>
+        baseCurrency={baseCurrency}
+        baseMonth={baseMonth}
+        assumptions={assumptions}
+        members={members}
+        parentGroupOptions={parentGroupOptions}
+        editingEvent={editingEvent}
+        onUpdateDefinition={onUpdateDefinition}
+        onUpdateEventRef={onUpdateEventRef}
+      />
 
       <Drawer
         opened={Boolean(editingHome)}

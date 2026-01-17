@@ -61,6 +61,7 @@ type ToastState = {
 };
 
 const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
+const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const isHousingCategory = (category: string) => category === "housing";
 
 export default function SettingsClient({ scenarioId }: SettingsClientProps) {
@@ -70,6 +71,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
   const errors = useTranslations("errors");
+  const validation = useTranslations("validation");
   const horizonOptions = [
     { value: "120", label: t("horizon10y") },
     { value: "240", label: t("horizon20y") },
@@ -104,6 +106,12 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [syncToast, setSyncToast] = useState<ToastState | null>(null);
   const [baseMonthInput, setBaseMonthInput] = useState("");
+  const [budgetMonthInputs, setBudgetMonthInputs] = useState<
+    Record<string, { startMonth: string; endMonth: string }>
+  >({});
+  const [budgetMonthErrors, setBudgetMonthErrors] = useState<
+    Record<string, { startMonth?: string; endMonth?: string }>
+  >({});
   const [cloudSummary, setCloudSummary] = useState<CloudSummary | null>(null);
   const [syncingAction, setSyncingAction] = useState<null | "upload" | "download">(
     null
@@ -328,6 +336,86 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     showToast(common("saved"), "teal");
   };
 
+  const budgetRules = scenario?.budgetRules ?? [];
+
+  useEffect(() => {
+    if (!scenario) {
+      return;
+    }
+    setBudgetMonthInputs((current) => {
+      const next = { ...current };
+      budgetRules.forEach((rule) => {
+        if (!next[rule.id]) {
+          next[rule.id] = {
+            startMonth: rule.startMonth ?? "",
+            endMonth: rule.endMonth ?? "",
+          };
+        }
+      });
+      Object.keys(next).forEach((ruleId) => {
+        if (!budgetRules.some((rule) => rule.id === ruleId)) {
+          delete next[ruleId];
+        }
+      });
+      return next;
+    });
+  }, [budgetRules, scenario]);
+
+  const updateBudgetMonthInput = (
+    ruleId: string,
+    field: "startMonth" | "endMonth",
+    value: string
+  ) => {
+    setBudgetMonthInputs((current) => ({
+      ...current,
+      [ruleId]: {
+        startMonth: current[ruleId]?.startMonth ?? "",
+        endMonth: current[ruleId]?.endMonth ?? "",
+        [field]: value,
+      },
+    }));
+    setBudgetMonthErrors((current) => ({
+      ...current,
+      [ruleId]: { ...current[ruleId], [field]: undefined },
+    }));
+  };
+
+  const validateBudgetMonth = (
+    ruleId: string,
+    field: "startMonth" | "endMonth"
+  ) => {
+    if (!scenario) {
+      return;
+    }
+    const rawValue = budgetMonthInputs[ruleId]?.[field] ?? "";
+    const trimmed = rawValue.trim();
+
+    if (trimmed === "") {
+      updateBudgetRule(scenario.id, ruleId, { [field]: undefined });
+      setBudgetMonthErrors((current) => ({
+        ...current,
+        [ruleId]: { ...current[ruleId], [field]: undefined },
+      }));
+      updateBudgetMonthInput(ruleId, field, "");
+      return;
+    }
+
+    if (!monthPattern.test(trimmed)) {
+      setBudgetMonthErrors((current) => ({
+        ...current,
+        [ruleId]: { ...current[ruleId], [field]: validation("useYearMonth") },
+      }));
+      return;
+    }
+
+    updateBudgetRule(scenario.id, ruleId, { [field]: trimmed });
+    setBudgetMonthErrors((current) => ({
+      ...current,
+      [ruleId]: { ...current[ruleId], [field]: undefined },
+    }));
+    updateBudgetMonthInput(ruleId, field, trimmed);
+  };
+
   if (!scenario) {
     return (
       <Stack gap="lg">
@@ -356,7 +444,6 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
 
   const { assumptions } = scenario;
   const members = scenario.members ?? [];
-  const budgetRules = scenario.budgetRules ?? [];
   const hasHousingRules = budgetRules.some((rule) => isHousingCategory(rule.category));
   const horizonValue = horizonOptions.some(
     (option) => Number(option.value) === assumptions.horizonMonths
@@ -1076,28 +1163,36 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                         <TextInput
                           label={budgetText("startMonthLabel")}
                           placeholder={common("yearMonthOptionalPlaceholder")}
-                          value={rule.startMonth ?? ""}
-                          onChange={(event) => {
-                            const nextValue = event.currentTarget.value.trim();
-                            if (nextValue === "" || isValidBaseMonth(nextValue)) {
-                              updateBudgetRule(scenario.id, rule.id, {
-                                startMonth: nextValue === "" ? undefined : nextValue,
-                              });
-                            }
-                          }}
+                          value={
+                            budgetMonthInputs[rule.id]?.startMonth ??
+                            rule.startMonth ??
+                            ""
+                          }
+                          onChange={(event) =>
+                            updateBudgetMonthInput(
+                              rule.id,
+                              "startMonth",
+                              event.currentTarget.value
+                            )
+                          }
+                          onBlur={() => validateBudgetMonth(rule.id, "startMonth")}
+                          error={budgetMonthErrors[rule.id]?.startMonth}
                         />
                         <TextInput
                           label={budgetText("endMonthLabel")}
                           placeholder={common("yearMonthOptionalPlaceholder")}
-                          value={rule.endMonth ?? ""}
-                          onChange={(event) => {
-                            const nextValue = event.currentTarget.value.trim();
-                            if (nextValue === "" || isValidBaseMonth(nextValue)) {
-                              updateBudgetRule(scenario.id, rule.id, {
-                                endMonth: nextValue === "" ? undefined : nextValue,
-                              });
-                            }
-                          }}
+                          value={
+                            budgetMonthInputs[rule.id]?.endMonth ?? rule.endMonth ?? ""
+                          }
+                          onChange={(event) =>
+                            updateBudgetMonthInput(
+                              rule.id,
+                              "endMonth",
+                              event.currentTarget.value
+                            )
+                          }
+                          onBlur={() => validateBudgetMonth(rule.id, "endMonth")}
+                          error={budgetMonthErrors[rule.id]?.endMonth}
                         />
                       </Group>
                       <Stack gap={4}>

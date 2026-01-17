@@ -126,6 +126,14 @@
     "breakdownLiabilities": "Liabilities",
     "breakdownNetWorth": "Net worth",
     "breakdownPositionTotal": "Position total",
+    "breakdownPositionLabels": {
+      "home:mortgage": "Mortgage payment",
+      "home:holding": "Holding cost",
+      "car:loan": "Loan payment",
+      "car:holding": "Holding cost",
+      "investment:contribution": "Monthly contribution",
+      "loan:repayment": "Repayment"
+    },
     "breakdownLabels": {
       "cash": "Cash",
       "investment": "Investment #{index}",
@@ -201,6 +209,9 @@
     "subtitleMobile": "Track life events that shape the plan.",
     "subtitleDesktop": "View events in table form and edit in the side panel.",
     "devHint": "Changes affect projections in Overview immediately.",
+    "tabEvents": "Events",
+    "tabPositions": "Positions",
+    "tabOverview": "Overview",
     "copyName": "{name} (copy)",
     "addEvent": "Add event",
     "addGroup": "Add group",
