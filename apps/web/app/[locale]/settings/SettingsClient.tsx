@@ -819,9 +819,11 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                         type="month"
                         onChange={(event) => {
                           const nextValue = event.currentTarget.value.trim();
-                          updateScenarioMember(scenario.id, member.id, {
-                            birthMonth: nextValue === "" ? undefined : nextValue,
-                          });
+                          if (nextValue === "" || isValidBaseMonth(nextValue)) {
+                            updateScenarioMember(scenario.id, member.id, {
+                              birthMonth: nextValue === "" ? undefined : nextValue,
+                            });
+                          }
                         }}
                       />
                       <NumberInput
