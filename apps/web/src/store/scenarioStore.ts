@@ -10,6 +10,7 @@ import {
   type DuplicateCluster,
 } from "../domain/events/mergeDuplicates";
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
+import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
@@ -38,6 +39,16 @@ export type ScenarioAssumptions = {
   rentMonthly?: number;
   rentAnnualGrowthPct?: number;
   investmentReturnAssumptions?: Partial<Record<InvestmentAssetClass, number>>;
+};
+
+export type ProjectionSnapshot = {
+  id: string;
+  label: string;
+  monthIndex: number;
+  cash: number;
+  netWorth: number;
+  assets: number;
+  liabilities: number;
 };
 
 export type HomeUsage = "primary" | "investment";
@@ -226,6 +237,7 @@ export type Scenario = {
   eventRefs?: ScenarioEventRef[];
   positions?: ScenarioPositions;
   clientComputed?: ScenarioClientComputed;
+  snapshots?: ProjectionSnapshot[];
   meta?: ScenarioMeta;
 };
 
@@ -299,6 +311,7 @@ type ScenarioStoreState = {
     id: string,
     patch: Partial<ScenarioClientComputed>
   ) => void;
+  skipOnboardingForScenario: (id: string) => void;
   upsertScenarioMember: (id: string, member: ScenarioMember) => void;
   upsertScenarioEventRef: (id: string, ref: ScenarioEventRef) => void;
   upsertEventDefinition: (definition: EventDefinition) => void;
@@ -314,6 +327,9 @@ type ScenarioStoreState = {
   setAssumptionsPartial: (id: string, patch: Partial<ScenarioAssumptions>) => void;
   replaceScenario: (scenario: Scenario) => void;
   replaceAllScenarios: (scenarios: Scenario[]) => void;
+  addSnapshot: (scenarioId: string, snapshot: ProjectionSnapshot) => void;
+  removeSnapshot: (scenarioId: string, snapshotId: string) => void;
+  clearSnapshots: (scenarioId: string) => void;
 };
 
 export type ScenarioStorePersistedState = Pick<
@@ -330,7 +346,7 @@ export const selectPersistedState = (
 });
 
 export const selectHasExistingProfile = (state: ScenarioStoreState): boolean =>
-  state.scenarios.length > 0 && Boolean(state.activeScenarioId);
+  state.scenarios.length > 0;
 
 export const hydrateFromPersistedState = (
   payload: ScenarioStorePersistedState
@@ -457,60 +473,12 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
   };
 };
 
-const initialEventLibrary: EventDefinition[] = [
-  {
-    id: "event-plan-a-rent",
-    title: "City Center Lease",
-    type: "rent",
-    kind: "cashflow",
-    rule: {
-      mode: "params",
-      startMonth: "2024-09",
-      endMonth: null,
-      monthlyAmount: 1800,
-      oneTimeAmount: 0,
-      annualGrowthPct: 3,
-    },
-    currency: defaultCurrency,
-  },
-  {
-    id: "event-plan-a-baby",
-    title: "Newborn Expenses",
-    type: "baby",
-    kind: "cashflow",
-    rule: {
-      mode: "params",
-      startMonth: "2025-06",
-      endMonth: "2026-06",
-      monthlyAmount: 950,
-      oneTimeAmount: 5000,
-      annualGrowthPct: 2,
-    },
-    currency: defaultCurrency,
-  },
-];
+const cloneSnapshots = (snapshots?: ProjectionSnapshot[]) =>
+  snapshots?.map((snapshot) => ({ ...snapshot }));
 
-const initialScenarios: Scenario[] = [
-  {
-    id: "scenario-plan-a",
-    name: "Plan A",
-    baseCurrency: defaultCurrency,
-    updatedAt: 1716806400000,
-    kpis: {
-      lowestMonthlyBalance: -12000,
-      runwayMonths: 18,
-      netWorthYear5: 1650000,
-      riskLevel: "Medium",
-    },
-    assumptions: { ...defaultAssumptions },
-    members: normalizeMembers(),
-    budgetRules: [],
-    eventRefs: [
-      { refId: "event-plan-a-rent", enabled: true },
-      { refId: "event-plan-a-baby", enabled: true },
-    ],
-  },
-];
+const initialEventLibrary: EventDefinition[] = [];
+
+const initialScenarios: Scenario[] = [];
 
 const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePositionDraft => ({
   id: "id" in home ? home.id : createHomePositionId(),
@@ -620,6 +588,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
   const normalizedEventRefs = scenario.eventRefs ?? [];
   const normalizedBudgetRules = normalizeBudgetRules(scenario.budgetRules);
   const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
+  const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
   const normalizedAssumptions = {
     ...defaultAssumptions,
     ...scenario.assumptions,
@@ -636,6 +605,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
       budgetRules: normalizedBudgetRules,
       eventRefs: normalizedEventRefs,
       clientComputed: nextClientComputed,
+      snapshots: normalizedSnapshots,
     };
   }
 
@@ -647,6 +617,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     budgetRules: normalizedBudgetRules,
     eventRefs: normalizedEventRefs,
     clientComputed: nextClientComputed,
+    snapshots: normalizedSnapshots,
   };
 };
 
@@ -693,19 +664,17 @@ export const resetAppState = () => {
 };
 
 export const resetAllLocalData = () => {
-  const nextScenarios = normalizeScenarioList(initialScenarios).map((scenario) => ({
-    ...scenario,
-    updatedAt: now(),
-  }));
-
   useScenarioStore.setState({
-    scenarios: nextScenarios,
-    eventLibrary: initialEventLibrary,
-    activeScenarioId: nextScenarios[0]?.id ?? "",
+    scenarios: [],
+    eventLibrary: [],
+    activeScenarioId: "",
   });
 };
 
-export const resetScenarioStore = resetAllLocalData;
+export const resetScenarioStore = () => {
+  clearLocalData();
+  resetAllLocalData();
+};
 
 export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   scenarios: normalizeScenarioList(initialScenarios),
@@ -730,6 +699,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       members: normalizeMembers(),
       budgetRules: [],
       eventRefs: [],
+      snapshots: [],
     };
 
     set((state) => ({
@@ -769,6 +739,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       eventRefs: cloneEventRefs(source.eventRefs),
       positions: clonePositions(source.positions),
       clientComputed: cloneClientComputed(source.clientComputed),
+      snapshots: cloneSnapshots(source.snapshots),
       meta: source.meta ? { ...source.meta } : undefined,
     };
 
@@ -781,10 +752,6 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   deleteScenario: (id) => {
     set((state) => {
-      if (state.scenarios.length <= 1) {
-        return state;
-      }
-
       const remaining = state.scenarios.filter((scenario) => scenario.id !== id);
       const nextActiveId =
         state.activeScenarioId === id
@@ -797,7 +764,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             ? { ...scenario, updatedAt: now() }
             : scenario
         ),
-        activeScenarioId: nextActiveId,
+        activeScenarioId: remaining.length > 0 ? nextActiveId : "",
       };
     });
   },
@@ -1615,6 +1582,19 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       ),
     }));
   },
+  skipOnboardingForScenario: (id) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              clientComputed: { ...(scenario.clientComputed ?? {}), onboardingCompleted: true },
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
   updateScenarioUpdatedAt: (id) => {
     set((state) => ({
       scenarios: state.scenarios.map((scenario) =>
@@ -1725,6 +1705,47 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     set(() => ({
       scenarios: normalizedScenarios,
       activeScenarioId: normalizedScenarios[0]?.id ?? "",
+    }));
+  },
+  addSnapshot: (scenarioId, snapshot) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === scenarioId
+          ? {
+              ...scenario,
+              snapshots: [...(scenario.snapshots ?? []), { ...snapshot }],
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  removeSnapshot: (scenarioId, snapshotId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === scenarioId
+          ? {
+              ...scenario,
+              snapshots: (scenario.snapshots ?? []).filter(
+                (snapshot) => snapshot.id !== snapshotId
+              ),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  clearSnapshots: (scenarioId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === scenarioId
+          ? {
+              ...scenario,
+              snapshots: [],
+              updatedAt: now(),
+            }
+          : scenario
+      ),
     }));
   },
 }));

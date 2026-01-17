@@ -150,11 +150,6 @@ export default function ScenariosPage() {
   };
 
   const handleDeleteScenario = (id: string) => {
-    if (scenarios.length <= 1) {
-      showToast(t("deleteMinimum"), "red");
-      return;
-    }
-
     const remaining = scenarios.filter((scenario) => scenario.id !== id);
     const nextActive =
       id === activeScenarioId
@@ -164,6 +159,11 @@ export default function ScenariosPage() {
 
     deleteScenario(id);
     setSelectedScenarioId(nextActive?.id ?? remaining[0]?.id ?? "");
+
+    if (remaining.length === 0) {
+      showToast(t("deleted"), "teal");
+      return;
+    }
 
     if (id === activeScenarioId && nextActive) {
       showToast(t("activeSwitched", { name: nextActive.name }), "yellow");
@@ -175,6 +175,36 @@ export default function ScenariosPage() {
   const handleOpenTimeline = (scenarioId: string) => {
     router.push(`/${locale}${buildScenarioUrl("/timeline", scenarioId)}`);
   };
+
+  if (!selectedScenario && scenarios.length === 0) {
+    return (
+      <Stack gap="xl" pb={isDesktop ? undefined : 120}>
+        <Stack gap={4}>
+          <Title order={2}>{t("title")}</Title>
+          <Text c="dimmed" size="sm">
+            {t("subtitle")}
+          </Text>
+        </Stack>
+        <Card withBorder radius="md" padding="lg">
+          <Stack gap="sm">
+            <Text fw={600}>{t("emptyTitle")}</Text>
+            <Text size="sm" c="dimmed">
+              {t("emptySubtitle")}
+            </Text>
+            <Button
+              onClick={() => {
+                const scenario = createScenario(t("emptyDefaultName"));
+                setActiveScenario(scenario.id);
+                router.push(`/${locale}/onboarding`);
+              }}
+            >
+              {t("emptyCta")}
+            </Button>
+          </Stack>
+        </Card>
+      </Stack>
+    );
+  }
 
   if (!selectedScenario) {
     return null;

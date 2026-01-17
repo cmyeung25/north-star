@@ -28,6 +28,7 @@ type ProjectionDetailsModalProps = {
   summaryByMonth: Record<string, LedgerMonthSummary>;
   projectionNetCashflowByMonth?: Record<string, number>;
   projectionNetCashflowMode?: "netCashflow" | "cashDelta";
+  netWorthByMonth?: Record<string, number>;
   currency: string;
   memberLookup?: Record<string, string>;
 };
@@ -90,6 +91,7 @@ export default function ProjectionDetailsModal({
   summaryByMonth,
   projectionNetCashflowByMonth,
   projectionNetCashflowMode = "netCashflow",
+  netWorthByMonth,
   currency,
   memberLookup,
 }: ProjectionDetailsModalProps) {
@@ -199,7 +201,7 @@ export default function ProjectionDetailsModal({
           </Group>
 
           <Stack gap="xs">
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
+            <SimpleGrid cols={{ base: 1, sm: 4 }}>
               <Stack gap={2}>
                 <Text size="xs" c="dimmed">
                   {t("breakdownTotalNet")}
@@ -217,6 +219,14 @@ export default function ProjectionDetailsModal({
                   {t("breakdownEventTotal")}
                 </Text>
                 <Text fw={600}>{formatValue(monthSummary.bySource.event)}</Text>
+              </Stack>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {t("breakdownNetWorth")}
+                </Text>
+                <Text fw={600}>
+                  {formatValue(netWorthByMonth?.[resolvedMonth] ?? 0)}
+                </Text>
               </Stack>
             </SimpleGrid>
             {projectionNetCashflow !== undefined && (

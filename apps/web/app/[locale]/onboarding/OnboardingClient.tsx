@@ -1,13 +1,13 @@
 "use client";
 
 import { Button, Card, Group, Modal, Skeleton, Stack, Text, Title } from "@mantine/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import OnboardingWizard from "../../../src/features/onboarding/OnboardingWizard";
 import {
   getActiveScenario,
-  resetAllLocalData,
+  resetScenarioStore,
   selectHasExistingProfile,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
@@ -19,6 +19,9 @@ export default function OnboardingClient() {
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const createScenario = useScenarioStore((state) => state.createScenario);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const skipOnboardingForScenario = useScenarioStore(
+    (state) => state.skipOnboardingForScenario
+  );
   const hasExistingProfile = useScenarioStore(selectHasExistingProfile);
   const didHydrate = useScenarioStore((state) => state.didHydrate);
   const isHydrating = useScenarioStore((state) => state.isHydrating);
@@ -31,7 +34,29 @@ export default function OnboardingClient() {
     [activeScenarioId, scenarios]
   );
 
+  useEffect(() => {
+    if (!didHydrate || isHydrating) {
+      return;
+    }
+    if (!activeScenario && scenarios.length === 0) {
+      const scenario = createScenario("New Plan");
+      setActiveScenario(scenario.id);
+    }
+  }, [
+    activeScenario,
+    createScenario,
+    didHydrate,
+    isHydrating,
+    scenarios.length,
+    setActiveScenario,
+  ]);
+
   const handleResume = () => {
+    const scenarioId = activeScenario?.id ?? activeScenarioId;
+    if (scenarioId) {
+      skipOnboardingForScenario(scenarioId);
+    }
+    setGateDismissed(true);
     router.push(`/${locale}/overview`);
   };
 
@@ -42,7 +67,7 @@ export default function OnboardingClient() {
   };
 
   const handleReset = () => {
-    resetAllLocalData();
+    resetScenarioStore();
     setGateDismissed(true);
     setResetConfirmOpen(false);
   };
