@@ -12,10 +12,14 @@ export const hydrateScenarioStore = async () => {
     return;
   }
 
+  const { setHydrationState } = useScenarioStore.getState();
+  setHydrationState({ isHydrating: true, didHydrate: false });
+
   const persisted = loadAutosave();
 
   if (persisted.ok && persisted.value) {
     hydrateFromPersistedState(persisted.value.payload);
+    setHydrationState({ isHydrating: false, didHydrate: true });
     return;
   }
 
@@ -28,6 +32,8 @@ export const hydrateScenarioStore = async () => {
   if (!saved.ok) {
     console.warn(saved.error);
   }
+
+  setHydrationState({ isHydrating: false, didHydrate: true });
 };
 
 export const initializeScenarioPersistence = () => {
