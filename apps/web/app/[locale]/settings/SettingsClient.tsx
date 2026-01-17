@@ -42,6 +42,7 @@ import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
+import { isValidMonthStr } from "../../../src/utils/month";
 import {
   compileBudgetRuleToMonthlySeries,
   type BudgetRuleMonthlyEntry,
@@ -815,13 +816,12 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                         label={membersText("birthMonthLabel")}
                         placeholder={common("yearMonthPlaceholder")}
                         value={member.birthMonth ?? ""}
+                        type="month"
                         onChange={(event) => {
                           const nextValue = event.currentTarget.value.trim();
-                          if (nextValue === "" || isValidBaseMonth(nextValue)) {
-                            updateScenarioMember(scenario.id, member.id, {
-                              birthMonth: nextValue === "" ? undefined : nextValue,
-                            });
-                          }
+                          updateScenarioMember(scenario.id, member.id, {
+                            birthMonth: nextValue === "" ? undefined : nextValue,
+                          });
                         }}
                       />
                       <NumberInput
