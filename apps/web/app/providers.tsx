@@ -118,7 +118,7 @@ export default function Providers({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (activeScenario && activeScenario.meta?.onboardingVersion !== 1) {
+    if (activeScenario && activeScenario.clientComputed?.onboardingCompleted !== true) {
       router.replace(`/${locale}/onboarding`);
     }
   }, [activeScenario, locale, normalizedPathname, router, scenarioHydrated]);
