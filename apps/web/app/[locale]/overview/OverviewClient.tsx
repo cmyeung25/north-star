@@ -19,6 +19,9 @@ import { useMediaQuery } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import FullScreenChartModal, {
+  type FullScreenChartType,
+} from "../../../components/FullScreenChartModal";
 import ProjectionDetailsModal from "../../../components/ProjectionDetailsModal";
 import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
 import InsightsCard from "../../../features/overview/components/InsightsCard";
@@ -30,7 +33,7 @@ import OverviewActionsCard from "../../../features/overview/components/OverviewA
 import RentVsOwnCard from "../../../features/overview/components/RentVsOwnCard";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import SnapshotsCard from "../../../features/overview/components/SnapshotsCard";
-import type { RiskLevel } from "../../../features/overview/types";
+import type { RiskLevel, TimeSeriesPoint } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import {
   projectionToOverviewViewModel,
@@ -116,6 +119,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const scenarioIdFromQuery = scenarioId ?? null;
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
+  const [fullscreenChart, setFullscreenChart] = useState<{
+    type: FullScreenChartType;
+    data: TimeSeriesPoint[];
+  } | null>(null);
 
   useEffect(() => {
     if (
@@ -477,17 +484,41 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           <CashBalanceChart
             data={cashSeries}
             title={t("cashBalanceTitle")}
-            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+            onClick={
+              projection
+                ? () =>
+                    setFullscreenChart({
+                      type: "cash",
+                      data: cashSeries,
+                    })
+                : undefined
+            }
           />
           <NetWorthChart
             data={netWorthSeries}
             title={t("netWorthTitle")}
-            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+            onClick={
+              projection
+                ? () =>
+                    setFullscreenChart({
+                      type: "netWorth",
+                      data: netWorthSeries,
+                    })
+                : undefined
+            }
           />
           <NetCashflowChart
             data={netCashflowSeries}
             title={t("netCashflowTitle")}
-            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+            onClick={
+              projection
+                ? () =>
+                    setFullscreenChart({
+                      type: "netCashflow",
+                      data: netCashflowSeries,
+                    })
+                : undefined
+            }
           />
         </SimpleGrid>
       ) : (
@@ -495,7 +526,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           <CashBalanceChart
             data={cashSeries}
             title={t("cashBalanceTitle")}
-            onClick={projection ? () => setBreakdownOpen(true) : undefined}
+            onClick={
+              projection
+                ? () =>
+                    setFullscreenChart({
+                      type: "cash",
+                      data: cashSeries,
+                    })
+                : undefined
+            }
           />
           <Accordion variant="separated" radius="md">
             <Accordion.Item value="net-worth">
@@ -503,7 +542,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               <Accordion.Panel>
                 <NetWorthChart
                   data={netWorthSeries}
-                  onClick={projection ? () => setBreakdownOpen(true) : undefined}
+                  onClick={
+                    projection
+                      ? () =>
+                          setFullscreenChart({
+                            type: "netWorth",
+                            data: netWorthSeries,
+                          })
+                      : undefined
+                  }
                 />
               </Accordion.Panel>
             </Accordion.Item>
@@ -512,7 +559,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               <Accordion.Panel>
                 <NetCashflowChart
                   data={netCashflowSeries}
-                  onClick={projection ? () => setBreakdownOpen(true) : undefined}
+                  onClick={
+                    projection
+                      ? () =>
+                          setFullscreenChart({
+                            type: "netCashflow",
+                            data: netCashflowSeries,
+                          })
+                      : undefined
+                  }
                 />
               </Accordion.Panel>
             </Accordion.Item>
@@ -627,6 +682,19 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         netWorthByMonth={netWorthByMonth}
         currency={selectedScenario.baseCurrency}
         memberLookup={memberLookup}
+      />
+      <FullScreenChartModal
+        opened={Boolean(fullscreenChart)}
+        onClose={() => setFullscreenChart(null)}
+        type={fullscreenChart?.type}
+        data={fullscreenChart?.data ?? []}
+        title={
+          fullscreenChart?.type === "netWorth"
+            ? t("fullscreenTitleNetWorth")
+            : fullscreenChart?.type === "netCashflow"
+              ? t("fullscreenTitleNetCashflow")
+              : t("fullscreenTitleCashBalance")
+        }
       />
     </Stack>
   );

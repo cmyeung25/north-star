@@ -131,7 +131,9 @@ export default function ScenariosPage() {
   const handleCreateScenario = (name: string) => {
     const newScenario = createScenario(name);
     setSelectedScenarioId(newScenario.id);
+    setActiveScenario(newScenario.id);
     showToast(t("created"), "teal");
+    router.push(`/${locale}/onboarding`);
   };
 
   const handleRenameScenario = (id: string, newName: string) => {
