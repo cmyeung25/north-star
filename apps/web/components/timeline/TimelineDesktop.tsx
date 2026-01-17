@@ -123,7 +123,7 @@ export default function TimelineDesktop({
   const budgetTotals = useMemo(() => {
     const totals = new Map<string, number>();
     budgetLedger.forEach((entry) => {
-      totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amountSigned);
+      totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amount);
     });
     return Array.from(totals.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [budgetLedger]);

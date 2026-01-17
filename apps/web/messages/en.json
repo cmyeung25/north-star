@@ -419,7 +419,11 @@
     "previewMore": "+{count} more months",
     "timelineTitle": "Budget rule cashflows",
     "timelineSubtitle": "Aggregated monthly spending derived from enabled rules.",
-    "timelineEmpty": "No budget rule cashflows yet."
+    "timelineEmpty": "No budget rule cashflows yet.",
+    "includeInProjection": "Include budget rules in projection",
+    "projectionWarning": "Budget rules are included in projection. If you also created manual events for the same expenses, you may double count.",
+    "projectionWarningBadge": "Possible overlap",
+    "housingWarning": "Housing budget rules are ignored in projections. Housing cashflows are handled by the home model instead."
   },
   "onboarding": {
     "title": "Welcome to North Star",

@@ -26,6 +26,7 @@ export type ScenarioAssumptions = {
   horizonMonths: number;
   initialCash: number;
   baseMonth: string | null;
+  includeBudgetRulesInProjection?: boolean;
   inflationRate?: number;
   salaryGrowthRate?: number;
   emergencyFundMonths?: number;
@@ -263,6 +264,7 @@ const defaultAssumptions: ScenarioAssumptions = {
   horizonMonths: 240,
   initialCash: 0,
   baseMonth: null,
+  includeBudgetRulesInProjection: true,
 };
 
 const horizonRange = { min: 60, max: 480 };
@@ -436,10 +438,15 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
   const normalizedMembers = normalizeMembers(scenario.members);
   const normalizedEventRefs = scenario.eventRefs ?? [];
   const normalizedBudgetRules = normalizeBudgetRules(scenario.budgetRules);
+  const normalizedAssumptions = {
+    ...defaultAssumptions,
+    ...scenario.assumptions,
+  };
 
   if (!normalizedPositions) {
     return {
       ...scenario,
+      assumptions: normalizedAssumptions,
       members: normalizedMembers,
       budgetRules: normalizedBudgetRules,
       eventRefs: normalizedEventRefs,
@@ -448,6 +455,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
 
   return {
     ...scenario,
+    assumptions: normalizedAssumptions,
     positions: normalizedPositions,
     members: normalizedMembers,
     budgetRules: normalizedBudgetRules,
@@ -1017,6 +1025,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         if (Object.prototype.hasOwnProperty.call(patch, "emergencyFundMonths")) {
           nextAssumptions.emergencyFundMonths = patch.emergencyFundMonths;
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(patch, "includeBudgetRulesInProjection")
+        ) {
+          nextAssumptions.includeBudgetRulesInProjection =
+            patch.includeBudgetRulesInProjection ?? true;
         }
 
         return {
