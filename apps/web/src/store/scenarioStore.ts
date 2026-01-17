@@ -591,6 +591,29 @@ const normalizeScenarioPositions = (
   };
 };
 
+const hasScenarioPositions = (positions?: ScenarioPositions) =>
+  Boolean(
+    positions?.home ||
+      (positions?.homes && positions.homes.length > 0) ||
+      (positions?.investments && positions.investments.length > 0) ||
+      (positions?.insurances && positions.insurances.length > 0) ||
+      (positions?.loans && positions.loans.length > 0) ||
+      (positions?.cars && positions.cars.length > 0) ||
+      (positions?.cashBuckets && positions.cashBuckets.length > 0)
+  );
+
+const shouldAutoCompleteOnboarding = (scenario: Scenario) => {
+  if (scenario.clientComputed?.onboardingCompleted !== undefined) {
+    return false;
+  }
+
+  const hasAssumptions = Boolean(scenario.assumptions?.baseMonth);
+  const hasEvents = (scenario.eventRefs ?? []).length > 0;
+  const hasPositions = hasScenarioPositions(scenario.positions);
+
+  return hasAssumptions && (hasEvents || hasPositions);
+};
+
 export const normalizeScenario = (scenario: Scenario): Scenario => {
   const normalizedPositions = normalizeScenarioPositions(scenario.positions);
   const normalizedMembers = normalizeMembers(scenario.members);
@@ -601,6 +624,9 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     ...defaultAssumptions,
     ...scenario.assumptions,
   };
+  const nextClientComputed = shouldAutoCompleteOnboarding(scenario)
+    ? { ...(normalizedClientComputed ?? {}), onboardingCompleted: true }
+    : normalizedClientComputed;
 
   if (!normalizedPositions) {
     return {
@@ -609,7 +635,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
       members: normalizedMembers,
       budgetRules: normalizedBudgetRules,
       eventRefs: normalizedEventRefs,
-      clientComputed: normalizedClientComputed,
+      clientComputed: nextClientComputed,
     };
   }
 
@@ -620,7 +646,7 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     members: normalizedMembers,
     budgetRules: normalizedBudgetRules,
     eventRefs: normalizedEventRefs,
-    clientComputed: normalizedClientComputed,
+    clientComputed: nextClientComputed,
   };
 };
 

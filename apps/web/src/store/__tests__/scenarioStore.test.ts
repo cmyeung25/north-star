@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { EventDefinition } from "../../domain/events/types";
 import {
+  normalizeScenario,
   resetScenarioStore,
   selectHasExistingProfile,
   useScenarioStore,
@@ -317,6 +318,75 @@ describe("onboarding writes", () => {
     expect(updated.budgetRules?.some((rule) => rule.id === "budget-childcare")).toBe(
       true
     );
+  });
+});
+
+describe("onboarding completion", () => {
+  it("does not auto-mark a new scenario as completed", () => {
+    const { createScenario } = useScenarioStore.getState();
+
+    const created = createScenario("New Plan");
+
+    expect(created.clientComputed?.onboardingCompleted).toBeUndefined();
+  });
+
+  it("keeps onboarding completion when switching scenarios", () => {
+    useScenarioStore.setState({
+      scenarios: [
+        buildScenario({
+          id: "scenario-a",
+          clientComputed: { onboardingCompleted: true },
+        }),
+        buildScenario({
+          id: "scenario-b",
+          clientComputed: { onboardingCompleted: false },
+        }),
+      ],
+      eventLibrary: buildEventLibrary(),
+      activeScenarioId: "scenario-a",
+    });
+
+    const { setActiveScenario } = useScenarioStore.getState();
+
+    setActiveScenario("scenario-b");
+
+    const scenarios = useScenarioStore.getState().scenarios;
+    expect(scenarios.find((scenario) => scenario.id === "scenario-a")?.clientComputed)
+      .toEqual({ onboardingCompleted: true });
+    expect(scenarios.find((scenario) => scenario.id === "scenario-b")?.clientComputed)
+      .toEqual({ onboardingCompleted: false });
+  });
+
+  it("auto-completes onboarding when scenario has data but no flag", () => {
+    const normalized = normalizeScenario(
+      buildScenario({
+        assumptions: {
+          horizonMonths: 240,
+          initialCash: 10000,
+          baseMonth: "2024-01",
+        },
+        clientComputed: undefined,
+      })
+    );
+
+    expect(normalized.clientComputed?.onboardingCompleted).toBe(true);
+  });
+
+  it("does not auto-complete onboarding for empty scenarios", () => {
+    const normalized = normalizeScenario(
+      buildScenario({
+        assumptions: {
+          horizonMonths: 240,
+          initialCash: 0,
+          baseMonth: null,
+        },
+        eventRefs: [],
+        positions: undefined,
+        clientComputed: undefined,
+      })
+    );
+
+    expect(normalized.clientComputed?.onboardingCompleted).toBeUndefined();
   });
 });
 
