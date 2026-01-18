@@ -10,6 +10,7 @@ export type ScenarioStoreSnapshot = {
   scenarios: Scenario[];
   eventLibrary: EventDefinition[];
   activeScenarioId: string;
+  globalHorizonMonths: number;
 };
 
 export type ScenarioStatePayload = ScenarioStoreSnapshot & {
@@ -35,6 +36,7 @@ export const exportScenarioState = (): ScenarioStatePayload => {
     scenarios: snapshot.scenarios,
     eventLibrary: snapshot.eventLibrary,
     activeScenarioId: snapshot.activeScenarioId,
+    globalHorizonMonths: snapshot.globalHorizonMonths,
   };
 };
 
@@ -44,16 +46,22 @@ export const importScenarioState = (payload: ScenarioStatePayload) => {
     normalizedScenarios,
     payload.activeScenarioId
   );
+  const globalHorizonMonths =
+    typeof payload.globalHorizonMonths === "number"
+      ? payload.globalHorizonMonths
+      : useScenarioStore.getState().globalHorizonMonths;
 
   useScenarioStore.setState({
     scenarios: normalizedScenarios,
     eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
+    globalHorizonMonths,
   });
 
   return {
     scenarios: normalizedScenarios,
     eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
+    globalHorizonMonths,
   } satisfies ScenarioStoreSnapshot;
 };

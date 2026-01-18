@@ -1,4 +1,4 @@
-import { Card, SimpleGrid, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Card, SimpleGrid, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../../../lib/i18n";
 
@@ -9,6 +9,7 @@ type AutoSnapshot = {
   assets: number;
   liabilities: number;
   netWorth: number;
+  ageLabels?: string[];
 };
 
 type AutoSnapshotsCardProps = {
@@ -69,6 +70,26 @@ export default function AutoSnapshotsCard({
                         {t("snapshotsLiabilities")} · {formatValue(snapshot.liabilities)}
                       </Text>
                     </Stack>
+                    {snapshot.ageLabels && snapshot.ageLabels.length > 0 && (
+                      <Stack gap={2}>
+                        {snapshot.ageLabels.slice(0, 3).map((label) => (
+                          <Text key={label} size="xs" c="dimmed">
+                            {label}
+                          </Text>
+                        ))}
+                        {snapshot.ageLabels.length > 3 && (
+                          <Tooltip
+                            label={snapshot.ageLabels.join("\n")}
+                            multiline
+                            withArrow
+                          >
+                            <Text size="xs" c="dimmed">
+                              +{snapshot.ageLabels.length - 3}
+                            </Text>
+                          </Tooltip>
+                        )}
+                      </Stack>
+                    )}
                   </Stack>
                 </Card>
               </UnstyledButton>

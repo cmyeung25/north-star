@@ -66,6 +66,9 @@ export default function OnboardingWizard() {
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
+  const setGlobalHorizonMonths = useScenarioStore(
+    (state) => state.setGlobalHorizonMonths
+  );
   const updateScenarioClientComputed = useScenarioStore(
     (state) => state.updateScenarioClientComputed
   );
@@ -286,6 +289,7 @@ export default function OnboardingWizard() {
     }
     applyOnboardingDraftToScenario(scenario, draft, {
       updateScenarioAssumptions,
+      setGlobalHorizonMonths,
       updateScenarioClientComputed,
       upsertEventDefinition,
       upsertScenarioEventRef,
@@ -557,6 +561,7 @@ export default function OnboardingWizard() {
   const handleFinish = () => {
     applyOnboardingDraftToScenario(scenario, draft, {
       updateScenarioAssumptions,
+      setGlobalHorizonMonths,
       updateScenarioClientComputed,
       upsertEventDefinition,
       upsertScenarioEventRef,

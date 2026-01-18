@@ -112,6 +112,7 @@ beforeEach(() => {
     scenarios: [scenario],
     eventLibrary: [],
     activeScenarioId: scenario.id,
+    globalHorizonMonths: 240,
   });
 });
 

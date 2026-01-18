@@ -43,6 +43,7 @@ type CloudMetaDocument = {
   lastSyncedAt?: number;
   schemaVersion?: number;
   eventLibrary?: EventDefinition[];
+  globalHorizonMonths?: number;
 };
 
 const getMetaRef = (uid: string) =>
@@ -60,6 +61,8 @@ const parseMeta = (value: CloudMetaDocument | undefined) => ({
   schemaVersion:
     typeof value?.schemaVersion === "number" ? value.schemaVersion : null,
   eventLibrary: Array.isArray(value?.eventLibrary) ? value?.eventLibrary : [],
+  globalHorizonMonths:
+    typeof value?.globalHorizonMonths === "number" ? value.globalHorizonMonths : null,
 });
 
 export const fetchCloudSummary = async (uid: string): Promise<CloudSummary> => {
@@ -115,6 +118,7 @@ export const uploadLocalStateToCloud = async (uid: string) => {
       lastSyncedAt: now,
       schemaVersion: snapshot.schemaVersion,
       eventLibrary: snapshot.eventLibrary,
+      globalHorizonMonths: snapshot.globalHorizonMonths,
     } satisfies CloudMetaDocument,
     { merge: true }
   );
@@ -155,6 +159,10 @@ export const downloadCloudStateToLocal = async (uid: string) => {
     scenarios,
     eventLibrary: meta.eventLibrary,
     activeScenarioId: scenarios[0]?.id ?? "",
+    globalHorizonMonths:
+      meta.globalHorizonMonths ??
+      scenarios[0]?.assumptions.horizonMonths ??
+      240,
   };
 
   const normalized = importScenarioState(payload);
@@ -170,6 +178,7 @@ export const downloadCloudStateToLocal = async (uid: string) => {
       lastSyncedAt: now,
       schemaVersion: meta.schemaVersion,
       eventLibrary: meta.eventLibrary,
+      globalHorizonMonths: meta.globalHorizonMonths ?? undefined,
     } satisfies CloudMetaDocument,
     { merge: true }
   );

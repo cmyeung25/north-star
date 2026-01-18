@@ -56,6 +56,15 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const removeInvestmentPosition = useScenarioStore(
     (state) => state.removeInvestmentPosition
   );
+  const addInsurancePosition = useScenarioStore(
+    (state) => state.addInsurancePosition
+  );
+  const updateInsurancePosition = useScenarioStore(
+    (state) => state.updateInsurancePosition
+  );
+  const removeInsurancePosition = useScenarioStore(
+    (state) => state.removeInsurancePosition
+  );
   const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
   const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
   const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
@@ -79,6 +88,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const homePositions = scenario?.positions?.homes ?? [];
   const carPositions = scenario?.positions?.cars ?? [];
   const investmentPositions = scenario?.positions?.investments ?? [];
+  const insurancePositions = scenario?.positions?.insurances ?? [];
   const loanPositions = scenario?.positions?.loans ?? [];
   const members = scenario?.members ?? [];
   const baseCurrency = scenario?.baseCurrency ?? "";
@@ -98,6 +108,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         homePositions={homePositions}
         carPositions={carPositions}
         investmentPositions={investmentPositions}
+        insurancePositions={insurancePositions}
         loanPositions={loanPositions}
         members={members}
         baseCurrency={baseCurrency}
@@ -131,6 +142,15 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         onInvestmentPositionRemove={(investmentId) =>
           removeInvestmentPosition(scenario.id, investmentId)
         }
+        onInsurancePositionAdd={(insurance) =>
+          addInsurancePosition(scenario.id, insurance)
+        }
+        onInsurancePositionUpdate={(insurance) =>
+          updateInsurancePosition(scenario.id, insurance)
+        }
+        onInsurancePositionRemove={(insuranceId) =>
+          removeInsurancePosition(scenario.id, insuranceId)
+        }
         onLoanPositionAdd={(loan) => addLoanPosition(scenario.id, loan)}
         onLoanPositionUpdate={(loan) => updateLoanPosition(scenario.id, loan)}
         onLoanPositionRemove={(loanId) => removeLoanPosition(scenario.id, loanId)}
@@ -149,6 +169,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       homePositions={homePositions}
       carPositions={carPositions}
       investmentPositions={investmentPositions}
+      insurancePositions={insurancePositions}
       loanPositions={loanPositions}
       members={members}
       baseCurrency={baseCurrency}
@@ -182,6 +203,15 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       }
       onInvestmentPositionRemove={(investmentId) =>
         removeInvestmentPosition(scenario.id, investmentId)
+      }
+      onInsurancePositionAdd={(insurance) =>
+        addInsurancePosition(scenario.id, insurance)
+      }
+      onInsurancePositionUpdate={(insurance) =>
+        updateInsurancePosition(scenario.id, insurance)
+      }
+      onInsurancePositionRemove={(insuranceId) =>
+        removeInsurancePosition(scenario.id, insuranceId)
       }
       onLoanPositionAdd={(loan) => addLoanPosition(scenario.id, loan)}
       onLoanPositionUpdate={(loan) => updateLoanPosition(scenario.id, loan)}

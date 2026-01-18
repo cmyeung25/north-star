@@ -69,16 +69,17 @@ export type EngineLoan = {
   feesOneTime?: number;
 };
 
-export type InsuranceType = "life" | "savings" | "accident" | "medical";
+export type InsuranceKind = "protection" | "savings";
 
 export type InsurancePosition = {
   id?: string;
-  insuranceType: InsuranceType;
+  kind: InsuranceKind;
+  startMonth: string;
+  endMonth?: string;
   premiumMonthly: number;
-  hasCashValue?: boolean;
-  cashValue?: number;
-  cashValueAnnualGrowth?: number;
-  coverageMeta?: Record<string, unknown>;
+  premiumAnnualGrowth?: number;
+  initialCashValue?: number;
+  annualReturnRate?: number;
 };
 
 export type EngineCar = {
@@ -447,16 +448,39 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const insurances = input.positions?.insurances ?? [];
   const insuranceStates = insurances.map((insurance, insuranceIndex) => {
     const premiumMonthly = insurance.premiumMonthly ?? 0;
-    const cashValue = insurance.hasCashValue ? insurance.cashValue ?? 0 : 0;
-    const annualGrowth = insurance.cashValueAnnualGrowth ?? 0;
-    const monthlyGrowth = Math.pow(1 + annualGrowth, 1 / 12) - 1;
+    const annualPremiumGrowth = insurance.premiumAnnualGrowth ?? 0;
+    const monthlyPremiumGrowth =
+      annualPremiumGrowth === 0 ? 0 : Math.pow(1 + annualPremiumGrowth, 1 / 12) - 1;
+    const annualReturn = insurance.annualReturnRate ?? 0;
+    const monthlyReturn =
+      annualReturn === 0 ? 0 : Math.pow(1 + annualReturn, 1 / 12) - 1;
+    const startIndex = monthIndex(input.baseMonth, insurance.startMonth);
+    const endIndex = insurance.endMonth
+      ? monthIndex(input.baseMonth, insurance.endMonth)
+      : horizonMonths - 1;
     const insuranceId = insurance.id ?? `insurance-${insuranceIndex + 1}`;
+    let currentValue = insurance.initialCashValue ?? 0;
+
+    if (insurance.kind === "savings" && startIndex < 0) {
+      const lastIndex = Math.min(-1, endIndex);
+      const advanceMonths = Math.max(0, lastIndex - startIndex + 1);
+      for (let offset = 0; offset < advanceMonths; offset += 1) {
+        const premium =
+          endIndex >= startIndex + offset
+            ? premiumMonthly * Math.pow(1 + monthlyPremiumGrowth, offset)
+            : 0;
+        currentValue = (currentValue + premium) * (1 + monthlyReturn);
+      }
+    }
     return {
       insuranceId,
-      hasCashValue: Boolean(insurance.hasCashValue),
+      kind: insurance.kind,
       premiumMonthly,
-      currentValue: cashValue,
-      monthlyGrowth,
+      monthlyPremiumGrowth,
+      monthlyReturn,
+      startIndex,
+      endIndex,
+      currentValue,
     };
   });
 
@@ -768,16 +792,33 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     }
 
     for (const insurance of insuranceStates) {
-      const { insuranceId, premiumMonthly, monthlyGrowth } = insurance;
-      netCashflow[i] -= premiumMonthly;
-      if (premiumMonthly) {
-        addCashflow(`insurance:${insuranceId}:premium`, i, -premiumMonthly);
+      const {
+        insuranceId,
+        premiumMonthly,
+        monthlyPremiumGrowth,
+        monthlyReturn,
+        startIndex,
+        endIndex,
+        kind,
+      } = insurance;
+
+      if (i < startIndex) {
+        continue;
       }
 
-      if (insurance.hasCashValue) {
-        if (i !== 0) {
-          insurance.currentValue = insurance.currentValue * (1 + monthlyGrowth);
-        }
+      const monthsSinceStart = i - startIndex;
+      const isPremiumActive = i <= endIndex;
+      const premium = isPremiumActive
+        ? premiumMonthly * Math.pow(1 + monthlyPremiumGrowth, monthsSinceStart)
+        : 0;
+
+      if (premium) {
+        netCashflow[i] -= premium;
+        addCashflow(`insurance:${insuranceId}:premium`, i, -premium);
+      }
+
+      if (kind === "savings") {
+        insurance.currentValue = (insurance.currentValue + premium) * (1 + monthlyReturn);
       } else {
         insurance.currentValue = 0;
       }

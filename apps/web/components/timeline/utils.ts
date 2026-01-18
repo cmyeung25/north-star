@@ -23,10 +23,13 @@ import {
   createCarPositionId,
   createInvestmentPositionId,
   createLoanPositionId,
+  createInsurancePositionId,
   type CarPosition,
   type CarPositionDraft,
   type HomePosition,
   type HomePositionDraft,
+  type InsurancePosition,
+  type InsurancePositionDraft,
   type InvestmentPosition,
   type InvestmentPositionDraft,
   type LoanPosition,
@@ -311,6 +314,26 @@ export const createLoanPositionFromTemplate = (
   };
 };
 
+export const createInsurancePositionFromTemplate = (
+  options?: { baseMonth?: string | null; startMonth?: string | null }
+): InsurancePositionDraft => {
+  const startMonth = getDefaultStartMonth(
+    normalizeMonth(options?.startMonth ?? "") ?? options?.baseMonth ?? null
+  );
+
+  return {
+    id: createInsurancePositionId(),
+    name: "",
+    enabled: true,
+    kind: "protection",
+    startMonth,
+    premiumMonthly: 1200,
+    premiumAnnualGrowthPct: 0,
+    initialCashValue: 0,
+    expectedAnnualReturnPct: 3,
+  };
+};
+
 export const formatHomeSummary = (
   t: Translator,
   home: HomePosition,
@@ -412,6 +435,21 @@ export const formatLoanSummary = (
     principal: formattedPrincipal,
     rate,
     termYears,
+  });
+};
+
+export const formatInsuranceSummary = (
+  t: Translator,
+  insurance: InsurancePosition,
+  currency: string,
+  locale: string
+) => {
+  const premium = formatCurrency(insurance.premiumMonthly ?? 0, currency, locale);
+  const kindLabel =
+    insurance.kind === "savings" ? t("kindSavings") : t("kindProtection");
+  return t("insuranceSummary.basic", {
+    kind: kindLabel,
+    premium,
   });
 };
 

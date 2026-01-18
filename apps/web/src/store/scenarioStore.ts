@@ -41,6 +41,10 @@ export type ScenarioAssumptions = {
   investmentReturnAssumptions?: Partial<Record<InvestmentAssetClass, number>>;
 };
 
+export type AppSettings = {
+  globalHorizonMonths: number;
+};
+
 export type ProjectionSnapshot = {
   id: string;
   label: string;
@@ -56,9 +60,7 @@ export type HomeMode = "new_purchase" | "existing";
 
 export type InvestmentAssetClass = "equity" | "bond" | "fund" | "crypto";
 
-export type InsuranceType = "life" | "savings" | "accident" | "medical";
-
-export type InsurancePremiumMode = "monthly" | "annual";
+export type InsuranceKind = "protection" | "savings";
 
 export type ScenarioMemberKind = "person" | "pet";
 
@@ -142,13 +144,15 @@ export type InvestmentPosition = {
 
 export type InsurancePosition = {
   id?: string;
-  insuranceType: InsuranceType;
-  premiumMode: InsurancePremiumMode;
-  premiumAmount: number;
-  hasCashValue?: boolean;
-  cashValueAsOf?: number;
-  cashValueAnnualGrowthPct?: number;
-  coverageMeta?: Record<string, unknown>;
+  name: string;
+  enabled: boolean;
+  kind: InsuranceKind;
+  startMonth: string;
+  endMonth?: string;
+  premiumMonthly: number;
+  premiumAnnualGrowthPct?: number;
+  initialCashValue?: number;
+  expectedAnnualReturnPct?: number;
 };
 
 export type LoanPosition = {
@@ -245,6 +249,7 @@ type ScenarioStoreState = {
   scenarios: Scenario[];
   eventLibrary: EventDefinition[];
   activeScenarioId: string;
+  globalHorizonMonths: number;
   didHydrate: boolean;
   isHydrating: boolean;
   setHydrationState: (state: { didHydrate?: boolean; isHydrating?: boolean }) => void;
@@ -325,6 +330,7 @@ type ScenarioStoreState = {
     patch: Partial<ScenarioAssumptions>
   ) => void;
   setScenarioHorizonMonths: (id: string, horizonMonths: number) => void;
+  setGlobalHorizonMonths: (horizonMonths: number) => void;
   setScenarioInitialCash: (id: string, initialCash: number) => void;
   setScenarioBaseMonth: (id: string, baseMonth: string | null) => void;
   setAssumptionsPartial: (id: string, patch: Partial<ScenarioAssumptions>) => void;
@@ -338,7 +344,7 @@ type ScenarioStoreState = {
 export type ScenarioStorePersistedState = Pick<
   ScenarioStoreState,
   "scenarios" | "eventLibrary" | "activeScenarioId"
->;
+> & { globalHorizonMonths?: number };
 
 export const selectPersistedState = (
   state: ScenarioStoreState
@@ -346,6 +352,7 @@ export const selectPersistedState = (
   scenarios: state.scenarios,
   eventLibrary: state.eventLibrary,
   activeScenarioId: state.activeScenarioId,
+  globalHorizonMonths: state.globalHorizonMonths,
 });
 
 export const selectHasExistingProfile = (state: ScenarioStoreState): boolean =>
@@ -360,17 +367,34 @@ export const hydrateFromPersistedState = (
   )
     ? payload.activeScenarioId
     : normalizedScenarios[0]?.id ?? "";
+  const activeScenario =
+    normalizedScenarios.find((scenario) => scenario.id === normalizedActiveScenarioId) ??
+    normalizedScenarios[0];
+  const fallbackHorizon = activeScenario?.assumptions.horizonMonths ?? defaultAppSettings.globalHorizonMonths;
+  const normalizedGlobalHorizon =
+    typeof payload.globalHorizonMonths === "number"
+      ? clamp(payload.globalHorizonMonths, horizonRange.min, horizonRange.max)
+      : clamp(fallbackHorizon, horizonRange.min, horizonRange.max);
+  const scenariosWithGlobalHorizon = normalizedScenarios.map((scenario) => ({
+    ...scenario,
+    assumptions: {
+      ...scenario.assumptions,
+      horizonMonths: normalizedGlobalHorizon,
+    },
+  }));
 
   useScenarioStore.setState({
-    scenarios: normalizedScenarios,
+    scenarios: scenariosWithGlobalHorizon,
     eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
+    globalHorizonMonths: normalizedGlobalHorizon,
   });
 
   return {
-    scenarios: normalizedScenarios,
+    scenarios: scenariosWithGlobalHorizon,
     eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
+    globalHorizonMonths: normalizedGlobalHorizon,
   };
 };
 
@@ -386,6 +410,10 @@ const defaultAssumptions: ScenarioAssumptions = {
   initialCash: 0,
   baseMonth: null,
   includeBudgetRulesInProjection: true,
+};
+
+const defaultAppSettings: AppSettings = {
+  globalHorizonMonths: defaultAssumptions.horizonMonths,
 };
 
 const horizonRange = { min: 60, max: 480 };
@@ -507,6 +535,60 @@ const ensureInvestmentPositionId = (
   id: investment.id ?? createInvestmentPositionId(),
 });
 
+type LegacyInsurancePosition = {
+  id?: string;
+  insuranceType?: string;
+  premiumMode?: "monthly" | "annual";
+  premiumAmount?: number;
+  hasCashValue?: boolean;
+  cashValueAsOf?: number;
+  cashValueAnnualGrowthPct?: number;
+};
+
+const isLegacyInsurancePosition = (
+  insurance: InsurancePosition | LegacyInsurancePosition
+): insurance is LegacyInsurancePosition =>
+  "premiumAmount" in insurance || "insuranceType" in insurance || "premiumMode" in insurance;
+
+const getCurrentMonth = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const resolveDefaultStartMonth = (baseMonth?: string | null) =>
+  baseMonth && isValidMonthStr(baseMonth) ? baseMonth : getCurrentMonth();
+
+const normalizeInsurancePosition = (
+  insurance: InsurancePosition | LegacyInsurancePosition,
+  baseMonth?: string | null
+): InsurancePositionDraft => {
+  const id = "id" in insurance ? insurance.id : undefined;
+  if (isLegacyInsurancePosition(insurance)) {
+    const premiumAmount = insurance.premiumAmount ?? 0;
+    const premiumMonthly =
+      insurance.premiumMode === "annual" ? premiumAmount / 12 : premiumAmount;
+    return {
+      id: id ?? createInsurancePositionId(),
+      name: insurance.insuranceType ?? "",
+      enabled: true,
+      kind: insurance.hasCashValue ? "savings" : "protection",
+      startMonth: resolveDefaultStartMonth(baseMonth),
+      premiumMonthly,
+      initialCashValue: insurance.cashValueAsOf,
+      expectedAnnualReturnPct: insurance.cashValueAnnualGrowthPct,
+    };
+  }
+
+  return {
+    ...insurance,
+    id: id ?? createInsurancePositionId(),
+    name: insurance.name ?? "",
+    enabled: insurance.enabled ?? true,
+    kind: insurance.kind ?? "protection",
+    startMonth: insurance.startMonth ?? resolveDefaultStartMonth(baseMonth),
+  };
+};
+
 const ensureLoanPositionId = (loan: LoanPosition): LoanPositionDraft => ({
   ...loan,
   id: loan.id ?? createLoanPositionId(),
@@ -519,11 +601,9 @@ const ensureCarPositionId = (car: CarPosition): CarPositionDraft => ({
 });
 
 const ensureInsurancePositionId = (
-  insurance: InsurancePosition
-): InsurancePositionDraft => ({
-  ...insurance,
-  id: insurance.id ?? createInsurancePositionId(),
-});
+  insurance: InsurancePosition | LegacyInsurancePosition,
+  baseMonth?: string | null
+): InsurancePositionDraft => normalizeInsurancePosition(insurance, baseMonth);
 
 const ensureCashBucketPositionId = (
   bucket: CashBucketPosition
@@ -533,7 +613,8 @@ const ensureCashBucketPositionId = (
 });
 
 const normalizeScenarioPositions = (
-  positions?: ScenarioPositions
+  positions?: ScenarioPositions,
+  baseMonth?: string | null
 ): ScenarioPositions | undefined => {
   if (!positions) {
     return positions;
@@ -552,7 +633,9 @@ const normalizeScenarioPositions = (
       ? positions.investments.map(ensureInvestmentPositionId)
       : positions.investments,
     insurances: positions.insurances
-      ? positions.insurances.map(ensureInsurancePositionId)
+      ? positions.insurances.map((insurance) =>
+          ensureInsurancePositionId(insurance, baseMonth)
+        )
       : positions.insurances,
     loans: positions.loans ? positions.loans.map(ensureLoanPositionId) : positions.loans,
     cars: positions.cars ? positions.cars.map(ensureCarPositionId) : positions.cars,
@@ -586,7 +669,10 @@ const shouldAutoCompleteOnboarding = (scenario: Scenario) => {
 };
 
 export const normalizeScenario = (scenario: Scenario): Scenario => {
-  const normalizedPositions = normalizeScenarioPositions(scenario.positions);
+  const normalizedPositions = normalizeScenarioPositions(
+    scenario.positions,
+    scenario.assumptions?.baseMonth
+  );
   const normalizedMembers = normalizeMembers(scenario.members);
   const normalizedEventRefs = scenario.eventRefs ?? [];
   const normalizedBudgetRules = normalizeBudgetRules(scenario.budgetRules);
@@ -671,6 +757,7 @@ export const resetAllLocalData = () => {
     scenarios: [],
     eventLibrary: [],
     activeScenarioId: "",
+    globalHorizonMonths: defaultAppSettings.globalHorizonMonths,
   });
 };
 
@@ -683,6 +770,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   scenarios: normalizeScenarioList(initialScenarios),
   eventLibrary: initialEventLibrary,
   activeScenarioId: initialScenarios[0]?.id ?? "",
+  globalHorizonMonths: defaultAppSettings.globalHorizonMonths,
   didHydrate: false,
   isHydrating: false,
   setHydrationState: (patch) => {
@@ -692,13 +780,14 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
   },
   createScenario: (name, options) => {
+    const globalHorizonMonths = get().globalHorizonMonths;
     const newScenario: Scenario = {
       id: createScenarioId(),
       name,
       baseCurrency: options?.baseCurrency ?? defaultCurrency,
       updatedAt: now(),
       kpis: { ...defaultKpis },
-      assumptions: { ...defaultAssumptions },
+      assumptions: { ...defaultAssumptions, horizonMonths: globalHorizonMonths },
       members: normalizeMembers(),
       budgetRules: [],
       eventRefs: [],
@@ -1094,10 +1183,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         scenario.id === id
           ? {
               ...scenario,
-              positions: normalizeScenarioPositions({
-                ...(scenario.positions ?? {}),
-                homes: [...(scenario.positions?.homes ?? []), nextHome],
-              }),
+              positions: normalizeScenarioPositions(
+                {
+                  ...(scenario.positions ?? {}),
+                  homes: [...(scenario.positions?.homes ?? []), nextHome],
+                },
+                scenario.assumptions.baseMonth
+              ),
               updatedAt: now(),
             }
           : scenario
@@ -1122,10 +1214,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            homes: nextHomes,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              homes: nextHomes,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1161,7 +1256,10 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         return {
           ...scenario,
           eventRefs: nextEventRefs,
-          positions: normalizeScenarioPositions(nextPositions),
+          positions: normalizeScenarioPositions(
+            nextPositions,
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1174,10 +1272,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         scenario.id === id
           ? {
               ...scenario,
-              positions: normalizeScenarioPositions({
-                ...(scenario.positions ?? {}),
-                cars: [...(scenario.positions?.cars ?? []), nextCar],
-              }),
+              positions: normalizeScenarioPositions(
+                {
+                  ...(scenario.positions ?? {}),
+                  cars: [...(scenario.positions?.cars ?? []), nextCar],
+                },
+                scenario.assumptions.baseMonth
+              ),
               updatedAt: now(),
             }
           : scenario
@@ -1200,10 +1301,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            cars: nextCars,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              cars: nextCars,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1222,10 +1326,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            cars: nextCars,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              cars: nextCars,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1238,13 +1345,16 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         scenario.id === id
           ? {
               ...scenario,
-              positions: normalizeScenarioPositions({
-                ...(scenario.positions ?? {}),
-                investments: [
-                  ...(scenario.positions?.investments ?? []),
-                  nextInvestment,
-                ],
-              }),
+              positions: normalizeScenarioPositions(
+                {
+                  ...(scenario.positions ?? {}),
+                  investments: [
+                    ...(scenario.positions?.investments ?? []),
+                    nextInvestment,
+                  ],
+                },
+                scenario.assumptions.baseMonth
+              ),
               updatedAt: now(),
             }
           : scenario
@@ -1271,10 +1381,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            investments: nextInvestments,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              investments: nextInvestments,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1293,10 +1406,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            investments: nextInvestments,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              investments: nextInvestments,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1309,10 +1425,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         scenario.id === id
           ? {
               ...scenario,
-              positions: normalizeScenarioPositions({
-                ...(scenario.positions ?? {}),
-                loans: [...(scenario.positions?.loans ?? []), nextLoan],
-              }),
+              positions: normalizeScenarioPositions(
+                {
+                  ...(scenario.positions ?? {}),
+                  loans: [...(scenario.positions?.loans ?? []), nextLoan],
+                },
+                scenario.assumptions.baseMonth
+              ),
               updatedAt: now(),
             }
           : scenario
@@ -1335,10 +1454,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            loans: nextLoans,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              loans: nextLoans,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1357,29 +1479,34 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            loans: nextLoans,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              loans: nextLoans,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
     }));
   },
   addInsurancePosition: (id, insurance) => {
-    const nextInsurance = ensureInsurancePositionId(insurance);
     set((state) => ({
       scenarios: state.scenarios.map((scenario) =>
         scenario.id === id
           ? {
               ...scenario,
-              positions: normalizeScenarioPositions({
-                ...(scenario.positions ?? {}),
-                insurances: [
-                  ...(scenario.positions?.insurances ?? []),
-                  nextInsurance,
-                ],
-              }),
+              positions: normalizeScenarioPositions(
+                {
+                  ...(scenario.positions ?? {}),
+                  insurances: [
+                    ...(scenario.positions?.insurances ?? []),
+                    ensureInsurancePositionId(insurance, scenario.assumptions.baseMonth),
+                  ],
+                },
+                scenario.assumptions.baseMonth
+              ),
               updatedAt: now(),
             }
           : scenario
@@ -1387,13 +1514,16 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
   },
   updateInsurancePosition: (id, insurance) => {
-    const nextInsurance = ensureInsurancePositionId(insurance);
     set((state) => ({
       scenarios: state.scenarios.map((scenario) => {
         if (scenario.id !== id) {
           return scenario;
         }
 
+        const nextInsurance = ensureInsurancePositionId(
+          insurance,
+          scenario.assumptions.baseMonth
+        );
         const existingInsurances = scenario.positions?.insurances ?? [];
         const hasMatch = existingInsurances.some(
           (entry) => entry.id === nextInsurance.id
@@ -1406,10 +1536,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            insurances: nextInsurances,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              insurances: nextInsurances,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1428,10 +1561,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            insurances: nextInsurances,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              insurances: nextInsurances,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1444,13 +1580,16 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         scenario.id === id
           ? {
               ...scenario,
-              positions: normalizeScenarioPositions({
-                ...(scenario.positions ?? {}),
-                cashBuckets: [
-                  ...(scenario.positions?.cashBuckets ?? []),
-                  nextBucket,
-                ],
-              }),
+              positions: normalizeScenarioPositions(
+                {
+                  ...(scenario.positions ?? {}),
+                  cashBuckets: [
+                    ...(scenario.positions?.cashBuckets ?? []),
+                    nextBucket,
+                  ],
+                },
+                scenario.assumptions.baseMonth
+              ),
               updatedAt: now(),
             }
           : scenario
@@ -1475,10 +1614,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            cashBuckets: nextBuckets,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              cashBuckets: nextBuckets,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1497,10 +1639,13 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
         return {
           ...scenario,
-          positions: normalizeScenarioPositions({
-            ...(scenario.positions ?? {}),
-            cashBuckets: nextBuckets,
-          }),
+          positions: normalizeScenarioPositions(
+            {
+              ...(scenario.positions ?? {}),
+              cashBuckets: nextBuckets,
+            },
+            scenario.assumptions.baseMonth
+          ),
           updatedAt: now(),
         };
       }),
@@ -1615,68 +1760,98 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
   },
   updateScenarioAssumptions: (id, patch) => {
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
+    set((state) => {
+      const nextGlobalHorizon = Object.prototype.hasOwnProperty.call(
+        patch,
+        "horizonMonths"
+      )
+        ? typeof patch.horizonMonths === "number"
+          ? clamp(patch.horizonMonths, horizonRange.min, horizonRange.max)
+          : state.globalHorizonMonths
+        : state.globalHorizonMonths;
 
+      const scenarios = state.scenarios.map((scenario) => {
         const nextAssumptions = { ...scenario.assumptions };
 
         if (Object.prototype.hasOwnProperty.call(patch, "horizonMonths")) {
-          const horizon =
-            typeof patch.horizonMonths === "number"
-              ? clamp(patch.horizonMonths, horizonRange.min, horizonRange.max)
-              : scenario.assumptions.horizonMonths;
-          nextAssumptions.horizonMonths = horizon;
+          nextAssumptions.horizonMonths = nextGlobalHorizon;
         }
 
-        if (Object.prototype.hasOwnProperty.call(patch, "initialCash")) {
-          const cash =
-            typeof patch.initialCash === "number"
-              ? Math.max(0, patch.initialCash)
-              : scenario.assumptions.initialCash;
-          nextAssumptions.initialCash = cash;
-        }
+        if (scenario.id === id) {
+          if (Object.prototype.hasOwnProperty.call(patch, "initialCash")) {
+            const cash =
+              typeof patch.initialCash === "number"
+                ? Math.max(0, patch.initialCash)
+                : scenario.assumptions.initialCash;
+            nextAssumptions.initialCash = cash;
+          }
 
-        if (Object.prototype.hasOwnProperty.call(patch, "baseMonth")) {
-          const baseMonth = patch.baseMonth;
-          if (baseMonth === null) {
-            nextAssumptions.baseMonth = null;
-          } else if (typeof baseMonth === "string" && isValidBaseMonth(baseMonth)) {
-            nextAssumptions.baseMonth = baseMonth;
+          if (Object.prototype.hasOwnProperty.call(patch, "baseMonth")) {
+            const baseMonth = patch.baseMonth;
+            if (baseMonth === null) {
+              nextAssumptions.baseMonth = null;
+            } else if (typeof baseMonth === "string" && isValidBaseMonth(baseMonth)) {
+              nextAssumptions.baseMonth = baseMonth;
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "inflationRate")) {
+            nextAssumptions.inflationRate = patch.inflationRate;
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "salaryGrowthRate")) {
+            nextAssumptions.salaryGrowthRate = patch.salaryGrowthRate;
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "emergencyFundMonths")) {
+            nextAssumptions.emergencyFundMonths = patch.emergencyFundMonths;
+          }
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              patch,
+              "includeBudgetRulesInProjection"
+            )
+          ) {
+            nextAssumptions.includeBudgetRulesInProjection =
+              patch.includeBudgetRulesInProjection ?? true;
           }
         }
 
-        if (Object.prototype.hasOwnProperty.call(patch, "inflationRate")) {
-          nextAssumptions.inflationRate = patch.inflationRate;
-        }
+        return scenario.id === id || Object.prototype.hasOwnProperty.call(patch, "horizonMonths")
+          ? {
+              ...scenario,
+              assumptions: nextAssumptions,
+              updatedAt: scenario.id === id ? now() : scenario.updatedAt,
+            }
+          : scenario;
+      });
 
-        if (Object.prototype.hasOwnProperty.call(patch, "salaryGrowthRate")) {
-          nextAssumptions.salaryGrowthRate = patch.salaryGrowthRate;
-        }
-
-        if (Object.prototype.hasOwnProperty.call(patch, "emergencyFundMonths")) {
-          nextAssumptions.emergencyFundMonths = patch.emergencyFundMonths;
-        }
-
-        if (
-          Object.prototype.hasOwnProperty.call(patch, "includeBudgetRulesInProjection")
-        ) {
-          nextAssumptions.includeBudgetRulesInProjection =
-            patch.includeBudgetRulesInProjection ?? true;
-        }
-
-        return {
-          ...scenario,
-          assumptions: nextAssumptions,
-          updatedAt: now(),
-        };
-      }),
-    }));
+      return {
+        ...state,
+        scenarios,
+        globalHorizonMonths: nextGlobalHorizon,
+      };
+    });
   },
-  setScenarioHorizonMonths: (id, horizonMonths) => {
-    get().updateScenarioAssumptions(id, { horizonMonths });
+  setScenarioHorizonMonths: (_id, horizonMonths) => {
+    get().setGlobalHorizonMonths(horizonMonths);
+  },
+  setGlobalHorizonMonths: (horizonMonths) => {
+    set((state) => {
+      const nextGlobalHorizon = clamp(horizonMonths, horizonRange.min, horizonRange.max);
+      return {
+        ...state,
+        globalHorizonMonths: nextGlobalHorizon,
+        scenarios: state.scenarios.map((scenario) => ({
+          ...scenario,
+          assumptions: {
+            ...scenario.assumptions,
+            horizonMonths: nextGlobalHorizon,
+          },
+        })),
+      };
+    });
   },
   setScenarioInitialCash: (id, initialCash) => {
     get().updateScenarioAssumptions(id, { initialCash });
@@ -1689,13 +1864,31 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   replaceScenario: (scenario) => {
     const normalizedScenario = normalizeScenario(scenario);
+    const globalHorizonMonths = get().globalHorizonMonths;
     set((state) => {
       const exists = state.scenarios.some((entry) => entry.id === normalizedScenario.id);
       const scenarios = exists
         ? state.scenarios.map((entry) =>
-            entry.id === normalizedScenario.id ? normalizedScenario : entry
+            entry.id === normalizedScenario.id
+              ? {
+                  ...normalizedScenario,
+                  assumptions: {
+                    ...normalizedScenario.assumptions,
+                    horizonMonths: globalHorizonMonths,
+                  },
+                }
+              : entry
           )
-        : [normalizedScenario, ...state.scenarios];
+        : [
+            {
+              ...normalizedScenario,
+              assumptions: {
+                ...normalizedScenario.assumptions,
+                horizonMonths: globalHorizonMonths,
+              },
+            },
+            ...state.scenarios,
+          ];
 
       const nextActiveScenarioId = state.activeScenarioId
         ? state.activeScenarioId
@@ -1708,7 +1901,14 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     });
   },
   replaceAllScenarios: (scenarios) => {
-    const normalizedScenarios = normalizeScenarioList(scenarios);
+    const globalHorizonMonths = get().globalHorizonMonths;
+    const normalizedScenarios = normalizeScenarioList(scenarios).map((scenario) => ({
+      ...scenario,
+      assumptions: {
+        ...scenario.assumptions,
+        horizonMonths: globalHorizonMonths,
+      },
+    }));
     set(() => ({
       scenarios: normalizedScenarios,
       activeScenarioId: normalizedScenarios[0]?.id ?? "",

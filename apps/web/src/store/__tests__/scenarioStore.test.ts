@@ -75,6 +75,7 @@ beforeEach(() => {
     scenarios: [scenario],
     eventLibrary: buildEventLibrary(),
     activeScenarioId: scenario.id,
+    globalHorizonMonths: scenario.assumptions.horizonMonths,
   });
 });
 
@@ -345,6 +346,7 @@ describe("onboarding completion", () => {
       ],
       eventLibrary: buildEventLibrary(),
       activeScenarioId: "scenario-a",
+      globalHorizonMonths: 240,
     });
 
     const { setActiveScenario } = useScenarioStore.getState();
@@ -397,6 +399,7 @@ describe("selectHasExistingProfile", () => {
       scenarios: [],
       eventLibrary: [],
       activeScenarioId: "",
+      globalHorizonMonths: 240,
     });
 
     const result = selectHasExistingProfile(useScenarioStore.getState());
@@ -410,6 +413,7 @@ describe("selectHasExistingProfile", () => {
       scenarios: [scenario],
       eventLibrary: buildEventLibrary(),
       activeScenarioId: scenario.id,
+      globalHorizonMonths: 240,
     });
 
     const result = selectHasExistingProfile(useScenarioStore.getState());

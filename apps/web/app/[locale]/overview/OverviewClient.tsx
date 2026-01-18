@@ -10,8 +10,11 @@ import {
   Card,
   Group,
   Menu,
+  MultiSelect,
+  SegmentedControl,
   SimpleGrid,
   Stack,
+  Table,
   Text,
   Title,
 } from "@mantine/core";
@@ -19,6 +22,14 @@ import { useMediaQuery } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as ChartTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import FullScreenChartModal, {
   type FullScreenChartType,
 } from "../../../components/FullScreenChartModal";
@@ -39,6 +50,7 @@ import {
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
+import { useScenarioProjections } from "../../../src/engine/useScenarioProjections";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import {
   compileAllBudgetRules,
@@ -57,6 +69,7 @@ import {
 } from "../../../src/store/scenarioStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
+import { getMemberAgeYears } from "../../../src/domain/members/age";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -111,8 +124,11 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const globalHorizonMonths = useScenarioStore((state) => state.globalHorizonMonths);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const scenarioIdFromQuery = scenarioId ?? null;
+  const [viewMode, setViewMode] = useState<"single" | "compare">("single");
+  const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
   const [fullscreenChart, setFullscreenChart] = useState<{
@@ -136,6 +152,30 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
 
   const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
+  const compareScenarioOptions = useMemo(
+    () =>
+      scenarios.map((scenarioOption) => ({
+        value: scenarioOption.id,
+        label: scenarioOption.name,
+      })),
+    [scenarios]
+  );
+
+  useEffect(() => {
+    if (!selectedScenario || viewMode !== "compare") {
+      return;
+    }
+    setCompareScenarioIds((current) => {
+      if (current.length >= 2) {
+        return current.slice(0, 5);
+      }
+      const fallback = scenarios
+        .map((scenario) => scenario.id)
+        .filter(Boolean)
+        .slice(0, 2);
+      return fallback.length > 0 ? fallback : current;
+    });
+  }, [scenarios, selectedScenario, viewMode]);
   const {
     projection,
     months,
@@ -145,14 +185,26 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     projectionNetCashflowByMonth,
     projectionNetCashflowMode,
   } = useProjectionWithLedger(selectedScenario, eventLibrary);
+  const compareProjections = useScenarioProjections(
+    scenarios,
+    eventLibrary,
+    compareScenarioIds,
+    { horizonMonths: globalHorizonMonths }
+  );
 
   const overviewViewModel = useMemo(
     () => (projection ? projectionToOverviewViewModel(projection) : null),
     [projection]
   );
 
-  const cashSeries = overviewViewModel?.cashSeries ?? [];
-  const netWorthSeries = overviewViewModel?.netWorthSeries ?? [];
+  const cashSeries = useMemo(
+    () => overviewViewModel?.cashSeries ?? [],
+    [overviewViewModel]
+  );
+  const netWorthSeries = useMemo(
+    () => overviewViewModel?.netWorthSeries ?? [],
+    [overviewViewModel]
+  );
   const netWorthByMonth = useMemo(
     () =>
       netWorthSeries.reduce<Record<string, number>>((acc, entry) => {
@@ -188,16 +240,28 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
   const snapshotTargets = useMemo(() => [5, 10, 15, 20, 30], []);
   const autoSnapshots = useMemo(() => {
-    if (!projection) {
+    if (!projection || !selectedScenario) {
       return [];
     }
+    const baseMonth = projection.baseMonth;
+    const formatAge = (value: number) =>
+      Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+
     return snapshotTargets
       .map((years) => {
-        const monthIndex = years * 12;
-        if (monthIndex >= projection.months.length) {
+        const requiredMonths = years * 12;
+        if (globalHorizonMonths < requiredMonths) {
           return null;
         }
+        const monthIndex = Math.min(requiredMonths - 1, projection.months.length - 1);
         const month = projection.months[monthIndex];
+        const ageLabels = (selectedScenario.members ?? []).map((member) => {
+          const ageYears = Math.max(0, getMemberAgeYears(member, month, baseMonth));
+          return t("snapshotAgeLabel", {
+            name: member.name,
+            age: formatAge(ageYears),
+          });
+        });
         return {
           label: t("snapshotsYearLabel", { years }),
           month,
@@ -205,10 +269,51 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           assets: projection.assets.total[monthIndex] ?? 0,
           liabilities: projection.liabilities.total[monthIndex] ?? 0,
           netWorth: projection.netWorth[monthIndex] ?? 0,
+          ageLabels,
         };
       })
       .filter((snapshot): snapshot is NonNullable<typeof snapshot> => Boolean(snapshot));
-  }, [projection, snapshotTargets, t]);
+  }, [globalHorizonMonths, projection, selectedScenario, snapshotTargets, t]);
+
+  const compareChartData = useMemo(() => {
+    if (compareProjections.length === 0) {
+      return [];
+    }
+    const maxLength = Math.max(
+      ...compareProjections.map((item) => item.projection.months.length)
+    );
+    const baseMonths = compareProjections[0]?.projection.months ?? [];
+
+    return Array.from({ length: maxLength }, (_, index) => {
+      const month = baseMonths[index] ?? "";
+      const row: Record<string, string | number> = { month };
+      compareProjections.forEach((item) => {
+        row[item.scenarioId] = item.projection.netWorth[index] ?? 0;
+      });
+      return row;
+    }).filter((row) => Boolean(row.month));
+  }, [compareProjections]);
+
+  const compareKpiRows = useMemo(() => {
+    return compareProjections.map((item) => {
+      const horizonMonths = globalHorizonMonths;
+      const netWorthByYear = snapshotTargets.map((years) => {
+        const requiredMonths = years * 12;
+        if (horizonMonths < requiredMonths) {
+          return null;
+        }
+        const index = Math.min(requiredMonths - 1, item.projection.netWorth.length - 1);
+        return item.projection.netWorth[index] ?? 0;
+      });
+
+      return {
+        scenarioId: item.scenarioId,
+        name: item.scenario.name,
+        currency: item.scenario.baseCurrency,
+        values: netWorthByYear,
+      };
+    });
+  }, [compareProjections, globalHorizonMonths, snapshotTargets]);
 
   const insights = useMemo(() => {
     if (!computedKpis) {
@@ -232,6 +337,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     return null;
   }
 
+  const showCompare = viewMode === "compare";
   const hasEnabledEvents =
     buildScenarioTimelineEvents(selectedScenario, eventLibrary).filter(
       (event) => event.enabled
@@ -332,15 +438,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           <Group gap="sm">
             <Menu position="bottom-end" withArrow>
               <Menu.Target>
-                <Button variant="light" disabled={!projection}>
+                <Button variant="light" disabled={!projection || showCompare}>
                   {exportT("export")}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item onClick={handleExportCsv} disabled={!projection}>
+                <Menu.Item onClick={handleExportCsv} disabled={!projection || showCompare}>
                   {exportT("exportCsv")}
                 </Menu.Item>
-                <Menu.Item onClick={handleExportJson} disabled={!projection}>
+                <Menu.Item onClick={handleExportJson} disabled={!projection || showCompare}>
                   {exportT("exportJson")}
                 </Menu.Item>
               </Menu.Dropdown>
@@ -351,250 +457,350 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           </Group>
         </Group>
 
-        {isDesktop ? (
-          <ScenarioContextSelector
-            options={scenarios.map((scenario) => ({
-              label: scenario.name,
-              value: scenario.id,
-            }))}
-            value={selectedScenario.id}
-            onChange={handleScenarioChange}
+        <Stack gap="sm">
+          <SegmentedControl
+            data={[
+              { value: "single", label: t("viewSingle") },
+              { value: "compare", label: t("viewCompare") },
+            ]}
+            value={viewMode}
+            onChange={(value) => setViewMode(value as "single" | "compare")}
           />
-        ) : (
-          <Group gap="xs">
-            <Badge variant="light" color="indigo">
-              {selectedScenario.name}
-            </Badge>
-            <Button component={Link} href="/scenarios" variant="subtle" size="xs">
-              {common("actionChange")}
-            </Button>
-          </Group>
-        )}
-      </Stack>
-
-      {isDesktop ? (
-        <SimpleGrid cols={4} spacing="md">
-          {kpiItems.map((item) => (
-            <KpiCard key={item.label} {...item} />
-          ))}
-        </SimpleGrid>
-      ) : (
-        <KpiCarousel items={kpiItems} />
-      )}
-
-      {isDesktop ? (
-        <SimpleGrid cols={3} spacing="md">
-          <CashBalanceChart
-            data={cashSeries}
-            title={t("cashBalanceTitle")}
-            onClick={
-              projection
-                ? () =>
-                    setFullscreenChart({
-                      type: "cash",
-                      data: cashSeries,
-                    })
-                : undefined
-            }
-          />
-          <NetWorthChart
-            data={netWorthSeries}
-            title={t("netWorthTitle")}
-            onClick={
-              projection
-                ? () =>
-                    setFullscreenChart({
-                      type: "netWorth",
-                      data: netWorthSeries,
-                    })
-                : undefined
-            }
-          />
-          <NetCashflowChart
-            data={netCashflowSeries}
-            title={t("netCashflowTitle")}
-            onClick={
-              projection
-                ? () =>
-                    setFullscreenChart({
-                      type: "netCashflow",
-                      data: netCashflowSeries,
-                    })
-                : undefined
-            }
-          />
-        </SimpleGrid>
-      ) : (
-        <Stack gap="md">
-          <CashBalanceChart
-            data={cashSeries}
-            title={t("cashBalanceTitle")}
-            onClick={
-              projection
-                ? () =>
-                    setFullscreenChart({
-                      type: "cash",
-                      data: cashSeries,
-                    })
-                : undefined
-            }
-          />
-          <Accordion variant="separated" radius="md">
-            <Accordion.Item value="net-worth">
-              <Accordion.Control>{t("netWorthTitle")}</Accordion.Control>
-              <Accordion.Panel>
-                <NetWorthChart
-                  data={netWorthSeries}
-                  onClick={
-                    projection
-                      ? () =>
-                          setFullscreenChart({
-                            type: "netWorth",
-                            data: netWorthSeries,
-                          })
-                      : undefined
-                  }
-                />
-              </Accordion.Panel>
-            </Accordion.Item>
-            <Accordion.Item value="net-cashflow">
-              <Accordion.Control>{t("netCashflowTitle")}</Accordion.Control>
-              <Accordion.Panel>
-                <NetCashflowChart
-                  data={netCashflowSeries}
-                  onClick={
-                    projection
-                      ? () =>
-                          setFullscreenChart({
-                            type: "netCashflow",
-                            data: netCashflowSeries,
-                          })
-                      : undefined
-                  }
-                />
-              </Accordion.Panel>
-            </Accordion.Item>
-          </Accordion>
-        </Stack>
-      )}
-
-      {!hasEnabledEvents && (
-        <Card withBorder radius="md" padding="md">
-          <Stack gap="sm" align="flex-start">
-            <Text size="sm">{t("emptyTimeline")}</Text>
-            <Button
-              component={Link}
-              href={buildScenarioUrl("/timeline", selectedScenario.id)}
-              size="xs"
-            >
-              {t("addEventsCta")}
-            </Button>
-          </Stack>
-        </Card>
-      )}
-
-      {isDesktop ? (
-        <SimpleGrid cols={3} spacing="md">
-          <InsightsCard insights={insights} />
-          <RentVsOwnCard
-            comparison={rentVsOwn}
-            currency={selectedScenario.baseCurrency}
-          />
-          <OverviewActionsCard scenarioId={selectedScenario.id} />
-        </SimpleGrid>
-      ) : (
-        <Stack gap="md">
-          <InsightsCard insights={insights} />
-          <RentVsOwnCard
-            comparison={rentVsOwn}
-            currency={selectedScenario.baseCurrency}
-          />
-          <Card withBorder radius="md" padding="md">
-            <Stack gap="sm">
-              <Button
-                component={Link}
-                href={buildScenarioUrl("/timeline", selectedScenario.id)}
-              >
-                {t("actionsTimeline")}
-              </Button>
-              <Button
-                component={Link}
-                href={buildScenarioUrl("/stress", selectedScenario.id)}
-                variant="light"
-              >
-                {t("actionsStress")}
-              </Button>
-            </Stack>
-          </Card>
-        </Stack>
-      )}
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="xs">
-          <Text fw={600}>{t("budgetPreviewTitle")}</Text>
-          <Text size="sm" c="dimmed">
-            {t("budgetPreviewSubtitle")}
-          </Text>
-          {budgetTotalsPreview.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {t("budgetPreviewEmpty")}
-            </Text>
-          ) : (
-            <Stack gap={2}>
-              {budgetTotalsPreview.map((entry) => (
-                <Text key={`budget-${entry.month}`} size="sm">
-                  {entry.month} ·{" "}
-                  {formatCurrency(
-                    entry.totalAmountSigned,
-                    selectedScenario.baseCurrency,
-                    locale
-                  )}
-                </Text>
-              ))}
-              {budgetTotals.length > budgetTotalsPreview.length && (
-                <Text size="xs" c="dimmed">
-                  {t("budgetPreviewMore", {
-                    count: budgetTotals.length - budgetTotalsPreview.length,
-                  })}
+          {showCompare ? (
+            <Stack gap={4}>
+              <MultiSelect
+                data={compareScenarioOptions}
+                value={compareScenarioIds}
+                onChange={(value) => setCompareScenarioIds(value.slice(0, 5))}
+                placeholder={t("compareSelectPlaceholder")}
+              />
+              {compareScenarioIds.length < 2 && (
+                <Text size="xs" c="red">
+                  {t("compareSelectHint")}
                 </Text>
               )}
             </Stack>
+          ) : isDesktop ? (
+            <ScenarioContextSelector
+              options={scenarios.map((scenario) => ({
+                label: scenario.name,
+                value: scenario.id,
+              }))}
+              value={selectedScenario.id}
+              onChange={handleScenarioChange}
+            />
+          ) : (
+            <Group gap="xs">
+              <Badge variant="light" color="indigo">
+                {selectedScenario.name}
+              </Badge>
+              <Button component={Link} href="/scenarios" variant="subtle" size="xs">
+                {common("actionChange")}
+              </Button>
+            </Group>
           )}
         </Stack>
-      </Card>
-      <AutoSnapshotsCard
-        snapshots={autoSnapshots}
-        currency={selectedScenario.baseCurrency}
-        onSelectMonth={handleSelectSnapshot}
-      />
-      <ProjectionDetailsModal
-        opened={breakdownOpen}
-        onClose={() => setBreakdownOpen(false)}
-        months={months}
-        currentMonth={currentMonth}
-        onMonthChange={setCurrentMonth}
-        ledgerByMonth={ledgerByMonth}
-        summaryByMonth={summaryByMonth}
-        positionCashflowsByMonth={positionCashflowsByMonth}
-        projectionNetCashflowByMonth={projectionNetCashflowByMonth}
-        projectionNetCashflowMode={projectionNetCashflowMode}
-        netWorthByMonth={netWorthByMonth}
-        currency={selectedScenario.baseCurrency}
-        memberLookup={memberLookup}
-      />
-      <FullScreenChartModal
-        opened={Boolean(fullscreenChart)}
-        onClose={() => setFullscreenChart(null)}
-        type={fullscreenChart?.type}
-        data={fullscreenChart?.data ?? []}
-        title={
-          fullscreenChart?.type === "netWorth"
-            ? t("fullscreenTitleNetWorth")
-            : fullscreenChart?.type === "netCashflow"
-              ? t("fullscreenTitleNetCashflow")
-              : t("fullscreenTitleCashBalance")
-        }
-      />
+      </Stack>
+
+      {showCompare ? (
+        <Stack gap="md">
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="sm">
+              <Text fw={600}>{t("compareNetWorthTitle")}</Text>
+              <div style={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer>
+                  <LineChart data={compareChartData} margin={{ left: 8, right: 12 }}>
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      width={72}
+                      tickFormatter={(value) =>
+                        formatCurrency(Number(value), undefined, locale)
+                      }
+                    />
+                    <ChartTooltip
+                      formatter={(value) =>
+                        formatCurrency(Number(value), undefined, locale)
+                      }
+                      labelFormatter={(label) => t("monthLabel", { month: label })}
+                    />
+                    {compareProjections.map((item, index) => (
+                      <Line
+                        key={item.scenarioId}
+                        type="monotone"
+                        dataKey={item.scenarioId}
+                        stroke={["#228be6", "#12b886", "#fa5252", "#7950f2", "#fab005"][index % 5]}
+                        strokeWidth={2}
+                        dot={false}
+                        name={item.scenario.name}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Stack>
+          </Card>
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="sm">
+              <Text fw={600}>{t("compareKpiTitle")}</Text>
+              <Table striped withColumnBorders highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>{t("compareScenarioLabel")}</Table.Th>
+                    {snapshotTargets.map((years) => (
+                      <Table.Th key={years}>{t("compareYearLabel", { years })}</Table.Th>
+                    ))}
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {compareKpiRows.map((row) => (
+                    <Table.Tr key={row.scenarioId}>
+                      <Table.Td>{row.name}</Table.Td>
+                      {row.values.map((value, index) => (
+                        <Table.Td key={`${row.scenarioId}-${index}`}>
+                          {value === null
+                            ? t("compareUnavailable")
+                            : formatCurrency(value, row.currency, locale)}
+                        </Table.Td>
+                      ))}
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Stack>
+          </Card>
+        </Stack>
+      ) : (
+        <>
+          {isDesktop ? (
+            <SimpleGrid cols={4} spacing="md">
+              {kpiItems.map((item) => (
+                <KpiCard key={item.label} {...item} />
+              ))}
+            </SimpleGrid>
+          ) : (
+            <KpiCarousel items={kpiItems} />
+          )}
+
+          {isDesktop ? (
+            <SimpleGrid cols={3} spacing="md">
+              <CashBalanceChart
+                data={cashSeries}
+                title={t("cashBalanceTitle")}
+                onClick={
+                  projection
+                    ? () =>
+                        setFullscreenChart({
+                          type: "cash",
+                          data: cashSeries,
+                        })
+                    : undefined
+                }
+              />
+              <NetWorthChart
+                data={netWorthSeries}
+                title={t("netWorthTitle")}
+                onClick={
+                  projection
+                    ? () =>
+                        setFullscreenChart({
+                          type: "netWorth",
+                          data: netWorthSeries,
+                        })
+                    : undefined
+                }
+              />
+              <NetCashflowChart
+                data={netCashflowSeries}
+                title={t("netCashflowTitle")}
+                onClick={
+                  projection
+                    ? () =>
+                        setFullscreenChart({
+                          type: "netCashflow",
+                          data: netCashflowSeries,
+                        })
+                    : undefined
+                }
+              />
+            </SimpleGrid>
+          ) : (
+            <Stack gap="md">
+              <CashBalanceChart
+                data={cashSeries}
+                title={t("cashBalanceTitle")}
+                onClick={
+                  projection
+                    ? () =>
+                        setFullscreenChart({
+                          type: "cash",
+                          data: cashSeries,
+                        })
+                    : undefined
+                }
+              />
+              <Accordion variant="separated" radius="md">
+                <Accordion.Item value="net-worth">
+                  <Accordion.Control>{t("netWorthTitle")}</Accordion.Control>
+                  <Accordion.Panel>
+                    <NetWorthChart
+                      data={netWorthSeries}
+                      onClick={
+                        projection
+                          ? () =>
+                              setFullscreenChart({
+                                type: "netWorth",
+                                data: netWorthSeries,
+                              })
+                          : undefined
+                      }
+                    />
+                  </Accordion.Panel>
+                </Accordion.Item>
+                <Accordion.Item value="net-cashflow">
+                  <Accordion.Control>{t("netCashflowTitle")}</Accordion.Control>
+                  <Accordion.Panel>
+                    <NetCashflowChart
+                      data={netCashflowSeries}
+                      onClick={
+                        projection
+                          ? () =>
+                              setFullscreenChart({
+                                type: "netCashflow",
+                                data: netCashflowSeries,
+                              })
+                          : undefined
+                      }
+                    />
+                  </Accordion.Panel>
+                </Accordion.Item>
+              </Accordion>
+            </Stack>
+          )}
+        </>
+      )}
+
+      {!showCompare && (
+        <>
+          {!hasEnabledEvents && (
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm" align="flex-start">
+                <Text size="sm">{t("emptyTimeline")}</Text>
+                <Button
+                  component={Link}
+                  href={buildScenarioUrl("/timeline", selectedScenario.id)}
+                  size="xs"
+                >
+                  {t("addEventsCta")}
+                </Button>
+              </Stack>
+            </Card>
+          )}
+
+          {isDesktop ? (
+            <SimpleGrid cols={3} spacing="md">
+              <InsightsCard insights={insights} />
+              <RentVsOwnCard
+                comparison={rentVsOwn}
+                currency={selectedScenario.baseCurrency}
+              />
+              <OverviewActionsCard scenarioId={selectedScenario.id} />
+            </SimpleGrid>
+          ) : (
+            <Stack gap="md">
+              <InsightsCard insights={insights} />
+              <RentVsOwnCard
+                comparison={rentVsOwn}
+                currency={selectedScenario.baseCurrency}
+              />
+              <Card withBorder radius="md" padding="md">
+                <Stack gap="sm">
+                  <Button
+                    component={Link}
+                    href={buildScenarioUrl("/timeline", selectedScenario.id)}
+                  >
+                    {t("actionsTimeline")}
+                  </Button>
+                  <Button
+                    component={Link}
+                    href={buildScenarioUrl("/stress", selectedScenario.id)}
+                    variant="light"
+                  >
+                    {t("actionsStress")}
+                  </Button>
+                </Stack>
+              </Card>
+            </Stack>
+          )}
+
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="xs">
+              <Text fw={600}>{t("budgetPreviewTitle")}</Text>
+              <Text size="sm" c="dimmed">
+                {t("budgetPreviewSubtitle")}
+              </Text>
+              {budgetTotalsPreview.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {t("budgetPreviewEmpty")}
+                </Text>
+              ) : (
+                <Stack gap={2}>
+                  {budgetTotalsPreview.map((entry) => (
+                    <Text key={`budget-${entry.month}`} size="sm">
+                      {entry.month} ·{" "}
+                      {formatCurrency(
+                        entry.totalAmountSigned,
+                        selectedScenario.baseCurrency,
+                        locale
+                      )}
+                    </Text>
+                  ))}
+                  {budgetTotals.length > budgetTotalsPreview.length && (
+                    <Text size="xs" c="dimmed">
+                      {t("budgetPreviewMore", {
+                        count: budgetTotals.length - budgetTotalsPreview.length,
+                      })}
+                    </Text>
+                  )}
+                </Stack>
+              )}
+            </Stack>
+          </Card>
+          <AutoSnapshotsCard
+            snapshots={autoSnapshots}
+            currency={selectedScenario.baseCurrency}
+            onSelectMonth={handleSelectSnapshot}
+          />
+          <ProjectionDetailsModal
+            opened={breakdownOpen}
+            onClose={() => setBreakdownOpen(false)}
+            months={months}
+            currentMonth={currentMonth}
+            onMonthChange={setCurrentMonth}
+            ledgerByMonth={ledgerByMonth}
+            summaryByMonth={summaryByMonth}
+            positionCashflowsByMonth={positionCashflowsByMonth}
+            projectionNetCashflowByMonth={projectionNetCashflowByMonth}
+            projectionNetCashflowMode={projectionNetCashflowMode}
+            netWorthByMonth={netWorthByMonth}
+            currency={selectedScenario.baseCurrency}
+            memberLookup={memberLookup}
+          />
+          <FullScreenChartModal
+            opened={Boolean(fullscreenChart)}
+            onClose={() => setFullscreenChart(null)}
+            type={fullscreenChart?.type}
+            data={fullscreenChart?.data ?? []}
+            title={
+              fullscreenChart?.type === "netWorth"
+                ? t("fullscreenTitleNetWorth")
+                : fullscreenChart?.type === "netCashflow"
+                  ? t("fullscreenTitleNetCashflow")
+                  : t("fullscreenTitleCashBalance")
+            }
+          />
+        </>
+      )}
     </Stack>
   );
 }

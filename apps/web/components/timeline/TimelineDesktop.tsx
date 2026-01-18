@@ -27,6 +27,7 @@ import HomeDetailsForm from "./HomeDetailsForm";
 import CarDetailsForm from "./CarDetailsForm";
 import InvestmentDetailsForm from "./InvestmentDetailsForm";
 import LoanDetailsForm from "./LoanDetailsForm";
+import InsuranceDetailsForm from "./InsuranceDetailsForm";
 import PositionDetailList from "./PositionDetailList";
 import TimelineEventDrawer from "./TimelineEventDrawer";
 import MergeDuplicatesModal from "./MergeDuplicatesModal";
@@ -42,6 +43,7 @@ import {
   buildEventTreeRows,
   createCarPositionFromTemplate,
   createHomePositionFromTemplate,
+  createInsurancePositionFromTemplate,
   createInvestmentPositionFromTemplate,
   createLoanPositionFromTemplate,
   getEventFilterOptions,
@@ -51,6 +53,7 @@ import {
   formatCurrency,
   formatCarSummary,
   formatHomeSummary,
+  formatInsuranceSummary,
   formatInvestmentSummary,
   formatLoanSummary,
   iconMap,
@@ -58,6 +61,7 @@ import {
 import type {
   CarPositionDraft,
   HomePositionDraft,
+  InsurancePositionDraft,
   InvestmentPositionDraft,
   LoanPositionDraft,
   Scenario,
@@ -66,15 +70,18 @@ import type {
 import {
   buildCarCashflowBreakdown,
   buildHomeCashflowBreakdown,
+  buildInsuranceCashflowBreakdown,
   buildInvestmentCashflowBreakdown,
   buildLoanCashflowBreakdown,
 } from "../../src/domain/positions/cashflowBreakdown";
 import {
   buildAmortizationSchedule,
   buildContributionSchedule,
-  buildValueSchedule,
   computeMonthlyPayment,
+  buildValueSchedule,
 } from "../../src/domain/positions/calculations";
+import { buildInvestmentValueTable } from "../../src/domain/positions/investmentValueTable";
+import { buildInsuranceValueTable } from "../../src/domain/positions/insuranceValueTable";
 import { Link } from "../../src/i18n/navigation";
 
 interface TimelineDesktopProps {
@@ -84,6 +91,7 @@ interface TimelineDesktopProps {
   homePositions: HomePositionDraft[];
   carPositions: CarPositionDraft[];
   investmentPositions: InvestmentPositionDraft[];
+  insurancePositions: InsurancePositionDraft[];
   loanPositions: LoanPositionDraft[];
   members: ScenarioMember[];
   baseCurrency: string;
@@ -102,6 +110,9 @@ interface TimelineDesktopProps {
   onInvestmentPositionAdd: (investment: InvestmentPositionDraft) => void;
   onInvestmentPositionUpdate: (investment: InvestmentPositionDraft) => void;
   onInvestmentPositionRemove: (investmentId: string) => void;
+  onInsurancePositionAdd: (insurance: InsurancePositionDraft) => void;
+  onInsurancePositionUpdate: (insurance: InsurancePositionDraft) => void;
+  onInsurancePositionRemove: (insuranceId: string) => void;
   onLoanPositionAdd: (loan: LoanPositionDraft) => void;
   onLoanPositionUpdate: (loan: LoanPositionDraft) => void;
   onLoanPositionRemove: (loanId: string) => void;
@@ -119,6 +130,7 @@ type CalculatorModalState = {
   amortizationRows?: ReturnType<typeof buildAmortizationSchedule>;
   valueRows?: ReturnType<typeof buildValueSchedule>;
   contributionRows?: ReturnType<typeof buildContributionSchedule>;
+  assetValueRows?: ReturnType<typeof buildInvestmentValueTable>;
 };
 
 export default function TimelineDesktop({
@@ -128,6 +140,7 @@ export default function TimelineDesktop({
   homePositions,
   carPositions,
   investmentPositions,
+  insurancePositions,
   loanPositions,
   members,
   baseCurrency,
@@ -146,6 +159,9 @@ export default function TimelineDesktop({
   onInvestmentPositionAdd,
   onInvestmentPositionUpdate,
   onInvestmentPositionRemove,
+  onInsurancePositionAdd,
+  onInsurancePositionUpdate,
+  onInsurancePositionRemove,
   onLoanPositionAdd,
   onLoanPositionUpdate,
   onLoanPositionRemove,
@@ -156,6 +172,7 @@ export default function TimelineDesktop({
   const homes = useTranslations("homes");
   const cars = useTranslations("cars");
   const investments = useTranslations("investments");
+  const insurances = useTranslations("insurances");
   const loans = useTranslations("loans");
   const locale = useLocale();
   const horizonMonths = assumptions.horizonMonths > 0 ? assumptions.horizonMonths : 360;
@@ -174,10 +191,11 @@ export default function TimelineDesktop({
   const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(
     null
   );
+  const [editingInsuranceId, setEditingInsuranceId] = useState<string | null>(null);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [homeToastOpen, setHomeToastOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{
-    type: "home" | "car" | "investment" | "loan";
+    type: "home" | "car" | "investment" | "insurance" | "loan";
     id: string;
     label: string;
   } | null>(null);
@@ -290,6 +308,9 @@ export default function TimelineDesktop({
   const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;
   const editingInvestment =
     investmentPositions.find((investment) => investment.id === editingInvestmentId) ??
+    null;
+  const editingInsurance =
+    insurancePositions.find((insurance) => insurance.id === editingInsuranceId) ??
     null;
   const editingLoan = loanPositions.find((loan) => loan.id === editingLoanId) ?? null;
 
@@ -1124,6 +1145,13 @@ export default function TimelineDesktop({
                                   months: horizonMonths,
                                 })
                               : [];
+                            const assetValueRows = startMonth
+                              ? buildInvestmentValueTable({
+                                  investment,
+                                  baseMonth: startMonth,
+                                  horizonMonths,
+                                })
+                              : [];
                             setCalculatorModal({
                               title: t("positionCalculatorTitle", {
                                 label: investments("investmentLabel", {
@@ -1131,6 +1159,7 @@ export default function TimelineDesktop({
                                 }),
                               }),
                               contributionRows,
+                              assetValueRows,
                             });
                           }}
                         >
@@ -1156,6 +1185,176 @@ export default function TimelineDesktop({
                           }
                         >
                           {investments("removeInvestment")}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))
+              )}
+            </Stack>
+
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{insurances("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    onInsurancePositionAdd(
+                      createInsurancePositionFromTemplate({ baseMonth })
+                    )
+                  }
+                >
+                  {insurances("addInsurance")}
+                </Button>
+              </Group>
+              {insurancePositions.length === 0 ? (
+                <Text c="dimmed" size="sm">
+                  {insurances("empty")}
+                </Text>
+              ) : (
+                insurancePositions.map((insurance, index) => (
+                  <Card key={insurance.id} withBorder padding="md" radius="md">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <div>
+                        <Text fw={600}>
+                          {insurance.name?.trim()
+                            ? insurance.name
+                            : insurances("insuranceLabel", { index: index + 1 })}
+                        </Text>
+                        <Text size="sm">
+                          {formatInsuranceSummary(
+                            insurances,
+                            insurance,
+                            baseCurrency,
+                            locale
+                          )}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {insurances("startMonth")}: {insurance.startMonth ?? "--"}
+                        </Text>
+                        <PositionDetailList
+                          items={[
+                            {
+                              label: insurances("kind"),
+                              value:
+                                insurance.kind === "savings"
+                                  ? insurances("kindSavings")
+                                  : insurances("kindProtection"),
+                            },
+                            {
+                              label: insurances("premiumMonthly"),
+                              value: formatCurrency(
+                                insurance.premiumMonthly ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: insurances("premiumAnnualGrowth"),
+                              value: `${(insurance.premiumAnnualGrowthPct ?? 0).toFixed(
+                                2
+                              )}%`,
+                            },
+                            {
+                              label: insurances("startMonth"),
+                              value: insurance.startMonth ?? "--",
+                            },
+                            {
+                              label: insurances("endMonth"),
+                              value: insurance.endMonth ?? "--",
+                            },
+                            ...(insurance.kind === "savings"
+                              ? [
+                                  {
+                                    label: insurances("initialCashValue"),
+                                    value: formatCurrency(
+                                      insurance.initialCashValue ?? 0,
+                                      baseCurrency,
+                                      locale
+                                    ),
+                                  },
+                                  {
+                                    label: insurances("expectedReturn"),
+                                    value: `${(
+                                      insurance.expectedAnnualReturnPct ?? 0
+                                    ).toFixed(2)}%`,
+                                  },
+                                ]
+                              : []),
+                          ]}
+                        />
+                      </div>
+                      <Group gap="sm">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const breakdown = buildInsuranceCashflowBreakdown({
+                              insurance,
+                              baseMonth: baseMonth ?? insurance.startMonth ?? null,
+                              horizonMonths,
+                            });
+                            setCashflowModal({
+                              title: t("positionCashflowTitle", {
+                                label:
+                                  insurance.name?.trim() ||
+                                  insurances("insuranceLabel", { index: index + 1 }),
+                              }),
+                              entries: breakdown.entries,
+                              series: breakdown.series,
+                            });
+                          }}
+                        >
+                          {t("positionViewCashflow")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const startMonth =
+                              insurance.startMonth ?? baseMonth ?? "";
+                            const assetValueRows = startMonth
+                              ? buildInsuranceValueTable({
+                                  insurance,
+                                  baseMonth: startMonth,
+                                  horizonMonths,
+                                })
+                              : [];
+                            setCalculatorModal({
+                              title: t("positionCalculatorTitle", {
+                                label:
+                                  insurance.name?.trim() ||
+                                  insurances("insuranceLabel", { index: index + 1 }),
+                              }),
+                              assetValueRows,
+                            });
+                          }}
+                        >
+                          {t("positionViewCalculations")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setEditingInsuranceId(insurance.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          color="red"
+                          variant="light"
+                          onClick={() =>
+                            setConfirmDelete({
+                              type: "insurance",
+                              id: insurance.id,
+                              label:
+                                insurance.name?.trim() ||
+                                insurances("insuranceLabel", { index: index + 1 }),
+                            })
+                          }
+                        >
+                          {insurances("removeInsurance")}
                         </Button>
                       </Group>
                     </Group>
@@ -1420,6 +1619,8 @@ export default function TimelineDesktop({
                   onCarPositionRemove(confirmDelete.id);
                 } else if (confirmDelete.type === "investment") {
                   onInvestmentPositionRemove(confirmDelete.id);
+                } else if (confirmDelete.type === "insurance") {
+                  onInsurancePositionRemove(confirmDelete.id);
                 } else if (confirmDelete.type === "loan") {
                   onLoanPositionRemove(confirmDelete.id);
                 }
@@ -1449,6 +1650,7 @@ export default function TimelineDesktop({
         amortizationRows={calculatorModal?.amortizationRows}
         valueRows={calculatorModal?.valueRows}
         contributionRows={calculatorModal?.contributionRows}
+        assetValueRows={calculatorModal?.assetValueRows}
       />
 
       <Drawer
@@ -1503,6 +1705,25 @@ export default function TimelineDesktop({
             onSave={(updated) => {
               onInvestmentPositionUpdate(updated);
               setEditingInvestmentId(null);
+            }}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        opened={Boolean(editingInsurance)}
+        onClose={() => setEditingInsuranceId(null)}
+        position="right"
+        size="md"
+        title={insurances("title")}
+      >
+        {editingInsurance && (
+          <InsuranceDetailsForm
+            insurance={editingInsurance}
+            onCancel={() => setEditingInsuranceId(null)}
+            onSave={(updated) => {
+              onInsurancePositionUpdate(updated);
+              setEditingInsuranceId(null);
             }}
           />
         )}
