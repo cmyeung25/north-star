@@ -24,8 +24,11 @@ import HomeDetailsForm from "./HomeDetailsForm";
 import CarDetailsForm from "./CarDetailsForm";
 import InvestmentDetailsForm from "./InvestmentDetailsForm";
 import LoanDetailsForm from "./LoanDetailsForm";
+import PositionDetailList from "./PositionDetailList";
 import TimelineEventDrawer from "./TimelineEventDrawer";
 import MergeDuplicatesModal from "./MergeDuplicatesModal";
+import PositionCashflowModal from "./PositionCashflowModal";
+import PositionCalculatorModal from "./PositionCalculatorModal";
 import type {
   EventDefinition,
   ScenarioEventRef,
@@ -58,6 +61,18 @@ import type {
   Scenario,
   ScenarioMember,
 } from "../../src/store/scenarioStore";
+import {
+  buildCarCashflowBreakdown,
+  buildHomeCashflowBreakdown,
+  buildInvestmentCashflowBreakdown,
+  buildLoanCashflowBreakdown,
+} from "../../src/domain/positions/cashflowBreakdown";
+import {
+  buildAmortizationSchedule,
+  buildContributionSchedule,
+  buildValueSchedule,
+  computeMonthlyPayment,
+} from "../../src/domain/positions/calculations";
 import { Link } from "../../src/i18n/navigation";
 import type { DuplicateCluster } from "../../src/domain/events/mergeDuplicates";
 
@@ -100,6 +115,19 @@ interface TimelineMobileProps {
   onMergeDuplicates: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
 }
 
+type CashflowModalState = {
+  title: string;
+  entries: ReturnType<typeof buildHomeCashflowBreakdown>["entries"];
+  series: ReturnType<typeof buildHomeCashflowBreakdown>["series"];
+};
+
+type CalculatorModalState = {
+  title: string;
+  amortizationRows?: ReturnType<typeof buildAmortizationSchedule>;
+  valueRows?: ReturnType<typeof buildValueSchedule>;
+  contributionRows?: ReturnType<typeof buildContributionSchedule>;
+};
+
 export default function TimelineMobile({
   eventViews,
   eventLibrary,
@@ -138,6 +166,7 @@ export default function TimelineMobile({
   const investments = useTranslations("investments");
   const loans = useTranslations("loans");
   const locale = useLocale();
+  const horizonMonths = assumptions.horizonMonths > 0 ? assumptions.horizonMonths : 360;
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
@@ -160,6 +189,11 @@ export default function TimelineMobile({
     id: string;
     label: string;
   } | null>(null);
+  const [cashflowModal, setCashflowModal] = useState<CashflowModalState | null>(
+    null
+  );
+  const [calculatorModal, setCalculatorModal] =
+    useState<CalculatorModalState | null>(null);
 
   const eventRows = useMemo(
     () => buildEventTreeRows(eventViews, activeGroup, collapsedGroups),
@@ -556,8 +590,227 @@ export default function TimelineMobile({
                             ? `${homes("existingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
                             : `${homes("purchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
                         </Text>
+                        <PositionDetailList
+                          items={(() => {
+                            const isExisting =
+                              (home.mode ?? "new_purchase") === "existing" &&
+                              Boolean(home.existing);
+                            const annualAppreciation = `${(
+                              home.annualAppreciationPct ?? 0
+                            ).toFixed(2)}%`;
+                            const holdingGrowth = `${(
+                              home.holdingCostAnnualGrowthPct ?? 0
+                            ).toFixed(2)}%`;
+                            if (isExisting && home.existing) {
+                              const mortgagePayment = computeMonthlyPayment(
+                                home.existing.mortgageBalance,
+                                (home.existing.annualRatePct ?? 0) / 100,
+                                home.existing.remainingTermMonths
+                              );
+                              return [
+                                {
+                                  label: homes("existingAsOfMonth"),
+                                  value: home.existing.asOfMonth,
+                                },
+                                {
+                                  label: homes("existingMarketValue"),
+                                  value: formatCurrency(
+                                    home.existing.marketValue,
+                                    baseCurrency,
+                                    locale
+                                  ),
+                                },
+                                {
+                                  label: homes("existingMortgageBalance"),
+                                  value: formatCurrency(
+                                    home.existing.mortgageBalance,
+                                    baseCurrency,
+                                    locale
+                                  ),
+                                },
+                                {
+                                  label: homes("existingRemainingTerm"),
+                                  value: String(home.existing.remainingTermMonths),
+                                },
+                                {
+                                  label: homes("existingMortgageRate"),
+                                  value: `${(home.existing.annualRatePct ?? 0).toFixed(2)}%`,
+                                },
+                                {
+                                  label: homes("mortgagePayment"),
+                                  value: formatCurrency(
+                                    mortgagePayment,
+                                    baseCurrency,
+                                    locale
+                                  ),
+                                },
+                                {
+                                  label: homes("annualAppreciation"),
+                                  value: annualAppreciation,
+                                },
+                                {
+                                  label: homes("holdingCostMonthly"),
+                                  value: formatCurrency(
+                                    home.holdingCostMonthly ?? 0,
+                                    baseCurrency,
+                                    locale
+                                  ),
+                                },
+                                {
+                                  label: homes("holdingCostGrowth"),
+                                  value: holdingGrowth,
+                                },
+                              ];
+                            }
+
+                            const principal =
+                              (home.purchasePrice ?? 0) - (home.downPayment ?? 0);
+                            const mortgagePayment = computeMonthlyPayment(
+                              principal,
+                              (home.mortgageRatePct ?? 0) / 100,
+                              Math.round((home.mortgageTermYears ?? 0) * 12)
+                            );
+
+                            return [
+                              {
+                                label: homes("purchaseMonth"),
+                                value: home.purchaseMonth ?? "--",
+                              },
+                              {
+                                label: homes("purchasePrice"),
+                                value: formatCurrency(
+                                  home.purchasePrice ?? 0,
+                                  baseCurrency,
+                                  locale
+                                ),
+                              },
+                              {
+                                label: homes("downPayment"),
+                                value: formatCurrency(
+                                  home.downPayment ?? 0,
+                                  baseCurrency,
+                                  locale
+                                ),
+                              },
+                              {
+                                label: homes("mortgageRate"),
+                                value: `${(home.mortgageRatePct ?? 0).toFixed(2)}%`,
+                              },
+                              {
+                                label: homes("mortgageTerm"),
+                                value: String(home.mortgageTermYears ?? 0),
+                              },
+                              {
+                                label: homes("mortgagePayment"),
+                                value: formatCurrency(
+                                  mortgagePayment,
+                                  baseCurrency,
+                                  locale
+                                ),
+                              },
+                              {
+                                label: homes("feesOneTime"),
+                                value: formatCurrency(
+                                  home.feesOneTime ?? 0,
+                                  baseCurrency,
+                                  locale
+                                ),
+                              },
+                              {
+                                label: homes("annualAppreciation"),
+                                value: annualAppreciation,
+                              },
+                              {
+                                label: homes("holdingCostMonthly"),
+                                value: formatCurrency(
+                                  home.holdingCostMonthly ?? 0,
+                                  baseCurrency,
+                                  locale
+                                ),
+                              },
+                              {
+                                label: homes("holdingCostGrowth"),
+                                value: holdingGrowth,
+                              },
+                            ];
+                          })()}
+                        />
                       </div>
-                      <Group gap="sm">
+                      <Group gap="sm" wrap="wrap">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const breakdown = buildHomeCashflowBreakdown({
+                              home,
+                              baseMonth:
+                                baseMonth ??
+                                ((home.mode ?? "new_purchase") === "existing"
+                                  ? home.existing?.asOfMonth
+                                  : home.purchaseMonth) ??
+                                null,
+                              horizonMonths,
+                            });
+                            setCashflowModal({
+                              title: t("positionCashflowTitle", {
+                                label: homes("homeLabel", { index: index + 1 }),
+                              }),
+                              entries: breakdown.entries,
+                              series: breakdown.series,
+                            });
+                          }}
+                        >
+                          {t("positionViewCashflow")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const isExisting =
+                              (home.mode ?? "new_purchase") === "existing" &&
+                              Boolean(home.existing);
+                            const startMonth = isExisting
+                              ? home.existing?.asOfMonth ?? baseMonth ?? ""
+                              : home.purchaseMonth ?? baseMonth ?? "";
+                            const principal = isExisting
+                              ? home.existing?.mortgageBalance ?? 0
+                              : (home.purchasePrice ?? 0) - (home.downPayment ?? 0);
+                            const annualRateDecimal = isExisting
+                              ? (home.existing?.annualRatePct ?? 0) / 100
+                              : (home.mortgageRatePct ?? 0) / 100;
+                            const termMonths = isExisting
+                              ? home.existing?.remainingTermMonths ?? 0
+                              : Math.round((home.mortgageTermYears ?? 0) * 12);
+                            const amortizationRows = startMonth
+                              ? buildAmortizationSchedule({
+                                  principal,
+                                  annualRateDecimal,
+                                  termMonths,
+                                  startMonth,
+                                })
+                              : [];
+                            const valueRows = startMonth
+                              ? buildValueSchedule({
+                                  baseValue: isExisting
+                                    ? home.existing?.marketValue ?? 0
+                                    : home.purchasePrice ?? 0,
+                                  annualAppreciationDecimal:
+                                    (home.annualAppreciationPct ?? 0) / 100,
+                                  startMonth,
+                                  months: horizonMonths,
+                                })
+                              : [];
+                            setCalculatorModal({
+                              title: t("positionCalculatorTitle", {
+                                label: homes("homeLabel", { index: index + 1 }),
+                              }),
+                              amortizationRows,
+                              valueRows,
+                            });
+                          }}
+                        >
+                          {t("positionViewCalculations")}
+                        </Button>
                         <Button
                           size="xs"
                           variant="light"
@@ -613,8 +866,128 @@ export default function TimelineMobile({
                         <Text size="xs" c="dimmed">
                           {cars("purchaseMonth")}: {car.purchaseMonth ?? "--"}
                         </Text>
+                        <PositionDetailList
+                          items={[
+                            {
+                              label: cars("purchaseMonth"),
+                              value: car.purchaseMonth ?? "--",
+                            },
+                            {
+                              label: cars("purchasePrice"),
+                              value: formatCurrency(
+                                car.purchasePrice ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: cars("downPayment"),
+                              value: formatCurrency(
+                                car.downPayment ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: cars("annualDepreciationRate"),
+                              value: `${(car.annualDepreciationRatePct ?? 0).toFixed(2)}%`,
+                            },
+                            {
+                              label: cars("holdingCostMonthly"),
+                              value: formatCurrency(
+                                car.holdingCostMonthly ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: cars("holdingCostGrowth"),
+                              value: `${(car.holdingCostAnnualGrowthPct ?? 0).toFixed(2)}%`,
+                            },
+                            ...(car.loan
+                              ? [
+                                  {
+                                    label: cars("loanPrincipal"),
+                                    value: formatCurrency(
+                                      car.loan.principal ?? 0,
+                                      baseCurrency,
+                                      locale
+                                    ),
+                                  },
+                                  {
+                                    label: cars("loanRate"),
+                                    value: `${(car.loan.annualInterestRatePct ?? 0).toFixed(2)}%`,
+                                  },
+                                  {
+                                    label: cars("loanTerm"),
+                                    value: String(car.loan.termYears ?? 0),
+                                  },
+                                  {
+                                    label: cars("loanMonthlyPayment"),
+                                    value: formatCurrency(
+                                      car.loan.monthlyPayment ??
+                                        computeMonthlyPayment(
+                                          car.loan.principal,
+                                          (car.loan.annualInterestRatePct ?? 0) / 100,
+                                          Math.round((car.loan.termYears ?? 0) * 12)
+                                        ),
+                                      baseCurrency,
+                                      locale
+                                    ),
+                                  },
+                                ]
+                              : []),
+                          ]}
+                        />
                       </div>
-                      <Group gap="sm">
+                      <Group gap="sm" wrap="wrap">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const breakdown = buildCarCashflowBreakdown({
+                              car,
+                              baseMonth: baseMonth ?? car.purchaseMonth ?? null,
+                              horizonMonths,
+                            });
+                            setCashflowModal({
+                              title: t("positionCashflowTitle", {
+                                label: cars("carLabel", { index: index + 1 }),
+                              }),
+                              entries: breakdown.entries,
+                              series: breakdown.series,
+                            });
+                          }}
+                        >
+                          {t("positionViewCashflow")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const startMonth = car.purchaseMonth ?? baseMonth ?? "";
+                            const amortizationRows =
+                              car.loan && startMonth
+                                ? buildAmortizationSchedule({
+                                    principal: car.loan.principal,
+                                    annualRateDecimal:
+                                      (car.loan.annualInterestRatePct ?? 0) / 100,
+                                    termMonths: Math.round(
+                                      (car.loan.termYears ?? 0) * 12
+                                    ),
+                                    startMonth,
+                                  })
+                                : [];
+                            setCalculatorModal({
+                              title: t("positionCalculatorTitle", {
+                                label: cars("carLabel", { index: index + 1 }),
+                              }),
+                              amortizationRows,
+                            });
+                          }}
+                        >
+                          {t("positionViewCalculations")}
+                        </Button>
                         <Button
                           size="xs"
                           variant="light"
@@ -687,8 +1060,97 @@ export default function TimelineMobile({
                         <Text size="xs" c="dimmed">
                           {investments("startMonth")}: {investment.startMonth ?? "--"}
                         </Text>
+                        <PositionDetailList
+                          items={[
+                            {
+                              label: investments("startMonth"),
+                              value: investment.startMonth ?? "--",
+                            },
+                            {
+                              label: investments("initialValue"),
+                              value: formatCurrency(
+                                investment.initialValue ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: investments("expectedReturn"),
+                              value: `${(investment.expectedAnnualReturnPct ?? 0).toFixed(
+                                2
+                              )}%`,
+                            },
+                            {
+                              label: investments("monthlyContribution"),
+                              value: formatCurrency(
+                                investment.monthlyContribution ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: investments("monthlyWithdrawal"),
+                              value: formatCurrency(
+                                investment.monthlyWithdrawal ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: investments("feeAnnualRate"),
+                              value: `${(investment.feeAnnualRatePct ?? 0).toFixed(2)}%`,
+                            },
+                          ]}
+                        />
                       </div>
-                      <Group gap="sm">
+                      <Group gap="sm" wrap="wrap">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const breakdown = buildInvestmentCashflowBreakdown({
+                              investment,
+                              baseMonth: baseMonth ?? investment.startMonth ?? null,
+                              horizonMonths,
+                            });
+                            setCashflowModal({
+                              title: t("positionCashflowTitle", {
+                                label: investments("investmentLabel", {
+                                  index: index + 1,
+                                }),
+                              }),
+                              entries: breakdown.entries,
+                              series: breakdown.series,
+                            });
+                          }}
+                        >
+                          {t("positionViewCashflow")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const startMonth = investment.startMonth ?? baseMonth ?? "";
+                            const contributionRows = startMonth
+                              ? buildContributionSchedule({
+                                  startMonth,
+                                  monthlyContribution:
+                                    investment.monthlyContribution ?? 0,
+                                  months: horizonMonths,
+                                })
+                              : [];
+                            setCalculatorModal({
+                              title: t("positionCalculatorTitle", {
+                                label: investments("investmentLabel", {
+                                  index: index + 1,
+                                }),
+                              }),
+                              contributionRows,
+                            });
+                          }}
+                        >
+                          {t("positionViewCalculations")}
+                        </Button>
                         <Button
                           size="xs"
                           variant="light"
@@ -746,8 +1208,97 @@ export default function TimelineMobile({
                         <Text size="xs" c="dimmed">
                           {loans("startMonth")}: {loan.startMonth ?? "--"}
                         </Text>
+                        <PositionDetailList
+                          items={[
+                            {
+                              label: loans("startMonth"),
+                              value: loan.startMonth ?? "--",
+                            },
+                            {
+                              label: loans("principal"),
+                              value: formatCurrency(
+                                loan.principal ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: loans("annualRate"),
+                              value: `${(loan.annualInterestRatePct ?? 0).toFixed(2)}%`,
+                            },
+                            {
+                              label: loans("termYears"),
+                              value: String(loan.termYears ?? 0),
+                            },
+                            {
+                              label: loans("monthlyPayment"),
+                              value: formatCurrency(
+                                loan.monthlyPayment ??
+                                  computeMonthlyPayment(
+                                    loan.principal,
+                                    (loan.annualInterestRatePct ?? 0) / 100,
+                                    Math.round((loan.termYears ?? 0) * 12)
+                                  ),
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                            {
+                              label: loans("feesOneTime"),
+                              value: formatCurrency(
+                                loan.feesOneTime ?? 0,
+                                baseCurrency,
+                                locale
+                              ),
+                            },
+                          ]}
+                        />
                       </div>
-                      <Group gap="sm">
+                      <Group gap="sm" wrap="wrap">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const breakdown = buildLoanCashflowBreakdown({
+                              loan,
+                              baseMonth: baseMonth ?? loan.startMonth ?? null,
+                              horizonMonths,
+                            });
+                            setCashflowModal({
+                              title: t("positionCashflowTitle", {
+                                label: loans("loanLabel", { index: index + 1 }),
+                              }),
+                              entries: breakdown.entries,
+                              series: breakdown.series,
+                            });
+                          }}
+                        >
+                          {t("positionViewCashflow")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => {
+                            const startMonth = loan.startMonth ?? baseMonth ?? "";
+                            const amortizationRows = startMonth
+                              ? buildAmortizationSchedule({
+                                  principal: loan.principal,
+                                  annualRateDecimal:
+                                    (loan.annualInterestRatePct ?? 0) / 100,
+                                  termMonths: Math.round((loan.termYears ?? 0) * 12),
+                                  startMonth,
+                                })
+                              : [];
+                            setCalculatorModal({
+                              title: t("positionCalculatorTitle", {
+                                label: loans("loanLabel", { index: index + 1 }),
+                              }),
+                              amortizationRows,
+                            });
+                          }}
+                        >
+                          {t("positionViewCalculations")}
+                        </Button>
                         <Button
                           size="xs"
                           variant="light"
@@ -899,6 +1450,25 @@ export default function TimelineMobile({
           </Group>
         </Stack>
       </Modal>
+
+      <PositionCashflowModal
+        opened={Boolean(cashflowModal)}
+        onClose={() => setCashflowModal(null)}
+        title={cashflowModal?.title ?? ""}
+        currency={baseCurrency}
+        entries={cashflowModal?.entries ?? []}
+        series={cashflowModal?.series ?? []}
+      />
+
+      <PositionCalculatorModal
+        opened={Boolean(calculatorModal)}
+        onClose={() => setCalculatorModal(null)}
+        title={calculatorModal?.title ?? ""}
+        currency={baseCurrency}
+        amortizationRows={calculatorModal?.amortizationRows}
+        valueRows={calculatorModal?.valueRows}
+        contributionRows={calculatorModal?.contributionRows}
+      />
 
       <Modal
         opened={Boolean(editingHome)}

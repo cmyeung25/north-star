@@ -362,21 +362,48 @@ export const mapScenarioToEngineInput = (
             };
           }
 
+          const purchasePrice = home.purchasePrice ?? 0;
+          const downPayment = home.downPayment ?? 0;
+          const principal = purchasePrice - downPayment;
+          const annualRateDecimal = (home.mortgageRatePct ?? 0) / 100;
+          const termMonths = (home.mortgageTermYears ?? 0) * 12;
+
+          if (process.env.NODE_ENV === "development") {
+            if (annualRateDecimal < 0 || annualRateDecimal > 1) {
+              throw new Error(
+                `Invalid mortgage rate decimal: ${annualRateDecimal}. Expected 0-1.`
+              );
+            }
+            if (termMonths < 1 || termMonths > 720) {
+              console.warn("[homeMap] Unusual mortgage term months", {
+                termMonths,
+                homeId: home.id,
+              });
+            }
+            console.debug("[homeMap]", {
+              purchasePrice,
+              downPayment,
+              principal,
+              annualRateDecimal,
+              termMonths,
+            });
+          }
+
           return {
             id: home.id,
             usage,
             mode,
-            purchasePrice: home.purchasePrice ?? 0,
-            downPayment: home.downPayment ?? 0,
+            purchasePrice,
+            downPayment,
             purchaseMonth: home.purchaseMonth ?? baseMonth,
             annualAppreciation: home.annualAppreciationPct / 100,
             feesOneTime: home.feesOneTime,
             holdingCostMonthly: home.holdingCostMonthly ?? 0,
             holdingCostAnnualGrowth: (home.holdingCostAnnualGrowthPct ?? 0) / 100,
             mortgage: {
-              principal: (home.purchasePrice ?? 0) - (home.downPayment ?? 0),
-              annualRate: (home.mortgageRatePct ?? 0) / 100,
-              termMonths: (home.mortgageTermYears ?? 0) * 12,
+              principal,
+              annualRate: annualRateDecimal,
+              termMonths,
             },
             rental,
           };

@@ -46,6 +46,19 @@ describe("computeMortgageSchedule", () => {
     expect(schedule.balanceSeries[0]).toBeLessThan(principal);
     expect(schedule.balanceSeries[11]).toBeCloseTo(0, 4);
   });
+
+  it("matches expected payment for 7.2M at 1% over 25 years", () => {
+    const schedule = computeMortgageSchedule({
+      principal: 7_200_000,
+      annualRate: 0.01,
+      termMonths: 300,
+      startIndex: 0,
+      horizonMonths: 300,
+    });
+
+    expect(schedule.paymentMonthly).toBeGreaterThan(27_134);
+    expect(schedule.paymentMonthly).toBeLessThan(27_136);
+  });
 });
 
 describe("home positions", () => {
