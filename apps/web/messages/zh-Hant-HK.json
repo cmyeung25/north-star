@@ -129,14 +129,14 @@
     "breakdownNetWorth": "資產淨值",
     "breakdownPositionTotal": "資產配置總計",
     "breakdownPositionLabels": {
-      "home:downPayment": "首期金額",
-      "home:feesOneTime": "一次性費用",
-      "home:mortgage": "按揭供款",
-      "home:holding": "持有成本",
-      "car:loan": "車貸供款",
-      "car:holding": "持有成本",
-      "investment:contribution": "每月供款",
-      "loan:repayment": "還款"
+      "home:downPayment": "置業-首期金額",
+      "home:feesOneTime": "置業-一次性費用",
+      "home:mortgage": "置業-按揭供款",
+      "home:holding": "置業-持有成本",
+      "car:loan": "車-車貸供款",
+      "car:holding": "車-持有成本",
+      "investment:contribution": "投資-每月供款",
+      "loan:repayment": "借貨-還款"
     },
     "breakdownLabels": {
       "cash": "現金",
