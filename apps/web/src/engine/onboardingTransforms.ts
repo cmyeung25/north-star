@@ -197,19 +197,24 @@ export const applyOnboardingToScenario = (
           })),
           insurances: draft.insurances.map((insurance) => ({
             id: createInsurancePositionId(),
-            insuranceType: insurance.insuranceType,
-            premiumMode: insurance.premiumMode,
-            premiumAmount: Math.max(0, insurance.premiumAmount),
-            hasCashValue: insurance.hasCashValue,
-            cashValueAsOf:
+            name: insurance.insuranceType ?? "",
+            enabled: true,
+            kind: (insurance.hasCashValue ? "savings" : "protection") as
+              | "savings"
+              | "protection",
+            startMonth: baseMonth,
+            premiumMonthly:
+              insurance.premiumMode === "annual"
+                ? Math.max(0, insurance.premiumAmount) / 12
+                : Math.max(0, insurance.premiumAmount),
+            initialCashValue:
               typeof insurance.cashValueAsOf === "number"
                 ? Math.max(0, insurance.cashValueAsOf)
                 : undefined,
-            cashValueAnnualGrowthPct:
+            expectedAnnualReturnPct:
               typeof insurance.cashValueAnnualGrowthPct === "number"
                 ? Math.max(0, insurance.cashValueAnnualGrowthPct)
                 : undefined,
-            coverageMeta: insurance.coverageMeta,
           })),
         }
       : {
@@ -238,19 +243,24 @@ export const applyOnboardingToScenario = (
           })),
           insurances: draft.insurances.map((insurance) => ({
             id: createInsurancePositionId(),
-            insuranceType: insurance.insuranceType,
-            premiumMode: insurance.premiumMode,
-            premiumAmount: Math.max(0, insurance.premiumAmount),
-            hasCashValue: insurance.hasCashValue,
-            cashValueAsOf:
+            name: insurance.insuranceType ?? "",
+            enabled: true,
+            kind: (insurance.hasCashValue ? "savings" : "protection") as
+              | "savings"
+              | "protection",
+            startMonth: baseMonth,
+            premiumMonthly:
+              insurance.premiumMode === "annual"
+                ? Math.max(0, insurance.premiumAmount) / 12
+                : Math.max(0, insurance.premiumAmount),
+            initialCashValue:
               typeof insurance.cashValueAsOf === "number"
                 ? Math.max(0, insurance.cashValueAsOf)
                 : undefined,
-            cashValueAnnualGrowthPct:
+            expectedAnnualReturnPct:
               typeof insurance.cashValueAnnualGrowthPct === "number"
                 ? Math.max(0, insurance.cashValueAnnualGrowthPct)
                 : undefined,
-            coverageMeta: insurance.coverageMeta,
           })),
         };
 

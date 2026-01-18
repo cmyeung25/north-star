@@ -83,7 +83,11 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const globalHorizonMonths = useScenarioStore((state) => state.globalHorizonMonths);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const setGlobalHorizonMonths = useScenarioStore(
+    (state) => state.setGlobalHorizonMonths
+  );
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
@@ -336,7 +340,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     showToast(common("saved"), "teal");
   };
 
-  const budgetRules = scenario?.budgetRules ?? [];
+  const budgetRules = useMemo(() => scenario?.budgetRules ?? [], [scenario]);
 
   useEffect(() => {
     if (!scenario) {
@@ -446,13 +450,13 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const members = scenario.members ?? [];
   const hasHousingRules = budgetRules.some((rule) => isHousingCategory(rule.category));
   const horizonValue = horizonOptions.some(
-    (option) => Number(option.value) === assumptions.horizonMonths
+    (option) => Number(option.value) === globalHorizonMonths
   )
-    ? String(assumptions.horizonMonths)
+    ? String(globalHorizonMonths)
     : "240";
   const horizonEndMonth =
-    assumptions.baseMonth && assumptions.horizonMonths > 0
-      ? buildMonthRange(assumptions.baseMonth, assumptions.horizonMonths).at(-1) ??
+    assumptions.baseMonth && globalHorizonMonths > 0
+      ? buildMonthRange(assumptions.baseMonth, globalHorizonMonths).at(-1) ??
         null
       : null;
   const formatAgeYears = (value: number) =>
@@ -468,10 +472,10 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     }).format(value);
   };
   const buildZeroPreview = (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
-    if (!assumptions.baseMonth || assumptions.horizonMonths <= 0) {
+    if (!assumptions.baseMonth || globalHorizonMonths <= 0) {
       return [];
     }
-    return buildMonthRange(assumptions.baseMonth, assumptions.horizonMonths).map(
+    return buildMonthRange(assumptions.baseMonth, globalHorizonMonths).map(
       (month) => ({
         month,
         amount: 0,
@@ -706,9 +710,10 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
             <SegmentedControl
               data={horizonOptions}
               value={horizonValue}
-              onChange={(value) =>
-                handleAssumptionChange({ horizonMonths: Number(value) })
-              }
+              onChange={(value) => {
+                setGlobalHorizonMonths(Number(value));
+                showToast(common("saved"), "teal");
+              }}
             />
           </Stack>
 

@@ -437,20 +437,33 @@ export const mapScenarioToEngineInput = (
     : undefined;
 
   const mappedInsurances = scenario.positions?.insurances
-    ? scenario.positions.insurances.map((insurance: InsurancePosition) => {
-        const premiumMonthly =
-          insurance.premiumMode === "annual"
-            ? insurance.premiumAmount / 12
-            : insurance.premiumAmount;
+    ? scenario.positions.insurances.flatMap((insurance: InsurancePosition) => {
+        if (!insurance.enabled) {
+          return [];
+        }
+        const startMonth = insurance.startMonth ?? baseMonth;
+        if (!startMonth || !isValidMonthOrWarn("insurance.startMonth", startMonth, { id: insurance.id })) {
+          return [];
+        }
+        if (
+          insurance.endMonth &&
+          !isValidMonthOrWarn("insurance.endMonth", insurance.endMonth, { id: insurance.id })
+        ) {
+          return [];
+        }
 
-        return {
-          insuranceType: insurance.insuranceType,
-          premiumMonthly,
-          hasCashValue: insurance.hasCashValue,
-          cashValue: insurance.cashValueAsOf ?? 0,
-          cashValueAnnualGrowth: (insurance.cashValueAnnualGrowthPct ?? 0) / 100,
-          coverageMeta: insurance.coverageMeta,
-        };
+        return [
+          {
+            id: insurance.id,
+            kind: insurance.kind,
+            startMonth,
+            endMonth: insurance.endMonth,
+            premiumMonthly: insurance.premiumMonthly ?? 0,
+            premiumAnnualGrowth: (insurance.premiumAnnualGrowthPct ?? 0) / 100,
+            initialCashValue: insurance.initialCashValue ?? 0,
+            annualReturnRate: (insurance.expectedAnnualReturnPct ?? 0) / 100,
+          },
+        ];
       })
     : undefined;
 

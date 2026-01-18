@@ -2,7 +2,13 @@
 // Added fields: holdingCostMonthly and holdingCostAnnualGrowthPct (percent) with non-negative bounds.
 // Back-compat: absence of new fields is allowed.
 import { z } from "zod";
-import type { CarPosition, HomePosition, InvestmentPosition, LoanPosition } from "./scenarioStore";
+import type {
+  CarPosition,
+  HomePosition,
+  InsurancePosition,
+  InvestmentPosition,
+  LoanPosition,
+} from "./scenarioStore";
 
 const monthPattern = /^\d{4}-\d{2}$/;
 
@@ -217,6 +223,59 @@ export const CarPositionSchema = z
       });
     }
   });
+
+export const InsurancePositionSchema = z
+  .object({
+    name: z.string().min(1, "validation.insuranceNameRequired"),
+    enabled: z.boolean(),
+    kind: z.enum(["protection", "savings"]),
+    startMonth: z
+      .string({ required_error: "validation.insuranceStartMonthRequired" })
+      .regex(monthPattern, "validation.useYearMonth"),
+    endMonth: z.string().regex(monthPattern, "validation.useYearMonth").optional(),
+    premiumMonthly: z
+      .number({ required_error: "validation.insurancePremiumRequired" })
+      .min(0, "validation.insurancePremiumMin"),
+    premiumAnnualGrowthPct: z
+      .number()
+      .min(0, "validation.insurancePremiumGrowthMin")
+      .max(100, "validation.insurancePremiumGrowthMax")
+      .optional(),
+    initialCashValue: z
+      .number()
+      .min(0, "validation.insuranceInitialValueMin")
+      .optional(),
+    expectedAnnualReturnPct: z
+      .number()
+      .min(-100, "validation.insuranceReturnMin")
+      .max(100, "validation.insuranceReturnMax")
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.endMonth && data.endMonth < data.startMonth) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.endMonthBeforeStart",
+        path: ["endMonth"],
+      });
+    }
+  });
+
+export const getInsurancePositionErrors = (
+  error: z.ZodError<InsurancePosition>,
+  translate?: (key: string) => string
+) => {
+  const result: Partial<Record<string, string>> = {};
+
+  for (const issue of error.issues) {
+    const field = issue.path.join(".");
+    if (field && !result[field]) {
+      result[field] = translate ? translate(issue.message) : issue.message;
+    }
+  }
+
+  return result;
+};
 
 export const InvestmentPositionSchema = z.object({
   startMonth: z

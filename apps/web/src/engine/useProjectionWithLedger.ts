@@ -16,6 +16,7 @@ import {
 import {
   buildCarCashflowBreakdown,
   buildHomeCashflowBreakdown,
+  buildInsuranceCashflowBreakdown,
   buildInvestmentCashflowBreakdown,
   buildLoanCashflowBreakdown,
 } from "../domain/positions/cashflowBreakdown";
@@ -145,6 +146,17 @@ const buildPositionCashflowsByMonth = (
 
   scenario.positions?.loans?.forEach((loan) => {
     const breakdown = buildLoanCashflowBreakdown({ loan, baseMonth, horizonMonths });
+    breakdown.entries.forEach((entry) =>
+      entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId })
+    );
+  });
+
+  scenario.positions?.insurances?.forEach((insurance) => {
+    const breakdown = buildInsuranceCashflowBreakdown({
+      insurance,
+      baseMonth,
+      horizonMonths,
+    });
     breakdown.entries.forEach((entry) =>
       entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId })
     );

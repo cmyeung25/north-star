@@ -8,6 +8,7 @@ import type {
   ContributionRow,
   ValueRow,
 } from "../../src/domain/positions/calculations";
+import type { ValueTableRow } from "../../src/domain/positions/investmentValueTable";
 
 type PositionCalculatorModalProps = {
   opened: boolean;
@@ -17,6 +18,7 @@ type PositionCalculatorModalProps = {
   amortizationRows?: AmortizationRow[];
   valueRows?: ValueRow[];
   contributionRows?: ContributionRow[];
+  assetValueRows?: ValueTableRow[];
 };
 
 export default function PositionCalculatorModal({
@@ -27,6 +29,7 @@ export default function PositionCalculatorModal({
   amortizationRows = [],
   valueRows = [],
   contributionRows = [],
+  assetValueRows = [],
 }: PositionCalculatorModalProps) {
   const t = useTranslations("timeline");
   const locale = useLocale();
@@ -34,6 +37,7 @@ export default function PositionCalculatorModal({
   const hasAmortization = amortizationRows.length > 0;
   const hasValue = valueRows.length > 0;
   const hasContribution = contributionRows.length > 0;
+  const hasAssetValue = assetValueRows.length > 0;
 
   const renderEmpty = () => (
     <Card withBorder padding="md" radius="md">
@@ -44,11 +48,11 @@ export default function PositionCalculatorModal({
   );
 
   const content = () => {
-    if (!hasAmortization && !hasValue && !hasContribution) {
+    if (!hasAmortization && !hasValue && !hasContribution && !hasAssetValue) {
       return renderEmpty();
     }
 
-    if (hasAmortization && !hasValue && !hasContribution) {
+    if (hasAmortization && !hasValue && !hasContribution && !hasAssetValue) {
       return (
         <Table striped withColumnBorders highlightOnHover>
           <Table.Thead>
@@ -78,7 +82,17 @@ export default function PositionCalculatorModal({
     }
 
     return (
-      <Tabs defaultValue={hasAmortization ? "amortization" : hasValue ? "value" : "contribution"}>
+      <Tabs
+        defaultValue={
+          hasAmortization
+            ? "amortization"
+            : hasValue
+              ? "value"
+              : hasAssetValue
+                ? "assetValue"
+                : "contribution"
+        }
+      >
         <Tabs.List>
           {hasAmortization && (
             <Tabs.Tab value="amortization">
@@ -87,6 +101,11 @@ export default function PositionCalculatorModal({
           )}
           {hasValue && (
             <Tabs.Tab value="value">{t("calculatorTabPropertyValue")}</Tabs.Tab>
+          )}
+          {hasAssetValue && (
+            <Tabs.Tab value="assetValue">
+              {t("calculatorTabAssetValue")}
+            </Tabs.Tab>
           )}
           {hasContribution && (
             <Tabs.Tab value="contribution">{t("calculatorTabContribution")}</Tabs.Tab>
@@ -142,6 +161,36 @@ export default function PositionCalculatorModal({
                     <Table.Td>{row.month}</Table.Td>
                     <Table.Td>{formatCurrency(row.value, currency, locale)}</Table.Td>
                     <Table.Td>{formatCurrency(row.delta, currency, locale)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Tabs.Panel>
+        )}
+        {hasAssetValue && (
+          <Tabs.Panel value="assetValue" pt="md">
+            <Table striped withColumnBorders highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t("calculatorMonth")}</Table.Th>
+                  <Table.Th>{t("calculatorContribution")}</Table.Th>
+                  <Table.Th>{t("calculatorGrowth")}</Table.Th>
+                  <Table.Th>{t("calculatorEndingValue")}</Table.Th>
+                  <Table.Th>{t("calculatorContributionTotal")}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {assetValueRows.map((row) => (
+                  <Table.Tr key={row.month}>
+                    <Table.Td>{row.month}</Table.Td>
+                    <Table.Td>
+                      {formatCurrency(row.contribution, currency, locale)}
+                    </Table.Td>
+                    <Table.Td>{formatCurrency(row.growth, currency, locale)}</Table.Td>
+                    <Table.Td>{formatCurrency(row.endValue, currency, locale)}</Table.Td>
+                    <Table.Td>
+                      {formatCurrency(row.totalContributed, currency, locale)}
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

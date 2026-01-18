@@ -99,6 +99,7 @@ export type OnboardingApplyActions = {
     id: string,
     patch: Partial<Scenario["assumptions"]>
   ) => void;
+  setGlobalHorizonMonths: (horizonMonths: number) => void;
   updateScenarioClientComputed: (
     id: string,
     patch: Partial<NonNullable<Scenario["clientComputed"]>>
@@ -203,10 +204,10 @@ export const applyOnboardingDraftToScenario = (
 ) => {
   const baseMonth = draft.basics.baseMonth;
 
+  actions.setGlobalHorizonMonths(draft.basics.horizonMonths);
   actions.updateScenarioAssumptions(scenario.id, {
     baseMonth,
     initialCash: draft.basics.initialCash,
-    horizonMonths: draft.basics.horizonMonths,
     includeBudgetRulesInProjection: true,
   });
 

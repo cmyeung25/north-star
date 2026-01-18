@@ -7,6 +7,7 @@ export type StorePersistedState = {
   scenarios: Scenario[];
   eventLibrary: EventDefinition[];
   activeScenarioId: string;
+  globalHorizonMonths?: number;
 };
 
 export type PersistedDocument = {
@@ -43,7 +44,9 @@ const validateStorePayload = (payload: unknown): payload is StorePersistedState 
   return (
     Array.isArray(record.scenarios) &&
     Array.isArray(record.eventLibrary) &&
-    typeof record.activeScenarioId === "string"
+    typeof record.activeScenarioId === "string" &&
+    (record.globalHorizonMonths === undefined ||
+      typeof record.globalHorizonMonths === "number")
   );
 };
 

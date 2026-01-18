@@ -2,6 +2,7 @@ import { monthIndex } from "@north-star/engine";
 import type {
   CarPosition,
   HomePosition,
+  InsurancePosition,
   InvestmentPosition,
   LoanPosition,
 } from "../../store/scenarioStore";
@@ -278,6 +279,38 @@ export const buildInvestmentCashflowBreakdown = (params: {
         amount: -(investment.monthlyContribution ?? 0),
         label: "contribution",
         sourceId: "investment:contribution",
+      })
+    );
+  }
+
+  const filtered = clampEntriesToHorizon(entries, baseMonth, horizonMonths);
+  return { entries: filtered, series: buildSeries(filtered) };
+};
+
+export const buildInsuranceCashflowBreakdown = (params: {
+  insurance: InsurancePosition;
+  baseMonth?: string | null;
+  horizonMonths: number;
+}): PositionCashflowBreakdown => {
+  const { insurance, baseMonth, horizonMonths } = params;
+  if (!insurance.enabled) {
+    return { entries: [], series: [] };
+  }
+  const entries: PositionCashflowEntry[] = [];
+  const startMonth = insurance.startMonth ?? baseMonth ?? "";
+  const endMonth = insurance.endMonth ?? null;
+
+  if (startMonth && (insurance.premiumMonthly ?? 0) !== 0) {
+    const months =
+      endMonth ? Math.max(0, monthIndex(startMonth, endMonth) + 1) : horizonMonths;
+    entries.push(
+      ...buildMonthlyEntries({
+        startMonth,
+        months,
+        amount: -(insurance.premiumMonthly ?? 0),
+        annualGrowthDecimal: (insurance.premiumAnnualGrowthPct ?? 0) / 100,
+        label: "insurancePremium",
+        sourceId: "insurance:premium",
       })
     );
   }
