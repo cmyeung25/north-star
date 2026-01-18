@@ -4,6 +4,7 @@
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
+import type { ApplyScope } from "../domain/applyScope";
 import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
 import {
   buildEventRuleOverrides,
@@ -42,7 +43,10 @@ export type ScenarioAssumptions = {
 };
 
 export type AppSettings = {
+  globalBaseMonth: string | null;
   globalHorizonMonths: number;
+  annualInflationPct: number;
+  viewMode: "nominal" | "real";
 };
 
 export type ProjectionSnapshot = {
@@ -64,12 +68,31 @@ export type InsuranceKind = "protection" | "savings";
 
 export type ScenarioMemberKind = "person" | "pet";
 
+export type MemberMilestoneKind =
+  | "birth"
+  | "schoolStart"
+  | "graduation"
+  | "retirement"
+  | "custom";
+
+export type MemberMilestone = {
+  id: string;
+  kind: MemberMilestoneKind;
+  label: string;
+  month?: string;
+  atAgeYears?: number;
+  applyScope?: ApplyScope;
+  sourceEventId?: string;
+};
+
 export type ScenarioMember = {
   id: string;
   name: string;
   kind: ScenarioMemberKind;
   birthMonth?: string;
   ageAtBaseMonth?: number;
+  applyScope?: ApplyScope;
+  milestones?: MemberMilestone[];
 };
 
 export type BudgetCategory =
@@ -93,6 +116,7 @@ export type BudgetRule = {
   annualGrowthPct?: number;
   startMonth?: string;
   endMonth?: string;
+  applyScope?: ApplyScope;
 };
 
 export type ExistingHomeDetails = {
@@ -236,8 +260,6 @@ export type Scenario = {
   updatedAt: number;
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
-  members?: ScenarioMember[];
-  budgetRules?: BudgetRule[];
   eventRefs?: ScenarioEventRef[];
   positions?: ScenarioPositions;
   clientComputed?: ScenarioClientComputed;
@@ -249,7 +271,9 @@ type ScenarioStoreState = {
   scenarios: Scenario[];
   eventLibrary: EventDefinition[];
   activeScenarioId: string;
-  globalHorizonMonths: number;
+  appSettings: AppSettings;
+  members: ScenarioMember[];
+  budgetRules: BudgetRule[];
   didHydrate: boolean;
   isHydrating: boolean;
   setHydrationState: (state: { didHydrate?: boolean; isHydrating?: boolean }) => void;
@@ -282,20 +306,13 @@ type ScenarioStoreState = {
   ) => void;
   removeEventDefinition: (id: string) => void;
   setEventLibrary: (eventLibrary: EventDefinition[]) => void;
-  addScenarioMember: (id: string, member: ScenarioMember) => void;
-  updateScenarioMember: (
-    id: string,
-    memberId: string,
-    patch: Partial<ScenarioMember>
-  ) => void;
-  removeScenarioMember: (id: string, memberId: string) => void;
-  addBudgetRule: (id: string, rule: BudgetRule) => void;
-  updateBudgetRule: (
-    id: string,
-    ruleId: string,
-    patch: Partial<BudgetRule>
-  ) => void;
-  removeBudgetRule: (id: string, ruleId: string) => void;
+  createMember: (member: ScenarioMember) => void;
+  updateMember: (memberId: string, patch: Partial<ScenarioMember>) => void;
+  deleteMember: (memberId: string) => void;
+  setMemberApplyScope: (memberId: string, applyScope: ApplyScope) => void;
+  createBudgetRule: (rule: BudgetRule) => void;
+  updateBudgetRule: (ruleId: string, patch: Partial<BudgetRule>) => void;
+  removeBudgetRule: (ruleId: string) => void;
   addHomePosition: (id: string, home: HomePositionDraft) => void;
   updateHomePosition: (id: string, home: HomePositionDraft) => void;
   removeHomePosition: (id: string, homeId: string) => void;
@@ -320,7 +337,6 @@ type ScenarioStoreState = {
     patch: Partial<ScenarioClientComputed>
   ) => void;
   skipOnboardingForScenario: (id: string) => void;
-  upsertScenarioMember: (id: string, member: ScenarioMember) => void;
   upsertScenarioEventRef: (id: string, ref: ScenarioEventRef) => void;
   upsertEventDefinition: (definition: EventDefinition) => void;
   mergeDuplicateEvents: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
@@ -331,6 +347,9 @@ type ScenarioStoreState = {
   ) => void;
   setScenarioHorizonMonths: (id: string, horizonMonths: number) => void;
   setGlobalHorizonMonths: (horizonMonths: number) => void;
+  setGlobalBaseMonth: (baseMonth: string | null) => void;
+  setAnnualInflationPct: (value: number) => void;
+  setViewMode: (value: AppSettings["viewMode"]) => void;
   setScenarioInitialCash: (id: string, initialCash: number) => void;
   setScenarioBaseMonth: (id: string, baseMonth: string | null) => void;
   setAssumptionsPartial: (id: string, patch: Partial<ScenarioAssumptions>) => void;
@@ -344,7 +363,12 @@ type ScenarioStoreState = {
 export type ScenarioStorePersistedState = Pick<
   ScenarioStoreState,
   "scenarios" | "eventLibrary" | "activeScenarioId"
-> & { globalHorizonMonths?: number };
+> & {
+  members?: ScenarioMember[];
+  budgetRules?: BudgetRule[];
+  appSettings?: AppSettings;
+  globalHorizonMonths?: number;
+};
 
 export const selectPersistedState = (
   state: ScenarioStoreState
@@ -352,7 +376,10 @@ export const selectPersistedState = (
   scenarios: state.scenarios,
   eventLibrary: state.eventLibrary,
   activeScenarioId: state.activeScenarioId,
-  globalHorizonMonths: state.globalHorizonMonths,
+  globalHorizonMonths: state.appSettings.globalHorizonMonths,
+  members: state.members,
+  budgetRules: state.budgetRules,
+  appSettings: state.appSettings,
 });
 
 export const selectHasExistingProfile = (state: ScenarioStoreState): boolean =>
@@ -372,9 +399,29 @@ export const hydrateFromPersistedState = (
     normalizedScenarios[0];
   const fallbackHorizon = activeScenario?.assumptions.horizonMonths ?? defaultAppSettings.globalHorizonMonths;
   const normalizedGlobalHorizon =
-    typeof payload.globalHorizonMonths === "number"
+    typeof payload.appSettings?.globalHorizonMonths === "number"
+      ? clamp(payload.appSettings.globalHorizonMonths, horizonRange.min, horizonRange.max)
+      : typeof payload.globalHorizonMonths === "number"
       ? clamp(payload.globalHorizonMonths, horizonRange.min, horizonRange.max)
       : clamp(fallbackHorizon, horizonRange.min, horizonRange.max);
+  const normalizedBaseMonth =
+    payload.appSettings?.globalBaseMonth ??
+    activeScenario?.assumptions.baseMonth ??
+    null;
+  const normalizedInflationPct =
+    typeof payload.appSettings?.annualInflationPct === "number"
+      ? payload.appSettings.annualInflationPct
+      : defaultAppSettings.annualInflationPct;
+  const normalizedViewMode =
+    payload.appSettings?.viewMode ?? defaultAppSettings.viewMode;
+  const migratedMembers = migrateGlobalMembers(
+    payload.members,
+    payload.scenarios
+  );
+  const migratedBudgetRules = migrateGlobalBudgetRules(
+    payload.budgetRules,
+    payload.scenarios
+  );
   const scenariosWithGlobalHorizon = normalizedScenarios.map((scenario) => ({
     ...scenario,
     assumptions: {
@@ -387,7 +434,14 @@ export const hydrateFromPersistedState = (
     scenarios: scenariosWithGlobalHorizon,
     eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
-    globalHorizonMonths: normalizedGlobalHorizon,
+    appSettings: {
+      globalHorizonMonths: normalizedGlobalHorizon,
+      globalBaseMonth: normalizedBaseMonth,
+      annualInflationPct: normalizedInflationPct,
+      viewMode: normalizedViewMode,
+    },
+    members: normalizeMembers(migratedMembers),
+    budgetRules: normalizeBudgetRules(migratedBudgetRules),
   });
 
   return {
@@ -395,6 +449,14 @@ export const hydrateFromPersistedState = (
     eventLibrary: payload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
     globalHorizonMonths: normalizedGlobalHorizon,
+    appSettings: {
+      globalHorizonMonths: normalizedGlobalHorizon,
+      globalBaseMonth: normalizedBaseMonth,
+      annualInflationPct: normalizedInflationPct,
+      viewMode: normalizedViewMode,
+    },
+    members: normalizeMembers(migratedMembers),
+    budgetRules: normalizeBudgetRules(migratedBudgetRules),
   };
 };
 
@@ -413,7 +475,10 @@ const defaultAssumptions: ScenarioAssumptions = {
 };
 
 const defaultAppSettings: AppSettings = {
+  globalBaseMonth: null,
   globalHorizonMonths: defaultAssumptions.horizonMonths,
+  annualInflationPct: 0,
+  viewMode: "nominal",
 };
 
 const horizonRange = { min: 60, max: 480 };
@@ -437,9 +502,24 @@ export const createBudgetRuleId = () => `budget-${nanoid(8)}`;
 
 const DEFAULT_MEMBER_NAME = "本人";
 
+const normalizeApplyScope = (applyScope?: ApplyScope): ApplyScope =>
+  applyScope ?? { scope: "all" };
+
+const normalizeMemberMilestones = (
+  milestones?: MemberMilestone[]
+): MemberMilestone[] =>
+  milestones?.map((milestone) => ({
+    ...milestone,
+    applyScope: normalizeApplyScope(milestone.applyScope),
+  })) ?? [];
+
 const normalizeMembers = (members?: ScenarioMember[]): ScenarioMember[] => {
   if (members && members.length > 0) {
-    return members.map((member) => ({ ...member }));
+    return members.map((member) => ({
+      ...member,
+      applyScope: normalizeApplyScope(member.applyScope),
+      milestones: normalizeMemberMilestones(member.milestones),
+    }));
   }
 
   return [
@@ -447,6 +527,8 @@ const normalizeMembers = (members?: ScenarioMember[]): ScenarioMember[] => {
       id: createMemberId(),
       name: DEFAULT_MEMBER_NAME,
       kind: "person",
+      applyScope: { scope: "all" },
+      milestones: [],
     },
   ];
 };
@@ -455,7 +537,96 @@ const normalizeBudgetRules = (rules?: BudgetRule[]): BudgetRule[] =>
   rules?.map((rule) => ({
     ...rule,
     ageBand: { ...rule.ageBand },
+    applyScope: normalizeApplyScope(rule.applyScope),
   })) ?? [];
+
+const ensureScenarioIncluded = (
+  applyScope: ApplyScope | undefined,
+  scenarioId: string
+): ApplyScope => {
+  if (!applyScope || applyScope.scope === "all") {
+    return { scope: "all" };
+  }
+  if (applyScope.scope === "include") {
+    const scenarioIds = Array.from(new Set([...applyScope.scenarioIds, scenarioId]));
+    return { scope: "include", scenarioIds };
+  }
+  return applyScope;
+};
+
+const migrateGlobalMembers = (
+  members: ScenarioMember[] | undefined,
+  scenarios: Scenario[]
+): ScenarioMember[] => {
+  const memberMap = new Map<string, ScenarioMember>();
+
+  const upsertMember = (member: ScenarioMember, scenarioId?: string) => {
+    const existing = memberMap.get(member.id);
+    if (existing) {
+      memberMap.set(member.id, {
+        ...existing,
+        ...member,
+        applyScope: scenarioId
+          ? ensureScenarioIncluded(existing.applyScope, scenarioId)
+          : existing.applyScope ?? member.applyScope,
+        milestones: member.milestones ?? existing.milestones,
+      });
+      return;
+    }
+    memberMap.set(member.id, {
+      ...member,
+      applyScope: scenarioId
+        ? { scope: "include", scenarioIds: [scenarioId] }
+        : member.applyScope ?? { scope: "all" },
+      milestones: member.milestones ?? [],
+    });
+  };
+
+  members?.forEach((member) => upsertMember(member));
+
+  scenarios.forEach((scenario) => {
+    const legacyMembers = (scenario as LegacyScenario).members ?? [];
+    legacyMembers.forEach((member) => upsertMember(member, scenario.id));
+  });
+
+  return Array.from(memberMap.values());
+};
+
+const migrateGlobalBudgetRules = (
+  rules: BudgetRule[] | undefined,
+  scenarios: Scenario[]
+): BudgetRule[] => {
+  const ruleMap = new Map<string, BudgetRule>();
+
+  const upsertRule = (rule: BudgetRule, scenarioId?: string) => {
+    const existing = ruleMap.get(rule.id);
+    if (existing) {
+      ruleMap.set(rule.id, {
+        ...existing,
+        ...rule,
+        applyScope: scenarioId
+          ? ensureScenarioIncluded(existing.applyScope, scenarioId)
+          : existing.applyScope ?? rule.applyScope,
+      });
+      return;
+    }
+    ruleMap.set(rule.id, {
+      ...rule,
+      applyScope: scenarioId
+        ? { scope: "include", scenarioIds: [scenarioId] }
+        : rule.applyScope ?? { scope: "all" },
+    });
+  };
+
+  rules?.forEach((rule) => upsertRule(rule));
+
+  scenarios.forEach((scenario) => {
+    const legacyRules = (scenario as LegacyScenario).budgetRules ?? [];
+    legacyRules.forEach((rule) => upsertRule(rule, scenario.id));
+  });
+
+  return Array.from(ruleMap.values());
+};
 
 const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
   eventRefs?.map((ref) => ({
@@ -466,12 +637,20 @@ const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
 const cloneMembers = (members?: ScenarioMember[]) =>
   members?.map((member) => ({
     ...member,
+    applyScope: member.applyScope ? { ...member.applyScope } : undefined,
+    milestones: member.milestones
+      ? member.milestones.map((milestone) => ({
+          ...milestone,
+          applyScope: milestone.applyScope ? { ...milestone.applyScope } : undefined,
+        }))
+      : undefined,
   }));
 
 const cloneBudgetRules = (rules?: BudgetRule[]) =>
   rules?.map((rule) => ({
     ...rule,
     ageBand: { ...rule.ageBand },
+    applyScope: rule.applyScope ? { ...rule.applyScope } : undefined,
   }));
 
 const cloneClientComputed = (clientComputed?: ScenarioClientComputed) =>
@@ -668,14 +847,17 @@ const shouldAutoCompleteOnboarding = (scenario: Scenario) => {
   return hasAssumptions && (hasEvents || hasPositions);
 };
 
-export const normalizeScenario = (scenario: Scenario): Scenario => {
+type LegacyScenario = Scenario & {
+  members?: ScenarioMember[];
+  budgetRules?: BudgetRule[];
+};
+
+export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   const normalizedPositions = normalizeScenarioPositions(
     scenario.positions,
     scenario.assumptions?.baseMonth
   );
-  const normalizedMembers = normalizeMembers(scenario.members);
   const normalizedEventRefs = scenario.eventRefs ?? [];
-  const normalizedBudgetRules = normalizeBudgetRules(scenario.budgetRules);
   const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
   const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
   const normalizedAssumptions = {
@@ -690,8 +872,6 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     return {
       ...scenario,
       assumptions: normalizedAssumptions,
-      members: normalizedMembers,
-      budgetRules: normalizedBudgetRules,
       eventRefs: normalizedEventRefs,
       clientComputed: nextClientComputed,
       snapshots: normalizedSnapshots,
@@ -702,8 +882,6 @@ export const normalizeScenario = (scenario: Scenario): Scenario => {
     ...scenario,
     assumptions: normalizedAssumptions,
     positions: normalizedPositions,
-    members: normalizedMembers,
-    budgetRules: normalizedBudgetRules,
     eventRefs: normalizedEventRefs,
     clientComputed: nextClientComputed,
     snapshots: normalizedSnapshots,
@@ -749,6 +927,9 @@ export const resetAppState = () => {
       rule: { ...event.rule },
     })),
     activeScenarioId: state.activeScenarioId,
+    appSettings: { ...state.appSettings },
+    members: cloneMembers(state.members) ?? [],
+    budgetRules: cloneBudgetRules(state.budgetRules) ?? [],
   });
 };
 
@@ -757,7 +938,9 @@ export const resetAllLocalData = () => {
     scenarios: [],
     eventLibrary: [],
     activeScenarioId: "",
-    globalHorizonMonths: defaultAppSettings.globalHorizonMonths,
+    appSettings: { ...defaultAppSettings },
+    members: normalizeMembers(),
+    budgetRules: [],
   });
 };
 
@@ -770,7 +953,9 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   scenarios: normalizeScenarioList(initialScenarios),
   eventLibrary: initialEventLibrary,
   activeScenarioId: initialScenarios[0]?.id ?? "",
-  globalHorizonMonths: defaultAppSettings.globalHorizonMonths,
+  appSettings: { ...defaultAppSettings },
+  members: normalizeMembers(),
+  budgetRules: [],
   didHydrate: false,
   isHydrating: false,
   setHydrationState: (patch) => {
@@ -780,16 +965,18 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
   },
   createScenario: (name, options) => {
-    const globalHorizonMonths = get().globalHorizonMonths;
+    const { globalHorizonMonths, globalBaseMonth } = get().appSettings;
     const newScenario: Scenario = {
       id: createScenarioId(),
       name,
       baseCurrency: options?.baseCurrency ?? defaultCurrency,
       updatedAt: now(),
       kpis: { ...defaultKpis },
-      assumptions: { ...defaultAssumptions, horizonMonths: globalHorizonMonths },
-      members: normalizeMembers(),
-      budgetRules: [],
+      assumptions: {
+        ...defaultAssumptions,
+        horizonMonths: globalHorizonMonths,
+        baseMonth: globalBaseMonth ?? defaultAssumptions.baseMonth,
+      },
       eventRefs: [],
       snapshots: [],
       clientComputed:
@@ -830,8 +1017,6 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       updatedAt: now(),
       kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
-      members: cloneMembers(source.members) ?? normalizeMembers(),
-      budgetRules: cloneBudgetRules(source.budgetRules),
       eventRefs: cloneEventRefs(source.eventRefs),
       positions: clonePositions(source.positions),
       clientComputed: cloneClientComputed(source.clientComputed),
@@ -1059,121 +1244,65 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       eventLibrary,
     }));
   },
-  addScenarioMember: (id, member) => {
+  createMember: (member) => {
     set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
+      members: [...state.members, normalizeMembers([member])[0]],
+    }));
+  },
+  updateMember: (memberId, patch) => {
+    set((state) => ({
+      members: state.members.map((member) =>
+        member.id === memberId
           ? {
-              ...scenario,
-              members: [...(scenario.members ?? []), { ...member }],
-              updatedAt: now(),
+              ...member,
+              ...patch,
+              milestones: patch.milestones ?? member.milestones,
             }
-          : scenario
+          : member
       ),
     }));
   },
-  updateScenarioMember: (id, memberId, patch) => {
+  deleteMember: (memberId) => {
     set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              members: (scenario.members ?? []).map((member) =>
-                member.id === memberId ? { ...member, ...patch } : member
-              ),
-              updatedAt: now(),
-            }
-          : scenario
+      members: state.members.filter((member) => member.id !== memberId),
+      budgetRules: state.budgetRules.map((rule) =>
+        rule.memberId === memberId ? { ...rule, memberId: undefined } : rule
+      ),
+      eventLibrary: state.eventLibrary.map((definition) =>
+        definition.memberId === memberId
+          ? { ...definition, memberId: undefined }
+          : definition
       ),
     }));
   },
-  upsertScenarioMember: (id, member) => {
+  setMemberApplyScope: (memberId, applyScope) => {
     set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
-
-        const existingMembers = scenario.members ?? [];
-        const hasMatch = existingMembers.some((entry) => entry.id === member.id);
-        const nextMembers = hasMatch
-          ? existingMembers.map((entry) =>
-              entry.id === member.id ? { ...entry, ...member } : entry
-            )
-          : [...existingMembers, { ...member }];
-
-        return {
-          ...scenario,
-          members: nextMembers,
-          updatedAt: now(),
-        };
-      }),
-    }));
-  },
-  removeScenarioMember: (id, memberId) => {
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              members: (scenario.members ?? []).filter(
-                (member) => member.id !== memberId
-              ),
-              updatedAt: now(),
-            }
-          : scenario
+      members: state.members.map((member) =>
+        member.id === memberId ? { ...member, applyScope } : member
       ),
     }));
   },
-  addBudgetRule: (id, rule) => {
+  createBudgetRule: (rule) => {
     set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
+      budgetRules: [...state.budgetRules, normalizeBudgetRules([rule])[0]],
+    }));
+  },
+  updateBudgetRule: (ruleId, patch) => {
+    set((state) => ({
+      budgetRules: state.budgetRules.map((rule) =>
+        rule.id === ruleId
           ? {
-              ...scenario,
-              budgetRules: [...(scenario.budgetRules ?? []), { ...rule }],
-              updatedAt: now(),
+              ...rule,
+              ...patch,
+              ageBand: patch.ageBand ? { ...patch.ageBand } : { ...rule.ageBand },
             }
-          : scenario
+          : rule
       ),
     }));
   },
-  updateBudgetRule: (id, ruleId, patch) => {
+  removeBudgetRule: (ruleId) => {
     set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              budgetRules: (scenario.budgetRules ?? []).map((rule) =>
-                rule.id === ruleId
-                  ? {
-                      ...rule,
-                      ...patch,
-                      ageBand: patch.ageBand
-                        ? { ...patch.ageBand }
-                        : { ...rule.ageBand },
-                    }
-                  : rule
-              ),
-              updatedAt: now(),
-            }
-          : scenario
-      ),
-    }));
-  },
-  removeBudgetRule: (id, ruleId) => {
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              budgetRules: (scenario.budgetRules ?? []).filter(
-                (rule) => rule.id !== ruleId
-              ),
-              updatedAt: now(),
-            }
-          : scenario
-      ),
+      budgetRules: state.budgetRules.filter((rule) => rule.id !== ruleId),
     }));
   },
   addHomePosition: (id, home) => {
@@ -1761,14 +1890,15 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   updateScenarioAssumptions: (id, patch) => {
     set((state) => {
+      const currentGlobalHorizon = state.appSettings.globalHorizonMonths;
       const nextGlobalHorizon = Object.prototype.hasOwnProperty.call(
         patch,
         "horizonMonths"
       )
         ? typeof patch.horizonMonths === "number"
           ? clamp(patch.horizonMonths, horizonRange.min, horizonRange.max)
-          : state.globalHorizonMonths
-        : state.globalHorizonMonths;
+          : currentGlobalHorizon
+        : currentGlobalHorizon;
 
       const scenarios = state.scenarios.map((scenario) => {
         const nextAssumptions = { ...scenario.assumptions };
@@ -1830,7 +1960,10 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       return {
         ...state,
         scenarios,
-        globalHorizonMonths: nextGlobalHorizon,
+        appSettings: {
+          ...state.appSettings,
+          globalHorizonMonths: nextGlobalHorizon,
+        },
       };
     });
   },
@@ -1842,7 +1975,10 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       const nextGlobalHorizon = clamp(horizonMonths, horizonRange.min, horizonRange.max);
       return {
         ...state,
-        globalHorizonMonths: nextGlobalHorizon,
+        appSettings: {
+          ...state.appSettings,
+          globalHorizonMonths: nextGlobalHorizon,
+        },
         scenarios: state.scenarios.map((scenario) => ({
           ...scenario,
           assumptions: {
@@ -1852,6 +1988,40 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         })),
       };
     });
+  },
+  setGlobalBaseMonth: (baseMonth) => {
+    set((state) => ({
+      ...state,
+      appSettings: {
+        ...state.appSettings,
+        globalBaseMonth: baseMonth,
+      },
+      scenarios: state.scenarios.map((scenario) => ({
+        ...scenario,
+        assumptions: {
+          ...scenario.assumptions,
+          baseMonth,
+        },
+      })),
+    }));
+  },
+  setAnnualInflationPct: (value) => {
+    set((state) => ({
+      ...state,
+      appSettings: {
+        ...state.appSettings,
+        annualInflationPct: value,
+      },
+    }));
+  },
+  setViewMode: (value) => {
+    set((state) => ({
+      ...state,
+      appSettings: {
+        ...state.appSettings,
+        viewMode: value,
+      },
+    }));
   },
   setScenarioInitialCash: (id, initialCash) => {
     get().updateScenarioAssumptions(id, { initialCash });
@@ -1864,7 +2034,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   replaceScenario: (scenario) => {
     const normalizedScenario = normalizeScenario(scenario);
-    const globalHorizonMonths = get().globalHorizonMonths;
+    const globalHorizonMonths = get().appSettings.globalHorizonMonths;
     set((state) => {
       const exists = state.scenarios.some((entry) => entry.id === normalizedScenario.id);
       const scenarios = exists
@@ -1901,7 +2071,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     });
   },
   replaceAllScenarios: (scenarios) => {
-    const globalHorizonMonths = get().globalHorizonMonths;
+    const globalHorizonMonths = get().appSettings.globalHorizonMonths;
     const normalizedScenarios = normalizeScenarioList(scenarios).map((scenario) => ({
       ...scenario,
       assumptions: {

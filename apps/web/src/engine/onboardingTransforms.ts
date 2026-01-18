@@ -76,7 +76,7 @@ export const applyOnboardingToScenario = (
   baseScenario: Scenario,
   draft: OnboardingDraft,
   eventLibrary: EventDefinition[]
-): { scenario: Scenario; eventLibrary: EventDefinition[] } => {
+): { scenario: Scenario; eventLibrary: EventDefinition[]; members: ScenarioMember[] } => {
   const baseMonth = getCurrentMonth();
   const currency = baseScenario.baseCurrency ?? defaultCurrency;
   const members: ScenarioMember[] =
@@ -267,7 +267,6 @@ export const applyOnboardingToScenario = (
   const scenario: Scenario = {
     ...baseScenario,
     updatedAt: Date.now(),
-    members: normalizedMembers,
     eventRefs: eventDefinitions.map<ScenarioEventRef>((definition) => ({
       refId: definition.id,
       enabled: true,
@@ -293,5 +292,6 @@ export const applyOnboardingToScenario = (
   return {
     scenario,
     eventLibrary: [...eventLibrary, ...eventDefinitions],
+    members: normalizedMembers,
   };
 };

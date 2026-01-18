@@ -3,6 +3,7 @@ import {
   Line,
   LineChart,
   ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -10,21 +11,33 @@ import {
 } from "recharts";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../../../lib/i18n";
-import type { TimeSeriesPoint } from "../types";
+import type { MilestoneMarker, TimeSeriesPoint } from "../types";
 
 interface CashBalanceChartProps {
   data: TimeSeriesPoint[];
+  markers?: MilestoneMarker[];
   title?: string;
   onClick?: () => void;
 }
 
 export default function CashBalanceChart({
   data,
+  markers = [],
   title,
   onClick,
 }: CashBalanceChartProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
+  const markerLookup = markers.reduce<Record<string, MilestoneMarker[]>>(
+    (acc, marker) => {
+      if (!acc[marker.month]) {
+        acc[marker.month] = [];
+      }
+      acc[marker.month].push(marker);
+      return acc;
+    },
+    {}
+  );
   const lowestPoint = data.reduce<TimeSeriesPoint | null>((lowest, point) => {
     if (!lowest || point.value < lowest.value) {
       return point;
@@ -65,7 +78,21 @@ export default function CashBalanceChart({
                 formatter={(value) =>
                   formatCurrency(Number(value), undefined, locale)
                 }
-                labelFormatter={(label) => t("monthLabel", { month: label })}
+                labelFormatter={(label) => {
+                  const milestoneLabels =
+                    markerLookup[label]?.map(
+                      (marker) =>
+                        `${marker.memberName}${marker.label}${
+                          marker.atAgeYears ? `（${marker.atAgeYears}歲）` : ""
+                        }`
+                    ) ?? [];
+                  if (milestoneLabels.length === 0) {
+                    return t("monthLabel", { month: label });
+                  }
+                  return `${t("monthLabel", { month: label })} · ${milestoneLabels.join(
+                    ", "
+                  )}`;
+                }}
               />
               <Line
                 type="monotone"
@@ -74,6 +101,14 @@ export default function CashBalanceChart({
                 strokeWidth={2}
                 dot={false}
               />
+              {markers.map((marker) => (
+                <ReferenceLine
+                  key={marker.id}
+                  x={marker.month}
+                  stroke="#94a3b8"
+                  strokeDasharray="3 3"
+                />
+              ))}
               {lowestPoint && (
                 <ReferenceDot
                   x={lowestPoint.month}

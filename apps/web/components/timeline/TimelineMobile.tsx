@@ -46,7 +46,7 @@ import {
   getEventFilterOptions,
   getEventGroupLabel,
   getEventImpactHint,
-  getEventLabel,
+  getEventTypeDisplay,
   formatCurrency,
   formatDateRange,
   formatCarSummary,
@@ -282,6 +282,11 @@ export default function TimelineMobile({
     ].filter((row) => row.months.length > 0);
   }, [carPositions, eventViews, homePositions, t]);
 
+  const memberLookup = useMemo(
+    () => new Map(members.map((member) => [member.id, member.name])),
+    [members]
+  );
+
   const parentGroupOptions = useMemo(
     () =>
       eventLibrary
@@ -445,7 +450,11 @@ export default function TimelineMobile({
                                     <Text size="xs" c="dimmed">
                                       {isGroup
                                         ? t("groupNode")
-                                        : getEventLabel(t, view.definition.type)}
+                                        : getEventTypeDisplay(
+                                            t,
+                                            view.definition.type,
+                                            view.definition.incomeSubtype
+                                          )}
                                     </Text>
                                     {rule.startMonth ? (
                                       <Text size="sm" c="dimmed">
@@ -458,6 +467,13 @@ export default function TimelineMobile({
                                     ) : (
                                       <Text size="sm" c="dimmed">
                                         {t("tablePlaceholder")}
+                                      </Text>
+                                    )}
+                                    {!isGroup && (
+                                      <Text size="xs" c="dimmed">
+                                        {t("tableMember")}{" "}
+                                        {memberLookup.get(view.definition.memberId ?? "") ??
+                                          t("tableMemberNone")}
                                       </Text>
                                     )}
                                     {!isGroup && (

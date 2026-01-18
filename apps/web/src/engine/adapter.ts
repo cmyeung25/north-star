@@ -14,6 +14,8 @@ import type {
   InvestmentPosition,
   LoanPosition,
   Scenario,
+  ScenarioMember,
+  BudgetRule,
 } from "../store/scenarioStore";
 import { HomePositionSchema } from "../store/scenarioValidation";
 import type { OverviewKpis, TimeSeriesPoint } from "../../features/overview/types";
@@ -32,6 +34,8 @@ type AdapterOptions = {
   initialCash?: number;
   strict?: boolean;
   eventsOverride?: TimelineEvent[];
+  members?: ScenarioMember[];
+  budgetRules?: BudgetRule[];
 };
 
 export type AdapterWarning = {
@@ -316,8 +320,10 @@ export const mapScenarioToEngineInput = (
   const eventLedger = eventCashflowsToLedger(cashflowLedger);
   const includeBudgetRulesInProjection =
     scenario.assumptions.includeBudgetRulesInProjection ?? true;
+  const members = options.members ?? [];
+  const budgetRules = options.budgetRules ?? [];
   const budgetLedger = includeBudgetRulesInProjection
-    ? compileAllBudgetRules(scenario)
+    ? compileAllBudgetRules(scenario, budgetRules, members)
     : [];
   const combinedLedger = filterCashflowsToHorizon(
     [...eventLedger, ...budgetLedger],

@@ -9,16 +9,19 @@ import {
   Modal,
   Notification,
   NumberInput,
+  MultiSelect,
   Select,
   SegmentedControl,
   Slider,
   Stack,
+  Tabs,
   Switch,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { nanoid } from "nanoid";
 import { useLocale, useTranslations } from "next-intl";
 import { signInWithGoogle, signOutUser } from "../../../lib/authActions";
 import { isFirebaseConfigured } from "../../../lib/firebaseClient";
@@ -36,7 +39,10 @@ import {
   useScenarioStore,
   createBudgetRuleId,
   createMemberId,
+  type MemberMilestone,
+  type ScenarioMemberKind,
 } from "../../../src/store/scenarioStore";
+import { appliesToScenario, type ApplyScope } from "../../../src/domain/applyScope";
 import { useSettingsStore } from "../../../src/store/settingsStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
@@ -82,23 +88,27 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
+  const members = useScenarioStore((state) => state.members);
+  const budgetRules = useScenarioStore((state) => state.budgetRules);
+  const appSettings = useScenarioStore((state) => state.appSettings);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
-  const globalHorizonMonths = useScenarioStore((state) => state.globalHorizonMonths);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const setGlobalHorizonMonths = useScenarioStore(
     (state) => state.setGlobalHorizonMonths
   );
+  const setGlobalBaseMonth = useScenarioStore((state) => state.setGlobalBaseMonth);
+  const setAnnualInflationPct = useScenarioStore(
+    (state) => state.setAnnualInflationPct
+  );
+  const setViewMode = useScenarioStore((state) => state.setViewMode);
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
-  const addScenarioMember = useScenarioStore((state) => state.addScenarioMember);
-  const updateScenarioMember = useScenarioStore(
-    (state) => state.updateScenarioMember
-  );
-  const removeScenarioMember = useScenarioStore(
-    (state) => state.removeScenarioMember
-  );
-  const addBudgetRule = useScenarioStore((state) => state.addBudgetRule);
+  const createMember = useScenarioStore((state) => state.createMember);
+  const updateMember = useScenarioStore((state) => state.updateMember);
+  const deleteMember = useScenarioStore((state) => state.deleteMember);
+  const setMemberApplyScope = useScenarioStore((state) => state.setMemberApplyScope);
+  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
   const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
@@ -110,6 +120,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [syncToast, setSyncToast] = useState<ToastState | null>(null);
   const [baseMonthInput, setBaseMonthInput] = useState("");
+  const [activeTab, setActiveTab] = useState("data");
   const [budgetMonthInputs, setBudgetMonthInputs] = useState<
     Record<string, { startMonth: string; endMonth: string }>
   >({});
@@ -156,11 +167,8 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   }, [eventLibrary, scenario]);
 
   useEffect(() => {
-    if (!scenario) {
-      return;
-    }
-    setBaseMonthInput(scenario.assumptions.baseMonth ?? "");
-  }, [scenario]);
+    setBaseMonthInput(appSettings.globalBaseMonth ?? "");
+  }, [appSettings.globalBaseMonth]);
 
   useEffect(() => {
     let active = true;
@@ -340,12 +348,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     showToast(common("saved"), "teal");
   };
 
-  const budgetRules = useMemo(() => scenario?.budgetRules ?? [], [scenario]);
-
   useEffect(() => {
-    if (!scenario) {
-      return;
-    }
     setBudgetMonthInputs((current) => {
       const next = { ...current };
       budgetRules.forEach((rule) => {
@@ -363,7 +366,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       });
       return next;
     });
-  }, [budgetRules, scenario]);
+  }, [budgetRules]);
 
   const updateBudgetMonthInput = (
     ruleId: string,
@@ -395,7 +398,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     const trimmed = rawValue.trim();
 
     if (trimmed === "") {
-      updateBudgetRule(scenario.id, ruleId, { [field]: undefined });
+      updateBudgetRule(ruleId, { [field]: undefined });
       setBudgetMonthErrors((current) => ({
         ...current,
         [ruleId]: { ...current[ruleId], [field]: undefined },
@@ -412,13 +415,22 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       return;
     }
 
-    updateBudgetRule(scenario.id, ruleId, { [field]: trimmed });
+    updateBudgetRule(ruleId, { [field]: trimmed });
     setBudgetMonthErrors((current) => ({
       ...current,
       [ruleId]: { ...current[ruleId], [field]: undefined },
     }));
     updateBudgetMonthInput(ruleId, field, trimmed);
   };
+
+  const scenarioOptions = useMemo(
+    () =>
+      scenarios.map((entry) => ({
+        value: entry.id,
+        label: entry.name,
+      })),
+    [scenarios]
+  );
 
   if (!scenario) {
     return (
@@ -447,17 +459,22 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   }
 
   const { assumptions } = scenario;
-  const members = scenario.members ?? [];
-  const hasHousingRules = budgetRules.some((rule) => isHousingCategory(rule.category));
+  const baseMonth = appSettings.globalBaseMonth;
+  const horizonMonths = appSettings.globalHorizonMonths;
+  const scopedBudgetRules = budgetRules.filter((rule) =>
+    appliesToScenario(rule.applyScope, scenario.id)
+  );
+  const hasHousingRules = scopedBudgetRules.some((rule) =>
+    isHousingCategory(rule.category)
+  );
   const horizonValue = horizonOptions.some(
-    (option) => Number(option.value) === globalHorizonMonths
+    (option) => Number(option.value) === horizonMonths
   )
-    ? String(globalHorizonMonths)
+    ? String(horizonMonths)
     : "240";
   const horizonEndMonth =
-    assumptions.baseMonth && globalHorizonMonths > 0
-      ? buildMonthRange(assumptions.baseMonth, globalHorizonMonths).at(-1) ??
-        null
+    baseMonth && horizonMonths > 0
+      ? buildMonthRange(baseMonth, horizonMonths).at(-1) ?? null
       : null;
   const formatAgeYears = (value: number) =>
     Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
@@ -472,10 +489,10 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     }).format(value);
   };
   const buildZeroPreview = (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
-    if (!assumptions.baseMonth || globalHorizonMonths <= 0) {
+    if (!baseMonth || horizonMonths <= 0) {
       return [];
     }
-    return buildMonthRange(assumptions.baseMonth, globalHorizonMonths).map(
+    return buildMonthRange(baseMonth, horizonMonths).map(
       (month) => ({
         month,
         amount: 0,
@@ -492,7 +509,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     budgetRules.map((rule) => [
       rule.id,
       rule.enabled
-        ? compileBudgetRuleToMonthlySeries(rule, scenario)
+        ? compileBudgetRuleToMonthlySeries(rule, scenario, members)
         : buildZeroPreview(rule),
     ])
   );
@@ -505,6 +522,100 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const syncStatusLabel = isSignedIn
     ? common("signedInStatus", { status: lastSyncedLabel })
     : common("localModeStatus");
+
+  const normalizeApplyScope = (applyScope?: ApplyScope): ApplyScope =>
+    applyScope ?? { scope: "all" };
+
+  const renderApplyScope = (
+    value: ApplyScope | undefined,
+    onChange: (next: ApplyScope) => void,
+    description?: string
+  ) => {
+    const scope = value?.scope ?? "all";
+    const scenarioIds =
+      value?.scope === "include" || value?.scope === "exclude"
+        ? value.scenarioIds
+        : [];
+
+    return (
+      <Stack gap={4}>
+        <SegmentedControl
+          data={[
+            { value: "all", label: common("applyScopeAll") },
+            { value: "include", label: common("applyScopeInclude") },
+            { value: "exclude", label: common("applyScopeExclude") },
+          ]}
+          value={scope}
+          onChange={(next) => {
+            if (next === "all") {
+              onChange({ scope: "all" });
+              return;
+            }
+            onChange({ scope: next as "include" | "exclude", scenarioIds });
+          }}
+        />
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        {scope !== "all" && (
+          <MultiSelect
+            data={scenarioOptions}
+            value={scenarioIds}
+            onChange={(next: string[]) =>
+              onChange({ scope: scope as "include" | "exclude", scenarioIds: next })
+            }
+            placeholder={common("applyScopePlaceholder")}
+          />
+        )}
+      </Stack>
+    );
+  };
+
+  const createMilestoneId = () => `milestone-${nanoid(8)}`;
+
+  const buildDefaultMilestones = (kind: ScenarioMemberKind): MemberMilestone[] => {
+    if (kind !== "person") {
+      return [];
+    }
+    return [
+      {
+        id: createMilestoneId(),
+        kind: "schoolStart",
+        label: membersText("milestoneSchoolStart"),
+        atAgeYears: 6,
+        applyScope: { scope: "all" } as ApplyScope,
+      },
+      {
+        id: createMilestoneId(),
+        kind: "graduation",
+        label: membersText("milestoneGraduation"),
+        atAgeYears: 22,
+        applyScope: { scope: "all" } as ApplyScope,
+      },
+      {
+        id: createMilestoneId(),
+        kind: "retirement",
+        label: membersText("milestoneRetirement"),
+        atAgeYears: 65,
+        applyScope: { scope: "all" } as ApplyScope,
+      },
+    ];
+  };
+
+  const updateMemberMilestones = (
+    memberId: string,
+    updater: (milestones: NonNullable<(typeof members)[number]["milestones"]>) =>
+      NonNullable<(typeof members)[number]["milestones"]>
+  ) => {
+    const member = members.find((entry) => entry.id === memberId);
+    if (!member) {
+      return;
+    }
+    const currentMilestones = member.milestones ?? [];
+    updateMember(memberId, { milestones: updater(currentMilestones) });
+  };
 
   return (
     <Stack gap="xl">
@@ -521,438 +632,584 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
         </Notification>
       )}
 
-      <Card withBorder radius="md" padding="md" id="sync">
-        <Stack gap="md">
-          <Group justify="space-between" align="center">
-            <Text fw={600}>{common("syncTitle")}</Text>
-            <Text size="xs" c="dimmed">
-              {syncStatusLabel}
-            </Text>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {common("syncSubtitle")}
-          </Text>
+      <Tabs value={activeTab} onChange={(value) => setActiveTab(value ?? "data")}>
+        <Tabs.List>
+          <Tabs.Tab value="data">{common("settingsTabData")}</Tabs.Tab>
+          <Tabs.Tab value="global">{common("settingsTabGlobal")}</Tabs.Tab>
+          <Tabs.Tab value="members">{common("settingsTabMembers")}</Tabs.Tab>
+          <Tabs.Tab value="budget">{common("settingsTabBudget")}</Tabs.Tab>
+          <Tabs.Tab value="other">{common("settingsTabOther")}</Tabs.Tab>
+        </Tabs.List>
 
-          {syncToast && (
-            <Notification
-              color={syncToast.color}
-              onClose={() => setSyncToast(null)}
-            >
-              {syncToast.message}
-            </Notification>
-          )}
-
-          {syncError && (
-            <Notification color="red" onClose={() => setSyncError(null)}>
-              {syncError}
-            </Notification>
-          )}
-
-          {autoSyncError && (
-            <Notification color="yellow" onClose={() => setAutoSyncError(null)}>
-              {autoSyncError}
-            </Notification>
-          )}
-
-          {!isFirebaseConfigured && !isSignedIn && (
-            <Notification color="yellow">
-              {common("firebaseNotConfigured")}
-            </Notification>
-          )}
-
-          {schemaUpgradeRequired && (
-            <Notification color="yellow">
-              {errors("syncUpgradeRequired")}
-            </Notification>
-          )}
-
-          {!isSignedIn && (
-            <Group>
-              <Button
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await signInWithGoogle();
-                  } catch (error) {
-                    setSyncError(
-                      error instanceof Error
-                        ? error.message
-                        : errors("signInFailed")
-                    );
-                  }
-                }}
-                disabled={!isFirebaseConfigured}
-              >
-                {common("signInToSync")}
-              </Button>
-              <Text size="xs" c="dimmed">
-                {common("signInHint")}
+        <Tabs.Panel value="data" pt="md">
+          <Card withBorder radius="md" padding="md" id="sync">
+            <Stack gap="md">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{common("syncTitle")}</Text>
+                <Text size="xs" c="dimmed">
+                  {syncStatusLabel}
+                </Text>
+              </Group>
+              <Text size="sm" c="dimmed">
+                {common("syncSubtitle")}
               </Text>
-            </Group>
-          )}
 
-          <Stack gap="sm">
-            {hasConflict && (
-              <Notification color="orange">
-                {common("syncConflictNotice")}
-              </Notification>
-            )}
-            <Stack gap={4}>
-              <Switch
-                label={common("autoSyncLabel")}
-                checked={autoSyncEnabled}
-                disabled={!isSignedIn}
-                onChange={(event) =>
-                  setAutoSyncEnabled(event.currentTarget.checked)
-                }
-                description={common("autoSyncDescription")}
-              />
-              <Text size="xs" c="dimmed">
-                {autoSyncStatusLabel}
-                {autoSyncDetails ? ` · ${autoSyncDetails}` : ""}
+              {syncToast && (
+                <Notification
+                  color={syncToast.color}
+                  onClose={() => setSyncToast(null)}
+                >
+                  {syncToast.message}
+                </Notification>
+              )}
+
+              {syncError && (
+                <Notification color="red" onClose={() => setSyncError(null)}>
+                  {syncError}
+                </Notification>
+              )}
+
+              {autoSyncError && (
+                <Notification color="yellow" onClose={() => setAutoSyncError(null)}>
+                  {autoSyncError}
+                </Notification>
+              )}
+
+              {!isFirebaseConfigured && !isSignedIn && (
+                <Notification color="yellow">
+                  {common("firebaseNotConfigured")}
+                </Notification>
+              )}
+
+              {schemaUpgradeRequired && (
+                <Notification color="yellow">
+                  {errors("syncUpgradeRequired")}
+                </Notification>
+              )}
+
+              {!isSignedIn && (
+                <Group>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await signInWithGoogle();
+                      } catch (error) {
+                        setSyncError(
+                          error instanceof Error
+                            ? error.message
+                            : errors("signInFailed")
+                        );
+                      }
+                    }}
+                    disabled={!isFirebaseConfigured}
+                  >
+                    {common("signInToSync")}
+                  </Button>
+                  <Text size="xs" c="dimmed">
+                    {common("signInHint")}
+                  </Text>
+                </Group>
+              )}
+
+              <Stack gap="sm">
+                {hasConflict && (
+                  <Notification color="orange">
+                    {common("syncConflictNotice")}
+                  </Notification>
+                )}
+                <Stack gap={4}>
+                  <Switch
+                    label={common("autoSyncLabel")}
+                    checked={autoSyncEnabled}
+                    disabled={!isSignedIn}
+                    onChange={(event) =>
+                      setAutoSyncEnabled(event.currentTarget.checked)
+                    }
+                    description={common("autoSyncDescription")}
+                  />
+                  <Text size="xs" c="dimmed">
+                    {autoSyncStatusLabel}
+                    {autoSyncDetails ? ` · ${autoSyncDetails}` : ""}
+                  </Text>
+                </Stack>
+                {isSignedIn && (
+                  <>
+                    <Group wrap="wrap">
+                      <Button
+                        size="sm"
+                        onClick={() => void handleUpload()}
+                        loading={syncingAction === "upload"}
+                        disabled={schemaUpgradeRequired}
+                      >
+                        {common("uploadLocalToCloud")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="light"
+                        onClick={() => void handleDownload()}
+                        loading={syncingAction === "download"}
+                        disabled={schemaUpgradeRequired}
+                      >
+                        {common("downloadCloudToLocal")}
+                      </Button>
+                    </Group>
+                    <Divider />
+                    <Group justify="space-between" align="center">
+                      <Text size="sm" c="dimmed">
+                        {common("signedInAs", {
+                          email: authState.user?.email ?? common("googleUser"),
+                        })}
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={async () => {
+                          await signOutUser();
+                          setCloudSummary(null);
+                        }}
+                      >
+                        {common("signOut")}
+                      </Button>
+                    </Group>
+                  </>
+                )}
+              </Stack>
+            </Stack>
+          </Card>
+
+          <Modal
+            opened={conflictModalOpen}
+            onClose={() => setConflictModalOpen(false)}
+            title={common("resolveSyncTitle")}
+            centered
+          >
+            <Stack>
+              <Text size="sm">
+                {common("resolveSyncSubtitle")}
+              </Text>
+              <Group grow>
+                <Button
+                  onClick={async () => {
+                    setConflictModalOpen(false);
+                    await handleUpload(true);
+                  }}
+                >
+                  {common("useLocalData")}
+                </Button>
+                <Button
+                  variant="light"
+                  onClick={async () => {
+                    setConflictModalOpen(false);
+                    await handleDownload(true);
+                  }}
+                >
+                  {common("useCloudData")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
+
+          <DataManagementSection onNotify={showToast} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="global" pt="md">
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="xs">
+              <Text fw={600}>{common("assumptionsHowTitle")}</Text>
+              <Text size="sm" c="dimmed">
+                {common("assumptionsHowLine1")}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {common("assumptionsHowLine2")}
               </Text>
             </Stack>
-            {isSignedIn && (
-              <>
-                <Group wrap="wrap">
-                  <Button
-                    size="sm"
-                    onClick={() => void handleUpload()}
-                    loading={syncingAction === "upload"}
-                    disabled={schemaUpgradeRequired}
-                  >
-                    {common("uploadLocalToCloud")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="light"
-                    onClick={() => void handleDownload()}
-                    loading={syncingAction === "download"}
-                    disabled={schemaUpgradeRequired}
-                  >
-                    {common("downloadCloudToLocal")}
-                  </Button>
-                </Group>
-                <Divider />
+          </Card>
+
+          <Card withBorder radius="md" padding="md" mt="md">
+            <Stack gap="md">
+              <Stack gap={6}>
+                <Text fw={600}>{t("planningHorizon")}</Text>
+                <SegmentedControl
+                  data={horizonOptions}
+                  value={horizonValue}
+                  onChange={(value) => {
+                    setGlobalHorizonMonths(Number(value));
+                    showToast(common("saved"), "teal");
+                  }}
+                />
+              </Stack>
+
+              <Stack gap={6}>
+                <TextInput
+                  label={t("baseMonth")}
+                  placeholder={common("yearMonthPlaceholder")}
+                  value={baseMonthInput}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setBaseMonthInput(nextValue);
+                    if (nextValue.trim() === "") {
+                      setGlobalBaseMonth(null);
+                    } else if (isValidBaseMonth(nextValue)) {
+                      setGlobalBaseMonth(nextValue);
+                    }
+                  }}
+                />
                 <Group justify="space-between" align="center">
-                  <Text size="sm" c="dimmed">
-                    {common("signedInAs", {
-                      email: authState.user?.email ?? common("googleUser"),
-                    })}
+                  <Text size="xs" c="dimmed">
+                    {baseMonthHelper}
                   </Text>
                   <Button
                     size="xs"
                     variant="subtle"
-                    onClick={async () => {
-                      await signOutUser();
-                      setCloudSummary(null);
+                    onClick={() => {
+                      setBaseMonthInput("");
+                      setGlobalBaseMonth(null);
                     }}
                   >
-                    {common("signOut")}
+                    {common("actionAuto")}
                   </Button>
                 </Group>
-              </>
-            )}
-          </Stack>
-        </Stack>
-      </Card>
+              </Stack>
 
-      <Modal
-        opened={conflictModalOpen}
-        onClose={() => setConflictModalOpen(false)}
-        title={common("resolveSyncTitle")}
-        centered
-      >
-        <Stack>
-          <Text size="sm">
-            {common("resolveSyncSubtitle")}
-          </Text>
-          <Group grow>
-            <Button
-              onClick={async () => {
-                setConflictModalOpen(false);
-                await handleUpload(true);
-              }}
-            >
-              {common("useLocalData")}
-            </Button>
-            <Button
-              variant="light"
-              onClick={async () => {
-                setConflictModalOpen(false);
-                await handleDownload(true);
-              }}
-            >
-              {common("useCloudData")}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+              <Group grow>
+                <NumberInput
+                  label={t("annualInflationPct")}
+                  value={appSettings.annualInflationPct}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setAnnualInflationPct(typeof value === "number" ? value : 0)
+                  }
+                />
+                <Stack gap={4}>
+                  <Text size="sm" fw={500}>
+                    {t("viewModeLabel")}
+                  </Text>
+                  <SegmentedControl
+                    data={[
+                      { value: "nominal", label: t("viewNominal") },
+                      { value: "real", label: t("viewReal") },
+                    ]}
+                    value={appSettings.viewMode}
+                    onChange={(value) => setViewMode(value as "nominal" | "real")}
+                  />
+                  <Text size="xs" c="dimmed">
+                    {t("viewRealHint")}
+                  </Text>
+                </Stack>
+              </Group>
+            </Stack>
+          </Card>
+        </Tabs.Panel>
 
-      <DataManagementSection onNotify={showToast} />
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="xs">
-          <Text fw={600}>{common("assumptionsHowTitle")}</Text>
-          <Text size="sm" c="dimmed">
-            {common("assumptionsHowLine1")}
-          </Text>
-          <Text size="sm" c="dimmed">
-            {common("assumptionsHowLine2")}
-          </Text>
-        </Stack>
-      </Card>
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="md">
-          <Stack gap={6}>
-            <Text fw={600}>{t("planningHorizon")}</Text>
-            <SegmentedControl
-              data={horizonOptions}
-              value={horizonValue}
-              onChange={(value) => {
-                setGlobalHorizonMonths(Number(value));
-                showToast(common("saved"), "teal");
-              }}
-            />
-          </Stack>
-
-          <NumberInput
-            label={t("initialCash")}
-            value={assumptions.initialCash}
-            min={0}
-            step={1000}
-            thousandSeparator=","
-            onChange={(value) => {
-              if (typeof value === "number") {
-                handleAssumptionChange({ initialCash: value });
-              }
-            }}
-          />
-
-          <Stack gap={6}>
-            <TextInput
-              label={t("baseMonth")}
-              placeholder={common("yearMonthPlaceholder")}
-              value={baseMonthInput}
-              onChange={(event) => {
-                const nextValue = event.currentTarget.value;
-                setBaseMonthInput(nextValue);
-                if (nextValue.trim() === "") {
-                  handleAssumptionChange({ baseMonth: null });
-                } else if (isValidBaseMonth(nextValue)) {
-                  handleAssumptionChange({ baseMonth: nextValue });
-                }
-              }}
-            />
-            <Group justify="space-between" align="center">
-              <Text size="xs" c="dimmed">
-                {baseMonthHelper}
-              </Text>
-              <Button
-                size="xs"
-                variant="subtle"
-                onClick={() => {
-                  setBaseMonthInput("");
-                  handleAssumptionChange({ baseMonth: null });
-                }}
-              >
-                {common("actionAuto")}
-              </Button>
-            </Group>
-          </Stack>
-
-          <Group grow>
-            <NumberInput
-              label={t("inflationRate")}
-              value={assumptions.inflationRate ?? ""}
-              min={0}
-              step={0.1}
-              decimalScale={2}
-              onChange={(value) =>
-                handleAssumptionChange({
-                  inflationRate: typeof value === "number" ? value : undefined,
-                })
-              }
-            />
-            <NumberInput
-              label={t("salaryGrowth")}
-              value={assumptions.salaryGrowthRate ?? ""}
-              min={0}
-              step={0.1}
-              decimalScale={2}
-              onChange={(value) =>
-                handleAssumptionChange({
-                  salaryGrowthRate: typeof value === "number" ? value : undefined,
-                })
-              }
-            />
-          </Group>
-
-          <Stack gap="xs">
-            <Group justify="space-between">
-              <Text fw={600}>{t("emergencyFundTarget")}</Text>
+        <Tabs.Panel value="members" pt="md">
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="md">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{membersText("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => {
+                    createMember({
+                      id: createMemberId(),
+                      name: membersText("defaultName"),
+                      kind: "person",
+                      ageAtBaseMonth: 0,
+                      applyScope: { scope: "all" },
+                      milestones: buildDefaultMilestones("person"),
+                    });
+                    showToast(common("saved"), "teal");
+                  }}
+                >
+                  {membersText("addMember")}
+                </Button>
+              </Group>
               <Text size="sm" c="dimmed">
-                {t("emergencyFundValue", {
-                  months: assumptions.emergencyFundMonths ?? 6,
-                })}
+                {membersText("subtitle")}
               </Text>
-            </Group>
-            <Slider
-              min={3}
-              max={12}
-              step={1}
-              value={assumptions.emergencyFundMonths ?? 6}
-              onChange={(value) =>
-                handleAssumptionChange({ emergencyFundMonths: value })
-              }
-            />
-          </Stack>
-        </Stack>
-      </Card>
+              <Stack gap="sm">
+                {members.map((member, index) => {
+                  const hasBirthMonth =
+                    typeof member.birthMonth === "string" &&
+                    isValidBaseMonth(member.birthMonth);
+                  const hasAgeAtBase = typeof member.ageAtBaseMonth === "number";
+                  const baseMonthValue = baseMonth;
+                  const validBaseMonth =
+                    baseMonthValue && isValidBaseMonth(baseMonthValue)
+                      ? baseMonthValue
+                      : null;
+                  const canCalculateAge = Boolean(validBaseMonth);
+                  const baseAge =
+                    canCalculateAge && (hasBirthMonth || hasAgeAtBase)
+                      ? getMemberAgeYears(member, validBaseMonth!, validBaseMonth!)
+                      : null;
+                  const endAge =
+                    canCalculateAge && horizonEndMonth && (hasBirthMonth || hasAgeAtBase)
+                      ? getMemberAgeYears(member, horizonEndMonth!, validBaseMonth!)
+                      : null;
+                  const showAgeError = !hasBirthMonth && !hasAgeAtBase;
 
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="md">
-          <Group justify="space-between" align="center">
-            <Text fw={600}>{membersText("title")}</Text>
-            <Button
-              size="xs"
-              variant="light"
-              onClick={() => {
-                addScenarioMember(scenario.id, {
-                  id: createMemberId(),
-                  name: membersText("defaultName"),
-                  kind: "person",
-                  ageAtBaseMonth: 0,
-                });
-                showToast(common("saved"), "teal");
-              }}
-            >
-              {membersText("addMember")}
-            </Button>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {membersText("subtitle")}
-          </Text>
-          <Stack gap="sm">
-            {members.map((member, index) => {
-              const hasBirthMonth =
-                typeof member.birthMonth === "string" &&
-                isValidBaseMonth(member.birthMonth);
-              const hasAgeAtBase = typeof member.ageAtBaseMonth === "number";
-              const baseMonthValue = assumptions.baseMonth;
-              const validBaseMonth =
-                baseMonthValue && isValidBaseMonth(baseMonthValue)
-                  ? baseMonthValue
-                  : null;
-              const canCalculateAge = Boolean(validBaseMonth);
-              const baseAge =
-                canCalculateAge && (hasBirthMonth || hasAgeAtBase)
-                  ? getMemberAgeYears(member, validBaseMonth!, validBaseMonth!)
-                  : null;
-              const endAge =
-                canCalculateAge && horizonEndMonth && (hasBirthMonth || hasAgeAtBase)
-                  ? getMemberAgeYears(member, horizonEndMonth!, validBaseMonth!)
-                  : null;
-              const showAgeError = !hasBirthMonth && !hasAgeAtBase;
+                  return (
+                    <Card key={member.id} withBorder radius="md" padding="md">
+                      <Stack gap="sm">
+                        <Group justify="space-between" align="center">
+                          <Text fw={600}>
+                            {membersText("memberLabel", { index: index + 1 })}
+                          </Text>
+                          <Button
+                            size="xs"
+                            color="red"
+                            variant="light"
+                            disabled={members.length <= 1}
+                            onClick={() => {
+                              deleteMember(member.id);
+                              showToast(common("saved"), "teal");
+                            }}
+                          >
+                            {membersText("removeMember")}
+                          </Button>
+                        </Group>
+                        <Group grow>
+                          <TextInput
+                            label={membersText("nameLabel")}
+                            value={member.name}
+                            onChange={(event) =>
+                              updateMember(member.id, {
+                                name: event.currentTarget.value,
+                              })
+                            }
+                          />
+                          <Select
+                            label={membersText("kindLabel")}
+                            data={[
+                              { value: "person", label: membersText("kindPerson") },
+                              { value: "pet", label: membersText("kindPet") },
+                            ]}
+                            value={member.kind}
+                            onChange={(value) => {
+                              if (!value) {
+                                return;
+                              }
+                              updateMember(member.id, {
+                                kind: value as typeof member.kind,
+                              });
+                            }}
+                          />
+                        </Group>
+                        <Group grow>
+                          <TextInput
+                            label={membersText("birthMonthLabel")}
+                            placeholder={common("yearMonthPlaceholder")}
+                            value={member.birthMonth ?? ""}
+                            type="month"
+                            onChange={(event) => {
+                              const nextValue = event.currentTarget.value.trim();
+                              updateMember(member.id, {
+                                birthMonth: nextValue === "" ? undefined : nextValue,
+                              });
+                            }}
+                          />
+                          <NumberInput
+                            label={membersText("ageAtBaseLabel")}
+                            value={member.ageAtBaseMonth ?? ""}
+                            min={0}
+                            step={0.5}
+                            decimalScale={2}
+                            onChange={(value) =>
+                              updateMember(member.id, {
+                                ageAtBaseMonth:
+                                  typeof value === "number" ? value : undefined,
+                              })
+                            }
+                          />
+                        </Group>
+                        {showAgeError && (
+                          <Text size="xs" c="red">
+                            {membersText("ageRequired")}
+                          </Text>
+                        )}
+                        <Group gap="xl" wrap="wrap">
+                          <Text size="sm" c="dimmed">
+                            {membersText("baseAgeLabel")}:{" "}
+                            {baseAge === null
+                              ? t("notAvailable")
+                              : formatAgeYears(baseAge)}
+                          </Text>
+                          <Text size="sm" c="dimmed">
+                            {membersText("endAgeLabel")}:{" "}
+                            {endAge === null ? t("notAvailable") : formatAgeYears(endAge)}
+                          </Text>
+                        </Group>
+                        <Stack gap="xs">
+                          <Text fw={600}>{membersText("applyScopeTitle")}</Text>
+                          {renderApplyScope(
+                            normalizeApplyScope(member.applyScope),
+                            (next) => setMemberApplyScope(member.id, next),
+                            membersText("applyScopeHint")
+                          )}
+                        </Stack>
+                        <Stack gap="xs">
+                          <Group justify="space-between" align="center">
+                            <Text fw={600}>{membersText("milestonesTitle")}</Text>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() =>
+                                updateMemberMilestones(member.id, (current) => [
+                                  ...current,
+                                  {
+                                    id: createMilestoneId(),
+                                    kind: "custom",
+                                    label: membersText("milestoneCustomDefault"),
+                                    applyScope: { scope: "all" },
+                                  },
+                                ])
+                              }
+                            >
+                              {membersText("addMilestone")}
+                            </Button>
+                          </Group>
+                          {member.birthMonth && (
+                            <Card withBorder radius="md" padding="sm">
+                              <Group justify="space-between" align="center">
+                                <Text fw={500}>{membersText("milestoneBirth")}</Text>
+                                <Text size="sm" c="dimmed">
+                                  {member.birthMonth}
+                                </Text>
+                              </Group>
+                            </Card>
+                          )}
+                          {(member.milestones ?? [])
+                            .filter((milestone) => milestone.kind !== "birth")
+                            .map((milestone) => (
+                              <Card
+                                key={milestone.id}
+                                withBorder
+                                radius="md"
+                                padding="sm"
+                              >
+                                <Stack gap="sm">
+                                  <Group justify="space-between" align="center">
+                                    <Text fw={500}>
+                                      {membersText(
+                                        `milestoneKind.${milestone.kind}`
+                                      )}
+                                    </Text>
+                                    <Button
+                                      size="xs"
+                                      variant="light"
+                                      color="red"
+                                      onClick={() =>
+                                        updateMemberMilestones(member.id, (current) =>
+                                          current.filter(
+                                            (entry) => entry.id !== milestone.id
+                                          )
+                                        )
+                                      }
+                                    >
+                                      {membersText("removeMilestone")}
+                                    </Button>
+                                  </Group>
+                                  <TextInput
+                                    label={membersText("milestoneLabel")}
+                                    value={milestone.label}
+                                    onChange={(event) =>
+                                      updateMemberMilestones(member.id, (current) =>
+                                        current.map((entry) =>
+                                          entry.id === milestone.id
+                                            ? {
+                                                ...entry,
+                                                label: event.currentTarget.value,
+                                              }
+                                            : entry
+                                        )
+                                      )
+                                    }
+                                  />
+                                  <Group grow>
+                                    <NumberInput
+                                      label={membersText("milestoneAgeLabel")}
+                                      value={milestone.atAgeYears ?? ""}
+                                      min={0}
+                                      step={0.5}
+                                      decimalScale={2}
+                                      onChange={(value) =>
+                                        updateMemberMilestones(member.id, (current) =>
+                                          current.map((entry) =>
+                                            entry.id === milestone.id
+                                              ? {
+                                                  ...entry,
+                                                  atAgeYears:
+                                                    typeof value === "number"
+                                                      ? value
+                                                      : undefined,
+                                                  month:
+                                                    typeof value === "number"
+                                                      ? undefined
+                                                      : entry.month,
+                                                }
+                                              : entry
+                                          )
+                                        )
+                                      }
+                                    />
+                                    <TextInput
+                                      label={membersText("milestoneMonthLabel")}
+                                      type="month"
+                                      value={milestone.month ?? ""}
+                                      onChange={(event) =>
+                                        updateMemberMilestones(member.id, (current) =>
+                                          current.map((entry) =>
+                                            entry.id === milestone.id
+                                              ? {
+                                                  ...entry,
+                                                  month:
+                                                    event.currentTarget.value ||
+                                                    undefined,
+                                                  atAgeYears: event.currentTarget.value
+                                                    ? undefined
+                                                    : entry.atAgeYears,
+                                                }
+                                              : entry
+                                          )
+                                        )
+                                      }
+                                    />
+                                  </Group>
+                                  <Stack gap="xs">
+                                    <Text fw={500}>
+                                      {membersText("milestoneApplyScope")}
+                                    </Text>
+                                    {renderApplyScope(
+                                      normalizeApplyScope(milestone.applyScope),
+                                      (next) =>
+                                        updateMemberMilestones(member.id, (current) =>
+                                          current.map((entry) =>
+                                            entry.id === milestone.id
+                                              ? { ...entry, applyScope: next }
+                                              : entry
+                                          )
+                                        )
+                                    )}
+                                  </Stack>
+                                </Stack>
+                              </Card>
+                            ))}
+                        </Stack>
+                      </Stack>
+                    </Card>
+                  );
+                })}
+              </Stack>
+            </Stack>
+          </Card>
+        </Tabs.Panel>
 
-              return (
-                <Card key={member.id} withBorder radius="md" padding="md">
-                  <Stack gap="sm">
-                    <Group justify="space-between" align="center">
-                      <Text fw={600}>
-                        {membersText("memberLabel", { index: index + 1 })}
-                      </Text>
-                      <Button
-                        size="xs"
-                        color="red"
-                        variant="light"
-                        disabled={members.length <= 1}
-                        onClick={() => {
-                          removeScenarioMember(scenario.id, member.id);
-                          showToast(common("saved"), "teal");
-                        }}
-                      >
-                        {membersText("removeMember")}
-                      </Button>
-                    </Group>
-                    <Group grow>
-                      <TextInput
-                        label={membersText("nameLabel")}
-                        value={member.name}
-                        onChange={(event) =>
-                          updateScenarioMember(scenario.id, member.id, {
-                            name: event.currentTarget.value,
-                          })
-                        }
-                      />
-                      <Select
-                        label={membersText("kindLabel")}
-                        data={[
-                          { value: "person", label: membersText("kindPerson") },
-                          { value: "pet", label: membersText("kindPet") },
-                        ]}
-                        value={member.kind}
-                        onChange={(value) => {
-                          if (!value) {
-                            return;
-                          }
-                          updateScenarioMember(scenario.id, member.id, {
-                            kind: value as typeof member.kind,
-                          });
-                        }}
-                      />
-                    </Group>
-                    <Group grow>
-                      <TextInput
-                        label={membersText("birthMonthLabel")}
-                        placeholder={common("yearMonthPlaceholder")}
-                        value={member.birthMonth ?? ""}
-                        type="month"
-                        onChange={(event) => {
-                          const nextValue = event.currentTarget.value.trim();
-                          updateScenarioMember(scenario.id, member.id, {
-                            birthMonth: nextValue === "" ? undefined : nextValue,
-                          });
-                        }}
-                      />
-                      <NumberInput
-                        label={membersText("ageAtBaseLabel")}
-                        value={member.ageAtBaseMonth ?? ""}
-                        min={0}
-                        step={0.5}
-                        decimalScale={2}
-                        onChange={(value) =>
-                          updateScenarioMember(scenario.id, member.id, {
-                            ageAtBaseMonth: typeof value === "number" ? value : undefined,
-                          })
-                        }
-                      />
-                    </Group>
-                    {showAgeError && (
-                      <Text size="xs" c="red">
-                        {membersText("ageRequired")}
-                      </Text>
-                    )}
-                    <Group gap="xl" wrap="wrap">
-                      <Text size="sm" c="dimmed">
-                        {membersText("baseAgeLabel")}:{" "}
-                        {baseAge === null ? t("notAvailable") : formatAgeYears(baseAge)}
-                      </Text>
-                      <Text size="sm" c="dimmed">
-                        {membersText("endAgeLabel")}:{" "}
-                        {endAge === null ? t("notAvailable") : formatAgeYears(endAge)}
-                      </Text>
-                    </Group>
-                  </Stack>
-                </Card>
-              );
-            })}
-          </Stack>
-        </Stack>
-      </Card>
-
-      <Card withBorder radius="md" padding="md">
+        <Tabs.Panel value="budget" pt="md">
+          <Card withBorder radius="md" padding="md">
         <Stack gap="md">
           <Group justify="space-between" align="center">
             <Text fw={600}>{budgetText("title")}</Text>
@@ -970,8 +1227,9 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                   category: "health" as const,
                   ageBand: { fromYears: 0, toYears: 3 },
                   monthlyAmount: 0,
+                  applyScope: { scope: "all" } as ApplyScope,
                 };
-                addBudgetRule(scenario.id, nextRule);
+                createBudgetRule(nextRule);
                 showToast(common("saved"), "teal");
               }}
             >
@@ -1031,7 +1289,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                             checked={rule.enabled}
                             label={budgetText("enabledLabel")}
                             onChange={(event) =>
-                              updateBudgetRule(scenario.id, rule.id, {
+                              updateBudgetRule(rule.id, {
                                 enabled: event.currentTarget.checked,
                               })
                             }
@@ -1041,7 +1299,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                             color="red"
                             variant="light"
                             onClick={() => {
-                              removeBudgetRule(scenario.id, rule.id);
+                              removeBudgetRule(rule.id);
                               showToast(common("saved"), "teal");
                             }}
                           >
@@ -1054,7 +1312,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           label={budgetText("nameLabel")}
                           value={rule.name}
                           onChange={(event) =>
-                            updateBudgetRule(scenario.id, rule.id, {
+                            updateBudgetRule(rule.id, {
                               name: event.currentTarget.value,
                             })
                           }
@@ -1070,7 +1328,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           ]}
                           value={rule.memberId ?? "household"}
                           onChange={(value) =>
-                            updateBudgetRule(scenario.id, rule.id, {
+                            updateBudgetRule(rule.id, {
                               memberId:
                                 value && value !== "household" ? value : undefined,
                             })
@@ -1101,7 +1359,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                             if (!value) {
                               return;
                             }
-                            updateBudgetRule(scenario.id, rule.id, {
+                            updateBudgetRule(rule.id, {
                               category: value as typeof rule.category,
                             });
                           }}
@@ -1113,7 +1371,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           step={100}
                           thousandSeparator=","
                           onChange={(value) =>
-                            updateBudgetRule(scenario.id, rule.id, {
+                            updateBudgetRule(rule.id, {
                               monthlyAmount: typeof value === "number" ? value : 0,
                             })
                           }
@@ -1127,7 +1385,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           step={0.5}
                           decimalScale={2}
                           onChange={(value) =>
-                            updateBudgetRule(scenario.id, rule.id, {
+                            updateBudgetRule(rule.id, {
                               ageBand: {
                                 ...rule.ageBand,
                                 fromYears: typeof value === "number" ? value : 0,
@@ -1142,7 +1400,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           step={0.5}
                           decimalScale={2}
                           onChange={(value) =>
-                            updateBudgetRule(scenario.id, rule.id, {
+                            updateBudgetRule(rule.id, {
                               ageBand: {
                                 ...rule.ageBand,
                                 toYears: typeof value === "number" ? value : 0,
@@ -1159,7 +1417,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           step={0.1}
                           decimalScale={2}
                           onChange={(value) =>
-                            updateBudgetRule(scenario.id, rule.id, {
+                            updateBudgetRule(rule.id, {
                               annualGrowthPct:
                                 typeof value === "number" ? value : undefined,
                             })
@@ -1200,6 +1458,14 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           error={budgetMonthErrors[rule.id]?.endMonth}
                         />
                       </Group>
+                      <Stack gap="xs">
+                        <Text fw={600}>{budgetText("applyScopeTitle")}</Text>
+                        {renderApplyScope(
+                          normalizeApplyScope(rule.applyScope),
+                          (next) => updateBudgetRule(rule.id, { applyScope: next }),
+                          budgetText("applyScopeHint")
+                        )}
+                      </Stack>
                       <Stack gap={4}>
                         <Group justify="space-between" align="center">
                           <Text fw={600} size="sm">
@@ -1239,7 +1505,75 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
             </Stack>
           )}
         </Stack>
-      </Card>
+          </Card>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="other" pt="md">
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="md">
+              <NumberInput
+                label={t("initialCash")}
+                value={assumptions.initialCash}
+                min={0}
+                step={1000}
+                thousandSeparator=","
+                onChange={(value) => {
+                  if (typeof value === "number") {
+                    handleAssumptionChange({ initialCash: value });
+                  }
+                }}
+              />
+
+              <Group grow>
+                <NumberInput
+                  label={t("inflationRate")}
+                  value={assumptions.inflationRate ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      inflationRate: typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+                <NumberInput
+                  label={t("salaryGrowth")}
+                  value={assumptions.salaryGrowthRate ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      salaryGrowthRate: typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+              </Group>
+
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={600}>{t("emergencyFundTarget")}</Text>
+                  <Text size="sm" c="dimmed">
+                    {t("emergencyFundValue", {
+                      months: assumptions.emergencyFundMonths ?? 6,
+                    })}
+                  </Text>
+                </Group>
+                <Slider
+                  min={3}
+                  max={12}
+                  step={1}
+                  value={assumptions.emergencyFundMonths ?? 6}
+                  onChange={(value) =>
+                    handleAssumptionChange({ emergencyFundMonths: value })
+                  }
+                />
+              </Stack>
+            </Stack>
+          </Card>
+        </Tabs.Panel>
+      </Tabs>
 
       <Group>
         <Button component={Link} href={buildScenarioUrl("/overview", scenario.id)}>

@@ -74,6 +74,8 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
+  const members = useScenarioStore((state) => state.members);
+  const budgetRules = useScenarioStore((state) => state.budgetRules);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const createScenario = useScenarioStore((state) => state.createScenario);
@@ -118,8 +120,11 @@ export default function StressClient({ scenarioId }: StressClientProps) {
     if (!scenario) {
       return null;
     }
-    return mapScenarioToEngineInput(scenario, eventLibrary).input;
-  }, [eventLibrary, scenario]);
+    return mapScenarioToEngineInput(scenario, eventLibrary, {
+      members,
+      budgetRules,
+    }).input;
+  }, [budgetRules, eventLibrary, members, scenario]);
 
   const normalizedShockMonth = useMemo(
     () => normalizeMonth(shockMonth ?? "") ?? shockMonth ?? undefined,
@@ -128,6 +133,8 @@ export default function StressClient({ scenarioId }: StressClientProps) {
 
   const presetComparison = useStressComparison(scenario, eventLibrary, activePreset, {
     shockMonth: normalizedShockMonth,
+    members,
+    budgetRules,
   });
 
   useEffect(() => {
@@ -174,8 +181,10 @@ export default function StressClient({ scenarioId }: StressClientProps) {
       baseMonth: baselineInput.baseMonth,
       horizonMonths: baselineInput.horizonMonths,
       initialCash: baselineInput.initialCash,
+      members,
+      budgetRules,
     }).input;
-  }, [baselineInput, eventLibrary, scenario, stressEvents]);
+  }, [baselineInput, budgetRules, eventLibrary, members, scenario, stressEvents]);
 
   const baselineProjection = useMemo(() => {
     if (!baselineInput) {

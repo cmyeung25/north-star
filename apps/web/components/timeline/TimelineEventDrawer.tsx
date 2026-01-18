@@ -12,7 +12,12 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
-import { getEventMeta, type EventField, type EventGroup, type EventType } from "@north-star/engine";
+import {
+  getEventMeta,
+  type EventField,
+  type EventGroup,
+  type EventType,
+} from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import type { EventDefinition, ScenarioEventRef, ScenarioEventView } from "./types";
 import {
@@ -21,6 +26,7 @@ import {
   resolveEventRule,
 } from "../../src/domain/events/utils";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
+import { useScenarioStore } from "../../src/store/scenarioStore";
 import InsuranceProductForm from "./InsuranceProductForm";
 import TimelineEventForm, { type TimelineEventFormResult } from "./TimelineEventForm";
 import {
@@ -28,6 +34,7 @@ import {
   createGroupDefinition,
   getEventFilterOptions,
   getEventLabel,
+  getEventTypeDisplay,
   iconMap,
   listEventTypesForGroup,
 } from "./utils";
@@ -68,6 +75,7 @@ type TimelineEventDrawerProps =
 export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
+  const updateMember = useScenarioStore((state) => state.updateMember);
 
   const [step, setStep] = useState<AddEventStep>("group");
   const [selectedGroup, setSelectedGroup] = useState<EventGroup | null>(null);
@@ -176,6 +184,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       },
       targets
     );
+    syncRetirementMilestone(result.event);
     props.onCreateComplete?.(result.event.startMonth ?? null);
     props.onClose();
   };
@@ -221,6 +230,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       templateParams: nextDefinition.templateParams,
       parentId: editingParentId ?? undefined,
     });
+    syncRetirementMilestone(updated);
     props.onClose();
   };
 
@@ -246,6 +256,47 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     props.onClose();
   };
 
+  const syncRetirementMilestone = (event: TimelineEventFormResult["event"]) => {
+    const isIncome = getEventMeta(event.type).group === "income";
+    const isSalary = event.incomeSubtype === "salary";
+    const hasEndAge = typeof event.endAtAgeYears === "number";
+    const member = props.members.find((entry) => entry.id === event.memberId);
+    if (!member) {
+      return;
+    }
+
+    const milestoneId = `retirement-${event.id}`;
+    const milestones = member.milestones ?? [];
+    const shouldHaveMilestone =
+      isIncome && isSalary && hasEndAge && member.kind === "person";
+
+    if (!shouldHaveMilestone) {
+      if (milestones.some((entry) => entry.id === milestoneId)) {
+        updateMember(member.id, {
+          milestones: milestones.filter((entry) => entry.id !== milestoneId),
+        });
+      }
+      return;
+    }
+
+    const label = t("retirementDerivedLabel");
+    const nextMilestone = {
+      id: milestoneId,
+      kind: "retirement" as const,
+      label,
+      atAgeYears: event.endAtAgeYears,
+      applyScope: { scope: "all" } as const,
+      sourceEventId: event.id,
+    };
+    const nextMilestones = milestones.some((entry) => entry.id === milestoneId)
+      ? milestones.map((entry) =>
+          entry.id === milestoneId ? { ...entry, ...nextMilestone } : entry
+        )
+      : [...milestones, nextMilestone];
+
+    updateMember(member.id, { milestones: nextMilestones });
+  };
+
   const title =
     props.mode === "create"
       ? t("addEvent")
@@ -253,7 +304,11 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
         ? editingEvent.definition.kind === "group"
           ? t("groupEditTitle")
           : t("editTitle", {
-              type: getEventLabel(t, editingEvent.definition.type),
+              type: getEventTypeDisplay(
+                t,
+                editingEvent.definition.type,
+                editingEvent.definition.incomeSubtype
+              ),
             })
         : common("actionEdit");
 

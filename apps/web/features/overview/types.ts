@@ -11,3 +11,12 @@ export interface TimeSeriesPoint {
   month: string;
   value: number;
 }
+
+export type MilestoneMarker = {
+  id: string;
+  month: string;
+  label: string;
+  memberName: string;
+  kind: string;
+  atAgeYears?: number;
+};

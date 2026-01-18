@@ -3,7 +3,7 @@
 // Back-compat: missing cash series is handled by omitting cash deltas.
 import { computeProjection, type ProjectionResult } from "@north-star/engine";
 import { useMemo } from "react";
-import type { Scenario } from "../store/scenarioStore";
+import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
 import type { EventDefinition } from "../domain/events/types";
 import type { TimelineEvent } from "../features/timeline/schema";
 import { mapScenarioToEngineInput } from "./adapter";
@@ -155,7 +155,8 @@ export const computeComparisonMetrics = (
 
 export const useRentVsOwnComparison = (
   scenario: Scenario | null,
-  eventLibrary: EventDefinition[]
+  eventLibrary: EventDefinition[],
+  options: { members?: ScenarioMember[]; budgetRules?: BudgetRule[] } = {}
 ): RentVsOwnComparison | null =>
   useMemo(() => {
     if (!scenario) {
@@ -173,13 +174,18 @@ export const useRentVsOwnComparison = (
     }
 
     const ownProjection = computeProjection(
-      mapScenarioToEngineInput(scenario, eventLibrary).input
+      mapScenarioToEngineInput(scenario, eventLibrary, {
+        members: options.members ?? [],
+        budgetRules: options.budgetRules ?? [],
+      }).input
     );
     const rentScenario = buildRentComparisonScenario(scenario);
     const rentEvents = buildRentComparisonEvents(rentScenario, eventLibrary);
     const rentProjection = computeProjection(
       mapScenarioToEngineInput(rentScenario, eventLibrary, {
         eventsOverride: rentEvents,
+        members: options.members ?? [],
+        budgetRules: options.budgetRules ?? [],
       }).input
     );
 
@@ -199,4 +205,4 @@ export const useRentVsOwnComparison = (
       assumptions,
       ...metrics,
     };
-  }, [eventLibrary, scenario]);
+  }, [eventLibrary, options.budgetRules, options.members, scenario]);

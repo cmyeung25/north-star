@@ -1,5 +1,10 @@
 import type { EventDefinition } from "../domain/events/types";
-import type { Scenario } from "../store/scenarioStore";
+import type {
+  AppSettings,
+  BudgetRule,
+  Scenario,
+  ScenarioMember,
+} from "../store/scenarioStore";
 
 export const PERSISTED_SCHEMA_VERSION = 1;
 
@@ -8,6 +13,9 @@ export type StorePersistedState = {
   eventLibrary: EventDefinition[];
   activeScenarioId: string;
   globalHorizonMonths?: number;
+  appSettings?: AppSettings;
+  members?: ScenarioMember[];
+  budgetRules?: BudgetRule[];
 };
 
 export type PersistedDocument = {
@@ -46,7 +54,10 @@ const validateStorePayload = (payload: unknown): payload is StorePersistedState 
     Array.isArray(record.eventLibrary) &&
     typeof record.activeScenarioId === "string" &&
     (record.globalHorizonMonths === undefined ||
-      typeof record.globalHorizonMonths === "number")
+      typeof record.globalHorizonMonths === "number") &&
+    (record.appSettings === undefined || typeof record.appSettings === "object") &&
+    (record.members === undefined || Array.isArray(record.members)) &&
+    (record.budgetRules === undefined || Array.isArray(record.budgetRules))
   );
 };
 

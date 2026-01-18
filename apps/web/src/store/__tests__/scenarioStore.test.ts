@@ -75,7 +75,14 @@ beforeEach(() => {
     scenarios: [scenario],
     eventLibrary: buildEventLibrary(),
     activeScenarioId: scenario.id,
-    globalHorizonMonths: scenario.assumptions.horizonMonths,
+    appSettings: {
+      globalBaseMonth: scenario.assumptions.baseMonth,
+      globalHorizonMonths: scenario.assumptions.horizonMonths,
+      annualInflationPct: 0,
+      viewMode: "nominal",
+    },
+    members: [],
+    budgetRules: [],
   });
 });
 
@@ -236,8 +243,8 @@ describe("onboarding writes", () => {
       addCarPosition,
       addInvestmentPosition,
       addLoanPosition,
-      upsertScenarioMember,
-      addBudgetRule,
+      createMember,
+      createBudgetRule,
     } = useScenarioStore.getState();
     const scenario = useScenarioStore.getState().scenarios[0];
 
@@ -288,14 +295,15 @@ describe("onboarding writes", () => {
       monthlyPayment: 500,
     });
 
-    upsertScenarioMember(scenario.id, {
+    createMember({
       id: "member-child",
       name: "Child",
       kind: "person",
       birthMonth: "2024-08",
+      applyScope: { scope: "all" },
     });
 
-    addBudgetRule(scenario.id, {
+    createBudgetRule({
       id: "budget-childcare",
       name: "childcare",
       enabled: true,
@@ -305,21 +313,22 @@ describe("onboarding writes", () => {
       monthlyAmount: 3000,
       startMonth: "2024-08",
       endMonth: "2030-08",
+      applyScope: { scope: "all" },
     });
 
-    const updated = useScenarioStore.getState().scenarios[0];
+    const updatedScenario = useScenarioStore.getState().scenarios[0];
+    const updatedMembers = useScenarioStore.getState().members;
+    const updatedBudgetRules = useScenarioStore.getState().budgetRules;
 
-    expect(updated.assumptions.baseMonth).toBe("2024-02");
-    expect(updated.assumptions.initialCash).toBe(50000);
-    expect(updated.assumptions.horizonMonths).toBe(240);
-    expect(updated.positions?.homes).toHaveLength(2);
-    expect(updated.positions?.cars).toHaveLength(1);
-    expect(updated.positions?.investments).toHaveLength(1);
-    expect(updated.positions?.loans).toHaveLength(1);
-    expect(updated.members?.some((member) => member.id === "member-child")).toBe(true);
-    expect(updated.budgetRules?.some((rule) => rule.id === "budget-childcare")).toBe(
-      true
-    );
+    expect(updatedScenario.assumptions.baseMonth).toBe("2024-02");
+    expect(updatedScenario.assumptions.initialCash).toBe(50000);
+    expect(updatedScenario.assumptions.horizonMonths).toBe(240);
+    expect(updatedScenario.positions?.homes).toHaveLength(2);
+    expect(updatedScenario.positions?.cars).toHaveLength(1);
+    expect(updatedScenario.positions?.investments).toHaveLength(1);
+    expect(updatedScenario.positions?.loans).toHaveLength(1);
+    expect(updatedMembers.some((member) => member.id === "member-child")).toBe(true);
+    expect(updatedBudgetRules.some((rule) => rule.id === "budget-childcare")).toBe(true);
   });
 });
 
@@ -346,7 +355,14 @@ describe("onboarding completion", () => {
       ],
       eventLibrary: buildEventLibrary(),
       activeScenarioId: "scenario-a",
-      globalHorizonMonths: 240,
+      appSettings: {
+        globalBaseMonth: "2024-01",
+        globalHorizonMonths: 240,
+        annualInflationPct: 0,
+        viewMode: "nominal",
+      },
+      members: [],
+      budgetRules: [],
     });
 
     const { setActiveScenario } = useScenarioStore.getState();
@@ -399,7 +415,14 @@ describe("selectHasExistingProfile", () => {
       scenarios: [],
       eventLibrary: [],
       activeScenarioId: "",
-      globalHorizonMonths: 240,
+      appSettings: {
+        globalBaseMonth: null,
+        globalHorizonMonths: 240,
+        annualInflationPct: 0,
+        viewMode: "nominal",
+      },
+      members: [],
+      budgetRules: [],
     });
 
     const result = selectHasExistingProfile(useScenarioStore.getState());
@@ -413,7 +436,14 @@ describe("selectHasExistingProfile", () => {
       scenarios: [scenario],
       eventLibrary: buildEventLibrary(),
       activeScenarioId: scenario.id,
-      globalHorizonMonths: 240,
+      appSettings: {
+        globalBaseMonth: scenario.assumptions.baseMonth,
+        globalHorizonMonths: 240,
+        annualInflationPct: 0,
+        viewMode: "nominal",
+      },
+      members: [],
+      budgetRules: [],
     });
 
     const result = selectHasExistingProfile(useScenarioStore.getState());

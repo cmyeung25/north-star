@@ -41,3 +41,26 @@ export const getMemberAgeYears = (
   month: string,
   baseMonth: string
 ): number => getMemberAgeMonths(member, month, baseMonth) / 12;
+
+export const monthAtAge = (
+  member: ScenarioMember,
+  ageYears: number,
+  baseMonth: string
+): string | null => {
+  const clampedAgeYears = Math.max(ageYears, 0);
+  const targetMonths = Math.floor(clampedAgeYears * 12);
+
+  if (member.birthMonth) {
+    const ageAtBaseMonths = monthsBetween(member.birthMonth, baseMonth);
+    const deltaMonths = Math.max(targetMonths - ageAtBaseMonths, 0);
+    return addMonths(baseMonth, deltaMonths);
+  }
+
+  if (typeof member.ageAtBaseMonth === "number") {
+    const ageAtBaseMonths = Math.floor(Math.max(member.ageAtBaseMonth, 0) * 12);
+    const deltaMonths = Math.max(targetMonths - ageAtBaseMonths, 0);
+    return addMonths(baseMonth, deltaMonths);
+  }
+
+  return null;
+};

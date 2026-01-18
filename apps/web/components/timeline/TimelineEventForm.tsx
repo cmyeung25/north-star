@@ -12,16 +12,17 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildMonthRange, type EventField, type EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import { normalizeEvent } from "../../src/features/timeline/schema";
 import { isValidMonthStr, normalizeMonthInput } from "../../src/utils/month";
 import type { TimelineEvent } from "./types";
 import type { ScenarioAssumptions, ScenarioMember } from "../../src/store/scenarioStore";
+import { monthAtAge } from "../../src/domain/members/age";
 import { buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import { compileEventToMonthlyCashflowSeries } from "../../src/domain/events/compiler";
-import { getEventSign } from "../../src/events/eventCatalog";
+import { getEventMeta, getEventSign } from "../../src/events/eventCatalog";
 import type { EventRule, EventRuleScheduleEntry } from "../../src/domain/events/types";
 import CashflowPreviewChart from "./CashflowPreviewChart";
 
@@ -95,6 +96,7 @@ export default function TimelineEventForm({
   const [ruleMode, setRuleMode] = useState<EventRule["mode"]>(initialRuleMode);
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [editingAmount, setEditingAmount] = useState<number>(0);
+  const [endAtAgeError, setEndAtAgeError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormValues(event);
@@ -104,25 +106,26 @@ export default function TimelineEventForm({
     setCashflowMode("view");
     setRuleMode(initialRuleMode ?? "params");
     setScheduleDraft(buildScheduleMap(schedule));
+    setEndAtAgeError(null);
   }, [event, initialRuleMode, schedule]);
 
   const fieldKeys = fields?.map((field) => field.key) ?? [];
   const shouldShowField = (key: EventFieldKey) =>
     fieldKeys.length === 0 || fieldKeys.includes(key);
 
-  const updateField = <K extends keyof TimelineEvent>(
-    key: K,
-    value: TimelineEvent[K]
-  ) => {
-    setFormValues((current) =>
-      current
-        ? {
-            ...current,
-            [key]: value,
-          }
-        : current
-    );
-  };
+  const updateField = useCallback(
+    <K extends keyof TimelineEvent>(key: K, value: TimelineEvent[K]) => {
+      setFormValues((current) =>
+        current
+          ? {
+              ...current,
+              [key]: value,
+            }
+          : current
+      );
+    },
+    []
+  );
 
   const handleNormalizeMonth = (key: "startMonth" | "endMonth", value: string) => {
     if (!formValues) {
@@ -191,6 +194,10 @@ export default function TimelineEventForm({
     const normalizedEvent = normalizeEvent(
       {
         ...formValues,
+        incomeSubtype:
+          getEventMeta(formValues.type).group === "income"
+            ? formValues.incomeSubtype ?? "salary"
+            : formValues.incomeSubtype,
         startMonth: normalizedStartMonth.month ?? formValues.startMonth,
         endMonth: normalizedEndMonth.status === "valid" ? normalizedEndMonth.month : null,
       },
@@ -299,6 +306,49 @@ export default function TimelineEventForm({
     setEditingMonth(null);
   };
 
+  const isIncomeEvent = formValues
+    ? getEventMeta(formValues.type).group === "income"
+    : false;
+  const selectedMember = formValues
+    ? members.find((member) => member.id === formValues.memberId)
+    : undefined;
+  const canUseEndAtAge = Boolean(
+    formValues && isIncomeEvent && selectedMember?.kind === "person"
+  );
+
+  useEffect(() => {
+    if (!formValues?.endAtAgeYears || !canUseEndAtAge) {
+      setEndAtAgeError(null);
+      return;
+    }
+
+    if (!assumptions.baseMonth || !selectedMember) {
+      setEndAtAgeError(t("endAtAgeMissingBase"));
+      return;
+    }
+
+    const computedEndMonth = monthAtAge(
+      selectedMember,
+      formValues.endAtAgeYears,
+      assumptions.baseMonth
+    );
+    if (!computedEndMonth) {
+      setEndAtAgeError(t("endAtAgeMissingBirth"));
+      return;
+    }
+
+    setEndAtAgeError(null);
+    setEndMonthInput(computedEndMonth);
+    updateField("endMonth", computedEndMonth as TimelineEvent["endMonth"]);
+  }, [
+    assumptions.baseMonth,
+    canUseEndAtAge,
+    formValues?.endAtAgeYears,
+    selectedMember,
+    t,
+    updateField,
+  ]);
+
   if (!formValues) {
     return null;
   }
@@ -314,6 +364,15 @@ export default function TimelineEventForm({
     })),
   ];
   const memberValue = formValues.memberId ?? "household";
+  const incomeSubtypeOptions = [
+    { value: "salary", label: t("incomeSubtypeSalary") },
+    { value: "bonus", label: t("incomeSubtypeBonus") },
+    { value: "freelance", label: t("incomeSubtypeFreelance") },
+    { value: "rental", label: t("incomeSubtypeRental") },
+    { value: "dividend", label: t("incomeSubtypeDividend") },
+    { value: "interest", label: t("incomeSubtypeInterest") },
+    { value: "other", label: t("incomeSubtypeOther") },
+  ];
 
   return (
     <Stack gap="md">
@@ -333,6 +392,19 @@ export default function TimelineEventForm({
             updateField(
               "memberId",
               value === "household" ? undefined : value ?? undefined
+            )
+          }
+        />
+      )}
+      {isIncomeEvent && (
+        <Select
+          label={t("incomeSubtypeLabel")}
+          data={incomeSubtypeOptions}
+          value={formValues.incomeSubtype ?? "salary"}
+          onChange={(value) =>
+            updateField(
+              "incomeSubtype",
+              (value ?? "salary") as TimelineEvent["incomeSubtype"]
             )
           }
         />
@@ -387,6 +459,24 @@ export default function TimelineEventForm({
           onBlur={(eventChange) =>
             handleNormalizeMonth("endMonth", eventChange.target.value)
           }
+        />
+      )}
+      {canUseEndAtAge && (
+        <NumberInput
+          label={t("endAtAgeLabel")}
+          value={formValues.endAtAgeYears ?? ""}
+          min={0}
+          step={0.5}
+          decimalScale={2}
+          error={endAtAgeError ?? undefined}
+          onChange={(value) => {
+            if (typeof value === "number") {
+              updateField("endAtAgeYears", value);
+            } else {
+              updateField("endAtAgeYears", undefined);
+              setEndAtAgeError(null);
+            }
+          }}
         />
       )}
       {shouldShowField("monthlyAmount") && (

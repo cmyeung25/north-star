@@ -100,6 +100,23 @@ const impactHintKeys: Record<EventGroup, string> = {
 export const getEventLabel = (t: Translator, type: EventType) =>
   t(eventTypeLabelKeys[type]);
 
+export const getIncomeSubtypeLabel = (
+  t: Translator,
+  subtype: "salary" | "bonus" | "freelance" | "rental" | "dividend" | "interest" | "other"
+) => t(`incomeSubtypes.${subtype}`);
+
+export const getEventTypeDisplay = (
+  t: Translator,
+  type: EventType,
+  incomeSubtype?: "salary" | "bonus" | "freelance" | "rental" | "dividend" | "interest" | "other"
+) => {
+  const baseLabel = getEventLabel(t, type);
+  if (!incomeSubtype || getEventGroup(type) !== "income") {
+    return baseLabel;
+  }
+  return `${baseLabel} · ${getIncomeSubtypeLabel(t, incomeSubtype)}`;
+};
+
 export const getEventFilterOptions = (t: Translator) => [
   { label: t("filters.all"), value: "all" },
   ...eventGroups.map((group) => ({
@@ -198,6 +215,7 @@ export const createEventDefinitionFromTemplate = (
     },
     currency: options.baseCurrency ?? defaultCurrency,
     memberId: options.memberId,
+    incomeSubtype: type === "salary" ? "salary" : undefined,
     templateId: insuranceTemplate?.id,
     templateParams,
   };
