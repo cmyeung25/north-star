@@ -49,7 +49,7 @@ import {
   getEventFilterOptions,
   getEventGroupLabel,
   getEventImpactHint,
-  getEventLabel,
+  getEventTypeDisplay,
   formatCurrency,
   formatCarSummary,
   formatHomeSummary,
@@ -274,6 +274,11 @@ export default function TimelineDesktop({
     ].filter((row) => row.months.length > 0);
   }, [carPositions, eventViews, homePositions, t]);
 
+  const memberLookup = useMemo(
+    () => new Map(members.map((member) => [member.id, member.name])),
+    [members]
+  );
+
   const parentGroupOptions = useMemo(
     () =>
       eventLibrary
@@ -389,6 +394,7 @@ export default function TimelineDesktop({
                       <Table.Th>{t("tableName")}</Table.Th>
                       <Table.Th>{t("tableStart")}</Table.Th>
                       <Table.Th>{t("tableEnd")}</Table.Th>
+                      <Table.Th>{t("tableMember")}</Table.Th>
                       <Table.Th>{t("tableImpact")}</Table.Th>
                       <Table.Th>{t("tableMonthly")}</Table.Th>
                       <Table.Th>{t("tableOneTime")}</Table.Th>
@@ -403,7 +409,7 @@ export default function TimelineDesktop({
                       return (
                         <Fragment key={monthKey}>
                           <Table.Tr id={`month-${monthKey}`} data-month={monthKey}>
-                            <Table.Td colSpan={12}>
+                            <Table.Td colSpan={13}>
                               <UnstyledButton
                                 style={{ width: "100%" }}
                                 onClick={() => {
@@ -457,9 +463,10 @@ export default function TimelineDesktop({
                                 <Table.Td>
                                   {isGroup
                                     ? t("groupNode")
-                                    : `${iconMap[view.definition.type]} ${getEventLabel(
+                                    : `${iconMap[view.definition.type]} ${getEventTypeDisplay(
                                         t,
-                                        view.definition.type
+                                        view.definition.type,
+                                        view.definition.incomeSubtype
                                       )}`}
                                 </Table.Td>
                                 <Table.Td>
@@ -474,6 +481,12 @@ export default function TimelineDesktop({
                                 </Table.Td>
                                 <Table.Td>
                                   {rule.endMonth ?? t("tablePlaceholder")}
+                                </Table.Td>
+                                <Table.Td>
+                                  {isGroup
+                                    ? t("tablePlaceholder")
+                                    : memberLookup.get(view.definition.memberId ?? "") ??
+                                      t("tableMemberNone")}
                                 </Table.Td>
                                 <Table.Td>
                                   {isGroup

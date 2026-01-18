@@ -1,6 +1,7 @@
 import { buildMonthRange } from "@north-star/engine";
-import type { BudgetRule, Scenario } from "../../store/scenarioStore";
+import type { BudgetRule, Scenario, ScenarioMember } from "../../store/scenarioStore";
 import { getMemberAgeYears, monthsBetween } from "../members/age";
+import { appliesToScenario } from "../applyScope";
 import type { CashflowItem } from "../ledger/types";
 
 export type BudgetRuleMonthlyEntry = CashflowItem;
@@ -9,9 +10,13 @@ const isHousingCategory = (category: string) => category === "housing";
 
 export const compileBudgetRuleToMonthlySeries = (
   rule: BudgetRule,
-  scenario: Scenario
+  scenario: Scenario,
+  members: ScenarioMember[]
 ): BudgetRuleMonthlyEntry[] => {
   if (!rule.enabled) {
+    return [];
+  }
+  if (!appliesToScenario(rule.applyScope, scenario.id)) {
     return [];
   }
   if (isHousingCategory(rule.category)) {
@@ -37,7 +42,7 @@ export const compileBudgetRuleToMonthlySeries = (
   const annualGrowthPct = rule.annualGrowthPct ?? 0;
   const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);
   const member = rule.memberId
-    ? (scenario.members ?? []).find((entry) => entry.id === rule.memberId) ?? null
+    ? members.find((entry) => entry.id === rule.memberId) ?? null
     : null;
 
   if (rule.memberId && !member) {
@@ -76,10 +81,14 @@ export const compileBudgetRuleToMonthlySeries = (
   return series;
 };
 
-export const compileAllBudgetRules = (scenario: Scenario): BudgetRuleMonthlyEntry[] =>
-  (scenario.budgetRules ?? [])
+export const compileAllBudgetRules = (
+  scenario: Scenario,
+  rules: BudgetRule[],
+  members: ScenarioMember[]
+): BudgetRuleMonthlyEntry[] =>
+  rules
     .filter((rule) => rule.enabled && !isHousingCategory(rule.category))
-    .flatMap((rule) => compileBudgetRuleToMonthlySeries(rule, scenario));
+    .flatMap((rule) => compileBudgetRuleToMonthlySeries(rule, scenario, members));
 
 export const sumByMonth = (
   ledger: BudgetRuleMonthlyEntry[]

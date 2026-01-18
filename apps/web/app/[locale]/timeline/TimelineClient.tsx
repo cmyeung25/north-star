@@ -10,6 +10,7 @@ import {
   resolveScenarioIdFromQuery,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
+import { appliesToScenario } from "../../../src/domain/applyScope";
 
 type TimelineClientProps = {
   scenarioId?: string;
@@ -90,7 +91,14 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const investmentPositions = scenario?.positions?.investments ?? [];
   const insurancePositions = scenario?.positions?.insurances ?? [];
   const loanPositions = scenario?.positions?.loans ?? [];
-  const members = scenario?.members ?? [];
+  const members = useScenarioStore((state) => state.members);
+  const scopedMembers = useMemo(
+    () =>
+      scenario
+        ? members.filter((member) => appliesToScenario(member.applyScope, scenario.id))
+        : [],
+    [members, scenario]
+  );
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
   const assumptions = scenario?.assumptions ?? { baseMonth: null, horizonMonths: 0 };
@@ -110,7 +118,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         investmentPositions={investmentPositions}
         insurancePositions={insurancePositions}
         loanPositions={loanPositions}
-        members={members}
+        members={scopedMembers}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         assumptions={assumptions}
@@ -171,7 +179,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       investmentPositions={investmentPositions}
       insurancePositions={insurancePositions}
       loanPositions={loanPositions}
-      members={members}
+      members={scopedMembers}
       baseCurrency={baseCurrency}
       baseMonth={baseMonth}
       assumptions={assumptions}

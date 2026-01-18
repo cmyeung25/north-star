@@ -5,7 +5,7 @@ import { mapScenarioToEngineInput } from "./adapter";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { getEventSign } from "../events/eventCatalog";
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
-import type { Scenario } from "../store/scenarioStore";
+import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
 import type { EventDefinition } from "../domain/events/types";
 import type { CashflowItem } from "../domain/ledger/types";
 import {
@@ -178,14 +178,19 @@ const buildPositionCashflowsByMonth = (
 
 export const useProjectionWithLedger = (
   scenario: Scenario | null | undefined,
-  eventLibrary: EventDefinition[]
+  eventLibrary: EventDefinition[],
+  options: { members?: ScenarioMember[]; budgetRules?: BudgetRule[] } = {}
 ): ProjectionWithLedger =>
   useMemo(() => {
     if (!scenario) {
       return emptyProjectionWithLedger;
     }
 
-    const { input } = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
+    const { input } = mapScenarioToEngineInput(scenario, eventLibrary, {
+      strict: false,
+      members: options.members ?? [],
+      budgetRules: options.budgetRules ?? [],
+    });
     const projection = computeProjection(input);
     const scenarioForLedger = {
       ...scenario,
@@ -198,8 +203,10 @@ export const useProjectionWithLedger = (
     const includeBudgetRulesInProjection =
       scenario.assumptions.includeBudgetRulesInProjection ?? true;
     const eventLedger = compileEventLedger(scenarioForLedger, eventLibrary);
+    const members = options.members ?? [];
+    const budgetRules = options.budgetRules ?? [];
     const budgetLedger = includeBudgetRulesInProjection
-      ? compileAllBudgetRules(scenarioForLedger)
+      ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];
     const ledger = filterLedgerToHorizon(
       [...eventLedger, ...budgetLedger],
@@ -234,4 +241,4 @@ export const useProjectionWithLedger = (
       projectionNetCashflowByMonth: netCashflowLookup.byMonth,
       projectionNetCashflowMode: netCashflowLookup.mode,
     };
-  }, [eventLibrary, scenario]);
+  }, [eventLibrary, options.budgetRules, options.members, scenario]);

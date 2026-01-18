@@ -44,6 +44,9 @@ type CloudMetaDocument = {
   schemaVersion?: number;
   eventLibrary?: EventDefinition[];
   globalHorizonMonths?: number;
+  appSettings?: ScenarioStatePayload["appSettings"];
+  members?: ScenarioStatePayload["members"];
+  budgetRules?: ScenarioStatePayload["budgetRules"];
 };
 
 const getMetaRef = (uid: string) =>
@@ -63,6 +66,9 @@ const parseMeta = (value: CloudMetaDocument | undefined) => ({
   eventLibrary: Array.isArray(value?.eventLibrary) ? value?.eventLibrary : [],
   globalHorizonMonths:
     typeof value?.globalHorizonMonths === "number" ? value.globalHorizonMonths : null,
+  appSettings: value?.appSettings,
+  members: Array.isArray(value?.members) ? value?.members : [],
+  budgetRules: Array.isArray(value?.budgetRules) ? value?.budgetRules : [],
 });
 
 export const fetchCloudSummary = async (uid: string): Promise<CloudSummary> => {
@@ -119,6 +125,9 @@ export const uploadLocalStateToCloud = async (uid: string) => {
       schemaVersion: snapshot.schemaVersion,
       eventLibrary: snapshot.eventLibrary,
       globalHorizonMonths: snapshot.globalHorizonMonths,
+      appSettings: snapshot.appSettings,
+      members: snapshot.members,
+      budgetRules: snapshot.budgetRules,
     } satisfies CloudMetaDocument,
     { merge: true }
   );
@@ -163,6 +172,9 @@ export const downloadCloudStateToLocal = async (uid: string) => {
       meta.globalHorizonMonths ??
       scenarios[0]?.assumptions.horizonMonths ??
       240,
+    appSettings: meta.appSettings ?? undefined,
+    members: meta.members ?? [],
+    budgetRules: meta.budgetRules ?? [],
   };
 
   const normalized = importScenarioState(payload);
@@ -179,6 +191,9 @@ export const downloadCloudStateToLocal = async (uid: string) => {
       schemaVersion: meta.schemaVersion,
       eventLibrary: meta.eventLibrary,
       globalHorizonMonths: meta.globalHorizonMonths ?? undefined,
+      appSettings: meta.appSettings,
+      members: meta.members ?? [],
+      budgetRules: meta.budgetRules ?? [],
     } satisfies CloudMetaDocument,
     { merge: true }
   );

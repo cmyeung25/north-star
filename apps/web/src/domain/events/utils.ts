@@ -46,6 +46,8 @@ export const buildTimelineEventFromDefinition = (
       annualGrowthPct: Number(rule.annualGrowthPct ?? 0),
       currency: definition.currency ?? options.baseCurrency,
       memberId: definition.memberId,
+      incomeSubtype: definition.incomeSubtype,
+      endAtAgeYears: definition.endAtAgeYears,
       templateId: definition.templateId,
       templateParams: definition.templateParams,
     },
@@ -126,6 +128,8 @@ export const buildDefinitionFromTimelineEvent = (
   },
   currency: event.currency,
   memberId: event.memberId,
+  incomeSubtype: event.incomeSubtype,
+  endAtAgeYears: event.endAtAgeYears,
   templateId: event.templateId,
   templateParams: event.templateParams,
 });

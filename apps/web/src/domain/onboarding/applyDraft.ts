@@ -19,6 +19,7 @@ import type {
   Scenario,
   ScenarioMember,
 } from "../../store/scenarioStore";
+import type { ApplyScope } from "../applyScope";
 
 export type OnboardingDraft = {
   persona?: OnboardingPersona;
@@ -95,6 +96,8 @@ export type OnboardingDraft = {
 };
 
 export type OnboardingApplyActions = {
+  members: ScenarioMember[];
+  budgetRules: BudgetRule[];
   updateScenarioAssumptions: (
     id: string,
     patch: Partial<Scenario["assumptions"]>
@@ -120,37 +123,54 @@ export type OnboardingApplyActions = {
   addLoanPosition: (id: string, loan: LoanPosition) => void;
   updateLoanPosition: (id: string, loan: LoanPosition) => void;
   removeLoanPosition: (id: string, loanId: string) => void;
-  upsertScenarioMember: (id: string, member: ScenarioMember) => void;
-  removeScenarioMember: (id: string, memberId: string) => void;
-  addBudgetRule: (id: string, rule: BudgetRule) => void;
-  updateBudgetRule: (id: string, ruleId: string, patch: Partial<BudgetRule>) => void;
-  removeBudgetRule: (id: string, ruleId: string) => void;
+  createMember: (member: ScenarioMember) => void;
+  updateMember: (memberId: string, patch: Partial<ScenarioMember>) => void;
+  deleteMember: (memberId: string) => void;
+  createBudgetRule: (rule: BudgetRule) => void;
+  updateBudgetRule: (ruleId: string, patch: Partial<BudgetRule>) => void;
+  removeBudgetRule: (ruleId: string) => void;
 };
 
 const childcarePreset = { low: 3000, mid: 6000, high: 9000 };
 const educationPreset = { low: 2000, mid: 4500, high: 8000 };
 
 const upsertBudgetRule = (
-  scenario: Scenario,
   actions: OnboardingApplyActions,
   payload: BudgetRule
 ) => {
-  const existing = scenario.budgetRules?.find((rule) => rule.id === payload.id);
+  const existing = actions.budgetRules.find((rule) => rule.id === payload.id);
   if (existing) {
-    actions.updateBudgetRule(scenario.id, payload.id, payload);
+    actions.updateBudgetRule(payload.id, payload);
   } else {
-    actions.addBudgetRule(scenario.id, payload);
+    actions.createBudgetRule(payload);
   }
 };
 
-const removeBudgetRuleById = (
-  scenario: Scenario,
-  actions: OnboardingApplyActions,
-  ruleId: string
-) => {
-  if (scenario.budgetRules?.some((rule) => rule.id === ruleId)) {
-    actions.removeBudgetRule(scenario.id, ruleId);
+const removeBudgetRuleById = (actions: OnboardingApplyActions, ruleId: string) => {
+  if (actions.budgetRules.some((rule) => rule.id === ruleId)) {
+    actions.removeBudgetRule(ruleId);
   }
+};
+
+const defaultScenarioScope = (scenarioId: string): ApplyScope => ({
+  scope: "include",
+  scenarioIds: [scenarioId],
+});
+
+const upsertMember = (
+  actions: OnboardingApplyActions,
+  member: ScenarioMember,
+  scope: ApplyScope
+) => {
+  const existing = actions.members.find((entry) => entry.id === member.id);
+  if (existing) {
+    actions.updateMember(member.id, {
+      ...member,
+      applyScope: existing.applyScope ?? scope,
+    });
+    return;
+  }
+  actions.createMember({ ...member, applyScope: scope });
 };
 
 const upsertEvent = (
@@ -317,25 +337,26 @@ export const applyOnboardingDraftToScenario = (
   }
 
   const partnerId = buildOnboardingMemberId(scenario.id, "partner");
+  const scenarioScope = defaultScenarioScope(scenario.id);
   if (draft.family.partnerEnabled) {
-    actions.upsertScenarioMember(scenario.id, {
+    upsertMember(actions, {
       id: partnerId,
       name: draft.family.partnerName || "伴侶",
       kind: "person",
-    });
+    }, scenarioScope);
   } else {
-    actions.removeScenarioMember(scenario.id, partnerId);
+    actions.deleteMember(partnerId);
   }
 
   const childId = buildOnboardingMemberId(scenario.id, "child");
   if (draft.family.childEnabled && isValidMonthStr(draft.family.childBirthMonth)) {
     const birthMonth = draft.family.childBirthMonth;
-    actions.upsertScenarioMember(scenario.id, {
+    upsertMember(actions, {
       id: childId,
       name: "小朋友",
       kind: "person",
       birthMonth,
-    });
+    }, scenarioScope);
 
     const childcareStartMonth = addMonths(
       birthMonth,
@@ -348,7 +369,7 @@ export const applyOnboardingDraftToScenario = (
     );
     const educationEndMonth = addMonths(birthMonth, 18 * 12);
 
-    upsertBudgetRule(scenario, actions, {
+    upsertBudgetRule(actions, {
       id: buildOnboardingBudgetRuleId(scenario.id, "childcare", childId),
       name: "childcare",
       enabled: true,
@@ -358,9 +379,10 @@ export const applyOnboardingDraftToScenario = (
       monthlyAmount: childcarePreset[draft.family.childcareLevel],
       startMonth: childcareStartMonth,
       endMonth: childcareEndMonth,
+      applyScope: scenarioScope,
     });
 
-    upsertBudgetRule(scenario, actions, {
+    upsertBudgetRule(actions, {
       id: buildOnboardingBudgetRuleId(scenario.id, "education", childId),
       name: "education",
       enabled: true,
@@ -370,23 +392,16 @@ export const applyOnboardingDraftToScenario = (
       monthlyAmount: educationPreset[draft.family.educationLevel],
       startMonth: educationStartMonth,
       endMonth: educationEndMonth,
+      applyScope: scenarioScope,
     });
   } else {
-    actions.removeScenarioMember(scenario.id, childId);
-    removeBudgetRuleById(
-      scenario,
-      actions,
-      buildOnboardingBudgetRuleId(scenario.id, "childcare", childId)
-    );
-    removeBudgetRuleById(
-      scenario,
-      actions,
-      buildOnboardingBudgetRuleId(scenario.id, "education", childId)
-    );
+    actions.deleteMember(childId);
+    removeBudgetRuleById(actions, buildOnboardingBudgetRuleId(scenario.id, "childcare", childId));
+    removeBudgetRuleById(actions, buildOnboardingBudgetRuleId(scenario.id, "education", childId));
   }
 
   if (draft.family.parentEnabled) {
-    upsertBudgetRule(scenario, actions, {
+    upsertBudgetRule(actions, {
       id: buildOnboardingBudgetRuleId(scenario.id, "eldercare"),
       name: "eldercare",
       enabled: true,
@@ -395,24 +410,21 @@ export const applyOnboardingDraftToScenario = (
       monthlyAmount: draft.family.parentMonthlyCost,
       startMonth: baseMonth,
       endMonth: undefined,
+      applyScope: scenarioScope,
     });
   } else {
-    removeBudgetRuleById(
-      scenario,
-      actions,
-      buildOnboardingBudgetRuleId(scenario.id, "eldercare")
-    );
+    removeBudgetRuleById(actions, buildOnboardingBudgetRuleId(scenario.id, "eldercare"));
   }
 
   const petId = buildOnboardingMemberId(scenario.id, "pet");
   if (draft.family.petEnabled) {
-    actions.upsertScenarioMember(scenario.id, {
+    upsertMember(actions, {
       id: petId,
       name: "寵物",
       kind: "pet",
-    });
+    }, scenarioScope);
 
-    upsertBudgetRule(scenario, actions, {
+    upsertBudgetRule(actions, {
       id: buildOnboardingBudgetRuleId(scenario.id, "petcare", petId),
       name: "petcare",
       enabled: true,
@@ -422,14 +434,11 @@ export const applyOnboardingDraftToScenario = (
       monthlyAmount: draft.family.petMonthlyCost,
       startMonth: baseMonth,
       endMonth: undefined,
+      applyScope: scenarioScope,
     });
   } else {
-    actions.removeScenarioMember(scenario.id, petId);
-    removeBudgetRuleById(
-      scenario,
-      actions,
-      buildOnboardingBudgetRuleId(scenario.id, "petcare", petId)
-    );
+    actions.deleteMember(petId);
+    removeBudgetRuleById(actions, buildOnboardingBudgetRuleId(scenario.id, "petcare", petId));
   }
 
   const homeId = buildOnboardingPositionId(scenario.id, "home");
@@ -503,7 +512,9 @@ export const applyOnboardingDraftToScenario = (
 export const buildDefaultOnboardingDraft = (
   scenario: Scenario,
   eventLibrary: EventDefinition[],
-  baseMonth: string
+  baseMonth: string,
+  members: ScenarioMember[],
+  budgetRules: BudgetRule[]
 ): OnboardingDraft => {
   const rentEventId = buildOnboardingEventId(scenario.id, "rent");
   const travelEventId = buildOnboardingEventId(scenario.id, "travel");
@@ -532,21 +543,21 @@ export const buildDefaultOnboardingDraft = (
   const childId = buildOnboardingMemberId(scenario.id, "child");
   const petId = buildOnboardingMemberId(scenario.id, "pet");
 
-  const partner = scenario.members?.find((member) => member.id === partnerId);
-  const child = scenario.members?.find((member) => member.id === childId);
+  const partner = members.find((member) => member.id === partnerId);
+  const child = members.find((member) => member.id === childId);
 
-  const childcareRule = scenario.budgetRules?.find(
+  const childcareRule = budgetRules.find(
     (rule) => rule.id === buildOnboardingBudgetRuleId(scenario.id, "childcare", childId)
   );
-  const educationRule = scenario.budgetRules?.find(
+  const educationRule = budgetRules.find(
     (rule) => rule.id === buildOnboardingBudgetRuleId(scenario.id, "education", childId)
   );
 
-  const parentRule = scenario.budgetRules?.find(
+  const parentRule = budgetRules.find(
     (rule) => rule.id === buildOnboardingBudgetRuleId(scenario.id, "eldercare")
   );
 
-  const petRule = scenario.budgetRules?.find(
+  const petRule = budgetRules.find(
     (rule) => rule.id === buildOnboardingBudgetRuleId(scenario.id, "petcare", petId)
   );
 

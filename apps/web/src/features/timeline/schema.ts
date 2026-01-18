@@ -4,6 +4,15 @@ import { defaultCurrency } from "../../../lib/i18n";
 
 export type { EventType } from "@north-star/engine";
 
+export type IncomeSubtype =
+  | "salary"
+  | "bonus"
+  | "freelance"
+  | "rental"
+  | "dividend"
+  | "interest"
+  | "other";
+
 const eventTypeValues = eventTypes as [EventType, ...EventType[]];
 
 export const EventTypeSchema = z.enum(eventTypeValues);
@@ -22,6 +31,10 @@ export const TimelineEventSchema = z.object({
   annualGrowthPct: z.number().default(0),
   currency: z.string().default(defaultCurrency),
   memberId: z.string().optional(),
+  incomeSubtype: z
+    .enum(["salary", "bonus", "freelance", "rental", "dividend", "interest", "other"])
+    .optional(),
+  endAtAgeYears: z.number().optional(),
   templateId: z.string().optional(),
   templateParams: z.record(z.number()).optional(),
   derived: z.boolean().optional(),
@@ -81,6 +94,8 @@ export const normalizeEvent = (
     annualGrowthPct: clampAnnualGrowthPct(Number(event.annualGrowthPct ?? 0)),
     currency: event.currency ?? options.baseCurrency ?? defaultCurrency,
     memberId: event.memberId,
+    incomeSubtype: event.incomeSubtype,
+    endAtAgeYears: event.endAtAgeYears,
     templateId: event.templateId,
     templateParams: event.templateParams,
     derived: event.derived,

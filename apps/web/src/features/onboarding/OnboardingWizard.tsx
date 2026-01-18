@@ -63,6 +63,8 @@ export default function OnboardingWizard() {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
+  const members = useScenarioStore((state) => state.members);
+  const budgetRules = useScenarioStore((state) => state.budgetRules);
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
@@ -95,9 +97,10 @@ export default function OnboardingWizard() {
   const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
   const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
   const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
-  const upsertScenarioMember = useScenarioStore((state) => state.upsertScenarioMember);
-  const removeScenarioMember = useScenarioStore((state) => state.removeScenarioMember);
-  const addBudgetRule = useScenarioStore((state) => state.addBudgetRule);
+  const createMember = useScenarioStore((state) => state.createMember);
+  const updateMember = useScenarioStore((state) => state.updateMember);
+  const deleteMember = useScenarioStore((state) => state.deleteMember);
+  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
   const updateBudgetRuleAction = useScenarioStore((state) => state.updateBudgetRule);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
 
@@ -125,15 +128,18 @@ export default function OnboardingWizard() {
     }
     if (draftScenarioIdRef.current !== scenario.id) {
       const baseMonth = getBaseMonth(scenario);
-      setDraft(buildDefaultOnboardingDraft(scenario, eventLibrary, baseMonth));
+      setDraft(buildDefaultOnboardingDraft(scenario, eventLibrary, baseMonth, members, budgetRules));
       draftScenarioIdRef.current = scenario.id;
     }
-  }, [eventLibrary, scenario]);
+  }, [eventLibrary, scenario, members, budgetRules]);
 
   const persona = draft?.persona;
   const baseMonth = draft?.basics.baseMonth ?? getCurrentMonth();
 
-  const preview = useProjectionWithLedger(scenario ?? null, eventLibrary);
+  const preview = useProjectionWithLedger(scenario ?? null, eventLibrary, {
+    members,
+    budgetRules,
+  });
   const previewSeries = useMemo(() => {
     const overview = preview.projection
       ? projectionToOverviewViewModel(preview.projection)
@@ -288,6 +294,8 @@ export default function OnboardingWizard() {
       return;
     }
     applyOnboardingDraftToScenario(scenario, draft, {
+      members,
+      budgetRules,
       updateScenarioAssumptions,
       setGlobalHorizonMonths,
       updateScenarioClientComputed,
@@ -307,9 +315,10 @@ export default function OnboardingWizard() {
       addLoanPosition,
       updateLoanPosition,
       removeLoanPosition,
-      upsertScenarioMember,
-      removeScenarioMember,
-      addBudgetRule,
+      createMember,
+      updateMember,
+      deleteMember,
+      createBudgetRule,
       updateBudgetRule: updateBudgetRuleAction,
       removeBudgetRule,
     });
@@ -560,6 +569,8 @@ export default function OnboardingWizard() {
 
   const handleFinish = () => {
     applyOnboardingDraftToScenario(scenario, draft, {
+      members,
+      budgetRules,
       updateScenarioAssumptions,
       setGlobalHorizonMonths,
       updateScenarioClientComputed,
@@ -579,9 +590,10 @@ export default function OnboardingWizard() {
       addLoanPosition,
       updateLoanPosition,
       removeLoanPosition,
-      upsertScenarioMember,
-      removeScenarioMember,
-      addBudgetRule,
+      createMember,
+      updateMember,
+      deleteMember,
+      createBudgetRule,
       updateBudgetRule: updateBudgetRuleAction,
       removeBudgetRule,
     });

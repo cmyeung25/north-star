@@ -24,8 +24,6 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     baseMonth: "2024-01",
     includeBudgetRulesInProjection: true,
   },
-  members: [],
-  budgetRules: [],
   eventRefs: [],
   positions: {},
   ...overrides,
@@ -112,7 +110,14 @@ beforeEach(() => {
     scenarios: [scenario],
     eventLibrary: [],
     activeScenarioId: scenario.id,
-    globalHorizonMonths: 240,
+    appSettings: {
+      globalBaseMonth: "2024-01",
+      globalHorizonMonths: 240,
+      annualInflationPct: 0,
+      viewMode: "nominal",
+    },
+    members: [],
+    budgetRules: [],
   });
 });
 
@@ -147,8 +152,8 @@ describe("applyOnboardingDraftToScenario", () => {
 
     applyOnboardingDraftToScenario(scenario, draft, useScenarioStore.getState());
 
-    const updated = useScenarioStore.getState().scenarios[0];
-    expect(updated?.budgetRules?.length ?? 0).toBe(0);
+    const updated = useScenarioStore.getState();
+    expect(updated.budgetRules.length).toBe(0);
   });
 
   it("removes rent events when rent is toggled off", () => {

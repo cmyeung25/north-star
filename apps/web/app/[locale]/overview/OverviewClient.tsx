@@ -70,6 +70,8 @@ import {
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
+import { appliesToScenario } from "../../../src/domain/applyScope";
+import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -123,14 +125,19 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const exportT = useTranslations("export");
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
+  const members = useScenarioStore((state) => state.members);
+  const budgetRules = useScenarioStore((state) => state.budgetRules);
+  const appSettings = useScenarioStore((state) => state.appSettings);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
-  const globalHorizonMonths = useScenarioStore((state) => state.globalHorizonMonths);
+  const globalHorizonMonths = appSettings.globalHorizonMonths;
+  const setViewModeSetting = useScenarioStore((state) => state.setViewMode);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const scenarioIdFromQuery = scenarioId ?? null;
   const [viewMode, setViewMode] = useState<"single" | "compare">("single");
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
+  const [showAllMilestones, setShowAllMilestones] = useState(false);
   const [fullscreenChart, setFullscreenChart] = useState<{
     type: FullScreenChartType;
     data: TimeSeriesPoint[];
@@ -184,26 +191,49 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     positionCashflowsByMonth,
     projectionNetCashflowByMonth,
     projectionNetCashflowMode,
-  } = useProjectionWithLedger(selectedScenario, eventLibrary);
+  } = useProjectionWithLedger(selectedScenario, eventLibrary, {
+    members,
+    budgetRules,
+  });
   const compareProjections = useScenarioProjections(
     scenarios,
     eventLibrary,
     compareScenarioIds,
-    { horizonMonths: globalHorizonMonths }
+    { horizonMonths: globalHorizonMonths, members, budgetRules }
   );
 
   const overviewViewModel = useMemo(
     () => (projection ? projectionToOverviewViewModel(projection) : null),
     [projection]
   );
+  const inflationPct = appSettings.annualInflationPct ?? 0;
+  const displayMode = appSettings.viewMode;
+  const deflator = useMemo(
+    () => (index: number) => Math.pow(1 + inflationPct / 100, index / 12),
+    [inflationPct]
+  );
+  const deflateSeries = useMemo(
+    () => (series: TimeSeriesPoint[]) =>
+      series.map((entry, index) => ({
+        ...entry,
+        value: entry.value / deflator(index),
+      })),
+    [deflator]
+  );
 
   const cashSeries = useMemo(
-    () => overviewViewModel?.cashSeries ?? [],
-    [overviewViewModel]
+    () => {
+      const base = overviewViewModel?.cashSeries ?? [];
+      return displayMode === "real" ? deflateSeries(base) : base;
+    },
+    [deflateSeries, displayMode, overviewViewModel]
   );
   const netWorthSeries = useMemo(
-    () => overviewViewModel?.netWorthSeries ?? [],
-    [overviewViewModel]
+    () => {
+      const base = overviewViewModel?.netWorthSeries ?? [];
+      return displayMode === "real" ? deflateSeries(base) : base;
+    },
+    [deflateSeries, displayMode, overviewViewModel]
   );
   const netWorthByMonth = useMemo(
     () =>
@@ -214,30 +244,69 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     [netWorthSeries]
   );
   const computedKpis = overviewViewModel?.kpis;
-  const rentVsOwn = useRentVsOwnComparison(selectedScenario, eventLibrary);
+  const rentVsOwn = useRentVsOwnComparison(selectedScenario, eventLibrary, {
+    members,
+    budgetRules,
+  });
+  const scenarioMembers = useMemo(
+    () =>
+      selectedScenario
+        ? members.filter((member) =>
+            appliesToScenario(member.applyScope, selectedScenario.id)
+          )
+        : [],
+    [members, selectedScenario]
+  );
+  const milestoneMarkers = useMemo(() => {
+    if (!selectedScenario || !projection?.baseMonth) {
+      return [];
+    }
+    const markers = computeMilestonesForScenario(
+      selectedScenario.id,
+      scenarioMembers,
+      projection.baseMonth,
+      globalHorizonMonths
+    );
+    if (showAllMilestones) {
+      return markers;
+    }
+    const keyKinds = new Set(["retirement", "schoolStart", "graduation"]);
+    return markers.filter((marker) => keyKinds.has(marker.kind));
+  }, [
+    globalHorizonMonths,
+    projection?.baseMonth,
+    scenarioMembers,
+    selectedScenario,
+    showAllMilestones,
+  ]);
   const memberLookup = useMemo(
     () =>
       Object.fromEntries(
-        (selectedScenario?.members ?? []).map((member) => [member.id, member.name])
+        scenarioMembers.map((member) => [member.id, member.name])
       ),
-    [selectedScenario]
+    [scenarioMembers]
   );
   const budgetTotals = useMemo(() => {
     if (!selectedScenario) {
       return [];
     }
-    const ledger = compileAllBudgetRules(selectedScenario);
+    const ledger = compileAllBudgetRules(selectedScenario, budgetRules, members);
     return sumByMonth(ledger);
-  }, [selectedScenario]);
+  }, [budgetRules, members, selectedScenario]);
   const budgetTotalsPreview = budgetTotals.slice(0, 12);
-  const netCashflowSeries = useMemo(
-    () =>
-      months.map((month) => ({
-        month,
-        value: projectionNetCashflowByMonth?.[month] ?? 0,
-      })),
-    [months, projectionNetCashflowByMonth]
-  );
+  const netCashflowSeries = useMemo(() => {
+    const base = months.map((month) => ({
+      month,
+      value: projectionNetCashflowByMonth?.[month] ?? 0,
+    }));
+    if (displayMode !== "real") {
+      return base;
+    }
+    return base.map((entry, index) => ({
+      ...entry,
+      value: entry.value / deflator(index),
+    }));
+  }, [deflator, displayMode, months, projectionNetCashflowByMonth]);
   const snapshotTargets = useMemo(() => [5, 10, 15, 20, 30], []);
   const autoSnapshots = useMemo(() => {
     if (!projection || !selectedScenario) {
@@ -255,7 +324,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         }
         const monthIndex = Math.min(requiredMonths - 1, projection.months.length - 1);
         const month = projection.months[monthIndex];
-        const ageLabels = (selectedScenario.members ?? []).map((member) => {
+        const deflatorValue = displayMode === "real" ? deflator(monthIndex) : 1;
+        const ageLabels = scenarioMembers.map((member) => {
           const ageYears = Math.max(0, getMemberAgeYears(member, month, baseMonth));
           return t("snapshotAgeLabel", {
             name: member.name,
@@ -265,15 +335,24 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         return {
           label: t("snapshotsYearLabel", { years }),
           month,
-          cash: projection.cashBalance[monthIndex] ?? 0,
-          assets: projection.assets.total[monthIndex] ?? 0,
-          liabilities: projection.liabilities.total[monthIndex] ?? 0,
-          netWorth: projection.netWorth[monthIndex] ?? 0,
+          cash: (projection.cashBalance[monthIndex] ?? 0) / deflatorValue,
+          assets: (projection.assets.total[monthIndex] ?? 0) / deflatorValue,
+          liabilities: (projection.liabilities.total[monthIndex] ?? 0) / deflatorValue,
+          netWorth: (projection.netWorth[monthIndex] ?? 0) / deflatorValue,
           ageLabels,
         };
       })
       .filter((snapshot): snapshot is NonNullable<typeof snapshot> => Boolean(snapshot));
-  }, [globalHorizonMonths, projection, selectedScenario, snapshotTargets, t]);
+  }, [
+    deflator,
+    displayMode,
+    globalHorizonMonths,
+    projection,
+    scenarioMembers,
+    selectedScenario,
+    snapshotTargets,
+    t,
+  ]);
 
   const compareChartData = useMemo(() => {
     if (compareProjections.length === 0) {
@@ -286,13 +365,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
     return Array.from({ length: maxLength }, (_, index) => {
       const month = baseMonths[index] ?? "";
+      const deflatorValue = displayMode === "real" ? deflator(index) : 1;
       const row: Record<string, string | number> = { month };
       compareProjections.forEach((item) => {
-        row[item.scenarioId] = item.projection.netWorth[index] ?? 0;
+        row[item.scenarioId] = (item.projection.netWorth[index] ?? 0) / deflatorValue;
       });
       return row;
     }).filter((row) => Boolean(row.month));
-  }, [compareProjections]);
+  }, [compareProjections, deflator, displayMode]);
 
   const compareKpiRows = useMemo(() => {
     return compareProjections.map((item) => {
@@ -303,7 +383,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           return null;
         }
         const index = Math.min(requiredMonths - 1, item.projection.netWorth.length - 1);
-        return item.projection.netWorth[index] ?? 0;
+        const deflatorValue = displayMode === "real" ? deflator(index) : 1;
+        return (item.projection.netWorth[index] ?? 0) / deflatorValue;
       });
 
       return {
@@ -313,7 +394,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         values: netWorthByYear,
       };
     });
-  }, [compareProjections, globalHorizonMonths, snapshotTargets]);
+  }, [compareProjections, deflator, displayMode, globalHorizonMonths, snapshotTargets]);
 
   const insights = useMemo(() => {
     if (!computedKpis) {
@@ -466,6 +547,21 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             value={viewMode}
             onChange={(value) => setViewMode(value as "single" | "compare")}
           />
+          <Stack gap={4}>
+            <SegmentedControl
+              data={[
+                { value: "nominal", label: t("viewNominal") },
+                { value: "real", label: t("viewReal") },
+              ]}
+              value={displayMode}
+              onChange={(value) =>
+                setViewModeSetting(value as "nominal" | "real")
+              }
+            />
+            <Text size="xs" c="dimmed">
+              {t("viewRealHint")}
+            </Text>
+          </Stack>
           {showCompare ? (
             <Stack gap={4}>
               <MultiSelect
@@ -582,10 +678,22 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <KpiCarousel items={kpiItems} />
           )}
 
+          <Group justify="flex-end">
+            <SegmentedControl
+              data={[
+                { value: "key", label: t("milestoneKeyOnly") },
+                { value: "all", label: t("milestoneAll") },
+              ]}
+              value={showAllMilestones ? "all" : "key"}
+              onChange={(value) => setShowAllMilestones(value === "all")}
+            />
+          </Group>
+
           {isDesktop ? (
             <SimpleGrid cols={3} spacing="md">
               <CashBalanceChart
                 data={cashSeries}
+                markers={milestoneMarkers}
                 title={t("cashBalanceTitle")}
                 onClick={
                   projection
@@ -599,6 +707,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               />
               <NetWorthChart
                 data={netWorthSeries}
+                markers={milestoneMarkers}
                 title={t("netWorthTitle")}
                 onClick={
                   projection
@@ -612,6 +721,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               />
               <NetCashflowChart
                 data={netCashflowSeries}
+                markers={milestoneMarkers}
                 title={t("netCashflowTitle")}
                 onClick={
                   projection
@@ -628,6 +738,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Stack gap="md">
               <CashBalanceChart
                 data={cashSeries}
+                markers={milestoneMarkers}
                 title={t("cashBalanceTitle")}
                 onClick={
                   projection
@@ -645,6 +756,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                   <Accordion.Panel>
                     <NetWorthChart
                       data={netWorthSeries}
+                      markers={milestoneMarkers}
                       onClick={
                         projection
                           ? () =>
@@ -662,6 +774,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                   <Accordion.Panel>
                     <NetCashflowChart
                       data={netCashflowSeries}
+                      markers={milestoneMarkers}
                       onClick={
                         projection
                           ? () =>

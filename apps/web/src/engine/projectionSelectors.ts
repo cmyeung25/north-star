@@ -1,6 +1,6 @@
 import type { ProjectionResult } from "@north-star/engine";
 import type { EventDefinition } from "../domain/events/types";
-import type { Scenario } from "../store/scenarioStore";
+import type { Scenario, ScenarioMember } from "../store/scenarioStore";
 
 export type ProjectionMonthlyRow = {
   month: string;
@@ -54,8 +54,8 @@ type BreakdownLabelTokens = {
 const buildEventLookup = (eventLibrary: EventDefinition[]) =>
   new Map(eventLibrary.map((definition) => [definition.id, definition]));
 
-const buildMemberLookup = (scenario: Scenario) =>
-  new Map((scenario.members ?? []).map((member) => [member.id, member]));
+const buildMemberLookup = (members: ScenarioMember[]) =>
+  new Map(members.map((member) => [member.id, member]));
 
 type HomeLookupEntry = {
   home: NonNullable<Scenario["positions"]>["homes"] extends Array<infer Item>
@@ -80,10 +80,11 @@ const buildHomeLookup = (scenario: Scenario) => {
 export const createBreakdownLabelResolver = (
   scenario: Scenario,
   eventLibrary: EventDefinition[],
+  members: ScenarioMember[],
   labels: BreakdownLabelTokens
 ) => {
   const eventLookup = buildEventLookup(eventLibrary);
-  const memberLookup = buildMemberLookup(scenario);
+  const memberLookup = buildMemberLookup(members);
   const homeLookup = buildHomeLookup(scenario);
 
   return (key: string) => {

@@ -1,4 +1,4 @@
-import type { EventType } from "../../features/timeline/schema";
+import type { EventType, IncomeSubtype } from "../../features/timeline/schema";
 
 export type EventRuleScheduleEntry = {
   month: string;
@@ -26,6 +26,8 @@ export type EventDefinition = {
   rule: EventRule;
   currency?: string;
   memberId?: string;
+  incomeSubtype?: IncomeSubtype;
+  endAtAgeYears?: number;
   templateId?: string;
   templateParams?: Record<string, number>;
 };

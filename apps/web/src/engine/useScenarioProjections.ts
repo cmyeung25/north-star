@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { computeProjection, type ProjectionInput, type ProjectionResult } from "@north-star/engine";
-import type { Scenario } from "../store/scenarioStore";
+import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
 import type { EventDefinition } from "../domain/events/types";
 import { mapScenarioToEngineInput } from "./adapter";
 
@@ -17,11 +17,20 @@ export const useScenarioProjections = (
   scenarios: Scenario[],
   eventLibrary: EventDefinition[],
   scenarioIds: string[],
-  options?: { horizonMonths?: number }
+  options?: {
+    horizonMonths?: number;
+    members?: ScenarioMember[];
+    budgetRules?: BudgetRule[];
+  }
 ): ScenarioProjection[] => {
   const globalAssumptionsHash = useMemo(
-    () => buildHash({ horizonMonths: options?.horizonMonths ?? null }),
-    [options?.horizonMonths]
+    () =>
+      buildHash({
+        horizonMonths: options?.horizonMonths ?? null,
+        members: options?.members ?? [],
+        budgetRules: options?.budgetRules ?? [],
+      }),
+    [options?.budgetRules, options?.horizonMonths, options?.members]
   );
   const scenarioHashes = useMemo(() => {
     const lookup = new Map(scenarios.map((scenario) => [scenario.id, scenario]));
@@ -49,6 +58,8 @@ export const useScenarioProjections = (
       const { input } = mapScenarioToEngineInput(scenario, eventLibrary, {
         strict: false,
         horizonMonths: options?.horizonMonths,
+        members: options?.members ?? [],
+        budgetRules: options?.budgetRules ?? [],
       });
       const projection = computeProjection(input);
 
@@ -61,5 +72,13 @@ export const useScenarioProjections = (
         },
       ];
     });
-  }, [eventLibrary, options?.horizonMonths, scenarioHashes, scenarioIds, scenarios]);
+  }, [
+    eventLibrary,
+    options?.budgetRules,
+    options?.horizonMonths,
+    options?.members,
+    scenarioHashes,
+    scenarioIds,
+    scenarios,
+  ]);
 };
