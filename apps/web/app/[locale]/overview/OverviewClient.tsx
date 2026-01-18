@@ -44,7 +44,7 @@ import OverviewActionsCard from "../../../features/overview/components/OverviewA
 import RentVsOwnCard from "../../../features/overview/components/RentVsOwnCard";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
-import type { RiskLevel, TimeSeriesPoint } from "../../../features/overview/types";
+import type { RiskLevel, TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import {
   projectionToOverviewViewModel,
@@ -141,6 +141,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [fullscreenChart, setFullscreenChart] = useState<{
     type: FullScreenChartType;
     data: TimeSeriesPoint[];
+    markers: MilestoneMarker[],
   } | null>(null);
 
   useEffect(() => {
@@ -701,6 +702,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                         setFullscreenChart({
                           type: "cash",
                           data: cashSeries,
+                          markers: milestoneMarkers,
                         })
                     : undefined
                 }
@@ -715,6 +717,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                         setFullscreenChart({
                           type: "netWorth",
                           data: netWorthSeries,
+                          markers: milestoneMarkers,
                         })
                     : undefined
                 }
@@ -729,6 +732,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                         setFullscreenChart({
                           type: "netCashflow",
                           data: netCashflowSeries,
+                          markers: milestoneMarkers,
                         })
                     : undefined
                 }
@@ -746,6 +750,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                         setFullscreenChart({
                           type: "cash",
                           data: cashSeries,
+                          markers: milestoneMarkers,
                         })
                     : undefined
                 }
@@ -763,6 +768,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                               setFullscreenChart({
                                 type: "netWorth",
                                 data: netWorthSeries,
+                                markers: milestoneMarkers,
                               })
                           : undefined
                       }
@@ -781,6 +787,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                               setFullscreenChart({
                                 type: "netCashflow",
                                 data: netCashflowSeries,
+                                markers: milestoneMarkers,
                               })
                           : undefined
                       }
@@ -904,6 +911,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             onClose={() => setFullscreenChart(null)}
             type={fullscreenChart?.type}
             data={fullscreenChart?.data ?? []}
+            markers={fullscreenChart?.markers ?? []}
             title={
               fullscreenChart?.type === "netWorth"
                 ? t("fullscreenTitleNetWorth")

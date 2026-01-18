@@ -1,7 +1,7 @@
 "use client";
 
 import { Modal } from "@mantine/core";
-import type { TimeSeriesPoint } from "../features/overview/types";
+import type { TimeSeriesPoint, MilestoneMarker } from "../features/overview/types";
 import ZoomableLineChart from "../features/overview/components/ZoomableLineChart";
 
 export type FullScreenChartType = "cash" | "netWorth" | "netCashflow";
@@ -11,6 +11,7 @@ type FullScreenChartModalProps = {
   onClose: () => void;
   type?: FullScreenChartType;
   data: TimeSeriesPoint[];
+  markers: MilestoneMarker[],
   title: string;
 };
 
@@ -25,11 +26,13 @@ export default function FullScreenChartModal({
   onClose,
   type = "cash",
   data,
+  markers,
   title,
 }: FullScreenChartModalProps) {
+  console.log(markers)
   return (
     <Modal opened={opened} onClose={onClose} fullScreen centered title={title}>
-      <ZoomableLineChart data={data} color={chartColors[type]} height={560} />
+      <ZoomableLineChart data={data} markers={markers} color={chartColors[type]} height={560} />
     </Modal>
   );
 }

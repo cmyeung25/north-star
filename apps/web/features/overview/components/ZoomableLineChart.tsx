@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatCurrency } from "../../../lib/i18n";
-import type { TimeSeriesPoint } from "../types";
+import type { MilestoneMarker, TimeSeriesPoint } from "../types";
 
 const MIN_WINDOW = 6;
 
@@ -26,12 +26,14 @@ type DragState = {
 type ZoomableLineChartProps = {
   data: TimeSeriesPoint[];
   color?: string;
+  markers?: MilestoneMarker[];
   height?: number;
 };
 
 export default function ZoomableLineChart({
   data,
   color = "#4c6ef5",
+  markers = [],
   height = 520,
 }: ZoomableLineChartProps) {
   const t = useTranslations("overview");
@@ -42,6 +44,16 @@ export default function ZoomableLineChart({
   const [endIndex, setEndIndex] = useState(Math.max(0, data.length - 1));
   const [isDragging, setIsDragging] = useState(false);
 
+  const markerLookup = markers.reduce<Record<string, MilestoneMarker[]>>(
+    (acc, marker) => {
+      if (!acc[marker.month]) {
+        acc[marker.month] = [];
+      }
+      acc[marker.month].push(marker);
+      return acc;
+    },
+    {}
+  );
   useEffect(() => {
     setStartIndex(0);
     setEndIndex(Math.max(0, data.length - 1));
@@ -134,7 +146,21 @@ export default function ZoomableLineChart({
             />
             <Tooltip
               formatter={(value) => formatCurrency(Number(value), undefined, locale)}
-              labelFormatter={(label) => t("monthLabel", { month: label })}
+              labelFormatter={(label) => {
+                const milestoneLabels =
+                  markerLookup[label]?.map(
+                    (marker) =>
+                      `${marker.memberName}${marker.label}${
+                        marker.atAgeYears ? `（${marker.atAgeYears}歲）` : ""
+                      }`
+                  ) ?? [];
+                if (milestoneLabels.length === 0) {
+                  return t("monthLabel", { month: label });
+                }
+                return `${t("monthLabel", { month: label })} · ${milestoneLabels.join(
+                  ", "
+                )}`;
+              }}
             />
             <ReferenceLine y={0} stroke="#ced4da" />
             <Line
@@ -144,6 +170,14 @@ export default function ZoomableLineChart({
               strokeWidth={2}
               dot={false}
             />
+            {markers.map((marker) => (
+              <ReferenceLine
+                key={marker.id}
+                x={marker.month}
+                stroke="#94a3b8"
+                strokeDasharray="3 3"
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
