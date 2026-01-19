@@ -23,6 +23,7 @@ export type HomePosition = {
   annualAppreciation: number;
   purchaseMonth?: string;
   downPayment?: number;
+  sellMonth?: string;
   mortgage?: {
     principal: number;
     annualRate: number;
@@ -56,6 +57,8 @@ export type EngineInvestment = {
   annualReturnRate: number;
   monthlyContribution?: number;
   monthlyWithdrawal?: number;
+  contributionSchedule?: { month: string; amount: number }[];
+  withdrawalSchedule?: { month: string; amount: number }[];
   feeAnnualRate?: number;
 };
 
@@ -96,6 +99,7 @@ export type EngineCar = {
     termMonths: number;
     monthlyPayment?: number;
   };
+  sellMonth?: string;
 };
 
 export type EngineCashBucket = {
@@ -372,6 +376,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     const startIndex = purchaseMonth
       ? monthIndex(input.baseMonth, purchaseMonth)
       : horizonMonths;
+    const sellIndex = home.sellMonth ? monthIndex(input.baseMonth, home.sellMonth) : null;
     const homeId = home.id ?? `home-${homeIndex + 1}`;
     const assetValue =
       mode === "existing" && home.existing ? home.existing.marketValue : home.purchasePrice ?? 0;
@@ -407,6 +412,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       mode,
       startIndex,
       purchaseIndex: startIndex,
+      sellIndex,
       homeSeries,
       mortgageSchedule,
     };
@@ -416,20 +422,53 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const investmentStates = investments.map((investment, investmentIndex) => {
     const monthlyContribution = investment.monthlyContribution ?? 0;
     const monthlyWithdrawal = investment.monthlyWithdrawal ?? 0;
+    const contributionSchedule = investment.contributionSchedule ?? [];
+    const withdrawalSchedule = investment.withdrawalSchedule ?? [];
+    const hasContributionSchedule = contributionSchedule.length > 0;
+    const hasWithdrawalSchedule = withdrawalSchedule.length > 0;
+    const scheduleEntries = [...contributionSchedule, ...withdrawalSchedule];
+    const scheduleStartIndex =
+      scheduleEntries.length > 0
+        ? scheduleEntries.reduce((minIndex, entry) => {
+            const index = monthIndex(input.baseMonth, entry.month);
+            return Math.min(minIndex, index);
+          }, Number.POSITIVE_INFINITY)
+        : null;
     const growthFactor = Math.pow(1 + investment.annualReturnRate, 1 / 12);
     const feeFactor =
       typeof investment.feeAnnualRate === "number"
         ? Math.pow(1 - investment.feeAnnualRate, 1 / 12)
         : 1;
     const monthlyFactor = growthFactor * feeFactor;
-    const startIndex = monthIndex(input.baseMonth, investment.startMonth);
+    const declaredStartIndex = monthIndex(input.baseMonth, investment.startMonth);
+    const startIndex =
+      scheduleStartIndex !== null && Number.isFinite(scheduleStartIndex)
+        ? Math.min(declaredStartIndex, scheduleStartIndex)
+        : declaredStartIndex;
     const investmentId = investment.id ?? `investment-${investmentIndex + 1}`;
     let currentValue = investment.initialValue ?? 0;
+    const contributionByIndex = new Map<number, number>();
+    const withdrawalByIndex = new Map<number, number>();
+
+    contributionSchedule.forEach((entry) => {
+      const index = monthIndex(input.baseMonth, entry.month);
+      contributionByIndex.set(index, (contributionByIndex.get(index) ?? 0) + entry.amount);
+    });
+    withdrawalSchedule.forEach((entry) => {
+      const index = monthIndex(input.baseMonth, entry.month);
+      withdrawalByIndex.set(index, (withdrawalByIndex.get(index) ?? 0) + entry.amount);
+    });
 
     if (startIndex < 0 && horizonMonths > 0) {
-      for (let i = 0; i < -startIndex; i += 1) {
-        const withdrawal = Math.min(currentValue, monthlyWithdrawal);
-        currentValue = currentValue + monthlyContribution - withdrawal;
+      for (let i = startIndex; i < 0; i += 1) {
+        const contribution = hasContributionSchedule
+          ? contributionByIndex.get(i) ?? 0
+          : monthlyContribution;
+        const withdrawalTarget = hasWithdrawalSchedule
+          ? withdrawalByIndex.get(i) ?? 0
+          : monthlyWithdrawal;
+        const withdrawal = Math.min(currentValue, withdrawalTarget);
+        currentValue = currentValue + contribution - withdrawal;
         currentValue *= monthlyFactor;
       }
     }
@@ -438,8 +477,12 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       investment,
       investmentId,
       startIndex,
-      monthlyContribution,
-      monthlyWithdrawal,
+      monthlyContribution: hasContributionSchedule ? 0 : monthlyContribution,
+      monthlyWithdrawal: hasWithdrawalSchedule ? 0 : monthlyWithdrawal,
+      contributionByIndex,
+      withdrawalByIndex,
+      hasContributionSchedule,
+      hasWithdrawalSchedule,
       monthlyFactor,
       currentValue,
     };
@@ -525,6 +568,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const cars = input.positions?.cars ?? [];
   const carStates = cars.map((car, carIndex) => {
     const startIndex = monthIndex(input.baseMonth, car.purchaseMonth);
+    const sellIndex = car.sellMonth ? monthIndex(input.baseMonth, car.sellMonth) : null;
     const monthlyDepreciation = Math.pow(1 + car.annualDepreciationRate, 1 / 12);
     const holdingCostMonthly = car.holdingCostMonthly ?? 0;
     const holdingCostAnnualGrowth = car.holdingCostAnnualGrowth ?? 0;
@@ -581,6 +625,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       car,
       carId,
       startIndex,
+      sellIndex,
       monthlyDepreciation,
       holdingCostMonthly,
       holdingCostAnnualGrowth,
@@ -599,8 +644,17 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     }
 
     for (const homeData of homeSeriesData) {
-      const { home, homeId, mode, startIndex, purchaseIndex, homeSeries } = homeData;
-      const assetValue = homeSeries[i] ?? 0;
+      const {
+        home,
+        homeId,
+        mode,
+        startIndex,
+        purchaseIndex,
+        sellIndex,
+        homeSeries,
+      } = homeData;
+      const assetValue =
+        sellIndex !== null && i > sellIndex ? 0 : (homeSeries[i] ?? 0);
       assetsHousing[i] += assetValue;
       addAsset(`home:${homeId}`, i, assetValue);
 
@@ -620,7 +674,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       const holdingCostAnnualGrowth = home.holdingCostAnnualGrowth ?? 0;
       if (holdingCostMonthly > 0) {
         const holdingStartIndex = Math.max(0, startIndex);
-        if (i >= holdingStartIndex) {
+        if (i >= holdingStartIndex && (sellIndex === null || i < sellIndex)) {
           const monthsSincePurchase = i - startIndex;
           const cost =
             holdingCostMonthly *
@@ -631,6 +685,9 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       }
 
       if (homeData.mortgageSchedule) {
+        if (sellIndex !== null && i >= sellIndex) {
+          addLiability(`home:${homeId}:mortgage`, i, 0);
+        } else {
         const schedule = homeData.mortgageSchedule;
         const interest = schedule.interestSeries[i] ?? 0;
         const principal = schedule.principalSeries[i] ?? 0;
@@ -647,6 +704,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
         const balance = schedule.balanceSeries[i] ?? 0;
         liabilitiesMortgage[i] += balance;
         addLiability(`home:${homeId}:mortgage`, i, balance);
+        }
       }
 
       if (home.rental && home.rental.rentMonthly > 0) {
@@ -654,7 +712,11 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
         const rentEndIndex = home.rental.rentEndMonth
           ? monthIndex(input.baseMonth, home.rental.rentEndMonth)
           : horizonMonths - 1;
-        if (i >= rentStartIndex && i <= rentEndIndex) {
+        if (
+          i >= rentStartIndex &&
+          i <= rentEndIndex &&
+          (sellIndex === null || i < sellIndex)
+        ) {
           const yearsSinceStart = Math.floor((i - rentStartIndex) / 12);
           const rentAnnualGrowth = home.rental.rentAnnualGrowth ?? 0;
           const vacancyRate = home.rental.vacancyRate ?? 0;
@@ -706,21 +768,26 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
     }
 
     for (const carState of carStates) {
-      const { car, carId, startIndex } = carState;
+      const { car, carId, startIndex, sellIndex } = carState;
       if (i < startIndex) {
         continue;
       }
+      const isSold = sellIndex !== null && i >= sellIndex;
 
       if (i === startIndex && car.downPayment) {
         netCashflow[i] -= car.downPayment;
         addCashflow(`car:${carId}:down_payment`, i, -car.downPayment);
       }
 
-      carState.currentValue *= carState.monthlyDepreciation;
-      assetsCars[i] += carState.currentValue;
-      addAsset(`car:${carId}`, i, carState.currentValue);
+      if (!isSold) {
+        carState.currentValue *= carState.monthlyDepreciation;
+        assetsCars[i] += carState.currentValue;
+        addAsset(`car:${carId}`, i, carState.currentValue);
+      } else {
+        addAsset(`car:${carId}`, i, 0);
+      }
 
-      if (carState.holdingCostMonthly > 0) {
+      if (carState.holdingCostMonthly > 0 && !isSold) {
         const monthsSincePurchase = i - startIndex;
         const cost =
           carState.holdingCostMonthly *
@@ -732,7 +799,8 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
       if (
         carState.loanState &&
         carState.loanState.outstanding > 0 &&
-        carState.loanState.monthsElapsed < carState.loanState.termMonths
+        carState.loanState.monthsElapsed < carState.loanState.termMonths &&
+        !isSold
       ) {
         const { interest, nextOutstanding } = applyAmortizationMonth(
           carState.loanState.outstanding,
@@ -757,6 +825,8 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
         carState.loanState.monthsElapsed += 1;
         liabilitiesAuto[i] += carState.loanState.outstanding;
         addLiability(`car:${carId}:loan`, i, carState.loanState.outstanding);
+      } else if (carState.loanState && isSold) {
+        addLiability(`car:${carId}:loan`, i, 0);
       }
     }
 
@@ -766,20 +836,30 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
         startIndex,
         monthlyContribution,
         monthlyWithdrawal,
+        contributionByIndex,
+        withdrawalByIndex,
+        hasContributionSchedule,
+        hasWithdrawalSchedule,
         monthlyFactor,
       } = investment;
       if (i < startIndex) {
         continue;
       }
-      const withdrawal = Math.min(investment.currentValue, monthlyWithdrawal);
+      const contribution = hasContributionSchedule
+        ? contributionByIndex.get(i) ?? 0
+        : monthlyContribution;
+      const withdrawalTarget = hasWithdrawalSchedule
+        ? withdrawalByIndex.get(i) ?? 0
+        : monthlyWithdrawal;
+      const withdrawal = Math.min(investment.currentValue, withdrawalTarget);
       investment.currentValue =
-        investment.currentValue + monthlyContribution - withdrawal;
-      if (monthlyContribution) {
-        netCashflow[i] -= monthlyContribution;
+        investment.currentValue + contribution - withdrawal;
+      if (contribution) {
+        netCashflow[i] -= contribution;
         addCashflow(
           `investment:${investmentId}:contribution`,
           i,
-          -monthlyContribution
+          -contribution
         );
       }
       if (withdrawal) {

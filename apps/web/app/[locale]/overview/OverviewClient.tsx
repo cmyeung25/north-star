@@ -1,6 +1,3 @@
-// Shape note: Overview now consumes rent-vs-own insights derived from homes[] fees/holding costs.
-// Added fields: feesOneTime + holdingCostMonthly + holdingCostAnnualGrowthPct from scenario positions.
-// Back-compat: when no rent event exists, the card shows \"Rent not configured\".
 "use client";
 
 import {
@@ -35,13 +32,10 @@ import FullScreenChartModal, {
 } from "../../../components/FullScreenChartModal";
 import ProjectionDetailsModal from "../../../components/ProjectionDetailsModal";
 import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
-import InsightsCard from "../../../features/overview/components/InsightsCard";
 import KpiCard from "../../../features/overview/components/KpiCard";
 import KpiCarousel from "../../../features/overview/components/KpiCarousel";
 import NetCashflowChart from "../../../features/overview/components/NetCashflowChart";
 import NetWorthChart from "../../../features/overview/components/NetWorthChart";
-import OverviewActionsCard from "../../../features/overview/components/OverviewActionsCard";
-import RentVsOwnCard from "../../../features/overview/components/RentVsOwnCard";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
 import type { RiskLevel, TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
@@ -53,15 +47,10 @@ import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLe
 import { useScenarioProjections } from "../../../src/engine/useScenarioProjections";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import {
-  compileAllBudgetRules,
-  sumByMonth,
-} from "../../../src/domain/budget/compileBudgetRules";
-import {
   buildExportFilename,
   downloadTextFile,
   projectionToCSV,
 } from "../../../src/export/projectionExport";
-import { useRentVsOwnComparison } from "../../../src/engine/rentVsOwnComparison";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -77,38 +66,11 @@ type OverviewClientProps = {
   scenarioId?: string;
 };
 
-type OverviewKpis = {
-  lowestMonthlyBalance: number;
-  runwayMonths: number;
-  riskLevel: RiskLevel;
-};
-
-const buildInsights = (
-  t: (key: string, values?: Record<string, string | number>) => string,
-  kpis: OverviewKpis
-) => {
-  const insights: string[] = [];
-
-  if (kpis.lowestMonthlyBalance < 0) {
-    insights.push(t("insightNegativeCash"));
-  } else {
-    insights.push(t("insightPositiveCash"));
-  }
-
-  if (kpis.runwayMonths < 12) {
-    insights.push(t("insightRunwayShort"));
-  } else if (kpis.runwayMonths < 24) {
-    insights.push(t("insightRunwayStable"));
-  } else {
-    insights.push(t("insightRunwayLong"));
-  }
-
-  if (kpis.riskLevel === "High") {
-    insights.push(t("insightHighRisk"));
-  }
-
-  return insights.slice(0, 3);
-};
+// type OverviewKpis = {
+//   lowestMonthlyBalance: number;
+//   runwayMonths: number;
+//   riskLevel: RiskLevel;
+// };
 
 const riskBadgeColor: Record<RiskLevel, string> = {
   Low: "green",
@@ -126,7 +88,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);
-  const budgetRules = useScenarioStore((state) => state.budgetRules);
   const appSettings = useScenarioStore((state) => state.appSettings);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const globalHorizonMonths = appSettings.globalHorizonMonths;
@@ -137,7 +98,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
-  const [showAllMilestones, setShowAllMilestones] = useState(false);
   const [fullscreenChart, setFullscreenChart] = useState<{
     type: FullScreenChartType;
     data: TimeSeriesPoint[];
@@ -192,15 +152,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     positionCashflowsByMonth,
     projectionNetCashflowByMonth,
     projectionNetCashflowMode,
+    netWorthBreakdownByMonth,
   } = useProjectionWithLedger(selectedScenario, eventLibrary, {
     members,
-    budgetRules,
   });
   const compareProjections = useScenarioProjections(
     scenarios,
     eventLibrary,
     compareScenarioIds,
-    { horizonMonths: globalHorizonMonths, members, budgetRules }
+    { horizonMonths: globalHorizonMonths, members }
   );
 
   const overviewViewModel = useMemo(
@@ -245,10 +205,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     [netWorthSeries]
   );
   const computedKpis = overviewViewModel?.kpis;
-  const rentVsOwn = useRentVsOwnComparison(selectedScenario, eventLibrary, {
-    members,
-    budgetRules,
-  });
   const scenarioMembers = useMemo(
     () =>
       selectedScenario
@@ -268,17 +224,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       projection.baseMonth,
       globalHorizonMonths
     );
-    if (showAllMilestones) {
-      return markers;
-    }
-    const keyKinds = new Set(["retirement", "schoolStart", "graduation"]);
-    return markers.filter((marker) => keyKinds.has(marker.kind));
+    return markers;
   }, [
     globalHorizonMonths,
     projection?.baseMonth,
     scenarioMembers,
     selectedScenario,
-    showAllMilestones,
   ]);
   const memberLookup = useMemo(
     () =>
@@ -287,14 +238,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       ),
     [scenarioMembers]
   );
-  const budgetTotals = useMemo(() => {
-    if (!selectedScenario) {
-      return [];
-    }
-    const ledger = compileAllBudgetRules(selectedScenario, budgetRules, members);
-    return sumByMonth(ledger);
-  }, [budgetRules, members, selectedScenario]);
-  const budgetTotalsPreview = budgetTotals.slice(0, 12);
   const netCashflowSeries = useMemo(() => {
     const base = months.map((month) => ({
       month,
@@ -397,13 +340,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     });
   }, [compareProjections, deflator, displayMode, globalHorizonMonths, snapshotTargets]);
 
-  const insights = useMemo(() => {
-    if (!computedKpis) {
-      return [];
-    }
-
-    return buildInsights(t, computedKpis);
-  }, [computedKpis, t]);
 
   useEffect(() => {
     if (months.length === 0) {
@@ -540,15 +476,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         </Group>
 
         <Stack gap="sm">
-          <SegmentedControl
-            data={[
-              { value: "single", label: t("viewSingle") },
-              { value: "compare", label: t("viewCompare") },
-            ]}
-            value={viewMode}
-            onChange={(value) => setViewMode(value as "single" | "compare")}
-          />
-          <Stack gap={4}>
+          <Group gap="sm" wrap="wrap">
+            <SegmentedControl
+              data={[
+                { value: "single", label: t("viewSingle") },
+                { value: "compare", label: t("viewCompare") },
+              ]}
+              value={viewMode}
+              onChange={(value) => setViewMode(value as "single" | "compare")}
+            />
             <SegmentedControl
               data={[
                 { value: "nominal", label: t("viewNominal") },
@@ -559,10 +495,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 setViewModeSetting(value as "nominal" | "real")
               }
             />
-            <Text size="xs" c="dimmed">
-              {t("viewRealHint")}
-            </Text>
-          </Stack>
+          </Group>
+          <Text size="xs" c="dimmed">
+            {t("viewRealHint")}
+          </Text>
           {showCompare ? (
             <Stack gap={4}>
               <MultiSelect
@@ -678,17 +614,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           ) : (
             <KpiCarousel items={kpiItems} />
           )}
-
-          <Group justify="flex-end">
-            <SegmentedControl
-              data={[
-                { value: "key", label: t("milestoneKeyOnly") },
-                { value: "all", label: t("milestoneAll") },
-              ]}
-              value={showAllMilestones ? "all" : "key"}
-              onChange={(value) => setShowAllMilestones(value === "all")}
-            />
-          </Group>
 
           {isDesktop ? (
             <SimpleGrid cols={3} spacing="md">
@@ -817,75 +742,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             </Card>
           )}
 
-          {isDesktop ? (
-            <SimpleGrid cols={3} spacing="md">
-              <InsightsCard insights={insights} />
-              <RentVsOwnCard
-                comparison={rentVsOwn}
-                currency={selectedScenario.baseCurrency}
-              />
-              <OverviewActionsCard scenarioId={selectedScenario.id} />
-            </SimpleGrid>
-          ) : (
-            <Stack gap="md">
-              <InsightsCard insights={insights} />
-              <RentVsOwnCard
-                comparison={rentVsOwn}
-                currency={selectedScenario.baseCurrency}
-              />
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="sm">
-                  <Button
-                    component={Link}
-                    href={buildScenarioUrl("/timeline", selectedScenario.id)}
-                  >
-                    {t("actionsTimeline")}
-                  </Button>
-                  <Button
-                    component={Link}
-                    href={buildScenarioUrl("/stress", selectedScenario.id)}
-                    variant="light"
-                  >
-                    {t("actionsStress")}
-                  </Button>
-                </Stack>
-              </Card>
-            </Stack>
-          )}
-
-          <Card withBorder radius="md" padding="md">
-            <Stack gap="xs">
-              <Text fw={600}>{t("budgetPreviewTitle")}</Text>
-              <Text size="sm" c="dimmed">
-                {t("budgetPreviewSubtitle")}
-              </Text>
-              {budgetTotalsPreview.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t("budgetPreviewEmpty")}
-                </Text>
-              ) : (
-                <Stack gap={2}>
-                  {budgetTotalsPreview.map((entry) => (
-                    <Text key={`budget-${entry.month}`} size="sm">
-                      {entry.month} ·{" "}
-                      {formatCurrency(
-                        entry.totalAmountSigned,
-                        selectedScenario.baseCurrency,
-                        locale
-                      )}
-                    </Text>
-                  ))}
-                  {budgetTotals.length > budgetTotalsPreview.length && (
-                    <Text size="xs" c="dimmed">
-                      {t("budgetPreviewMore", {
-                        count: budgetTotals.length - budgetTotalsPreview.length,
-                      })}
-                    </Text>
-                  )}
-                </Stack>
-              )}
-            </Stack>
-          </Card>
           <AutoSnapshotsCard
             snapshots={autoSnapshots}
             currency={selectedScenario.baseCurrency}
@@ -903,6 +759,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             projectionNetCashflowByMonth={projectionNetCashflowByMonth}
             projectionNetCashflowMode={projectionNetCashflowMode}
             netWorthByMonth={netWorthByMonth}
+            netWorthBreakdownByMonth={netWorthBreakdownByMonth}
             currency={selectedScenario.baseCurrency}
             memberLookup={memberLookup}
           />

@@ -27,6 +27,8 @@ import type { TimelineEvent } from "../features/timeline/schema";
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
 import type { CashflowItem } from "../domain/ledger/types";
 import { isValidMonthStr } from "../utils/month";
+import { compileSmartInvest } from "../domain/smartInvest/compileSmartInvest";
+import { compileSellLifecycle } from "../domain/positions/compileSellLifecycle";
 
 type AdapterOptions = {
   baseMonth?: string;
@@ -208,6 +210,9 @@ export const mapScenarioToEngineInput = (
         value: home.rental.rentEndMonth,
       });
     }
+    if (home.sellMonth && !isValidMonth(home.sellMonth)) {
+      issues.push({ label: "home.sellMonth", value: home.sellMonth });
+    }
     if (issues.length > 0) {
       issues.forEach((issue) =>
         warnInvalidMonth(issue.label, issue.value, { homeId })
@@ -331,7 +336,36 @@ export const mapScenarioToEngineInput = (
     horizonMonths,
     warnings
   );
-  const events = buildEngineEventsFromCashflows(combinedLedger, warnings);
+  const smartInvestPolicy = scenario.assumptions.smartInvest;
+  const smartInvestInvestments =
+    smartInvestPolicy?.enabled
+      ? compileSmartInvest({
+          baseMonth,
+          horizonMonths,
+          scenario,
+          policy: smartInvestPolicy,
+          baselineCashflows: combinedLedger.map((entry) => ({
+            month: entry.month,
+            amount: entry.amount,
+          })),
+        })
+      : [];
+  const sellCashflows = compileSellLifecycle(scenario)
+    .filter((entry) => isValidMonth(entry.month))
+    .filter((entry) => {
+      const offset = monthIndex(baseMonth, entry.month);
+      return offset >= 0 && offset < horizonMonths;
+    })
+    .map((entry) => ({
+      month: entry.month,
+      amount: entry.amount,
+      source: "position" as const,
+      sourceId: entry.sourceId,
+      label: entry.label,
+      category: "position_sell",
+    }));
+  const combinedLedgerWithSell = [...combinedLedger, ...sellCashflows];
+  const events = buildEngineEventsFromCashflows(combinedLedgerWithSell, warnings);
   const mappedHomes =
     validatedHomes.length > 0
       ? validatedHomes.map((home) => {
@@ -353,6 +387,7 @@ export const mapScenarioToEngineInput = (
               usage,
               mode,
               purchasePrice: home.purchasePrice ?? home.existing.marketValue,
+              sellMonth: home.sellMonth,
               annualAppreciation: home.annualAppreciationPct / 100,
               feesOneTime: home.feesOneTime,
               holdingCostMonthly: home.holdingCostMonthly ?? 0,
@@ -402,6 +437,7 @@ export const mapScenarioToEngineInput = (
             purchasePrice,
             downPayment,
             purchaseMonth: home.purchaseMonth ?? baseMonth,
+            sellMonth: home.sellMonth,
             annualAppreciation: home.annualAppreciationPct / 100,
             feesOneTime: home.feesOneTime,
             holdingCostMonthly: home.holdingCostMonthly ?? 0,
@@ -497,6 +533,12 @@ export const mapScenarioToEngineInput = (
         if (!isValidMonthOrWarn("car.purchaseMonth", car.purchaseMonth, { id: car.id })) {
           return [];
         }
+        if (
+          car.sellMonth &&
+          !isValidMonthOrWarn("car.sellMonth", car.sellMonth, { id: car.id })
+        ) {
+          return [];
+        }
         const loan = car.loan
           ? {
               principal: car.loan.principal,
@@ -516,6 +558,7 @@ export const mapScenarioToEngineInput = (
             holdingCostMonthly: car.holdingCostMonthly,
             holdingCostAnnualGrowth: (car.holdingCostAnnualGrowthPct ?? 0) / 100,
             loan,
+            sellMonth: car.sellMonth,
           },
         ];
       })
@@ -546,7 +589,10 @@ export const mapScenarioToEngineInput = (
     mappedCashBuckets
       ? {
           homes: mappedHomes,
-          investments: mappedInvestments,
+          investments:
+            mappedInvestments || smartInvestInvestments.length > 0
+              ? [...(mappedInvestments ?? []), ...smartInvestInvestments]
+              : undefined,
           insurances: mappedInsurances,
           loans: mappedLoans,
           cars: mappedCars,

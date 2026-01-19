@@ -63,8 +63,10 @@ import type {
   InvestmentPositionDraft,
   LoanPositionDraft,
   Scenario,
+  ScenarioAssumptions,
   ScenarioMember,
 } from "../../src/store/scenarioStore";
+import type { ProjectionResult } from "@north-star/engine";
 import {
   buildCarCashflowBreakdown,
   buildHomeCashflowBreakdown,
@@ -80,6 +82,7 @@ import {
 } from "../../src/domain/positions/calculations";
 import { buildInvestmentValueTable } from "../../src/domain/positions/investmentValueTable";
 import { buildInsuranceValueTable } from "../../src/domain/positions/insuranceValueTable";
+import { buildSmartInvestProjectionBreakdown } from "../../src/domain/smartInvest/projection";
 import { Link } from "../../src/i18n/navigation";
 import type { DuplicateCluster } from "../../src/domain/events/mergeDuplicates";
 
@@ -102,8 +105,9 @@ interface TimelineMobileProps {
   members: ScenarioMember[];
   baseCurrency: string;
   baseMonth?: string | null;
-  assumptions: { baseMonth: string | null; horizonMonths: number };
+  assumptions: ScenarioAssumptions;
   scenarioId: string;
+  projection?: ProjectionResult | null;
   onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onUpdateDefinition: (id: string, patch: Partial<EventDefinition>) => void;
   onUpdateEventRef: (refId: string, patch: Partial<ScenarioEventRef>) => void;
@@ -154,6 +158,7 @@ export default function TimelineMobile({
   baseMonth,
   assumptions,
   scenarioId,
+  projection,
   onAddDefinition,
   onUpdateDefinition,
   onUpdateEventRef,
@@ -184,6 +189,49 @@ export default function TimelineMobile({
   const loans = useTranslations("loans");
   const locale = useLocale();
   const horizonMonths = assumptions.horizonMonths > 0 ? assumptions.horizonMonths : 360;
+  const smartInvestPolicy = assumptions.smartInvest;
+  const smartInvestBreakdown = useMemo(
+    () => (projection ? buildSmartInvestProjectionBreakdown(projection) : null),
+    [projection]
+  );
+  const smartInvestSummaryItems = useMemo(() => {
+    if (!smartInvestPolicy) {
+      return [];
+    }
+    const reserveValue =
+      smartInvestPolicy.reserve.mode === "fixed"
+        ? formatCurrency(
+            smartInvestPolicy.reserve.amount ?? 0,
+            baseCurrency,
+            locale
+          )
+        : t("smartInvestReserveMonths", {
+            months: smartInvestPolicy.reserve.months ?? 0,
+          });
+    const contributionValue =
+      smartInvestPolicy.contribution.mode === "percentOfIncome"
+        ? t("smartInvestContributionIncome", {
+            pct: smartInvestPolicy.contribution.pct ?? 0,
+          })
+        : t("smartInvestContributionSurplus", {
+            pct: smartInvestPolicy.contribution.pct ?? 0,
+          });
+    const allocationValue = smartInvestPolicy.allocation
+      .map((allocation) =>
+        t("smartInvestAllocationItem", {
+          name: allocation.name,
+          pct: allocation.targetPct,
+          returnPct: allocation.assumedAnnualReturnPct,
+        })
+      )
+      .join(" · ");
+
+    return [
+      { label: t("smartInvestSummaryReserve"), value: reserveValue },
+      { label: t("smartInvestSummaryContribution"), value: contributionValue },
+      { label: t("smartInvestSummaryAllocation"), value: allocationValue },
+    ];
+  }, [baseCurrency, locale, smartInvestPolicy, t]);
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
@@ -1052,6 +1100,64 @@ export default function TimelineMobile({
                 ))
               )}
             </Stack>
+
+            {smartInvestPolicy?.enabled && (
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600}>{t("smartInvestTitle")}</Text>
+                </Group>
+                <Card withBorder padding="md" radius="md">
+                  <Stack gap="sm">
+                    <div>
+                      <Text fw={600}>{t("smartInvestTitle")}</Text>
+                      <Text size="sm" c="dimmed">
+                        {t("smartInvestSubtitle")}
+                      </Text>
+                      <PositionDetailList items={smartInvestSummaryItems} />
+                    </div>
+                    <Group gap="sm">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => {
+                          if (!smartInvestBreakdown) {
+                            return;
+                          }
+                          setCashflowModal({
+                            title: t("positionCashflowTitle", {
+                              label: t("smartInvestTitle"),
+                            }),
+                            entries: smartInvestBreakdown.cashflowEntries,
+                            series: smartInvestBreakdown.cashflowSeries,
+                          });
+                        }}
+                        disabled={!smartInvestBreakdown}
+                      >
+                        {t("positionViewCashflow")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => {
+                          if (!smartInvestBreakdown) {
+                            return;
+                          }
+                          setCalculatorModal({
+                            title: t("positionCalculatorTitle", {
+                              label: t("smartInvestTitle"),
+                            }),
+                            assetValueRows: smartInvestBreakdown.valueRows,
+                          });
+                        }}
+                        disabled={!smartInvestBreakdown}
+                      >
+                        {t("smartInvestViewValue")}
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Card>
+              </Stack>
+            )}
 
             <Stack gap="sm">
               <Group justify="space-between" align="center">

@@ -283,6 +283,18 @@ export const buildInvestmentCashflowBreakdown = (params: {
     );
   }
 
+  if (startMonth && (investment.monthlyWithdrawal ?? 0) !== 0) {
+    entries.push(
+      ...buildMonthlyEntries({
+        startMonth,
+        months: horizonMonths,
+        amount: investment.monthlyWithdrawal ?? 0,
+        label: "withdrawal",
+        sourceId: "investment:withdrawal",
+      })
+    );
+  }
+
   const filtered = clampEntriesToHorizon(entries, baseMonth, horizonMonths);
   return { entries: filtered, series: buildSeries(filtered) };
 };

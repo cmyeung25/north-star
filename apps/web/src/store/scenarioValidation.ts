@@ -96,6 +96,12 @@ export const HomePositionSchema = z
       .min(0, "validation.holdingCostGrowthMin")
       .max(100, "validation.holdingCostGrowthMax")
       .optional(),
+    sellMonth: z.string().regex(monthPattern, "validation.useYearMonth").optional(),
+    sellPriceOverride: z
+      .number()
+      .min(0, "validation.sellPriceMin")
+      .optional(),
+    sellFeesOneTime: z.number().min(0, "validation.sellFeesMin").optional(),
     existing: existingSchema.optional(),
     rental: rentalSchema,
   })
@@ -197,6 +203,12 @@ export const CarPositionSchema = z
       .number({ required_error: "validation.holdingCostGrowthRequired" })
       .min(0, "validation.holdingCostGrowthMin")
       .max(100, "validation.holdingCostGrowthMax"),
+    sellMonth: z.string().regex(monthPattern, "validation.useYearMonth").optional(),
+    sellPriceOverride: z
+      .number()
+      .min(0, "validation.sellPriceMin")
+      .optional(),
+    sellFeesOneTime: z.number().min(0, "validation.sellFeesMin").optional(),
     loan: z
       .object({
         principal: z

@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import TimelineDesktop from "../../../components/timeline/TimelineDesktop";
 import TimelineMobile from "../../../components/timeline/TimelineMobile";
 import { buildScenarioEventViews } from "../../../src/domain/events/utils";
+import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -22,6 +23,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const budgetRules = useScenarioStore((state) => state.budgetRules);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const addEventDefinition = useScenarioStore((state) => state.addEventDefinition);
   const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
@@ -101,7 +103,11 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   );
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
-  const assumptions = scenario?.assumptions ?? { baseMonth: null, horizonMonths: 0 };
+  const assumptions = scenario?.assumptions ?? { baseMonth: null, horizonMonths: 0, initialCash: 0 };
+  const { projection } = useProjectionWithLedger(scenario, eventLibrary, {
+    members,
+    budgetRules,
+  });
 
   if (!scenario) {
     return null;
@@ -123,6 +129,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         baseMonth={baseMonth}
         assumptions={assumptions}
         scenarioId={scenario.id}
+        projection={projection}
         onAddDefinition={(definition, scenarioIds) => {
           if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
             addEventDefinition(definition);
@@ -184,6 +191,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       baseMonth={baseMonth}
       assumptions={assumptions}
       scenarioId={scenario.id}
+      projection={projection}
       onAddDefinition={(definition, scenarioIds) => {
         if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
           addEventDefinition(definition);

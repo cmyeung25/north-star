@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
 import type { ApplyScope } from "../domain/applyScope";
 import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
+import type { SmartInvestPolicy } from "../domain/smartInvest/types";
 import {
   buildEventRuleOverrides,
   type DuplicateCluster,
@@ -40,6 +41,7 @@ export type ScenarioAssumptions = {
   rentMonthly?: number;
   rentAnnualGrowthPct?: number;
   investmentReturnAssumptions?: Partial<Record<InvestmentAssetClass, number>>;
+  smartInvest?: SmartInvestPolicy;
 };
 
 export type AppSettings = {
@@ -147,6 +149,9 @@ export type HomePosition = {
   feesOneTime?: number;
   holdingCostMonthly?: number;
   holdingCostAnnualGrowthPct?: number;
+  sellMonth?: string;
+  sellPriceOverride?: number;
+  sellFeesOneTime?: number;
   existing?: ExistingHomeDetails;
   rental?: RentalDetails;
 };
@@ -205,6 +210,9 @@ export type CarPosition = {
   holdingCostMonthly: number;
   holdingCostAnnualGrowthPct: number;
   loan?: CarLoanDetails;
+  sellMonth?: string;
+  sellPriceOverride?: number;
+  sellFeesOneTime?: number;
 };
 
 export type CashBucketPosition = {
