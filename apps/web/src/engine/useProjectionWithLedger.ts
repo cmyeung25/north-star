@@ -13,13 +13,11 @@ import {
   summarizeMonth,
   type LedgerMonthSummary,
 } from "../domain/ledger/ledgerUtils";
+import { compileSellLifecycle } from "../domain/positions/compileSellLifecycle";
 import {
-  buildCarCashflowBreakdown,
-  buildHomeCashflowBreakdown,
-  buildInsuranceCashflowBreakdown,
-  buildInvestmentCashflowBreakdown,
-  buildLoanCashflowBreakdown,
-} from "../domain/positions/cashflowBreakdown";
+  buildNetWorthBreakdownByMonth,
+  type NetWorthBreakdown,
+} from "../domain/netWorth/buildNetWorthBreakdown";
 
 type ProjectionWithLedger = {
   projection: ProjectionResult | null;
@@ -30,6 +28,7 @@ type ProjectionWithLedger = {
   positionCashflowsByMonth: Record<string, CashflowItem[]>;
   projectionNetCashflowByMonth: Record<string, number>;
   projectionNetCashflowMode: "netCashflow" | "cashDelta";
+  netWorthBreakdownByMonth: Record<string, NetWorthBreakdown>;
 };
 
 const emptyProjectionWithLedger: ProjectionWithLedger = {
@@ -41,6 +40,7 @@ const emptyProjectionWithLedger: ProjectionWithLedger = {
   positionCashflowsByMonth: {},
   projectionNetCashflowByMonth: {},
   projectionNetCashflowMode: "netCashflow",
+  netWorthBreakdownByMonth: {},
 };
 
 const filterLedgerToHorizon = (
@@ -112,54 +112,58 @@ const buildProjectionNetCashflowByMonth = (
   };
 };
 
+const normalizePositionSourceId = (key: string) => {
+  const sanitized = key
+    .replace(/:down_payment$/, ":downPayment")
+    .replace(/:fees_one_time$/, ":feesOneTime")
+    .replace(/:holding_cost$/, ":holdingCost")
+    .replace(/:mortgage_interest$/, ":mortgageInterest")
+    .replace(/:mortgage_principal$/, ":mortgagePrincipal")
+    .replace(/:rental_income$/, ":rentalIncome")
+    .replace(/:loan_interest$/, ":loanInterest")
+    .replace(/:loan_principal$/, ":loanPrincipal")
+    .replace(/:interest$/, ":interest")
+    .replace(/:principal$/, ":principal")
+    .replace(/:premium$/, ":premium")
+    .replace(/:contribution$/, ":contribution")
+    .replace(/:withdrawal$/, ":withdrawal");
+  const parts = sanitized.split(":");
+  if (parts.length >= 3) {
+    return `${parts[0]}:${parts[parts.length - 1]}`;
+  }
+  return sanitized;
+};
+
+const isPositionCashflowKey = (key: string) =>
+  /^(home|car|loan|insurance|investment):/.test(key);
+
 const buildPositionCashflowsByMonth = (
-  scenario: Scenario,
-  baseMonth: string,
-  horizonMonths: number
+  projection: ProjectionResult,
+  scenario: Scenario
 ) => {
   const entries: Array<{ month: string; amount: number; sourceId: string }> = [];
-  const homes = scenario.positions?.homes ?? (scenario.positions?.home ? [scenario.positions.home] : []);
-  homes.forEach((home) => {
-    const breakdown = buildHomeCashflowBreakdown({ home, baseMonth, horizonMonths });
-    breakdown.entries.forEach((entry) =>
-      entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId })
-    );
-  });
+  const breakdown = projection.breakdown?.cashflow.byKey ?? {};
+  const months = projection.months;
 
-  scenario.positions?.cars?.forEach((car) => {
-    const breakdown = buildCarCashflowBreakdown({ car, baseMonth, horizonMonths });
-    breakdown.entries.forEach((entry) =>
-      entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId })
-    );
-  });
-
-  scenario.positions?.investments?.forEach((investment) => {
-    const breakdown = buildInvestmentCashflowBreakdown({
-      investment,
-      baseMonth,
-      horizonMonths,
+  Object.entries(breakdown).forEach(([key, series]) => {
+    if (!isPositionCashflowKey(key)) {
+      return;
+    }
+    const sourceId = normalizePositionSourceId(key);
+    series.forEach((amount, index) => {
+      if (!amount) {
+        return;
+      }
+      const month = months[index];
+      if (!month) {
+        return;
+      }
+      entries.push({ month, amount, sourceId });
     });
-    breakdown.entries.forEach((entry) =>
-      entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId })
-    );
   });
 
-  scenario.positions?.loans?.forEach((loan) => {
-    const breakdown = buildLoanCashflowBreakdown({ loan, baseMonth, horizonMonths });
-    breakdown.entries.forEach((entry) =>
-      entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId })
-    );
-  });
-
-  scenario.positions?.insurances?.forEach((insurance) => {
-    const breakdown = buildInsuranceCashflowBreakdown({
-      insurance,
-      baseMonth,
-      horizonMonths,
-    });
-    breakdown.entries.forEach((entry) =>
-      entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId })
-    );
+  compileSellLifecycle(scenario).forEach((entry) => {
+    entries.push({ month: entry.month, amount: entry.amount, sourceId: entry.sourceId });
   });
 
   return entries.reduce<Record<string, CashflowItem[]>>((acc, entry) => {
@@ -170,7 +174,7 @@ const buildPositionCashflowsByMonth = (
       month: entry.month,
       amount: entry.amount,
       source: "position",
-      sourceId: entry.sourceId,
+      sourceId: normalizePositionSourceId(entry.sourceId),
     });
     return acc;
   }, {});
@@ -226,10 +230,10 @@ export const useProjectionWithLedger = (
     );
 
     const positionCashflowsByMonth = buildPositionCashflowsByMonth(
-      scenarioForLedger,
-      input.baseMonth,
-      input.horizonMonths
+      projection,
+      scenarioForLedger
     );
+    const netWorthBreakdownByMonth = buildNetWorthBreakdownByMonth(projection);
 
     return {
       projection,
@@ -240,5 +244,6 @@ export const useProjectionWithLedger = (
       positionCashflowsByMonth,
       projectionNetCashflowByMonth: netCashflowLookup.byMonth,
       projectionNetCashflowMode: netCashflowLookup.mode,
+      netWorthBreakdownByMonth,
     };
   }, [eventLibrary, options.budgetRules, options.members, scenario]);

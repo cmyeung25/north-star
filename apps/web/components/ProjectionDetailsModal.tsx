@@ -11,12 +11,14 @@ import {
   SimpleGrid,
   Stack,
   Table,
+  Tabs,
   Text,
 } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../lib/i18n";
 import type { CashflowItem } from "../src/domain/ledger/types";
 import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
+import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
 
 type ProjectionDetailsModalProps = {
   opened: boolean;
@@ -30,6 +32,7 @@ type ProjectionDetailsModalProps = {
   projectionNetCashflowByMonth?: Record<string, number>;
   projectionNetCashflowMode?: "netCashflow" | "cashDelta";
   netWorthByMonth?: Record<string, number>;
+  netWorthBreakdownByMonth?: Record<string, NetWorthBreakdown>;
   currency: string;
   memberLookup?: Record<string, string>;
 };
@@ -112,6 +115,9 @@ export default function ProjectionDetailsModal({
   const projectionNetCashflow = resolvedMonth
     ? projectionNetCashflowByMonth?.[resolvedMonth]
     : undefined;
+  const netWorthBreakdown = resolvedMonth
+    ? netWorthBreakdownByMonth?.[resolvedMonth]
+    : undefined;
   const positionCashflow = positionItems.reduce(
     (total, item) => total + item.amount,
     0
@@ -157,6 +163,60 @@ export default function ProjectionDetailsModal({
   const defaultAccordionValues = sections
     .filter((section) => !section.hidden && section.items.length > 0)
     .map((section) => section.key);
+  const netWorthItems = netWorthBreakdown?.items ?? [];
+  const assetItems = netWorthItems.filter((item) => item.kind === "asset");
+  const liabilityItems = netWorthItems.filter((item) => item.kind === "liability");
+  const formatPct = (value: number) => `${value.toFixed(1)}%`;
+  const labeledAssetItems = (() => {
+    const counters = { home: 0, car: 0, investment: 0, insurance: 0 };
+    return assetItems.map((item) => {
+      if (item.key === "cash") {
+        return { ...item, label: t("breakdownLabels.cash") };
+      }
+      if (item.key.startsWith("home:")) {
+        counters.home += 1;
+        return {
+          ...item,
+          label: t("breakdownLabels.home", { index: counters.home }),
+        };
+      }
+      if (item.key.startsWith("car:")) {
+        counters.car += 1;
+        return {
+          ...item,
+          label: t("breakdownLabels.car", { index: counters.car }),
+        };
+      }
+      if (item.key.startsWith("investment:")) {
+        counters.investment += 1;
+        return {
+          ...item,
+          label: t("breakdownLabels.investment", { index: counters.investment }),
+        };
+      }
+      if (item.key.startsWith("insurance:")) {
+        counters.insurance += 1;
+        return {
+          ...item,
+          label: t("breakdownLabels.insurance", { index: counters.insurance }),
+        };
+      }
+      return { ...item, label: item.key };
+    });
+  })();
+
+  const labeledLiabilityItems = liabilityItems.map((item) => {
+    if (item.key.startsWith("home:") && item.key.includes(":mortgage")) {
+      return { ...item, label: t("breakdownLabels.mortgage") };
+    }
+    if (item.key.startsWith("car:") && item.key.includes(":loan")) {
+      return { ...item, label: t("breakdownLabels.autoLoan") };
+    }
+    if (item.key.startsWith("loan:")) {
+      return { ...item, label: t("breakdownLabels.loan") };
+    }
+    return { ...item, label: item.key };
+  });
 
   return (
     <Modal
@@ -216,129 +276,269 @@ export default function ProjectionDetailsModal({
             />
           </Group>
 
-          <Stack gap="xs">
-            <SimpleGrid cols={{ base: 1, sm: 5 }}>
-              <Stack gap={2}>
-                <Text size="xs" c="dimmed">
-                  {t("breakdownTotalNet")}
-                </Text>
-                <Text fw={600}>{formatValue(netCashflow)}</Text>
-              </Stack>
-              <Stack gap={2}>
-                <Text size="xs" c="dimmed">
-                  {t("breakdownBudgetTotal")}
-                </Text>
-                <Text fw={600}>{formatValue(monthSummary.bySource.budget)}</Text>
-              </Stack>
-              <Stack gap={2}>
-                <Text size="xs" c="dimmed">
-                  {t("breakdownEventTotal")}
-                </Text>
-                <Text fw={600}>{formatValue(monthSummary.bySource.event)}</Text>
-              </Stack>
-              <Stack gap={2}>
-                <Text size="xs" c="dimmed">
-                  {t("breakdownPositionTotal")}
-                </Text>
-                <Text fw={600}>{formatValue(positionCashflow)}</Text>
-              </Stack>
-              <Stack gap={2}>
-                <Text size="xs" c="dimmed">
-                  {t("breakdownNetWorth")}
-                </Text>
-                <Text fw={600}>
-                  {formatValue(netWorthByMonth?.[resolvedMonth] ?? 0)}
-                </Text>
-              </Stack>
-            </SimpleGrid>
-            {projectionNetCashflow !== undefined && (
-              <Text size="xs" c="dimmed">
-                {projectionNetCashflowMode === "cashDelta"
-                  ? t("breakdownProjectionNetChange")
-                  : t("breakdownProjectionNetFlow")}
-                {" "}
-                {formatValue(projectionNetCashflow)}
-              </Text>
-            )}
-            {doubleCountingWarning && (
-              <Badge color="yellow" variant="light">
-                {t("breakdownDoubleCounting")}
-              </Badge>
-            )}
-          </Stack>
+          <Tabs defaultValue="cashflow">
+            <Tabs.List>
+              <Tabs.Tab value="cashflow">{t("breakdownTabCashflow")}</Tabs.Tab>
+              <Tabs.Tab value="netWorth">{t("breakdownTabNetWorth")}</Tabs.Tab>
+            </Tabs.List>
 
-          {!hasItems ? (
-            <Text size="sm" c="dimmed">
-              {t("breakdownEmptyMonth")}
-            </Text>
-          ) : (
-            <ScrollArea h={360}>
-              <Accordion
-                variant="separated"
-                chevronPosition="right"
-                multiple
-                defaultValue={defaultAccordionValues}
-              >
-                {sections
-                  .filter((section) => !section.hidden)
-                  .map((section) => (
-                    <Accordion.Item key={section.key} value={section.key}>
-                      <Accordion.Control>
-                        <Group justify="space-between" wrap="nowrap">
-                          <Text fw={600}>{section.label}</Text>
-                          <Text size="sm">{formatValue(section.total)}</Text>
-                        </Group>
-                      </Accordion.Control>
-                      <Accordion.Panel>
-                        {section.items.length === 0 ? (
-                          <Text size="sm" c="dimmed">
-                            {t("breakdownNoItems")}
-                          </Text>
-                        ) : (
-                          <Table striped withTableBorder>
-                            <Table.Thead>
-                              <Table.Tr>
-                                <Table.Th>{t("breakdownItem")}</Table.Th>
-                                <Table.Th>{t("breakdownAmount")}</Table.Th>
-                              </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>
-                              {section.items.map((item) => {
-                                const baseLabel =
-                                  item.source === "position"
-                                    ? t(`breakdownPositionLabels.${item.sourceId}`)
-                                    : item.label ?? item.category ?? item.sourceId;
-                                const memberName = item.memberId
-                                  ? memberLookup?.[item.memberId]
-                                  : null;
-                                const label = memberName
-                                  ? `${baseLabel} (${memberName})`
-                                  : baseLabel;
-                                return (
-                                  <Table.Tr
-                                    key={`${section.key}-${item.sourceId}-${item.month}-${item.amount}`}
-                                  >
-                                    <Table.Td>{label}</Table.Td>
-                                    <Table.Td>
-                                      <Text
-                                        c={item.amount < 0 ? "red" : "green"}
-                                        fw={500}
-                                      >
-                                        {formatValue(item.amount)}
-                                      </Text>
-                                    </Table.Td>
+            <Tabs.Panel value="cashflow" pt="md">
+              <Stack gap="xs">
+                <SimpleGrid cols={{ base: 1, sm: 5 }}>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("breakdownTotalNet")}
+                    </Text>
+                    <Text fw={600}>{formatValue(netCashflow)}</Text>
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("breakdownBudgetTotal")}
+                    </Text>
+                    <Text fw={600}>{formatValue(monthSummary.bySource.budget)}</Text>
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("breakdownEventTotal")}
+                    </Text>
+                    <Text fw={600}>{formatValue(monthSummary.bySource.event)}</Text>
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("breakdownPositionTotal")}
+                    </Text>
+                    <Text fw={600}>{formatValue(positionCashflow)}</Text>
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("breakdownNetWorth")}
+                    </Text>
+                    <Text fw={600}>
+                      {formatValue(netWorthByMonth?.[resolvedMonth] ?? 0)}
+                    </Text>
+                  </Stack>
+                </SimpleGrid>
+                {projectionNetCashflow !== undefined && (
+                  <Text size="xs" c="dimmed">
+                    {projectionNetCashflowMode === "cashDelta"
+                      ? t("breakdownProjectionNetChange")
+                      : t("breakdownProjectionNetFlow")}
+                    {" "}
+                    {formatValue(projectionNetCashflow)}
+                  </Text>
+                )}
+                {doubleCountingWarning && (
+                  <Badge color="yellow" variant="light">
+                    {t("breakdownDoubleCounting")}
+                  </Badge>
+                )}
+              </Stack>
+
+              {!hasItems ? (
+                <Text size="sm" c="dimmed">
+                  {t("breakdownEmptyMonth")}
+                </Text>
+              ) : (
+                <ScrollArea h={360}>
+                  <Accordion
+                    variant="separated"
+                    chevronPosition="right"
+                    multiple
+                    defaultValue={defaultAccordionValues}
+                  >
+                    {sections
+                      .filter((section) => !section.hidden)
+                      .map((section) => (
+                        <Accordion.Item key={section.key} value={section.key}>
+                          <Accordion.Control>
+                            <Group justify="space-between" wrap="nowrap">
+                              <Text fw={600}>{section.label}</Text>
+                              <Text size="sm">{formatValue(section.total)}</Text>
+                            </Group>
+                          </Accordion.Control>
+                          <Accordion.Panel>
+                            {section.items.length === 0 ? (
+                              <Text size="sm" c="dimmed">
+                                {t("breakdownNoItems")}
+                              </Text>
+                            ) : (
+                              <Table striped withTableBorder>
+                                <Table.Thead>
+                                  <Table.Tr>
+                                    <Table.Th>{t("breakdownItem")}</Table.Th>
+                                    <Table.Th>{t("breakdownAmount")}</Table.Th>
                                   </Table.Tr>
-                                );
-                              })}
-                            </Table.Tbody>
-                          </Table>
-                        )}
-                      </Accordion.Panel>
-                    </Accordion.Item>
-                  ))}
-              </Accordion>
-            </ScrollArea>
-          )}
+                                </Table.Thead>
+                                <Table.Tbody>
+                                  {section.items.map((item) => {
+                                    const baseLabel =
+                                      item.source === "position"
+                                        ? t(
+                                            `breakdownPositionLabels.${item.sourceId}`
+                                          )
+                                        : item.label ?? item.category ?? item.sourceId;
+                                    const memberName = item.memberId
+                                      ? memberLookup?.[item.memberId]
+                                      : null;
+                                    const label = memberName
+                                      ? `${baseLabel} (${memberName})`
+                                      : baseLabel;
+                                    return (
+                                      <Table.Tr
+                                        key={`${section.key}-${item.sourceId}-${item.month}-${item.amount}`}
+                                      >
+                                        <Table.Td>{label}</Table.Td>
+                                        <Table.Td>
+                                          <Text
+                                            c={item.amount < 0 ? "red" : "green"}
+                                            fw={500}
+                                          >
+                                            {formatValue(item.amount)}
+                                          </Text>
+                                        </Table.Td>
+                                      </Table.Tr>
+                                    );
+                                  })}
+                                </Table.Tbody>
+                              </Table>
+                            )}
+                          </Accordion.Panel>
+                        </Accordion.Item>
+                      ))}
+                  </Accordion>
+                </ScrollArea>
+              )}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="netWorth" pt="md">
+              {!netWorthBreakdown ? (
+                <Text size="sm" c="dimmed">
+                  {t("breakdownNetWorthEmpty")}
+                </Text>
+              ) : (
+                <Stack gap="md">
+                  <SimpleGrid cols={{ base: 1, sm: 4 }}>
+                    <Stack gap={2}>
+                      <Text size="xs" c="dimmed">
+                        {t("breakdownNetWorthCash")}
+                      </Text>
+                      <Text fw={600}>{formatValue(netWorthBreakdown.cash)}</Text>
+                    </Stack>
+                    <Stack gap={2}>
+                      <Text size="xs" c="dimmed">
+                        {t("breakdownNetWorthAssets")}
+                      </Text>
+                      <Text fw={600}>
+                        {formatValue(netWorthBreakdown.assetsTotal)}
+                      </Text>
+                    </Stack>
+                    <Stack gap={2}>
+                      <Text size="xs" c="dimmed">
+                        {t("breakdownNetWorthLiabilities")}
+                      </Text>
+                      <Text fw={600}>
+                        {formatValue(netWorthBreakdown.liabilitiesTotal)}
+                      </Text>
+                    </Stack>
+                    <Stack gap={2}>
+                      <Text size="xs" c="dimmed">
+                        {t("breakdownNetWorthNet")}
+                      </Text>
+                      <Text fw={600}>{formatValue(netWorthBreakdown.netWorth)}</Text>
+                    </Stack>
+                  </SimpleGrid>
+
+                  <Stack gap="xs">
+                    <Text fw={600}>{t("breakdownNetWorthAllocation")}</Text>
+                    <Table striped withTableBorder>
+                      <Table.Tbody>
+                        <Table.Tr>
+                          <Table.Td>{t("breakdownNetWorthCash")}</Table.Td>
+                          <Table.Td>{formatPct(netWorthBreakdown.allocation.cashPct)}</Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td>{t("breakdownNetWorthHousing")}</Table.Td>
+                          <Table.Td>
+                            {formatPct(netWorthBreakdown.allocation.housingPct)}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td>{t("breakdownNetWorthInvestments")}</Table.Td>
+                          <Table.Td>
+                            {formatPct(netWorthBreakdown.allocation.investmentsPct)}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td>{t("breakdownNetWorthCars")}</Table.Td>
+                          <Table.Td>
+                            {formatPct(netWorthBreakdown.allocation.carsPct)}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td>{t("breakdownNetWorthInsurance")}</Table.Td>
+                          <Table.Td>
+                            {formatPct(netWorthBreakdown.allocation.insurancePct)}
+                          </Table.Td>
+                        </Table.Tr>
+                      </Table.Tbody>
+                    </Table>
+                  </Stack>
+
+                  <Stack gap="xs">
+                    <Text fw={600}>{t("breakdownNetWorthAssets")}</Text>
+                    {labeledAssetItems.length === 0 ? (
+                      <Text size="sm" c="dimmed">
+                        {t("breakdownNoItems")}
+                      </Text>
+                    ) : (
+                      <Table striped withTableBorder>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>{t("breakdownItem")}</Table.Th>
+                            <Table.Th>{t("breakdownAmount")}</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {labeledAssetItems.map((item) => (
+                            <Table.Tr key={`${item.key}-${item.amount}`}>
+                              <Table.Td>{item.label}</Table.Td>
+                              <Table.Td>{formatValue(item.amount)}</Table.Td>
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    )}
+                  </Stack>
+
+                  <Stack gap="xs">
+                    <Text fw={600}>{t("breakdownNetWorthLiabilities")}</Text>
+                    {labeledLiabilityItems.length === 0 ? (
+                      <Text size="sm" c="dimmed">
+                        {t("breakdownNoItems")}
+                      </Text>
+                    ) : (
+                      <Table striped withTableBorder>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>{t("breakdownItem")}</Table.Th>
+                            <Table.Th>{t("breakdownAmount")}</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {labeledLiabilityItems.map((item) => (
+                            <Table.Tr key={`${item.key}-${item.amount}`}>
+                              <Table.Td>{item.label}</Table.Td>
+                              <Table.Td>{formatValue(item.amount)}</Table.Td>
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    )}
+                  </Stack>
+                </Stack>
+              )}
+            </Tabs.Panel>
+          </Tabs>
         </Stack>
       )}
     </Modal>
