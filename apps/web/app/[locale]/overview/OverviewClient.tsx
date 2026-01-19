@@ -66,11 +66,11 @@ type OverviewClientProps = {
   scenarioId?: string;
 };
 
-type OverviewKpis = {
-  lowestMonthlyBalance: number;
-  runwayMonths: number;
-  riskLevel: RiskLevel;
-};
+// type OverviewKpis = {
+//   lowestMonthlyBalance: number;
+//   runwayMonths: number;
+//   riskLevel: RiskLevel;
+// };
 
 const riskBadgeColor: Record<RiskLevel, string> = {
   Low: "green",
