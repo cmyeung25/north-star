@@ -103,7 +103,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   );
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
-  const assumptions = scenario?.assumptions ?? { baseMonth: null, horizonMonths: 0 };
+  const assumptions = scenario?.assumptions ?? { baseMonth: null, horizonMonths: 0, initialCash: 0 };
   const { projection } = useProjectionWithLedger(scenario, eventLibrary, {
     members,
     budgetRules,

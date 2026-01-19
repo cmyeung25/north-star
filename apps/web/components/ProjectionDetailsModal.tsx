@@ -97,6 +97,7 @@ export default function ProjectionDetailsModal({
   projectionNetCashflowByMonth,
   projectionNetCashflowMode = "netCashflow",
   netWorthByMonth,
+  netWorthBreakdownByMonth,
   currency,
   memberLookup,
 }: ProjectionDetailsModalProps) {
