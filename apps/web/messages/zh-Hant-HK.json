@@ -364,6 +364,13 @@
     "smartInvestContributionSurplus": "盈餘的 {pct}%",
     "smartInvestAllocationItem": "{name} · {pct}% · 回報 {returnPct}%",
     "smartInvestViewValue": "檢視資產總值",
+    "smartInvestDisabledHint": "智能投資已停用。",
+    "copyToOtherScenarios": "複製到其他情境…",
+    "copyPositionTitle": "複製 {label} 到其他情境",
+    "copyPositionHint": "選擇要接收副本的情境。",
+    "copyPositionConfirm": "複製",
+    "copyPositionCancel": "取消",
+    "copyPositionEmpty": "沒有其他情境可供複製。",
     "positionCashflowEmpty": "尚未有現金流項目。",
     "positionCashflowMonth": "月份",
     "positionCashflowItem": "項目",
@@ -487,8 +494,7 @@
     "timelineEventPlan": "{label} 計劃",
     "positionSellIn": "於 {month} 出售",
     "positionSold": "已出售",
-    "smartInvestNotConfigured": "未設定智能投資 — 請到設定完成配置。",
-    "smartInvestSetupLink": "前往設定"
+    "smartInvestNotConfigured": "未設定智能投資 — 請於下方編輯。"
   },
   "homes": {
     "title": "物業詳情",
@@ -672,7 +678,8 @@
     "smartInvestDefaultAllocation": "核心",
     "smartInvestWithdrawalTitle": "提取策略",
     "smartInvestWithdrawalEnabled": "啟用賣出以維持儲備",
-    "smartInvestWithdrawalHint": "MVP：按比例賣出以維持儲備目標。"
+    "smartInvestWithdrawalHint": "MVP：按比例賣出以維持儲備目標。",
+    "smartInvestSummaryDisabled": "智能投資目前已停用。"
   },
   "members": {
     "title": "家庭成員",

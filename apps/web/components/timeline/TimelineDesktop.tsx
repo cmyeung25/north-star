@@ -33,6 +33,8 @@ import TimelineEventDrawer from "./TimelineEventDrawer";
 import MergeDuplicatesModal from "./MergeDuplicatesModal";
 import PositionCashflowModal from "./PositionCashflowModal";
 import PositionCalculatorModal from "./PositionCalculatorModal";
+import CopyToScenariosModal from "./CopyToScenariosModal";
+import SmartInvestForm from "../SmartInvestForm";
 import type {
   EventDefinition,
   ScenarioEventRef,
@@ -68,6 +70,7 @@ import type {
   ScenarioAssumptions,
   ScenarioMember,
 } from "../../src/store/scenarioStore";
+import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
 import type { ProjectionResult } from "@north-star/engine";
 import {
   buildCarCashflowBreakdown,
@@ -85,6 +88,7 @@ import {
 import { buildInvestmentValueTable } from "../../src/domain/positions/investmentValueTable";
 import { buildInsuranceValueTable } from "../../src/domain/positions/insuranceValueTable";
 import { buildSmartInvestProjectionBreakdown } from "../../src/domain/smartInvest/projection";
+import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
 import { Link } from "../../src/i18n/navigation";
 import { isValidMonthStr } from "../../src/utils/month";
 
@@ -121,6 +125,13 @@ interface TimelineDesktopProps {
   onLoanPositionAdd: (loan: LoanPositionDraft) => void;
   onLoanPositionUpdate: (loan: LoanPositionDraft) => void;
   onLoanPositionRemove: (loanId: string) => void;
+  onUpdateSmartInvest: (policy: SmartInvestPolicy) => void;
+  onCopyPositionToScenarios: (
+    type: "home" | "car" | "investment" | "insurance" | "loan",
+    positionId: string,
+    scenarioIds: string[]
+  ) => void;
+  onCopySmartInvestToScenarios: (scenarioIds: string[]) => void;
   onMergeDuplicates: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
 }
 
@@ -171,10 +182,14 @@ export default function TimelineDesktop({
   onLoanPositionAdd,
   onLoanPositionUpdate,
   onLoanPositionRemove,
+  onUpdateSmartInvest,
+  onCopyPositionToScenarios,
+  onCopySmartInvestToScenarios,
   onMergeDuplicates,
 }: TimelineDesktopProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
+  const assumptionsText = useTranslations("assumptions");
   const homes = useTranslations("homes");
   const cars = useTranslations("cars");
   const investments = useTranslations("investments");
@@ -182,15 +197,20 @@ export default function TimelineDesktop({
   const loans = useTranslations("loans");
   const locale = useLocale();
   const horizonMonths = assumptions.horizonMonths > 0 ? assumptions.horizonMonths : 360;
-  const smartInvestPolicy = assumptions.smartInvest;
+  const defaultSmartInvestPolicy = useMemo(
+    () =>
+      buildDefaultSmartInvestPolicy(
+        assumptionsText("smartInvestDefaultAllocation")
+      ),
+    [assumptionsText]
+  );
+  const smartInvestPolicy = assumptions.smartInvest ?? defaultSmartInvestPolicy;
+  const hasSmartInvestConfig = Boolean(assumptions.smartInvest);
   const smartInvestBreakdown = useMemo(
     () => (projection ? buildSmartInvestProjectionBreakdown(projection) : null),
     [projection]
   );
   const smartInvestSummaryItems = useMemo(() => {
-    if (!smartInvestPolicy) {
-      return [];
-    }
     const reserveValue =
       smartInvestPolicy.reserve.mode === "fixed"
         ? formatCurrency(
@@ -255,6 +275,18 @@ export default function TimelineDesktop({
   );
   const [calculatorModal, setCalculatorModal] =
     useState<CalculatorModalState | null>(null);
+  const [smartInvestDrawerOpen, setSmartInvestDrawerOpen] = useState(false);
+  const [copyModal, setCopyModal] = useState<{
+    title: string;
+    onConfirm: (scenarioIds: string[]) => void;
+  } | null>(null);
+
+  const openCopyModal = (
+    title: string,
+    onConfirm: (scenarioIds: string[]) => void
+  ) => {
+    setCopyModal({ title, onConfirm });
+  };
 
   const eventRows = useMemo(
     () => buildEventTreeRows(eventViews, activeGroup, collapsedGroups),
@@ -359,7 +391,6 @@ export default function TimelineDesktop({
   };
 
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
-  const settingsUrl = buildScenarioUrl("/settings", scenarioId);
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;
@@ -917,6 +948,25 @@ export default function TimelineDesktop({
                         <Button
                           size="xs"
                           variant="light"
+                          onClick={() =>
+                            openCopyModal(
+                              t("copyPositionTitle", {
+                                label: homes("homeLabel", { index: index + 1 }),
+                              }),
+                              (scenarioIds) =>
+                                onCopyPositionToScenarios(
+                                  "home",
+                                  home.id,
+                                  scenarioIds
+                                )
+                            )
+                          }
+                        >
+                          {t("copyToOtherScenarios")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
                           onClick={() => setEditingHomeId(home.id)}
                         >
                           {common("actionEdit")}
@@ -1118,6 +1168,21 @@ export default function TimelineDesktop({
                         <Button
                           size="xs"
                           variant="light"
+                          onClick={() =>
+                            openCopyModal(
+                              t("copyPositionTitle", {
+                                label: cars("carLabel", { index: index + 1 }),
+                              }),
+                              (scenarioIds) =>
+                                onCopyPositionToScenarios("car", car.id, scenarioIds)
+                            )
+                          }
+                        >
+                          {t("copyToOtherScenarios")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
                           onClick={() => setEditingCarId(car.id)}
                         >
                           {common("actionEdit")}
@@ -1144,7 +1209,7 @@ export default function TimelineDesktop({
               )}
             </Stack>
 
-            {smartInvestPolicy?.enabled ? (
+            {hasSmartInvestConfig ? (
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
                   <Text fw={600}>{t("smartInvestTitle")}</Text>
@@ -1157,6 +1222,11 @@ export default function TimelineDesktop({
                         {t("smartInvestSubtitle")}
                       </Text>
                       <PositionDetailList items={smartInvestSummaryItems} />
+                      {!smartInvestPolicy.enabled && (
+                        <Text size="xs" c="dimmed">
+                          {t("smartInvestDisabledHint")}
+                        </Text>
+                      )}
                     </div>
                     <Group gap="sm">
                       <Button
@@ -1196,6 +1266,26 @@ export default function TimelineDesktop({
                       >
                         {t("smartInvestViewValue")}
                       </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() =>
+                          openCopyModal(
+                            t("copyPositionTitle", { label: t("smartInvestTitle") }),
+                            (scenarioIds) =>
+                              onCopySmartInvestToScenarios(scenarioIds)
+                          )
+                        }
+                      >
+                        {t("copyToOtherScenarios")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => setSmartInvestDrawerOpen(true)}
+                      >
+                        {common("actionEdit")}
+                      </Button>
                     </Group>
                   </Group>
                 </Card>
@@ -1206,12 +1296,18 @@ export default function TimelineDesktop({
                   <Text fw={600}>{t("smartInvestTitle")}</Text>
                 </Group>
                 <Card withBorder padding="md" radius="md">
-                  <Text size="sm" c="dimmed">
-                    {t("smartInvestNotConfigured")}{" "}
-                    <Text component={Link} href={settingsUrl} size="sm" span>
-                      {t("smartInvestSetupLink")}
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text size="sm" c="dimmed">
+                      {t("smartInvestNotConfigured")}
                     </Text>
-                  </Text>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={() => setSmartInvestDrawerOpen(true)}
+                    >
+                      {common("actionEdit")}
+                    </Button>
+                  </Group>
                 </Card>
               </Stack>
             )}
@@ -1352,6 +1448,27 @@ export default function TimelineDesktop({
                           }}
                         >
                           {t("positionViewCalculations")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() =>
+                            openCopyModal(
+                              t("copyPositionTitle", {
+                                label: investments("investmentLabel", {
+                                  index: index + 1,
+                                }),
+                              }),
+                              (scenarioIds) =>
+                                onCopyPositionToScenarios(
+                                  "investment",
+                                  investment.id,
+                                  scenarioIds
+                                )
+                            )
+                          }
+                        >
+                          {t("copyToOtherScenarios")}
                         </Button>
                         <Button
                           size="xs"
@@ -1524,6 +1641,27 @@ export default function TimelineDesktop({
                         <Button
                           size="xs"
                           variant="light"
+                          onClick={() =>
+                            openCopyModal(
+                              t("copyPositionTitle", {
+                                label:
+                                  insurance.name?.trim() ||
+                                  insurances("insuranceLabel", { index: index + 1 }),
+                              }),
+                              (scenarioIds) =>
+                                onCopyPositionToScenarios(
+                                  "insurance",
+                                  insurance.id,
+                                  scenarioIds
+                                )
+                            )
+                          }
+                        >
+                          {t("copyToOtherScenarios")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
                           onClick={() => setEditingInsuranceId(insurance.id)}
                         >
                           {common("actionEdit")}
@@ -1672,6 +1810,21 @@ export default function TimelineDesktop({
                           }}
                         >
                           {t("positionViewCalculations")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() =>
+                            openCopyModal(
+                              t("copyPositionTitle", {
+                                label: loans("loanLabel", { index: index + 1 }),
+                              }),
+                              (scenarioIds) =>
+                                onCopyPositionToScenarios("loan", loan.id, scenarioIds)
+                            )
+                          }
+                        >
+                          {t("copyToOtherScenarios")}
                         </Button>
                         <Button
                           size="xs"
@@ -1841,6 +1994,17 @@ export default function TimelineDesktop({
         assetValueRows={calculatorModal?.assetValueRows}
       />
 
+      <CopyToScenariosModal
+        opened={Boolean(copyModal)}
+        onClose={() => setCopyModal(null)}
+        scenarios={scenarios}
+        currentScenarioId={scenarioId}
+        title={copyModal?.title ?? ""}
+        onConfirm={(scenarioIds) => {
+          copyModal?.onConfirm(scenarioIds);
+        }}
+      />
+
       <Drawer
         opened={Boolean(homeDrawerDraft)}
         onClose={() => {
@@ -1959,6 +2123,19 @@ export default function TimelineDesktop({
             }}
           />
         )}
+      </Drawer>
+
+      <Drawer
+        opened={smartInvestDrawerOpen}
+        onClose={() => setSmartInvestDrawerOpen(false)}
+        position="right"
+        size="md"
+        title={t("smartInvestTitle")}
+      >
+        <SmartInvestForm
+          policy={smartInvestPolicy}
+          onChange={(nextPolicy) => onUpdateSmartInvest(nextPolicy)}
+        />
       </Drawer>
     </Stack>
   );

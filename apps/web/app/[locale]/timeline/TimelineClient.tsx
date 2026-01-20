@@ -71,6 +71,13 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
   const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
   const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
+  const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
+  const copyPositionToScenarios = useScenarioStore(
+    (state) => state.copyPositionToScenarios
+  );
+  const copySmartInvestToScenarios = useScenarioStore(
+    (state) => state.copySmartInvestToScenarios
+  );
 
   useEffect(() => {
     if (
@@ -169,6 +176,13 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         onLoanPositionAdd={(loan) => addLoanPosition(scenario.id, loan)}
         onLoanPositionUpdate={(loan) => updateLoanPosition(scenario.id, loan)}
         onLoanPositionRemove={(loanId) => removeLoanPosition(scenario.id, loanId)}
+        onUpdateSmartInvest={(policy) => updateSmartInvest(scenario.id, policy)}
+        onCopyPositionToScenarios={(type, positionId, scenarioIds) =>
+          copyPositionToScenarios(scenario.id, type, positionId, scenarioIds)
+        }
+        onCopySmartInvestToScenarios={(scenarioIds) =>
+          copySmartInvestToScenarios(scenario.id, scenarioIds)
+        }
         onMergeDuplicates={(cluster, baseDefinitionId) =>
           mergeDuplicateEvents(cluster, baseDefinitionId)
         }
@@ -232,6 +246,13 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       onLoanPositionAdd={(loan) => addLoanPosition(scenario.id, loan)}
       onLoanPositionUpdate={(loan) => updateLoanPosition(scenario.id, loan)}
       onLoanPositionRemove={(loanId) => removeLoanPosition(scenario.id, loanId)}
+      onUpdateSmartInvest={(policy) => updateSmartInvest(scenario.id, policy)}
+      onCopyPositionToScenarios={(type, positionId, scenarioIds) =>
+        copyPositionToScenarios(scenario.id, type, positionId, scenarioIds)
+      }
+      onCopySmartInvestToScenarios={(scenarioIds) =>
+        copySmartInvestToScenarios(scenario.id, scenarioIds)
+      }
       onMergeDuplicates={(cluster, baseDefinitionId) =>
         mergeDuplicateEvents(cluster, baseDefinitionId)
       }

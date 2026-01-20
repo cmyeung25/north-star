@@ -1,14 +1,11 @@
 import { useMemo } from "react";
-import { computeProjection } from "@north-star/engine";
 import type { ScenarioKpis } from "../store/scenarioStore";
 import {
   getScenarioById,
   useScenarioStore,
 } from "../store/scenarioStore";
-import {
-  mapScenarioToEngineInput,
-  projectionToOverviewViewModel,
-} from "../engine/adapter";
+import { projectionToOverviewViewModel } from "../engine/adapter";
+import { computeProjectionWithSmartInvest } from "../engine/useProjectionWithLedger";
 
 export type ScenarioSummary = {
   kpis: ScenarioKpis;
@@ -34,12 +31,15 @@ export const useScenarioSummary = (scenarioId?: string | null) => {
       return null;
     }
 
-    const { input } = mapScenarioToEngineInput(scenario, eventLibrary, {
-      strict: false,
-      members,
-      budgetRules,
-    });
-    const projection = computeProjection(input);
+    const { projection } = computeProjectionWithSmartInvest(
+      scenario,
+      eventLibrary,
+      {
+        members,
+        budgetRules,
+        maxPasses: 3,
+      }
+    );
     const overviewViewModel = projectionToOverviewViewModel(projection);
 
     return { kpis: overviewViewModel.kpis };

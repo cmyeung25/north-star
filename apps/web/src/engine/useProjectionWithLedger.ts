@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { computeProjection, monthIndex } from "@north-star/engine";
-import type { ProjectionResult } from "@north-star/engine";
+import type { ProjectionInput, ProjectionResult } from "@north-star/engine";
 import { mapScenarioToEngineInput, type AdapterWarning } from "./adapter";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { getEventSign } from "../events/eventCatalog";
@@ -19,6 +19,15 @@ import {
   buildNetWorthBreakdownByMonth,
   type NetWorthBreakdown,
 } from "../domain/netWorth/buildNetWorthBreakdown";
+import {
+  buildReserveTarget,
+  buildSmartInvestWithdrawalSchedule,
+  formatWithdrawalScheduleKey,
+  getSmartInvestAssetKey,
+  normalizeAllocations,
+  type SmartInvestWithdrawalSchedule,
+} from "../domain/smartInvest/solver";
+import { buildSmartInvestProjectionBreakdown } from "../domain/smartInvest/projection";
 
 type ProjectionWithLedger = {
   projection: ProjectionResult | null;
@@ -51,9 +60,16 @@ const filterLedgerToHorizon = (
   baseMonth: string,
   horizonMonths: number
 ) =>
-  ledger.filter((entry) => {
-    const offset = monthIndex(baseMonth, entry.month);
-    return offset >= 0 && offset < horizonMonths;
+  ledger.flatMap((entry) => {
+    const normalized = normalizeMonthStrict(entry.month);
+    if (!normalized.ok) {
+      return [];
+    }
+    const offset = monthIndex(baseMonth, normalized.month);
+    if (offset < 0 || offset >= horizonMonths) {
+      return [];
+    }
+    return [{ ...entry, month: normalized.month }];
   });
 
 const compileEventLedger = (
@@ -103,6 +119,21 @@ const normalizeBudgetRulesForLedger = (rules: BudgetRule[]) =>
       },
     ];
   });
+
+const buildMonthlyOutflows = (months: string[], ledger: CashflowItem[]) => {
+  const lookup = new Map<string, number>();
+  months.forEach((month) => lookup.set(month, 0));
+  ledger.forEach((entry) => {
+    if (!lookup.has(entry.month)) {
+      return;
+    }
+    if (entry.amount >= 0) {
+      return;
+    }
+    lookup.set(entry.month, (lookup.get(entry.month) ?? 0) + Math.abs(entry.amount));
+  });
+  return months.map((month) => lookup.get(month) ?? 0);
+};
 
 const buildProjectionNetCashflowByMonth = (
   projection: ProjectionResult,
@@ -204,6 +235,157 @@ const buildPositionCashflowsByMonth = (
   }, {});
 };
 
+export const computeProjectionWithSmartInvest = (
+  scenario: Scenario,
+  eventLibrary: EventDefinition[],
+  options: {
+    members?: ScenarioMember[];
+    budgetRules?: BudgetRule[];
+    maxPasses?: number;
+    horizonMonths?: number;
+  } = {}
+): {
+  input: ProjectionInput;
+  projection: ProjectionResult;
+  warnings: AdapterWarning[];
+  smartInvestWithdrawalSchedule: SmartInvestWithdrawalSchedule;
+} => {
+  const maxPasses = options.maxPasses ?? 3;
+  const members = options.members ?? [];
+  const budgetRules = options.budgetRules ?? [];
+  const { input: baseInput, warnings: baseWarnings } = mapScenarioToEngineInput(
+    scenario,
+    eventLibrary,
+    {
+      strict: false,
+      members,
+      budgetRules,
+      horizonMonths: options.horizonMonths,
+    }
+  );
+  let input = baseInput;
+  let warnings = baseWarnings;
+  let projection = computeProjection(baseInput);
+  const smartInvestPolicy = scenario.assumptions.smartInvest;
+  const normalizedAllocations = smartInvestPolicy
+    ? normalizeAllocations(smartInvestPolicy)
+    : [];
+  const includeSmartInvest =
+    smartInvestPolicy?.enabled && normalizedAllocations.length > 0;
+
+  if (!includeSmartInvest) {
+    return {
+      input,
+      projection,
+      warnings,
+      smartInvestWithdrawalSchedule: {},
+    };
+  }
+
+  const scenarioForLedger = {
+    ...scenario,
+    assumptions: {
+      ...scenario.assumptions,
+      baseMonth: input.baseMonth,
+      horizonMonths: input.horizonMonths,
+    },
+  };
+  const includeBudgetRulesInProjection =
+    scenario.assumptions.includeBudgetRulesInProjection ?? true;
+  const budgetLedger = includeBudgetRulesInProjection
+    ? compileAllBudgetRules(
+        scenarioForLedger,
+        normalizeBudgetRulesForLedger(budgetRules),
+        members
+      )
+    : [];
+  const eventLedger = compileScenarioCashflows({
+    scenario: scenarioForLedger,
+    eventLibrary,
+    signByType: getEventSign,
+  }).map((entry) => ({
+    month: entry.month,
+    amount: entry.amountSigned,
+    source: "event" as const,
+    sourceId: entry.sourceEventId,
+    label: entry.title,
+    category: entry.category,
+  }));
+  const combinedLedger = filterLedgerToHorizon(
+    [...eventLedger, ...budgetLedger],
+    input.baseMonth,
+    input.horizonMonths
+  );
+  const reserveTarget = buildReserveTarget(
+    smartInvestPolicy,
+    buildMonthlyOutflows(projection.months, combinedLedger)
+  );
+
+  let withdrawalSchedule: SmartInvestWithdrawalSchedule = {};
+  let previousKey = formatWithdrawalScheduleKey(withdrawalSchedule);
+  let projectionNeedsUpdate = false;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    if (!smartInvestPolicy.withdrawal.enabled) {
+      break;
+    }
+    const assetsByKey = projection.breakdown?.assets.assetsByKey ?? {};
+    const allocationBalancesById = normalizedAllocations.reduce<
+      Record<string, number[]>
+    >((acc, allocation) => {
+      acc[allocation.id] = assetsByKey[getSmartInvestAssetKey(allocation.id)] ?? [];
+      return acc;
+    }, {});
+    const nextSchedule = buildSmartInvestWithdrawalSchedule({
+      months: projection.months,
+      cashBalances: projection.cashBalance,
+      reserveTarget,
+      allocationBalancesById,
+    });
+    const nextKey = formatWithdrawalScheduleKey(nextSchedule);
+    if (nextKey === previousKey) {
+      withdrawalSchedule = nextSchedule;
+      break;
+    }
+    withdrawalSchedule = nextSchedule;
+    previousKey = nextKey;
+    if (pass >= maxPasses - 1) {
+      projectionNeedsUpdate = true;
+      break;
+    }
+    const result = mapScenarioToEngineInput(scenario, eventLibrary, {
+      strict: false,
+      members,
+      budgetRules,
+      smartInvestWithdrawalSchedules: withdrawalSchedule,
+      horizonMonths: options.horizonMonths,
+    });
+    input = result.input;
+    warnings = result.warnings;
+    projection = computeProjection(result.input);
+  }
+
+  if (projectionNeedsUpdate) {
+    const result = mapScenarioToEngineInput(scenario, eventLibrary, {
+      strict: false,
+      members,
+      budgetRules,
+      smartInvestWithdrawalSchedules: withdrawalSchedule,
+      horizonMonths: options.horizonMonths,
+    });
+    input = result.input;
+    warnings = result.warnings;
+    projection = computeProjection(result.input);
+  }
+
+  return {
+    input,
+    projection,
+    warnings,
+    smartInvestWithdrawalSchedule: withdrawalSchedule,
+  };
+};
+
 export const useProjectionWithLedger = (
   scenario: Scenario | null | undefined,
   eventLibrary: EventDefinition[],
@@ -214,12 +396,14 @@ export const useProjectionWithLedger = (
       return emptyProjectionWithLedger;
     }
 
-    const { input, warnings } = mapScenarioToEngineInput(scenario, eventLibrary, {
-      strict: false,
-      members: options.members ?? [],
-      budgetRules: options.budgetRules ?? [],
-    });
-    const projection = computeProjection(input);
+    const { input, warnings, projection } = computeProjectionWithSmartInvest(
+      scenario,
+      eventLibrary,
+      {
+        members: options.members ?? [],
+        budgetRules: options.budgetRules ?? [],
+      }
+    );
     const scenarioForLedger = {
       ...scenario,
       assumptions: {
@@ -236,8 +420,20 @@ export const useProjectionWithLedger = (
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];
+    const smartInvestLedger = projection
+      ? buildSmartInvestProjectionBreakdown(projection).cashflowEntries.map(
+          (entry) => ({
+            month: entry.month,
+            amount: entry.amount,
+            source: "smartInvest" as const,
+            sourceId: entry.sourceId,
+            label: entry.label,
+            category: "smartInvest",
+          })
+        )
+      : [];
     const ledger = filterLedgerToHorizon(
-      [...eventLedger, ...budgetLedger],
+      [...eventLedger, ...budgetLedger, ...smartInvestLedger],
       input.baseMonth,
       input.horizonMonths
     );
