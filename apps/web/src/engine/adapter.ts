@@ -43,7 +43,7 @@ type AdapterOptions = {
 };
 
 export type AdapterWarning = {
-  code: "invalid-month" | "double-count";
+  code: "invalid-month" | "double-count" | "smart-invest-reserve-shortfall";
   message: string;
   meta?: Record<string, unknown>;
 };
@@ -757,25 +757,28 @@ export const mapScenarioToEngineInput = (
       })
     : undefined;
 
-  const positions =
-    mappedHomes ||
-    mappedInvestments ||
-    mappedInsurances ||
-    mappedLoans ||
-    mappedCars ||
-    mappedCashBuckets
-      ? {
-          homes: mappedHomes,
-          investments:
-            mappedInvestments || smartInvestInvestments.length > 0
-              ? [...(mappedInvestments ?? []), ...smartInvestInvestments]
-              : undefined,
-          insurances: mappedInsurances,
-          loans: mappedLoans,
-          cars: mappedCars,
-          cashBuckets: mappedCashBuckets,
-        }
-      : undefined;
+  const hasPositions =
+    Boolean(
+      mappedHomes ||
+        mappedInvestments ||
+        mappedInsurances ||
+        mappedLoans ||
+        mappedCars ||
+        mappedCashBuckets
+    ) || smartInvestInvestments.length > 0;
+  const positions = hasPositions
+    ? {
+        homes: mappedHomes,
+        investments:
+          mappedInvestments || smartInvestInvestments.length > 0
+            ? [...(mappedInvestments ?? []), ...smartInvestInvestments]
+            : undefined,
+        insurances: mappedInsurances,
+        loans: mappedLoans,
+        cars: mappedCars,
+        cashBuckets: mappedCashBuckets,
+      }
+    : undefined;
 
   const ledgerEntries = combinedLedger.filter((entry) => entry.amount < 0);
   const entryMatchesKeywords = (entry: CashflowItem, keywords: string[]) => {
