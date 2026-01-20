@@ -21,7 +21,7 @@ import {
   Title,
   SimpleGrid,
 } from "@mantine/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useLocale, useTranslations } from "next-intl";
 import { signInWithGoogle, signOutUser } from "../../../lib/authActions";
@@ -55,9 +55,10 @@ import {
   type BudgetRuleMonthlyEntry,
 } from "../../../src/domain/budget/compileBudgetRules";
 import DataManagementSection from "../../../components/DataManagementSection";
+import PositionDetailList from "../../../components/timeline/PositionDetailList";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import { getEventMeta } from "../../../src/events/eventCatalog";
-import type { SmartInvestPolicy } from "../../../src/domain/smartInvest/types";
+import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
 
 type SettingsClientProps = {
   scenarioId?: string;
@@ -76,6 +77,7 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const membersText = useTranslations("members");
   const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
+  const timelineText = useTranslations("timeline");
   const errors = useTranslations("errors");
   const validation = useTranslations("validation");
   const horizonOptions = [
@@ -104,7 +106,6 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
-  const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const createMember = useScenarioStore((state) => state.createMember);
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
@@ -172,25 +173,8 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const includeBudgetRulesInProjection =
     scenario?.assumptions.includeBudgetRulesInProjection ?? true;
-  const defaultSmartInvestPolicy = useMemo<SmartInvestPolicy>(
-    () => ({
-      enabled: false,
-      reserve: { mode: "fixed", amount: 0 },
-      contribution: { mode: "percentOfIncome", pct: 10 },
-      allocation: [
-        {
-          id: "allocation-default",
-          name: t("smartInvestDefaultAllocation"),
-          targetPct: 100,
-          assumedAnnualReturnPct: 5,
-        },
-      ],
-      withdrawal: {
-        enabled: false,
-        mode: "sellToMaintainReserve",
-        sellOrder: "proRata",
-      },
-    }),
+  const defaultSmartInvestPolicy = useMemo(
+    () => buildDefaultSmartInvestPolicy(t("smartInvestDefaultAllocation")),
     [t]
   );
   const smartInvestPolicy = scenario?.assumptions.smartInvest ?? defaultSmartInvestPolicy;
@@ -203,6 +187,59 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       (event) => event.enabled && getEventMeta(event.type).group === "expense"
     );
   }, [eventLibrary, scenario]);
+  const baseCurrency = scenario?.baseCurrency ?? "";
+  const formatCurrency = useCallback(
+    (value: number) => {
+      if (!baseCurrency) {
+        return value.toLocaleString(locale);
+      }
+      return new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: baseCurrency,
+        maximumFractionDigits: 0,
+      }).format(value);
+    },
+    [baseCurrency, locale]
+  );
+  const smartInvestSummaryItems = useMemo(() => {
+    const reserveValue =
+      smartInvestPolicy.reserve.mode === "fixed"
+        ? formatCurrency(smartInvestPolicy.reserve.amount ?? 0)
+        : timelineText("smartInvestReserveMonths", {
+            months: smartInvestPolicy.reserve.months ?? 0,
+          });
+    const contributionValue =
+      smartInvestPolicy.contribution.mode === "percentOfIncome"
+        ? timelineText("smartInvestContributionIncome", {
+            pct: smartInvestPolicy.contribution.pct ?? 0,
+          })
+        : timelineText("smartInvestContributionSurplus", {
+            pct: smartInvestPolicy.contribution.pct ?? 0,
+          });
+    const allocationValue = smartInvestPolicy.allocation
+      .map((allocation) =>
+        timelineText("smartInvestAllocationItem", {
+          name: allocation.name,
+          pct: allocation.targetPct,
+          returnPct: allocation.assumedAnnualReturnPct,
+        })
+      )
+      .join(" · ");
+    return [
+      {
+        label: timelineText("smartInvestSummaryReserve"),
+        value: reserveValue,
+      },
+      {
+        label: timelineText("smartInvestSummaryContribution"),
+        value: contributionValue,
+      },
+      {
+        label: timelineText("smartInvestSummaryAllocation"),
+        value: allocationValue,
+      },
+    ];
+  }, [formatCurrency, smartInvestPolicy, timelineText]);
 
   useEffect(() => {
     setBaseMonthInput(appSettings.globalBaseMonth ?? "");
@@ -335,14 +372,6 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     syncToastTimeoutRef.current = setTimeout(() => {
       setSyncToast(null);
     }, 3000);
-  };
-
-  const applySmartInvestUpdate = (nextPolicy: SmartInvestPolicy) => {
-    if (!scenario) {
-      return;
-    }
-    updateSmartInvest(scenario.id, nextPolicy);
-    showToast(common("saved"), "teal");
   };
 
   const isSignedIn = authState.status === "signed-in" && authState.user;
@@ -582,16 +611,6 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       : null;
   const formatAgeYears = (value: number) =>
     Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
-  const formatCurrency = (value: number) => {
-    if (!scenario.baseCurrency) {
-      return value.toLocaleString(locale);
-    }
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: scenario.baseCurrency,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
   const buildZeroPreview = (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
     if (!baseMonth || horizonMonths <= 0) {
       return [];
@@ -1031,274 +1050,22 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                     {t("smartInvestSettingsHint")}
                   </Text>
                 </div>
-                <Switch
-                  label={t("smartInvestEnabled")}
-                  checked={smartInvestPolicy.enabled}
-                  onChange={(event) =>
-                    applySmartInvestUpdate({
-                      ...smartInvestPolicy,
-                      enabled: event.currentTarget.checked,
-                    })
-                  }
-                />
+                <Button
+                  component={Link}
+                  href={buildScenarioUrl("/timeline", scenario.id)}
+                  size="xs"
+                  variant="light"
+                >
+                  {common("openTimeline")}
+                </Button>
               </Group>
               <Divider />
-              <Stack gap="xs">
-                <Text fw={500}>{t("smartInvestReserveTitle")}</Text>
-                <SegmentedControl
-                  data={[
-                    { value: "fixed", label: t("smartInvestReserveFixed") },
-                    { value: "monthsOfOutflow", label: t("smartInvestReserveMonths") },
-                  ]}
-                  value={smartInvestPolicy.reserve.mode}
-                  onChange={(value) => {
-                    const nextReserve =
-                      value === "fixed"
-                        ? {
-                            mode: "fixed" as const,
-                            amount:
-                              smartInvestPolicy.reserve.mode === "fixed"
-                                ? smartInvestPolicy.reserve.amount
-                                : 0,
-                          }
-                        : {
-                            mode: "monthsOfOutflow" as const,
-                            months:
-                              smartInvestPolicy.reserve.mode === "monthsOfOutflow"
-                                ? smartInvestPolicy.reserve.months
-                                : 3,
-                          };
-                    applySmartInvestUpdate({
-                      ...smartInvestPolicy,
-                      reserve: nextReserve,
-                    });
-                  }}
-                />
-                {smartInvestPolicy.reserve.mode === "fixed" ? (
-                  <NumberInput
-                    label={t("smartInvestReserveAmount")}
-                    value={smartInvestPolicy.reserve.amount ?? 0}
-                    min={0}
-                    thousandSeparator=","
-                    onChange={(value) =>
-                      applySmartInvestUpdate({
-                        ...smartInvestPolicy,
-                        reserve: {
-                          mode: "fixed",
-                          amount: typeof value === "number" ? value : 0,
-                        },
-                      })
-                    }
-                  />
-                ) : (
-                  <NumberInput
-                    label={t("smartInvestReserveMonthsCount")}
-                    value={smartInvestPolicy.reserve.months ?? 0}
-                    min={0}
-                    onChange={(value) =>
-                      applySmartInvestUpdate({
-                        ...smartInvestPolicy,
-                        reserve: {
-                          mode: "monthsOfOutflow",
-                          months: typeof value === "number" ? value : 0,
-                        },
-                      })
-                    }
-                  />
-                )}
-              </Stack>
-              <Divider />
-              <Stack gap="xs">
-                <Text fw={500}>{t("smartInvestContributionTitle")}</Text>
-                <SegmentedControl
-                  data={[
-                    {
-                      value: "percentOfIncome",
-                      label: t("smartInvestContributionIncome"),
-                    },
-                    {
-                      value: "percentOfSurplus",
-                      label: t("smartInvestContributionSurplus"),
-                    },
-                  ]}
-                  value={smartInvestPolicy.contribution.mode}
-                  onChange={(value) => {
-                    const nextContribution =
-                      value === "percentOfIncome"
-                        ? {
-                            mode: "percentOfIncome" as const,
-                            pct:
-                              smartInvestPolicy.contribution.mode === "percentOfIncome"
-                                ? smartInvestPolicy.contribution.pct
-                                : 0,
-                          }
-                        : {
-                            mode: "percentOfSurplus" as const,
-                            pct:
-                              smartInvestPolicy.contribution.mode === "percentOfSurplus"
-                                ? smartInvestPolicy.contribution.pct
-                                : 0,
-                          };
-                    applySmartInvestUpdate({
-                      ...smartInvestPolicy,
-                      contribution: nextContribution,
-                    });
-                  }}
-                />
-                <NumberInput
-                  label={t("smartInvestContributionPct")}
-                  value={smartInvestPolicy.contribution.pct ?? 0}
-                  min={0}
-                  max={100}
-                  decimalScale={2}
-                  suffix="%"
-                  onChange={(value) =>
-                    applySmartInvestUpdate({
-                      ...smartInvestPolicy,
-                      contribution: {
-                        ...smartInvestPolicy.contribution,
-                        pct: typeof value === "number" ? value : 0,
-                      },
-                    })
-                  }
-                />
-              </Stack>
-              <Divider />
-              <Stack gap="xs">
-                <Group justify="space-between" align="center">
-                  <Text fw={500}>{t("smartInvestAllocationTitle")}</Text>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() =>
-                      applySmartInvestUpdate({
-                        ...smartInvestPolicy,
-                        allocation: [
-                          ...smartInvestPolicy.allocation,
-                          {
-                            id: nanoid(6),
-                            name: t("smartInvestAllocationNew"),
-                            targetPct: 0,
-                            assumedAnnualReturnPct: 0,
-                          },
-                        ],
-                      })
-                    }
-                  >
-                    {t("smartInvestAllocationAdd")}
-                  </Button>
-                </Group>
-                <Stack gap="sm">
-                  {smartInvestPolicy.allocation.map((item) => (
-                    <Card key={item.id} withBorder radius="sm" padding="sm">
-                      <Stack gap="xs">
-                        <Group grow>
-                          <TextInput
-                            label={t("smartInvestAllocationName")}
-                            value={item.name}
-                            onChange={(event) => {
-                              const next = smartInvestPolicy.allocation.map((entry) =>
-                                entry.id === item.id
-                                  ? { ...entry, name: event.currentTarget.value }
-                                  : entry
-                              );
-                              applySmartInvestUpdate({
-                                ...smartInvestPolicy,
-                                allocation: next,
-                              });
-                            }}
-                          />
-                          <NumberInput
-                            label={t("smartInvestAllocationTargetPct")}
-                            value={item.targetPct}
-                            min={0}
-                            max={100}
-                            decimalScale={2}
-                            suffix="%"
-                            onChange={(value) => {
-                              const next = smartInvestPolicy.allocation.map((entry) =>
-                                entry.id === item.id
-                                  ? {
-                                      ...entry,
-                                      targetPct: typeof value === "number" ? value : 0,
-                                    }
-                                  : entry
-                              );
-                              applySmartInvestUpdate({
-                                ...smartInvestPolicy,
-                                allocation: next,
-                              });
-                            }}
-                          />
-                          <NumberInput
-                            label={t("smartInvestAllocationReturnPct")}
-                            value={item.assumedAnnualReturnPct}
-                            min={-100}
-                            max={100}
-                            decimalScale={2}
-                            suffix="%"
-                            onChange={(value) => {
-                              const next = smartInvestPolicy.allocation.map((entry) =>
-                                entry.id === item.id
-                                  ? {
-                                      ...entry,
-                                      assumedAnnualReturnPct:
-                                        typeof value === "number" ? value : 0,
-                                    }
-                                  : entry
-                              );
-                              applySmartInvestUpdate({
-                                ...smartInvestPolicy,
-                                allocation: next,
-                              });
-                            }}
-                          />
-                        </Group>
-                        <Group justify="flex-end">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            disabled={smartInvestPolicy.allocation.length <= 1}
-                            onClick={() =>
-                              applySmartInvestUpdate({
-                                ...smartInvestPolicy,
-                                allocation: smartInvestPolicy.allocation.filter(
-                                  (entry) => entry.id !== item.id
-                                ),
-                              })
-                            }
-                          >
-                            {common("actionRemove")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </Stack>
-              </Stack>
-              <Divider />
-              <Stack gap="xs">
-                <Group justify="space-between" align="center">
-                  <Text fw={500}>{t("smartInvestWithdrawalTitle")}</Text>
-                  <Switch
-                    label={t("smartInvestWithdrawalEnabled")}
-                    checked={smartInvestPolicy.withdrawal.enabled}
-                    onChange={(event) =>
-                      applySmartInvestUpdate({
-                        ...smartInvestPolicy,
-                        withdrawal: {
-                          ...smartInvestPolicy.withdrawal,
-                          enabled: event.currentTarget.checked,
-                        },
-                      })
-                    }
-                  />
-                </Group>
+              <PositionDetailList items={smartInvestSummaryItems} />
+              {!smartInvestPolicy.enabled && (
                 <Text size="sm" c="dimmed">
-                  {t("smartInvestWithdrawalHint")}
+                  {t("smartInvestSummaryDisabled")}
                 </Text>
-              </Stack>
+              )}
             </Stack>
           </Card>
         </Tabs.Panel>

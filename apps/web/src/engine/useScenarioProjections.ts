@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { computeProjection, type ProjectionInput, type ProjectionResult } from "@north-star/engine";
+import type { ProjectionInput, ProjectionResult } from "@north-star/engine";
 import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
 import type { EventDefinition } from "../domain/events/types";
-import { mapScenarioToEngineInput } from "./adapter";
+import { computeProjectionWithSmartInvest } from "./useProjectionWithLedger";
 
 export type ScenarioProjection = {
   scenarioId: string;
@@ -55,13 +55,16 @@ export const useScenarioProjections = (
         return [];
       }
 
-      const { input } = mapScenarioToEngineInput(scenario, eventLibrary, {
-        strict: false,
-        horizonMonths: options?.horizonMonths,
-        members: options?.members ?? [],
-        budgetRules: options?.budgetRules ?? [],
-      });
-      const projection = computeProjection(input);
+      const { input, projection } = computeProjectionWithSmartInvest(
+        scenario,
+        eventLibrary,
+        {
+          members: options?.members ?? [],
+          budgetRules: options?.budgetRules ?? [],
+          horizonMonths: options?.horizonMonths,
+          maxPasses: 3,
+        }
+      );
 
       return [
         {

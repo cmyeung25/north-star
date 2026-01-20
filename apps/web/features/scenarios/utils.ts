@@ -25,11 +25,20 @@ export const formatRelativeTime = (
   }
 
   if (diffDays < 7) {
+    if (diffDays === 1) {
+      return t("timeDayAgo");
+    }
+
     return t("timeDaysAgo", { count: diffDays });
   }
 
   if (diffDays < 30) {
     const weeks = Math.round(diffDays / 7);
+
+    if (weeks === 1) {
+      return t("timeWeekAgo");
+    }
+
     return t("timeWeeksAgo", { count: weeks });
   }
 

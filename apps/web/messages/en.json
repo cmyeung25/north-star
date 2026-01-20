@@ -72,7 +72,9 @@
     "notSyncedYet": "Not synced yet",
     "lastSyncedAt": "Last synced: {time}",
     "timeToday": "today",
+    "timeDayAgo": "1 day ago",
     "timeDaysAgo": "{count} days ago",
+    "timeWeekAgo": "1 week ago",
     "timeWeeksAgo": "{count} weeks ago",
     "riskLow": "Low",
     "riskMedium": "Medium",
@@ -358,6 +360,13 @@
     "smartInvestContributionSurplus": "{pct}% of surplus",
     "smartInvestAllocationItem": "{name} · {pct}% · {returnPct}% return",
     "smartInvestViewValue": "View asset value",
+    "smartInvestDisabledHint": "Smart Invest is disabled.",
+    "copyToOtherScenarios": "Copy to other scenarios…",
+    "copyPositionTitle": "Copy {label} to scenarios",
+    "copyPositionHint": "Select scenarios to receive a copy.",
+    "copyPositionConfirm": "Copy",
+    "copyPositionCancel": "Cancel",
+    "copyPositionEmpty": "No other scenarios available.",
     "positionCashflowEmpty": "No cashflow entries yet.",
     "positionCashflowMonth": "Month",
     "positionCashflowItem": "Item",
@@ -469,8 +478,7 @@
     "timelineEventPlan": "{label} plan",
     "positionSellIn": "Sell in {month}",
     "positionSold": "Sold",
-    "smartInvestNotConfigured": "Smart Invest not configured — set up in Settings.",
-    "smartInvestSetupLink": "Set up in Settings"
+    "smartInvestNotConfigured": "Smart Invest not configured — edit below."
   },
   "homes": {
     "title": "Home details",
@@ -650,7 +658,8 @@
     "smartInvestDefaultAllocation": "Core",
     "smartInvestWithdrawalTitle": "Withdrawal strategy",
     "smartInvestWithdrawalEnabled": "Enable sell-to-maintain-reserve",
-    "smartInvestWithdrawalHint": "MVP: sell pro-rata to maintain the reserve target."
+    "smartInvestWithdrawalHint": "MVP: sell pro-rata to maintain the reserve target.",
+    "smartInvestSummaryDisabled": "Smart Invest is currently disabled."
   },
   "members": {
     "title": "Household members",

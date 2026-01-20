@@ -252,6 +252,13 @@ export type ScenarioPositions = {
   cashBuckets?: CashBucketPositionDraft[];
 };
 
+export type PositionCopyType =
+  | "home"
+  | "car"
+  | "investment"
+  | "insurance"
+  | "loan";
+
 export type ScenarioMeta = {
   onboardingVersion?: number;
 };
@@ -339,6 +346,16 @@ type ScenarioStoreState = {
   addCashBucketPosition: (id: string, bucket: CashBucketPosition) => void;
   updateCashBucketPosition: (id: string, bucket: CashBucketPosition) => void;
   removeCashBucketPosition: (id: string, bucketId: string) => void;
+  copyPositionToScenarios: (
+    sourceScenarioId: string,
+    type: PositionCopyType,
+    positionId: string,
+    scenarioIds: string[]
+  ) => void;
+  copySmartInvestToScenarios: (
+    sourceScenarioId: string,
+    scenarioIds: string[]
+  ) => void;
   updateScenarioMeta: (id: string, patch: Partial<ScenarioMeta>) => void;
   updateScenarioClientComputed: (
     id: string,
@@ -799,6 +816,60 @@ const ensureCashBucketPositionId = (
   ...bucket,
   id: bucket.id ?? createCashBucketPositionId(),
 });
+
+const cloneSmartInvestPolicy = (
+  policy: SmartInvestPolicy
+): SmartInvestPolicy => ({
+  ...policy,
+  reserve: { ...policy.reserve },
+  contribution: { ...policy.contribution },
+  allocation: policy.allocation.map((entry) => ({
+    ...entry,
+    id: nanoid(6),
+  })),
+  withdrawal: { ...policy.withdrawal },
+});
+
+const cloneHomePosition = (home: HomePositionDraft): HomePositionDraft =>
+  ensureHomePositionId({
+    ...home,
+    id: createHomePositionId(),
+    existing: home.existing ? { ...home.existing } : undefined,
+    rental: home.rental ? { ...home.rental } : undefined,
+  });
+
+const cloneCarPosition = (car: CarPositionDraft): CarPositionDraft =>
+  ensureCarPositionId({
+    ...car,
+    id: createCarPositionId(),
+    loan: car.loan ? { ...car.loan } : undefined,
+  });
+
+const cloneInvestmentPosition = (
+  investment: InvestmentPositionDraft
+): InvestmentPositionDraft =>
+  ensureInvestmentPositionId({
+    ...investment,
+    id: createInvestmentPositionId(),
+  });
+
+const cloneLoanPosition = (loan: LoanPositionDraft): LoanPositionDraft =>
+  ensureLoanPositionId({
+    ...loan,
+    id: createLoanPositionId(),
+  });
+
+const cloneInsurancePosition = (
+  insurance: InsurancePositionDraft,
+  baseMonth?: string | null
+): InsurancePositionDraft =>
+  ensureInsurancePositionId(
+    {
+      ...insurance,
+      id: createInsurancePositionId(),
+    },
+    baseMonth
+  );
 
 const normalizeScenarioPositions = (
   positions?: ScenarioPositions,
@@ -1788,6 +1859,107 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         };
       }),
     }));
+  },
+  copyPositionToScenarios: (sourceScenarioId, type, positionId, scenarioIds) => {
+    set((state) => {
+      const sourceScenario = state.scenarios.find(
+        (scenario) => scenario.id === sourceScenarioId
+      );
+      if (!sourceScenario) {
+        return state;
+      }
+
+      const sourcePositions = sourceScenario.positions ?? {};
+      const sourcePosition =
+        type === "home"
+          ? sourcePositions.homes?.find((entry) => entry.id === positionId)
+          : type === "car"
+            ? sourcePositions.cars?.find((entry) => entry.id === positionId)
+            : type === "investment"
+              ? sourcePositions.investments?.find((entry) => entry.id === positionId)
+              : type === "insurance"
+                ? sourcePositions.insurances?.find((entry) => entry.id === positionId)
+                : sourcePositions.loans?.find((entry) => entry.id === positionId);
+
+      if (!sourcePosition) {
+        return state;
+      }
+
+      const updatedScenarios = state.scenarios.map((scenario) => {
+        if (!scenarioIds.includes(scenario.id)) {
+          return scenario;
+        }
+        const nextPositions: ScenarioPositions = {
+          ...(scenario.positions ?? {}),
+        };
+
+        if (type === "home") {
+          const nextHome = cloneHomePosition(sourcePosition as HomePositionDraft);
+          nextPositions.homes = [...(scenario.positions?.homes ?? []), nextHome];
+        } else if (type === "car") {
+          const nextCar = cloneCarPosition(sourcePosition as CarPositionDraft);
+          nextPositions.cars = [...(scenario.positions?.cars ?? []), nextCar];
+        } else if (type === "investment") {
+          const nextInvestment = cloneInvestmentPosition(
+            sourcePosition as InvestmentPositionDraft
+          );
+          nextPositions.investments = [
+            ...(scenario.positions?.investments ?? []),
+            nextInvestment,
+          ];
+        } else if (type === "insurance") {
+          const nextInsurance = cloneInsurancePosition(
+            sourcePosition as InsurancePositionDraft,
+            scenario.assumptions.baseMonth
+          );
+          nextPositions.insurances = [
+            ...(scenario.positions?.insurances ?? []),
+            nextInsurance,
+          ];
+        } else if (type === "loan") {
+          const nextLoan = cloneLoanPosition(sourcePosition as LoanPositionDraft);
+          nextPositions.loans = [...(scenario.positions?.loans ?? []), nextLoan];
+        }
+
+        return {
+          ...scenario,
+          positions: normalizeScenarioPositions(
+            nextPositions,
+            scenario.assumptions.baseMonth
+          ),
+          updatedAt: now(),
+        };
+      });
+
+      return { ...state, scenarios: updatedScenarios };
+    });
+  },
+  copySmartInvestToScenarios: (sourceScenarioId, scenarioIds) => {
+    set((state) => {
+      const sourceScenario = state.scenarios.find(
+        (scenario) => scenario.id === sourceScenarioId
+      );
+      const sourcePolicy = sourceScenario?.assumptions.smartInvest;
+      if (!sourcePolicy) {
+        return state;
+      }
+
+      const updatedScenarios = state.scenarios.map((scenario) => {
+        if (!scenarioIds.includes(scenario.id)) {
+          return scenario;
+        }
+        return {
+          ...scenario,
+          assumptions: {
+            ...scenario.assumptions,
+            smartInvest: cloneSmartInvestPolicy(sourcePolicy),
+          },
+          updatedAt: now(),
+        };
+      });
+
+      return { ...state, scenarios: updatedScenarios };
+    });
   },
   mergeDuplicateEvents: (cluster, baseDefinitionId) => {
     set((state) => {
