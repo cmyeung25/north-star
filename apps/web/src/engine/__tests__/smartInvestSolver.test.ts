@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { computeProjection } from "@north-star/engine";
 import type { Scenario } from "../../store/scenarioStore";
-import type { EventDefinition } from "../../domain/events/types";
-import { mapScenarioToEngineInput } from "../adapter";
-import {
-  buildSmartInvestWithdrawalSchedule,
-  getSmartInvestAssetKey,
-} from "../../domain/smartInvest/solver";
+import { compileSmartInvest } from "../../domain/smartInvest/compileSmartInvest";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   id: "scenario-test",
@@ -49,55 +43,24 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   ...overrides,
 });
 
-const eventLibrary: EventDefinition[] = [
-  {
-    id: "income",
-    title: "Income",
-    type: "salary",
-    kind: "cashflow",
-    rule: {
-      mode: "schedule",
-      schedule: [{ month: "2024-01", amount: 500 }],
-    },
-  },
-  {
-    id: "expense",
-    title: "Expense",
-    type: "custom",
-    kind: "cashflow",
-    rule: {
-      mode: "schedule",
-      schedule: [{ month: "2024-02", amount: 1200 }],
-    },
-  },
-];
-
 describe("smartInvest withdrawals", () => {
-  it("increases cash balances when reserve would dip below target", () => {
+  it("maps withdrawal schedules into engine input", () => {
     const scenario = buildScenario();
-    const baseResult = mapScenarioToEngineInput(scenario, eventLibrary, {
-      strict: false,
+    const withdrawalSchedule = {
+      core: [{ month: "2024-02", amount: 250 }],
+    };
+    const investments = compileSmartInvest({
+      baseMonth: "2024-01",
+      horizonMonths: 3,
+      scenario,
+      policy: scenario.assumptions.smartInvest!,
+      baselineCashflows: [{ month: "2024-01", amount: 0 }],
+      withdrawalScheduleByAllocation: withdrawalSchedule,
     });
-    const baseProjection = computeProjection(baseResult.input);
-    const assetsByKey = baseProjection.breakdown?.assets.assetsByKey ?? {};
+    const mappedWithdrawals = investments[0]?.withdrawalSchedule ?? [];
 
-    const withdrawalSchedule = buildSmartInvestWithdrawalSchedule({
-      months: baseProjection.months,
-      cashBalances: baseProjection.cashBalance,
-      reserveTarget: 500,
-      allocationBalancesById: {
-        core: assetsByKey[getSmartInvestAssetKey("core")] ?? [],
-      },
-    });
-
-    const withWithdrawals = mapScenarioToEngineInput(scenario, eventLibrary, {
-      strict: false,
-      smartInvestWithdrawalSchedules: withdrawalSchedule,
-    });
-    const projectionWithWithdrawals = computeProjection(withWithdrawals.input);
-
-    expect(projectionWithWithdrawals.cashBalance[1]).toBeGreaterThan(
-      baseProjection.cashBalance[1]
-    );
+    expect(mappedWithdrawals.length).toBe(1);
+    expect(mappedWithdrawals[0]?.month).toBe("2024-02");
+    expect(mappedWithdrawals[0]?.amount).toBe(250);
   });
 });

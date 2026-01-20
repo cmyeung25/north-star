@@ -21,7 +21,7 @@ import {
   Title,
   SimpleGrid,
 } from "@mantine/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useLocale, useTranslations } from "next-intl";
 import { signInWithGoogle, signOutUser } from "../../../lib/authActions";
@@ -187,6 +187,59 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       (event) => event.enabled && getEventMeta(event.type).group === "expense"
     );
   }, [eventLibrary, scenario]);
+  const baseCurrency = scenario?.baseCurrency ?? "";
+  const formatCurrency = useCallback(
+    (value: number) => {
+      if (!baseCurrency) {
+        return value.toLocaleString(locale);
+      }
+      return new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: baseCurrency,
+        maximumFractionDigits: 0,
+      }).format(value);
+    },
+    [baseCurrency, locale]
+  );
+  const smartInvestSummaryItems = useMemo(() => {
+    const reserveValue =
+      smartInvestPolicy.reserve.mode === "fixed"
+        ? formatCurrency(smartInvestPolicy.reserve.amount ?? 0)
+        : timelineText("smartInvestReserveMonths", {
+            months: smartInvestPolicy.reserve.months ?? 0,
+          });
+    const contributionValue =
+      smartInvestPolicy.contribution.mode === "percentOfIncome"
+        ? timelineText("smartInvestContributionIncome", {
+            pct: smartInvestPolicy.contribution.pct ?? 0,
+          })
+        : timelineText("smartInvestContributionSurplus", {
+            pct: smartInvestPolicy.contribution.pct ?? 0,
+          });
+    const allocationValue = smartInvestPolicy.allocation
+      .map((allocation) =>
+        timelineText("smartInvestAllocationItem", {
+          name: allocation.name,
+          pct: allocation.targetPct,
+          returnPct: allocation.assumedAnnualReturnPct,
+        })
+      )
+      .join(" · ");
+    return [
+      {
+        label: timelineText("smartInvestSummaryReserve"),
+        value: reserveValue,
+      },
+      {
+        label: timelineText("smartInvestSummaryContribution"),
+        value: contributionValue,
+      },
+      {
+        label: timelineText("smartInvestSummaryAllocation"),
+        value: allocationValue,
+      },
+    ];
+  }, [formatCurrency, smartInvestPolicy, timelineText]);
 
   useEffect(() => {
     setBaseMonthInput(appSettings.globalBaseMonth ?? "");
@@ -558,55 +611,6 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       : null;
   const formatAgeYears = (value: number) =>
     Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
-  const formatCurrency = (value: number) => {
-    if (!scenario.baseCurrency) {
-      return value.toLocaleString(locale);
-    }
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: scenario.baseCurrency,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-  const smartInvestSummaryItems = useMemo(() => {
-    const reserveValue =
-      smartInvestPolicy.reserve.mode === "fixed"
-        ? formatCurrency(smartInvestPolicy.reserve.amount ?? 0)
-        : timelineText("smartInvestReserveMonths", {
-            months: smartInvestPolicy.reserve.months ?? 0,
-          });
-    const contributionValue =
-      smartInvestPolicy.contribution.mode === "percentOfIncome"
-        ? timelineText("smartInvestContributionIncome", {
-            pct: smartInvestPolicy.contribution.pct ?? 0,
-          })
-        : timelineText("smartInvestContributionSurplus", {
-            pct: smartInvestPolicy.contribution.pct ?? 0,
-          });
-    const allocationValue = smartInvestPolicy.allocation
-      .map((allocation) =>
-        timelineText("smartInvestAllocationItem", {
-          name: allocation.name,
-          pct: allocation.targetPct,
-          returnPct: allocation.assumedAnnualReturnPct,
-        })
-      )
-      .join(" · ");
-    return [
-      {
-        label: timelineText("smartInvestSummaryReserve"),
-        value: reserveValue,
-      },
-      {
-        label: timelineText("smartInvestSummaryContribution"),
-        value: contributionValue,
-      },
-      {
-        label: timelineText("smartInvestSummaryAllocation"),
-        value: allocationValue,
-      },
-    ];
-  }, [formatCurrency, smartInvestPolicy, timelineText]);
   const buildZeroPreview = (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
     if (!baseMonth || horizonMonths <= 0) {
       return [];
