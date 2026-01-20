@@ -19,7 +19,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { type EventGroup } from "@north-star/engine";
+import { monthIndex, type EventGroup } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { defaultCurrency } from "../../lib/i18n";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
@@ -86,6 +86,7 @@ import { buildInvestmentValueTable } from "../../src/domain/positions/investment
 import { buildInsuranceValueTable } from "../../src/domain/positions/insuranceValueTable";
 import { buildSmartInvestProjectionBreakdown } from "../../src/domain/smartInvest/projection";
 import { Link } from "../../src/i18n/navigation";
+import { isValidMonthStr } from "../../src/utils/month";
 
 interface TimelineDesktopProps {
   eventViews: ScenarioEventView[];
@@ -236,6 +237,8 @@ export default function TimelineDesktop({
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
   const [editingCarId, setEditingCarId] = useState<string | null>(null);
+  const [creatingHome, setCreatingHome] = useState<HomePositionDraft | null>(null);
+  const [creatingCar, setCreatingCar] = useState<CarPositionDraft | null>(null);
   const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(
     null
   );
@@ -356,6 +359,7 @@ export default function TimelineDesktop({
   };
 
   const overviewUrl = buildScenarioUrl("/overview", scenarioId);
+  const settingsUrl = buildScenarioUrl("/settings", scenarioId);
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;
@@ -366,6 +370,18 @@ export default function TimelineDesktop({
     insurancePositions.find((insurance) => insurance.id === editingInsuranceId) ??
     null;
   const editingLoan = loanPositions.find((loan) => loan.id === editingLoanId) ?? null;
+  const currentProjectionMonth = projection?.months?.[0] ?? baseMonth ?? null;
+  const isPastSellMonth = (sellMonth?: string) => {
+    if (!sellMonth || !currentProjectionMonth) {
+      return false;
+    }
+    if (!isValidMonthStr(sellMonth) || !isValidMonthStr(currentProjectionMonth)) {
+      return false;
+    }
+    return monthIndex(currentProjectionMonth, sellMonth) < 0;
+  };
+  const homeDrawerDraft = editingHome ?? creatingHome;
+  const carDrawerDraft = editingCar ?? creatingCar;
 
   useEffect(() => {
     if (!pendingScrollMonth) {
@@ -632,8 +648,7 @@ export default function TimelineDesktop({
                   size="xs"
                   variant="light"
                   onClick={() => {
-                    onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
-                    setHomeToastOpen(true);
+                    setCreatingHome(createHomePositionFromTemplate({ baseMonth }));
                   }}
                 >
                   {homes("addHome")}
@@ -644,13 +659,32 @@ export default function TimelineDesktop({
                   {homes("empty")}
                 </Text>
               ) : (
-                homePositions.map((home, index) => (
-                  <Card key={home.id} withBorder padding="md" radius="md">
+                homePositions.map((home, index) => {
+                  const homeSold = isPastSellMonth(home.sellMonth);
+                  const sellBadgeLabel = home.sellMonth
+                    ? homeSold
+                      ? t("positionSold")
+                      : t("positionSellIn", { month: home.sellMonth })
+                    : null;
+
+                  return (
+                    <Card key={home.id} withBorder padding="md" radius="md">
                     <Group justify="space-between" align="center" wrap="wrap">
                       <div>
-                        <Text fw={600}>
-                          {homes("homeLabel", { index: index + 1 })}
-                        </Text>
+                        <Group gap="xs" align="center">
+                          <Text fw={600}>
+                            {homes("homeLabel", { index: index + 1 })}
+                          </Text>
+                          {sellBadgeLabel && (
+                            <Badge
+                              size="sm"
+                              color={homeSold ? "gray" : "blue"}
+                              variant="light"
+                            >
+                              {sellBadgeLabel}
+                            </Badge>
+                          )}
+                        </Group>
                         <Text size="sm">
                           {formatHomeSummary(homes, home, baseCurrency, locale)}
                         </Text>
@@ -903,8 +937,9 @@ export default function TimelineDesktop({
                         </Button>
                       </Group>
                     </Group>
-                  </Card>
-                ))
+                    </Card>
+                  );
+                })
               )}
             </Stack>
 
@@ -915,7 +950,7 @@ export default function TimelineDesktop({
                   size="xs"
                   variant="light"
                   onClick={() =>
-                    onCarPositionAdd(createCarPositionFromTemplate({ baseMonth }))
+                    setCreatingCar(createCarPositionFromTemplate({ baseMonth }))
                   }
                 >
                   {cars("addCar")}
@@ -926,13 +961,32 @@ export default function TimelineDesktop({
                   {cars("empty")}
                 </Text>
               ) : (
-                carPositions.map((car, index) => (
-                  <Card key={car.id} withBorder padding="md" radius="md">
+                carPositions.map((car, index) => {
+                  const carSold = isPastSellMonth(car.sellMonth);
+                  const sellBadgeLabel = car.sellMonth
+                    ? carSold
+                      ? t("positionSold")
+                      : t("positionSellIn", { month: car.sellMonth })
+                    : null;
+
+                  return (
+                    <Card key={car.id} withBorder padding="md" radius="md">
                     <Group justify="space-between" align="center" wrap="wrap">
                       <div>
-                        <Text fw={600}>
-                          {cars("carLabel", { index: index + 1 })}
-                        </Text>
+                        <Group gap="xs" align="center">
+                          <Text fw={600}>
+                            {cars("carLabel", { index: index + 1 })}
+                          </Text>
+                          {sellBadgeLabel && (
+                            <Badge
+                              size="sm"
+                              color={carSold ? "gray" : "blue"}
+                              variant="light"
+                            >
+                              {sellBadgeLabel}
+                            </Badge>
+                          )}
+                        </Group>
                         <Text size="sm">
                           {formatCarSummary(cars, car, baseCurrency, locale)}
                         </Text>
@@ -1084,12 +1138,13 @@ export default function TimelineDesktop({
                         </Button>
                       </Group>
                     </Group>
-                  </Card>
-                ))
+                    </Card>
+                  );
+                })
               )}
             </Stack>
 
-            {smartInvestPolicy?.enabled && (
+            {smartInvestPolicy?.enabled ? (
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
                   <Text fw={600}>{t("smartInvestTitle")}</Text>
@@ -1143,6 +1198,20 @@ export default function TimelineDesktop({
                       </Button>
                     </Group>
                   </Group>
+                </Card>
+              </Stack>
+            ) : (
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600}>{t("smartInvestTitle")}</Text>
+                </Group>
+                <Card withBorder padding="md" radius="md">
+                  <Text size="sm" c="dimmed">
+                    {t("smartInvestNotConfigured")}{" "}
+                    <Text component={Link} href={settingsUrl} size="sm" span>
+                      {t("smartInvestSetupLink")}
+                    </Text>
+                  </Text>
                 </Card>
               </Stack>
             )}
@@ -1684,7 +1753,7 @@ export default function TimelineDesktop({
         parentGroupOptions={parentGroupOptions}
         onAddDefinition={(definition, scenarioIds) => onAddDefinition(definition, scenarioIds)}
         onAddHomePosition={() => {
-          onHomePositionAdd(createHomePositionFromTemplate({ baseMonth }));
+          setCreatingHome(createHomePositionFromTemplate({ baseMonth }));
           setHomeToastOpen(true);
         }}
         onCreateComplete={handleCreateComplete}
@@ -1773,38 +1842,63 @@ export default function TimelineDesktop({
       />
 
       <Drawer
-        opened={Boolean(editingHome)}
-        onClose={() => setEditingHomeId(null)}
+        opened={Boolean(homeDrawerDraft)}
+        onClose={() => {
+          setEditingHomeId(null);
+          setCreatingHome(null);
+        }}
         position="right"
         size="md"
         title={homes("title")}
       >
-        {editingHome && (
+        {homeDrawerDraft && (
           <HomeDetailsForm
-            home={editingHome}
-            onCancel={() => setEditingHomeId(null)}
-            onSave={(updated) => {
-              onHomePositionUpdate(updated);
+            home={homeDrawerDraft}
+            isSold={isPastSellMonth(homeDrawerDraft.sellMonth)}
+            onCancel={() => {
               setEditingHomeId(null);
+              setCreatingHome(null);
+            }}
+            onSave={(updated) => {
+              if (editingHome) {
+                onHomePositionUpdate(updated);
+              } else {
+                onHomePositionAdd(updated);
+                setHomeToastOpen(true);
+              }
+              setEditingHomeId(null);
+              setCreatingHome(null);
             }}
           />
         )}
       </Drawer>
 
       <Drawer
-        opened={Boolean(editingCar)}
-        onClose={() => setEditingCarId(null)}
+        opened={Boolean(carDrawerDraft)}
+        onClose={() => {
+          setEditingCarId(null);
+          setCreatingCar(null);
+        }}
         position="right"
         size="md"
         title={cars("title")}
       >
-        {editingCar && (
+        {carDrawerDraft && (
           <CarDetailsForm
-            car={editingCar}
-            onCancel={() => setEditingCarId(null)}
-            onSave={(updated) => {
-              onCarPositionUpdate(updated);
+            car={carDrawerDraft}
+            isSold={isPastSellMonth(carDrawerDraft.sellMonth)}
+            onCancel={() => {
               setEditingCarId(null);
+              setCreatingCar(null);
+            }}
+            onSave={(updated) => {
+              if (editingCar) {
+                onCarPositionUpdate(updated);
+              } else {
+                onCarPositionAdd(updated);
+              }
+              setEditingCarId(null);
+              setCreatingCar(null);
             }}
           />
         )}

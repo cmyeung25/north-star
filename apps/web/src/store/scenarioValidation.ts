@@ -10,7 +10,7 @@ import type {
   LoanPosition,
 } from "./scenarioStore";
 
-const monthPattern = /^\d{4}-\d{2}$/;
+const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const existingSchema = z.object({
   asOfMonth: z.string().regex(monthPattern, "validation.useYearMonth"),

@@ -361,6 +361,7 @@ type ScenarioStoreState = {
   setScenarioInitialCash: (id: string, initialCash: number) => void;
   setScenarioBaseMonth: (id: string, baseMonth: string | null) => void;
   setAssumptionsPartial: (id: string, patch: Partial<ScenarioAssumptions>) => void;
+  updateSmartInvest: (id: string, policy: SmartInvestPolicy | null) => void;
   replaceScenario: (scenario: Scenario) => void;
   replaceAllScenarios: (scenarios: Scenario[]) => void;
   addSnapshot: (scenarioId: string, snapshot: ProjectionSnapshot) => void;
@@ -1954,6 +1955,10 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             nextAssumptions.includeBudgetRulesInProjection =
               patch.includeBudgetRulesInProjection ?? true;
           }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "smartInvest")) {
+            nextAssumptions.smartInvest = patch.smartInvest ?? undefined;
+          }
         }
 
         return scenario.id === id || Object.prototype.hasOwnProperty.call(patch, "horizonMonths")
@@ -2039,6 +2044,9 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   setAssumptionsPartial: (id, patch) => {
     get().updateScenarioAssumptions(id, patch);
+  },
+  updateSmartInvest: (id, policy) => {
+    get().updateScenarioAssumptions(id, { smartInvest: policy ?? undefined });
   },
   replaceScenario: (scenario) => {
     const normalizedScenario = normalizeScenario(scenario);

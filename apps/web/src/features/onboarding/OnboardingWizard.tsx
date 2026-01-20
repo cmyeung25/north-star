@@ -10,7 +10,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { addMonths } from "../../domain/members/age";
 import {
   projectionToOverviewViewModel,
@@ -38,6 +38,7 @@ import StepPersona from "./steps/StepPersona";
 import StepReview from "./steps/StepReview";
 import { personaLabels, type OnboardingPersona } from "./types";
 import { getBaseMonth, getCurrentMonth } from "./utils";
+import { buildScenarioUrl } from "../../utils/scenarioContext";
 
 const steps = [
   "Persona",
@@ -60,6 +61,7 @@ const personaDefaultHorizon: Record<OnboardingPersona, number> = {
 export default function OnboardingWizard() {
   const router = useRouter();
   const locale = useLocale();
+  const onboardingText = useTranslations("onboarding");
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
@@ -73,6 +75,9 @@ export default function OnboardingWizard() {
   );
   const updateScenarioClientComputed = useScenarioStore(
     (state) => state.updateScenarioClientComputed
+  );
+  const skipOnboardingForScenario = useScenarioStore(
+    (state) => state.skipOnboardingForScenario
   );
   const updateScenarioMeta = useScenarioStore((state) => state.updateScenarioMeta);
   const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
@@ -602,6 +607,19 @@ export default function OnboardingWizard() {
     router.push(`/${locale}/overview`);
   };
 
+  const handleSkip = () => {
+    if (!scenario) {
+      return;
+    }
+    const baseMonthValue = getCurrentMonth();
+    updateScenarioAssumptions(scenario.id, {
+      baseMonth: baseMonthValue,
+      initialCash: 0,
+    });
+    skipOnboardingForScenario(scenario.id);
+    router.replace(`/${locale}${buildScenarioUrl("/settings", scenario.id)}`);
+  };
+
   const carPosition = scenario.positions?.cars?.[0];
   const homePosition = scenario.positions?.homes?.[0];
   const investmentPosition = scenario.positions?.investments?.[0];
@@ -673,9 +691,17 @@ export default function OnboardingWizard() {
   return (
     <Stack gap="xl">
       <Stack gap={4}>
-        <Title order={2}>Onboarding 問卷</Title>
+        <Group justify="space-between" align="center">
+          <Title order={2}>Onboarding 問卷</Title>
+          <Button size="xs" variant="subtle" onClick={handleSkip}>
+            {onboardingText("skipForNow")}
+          </Button>
+        </Group>
         <Text size="sm" c="dimmed">
           {persona ? personaLabels[persona] : ""}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {onboardingText("skipForNowHint")}
         </Text>
       </Stack>
 

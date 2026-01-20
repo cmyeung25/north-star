@@ -47,8 +47,8 @@
     "settingsRecoveryTitle": "復原你的資料",
     "settingsRecoveryDescription": "載入已儲存的快照，或重新開始導覽以重建預設資料。",
     "settingsTabData": "資料管理",
-    "settingsTabGlobal": "全局設定",
-    "settingsTabMembers": "家庭成員",
+    "settingsTabGlobal": "全局假設",
+    "settingsTabMembers": "成員與里程碑",
     "settingsTabBudget": "預算規則",
     "settingsTabOther": "其他",
     "syncTitle": "同步與帳戶",
@@ -70,9 +70,9 @@
     "assumptionsHowTitle": "運作方式",
     "assumptionsHowLine1": "假設條件為全域預設，事件可覆寫。",
     "assumptionsHowLine2": "若事件參數為空值或未定義，引擎可能回退至假設條件。",
-    "applyScopeAll": "套用所有情境",
-    "applyScopeInclude": "只套用以下情境",
-    "applyScopeExclude": "排除以下情境",
+    "applyScopeAll": "所有情境",
+    "applyScopeInclude": "只限選定情境",
+    "applyScopeExclude": "排除選定情境",
     "applyScopePlaceholder": "選擇情境",
     "openOverview": "開啟總覽",
     "openTimeline": "開啟時間線",
@@ -484,7 +484,11 @@
     "endAtAgeMissingBirth": "需要成員出生月份或基準年齡才能計算結束月份。",
     "retirementDerivedLabel": "退休（由收入結束推算）",
     "memberHousehold": "家庭共同",
-    "timelineEventPlan": "{label} 計劃"
+    "timelineEventPlan": "{label} 計劃",
+    "positionSellIn": "於 {month} 出售",
+    "positionSold": "已出售",
+    "smartInvestNotConfigured": "未設定智能投資 — 請到設定完成配置。",
+    "smartInvestSetupLink": "前往設定"
   },
   "homes": {
     "title": "物業詳情",
@@ -524,7 +528,11 @@
       "investment": "投資",
       "existing": "{usage} 物業：{price} · 現有按揭 {termMonths} 個月 @ {rate}%",
       "newPurchase": "{usage} 物業：{price} · 按揭 {termYears} 年 @ {rate}%"
-    }
+    },
+    "sellSectionTitle": "出售",
+    "sellMonth": "出售月份",
+    "sellPriceOverride": "出售價格（覆寫）",
+    "sellFeesOneTime": "出售一次性費用"
   },
   "cars": {
     "title": "汽車詳情",
@@ -546,7 +554,11 @@
     "carSummary": {
       "withLoan": "汽車：{price} · 折舊 {rate}% · 車貸 {loanTermYears} 年 @ {loanRate}%",
       "noLoan": "汽車：{price} · 折舊 {rate}%"
-    }
+    },
+    "sellSectionTitle": "出售",
+    "sellMonth": "出售月份",
+    "sellPriceOverride": "出售價格（覆寫）",
+    "sellFeesOneTime": "出售一次性費用"
   },
   "investments": {
     "title": "投資詳情",
@@ -638,7 +650,29 @@
     "inflationRate": "通脹率 (%)",
     "salaryGrowth": "薪金增長 (%)",
     "emergencyFundTarget": "緊急儲備目標",
-    "emergencyFundValue": "{months} 個月"
+    "emergencyFundValue": "{months} 個月",
+    "smartInvestSettingsTitle": "智能投資",
+    "smartInvestSettingsHint": "設定保留現金後的自動投資策略。",
+    "smartInvestEnabled": "啟用智能投資",
+    "smartInvestReserveTitle": "儲備策略",
+    "smartInvestReserveFixed": "固定現金金額",
+    "smartInvestReserveMonths": "支出月數",
+    "smartInvestReserveAmount": "儲備現金金額",
+    "smartInvestReserveMonthsCount": "儲備月數",
+    "smartInvestContributionTitle": "投入方式",
+    "smartInvestContributionIncome": "收入百分比",
+    "smartInvestContributionSurplus": "盈餘百分比",
+    "smartInvestContributionPct": "投入 %",
+    "smartInvestAllocationTitle": "資產配置",
+    "smartInvestAllocationAdd": "新增配置",
+    "smartInvestAllocationName": "名稱",
+    "smartInvestAllocationTargetPct": "目標 %",
+    "smartInvestAllocationReturnPct": "假設年回報 %",
+    "smartInvestAllocationNew": "新配置",
+    "smartInvestDefaultAllocation": "核心",
+    "smartInvestWithdrawalTitle": "提取策略",
+    "smartInvestWithdrawalEnabled": "啟用賣出以維持儲備",
+    "smartInvestWithdrawalHint": "MVP：按比例賣出以維持儲備目標。"
   },
   "members": {
     "title": "家庭成員",
@@ -656,17 +690,17 @@
     "ageRequired": "請填寫出生月份或基準月份年齡。",
     "baseAgeLabel": "基準月份年齡",
     "endAgeLabel": "期末年齡",
-    "applyScopeTitle": "成員套用範圍",
-    "applyScopeHint": "此成員資料會影響被套用的情境（例如里程碑標注、收入事件、預算規則等）。",
-    "milestonesTitle": "人生里程碑",
+    "applyScopeTitle": "適用範圍",
+    "applyScopeHint": "選擇要包含或排除的情境。",
+    "milestonesTitle": "里程碑",
     "addMilestone": "新增里程碑",
     "removeMilestone": "移除里程碑",
-    "milestoneLabel": "里程碑名稱",
-    "milestoneAgeLabel": "發生年齡（歲）",
-    "milestoneMonthLabel": "發生月份",
-    "milestoneApplyScope": "里程碑套用範圍",
+    "milestoneLabel": "標籤",
+    "milestoneAgeLabel": "年齡（歲）",
+    "milestoneMonthLabel": "月份",
+    "milestoneApplyScope": "適用範圍",
     "milestoneBirth": "出生",
-    "milestoneSchoolStart": "上學",
+    "milestoneSchoolStart": "入學",
     "milestoneGraduation": "畢業",
     "milestoneRetirement": "退休",
     "milestoneCustomDefault": "自訂里程碑",
@@ -675,7 +709,9 @@
       "graduation": "畢業",
       "retirement": "退休",
       "custom": "自訂"
-    }
+    },
+    "applyScopeHelper": "使用適用範圍設定成員套用的情境。",
+    "milestonesHelper": "記錄成員的重要人生里程碑。"
   },
   "budgetRules": {
     "title": "預算規則",
@@ -711,8 +747,10 @@
     "projectionWarning": "預算規則已納入投影。如你亦手動建立同類支出事件，可能會重複計算。",
     "projectionWarningBadge": "可能重複",
     "housingWarning": "房屋相關預算規則不會納入投影，房產現金流會由房產模型處理。",
-    "applyScopeTitle": "預算規則套用範圍",
-    "applyScopeHint": "只會對選定情境生效。"
+    "applyScopeTitle": "適用範圍",
+    "applyScopeHint": "選擇要包含或排除的情境。",
+    "applyScopeHelper": "使用適用範圍設定規則套用的情境。",
+    "ageBandHelper": "設定此預算規則的年齡區間。"
   },
   "onboarding": {
     "title": "歡迎使用北極星",
@@ -780,7 +818,9 @@
       "annualBudgets": "年度預算",
       "investments": "投資",
       "insurance": "保險"
-    }
+    },
+    "skipForNow": "暫時跳過",
+    "skipForNowHint": "之後可在設定完成問卷。"
   },
   "stress": {
     "title": "壓力測試",
