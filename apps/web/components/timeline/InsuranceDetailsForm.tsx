@@ -15,7 +15,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeMonth } from "../../src/features/timeline/schema";
+import { normalizeMonthStrict } from "../../src/utils/month";
 import type { InsurancePositionDraft } from "../../src/store/scenarioStore";
 import {
   InsurancePositionSchema,
@@ -55,15 +55,17 @@ export default function InsuranceDetailsForm({
     Math.max(0, Number(value ?? 0));
 
   const handleSave = () => {
-    const normalizedStartMonth = normalizeMonth(formValues.startMonth);
-    const normalizedEndMonth = normalizeMonth(formValues.endMonth ?? "") ??
-      formValues.endMonth ??
-      undefined;
+    const normalizedStartMonth = normalizeMonthStrict(formValues.startMonth);
+    const normalizedEndMonth = formValues.endMonth
+      ? normalizeMonthStrict(formValues.endMonth)
+      : null;
 
     const nextValues = {
       ...formValues,
-      startMonth: normalizedStartMonth ?? formValues.startMonth,
-      endMonth: normalizedEndMonth || undefined,
+      startMonth: normalizedStartMonth.ok
+        ? normalizedStartMonth.month
+        : formValues.startMonth,
+      endMonth: normalizedEndMonth?.ok ? normalizedEndMonth.month : undefined,
     };
 
     const parsed = InsurancePositionSchema.safeParse(nextValues);

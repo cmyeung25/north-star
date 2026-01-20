@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeMonth } from "../../src/features/timeline/schema";
+import { normalizeMonthStrict } from "../../src/utils/month";
 import type { LoanPositionDraft } from "../../src/store/scenarioStore";
 import { LoanPositionSchema, getLoanPositionErrors } from "../../src/store/scenarioValidation";
 
@@ -44,11 +44,11 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
     Math.max(0, Number(value ?? 0));
 
   const handleSave = () => {
-    const normalizedMonth = normalizeMonth(formValues.startMonth);
+    const normalizedMonth = normalizeMonthStrict(formValues.startMonth);
 
     const nextValues = {
       ...formValues,
-      startMonth: normalizedMonth ?? formValues.startMonth,
+      startMonth: normalizedMonth.ok ? normalizedMonth.month : formValues.startMonth,
     };
 
     const parsed = LoanPositionSchema.safeParse(nextValues);

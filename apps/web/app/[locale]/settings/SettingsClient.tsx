@@ -49,7 +49,7 @@ import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
-// import { isValidMonthStr } from "../../../src/utils/month";
+import { isValidMonthStr, normalizeMonthStrict } from "../../../src/utils/month";
 import {
   compileBudgetRuleToMonthlySeries,
   type BudgetRuleMonthlyEntry,
@@ -68,8 +68,6 @@ type ToastState = {
   color?: string;
 };
 
-const isValidBaseMonth = (value: string) => /^\d{4}-\d{2}$/.test(value);
-const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const isHousingCategory = (category: string) => category === "housing";
 
 export default function SettingsClient({ scenarioId }: SettingsClientProps) {
@@ -123,6 +121,19 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [syncToast, setSyncToast] = useState<ToastState | null>(null);
   const [baseMonthInput, setBaseMonthInput] = useState("");
+  const [baseMonthError, setBaseMonthError] = useState<string | null>(null);
+  const [memberBirthMonthInputs, setMemberBirthMonthInputs] = useState<
+    Record<string, string>
+  >({});
+  const [memberBirthMonthErrors, setMemberBirthMonthErrors] = useState<
+    Record<string, string | null>
+  >({});
+  const [milestoneMonthInputs, setMilestoneMonthInputs] = useState<
+    Record<string, string>
+  >({});
+  const [milestoneMonthErrors, setMilestoneMonthErrors] = useState<
+    Record<string, string | null>
+  >({});
   const [activeTab, setActiveTab] = useState("data");
   const [budgetMonthInputs, setBudgetMonthInputs] = useState<
     Record<string, { startMonth: string; endMonth: string }>
@@ -141,6 +152,8 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevMemberMonthRef = useRef<Record<string, string>>({});
+  const prevMilestoneMonthRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (
@@ -193,7 +206,64 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
 
   useEffect(() => {
     setBaseMonthInput(appSettings.globalBaseMonth ?? "");
+    setBaseMonthError(null);
   }, [appSettings.globalBaseMonth]);
+
+  useEffect(() => {
+    setMemberBirthMonthInputs((current) => {
+      const next = { ...current };
+      const previous = prevMemberMonthRef.current;
+      members.forEach((member) => {
+        const stored = member.birthMonth ?? "";
+        if (next[member.id] === undefined || next[member.id] === previous[member.id]) {
+          next[member.id] = stored;
+        }
+      });
+      Object.keys(next).forEach((key) => {
+        if (!members.some((member) => member.id === key)) {
+          delete next[key];
+        }
+      });
+      prevMemberMonthRef.current = members.reduce<Record<string, string>>(
+        (acc, member) => {
+          acc[member.id] = member.birthMonth ?? "";
+          return acc;
+        },
+        {}
+      );
+      return next;
+    });
+    setMilestoneMonthInputs((current) => {
+      const next = { ...current };
+      const previous = prevMilestoneMonthRef.current;
+      const currentMilestoneKeys = new Set<string>();
+      members.forEach((member) => {
+        (member.milestones ?? []).forEach((milestone) => {
+          const key = `${member.id}:${milestone.id}`;
+          currentMilestoneKeys.add(key);
+          const stored = milestone.month ?? "";
+          if (next[key] === undefined || next[key] === previous[key]) {
+            next[key] = stored;
+          }
+        });
+      });
+      Object.keys(next).forEach((key) => {
+        if (!currentMilestoneKeys.has(key)) {
+          delete next[key];
+        }
+      });
+      prevMilestoneMonthRef.current = members.reduce<Record<string, string>>(
+        (acc, member) => {
+          (member.milestones ?? []).forEach((milestone) => {
+            acc[`${member.id}:${milestone.id}`] = milestone.month ?? "";
+          });
+          return acc;
+        },
+        {}
+      );
+      return next;
+    });
+  }, [members]);
 
   useEffect(() => {
     let active = true;
@@ -440,7 +510,8 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       return;
     }
 
-    if (!monthPattern.test(trimmed)) {
+    const normalized = normalizeMonthStrict(trimmed);
+    if (!normalized.ok) {
       setBudgetMonthErrors((current) => ({
         ...current,
         [ruleId]: { ...current[ruleId], [field]: validation("useYearMonth") },
@@ -448,12 +519,12 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       return;
     }
 
-    updateBudgetRule(ruleId, { [field]: trimmed });
+    updateBudgetRule(ruleId, { [field]: normalized.month });
     setBudgetMonthErrors((current) => ({
       ...current,
       [ruleId]: { ...current[ruleId], [field]: undefined },
     }));
-    updateBudgetMonthInput(ruleId, field, trimmed);
+    updateBudgetMonthInput(ruleId, field, normalized.month);
   };
 
   const scenarioOptions = useMemo(
@@ -881,12 +952,27 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                   onChange={(event) => {
                     const nextValue = event.currentTarget.value;
                     setBaseMonthInput(nextValue);
-                    if (nextValue.trim() === "") {
-                      setGlobalBaseMonth(null);
-                    } else if (isValidBaseMonth(nextValue)) {
-                      setGlobalBaseMonth(nextValue);
+                    if (baseMonthError) {
+                      setBaseMonthError(null);
                     }
                   }}
+                  onBlur={() => {
+                    const trimmed = baseMonthInput.trim();
+                    if (trimmed === "") {
+                      setGlobalBaseMonth(null);
+                      setBaseMonthError(null);
+                      return;
+                    }
+                    const normalized = normalizeMonthStrict(trimmed);
+                    if (!normalized.ok) {
+                      setBaseMonthError(validation("useYearMonth"));
+                      return;
+                    }
+                    setGlobalBaseMonth(normalized.month);
+                    setBaseMonthInput(normalized.month);
+                    setBaseMonthError(null);
+                  }}
+                  error={baseMonthError ?? undefined}
                 />
                 <Group justify="space-between" align="center">
                   <Text size="xs" c="dimmed">
@@ -1250,13 +1336,17 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                   verticalSpacing={{ base: 'md', sm: 'xl' }}
                 >
                   {members.map((member, index) => {
+                    const birthMonthInput =
+                      memberBirthMonthInputs[member.id] ?? member.birthMonth ?? "";
+                    const birthMonthError =
+                      memberBirthMonthErrors[member.id] ?? undefined;
                     const hasBirthMonth =
                       typeof member.birthMonth === "string" &&
-                      isValidBaseMonth(member.birthMonth);
+                      isValidMonthStr(member.birthMonth);
                     const hasAgeAtBase = typeof member.ageAtBaseMonth === "number";
                     const baseMonthValue = baseMonth;
                     const validBaseMonth =
-                      baseMonthValue && isValidBaseMonth(baseMonthValue)
+                      baseMonthValue && isValidMonthStr(baseMonthValue)
                         ? baseMonthValue
                         : null;
                     const canCalculateAge = Boolean(validBaseMonth);
@@ -1321,13 +1411,52 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                             <TextInput
                               label={membersText("birthMonthLabel")}
                               placeholder={common("yearMonthPlaceholder")}
-                              value={member.birthMonth ?? ""}
-                              type="month"
+                              value={birthMonthInput}
+                              error={birthMonthError}
                               onChange={(event) => {
-                                const nextValue = event.currentTarget.value.trim();
+                                const nextValue = event.currentTarget.value;
+                                setMemberBirthMonthInputs((current) => ({
+                                  ...current,
+                                  [member.id]: nextValue,
+                                }));
+                                setMemberBirthMonthErrors((current) => ({
+                                  ...current,
+                                  [member.id]: null,
+                                }));
+                              }}
+                              onBlur={() => {
+                                const trimmed = birthMonthInput.trim();
+                                if (trimmed === "") {
+                                  updateMember(member.id, { birthMonth: undefined });
+                                  setMemberBirthMonthErrors((current) => ({
+                                    ...current,
+                                    [member.id]: null,
+                                  }));
+                                  setMemberBirthMonthInputs((current) => ({
+                                    ...current,
+                                    [member.id]: "",
+                                  }));
+                                  return;
+                                }
+                                const normalized = normalizeMonthStrict(trimmed);
+                                if (!normalized.ok) {
+                                  setMemberBirthMonthErrors((current) => ({
+                                    ...current,
+                                    [member.id]: validation("useYearMonth"),
+                                  }));
+                                  return;
+                                }
                                 updateMember(member.id, {
-                                  birthMonth: nextValue === "" ? undefined : nextValue,
+                                  birthMonth: normalized.month,
                                 });
+                                setMemberBirthMonthErrors((current) => ({
+                                  ...current,
+                                  [member.id]: null,
+                                }));
+                                setMemberBirthMonthInputs((current) => ({
+                                  ...current,
+                                  [member.id]: normalized.month,
+                                }));
                               }}
                             />
                             <NumberInput
@@ -1408,120 +1537,183 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                             )}
                             {(member.milestones ?? [])
                               .filter((milestone) => milestone.kind !== "birth")
-                              .map((milestone) => (
-                                <Card
-                                  key={milestone.id}
-                                  withBorder
-                                  radius="md"
-                                  padding="sm"
-                                >
-                                  <Stack gap="sm">
-                                    <Group justify="space-between" align="center">
-                                      <Text fw={500}>
-                                        {membersText(
-                                          `milestoneKind.${milestone.kind}`
-                                        )}
-                                      </Text>
-                                      <Button
-                                        size="xs"
-                                        variant="light"
-                                        color="red"
-                                        onClick={() =>
-                                          updateMemberMilestones(member.id, (current) =>
-                                            current.filter(
-                                              (entry) => entry.id !== milestone.id
+                              .map((milestone) => {
+                                const milestoneKey = `${member.id}:${milestone.id}`;
+                                const monthInput =
+                                  milestoneMonthInputs[milestoneKey] ??
+                                  milestone.month ??
+                                  "";
+                                const monthError =
+                                  milestoneMonthErrors[milestoneKey] ?? undefined;
+                                return (
+                                  <Card
+                                    key={milestone.id}
+                                    withBorder
+                                    radius="md"
+                                    padding="sm"
+                                  >
+                                    <Stack gap="sm">
+                                      <Group justify="space-between" align="center">
+                                        <Text fw={500}>
+                                          {membersText(
+                                            `milestoneKind.${milestone.kind}`
+                                          )}
+                                        </Text>
+                                        <Button
+                                          size="xs"
+                                          variant="light"
+                                          color="red"
+                                          onClick={() =>
+                                            updateMemberMilestones(member.id, (current) =>
+                                              current.filter(
+                                                (entry) => entry.id !== milestone.id
+                                              )
                                             )
-                                          )
-                                        }
-                                      >
-                                        {membersText("removeMilestone")}
-                                      </Button>
-                                    </Group>
-                                    <TextInput
-                                      label={membersText("milestoneLabel")}
-                                      value={milestone.label}
-                                      onChange={(event) =>
-                                        updateMemberMilestones(member.id, (current) =>
-                                          current.map((entry) =>
-                                            entry.id === milestone.id
-                                              ? {
-                                                  ...entry,
-                                                  label: event.currentTarget.value,
-                                                }
-                                              : entry
-                                          )
-                                        )
-                                      }
-                                    />
-                                    <Group grow>
-                                      <NumberInput
-                                        label={membersText("milestoneAgeLabel")}
-                                        value={milestone.atAgeYears ?? ""}
-                                        min={0}
-                                        step={0.5}
-                                        decimalScale={2}
-                                        onChange={(value) =>
-                                          updateMemberMilestones(member.id, (current) =>
-                                            current.map((entry) =>
-                                              entry.id === milestone.id
-                                                ? {
-                                                    ...entry,
-                                                    atAgeYears:
-                                                      typeof value === "number"
-                                                        ? value
-                                                        : undefined,
-                                                    month:
-                                                      typeof value === "number"
-                                                        ? undefined
-                                                        : entry.month,
-                                                  }
-                                                : entry
-                                            )
-                                          )
-                                        }
-                                      />
+                                          }
+                                        >
+                                          {membersText("removeMilestone")}
+                                        </Button>
+                                      </Group>
                                       <TextInput
-                                        label={membersText("milestoneMonthLabel")}
-                                        type="month"
-                                        value={milestone.month ?? ""}
+                                        label={membersText("milestoneLabel")}
+                                        value={milestone.label}
                                         onChange={(event) =>
                                           updateMemberMilestones(member.id, (current) =>
                                             current.map((entry) =>
                                               entry.id === milestone.id
                                                 ? {
                                                     ...entry,
-                                                    month:
-                                                      event.currentTarget.value ||
-                                                      undefined,
-                                                    atAgeYears: event.currentTarget.value
-                                                      ? undefined
-                                                      : entry.atAgeYears,
+                                                    label: event.currentTarget.value,
                                                   }
                                                 : entry
                                             )
                                           )
                                         }
                                       />
-                                    </Group>
-                                    <Stack gap="xs">
-                                      <Text fw={500}>
-                                        {membersText("milestoneApplyScope")}
-                                      </Text>
-                                      {renderApplyScope(
-                                        normalizeApplyScope(milestone.applyScope),
-                                        (next) =>
-                                          updateMemberMilestones(member.id, (current) =>
-                                            current.map((entry) =>
-                                              entry.id === milestone.id
-                                                ? { ...entry, applyScope: next }
-                                                : entry
+                                      <Group grow>
+                                        <NumberInput
+                                          label={membersText("milestoneAgeLabel")}
+                                          value={milestone.atAgeYears ?? ""}
+                                          min={0}
+                                          step={0.5}
+                                          decimalScale={2}
+                                          onChange={(value) =>
+                                            updateMemberMilestones(member.id, (current) =>
+                                              current.map((entry) =>
+                                                entry.id === milestone.id
+                                                  ? {
+                                                      ...entry,
+                                                      atAgeYears:
+                                                        typeof value === "number"
+                                                          ? value
+                                                          : undefined,
+                                                      month:
+                                                        typeof value === "number"
+                                                          ? undefined
+                                                          : entry.month,
+                                                    }
+                                                  : entry
+                                              )
                                             )
-                                          )
-                                      )}
+                                          }
+                                        />
+                                        <TextInput
+                                          label={membersText("milestoneMonthLabel")}
+                                          placeholder={common("yearMonthPlaceholder")}
+                                          value={monthInput}
+                                          error={monthError}
+                                          onChange={(event) => {
+                                            const nextValue = event.currentTarget.value;
+                                            setMilestoneMonthInputs((current) => ({
+                                              ...current,
+                                              [milestoneKey]: nextValue,
+                                            }));
+                                            setMilestoneMonthErrors((current) => ({
+                                              ...current,
+                                              [milestoneKey]: null,
+                                            }));
+                                          }}
+                                          onBlur={() => {
+                                            const trimmed = monthInput.trim();
+                                            if (trimmed === "") {
+                                              updateMemberMilestones(
+                                                member.id,
+                                                (current) =>
+                                                  current.map((entry) =>
+                                                    entry.id === milestone.id
+                                                      ? {
+                                                          ...entry,
+                                                          month: undefined,
+                                                        }
+                                                      : entry
+                                                  )
+                                              );
+                                              setMilestoneMonthErrors((current) => ({
+                                                ...current,
+                                                [milestoneKey]: null,
+                                              }));
+                                              setMilestoneMonthInputs((current) => ({
+                                                ...current,
+                                                [milestoneKey]: "",
+                                              }));
+                                              return;
+                                            }
+                                            const normalized =
+                                              normalizeMonthStrict(trimmed);
+                                            if (!normalized.ok) {
+                                              setMilestoneMonthErrors((current) => ({
+                                                ...current,
+                                                [milestoneKey]:
+                                                  validation("useYearMonth"),
+                                              }));
+                                              return;
+                                            }
+                                            updateMemberMilestones(
+                                              member.id,
+                                              (current) =>
+                                                current.map((entry) =>
+                                                  entry.id === milestone.id
+                                                    ? {
+                                                        ...entry,
+                                                        month: normalized.month,
+                                                        atAgeYears: undefined,
+                                                      }
+                                                    : entry
+                                                )
+                                            );
+                                            setMilestoneMonthErrors((current) => ({
+                                              ...current,
+                                              [milestoneKey]: null,
+                                            }));
+                                            setMilestoneMonthInputs((current) => ({
+                                              ...current,
+                                              [milestoneKey]: normalized.month,
+                                            }));
+                                          }}
+                                        />
+                                      </Group>
+                                      <Stack gap="xs">
+                                        <Text fw={500}>
+                                          {membersText("milestoneApplyScope")}
+                                        </Text>
+                                        {renderApplyScope(
+                                          normalizeApplyScope(milestone.applyScope),
+                                          (next) =>
+                                            updateMemberMilestones(
+                                              member.id,
+                                              (current) =>
+                                                current.map((entry) =>
+                                                  entry.id === milestone.id
+                                                    ? { ...entry, applyScope: next }
+                                                    : entry
+                                                )
+                                            )
+                                        )}
+                                      </Stack>
                                     </Stack>
-                                  </Stack>
-                                </Card>
-                              ))}
+                                  </Card>
+                                );
+                              })}
                           </Stack>
                         </Stack>
                       </Card>

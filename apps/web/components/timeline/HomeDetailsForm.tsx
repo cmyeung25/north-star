@@ -15,7 +15,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeMonth } from "../../src/features/timeline/schema";
+import { normalizeMonthStrict } from "../../src/utils/month";
 import type { HomePositionDraft, RentalDetails } from "../../src/store/scenarioStore";
 import {
   HomePositionSchema,
@@ -118,38 +118,50 @@ export default function HomeDetailsForm({
 
   const handleSave = () => {
     const normalizedMonth = formValues.purchaseMonth
-      ? normalizeMonth(formValues.purchaseMonth)
+      ? normalizeMonthStrict(formValues.purchaseMonth)
       : null;
     const sellMonthInput = formValues.sellMonth?.trim() ?? "";
-    const normalizedSellMonth = sellMonthInput ? normalizeMonth(sellMonthInput) : null;
+    const normalizedSellMonth = sellMonthInput
+      ? normalizeMonthStrict(sellMonthInput)
+      : null;
     const normalizedExistingMonth = formValues.existing?.asOfMonth
-      ? normalizeMonth(formValues.existing.asOfMonth)
+      ? normalizeMonthStrict(formValues.existing.asOfMonth)
       : null;
     const normalizedRentStart = formValues.rental?.rentStartMonth
-      ? normalizeMonth(formValues.rental.rentStartMonth)
+      ? normalizeMonthStrict(formValues.rental.rentStartMonth)
       : null;
     const normalizedRentEnd = formValues.rental?.rentEndMonth
-      ? normalizeMonth(formValues.rental.rentEndMonth)
+      ? normalizeMonthStrict(formValues.rental.rentEndMonth)
       : null;
 
     const nextValues = {
       ...formValues,
-      purchaseMonth: normalizedMonth ?? formValues.purchaseMonth,
+      purchaseMonth: normalizedMonth?.ok
+        ? normalizedMonth.month
+        : formValues.purchaseMonth,
       sellMonth:
         sellMonthInput === ""
           ? undefined
-          : normalizedSellMonth ?? formValues.sellMonth,
+          : normalizedSellMonth?.ok
+            ? normalizedSellMonth.month
+            : formValues.sellMonth,
       existing: formValues.existing
         ? {
             ...formValues.existing,
-            asOfMonth: normalizedExistingMonth ?? formValues.existing.asOfMonth,
+            asOfMonth: normalizedExistingMonth?.ok
+              ? normalizedExistingMonth.month
+              : formValues.existing.asOfMonth,
           }
         : undefined,
       rental: formValues.rental
         ? {
             ...formValues.rental,
-            rentStartMonth: normalizedRentStart ?? formValues.rental.rentStartMonth,
-            rentEndMonth: normalizedRentEnd ?? formValues.rental.rentEndMonth ?? null,
+            rentStartMonth: normalizedRentStart?.ok
+              ? normalizedRentStart.month
+              : formValues.rental.rentStartMonth,
+            rentEndMonth: normalizedRentEnd?.ok
+              ? normalizedRentEnd.month
+              : formValues.rental.rentEndMonth ?? null,
           }
         : undefined,
     };

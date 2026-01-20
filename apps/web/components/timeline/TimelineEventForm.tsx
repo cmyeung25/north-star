@@ -16,7 +16,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildMonthRange, type EventField, type EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import { normalizeEvent } from "../../src/features/timeline/schema";
-import { isValidMonthStr, normalizeMonthInput } from "../../src/utils/month";
+import {
+  isValidMonthStr,
+  normalizeMonthInput,
+  normalizeMonthStrict,
+} from "../../src/utils/month";
 import type { TimelineEvent } from "./types";
 import type { ScenarioAssumptions, ScenarioMember } from "../../src/store/scenarioStore";
 import { monthAtAge } from "../../src/domain/members/age";
@@ -132,8 +136,8 @@ export default function TimelineEventForm({
       return;
     }
 
-    const normalized = normalizeMonthInput(value);
-    if (normalized.status === "valid" && normalized.month) {
+    const normalized = normalizeMonthStrict(value);
+    if (normalized.ok) {
       if (key === "startMonth") {
         setStartMonthInput(normalized.month);
         updateField("startMonth", normalized.month as TimelineEvent["startMonth"]);
@@ -145,7 +149,7 @@ export default function TimelineEventForm({
       return;
     }
 
-    if (normalized.status === "empty") {
+    if (value.trim() === "") {
       if (key === "startMonth") {
         updateField("startMonth", "" as TimelineEvent["startMonth"]);
       } else {
@@ -163,23 +167,23 @@ export default function TimelineEventForm({
       return;
     }
 
-    const normalizedStartMonth = normalizeMonthInput(startMonthInput);
-    const normalizedEndMonth = normalizeMonthInput(endMonthInput);
+    const normalizedStartMonth = normalizeMonthStrict(startMonthInput);
+    const normalizedEndMonth =
+      endMonthInput.trim() === "" ? null : normalizeMonthStrict(endMonthInput);
     const nextErrors: { startMonth?: string; endMonth?: string } = {};
 
     if (
       shouldShowField("startMonth") &&
-      (normalizedStartMonth.status !== "valid" || !normalizedStartMonth.month)
+      !normalizedStartMonth.ok
     ) {
       nextErrors.startMonth = validation("useYearMonth");
     }
 
     if (shouldShowField("endMonth") && endMonthInput.trim() !== "") {
-      if (normalizedEndMonth.status !== "valid" || !normalizedEndMonth.month) {
+      if (!normalizedEndMonth?.ok) {
         nextErrors.endMonth = validation("useYearMonth");
       } else if (
-        normalizedStartMonth.status === "valid" &&
-        normalizedStartMonth.month &&
+        normalizedStartMonth.ok &&
         normalizedEndMonth.month < normalizedStartMonth.month
       ) {
         nextErrors.endMonth = validation("endMonthAfterStart");
@@ -198,8 +202,10 @@ export default function TimelineEventForm({
           getEventMeta(formValues.type).group === "income"
             ? formValues.incomeSubtype ?? "salary"
             : formValues.incomeSubtype,
-        startMonth: normalizedStartMonth.month ?? formValues.startMonth,
-        endMonth: normalizedEndMonth.status === "valid" ? normalizedEndMonth.month : null,
+        startMonth: normalizedStartMonth.ok
+          ? normalizedStartMonth.month
+          : formValues.startMonth,
+        endMonth: normalizedEndMonth?.ok ? normalizedEndMonth.month : null,
       },
       { baseCurrency }
     );

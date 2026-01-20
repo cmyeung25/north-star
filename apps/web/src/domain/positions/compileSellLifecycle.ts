@@ -1,7 +1,7 @@
 import { monthIndex } from "@north-star/engine";
 import type { CarPosition, HomePosition, Scenario } from "../../store/scenarioStore";
 import { buildAmortizationSchedule } from "./calculations";
-import { isValidMonthStr } from "../../utils/month";
+import { normalizeMonthStrict } from "../../utils/month";
 
 export type SellCashflowEntry = {
   month: string;
@@ -53,18 +53,28 @@ const computeOutstandingBalance = (params: {
 };
 
 const buildHomeSellEntries = (home: HomePosition, homeId: string) => {
-  const sellMonth = home.sellMonth;
-  if (!sellMonth || !isValidMonthStr(sellMonth)) {
+  const sellMonthRaw = home.sellMonth;
+  if (!sellMonthRaw) {
     return [];
   }
+  const normalizedSellMonth = normalizeMonthStrict(sellMonthRaw);
+  if (!normalizedSellMonth.ok) {
+    return [];
+  }
+  const sellMonth = normalizedSellMonth.month;
   const mode = home.mode ?? "new_purchase";
-  const startMonth =
+  const startMonthRaw =
     mode === "existing" && home.existing
       ? home.existing.asOfMonth
       : home.purchaseMonth;
-  if (!startMonth || !isValidMonthStr(startMonth)) {
+  if (!startMonthRaw) {
     return [];
   }
+  const normalizedStartMonth = normalizeMonthStrict(startMonthRaw);
+  if (!normalizedStartMonth.ok) {
+    return [];
+  }
+  const startMonth = normalizedStartMonth.month;
 
   const baseValue =
     mode === "existing" && home.existing
@@ -107,7 +117,7 @@ const buildHomeSellEntries = (home: HomePosition, homeId: string) => {
           principal: home.existing.mortgageBalance,
           annualRateDecimal: (home.existing.annualRatePct ?? 0) / 100,
           termMonths: home.existing.remainingTermMonths,
-          startMonth: home.existing.asOfMonth,
+          startMonth,
         }
       : home.mortgageRatePct && home.mortgageTermYears && home.purchasePrice
         ? {
@@ -115,7 +125,7 @@ const buildHomeSellEntries = (home: HomePosition, homeId: string) => {
               (home.purchasePrice ?? 0) - (home.downPayment ?? 0),
             annualRateDecimal: (home.mortgageRatePct ?? 0) / 100,
             termMonths: Math.round((home.mortgageTermYears ?? 0) * 12),
-            startMonth: home.purchaseMonth ?? startMonth,
+            startMonth,
           }
         : null;
 
@@ -143,17 +153,27 @@ const buildHomeSellEntries = (home: HomePosition, homeId: string) => {
 };
 
 const buildCarSellEntries = (car: CarPosition, carId: string) => {
-  const sellMonth = car.sellMonth;
-  if (!sellMonth || !isValidMonthStr(sellMonth)) {
+  const sellMonthRaw = car.sellMonth;
+  if (!sellMonthRaw) {
     return [];
   }
-  if (!car.purchaseMonth || !isValidMonthStr(car.purchaseMonth)) {
+  const normalizedSellMonth = normalizeMonthStrict(sellMonthRaw);
+  if (!normalizedSellMonth.ok) {
     return [];
   }
+  const sellMonth = normalizedSellMonth.month;
+  if (!car.purchaseMonth) {
+    return [];
+  }
+  const normalizedPurchaseMonth = normalizeMonthStrict(car.purchaseMonth);
+  if (!normalizedPurchaseMonth.ok) {
+    return [];
+  }
+  const purchaseMonth = normalizedPurchaseMonth.month;
   const valueAtSellMonth = computeValueAtMonth(
     car.purchasePrice ?? 0,
     (car.annualDepreciationRatePct ?? 0) / 100,
-    car.purchaseMonth,
+    purchaseMonth,
     sellMonth
   );
   const proceeds = car.sellPriceOverride ?? valueAtSellMonth;
@@ -186,7 +206,7 @@ const buildCarSellEntries = (car: CarPosition, carId: string) => {
       principal: car.loan.principal,
       annualRateDecimal: (car.loan.annualInterestRatePct ?? 0) / 100,
       termMonths: Math.round((car.loan.termYears ?? 0) * 12),
-      startMonth: car.purchaseMonth,
+      startMonth: purchaseMonth,
       targetMonth: sellMonth,
     });
     if (payoff > 0) {

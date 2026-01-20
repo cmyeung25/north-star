@@ -11,7 +11,8 @@ import {
 } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeEvent, normalizeMonth } from "../../src/features/timeline/schema";
+import { normalizeEvent } from "../../src/features/timeline/schema";
+import { normalizeMonthStrict } from "../../src/utils/month";
 import {
   buildTemplateParams,
   getInsuranceTemplate,
@@ -84,16 +85,19 @@ export default function InsuranceProductForm({
   };
 
   const handleNormalizeMonth = (value: string) => {
-    const normalized = normalizeMonth(value);
-    if (!normalized && value) {
+    const normalized = normalizeMonthStrict(value);
+    if (!normalized.ok && value) {
       return;
     }
-    updateField("startMonth", (normalized ?? value ?? "") as TimelineEvent["startMonth"]);
+    updateField(
+      "startMonth",
+      (normalized.ok ? normalized.month : value ?? "") as TimelineEvent["startMonth"]
+    );
   };
 
   const handleSave = () => {
-    const normalizedStartMonth = normalizeMonth(formValues.startMonth);
-    if (!normalizedStartMonth) {
+    const normalizedStartMonth = normalizeMonthStrict(formValues.startMonth);
+    if (!normalizedStartMonth.ok) {
       setErrors({ startMonth: validation("useYearMonth") });
       return;
     }
@@ -101,7 +105,7 @@ export default function InsuranceProductForm({
     const normalizedEvent = normalizeEvent(
       {
         ...formValues,
-        startMonth: normalizedStartMonth,
+        startMonth: normalizedStartMonth.month,
         endMonth: null,
         templateId: template.id,
         templateParams,
