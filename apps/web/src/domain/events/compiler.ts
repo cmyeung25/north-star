@@ -2,7 +2,7 @@ import type { Scenario } from "../../store/scenarioStore";
 import type { EventDefinition, ScenarioEventRef } from "./types";
 import { buildScenarioEventViews, resolveEventRule } from "./utils";
 import { buildMonthRange, monthIndex } from "@north-star/engine";
-import { isValidMonthStr } from "../../utils/month";
+import { normalizeMonthStrict } from "../../utils/month";
 
 export type MonthlyCashflowPoint = {
   month: string;
@@ -55,12 +55,17 @@ export const compileEventToMonthlyCashflowSeries = ({
   }
 
   const effectiveRule = resolveEventRule(definition, ref);
-  const baseMonth = assumptions.baseMonth ?? effectiveRule.startMonth ?? null;
+  const baseMonthRaw = assumptions.baseMonth ?? effectiveRule.startMonth ?? null;
   const horizonMonths = assumptions.horizonMonths ?? 0;
 
-  if (!baseMonth || !isValidMonthStr(baseMonth) || horizonMonths <= 0) {
+  if (!baseMonthRaw || horizonMonths <= 0) {
     return [];
   }
+  const normalizedBase = normalizeMonthStrict(baseMonthRaw);
+  if (!normalizedBase.ok) {
+    return [];
+  }
+  const baseMonth = normalizedBase.month;
 
   const sign = signByType(definition.type);
 
@@ -74,22 +79,31 @@ export const compileEventToMonthlyCashflowSeries = ({
     }));
   }
 
-  if (!effectiveRule.startMonth || !isValidMonthStr(effectiveRule.startMonth)) {
+  if (!effectiveRule.startMonth) {
     return [];
   }
 
-  if (effectiveRule.endMonth && !isValidMonthStr(effectiveRule.endMonth)) {
+  const normalizedStart = normalizeMonthStrict(effectiveRule.startMonth);
+  if (!normalizedStart.ok) {
     return [];
   }
+  const normalizedEnd = effectiveRule.endMonth
+    ? normalizeMonthStrict(effectiveRule.endMonth)
+    : null;
+  if (normalizedEnd && !normalizedEnd.ok) {
+    return [];
+  }
+  const startMonth = normalizedStart.month;
+  const endMonth = normalizedEnd?.ok ? normalizedEnd.month : null;
 
   const monthlyAmount = Math.abs(effectiveRule.monthlyAmount ?? 0);
   const oneTimeAmount = Math.abs(effectiveRule.oneTimeAmount ?? 0);
   const annualGrowthPct = effectiveRule.annualGrowthPct ?? 0;
   const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);
 
-  const startIndex = monthIndex(baseMonth, effectiveRule.startMonth);
-  const endIndex = effectiveRule.endMonth
-    ? monthIndex(baseMonth, effectiveRule.endMonth)
+  const startIndex = monthIndex(baseMonth, startMonth);
+  const endIndex = endMonth
+    ? monthIndex(baseMonth, endMonth)
     : horizonMonths - 1;
   const rangeStart = Math.max(0, startIndex);
   const rangeEnd = Math.min(horizonMonths - 1, endIndex);

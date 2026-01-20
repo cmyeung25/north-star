@@ -3,6 +3,33 @@ export type MonthInputStatus = "valid" | "partial" | "empty" | "invalid";
 export const isValidMonthStr = (value: string): boolean =>
   /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 
+export const normalizeMonthStrict = (
+  input: string
+): { ok: true; month: string } | { ok: false; reason: string } => {
+  const trimmed = input.trim();
+  if (trimmed === "") {
+    return { ok: false, reason: "empty" };
+  }
+
+  const match = /^(\d{4})-(\d{1,2})$/.exec(trimmed);
+  if (!match) {
+    return { ok: false, reason: "invalid-format" };
+  }
+
+  const monthValue = Number(match[2]);
+  if (!Number.isInteger(monthValue) || monthValue < 1 || monthValue > 12) {
+    return { ok: false, reason: "invalid-month" };
+  }
+
+  return {
+    ok: true,
+    month: `${match[1]}-${String(monthValue).padStart(2, "0")}`,
+  };
+};
+
+export const isMonthComplete = (input: string): boolean =>
+  /^\d{4}-\d{2}$/.test(input.trim());
+
 export const normalizeMonthInput = (
   value: string
 ): { status: MonthInputStatus; month?: string } => {

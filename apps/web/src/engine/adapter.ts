@@ -26,7 +26,7 @@ import { buildScenarioTimelineEvents, resolveEventRule } from "../domain/events/
 import type { TimelineEvent } from "../features/timeline/schema";
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
 import type { CashflowItem } from "../domain/ledger/types";
-import { isValidMonthStr } from "../utils/month";
+import { normalizeMonthStrict } from "../utils/month";
 import { compileSmartInvest } from "../domain/smartInvest/compileSmartInvest";
 import { compileSellLifecycle } from "../domain/positions/compileSellLifecycle";
 
@@ -63,33 +63,40 @@ const getEarliestStartMonth = (events: TimelineEvent[]) =>
     if (!event.enabled) {
       return earliest;
     }
-    if (!isValidMonth(event.startMonth)) {
+    const normalized = normalizeMonthStrict(event.startMonth);
+    if (!normalized.ok) {
       return earliest;
     }
-    if (!earliest || event.startMonth < earliest) {
-      return event.startMonth;
+    if (!earliest || normalized.month < earliest) {
+      return normalized.month;
     }
     return earliest;
   }, null);
-
-const isValidMonth = (value: string) => isValidMonthStr(value);
 
 const getEarliestBuyHomeEvent = (events: TimelineEvent[]) =>
   events.reduce<TimelineEvent | null>((earliest, event) => {
     if (!event.enabled || event.type !== "buy_home") {
       return earliest;
     }
-    if (!isValidMonth(event.startMonth)) {
+    const normalized = normalizeMonthStrict(event.startMonth);
+    if (!normalized.ok) {
       return earliest;
     }
-    if (!earliest || event.startMonth < earliest.startMonth) {
+    const earliestNormalized = earliest
+      ? normalizeMonthStrict(earliest.startMonth)
+      : null;
+    if (
+      !earliest ||
+      !earliestNormalized?.ok ||
+      normalized.month < earliestNormalized.month
+    ) {
       return event;
     }
     return earliest;
   }, null);
 
 const checkBuyHomeEventMonth = (event: TimelineEvent) =>
-  isValidMonth(event.startMonth);
+  normalizeMonthStrict(event.startMonth).ok;
 
 const buildEngineEventsFromCashflows = (
   cashflows: CashflowItem[],
@@ -100,23 +107,28 @@ const buildEngineEventsFromCashflows = (
     .filter(
       (entry) => entry.category !== "buy_home" && entry.category !== "insurance_product"
     )
-    .filter((entry) => {
-      if (isValidMonth(entry.month)) {
-        return true;
+    .flatMap((entry) => {
+      const normalized = normalizeMonthStrict(entry.month);
+      if (!normalized.ok) {
+        warnings.push({
+          code: "invalid-month",
+          message: `Skipped cashflow with invalid month ${entry.month}.`,
+          meta: {
+            sourceId: entry.sourceId,
+            category: entry.category,
+            reason: normalized.reason,
+          },
+        });
+        return [];
       }
-      warnings.push({
-        code: "invalid-month",
-        message: `Skipped cashflow with invalid month ${entry.month}.`,
-        meta: { sourceId: entry.sourceId, category: entry.category },
-      });
-      return false;
+      return [{ entry, month: normalized.month }];
     })
-    .map((entry) => ({
-      id: `${entry.sourceId}:${entry.month}`,
+    .map(({ entry, month }) => ({
+      id: `${entry.sourceId}:${month}`,
       type: entry.category,
       enabled: true,
-      startMonth: entry.month,
-      endMonth: entry.month,
+      startMonth: month,
+      endMonth: month,
       monthlyAmount: 0,
       oneTimeAmount: entry.amount,
       annualGrowthPct: 0,
@@ -140,17 +152,25 @@ const filterCashflowsToHorizon = (
   horizonMonths: number,
   warnings: AdapterWarning[]
 ) =>
-  ledger.filter((entry) => {
-    if (!isValidMonth(entry.month)) {
+  ledger.flatMap((entry) => {
+    const normalized = normalizeMonthStrict(entry.month);
+    if (!normalized.ok) {
       warnings.push({
         code: "invalid-month",
         message: `Skipped cashflow with invalid month ${entry.month}.`,
-        meta: { sourceId: entry.sourceId, category: entry.category },
+        meta: {
+          sourceId: entry.sourceId,
+          category: entry.category,
+          reason: normalized.reason,
+        },
       });
-      return false;
+      return [];
     }
-    const offset = monthIndex(baseMonth, entry.month);
-    return offset >= 0 && offset < horizonMonths;
+    const offset = monthIndex(baseMonth, normalized.month);
+    if (offset < 0 || offset >= horizonMonths) {
+      return [];
+    }
+    return [{ ...entry, month: normalized.month }];
   });
 
 export const mapScenarioToEngineInput = (
@@ -180,6 +200,39 @@ export const mapScenarioToEngineInput = (
       meta,
     });
   };
+  const normalizeRequiredMonth = (
+    label: string,
+    value: string | null | undefined,
+    meta?: Record<string, unknown>
+  ): string | null => {
+    const raw = value?.trim() ?? "";
+    if (!raw) {
+      warnInvalidMonth(label, value ?? "", { ...meta, reason: "empty" });
+      return null;
+    }
+    const normalized = normalizeMonthStrict(raw);
+    if (!normalized.ok) {
+      warnInvalidMonth(label, raw, { ...meta, reason: normalized.reason });
+      return null;
+    }
+    return normalized.month;
+  };
+  const normalizeOptionalMonth = (
+    label: string,
+    value: string | null | undefined,
+    meta?: Record<string, unknown>
+  ): string | null => {
+    const raw = value?.trim() ?? "";
+    if (!raw) {
+      return null;
+    }
+    const normalized = normalizeMonthStrict(raw);
+    if (!normalized.ok) {
+      warnInvalidMonth(label, raw, { ...meta, reason: normalized.reason });
+      return null;
+    }
+    return normalized.month;
+  };
   if (buyHomeEvent && !checkBuyHomeEventMonth(buyHomeEvent)) {
     warnings.push({
       code: "invalid-month",
@@ -190,44 +243,98 @@ export const mapScenarioToEngineInput = (
   if (!resolvedHomePositions.length && buyHomeEvent && strict) {
     throw new Error("buy_home event requires home details in scenario.positions.homes.");
   }
-  const hasValidHomeMonths = (home: HomePosition, homeId?: string) => {
+  const normalizeHomeMonths = (home: HomePosition, homeId?: string) => {
     const issues: Array<{ label: string; value: string }> = [];
-    if (home.purchaseMonth && !isValidMonth(home.purchaseMonth)) {
-      issues.push({ label: "home.purchaseMonth", value: home.purchaseMonth });
+    const normalized: HomePosition = {
+      ...home,
+      existing: home.existing ? { ...home.existing } : undefined,
+      rental: home.rental ? { ...home.rental } : undefined,
+    };
+    if (home.purchaseMonth) {
+      const normalizedPurchase = normalizeOptionalMonth(
+        "home.purchaseMonth",
+        home.purchaseMonth,
+        { homeId }
+      );
+      if (!normalizedPurchase) {
+        issues.push({ label: "home.purchaseMonth", value: home.purchaseMonth });
+      } else {
+        normalized.purchaseMonth = normalizedPurchase;
+      }
     }
-    if (home.existing?.asOfMonth && !isValidMonth(home.existing.asOfMonth)) {
-      issues.push({ label: "home.existing.asOfMonth", value: home.existing.asOfMonth });
+    if (home.existing?.asOfMonth) {
+      const normalizedExisting = normalizeRequiredMonth(
+        "home.existing.asOfMonth",
+        home.existing.asOfMonth,
+        { homeId }
+      );
+      if (!normalizedExisting) {
+        issues.push({
+          label: "home.existing.asOfMonth",
+          value: home.existing.asOfMonth,
+        });
+      } else if (normalized.existing) {
+        normalized.existing.asOfMonth = normalizedExisting;
+      }
     }
-    if (home.rental?.rentStartMonth && !isValidMonth(home.rental.rentStartMonth)) {
-      issues.push({
-        label: "home.rental.rentStartMonth",
-        value: home.rental.rentStartMonth,
-      });
+    if (home.rental?.rentStartMonth) {
+      const normalizedRentStart = normalizeRequiredMonth(
+        "home.rental.rentStartMonth",
+        home.rental.rentStartMonth,
+        { homeId }
+      );
+      if (!normalizedRentStart) {
+        issues.push({
+          label: "home.rental.rentStartMonth",
+          value: home.rental.rentStartMonth,
+        });
+      } else if (normalized.rental) {
+        normalized.rental.rentStartMonth = normalizedRentStart;
+      }
     }
-    if (home.rental?.rentEndMonth && !isValidMonth(home.rental.rentEndMonth)) {
-      issues.push({
-        label: "home.rental.rentEndMonth",
-        value: home.rental.rentEndMonth,
-      });
+    if (home.rental?.rentEndMonth) {
+      const normalizedRentEnd = normalizeOptionalMonth(
+        "home.rental.rentEndMonth",
+        home.rental.rentEndMonth,
+        { homeId }
+      );
+      if (!normalizedRentEnd) {
+        issues.push({
+          label: "home.rental.rentEndMonth",
+          value: home.rental.rentEndMonth,
+        });
+      } else if (normalized.rental) {
+        normalized.rental.rentEndMonth = normalizedRentEnd;
+      }
     }
-    if (home.sellMonth && !isValidMonth(home.sellMonth)) {
-      issues.push({ label: "home.sellMonth", value: home.sellMonth });
+    if (home.sellMonth) {
+      const normalizedSellMonth = normalizeOptionalMonth(
+        "home.sellMonth",
+        home.sellMonth,
+        { homeId }
+      );
+      if (!normalizedSellMonth) {
+        issues.push({ label: "home.sellMonth", value: home.sellMonth });
+      } else {
+        normalized.sellMonth = normalizedSellMonth;
+      }
     }
     if (issues.length > 0) {
       issues.forEach((issue) =>
         warnInvalidMonth(issue.label, issue.value, { homeId })
       );
-      return false;
+      return null;
     }
-    return true;
+    return normalized;
   };
   const validatedHomes = resolvedHomePositions.reduce<HomePositionWithId[]>(
     (result, homePosition) => {
       const homeId = (homePosition as { id?: string }).id;
-      if (!hasValidHomeMonths(homePosition, homeId)) {
+      const normalizedHome = normalizeHomeMonths(homePosition, homeId);
+      if (!normalizedHome) {
         return result;
       }
-      const parsed = HomePositionSchema.safeParse(homePosition);
+      const parsed = HomePositionSchema.safeParse(normalizedHome);
       if (!parsed.success) {
         if (strict) {
           throw new Error("scenario.positions.homes is invalid.");
@@ -269,11 +376,12 @@ export const mapScenarioToEngineInput = (
     if (!candidate) {
       continue;
     }
-    if (isValidMonth(candidate)) {
-      baseMonth = candidate;
+    const normalized = normalizeMonthStrict(candidate);
+    if (normalized.ok) {
+      baseMonth = normalized.month;
       break;
     }
-    warnInvalidMonth("baseMonth", candidate);
+    warnInvalidMonth("baseMonth", candidate, { reason: normalized.reason });
   }
   const horizonMonths =
     options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 240;
@@ -290,33 +398,63 @@ export const mapScenarioToEngineInput = (
       return;
     }
     const rule = resolveEventRule(definition, ref);
-    if (rule.startMonth && !isValidMonth(rule.startMonth)) {
-      warnInvalidMonth("event.startMonth", rule.startMonth, { eventId: ref.refId });
+    if (rule.startMonth) {
+      const normalized = normalizeMonthStrict(rule.startMonth);
+      if (!normalized.ok) {
+        warnInvalidMonth("event.startMonth", rule.startMonth, {
+          eventId: ref.refId,
+          reason: normalized.reason,
+        });
+      }
     }
-    if (rule.endMonth && !isValidMonth(rule.endMonth)) {
-      warnInvalidMonth("event.endMonth", rule.endMonth, { eventId: ref.refId });
+    if (rule.endMonth) {
+      const normalized = normalizeMonthStrict(rule.endMonth);
+      if (!normalized.ok) {
+        warnInvalidMonth("event.endMonth", rule.endMonth, {
+          eventId: ref.refId,
+          reason: normalized.reason,
+        });
+      }
     }
     if (rule.mode === "schedule") {
       (rule.schedule ?? []).forEach((entry) => {
-        if (!isValidMonth(entry.month)) {
+        const normalized = normalizeMonthStrict(entry.month);
+        if (!normalized.ok) {
           warnInvalidMonth("event.schedule.month", entry.month, {
             eventId: ref.refId,
+            reason: normalized.reason,
           });
         }
       });
     }
   });
-  const isValidMonthOrWarn = (
+  const normalizePositionMonthOrWarn = (
     label: string,
-    value: string,
+    value: string | null | undefined,
     meta?: Record<string, unknown>
-  ) => {
-    if (!isValidMonth(value)) {
-      warnInvalidMonth(label, value, meta);
-      return false;
-    }
-    return true;
-  };
+  ): string | null => normalizeRequiredMonth(label, value, meta);
+  const normalizeBudgetRules = (rules: BudgetRule[]) =>
+    rules.flatMap((rule) => {
+      const startMonth = normalizeOptionalMonth("budgetRule.startMonth", rule.startMonth, {
+        ruleId: rule.id,
+      });
+      if (rule.startMonth && !startMonth) {
+        return [];
+      }
+      const endMonth = normalizeOptionalMonth("budgetRule.endMonth", rule.endMonth, {
+        ruleId: rule.id,
+      });
+      if (rule.endMonth && !endMonth) {
+        return [];
+      }
+      return [
+        {
+          ...rule,
+          startMonth: startMonth ?? undefined,
+          endMonth: endMonth ?? undefined,
+        },
+      ];
+    });
   const cashflowLedger = compileScenarioCashflows({
     scenario,
     eventLibrary,
@@ -327,8 +465,9 @@ export const mapScenarioToEngineInput = (
     scenario.assumptions.includeBudgetRulesInProjection ?? true;
   const members = options.members ?? [];
   const budgetRules = options.budgetRules ?? [];
+  const normalizedBudgetRules = normalizeBudgetRules(budgetRules);
   const budgetLedger = includeBudgetRulesInProjection
-    ? compileAllBudgetRules(scenario, budgetRules, members)
+    ? compileAllBudgetRules(scenario, normalizedBudgetRules, members)
     : [];
   const combinedLedger = filterCashflowsToHorizon(
     [...eventLedger, ...budgetLedger],
@@ -351,7 +490,18 @@ export const mapScenarioToEngineInput = (
         })
       : [];
   const sellCashflows = compileSellLifecycle(scenario)
-    .filter((entry) => isValidMonth(entry.month))
+    .flatMap((entry) => {
+      const normalized = normalizeMonthStrict(entry.month);
+      if (!normalized.ok) {
+        warnings.push({
+          code: "invalid-month",
+          message: `Skipped cashflow with invalid month ${entry.month}.`,
+          meta: { sourceId: entry.sourceId, reason: normalized.reason },
+        });
+        return [];
+      }
+      return [{ ...entry, month: normalized.month }];
+    })
     .filter((entry) => {
       const offset = monthIndex(baseMonth, entry.month);
       return offset >= 0 && offset < horizonMonths;
@@ -454,8 +604,11 @@ export const mapScenarioToEngineInput = (
 
   const mappedInvestments = scenario.positions?.investments
     ? scenario.positions.investments.flatMap((investment: InvestmentPosition) => {
-        const startMonth = investment.startMonth ?? baseMonth;
-        if (!isValidMonthOrWarn("investment.startMonth", startMonth, { id: investment.id })) {
+        const startMonth =
+          normalizePositionMonthOrWarn("investment.startMonth", investment.startMonth ?? baseMonth, {
+            id: investment.id,
+          });
+        if (!startMonth) {
           return [];
         }
         const assumedReturn =
@@ -483,14 +636,22 @@ export const mapScenarioToEngineInput = (
         if (!insurance.enabled) {
           return [];
         }
-        const startMonth = insurance.startMonth ?? baseMonth;
-        if (!startMonth || !isValidMonthOrWarn("insurance.startMonth", startMonth, { id: insurance.id })) {
+        const startMonth = normalizePositionMonthOrWarn(
+          "insurance.startMonth",
+          insurance.startMonth ?? baseMonth,
+          {
+            id: insurance.id,
+          }
+        );
+        if (!startMonth) {
           return [];
         }
-        if (
-          insurance.endMonth &&
-          !isValidMonthOrWarn("insurance.endMonth", insurance.endMonth, { id: insurance.id })
-        ) {
+        const endMonth = insurance.endMonth
+          ? normalizeOptionalMonth("insurance.endMonth", insurance.endMonth, {
+              id: insurance.id,
+            })
+          : undefined;
+        if (insurance.endMonth && !endMonth) {
           return [];
         }
 
@@ -499,7 +660,7 @@ export const mapScenarioToEngineInput = (
             id: insurance.id,
             kind: insurance.kind,
             startMonth,
-            endMonth: insurance.endMonth,
+            endMonth: endMonth ?? undefined,
             premiumMonthly: insurance.premiumMonthly ?? 0,
             premiumAnnualGrowth: (insurance.premiumAnnualGrowthPct ?? 0) / 100,
             initialCashValue: insurance.initialCashValue ?? 0,
@@ -511,13 +672,16 @@ export const mapScenarioToEngineInput = (
 
   const mappedLoans = scenario.positions?.loans
     ? scenario.positions.loans.flatMap((loan: LoanPosition) => {
-        if (!isValidMonthOrWarn("loan.startMonth", loan.startMonth, { id: loan.id })) {
+        const startMonth = normalizePositionMonthOrWarn("loan.startMonth", loan.startMonth, {
+          id: loan.id,
+        });
+        if (!startMonth) {
           return [];
         }
         return [
           {
             id: loan.id,
-            startMonth: loan.startMonth,
+            startMonth,
             principal: loan.principal,
             annualInterestRate: (loan.annualInterestRatePct ?? 0) / 100,
             termMonths: Math.max(0, loan.termYears ?? 0) * 12,
@@ -530,13 +694,18 @@ export const mapScenarioToEngineInput = (
 
   const mappedCars = scenario.positions?.cars
     ? scenario.positions.cars.flatMap((car: CarPosition) => {
-        if (!isValidMonthOrWarn("car.purchaseMonth", car.purchaseMonth, { id: car.id })) {
+        const purchaseMonth = normalizePositionMonthOrWarn(
+          "car.purchaseMonth",
+          car.purchaseMonth,
+          { id: car.id }
+        );
+        if (!purchaseMonth) {
           return [];
         }
-        if (
-          car.sellMonth &&
-          !isValidMonthOrWarn("car.sellMonth", car.sellMonth, { id: car.id })
-        ) {
+        const sellMonth = car.sellMonth
+          ? normalizeOptionalMonth("car.sellMonth", car.sellMonth, { id: car.id })
+          : undefined;
+        if (car.sellMonth && !sellMonth) {
           return [];
         }
         const loan = car.loan
@@ -551,14 +720,14 @@ export const mapScenarioToEngineInput = (
         return [
           {
             id: car.id,
-            purchaseMonth: car.purchaseMonth,
+            purchaseMonth,
             purchasePrice: car.purchasePrice,
             downPayment: car.downPayment,
             annualDepreciationRate: (car.annualDepreciationRatePct ?? 0) / 100,
             holdingCostMonthly: car.holdingCostMonthly,
             holdingCostAnnualGrowth: (car.holdingCostAnnualGrowthPct ?? 0) / 100,
             loan,
-            sellMonth: car.sellMonth,
+            sellMonth: sellMonth ?? undefined,
           },
         ];
       })
@@ -566,7 +735,12 @@ export const mapScenarioToEngineInput = (
 
   const mappedCashBuckets = scenario.positions?.cashBuckets
     ? scenario.positions.cashBuckets.flatMap((bucket: CashBucketPosition) => {
-        if (bucket.asOfMonth && !isValidMonthOrWarn("cashBucket.asOfMonth", bucket.asOfMonth, { id: bucket.id })) {
+        const asOfMonth = bucket.asOfMonth
+          ? normalizeOptionalMonth("cashBucket.asOfMonth", bucket.asOfMonth, {
+              id: bucket.id,
+            })
+          : undefined;
+        if (bucket.asOfMonth && !asOfMonth) {
           return [];
         }
         return [
@@ -574,7 +748,7 @@ export const mapScenarioToEngineInput = (
             id: bucket.id,
             name: bucket.name,
             balance: bucket.balance,
-            asOfMonth: bucket.asOfMonth,
+            asOfMonth: asOfMonth ?? undefined,
           },
         ];
       })

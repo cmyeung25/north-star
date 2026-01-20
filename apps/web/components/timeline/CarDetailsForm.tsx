@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeMonth } from "../../src/features/timeline/schema";
+import { normalizeMonthStrict } from "../../src/utils/month";
 import type { CarPositionDraft } from "../../src/store/scenarioStore";
 import {
   CarPositionSchema,
@@ -83,17 +83,21 @@ export default function CarDetailsForm({
   };
 
   const handleSave = () => {
-    const normalizedMonth = normalizeMonth(formValues.purchaseMonth);
+    const normalizedMonth = normalizeMonthStrict(formValues.purchaseMonth);
     const sellMonthInput = formValues.sellMonth?.trim() ?? "";
-    const normalizedSellMonth = sellMonthInput ? normalizeMonth(sellMonthInput) : null;
+    const normalizedSellMonth = sellMonthInput
+      ? normalizeMonthStrict(sellMonthInput)
+      : null;
 
     const nextValues = {
       ...formValues,
-      purchaseMonth: normalizedMonth ?? formValues.purchaseMonth,
+      purchaseMonth: normalizedMonth.ok ? normalizedMonth.month : formValues.purchaseMonth,
       sellMonth:
         sellMonthInput === ""
           ? undefined
-          : normalizedSellMonth ?? formValues.sellMonth,
+          : normalizedSellMonth?.ok
+            ? normalizedSellMonth.month
+            : formValues.sellMonth,
     };
 
     const parsed = CarPositionSchema.safeParse(nextValues);

@@ -1,13 +1,14 @@
 import { useMemo } from "react";
 import { computeProjection, monthIndex } from "@north-star/engine";
 import type { ProjectionResult } from "@north-star/engine";
-import { mapScenarioToEngineInput } from "./adapter";
+import { mapScenarioToEngineInput, type AdapterWarning } from "./adapter";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { getEventSign } from "../events/eventCatalog";
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
 import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
 import type { EventDefinition } from "../domain/events/types";
 import type { CashflowItem } from "../domain/ledger/types";
+import { normalizeMonthStrict } from "../utils/month";
 import {
   groupLedgerByMonth,
   summarizeMonth,
@@ -29,6 +30,7 @@ type ProjectionWithLedger = {
   projectionNetCashflowByMonth: Record<string, number>;
   projectionNetCashflowMode: "netCashflow" | "cashDelta";
   netWorthBreakdownByMonth: Record<string, NetWorthBreakdown>;
+  projectionWarnings: AdapterWarning[];
 };
 
 const emptyProjectionWithLedger: ProjectionWithLedger = {
@@ -41,6 +43,7 @@ const emptyProjectionWithLedger: ProjectionWithLedger = {
   projectionNetCashflowByMonth: {},
   projectionNetCashflowMode: "netCashflow",
   netWorthBreakdownByMonth: {},
+  projectionWarnings: [],
 };
 
 const filterLedgerToHorizon = (
@@ -79,6 +82,27 @@ const compileEventLedger = (
     };
   });
 };
+
+const normalizeBudgetRulesForLedger = (rules: BudgetRule[]) =>
+  rules.flatMap((rule) => {
+    const startMonth = rule.startMonth
+      ? normalizeMonthStrict(rule.startMonth)
+      : null;
+    if (rule.startMonth && !startMonth?.ok) {
+      return [];
+    }
+    const endMonth = rule.endMonth ? normalizeMonthStrict(rule.endMonth) : null;
+    if (rule.endMonth && !endMonth?.ok) {
+      return [];
+    }
+    return [
+      {
+        ...rule,
+        startMonth: startMonth?.ok ? startMonth.month : undefined,
+        endMonth: endMonth?.ok ? endMonth.month : undefined,
+      },
+    ];
+  });
 
 const buildProjectionNetCashflowByMonth = (
   projection: ProjectionResult,
@@ -190,7 +214,7 @@ export const useProjectionWithLedger = (
       return emptyProjectionWithLedger;
     }
 
-    const { input } = mapScenarioToEngineInput(scenario, eventLibrary, {
+    const { input, warnings } = mapScenarioToEngineInput(scenario, eventLibrary, {
       strict: false,
       members: options.members ?? [],
       budgetRules: options.budgetRules ?? [],
@@ -208,7 +232,7 @@ export const useProjectionWithLedger = (
       scenario.assumptions.includeBudgetRulesInProjection ?? true;
     const eventLedger = compileEventLedger(scenarioForLedger, eventLibrary);
     const members = options.members ?? [];
-    const budgetRules = options.budgetRules ?? [];
+    const budgetRules = normalizeBudgetRulesForLedger(options.budgetRules ?? []);
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];
@@ -245,5 +269,6 @@ export const useProjectionWithLedger = (
       projectionNetCashflowByMonth: netCashflowLookup.byMonth,
       projectionNetCashflowMode: netCashflowLookup.mode,
       netWorthBreakdownByMonth,
+      projectionWarnings: warnings,
     };
   }, [eventLibrary, options.budgetRules, options.members, scenario]);
