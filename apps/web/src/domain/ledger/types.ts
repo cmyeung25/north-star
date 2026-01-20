@@ -6,4 +6,6 @@ export type CashflowItem = {
   label?: string;
   category?: string;
   memberId?: string;
+  bucketId?: string;
+  bucketName?: string;
 };

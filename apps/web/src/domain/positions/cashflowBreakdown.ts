@@ -14,6 +14,8 @@ export type PositionCashflowEntry = {
   amount: number;
   label: string;
   sourceId: string;
+  bucketId?: string;
+  bucketName?: string;
 };
 
 export type PositionCashflowBreakdown = {

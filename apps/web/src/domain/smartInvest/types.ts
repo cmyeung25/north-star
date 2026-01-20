@@ -1,3 +1,17 @@
+export type SmartInvestAllocation = {
+  id: string;
+  name: string;
+  targetPct: number;
+  assumedAnnualReturnPct: number;
+};
+
+export type SmartInvestAllocationProfile = {
+  id: string;
+  name: string;
+  startMonth: string;
+  allocation: SmartInvestAllocation[];
+};
+
 export type SmartInvestPolicy = {
   enabled: boolean;
   reserve:
@@ -6,12 +20,8 @@ export type SmartInvestPolicy = {
   contribution:
     | { mode: "percentOfIncome"; pct: number }
     | { mode: "percentOfSurplus"; pct: number };
-  allocation: Array<{
-    id: string;
-    name: string;
-    targetPct: number;
-    assumedAnnualReturnPct: number;
-  }>;
+  allocation: SmartInvestAllocation[];
+  allocationProfiles?: SmartInvestAllocationProfile[];
   withdrawal: {
     enabled: boolean;
     mode: "sellToMaintainReserve";
