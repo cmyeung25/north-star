@@ -3,6 +3,9 @@
 import { Card, Modal, Stack, Table, Tabs, Text } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../../lib/i18n";
+import BucketValueChart, {
+  type BucketValueSeries,
+} from "./BucketValueChart";
 import type {
   AmortizationRow,
   ContributionRow,
@@ -19,6 +22,8 @@ type PositionCalculatorModalProps = {
   valueRows?: ValueRow[];
   contributionRows?: ContributionRow[];
   assetValueRows?: ValueTableRow[];
+  bucketValueSeries?: BucketValueSeries[];
+  bucketCurrentRows?: Array<{ bucketId: string; bucketName: string; value: number }>;
 };
 
 export default function PositionCalculatorModal({
@@ -30,6 +35,8 @@ export default function PositionCalculatorModal({
   valueRows = [],
   contributionRows = [],
   assetValueRows = [],
+  bucketValueSeries = [],
+  bucketCurrentRows = [],
 }: PositionCalculatorModalProps) {
   const t = useTranslations("timeline");
   const locale = useLocale();
@@ -38,6 +45,7 @@ export default function PositionCalculatorModal({
   const hasValue = valueRows.length > 0;
   const hasContribution = contributionRows.length > 0;
   const hasAssetValue = assetValueRows.length > 0;
+  const hasBucketValue = bucketValueSeries.length > 0;
 
   const renderEmpty = () => (
     <Card withBorder padding="md" radius="md">
@@ -48,11 +56,23 @@ export default function PositionCalculatorModal({
   );
 
   const content = () => {
-    if (!hasAmortization && !hasValue && !hasContribution && !hasAssetValue) {
+    if (
+      !hasAmortization &&
+      !hasValue &&
+      !hasContribution &&
+      !hasAssetValue &&
+      !hasBucketValue
+    ) {
       return renderEmpty();
     }
 
-    if (hasAmortization && !hasValue && !hasContribution && !hasAssetValue) {
+    if (
+      hasAmortization &&
+      !hasValue &&
+      !hasContribution &&
+      !hasAssetValue &&
+      !hasBucketValue
+    ) {
       return (
         <Table striped withColumnBorders highlightOnHover>
           <Table.Thead>
@@ -90,6 +110,8 @@ export default function PositionCalculatorModal({
               ? "value"
               : hasAssetValue
                 ? "assetValue"
+                : hasBucketValue
+                  ? "bucketValue"
                 : "contribution"
         }
       >
@@ -105,6 +127,11 @@ export default function PositionCalculatorModal({
           {hasAssetValue && (
             <Tabs.Tab value="assetValue">
               {t("calculatorTabAssetValue")}
+            </Tabs.Tab>
+          )}
+          {hasBucketValue && (
+            <Tabs.Tab value="bucketValue">
+              {t("calculatorTabBucketValue")}
             </Tabs.Tab>
           )}
           {hasContribution && (
@@ -195,6 +222,31 @@ export default function PositionCalculatorModal({
                 ))}
               </Table.Tbody>
             </Table>
+          </Tabs.Panel>
+        )}
+        {hasBucketValue && (
+          <Tabs.Panel value="bucketValue" pt="md">
+            <Stack gap="md">
+              <BucketValueChart series={bucketValueSeries} currency={currency} />
+              <Table striped withColumnBorders highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>{t("bucketValueBucket")}</Table.Th>
+                    <Table.Th>{t("bucketValueCurrent")}</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {bucketCurrentRows.map((row) => (
+                    <Table.Tr key={row.bucketId}>
+                      <Table.Td>{row.bucketName}</Table.Td>
+                      <Table.Td>
+                        {formatCurrency(row.value, currency, locale)}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Stack>
           </Tabs.Panel>
         )}
         {hasContribution && (

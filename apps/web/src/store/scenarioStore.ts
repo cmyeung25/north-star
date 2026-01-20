@@ -825,7 +825,10 @@ const cloneSmartInvestPolicy = (
   contribution: { ...policy.contribution },
   allocation: policy.allocation.map((entry) => ({
     ...entry,
-    id: nanoid(6),
+  })),
+  allocationProfiles: policy.allocationProfiles?.map((profile) => ({
+    ...profile,
+    allocation: profile.allocation.map((entry) => ({ ...entry })),
   })),
   withdrawal: { ...policy.withdrawal },
 });

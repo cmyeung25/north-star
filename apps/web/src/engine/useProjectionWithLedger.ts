@@ -20,11 +20,11 @@ import {
   type NetWorthBreakdown,
 } from "../domain/netWorth/buildNetWorthBreakdown";
 import {
-  buildReserveTarget,
-  buildSmartInvestWithdrawalSchedule,
+  computeReserveTargetByMonth,
   formatWithdrawalScheduleKey,
   getSmartInvestAssetKey,
   normalizeAllocations,
+  solveWithdrawalsToMaintainReserve,
   type SmartInvestWithdrawalSchedule,
 } from "../domain/smartInvest/solver";
 import { buildSmartInvestProjectionBreakdown } from "../domain/smartInvest/projection";
@@ -271,7 +271,11 @@ export const computeProjectionWithSmartInvest = (
     ? normalizeAllocations(smartInvestPolicy)
     : [];
   const includeSmartInvest =
-    smartInvestPolicy?.enabled && normalizedAllocations.length > 0;
+    smartInvestPolicy?.enabled &&
+    (normalizedAllocations.length > 0 ||
+      (smartInvestPolicy.allocationProfiles ?? []).some(
+        (profile) => profile.allocation.length > 0
+      ));
 
   if (!includeSmartInvest) {
     return {
@@ -316,32 +320,45 @@ export const computeProjectionWithSmartInvest = (
     input.baseMonth,
     input.horizonMonths
   );
-  const reserveTarget = buildReserveTarget(
-    smartInvestPolicy,
+  const reserveTargets = computeReserveTargetByMonth(
+    smartInvestPolicy.reserve,
     buildMonthlyOutflows(projection.months, combinedLedger)
   );
 
   let withdrawalSchedule: SmartInvestWithdrawalSchedule = {};
   let previousKey = formatWithdrawalScheduleKey(withdrawalSchedule);
   let projectionNeedsUpdate = false;
+  let withdrawalWarnings: AdapterWarning[] = [];
 
   for (let pass = 0; pass < maxPasses; pass += 1) {
     if (!smartInvestPolicy.withdrawal.enabled) {
       break;
     }
     const assetsByKey = projection.breakdown?.assets.assetsByKey ?? {};
-    const allocationBalancesById = normalizedAllocations.reduce<
+    const allocationIds = new Set<string>();
+    normalizedAllocations.forEach((allocation) => allocationIds.add(allocation.id));
+    smartInvestPolicy.allocationProfiles?.forEach((profile) => {
+      profile.allocation.forEach((allocation) => allocationIds.add(allocation.id));
+    });
+    const allocationBalancesById = Array.from(allocationIds).reduce<
       Record<string, number[]>
-    >((acc, allocation) => {
-      acc[allocation.id] = assetsByKey[getSmartInvestAssetKey(allocation.id)] ?? [];
+    >((acc, id) => {
+      acc[id] = assetsByKey[getSmartInvestAssetKey(id)] ?? [];
       return acc;
     }, {});
-    const nextSchedule = buildSmartInvestWithdrawalSchedule({
+    const nextResult = solveWithdrawalsToMaintainReserve({
       months: projection.months,
       cashBalances: projection.cashBalance,
-      reserveTarget,
+      reserveTargets,
       allocationBalancesById,
     });
+    const nextSchedule = nextResult.scheduleByBucketId;
+    withdrawalWarnings = nextResult.shortfallsByMonth.map((shortfall) => ({
+      code: "smart-invest-reserve-shortfall",
+      message:
+        "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
+      meta: shortfall,
+    }));
     const nextKey = formatWithdrawalScheduleKey(nextSchedule);
     if (nextKey === previousKey) {
       withdrawalSchedule = nextSchedule;
@@ -376,6 +393,9 @@ export const computeProjectionWithSmartInvest = (
     input = result.input;
     warnings = result.warnings;
     projection = computeProjection(result.input);
+  }
+  if (withdrawalWarnings.length > 0) {
+    warnings = [...warnings, ...withdrawalWarnings];
   }
 
   return {
@@ -421,16 +441,19 @@ export const useProjectionWithLedger = (
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];
     const smartInvestLedger = projection
-      ? buildSmartInvestProjectionBreakdown(projection).cashflowEntries.map(
-          (entry) => ({
-            month: entry.month,
-            amount: entry.amount,
-            source: "smartInvest" as const,
-            sourceId: entry.sourceId,
-            label: entry.label,
-            category: "smartInvest",
-          })
-        )
+      ? buildSmartInvestProjectionBreakdown(
+          projection,
+          scenario.assumptions.smartInvest?.allocation
+        ).cashflowEntries.map((entry) => ({
+          month: entry.month,
+          amount: entry.amount,
+          source: "smartInvest" as const,
+          sourceId: entry.sourceId,
+          label: entry.label,
+          category: "smartInvest",
+          bucketId: entry.bucketId,
+          bucketName: entry.bucketName,
+        }))
       : [];
     const ledger = filterLedgerToHorizon(
       [...eventLedger, ...budgetLedger, ...smartInvestLedger],

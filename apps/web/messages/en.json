@@ -267,6 +267,7 @@
     "devHint": "Changes affect projections in Overview immediately.",
     "tabEvents": "Events",
     "tabPositions": "Positions",
+    "tabAssetAllocation": "Asset Allocation",
     "tabOverview": "Overview",
     "copyName": "{name} (copy)",
     "addEvent": "Add event",
@@ -353,6 +354,7 @@
     "smartInvestTitle": "Smart Invest",
     "smartInvestSubtitle": "Reserve-aware investing.",
     "smartInvestSummaryReserve": "Reserve",
+    "smartInvestSummaryTotalValue": "Total value",
     "smartInvestSummaryContribution": "Contribution",
     "smartInvestSummaryAllocation": "Allocation",
     "smartInvestReserveMonths": "{months} months of outflow",
@@ -370,6 +372,7 @@
     "positionCashflowEmpty": "No cashflow entries yet.",
     "positionCashflowMonth": "Month",
     "positionCashflowItem": "Item",
+    "positionCashflowBucket": "Bucket",
     "positionCashflowAmount": "Amount",
     "positionCashflowLabels": {
       "downPayment": "Down payment",
@@ -385,6 +388,7 @@
     "calculatorTabAmortization": "Amortization",
     "calculatorTabPropertyValue": "Property value",
     "calculatorTabAssetValue": "Asset value table",
+    "calculatorTabBucketValue": "Bucket values",
     "calculatorTabContribution": "Contribution schedule",
     "calculatorMonth": "Month",
     "calculatorOpeningBalance": "Opening balance",
@@ -398,6 +402,10 @@
     "calculatorGrowth": "Monthly growth",
     "calculatorEndingValue": "Ending value",
     "calculatorContributionTotal": "Cumulative contribution",
+    "bucketValueTitle": "Bucket value trend",
+    "bucketValueEmpty": "No bucket value data yet.",
+    "bucketValueBucket": "Bucket",
+    "bucketValueCurrent": "Current value",
     "ongoing": "Ongoing",
     "filters": {
       "all": "All"

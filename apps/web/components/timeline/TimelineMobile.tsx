@@ -85,7 +85,10 @@ import {
 } from "../../src/domain/positions/calculations";
 import { buildInvestmentValueTable } from "../../src/domain/positions/investmentValueTable";
 import { buildInsuranceValueTable } from "../../src/domain/positions/insuranceValueTable";
-import { buildSmartInvestProjectionBreakdown } from "../../src/domain/smartInvest/projection";
+import {
+  buildSmartInvestProjectionBreakdown,
+  type SmartInvestProjectionBreakdown,
+} from "../../src/domain/smartInvest/projection";
 import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
 import { Link } from "../../src/i18n/navigation";
 import type { DuplicateCluster } from "../../src/domain/events/mergeDuplicates";
@@ -154,6 +157,8 @@ type CalculatorModalState = {
   valueRows?: ReturnType<typeof buildValueSchedule>;
   contributionRows?: ReturnType<typeof buildContributionSchedule>;
   assetValueRows?: ReturnType<typeof buildInvestmentValueTable>;
+  bucketValueSeries?: SmartInvestProjectionBreakdown["bucketSeries"];
+  bucketCurrentRows?: SmartInvestProjectionBreakdown["currentBucketValues"];
 };
 
 export default function TimelineMobile({
@@ -215,8 +220,11 @@ export default function TimelineMobile({
   const smartInvestPolicy = assumptions.smartInvest ?? defaultSmartInvestPolicy;
   const hasSmartInvestConfig = Boolean(assumptions.smartInvest);
   const smartInvestBreakdown = useMemo(
-    () => (projection ? buildSmartInvestProjectionBreakdown(projection) : null),
-    [projection]
+    () =>
+      projection
+        ? buildSmartInvestProjectionBreakdown(projection, smartInvestPolicy.allocation)
+        : null,
+    [projection, smartInvestPolicy.allocation]
   );
   const smartInvestSummaryItems = useMemo(() => {
     const reserveValue =
@@ -247,18 +255,28 @@ export default function TimelineMobile({
       )
       .join(" · ");
 
+    const totalValue = smartInvestBreakdown?.totalValueSeries.at(-1)?.value;
+
     return [
+      ...(totalValue !== undefined
+        ? [
+            {
+              label: t("smartInvestSummaryTotalValue"),
+              value: formatCurrency(totalValue, baseCurrency, locale),
+            },
+          ]
+        : []),
       { label: t("smartInvestSummaryReserve"), value: reserveValue },
       { label: t("smartInvestSummaryContribution"), value: contributionValue },
       { label: t("smartInvestSummaryAllocation"), value: allocationValue },
     ];
-  }, [baseCurrency, locale, smartInvestPolicy, t]);
+  }, [baseCurrency, locale, smartInvestBreakdown, smartInvestPolicy, t]);
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
-  const [activeTab, setActiveTab] = useState<"events" | "positions" | "overview">(
-    "events"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "events" | "positions" | "overview" | "allocation"
+  >("events");
   const [pendingScrollMonth, setPendingScrollMonth] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
@@ -468,12 +486,15 @@ export default function TimelineMobile({
 
       <Tabs
         value={activeTab}
-        onChange={(value) => setActiveTab(value as "events" | "positions" | "overview")}
+        onChange={(value) =>
+          setActiveTab(value as "events" | "positions" | "overview" | "allocation")
+        }
         keepMounted={false}
       >
         <Tabs.List>
           <Tabs.Tab value="events">{t("tabEvents")}</Tabs.Tab>
           <Tabs.Tab value="positions">{t("tabPositions")}</Tabs.Tab>
+          <Tabs.Tab value="allocation">{t("tabAssetAllocation")}</Tabs.Tab>
           <Tabs.Tab value="overview">{t("tabOverview")}</Tabs.Tab>
         </Tabs.List>
 
@@ -1223,109 +1244,6 @@ export default function TimelineMobile({
               )}
             </Stack>
 
-            {hasSmartInvestConfig ? (
-              <Stack gap="sm">
-                <Group justify="space-between" align="center">
-                  <Text fw={600}>{t("smartInvestTitle")}</Text>
-                </Group>
-                <Card withBorder padding="md" radius="md">
-                  <Stack gap="sm">
-                    <div>
-                      <Text fw={600}>{t("smartInvestTitle")}</Text>
-                      <Text size="sm" c="dimmed">
-                        {t("smartInvestSubtitle")}
-                      </Text>
-                      <PositionDetailList items={smartInvestSummaryItems} />
-                      {!smartInvestPolicy.enabled && (
-                        <Text size="xs" c="dimmed">
-                          {t("smartInvestDisabledHint")}
-                        </Text>
-                      )}
-                    </div>
-                    <Group gap="sm">
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() => {
-                          if (!smartInvestBreakdown) {
-                            return;
-                          }
-                          setCashflowModal({
-                            title: t("positionCashflowTitle", {
-                              label: t("smartInvestTitle"),
-                            }),
-                            entries: smartInvestBreakdown.cashflowEntries,
-                            series: smartInvestBreakdown.cashflowSeries,
-                          });
-                        }}
-                        disabled={!smartInvestBreakdown}
-                      >
-                        {t("positionViewCashflow")}
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() => {
-                          if (!smartInvestBreakdown) {
-                            return;
-                          }
-                          setCalculatorModal({
-                            title: t("positionCalculatorTitle", {
-                              label: t("smartInvestTitle"),
-                            }),
-                            assetValueRows: smartInvestBreakdown.valueRows,
-                          });
-                        }}
-                        disabled={!smartInvestBreakdown}
-                      >
-                        {t("smartInvestViewValue")}
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() =>
-                          openCopyModal(
-                            t("copyPositionTitle", { label: t("smartInvestTitle") }),
-                            (scenarioIds) =>
-                              onCopySmartInvestToScenarios(scenarioIds)
-                          )
-                        }
-                      >
-                        {t("copyToOtherScenarios")}
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() => setSmartInvestDrawerOpen(true)}
-                      >
-                        {common("actionEdit")}
-                      </Button>
-                    </Group>
-                  </Stack>
-                </Card>
-              </Stack>
-            ) : (
-              <Stack gap="sm">
-                <Group justify="space-between" align="center">
-                  <Text fw={600}>{t("smartInvestTitle")}</Text>
-                </Group>
-                <Card withBorder padding="md" radius="md">
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <Text size="sm" c="dimmed">
-                      {t("smartInvestNotConfigured")}
-                    </Text>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      onClick={() => setSmartInvestDrawerOpen(true)}
-                    >
-                      {common("actionEdit")}
-                    </Button>
-                  </Group>
-                </Card>
-              </Stack>
-            )}
-
             <Stack gap="sm">
               <Group justify="space-between" align="center">
                 <Text fw={600}>{investments("title")}</Text>
@@ -1880,6 +1798,115 @@ export default function TimelineMobile({
           </Stack>
         </Tabs.Panel>
 
+        <Tabs.Panel value="allocation" pt="md">
+          <Stack gap="md">
+            {hasSmartInvestConfig ? (
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600}>{t("smartInvestTitle")}</Text>
+                </Group>
+                <Card withBorder padding="md" radius="md">
+                  <Stack gap="sm">
+                    <div>
+                      <Text fw={600}>{t("smartInvestTitle")}</Text>
+                      <Text size="sm" c="dimmed">
+                        {t("smartInvestSubtitle")}
+                      </Text>
+                      <PositionDetailList items={smartInvestSummaryItems} />
+                      {!smartInvestPolicy.enabled && (
+                        <Text size="xs" c="dimmed">
+                          {t("smartInvestDisabledHint")}
+                        </Text>
+                      )}
+                    </div>
+                    <Group gap="sm">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => {
+                          if (!smartInvestBreakdown) {
+                            return;
+                          }
+                          setCashflowModal({
+                            title: t("positionCashflowTitle", {
+                              label: t("smartInvestTitle"),
+                            }),
+                            entries: smartInvestBreakdown.cashflowEntries,
+                            series: smartInvestBreakdown.cashflowSeries,
+                          });
+                        }}
+                        disabled={!smartInvestBreakdown}
+                      >
+                        {t("positionViewCashflow")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => {
+                          if (!smartInvestBreakdown) {
+                            return;
+                          }
+                          setCalculatorModal({
+                            title: t("positionCalculatorTitle", {
+                              label: t("smartInvestTitle"),
+                            }),
+                            assetValueRows: smartInvestBreakdown.valueRows,
+                            bucketValueSeries: smartInvestBreakdown.bucketSeries,
+                            bucketCurrentRows: smartInvestBreakdown.currentBucketValues,
+                          });
+                        }}
+                        disabled={!smartInvestBreakdown}
+                      >
+                        {t("smartInvestViewValue")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() =>
+                          openCopyModal(
+                            t("copyPositionTitle", { label: t("smartInvestTitle") }),
+                            (scenarioIds) =>
+                              onCopySmartInvestToScenarios(scenarioIds)
+                          )
+                        }
+                      >
+                        {t("copyToOtherScenarios")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => setSmartInvestDrawerOpen(true)}
+                      >
+                        {common("actionEdit")}
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Card>
+              </Stack>
+            ) : (
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600}>{t("smartInvestTitle")}</Text>
+                </Group>
+                <Card withBorder padding="md" radius="md">
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text size="sm" c="dimmed">
+                      {t("smartInvestNotConfigured")}
+                    </Text>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={() => setSmartInvestDrawerOpen(true)}
+                    >
+                      {common("actionEdit")}
+                    </Button>
+                  </Group>
+                </Card>
+              </Stack>
+            )}
+          </Stack>
+        </Tabs.Panel>
+
         <Tabs.Panel value="overview" pt="md">
           <Stack gap="md">
             {milestoneRows.length === 0 ? (
@@ -2022,6 +2049,8 @@ export default function TimelineMobile({
         valueRows={calculatorModal?.valueRows}
         contributionRows={calculatorModal?.contributionRows}
         assetValueRows={calculatorModal?.assetValueRows}
+        bucketValueSeries={calculatorModal?.bucketValueSeries}
+        bucketCurrentRows={calculatorModal?.bucketCurrentRows}
       />
 
       <CopyToScenariosModal

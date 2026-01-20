@@ -28,6 +28,7 @@ export default function PositionCashflowModal({
   const t = useTranslations("timeline");
   const locale = useLocale();
   const rows = [...entries].sort((a, b) => (a.month < b.month ? -1 : 1));
+  const showBucketColumn = rows.some((entry) => entry.bucketId || entry.bucketName);
 
   return (
     <Modal opened={opened} onClose={onClose} title={title} size="xl" centered>
@@ -45,6 +46,9 @@ export default function PositionCashflowModal({
               <Table.Tr>
                 <Table.Th>{t("positionCashflowMonth")}</Table.Th>
                 <Table.Th>{t("positionCashflowItem")}</Table.Th>
+                {showBucketColumn && (
+                  <Table.Th>{t("positionCashflowBucket")}</Table.Th>
+                )}
                 <Table.Th>{t("positionCashflowAmount")}</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -57,6 +61,13 @@ export default function PositionCashflowModal({
                       <Text size="sm">{t(`positionCashflowLabels.${entry.label}`)}</Text>
                     </Group>
                   </Table.Td>
+                  {showBucketColumn && (
+                    <Table.Td>
+                      <Text size="sm">
+                        {entry.bucketName ?? entry.bucketId ?? t("tablePlaceholder")}
+                      </Text>
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     {formatCurrency(entry.amount, currency, locale)}
                   </Table.Td>
