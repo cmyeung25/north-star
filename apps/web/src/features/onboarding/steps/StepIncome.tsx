@@ -1,4 +1,5 @@
 import { NumberInput, Stack, Text, TextInput, Title } from "@mantine/core";
+import { useTranslations } from "next-intl";
 import type { OnboardingPersona } from "../types";
 
 interface StepIncomeProps {
@@ -22,6 +23,7 @@ export default function StepIncome({
   onAnnualGrowthChange,
   onRetirementMonthChange,
 }: StepIncomeProps) {
+  const common = useTranslations("common");
   const needsRetirementMonth = persona === "D";
   const showRetirementMonth = persona === "D" || persona === "E";
 
@@ -56,7 +58,7 @@ export default function StepIncome({
       {showRetirementMonth && (
         <TextInput
           label={needsRetirementMonth ? "退休月份（必填）" : "退休月份（可選）"}
-          type="month"
+          placeholder={common("yearMonthPlaceholder")}
           value={retirementMonth ?? ""}
           onChange={(event) => onRetirementMonthChange(event.currentTarget.value)}
           error={errors.retirementMonth}

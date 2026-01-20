@@ -24,12 +24,14 @@ import {
 
 type HomeDetailsFormProps = {
   home: HomePositionDraft;
+  isSold?: boolean;
   onCancel: () => void;
   onSave: (home: HomePositionDraft) => void;
 };
 
 export default function HomeDetailsForm({
   home,
+  isSold = false,
   onCancel,
   onSave,
 }: HomeDetailsFormProps) {
@@ -56,6 +58,7 @@ export default function HomeDetailsForm({
 
   const usageValue = formValues.usage ?? "primary";
   const modeValue = formValues.mode ?? "new_purchase";
+  const disableHolding = isSold;
 
   const handleModeChange = (value: string | null) => {
     if (!value) {
@@ -117,6 +120,8 @@ export default function HomeDetailsForm({
     const normalizedMonth = formValues.purchaseMonth
       ? normalizeMonth(formValues.purchaseMonth)
       : null;
+    const sellMonthInput = formValues.sellMonth?.trim() ?? "";
+    const normalizedSellMonth = sellMonthInput ? normalizeMonth(sellMonthInput) : null;
     const normalizedExistingMonth = formValues.existing?.asOfMonth
       ? normalizeMonth(formValues.existing.asOfMonth)
       : null;
@@ -130,6 +135,10 @@ export default function HomeDetailsForm({
     const nextValues = {
       ...formValues,
       purchaseMonth: normalizedMonth ?? formValues.purchaseMonth,
+      sellMonth:
+        sellMonthInput === ""
+          ? undefined
+          : normalizedSellMonth ?? formValues.sellMonth,
       existing: formValues.existing
         ? {
             ...formValues.existing,
@@ -160,6 +169,7 @@ export default function HomeDetailsForm({
       <Select
         label={t("usageLabel")}
         value={usageValue}
+        disabled={disableHolding}
         onChange={(value) =>
           updateField("usage", (value ?? "primary") as HomePositionDraft["usage"])
         }
@@ -171,6 +181,7 @@ export default function HomeDetailsForm({
       <Select
         label={t("modeLabel")}
         value={modeValue}
+        disabled={disableHolding}
         onChange={handleModeChange}
         data={[
           { value: "new_purchase", label: t("modeNewPurchase") },
@@ -184,6 +195,7 @@ export default function HomeDetailsForm({
             placeholder={common("yearMonthPlaceholder")}
             value={formValues.existing?.asOfMonth ?? ""}
             error={errors["existing.asOfMonth"] ?? errors.existing}
+            disabled={disableHolding}
             onChange={(event) =>
               updateField("existing", {
                 ...(formValues.existing ?? {
@@ -201,6 +213,7 @@ export default function HomeDetailsForm({
             label={t("existingMarketValue")}
             value={formValues.existing?.marketValue ?? 0}
             error={errors["existing.marketValue"] ?? errors.existing}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("existing", {
                 ...(formValues.existing ?? {
@@ -220,6 +233,7 @@ export default function HomeDetailsForm({
             label={t("existingMortgageBalance")}
             value={formValues.existing?.mortgageBalance ?? 0}
             error={errors["existing.mortgageBalance"] ?? errors.existing}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("existing", {
                 ...(formValues.existing ?? {
@@ -239,6 +253,7 @@ export default function HomeDetailsForm({
             label={t("existingRemainingTerm")}
             value={formValues.existing?.remainingTermMonths ?? 0}
             error={errors["existing.remainingTermMonths"] ?? errors.existing}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("existing", {
                 ...(formValues.existing ?? {
@@ -258,6 +273,7 @@ export default function HomeDetailsForm({
             label={t("existingMortgageRate")}
             value={formValues.existing?.annualRatePct ?? 0}
             error={errors["existing.annualRatePct"] ?? errors.existing}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("existing", {
                 ...(formValues.existing ?? {
@@ -283,12 +299,14 @@ export default function HomeDetailsForm({
             placeholder={common("yearMonthPlaceholder")}
             value={formValues.purchaseMonth ?? ""}
             error={errors.purchaseMonth}
+            disabled={disableHolding}
             onChange={(event) => updateField("purchaseMonth", event.target.value)}
           />
           <NumberInput
             label={t("purchasePrice")}
             value={formValues.purchasePrice ?? 0}
             error={errors.purchasePrice}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("purchasePrice", toPositiveNumber(value))
             }
@@ -299,6 +317,7 @@ export default function HomeDetailsForm({
             label={t("downPayment")}
             value={formValues.downPayment ?? 0}
             error={errors.downPayment}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("downPayment", toPositiveNumber(value))
             }
@@ -309,6 +328,7 @@ export default function HomeDetailsForm({
             label={t("mortgageRate")}
             value={formValues.mortgageRatePct ?? 0}
             error={errors.mortgageRatePct}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("mortgageRatePct", toPositiveNumber(value))
             }
@@ -321,6 +341,7 @@ export default function HomeDetailsForm({
             label={t("mortgageTerm")}
             value={formValues.mortgageTermYears ?? 0}
             error={errors.mortgageTermYears}
+            disabled={disableHolding}
             onChange={(value) =>
               updateField("mortgageTermYears", Math.max(0, Number(value ?? 0)))
             }
@@ -331,6 +352,7 @@ export default function HomeDetailsForm({
             label={t("feesOneTime")}
             value={formValues.feesOneTime ?? 0}
             error={errors.feesOneTime}
+            disabled={disableHolding}
             onChange={(value) => updateField("feesOneTime", toPositiveNumber(value))}
             thousandSeparator=","
             min={0}
@@ -341,6 +363,7 @@ export default function HomeDetailsForm({
         label={t("annualAppreciation")}
         value={formValues.annualAppreciationPct}
         error={errors.annualAppreciationPct}
+        disabled={disableHolding}
         onChange={(value) =>
           updateField(
             "annualAppreciationPct",
@@ -356,6 +379,7 @@ export default function HomeDetailsForm({
         label={t("holdingCostMonthly")}
         value={formValues.holdingCostMonthly ?? 0}
         error={errors.holdingCostMonthly}
+        disabled={disableHolding}
         onChange={(value) =>
           updateField("holdingCostMonthly", toPositiveNumber(value))
         }
@@ -366,6 +390,7 @@ export default function HomeDetailsForm({
         label={t("holdingCostGrowth")}
         value={formValues.holdingCostAnnualGrowthPct ?? 0}
         error={errors.holdingCostAnnualGrowthPct}
+        disabled={disableHolding}
         onChange={(value) =>
           updateField("holdingCostAnnualGrowthPct", toPositiveNumber(value))
         }
@@ -377,6 +402,7 @@ export default function HomeDetailsForm({
       <Switch
         label={t("rentalEnabled")}
         checked={Boolean(formValues.rental)}
+        disabled={disableHolding}
         onChange={(event) => handleRentalToggle(event.currentTarget.checked)}
       />
       {formValues.rental && (
@@ -385,6 +411,7 @@ export default function HomeDetailsForm({
             label={t("rentalMonthly")}
             value={formValues.rental.rentMonthly ?? 0}
             error={errors["rental.rentMonthly"] ?? errors.rental}
+            disabled={disableHolding}
             onChange={(value) =>
               updateRental({
                 rentMonthly: toPositiveNumber(value),
@@ -398,6 +425,7 @@ export default function HomeDetailsForm({
             placeholder={common("yearMonthPlaceholder")}
             value={formValues.rental.rentStartMonth ?? ""}
             error={errors["rental.rentStartMonth"] ?? errors.rental}
+            disabled={disableHolding}
             onChange={(event) =>
               updateRental({
                 rentStartMonth: event.target.value,
@@ -406,9 +434,10 @@ export default function HomeDetailsForm({
           />
           <TextInput
             label={t("rentalEnd")}
-            placeholder={common("yearMonthPlaceholder")}
+            placeholder={common("yearMonthOptionalPlaceholder")}
             value={formValues.rental.rentEndMonth ?? ""}
             error={errors["rental.rentEndMonth"] ?? errors.rental}
+            disabled={disableHolding}
             onChange={(event) =>
               updateRental({
                 rentEndMonth: event.target.value || null,
@@ -419,6 +448,7 @@ export default function HomeDetailsForm({
             label={t("rentalGrowth")}
             value={formValues.rental.rentAnnualGrowthPct ?? 0}
             error={errors["rental.rentAnnualGrowthPct"] ?? errors.rental}
+            disabled={disableHolding}
             onChange={(value) =>
               updateRental({
                 rentAnnualGrowthPct: toPositiveNumber(value),
@@ -433,6 +463,7 @@ export default function HomeDetailsForm({
             label={t("rentalVacancy")}
             value={formValues.rental.vacancyRatePct ?? 0}
             error={errors["rental.vacancyRatePct"] ?? errors.rental}
+            disabled={disableHolding}
             onChange={(value) =>
               updateRental({
                 vacancyRatePct: toPositiveNumber(value),
@@ -445,6 +476,42 @@ export default function HomeDetailsForm({
           />
         </>
       )}
+      <Title order={6}>{t("sellSectionTitle")}</Title>
+      <TextInput
+        label={t("sellMonth")}
+        placeholder={common("yearMonthOptionalPlaceholder")}
+        value={formValues.sellMonth ?? ""}
+        error={errors.sellMonth}
+        onChange={(event) => updateField("sellMonth", event.target.value || undefined)}
+      />
+      <NumberInput
+        label={t("sellPriceOverride")}
+        value={formValues.sellPriceOverride ?? ""}
+        error={errors.sellPriceOverride}
+        onChange={(value) => {
+          if (value === "" || value === null || Number.isNaN(Number(value))) {
+            updateField("sellPriceOverride", undefined);
+          } else {
+            updateField("sellPriceOverride", toPositiveNumber(value));
+          }
+        }}
+        thousandSeparator=","
+        min={0}
+      />
+      <NumberInput
+        label={t("sellFeesOneTime")}
+        value={formValues.sellFeesOneTime ?? ""}
+        error={errors.sellFeesOneTime}
+        onChange={(value) => {
+          if (value === "" || value === null || Number.isNaN(Number(value))) {
+            updateField("sellFeesOneTime", undefined);
+          } else {
+            updateField("sellFeesOneTime", toPositiveNumber(value));
+          }
+        }}
+        thousandSeparator=","
+        min={0}
+      />
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
           {common("actionCancel")}

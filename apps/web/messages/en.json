@@ -77,7 +77,16 @@
     "riskLow": "Low",
     "riskMedium": "Medium",
     "riskHigh": "High",
-    "notAvailable": "N/A"
+    "notAvailable": "N/A",
+    "settingsTabData": "Data Management",
+    "settingsTabGlobal": "Global Assumptions",
+    "settingsTabMembers": "Members & Milestones",
+    "settingsTabBudget": "Budget Rules",
+    "settingsTabOther": "Other",
+    "applyScopeAll": "All scenarios",
+    "applyScopeInclude": "Only selected scenarios",
+    "applyScopeExclude": "Exclude selected scenarios",
+    "applyScopePlaceholder": "Select scenarios"
   },
   "nav": {
     "home": "Home",
@@ -246,7 +255,8 @@
     "snapshotsNetWorth": "Net worth",
     "fullscreenTitleCashBalance": "Cash Balance (fullscreen)",
     "fullscreenTitleNetWorth": "Net Worth (fullscreen)",
-    "fullscreenTitleNetCashflow": "Net Cashflow (fullscreen)"
+    "fullscreenTitleNetCashflow": "Net Cashflow (fullscreen)",
+    "viewRealHint": "Adjusted for inflation to show today's purchasing power."
   },
   "timeline": {
     "title": "Timeline",
@@ -456,7 +466,11 @@
     "cashflowEditAmount": "Amount",
     "memberLabel": "Member",
     "memberHousehold": "Household",
-    "timelineEventPlan": "{label} plan"
+    "timelineEventPlan": "{label} plan",
+    "positionSellIn": "Sell in {month}",
+    "positionSold": "Sold",
+    "smartInvestNotConfigured": "Smart Invest not configured — set up in Settings.",
+    "smartInvestSetupLink": "Set up in Settings"
   },
   "homes": {
     "title": "Home details",
@@ -496,7 +510,11 @@
       "investment": "Investment",
       "existing": "{usage} home: {price} · Existing mortgage {termMonths}m @ {rate}%",
       "newPurchase": "{usage} home: {price} · Mortgage {termYears}y @ {rate}%"
-    }
+    },
+    "sellSectionTitle": "Sell",
+    "sellMonth": "Sell month",
+    "sellPriceOverride": "Sell price override",
+    "sellFeesOneTime": "One-time selling fees"
   },
   "cars": {
     "title": "Car details",
@@ -518,7 +536,11 @@
     "carSummary": {
       "withLoan": "Car: {price} · Depreciation {rate}% · Loan {loanTermYears}y @ {loanRate}%",
       "noLoan": "Car: {price} · Depreciation {rate}%"
-    }
+    },
+    "sellSectionTitle": "Sell",
+    "sellMonth": "Sell month",
+    "sellPriceOverride": "Sell price override",
+    "sellFeesOneTime": "One-time selling fees"
   },
   "investments": {
     "title": "Investment details",
@@ -605,7 +627,30 @@
     "inflationRate": "Inflation rate (%)",
     "salaryGrowth": "Salary growth (%)",
     "emergencyFundTarget": "Emergency fund target",
-    "emergencyFundValue": "{months} months"
+    "emergencyFundValue": "{months} months",
+    "viewRealHint": "Adjusted for inflation to show today's purchasing power.",
+    "smartInvestSettingsTitle": "Smart Invest",
+    "smartInvestSettingsHint": "Configure reserve-aware automated investing.",
+    "smartInvestEnabled": "Enable Smart Invest",
+    "smartInvestReserveTitle": "Reserve strategy",
+    "smartInvestReserveFixed": "Fixed cash amount",
+    "smartInvestReserveMonths": "Months of outflow",
+    "smartInvestReserveAmount": "Reserve cash amount",
+    "smartInvestReserveMonthsCount": "Reserve months",
+    "smartInvestContributionTitle": "Contribution strategy",
+    "smartInvestContributionIncome": "% of income",
+    "smartInvestContributionSurplus": "% of surplus",
+    "smartInvestContributionPct": "Contribution %",
+    "smartInvestAllocationTitle": "Allocation",
+    "smartInvestAllocationAdd": "Add allocation",
+    "smartInvestAllocationName": "Name",
+    "smartInvestAllocationTargetPct": "Target %",
+    "smartInvestAllocationReturnPct": "Assumed annual return %",
+    "smartInvestAllocationNew": "New allocation",
+    "smartInvestDefaultAllocation": "Core",
+    "smartInvestWithdrawalTitle": "Withdrawal strategy",
+    "smartInvestWithdrawalEnabled": "Enable sell-to-maintain-reserve",
+    "smartInvestWithdrawalHint": "MVP: sell pro-rata to maintain the reserve target."
   },
   "members": {
     "title": "Household members",
@@ -622,7 +667,23 @@
     "ageAtBaseLabel": "Age at base month (years)",
     "ageRequired": "Enter either a birth month or an age at base month.",
     "baseAgeLabel": "Age at base month",
-    "endAgeLabel": "Age at horizon end"
+    "endAgeLabel": "Age at horizon end",
+    "applyScopeTitle": "Apply scope",
+    "applyScopeHint": "Select scenarios to include or exclude.",
+    "applyScopeHelper": "Use scope to apply this member to all scenarios or a subset.",
+    "milestonesTitle": "Milestones",
+    "milestonesHelper": "Track key life milestones for this member.",
+    "addMilestone": "Add milestone",
+    "removeMilestone": "Remove milestone",
+    "milestoneBirth": "Birth",
+    "milestoneSchoolStart": "School start",
+    "milestoneGraduation": "Graduation",
+    "milestoneRetirement": "Retirement",
+    "milestoneCustomDefault": "Custom milestone",
+    "milestoneLabel": "Label",
+    "milestoneAgeLabel": "Age (years)",
+    "milestoneMonthLabel": "Month",
+    "milestoneApplyScope": "Apply scope"
   },
   "budgetRules": {
     "title": "Budget rules",
@@ -657,7 +718,11 @@
     "includeInProjection": "Include budget rules in projection",
     "projectionWarning": "Budget rules are included in projection. If you also created manual events for the same expenses, you may double count.",
     "projectionWarningBadge": "Possible overlap",
-    "housingWarning": "Housing budget rules are ignored in projections. Housing cashflows are handled by the home model instead."
+    "housingWarning": "Housing budget rules are ignored in projections. Housing cashflows are handled by the home model instead.",
+    "applyScopeTitle": "Apply scope",
+    "applyScopeHint": "Select scenarios to include or exclude.",
+    "applyScopeHelper": "Use scope to apply this rule to all scenarios or a subset.",
+    "ageBandHelper": "Defines the age range for this budget rule."
   },
   "onboarding": {
     "title": "Welcome to North Star",
@@ -725,7 +790,9 @@
       "annualBudgets": "Annual Budgets",
       "investments": "Investments",
       "insurance": "Insurance"
-    }
+    },
+    "skipForNow": "Skip for now",
+    "skipForNowHint": "You can finish onboarding later in Settings."
   },
   "stress": {
     "title": "Stress Test",

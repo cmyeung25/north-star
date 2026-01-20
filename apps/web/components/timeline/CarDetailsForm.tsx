@@ -21,16 +21,23 @@ import {
 
 type CarDetailsFormProps = {
   car: CarPositionDraft;
+  isSold?: boolean;
   onCancel: () => void;
   onSave: (car: CarPositionDraft) => void;
 };
 
-export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsFormProps) {
+export default function CarDetailsForm({
+  car,
+  isSold = false,
+  onCancel,
+  onSave,
+}: CarDetailsFormProps) {
   const t = useTranslations("cars");
   const common = useTranslations("common");
   const validation = useTranslations("validation");
   const [formValues, setFormValues] = useState<CarPositionDraft>(car);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+  const disableHolding = isSold;
 
   useEffect(() => {
     setFormValues(car);
@@ -77,10 +84,16 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
 
   const handleSave = () => {
     const normalizedMonth = normalizeMonth(formValues.purchaseMonth);
+    const sellMonthInput = formValues.sellMonth?.trim() ?? "";
+    const normalizedSellMonth = sellMonthInput ? normalizeMonth(sellMonthInput) : null;
 
     const nextValues = {
       ...formValues,
       purchaseMonth: normalizedMonth ?? formValues.purchaseMonth,
+      sellMonth:
+        sellMonthInput === ""
+          ? undefined
+          : normalizedSellMonth ?? formValues.sellMonth,
     };
 
     const parsed = CarPositionSchema.safeParse(nextValues);
@@ -100,12 +113,14 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
         placeholder={common("yearMonthPlaceholder")}
         value={formValues.purchaseMonth ?? ""}
         error={errors.purchaseMonth}
+        disabled={disableHolding}
         onChange={(event) => updateField("purchaseMonth", event.target.value)}
       />
       <NumberInput
         label={t("purchasePrice")}
         value={formValues.purchasePrice ?? 0}
         error={errors.purchasePrice}
+        disabled={disableHolding}
         onChange={(value) => updateField("purchasePrice", toPositiveNumber(value))}
         thousandSeparator=","
         min={0}
@@ -114,6 +129,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
         label={t("downPayment")}
         value={formValues.downPayment ?? 0}
         error={errors.downPayment}
+        disabled={disableHolding}
         onChange={(value) => updateField("downPayment", toPositiveNumber(value))}
         thousandSeparator=","
         min={0}
@@ -122,6 +138,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
         label={t("annualDepreciationRate")}
         value={formValues.annualDepreciationRatePct ?? 0}
         error={errors.annualDepreciationRatePct}
+        disabled={disableHolding}
         onChange={(value) =>
           updateField("annualDepreciationRatePct", toPositiveNumber(value))
         }
@@ -134,6 +151,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
         label={t("holdingCostMonthly")}
         value={formValues.holdingCostMonthly ?? 0}
         error={errors.holdingCostMonthly}
+        disabled={disableHolding}
         onChange={(value) => updateField("holdingCostMonthly", toPositiveNumber(value))}
         thousandSeparator=","
         min={0}
@@ -142,6 +160,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
         label={t("holdingCostGrowth")}
         value={formValues.holdingCostAnnualGrowthPct ?? 0}
         error={errors.holdingCostAnnualGrowthPct}
+        disabled={disableHolding}
         onChange={(value) =>
           updateField("holdingCostAnnualGrowthPct", toPositiveNumber(value))
         }
@@ -153,6 +172,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
       <Switch
         label={t("loanEnabled")}
         checked={Boolean(formValues.loan)}
+        disabled={disableHolding}
         onChange={(event) => handleLoanToggle(event.currentTarget.checked)}
       />
       {formValues.loan && (
@@ -161,6 +181,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
             label={t("loanPrincipal")}
             value={formValues.loan.principal ?? 0}
             error={errors["loan.principal"] ?? errors.loan}
+            disabled={disableHolding}
             onChange={(value) =>
               updateLoan({
                 principal: toPositiveNumber(value),
@@ -173,6 +194,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
             label={t("loanRate")}
             value={formValues.loan.annualInterestRatePct ?? 0}
             error={errors["loan.annualInterestRatePct"] ?? errors.loan}
+            disabled={disableHolding}
             onChange={(value) =>
               updateLoan({
                 annualInterestRatePct: toPositiveNumber(value),
@@ -187,6 +209,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
             label={t("loanTerm")}
             value={formValues.loan.termYears ?? 0}
             error={errors["loan.termYears"] ?? errors.loan}
+            disabled={disableHolding}
             onChange={(value) =>
               updateLoan({
                 termYears: Math.max(1, Math.round(Number(value ?? 0))),
@@ -199,6 +222,7 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
             label={t("loanMonthlyPayment")}
             value={formValues.loan.monthlyPayment ?? 0}
             error={errors["loan.monthlyPayment"] ?? errors.loan}
+            disabled={disableHolding}
             onChange={(value) =>
               updateLoan({
                 monthlyPayment: toPositiveNumber(value),
@@ -209,6 +233,42 @@ export default function CarDetailsForm({ car, onCancel, onSave }: CarDetailsForm
           />
         </>
       )}
+      <Title order={6}>{t("sellSectionTitle")}</Title>
+      <TextInput
+        label={t("sellMonth")}
+        placeholder={common("yearMonthOptionalPlaceholder")}
+        value={formValues.sellMonth ?? ""}
+        error={errors.sellMonth}
+        onChange={(event) => updateField("sellMonth", event.target.value || undefined)}
+      />
+      <NumberInput
+        label={t("sellPriceOverride")}
+        value={formValues.sellPriceOverride ?? ""}
+        error={errors.sellPriceOverride}
+        onChange={(value) => {
+          if (value === "" || value === null || Number.isNaN(Number(value))) {
+            updateField("sellPriceOverride", undefined);
+          } else {
+            updateField("sellPriceOverride", toPositiveNumber(value));
+          }
+        }}
+        thousandSeparator=","
+        min={0}
+      />
+      <NumberInput
+        label={t("sellFeesOneTime")}
+        value={formValues.sellFeesOneTime ?? ""}
+        error={errors.sellFeesOneTime}
+        onChange={(value) => {
+          if (value === "" || value === null || Number.isNaN(Number(value))) {
+            updateField("sellFeesOneTime", undefined);
+          } else {
+            updateField("sellFeesOneTime", toPositiveNumber(value));
+          }
+        }}
+        thousandSeparator=","
+        min={0}
+      />
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
           {common("actionCancel")}

@@ -249,23 +249,18 @@ export const createDefinitionCopy = (definition: EventDefinition, title: string)
 export const createHomePositionFromTemplate = (
   options?: { baseMonth?: string | null; purchaseMonth?: string | null }
 ): HomePositionDraft => {
-  const purchaseMonth = getDefaultStartMonth(
-    normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? null
-  );
-  const purchasePrice = 9_000_000;
-  const downPayment = 1_800_000;
-
   return {
     id: createHomePositionId(),
     usage: "primary",
     mode: "new_purchase",
-    purchasePrice,
-    downPayment,
-    purchaseMonth,
-    annualAppreciationPct: 2,
-    mortgageRatePct: 3.5,
+    purchaseMonth:
+      normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "",
+    purchasePrice: 0,
+    downPayment: 0,
+    annualAppreciationPct: 0,
+    mortgageRatePct: 0,
     mortgageTermYears: 30,
-    feesOneTime: 300_000,
+    feesOneTime: 0,
     holdingCostMonthly: 0,
     holdingCostAnnualGrowthPct: 0,
   };
@@ -274,24 +269,15 @@ export const createHomePositionFromTemplate = (
 export const createCarPositionFromTemplate = (
   options?: { baseMonth?: string | null; purchaseMonth?: string | null }
 ): CarPositionDraft => {
-  const purchaseMonth = getDefaultStartMonth(
-    normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? null
-  );
-
   return {
     id: createCarPositionId(),
-    purchaseMonth,
-    purchasePrice: 1_200_000,
-    downPayment: 240_000,
-    annualDepreciationRatePct: 12,
-    holdingCostMonthly: 1500,
-    holdingCostAnnualGrowthPct: 2,
-    loan: {
-      principal: 960_000,
-      annualInterestRatePct: 3.5,
-      termYears: 5,
-      monthlyPayment: 0,
-    },
+    purchaseMonth:
+      normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "",
+    purchasePrice: 0,
+    downPayment: 0,
+    annualDepreciationRatePct: 0,
+    holdingCostMonthly: 0,
+    holdingCostAnnualGrowthPct: 0,
   };
 };
 
