@@ -72,7 +72,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   );
 
   const navItems = [
-    { label: nav("dashboard"), href: "/overview" },
+    { label: nav("dashboard"), href: "/dashboard" },
     { label: nav("money"), href: "/money" },
     { label: nav("people"), href: "/people" },
     { label: nav("scenarios"), href: "/scenarios" },
@@ -130,7 +130,7 @@ export default function Providers({ children }: { children: ReactNode }) {
       if (fallbackId) {
         setActiveScenario(fallbackId);
         if (normalizedPathname !== "/scenarios") {
-          router.replace(`/${locale}/overview`);
+          router.replace(`/${locale}/dashboard`);
         }
       }
       return;

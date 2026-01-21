@@ -1,4 +1,4 @@
-import MoneyClient from "./MoneyClient";
+import OverviewClient from "../overview/OverviewClient";
 
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -7,7 +7,6 @@ type PageProps = {
 export default function Page({ searchParams }: PageProps) {
   const scenarioId =
     typeof searchParams?.scenarioId === "string" ? searchParams.scenarioId : undefined;
-  const tab = typeof searchParams?.tab === "string" ? searchParams.tab : undefined;
 
-  return <MoneyClient scenarioId={scenarioId} initialTab={tab} />;
+  return <OverviewClient scenarioId={scenarioId} />;
 }

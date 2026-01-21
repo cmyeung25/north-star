@@ -627,7 +627,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const handleScenarioChange = (nextScenarioId: string) => {
     setActiveScenario(nextScenarioId);
-    router.push(`/${locale}${buildScenarioUrl("/overview", nextScenarioId)}`);
+    router.push(`/${locale}${buildScenarioUrl("/dashboard", nextScenarioId)}`);
   };
 
   const handleExportCsv = () => {
@@ -669,6 +669,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const visibleTimelineMarkers = timelineStripMarkers.slice(0, 8);
   const timelineOverflowCount = timelineStripMarkers.length - visibleTimelineMarkers.length;
+  const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
 
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
@@ -773,7 +774,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             </div>
             <Button
               component={Link}
-              href={buildScenarioUrl("/timeline", selectedScenario.id)}
+              href={moneyTimelineHref}
               size="xs"
               variant="light"
             >
@@ -1021,7 +1022,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 <Text size="sm">{t("emptyTimeline")}</Text>
                 <Button
                   component={Link}
-                  href={buildScenarioUrl("/timeline", selectedScenario.id)}
+                  href={moneyTimelineHref}
                   size="xs"
                 >
                   {t("addEventsCta")}

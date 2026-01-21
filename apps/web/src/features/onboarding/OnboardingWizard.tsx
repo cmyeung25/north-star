@@ -560,7 +560,7 @@ export default function OnboardingWizard() {
 
     updateScenarioMeta(scenario.id, { onboardingVersion: 2 });
     updateScenarioClientComputed(scenario.id, { onboardingCompleted: true });
-    router.push(`/${locale}${buildScenarioUrl("/overview", scenario.id)}`);
+    router.push(`/${locale}${buildScenarioUrl("/dashboard", scenario.id)}`);
   };
 
   const totalMonthlyIncome = draft.incomes.reduce(
