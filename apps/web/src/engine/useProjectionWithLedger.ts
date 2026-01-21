@@ -22,6 +22,7 @@ import {
 import {
   computeReserveTargetByMonth,
   compileAllocationWeightsByMonth,
+  formatWithdrawalScheduleKey,
   getSmartInvestAssetKey,
   normalizeAllocations,
   solveExcessCashTransferPlan,
@@ -43,6 +44,11 @@ type ProjectionWithLedger = {
   projectionNetCashflowMode: "netCashflow" | "cashDelta";
   netWorthBreakdownByMonth: Record<string, NetWorthBreakdown>;
   projectionWarnings: AdapterWarning[];
+  smartInvestTransferSeries: Array<{
+    month: string;
+    amount: number;
+    kind: "contribution" | "withdrawal";
+  }>;
 };
 
 const emptyProjectionWithLedger: ProjectionWithLedger = {
@@ -56,6 +62,7 @@ const emptyProjectionWithLedger: ProjectionWithLedger = {
   projectionNetCashflowMode: "netCashflow",
   netWorthBreakdownByMonth: {},
   projectionWarnings: [],
+  smartInvestTransferSeries: [],
 };
 
 const filterLedgerToHorizon = (
@@ -253,6 +260,11 @@ export const computeProjectionWithSmartInvest = (
   warnings: AdapterWarning[];
   smartInvestWithdrawalSchedule: SmartInvestWithdrawalSchedule;
   smartInvestRebalanceSchedule: SmartInvestRebalanceSchedule | null;
+  smartInvestTransferSeries: Array<{
+    month: string;
+    amount: number;
+    kind: "contribution" | "withdrawal";
+  }>;
 } => {
   const maxPasses = options.maxPasses ?? 3;
   const members = options.members ?? [];
@@ -288,6 +300,7 @@ export const computeProjectionWithSmartInvest = (
       warnings,
       smartInvestWithdrawalSchedule: {},
       smartInvestRebalanceSchedule: null,
+      smartInvestTransferSeries: [],
     };
   }
 
@@ -333,6 +346,11 @@ export const computeProjectionWithSmartInvest = (
   let withdrawalSchedule: SmartInvestWithdrawalSchedule = {};
   let rebalanceSchedule: SmartInvestRebalanceSchedule | null = null;
   let contributionSchedule: SmartInvestContributionSchedule | null = null;
+  let transferSeries: Array<{
+    month: string;
+    amount: number;
+    kind: "contribution" | "withdrawal";
+  }> = [];
   let withdrawalWarnings: AdapterWarning[] = [];
   let passCount = 1;
 
@@ -373,10 +391,34 @@ export const computeProjectionWithSmartInvest = (
   const excessCashInvestPct = excessCashContribution?.investPct ?? 100;
   const excessCashThreshold = excessCashContribution?.thresholdAmount ?? 0;
 
+  const buildSmartInvestNetCashflowByMonth = () => {
+    const cashflow = projection.breakdown?.cashflow.byKey ?? {};
+    const netByMonth = Array.from({ length: projection.months.length }, () => 0);
+    Object.entries(cashflow).forEach(([key, series]) => {
+      if (!key.startsWith("investment:smart-invest-")) {
+        return;
+      }
+      series.forEach((amount, index) => {
+        netByMonth[index] += amount ?? 0;
+      });
+    });
+    return netByMonth;
+  };
+
+  const buildCashBalancesExcludingSmartInvest = () => {
+    const netByMonth = buildSmartInvestNetCashflowByMonth();
+    let cumulative = 0;
+    return projection.months.map((_, index) => {
+      cumulative += netByMonth[index] ?? 0;
+      return (projection.cashBalance[index] ?? 0) - cumulative;
+    });
+  };
+
+  const cashBalancesExcludingSmartInvest = buildCashBalancesExcludingSmartInvest();
   if (isExcessCashMode || smartInvestPolicy.withdrawal.enabled) {
     const transferPlan = solveExcessCashTransferPlan({
       months: projection.months,
-      cashBalances: projection.cashBalance,
+      cashBalances: cashBalancesExcludingSmartInvest,
       reserveTargets,
       allocationBalancesById,
       weightsById: weightsByMonth.weightsById,
@@ -391,6 +433,7 @@ export const computeProjectionWithSmartInvest = (
     if (isExcessCashMode) {
       contributionSchedule = transferPlan.contributionScheduleByBucketId;
     }
+    transferSeries = transferPlan.transferSeries;
     withdrawalWarnings = transferPlan.shortfallsByMonth.map((shortfall) => ({
       code: "smart-invest-reserve-shortfall",
       message: "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
@@ -434,6 +477,42 @@ export const computeProjectionWithSmartInvest = (
     });
   }
 
+  if (
+    smartInvestPolicy.withdrawal.enabled &&
+    passCount < maxPasses &&
+    projection.months.length > 0
+  ) {
+    const updatedAllocationBalancesById = getAllocationBalancesById();
+    const updatedTransferPlan = solveExcessCashTransferPlan({
+      months: projection.months,
+      cashBalances: cashBalancesExcludingSmartInvest,
+      reserveTargets,
+      allocationBalancesById: updatedAllocationBalancesById,
+      weightsById: weightsByMonth.weightsById,
+      investPct: isExcessCashMode ? excessCashInvestPct : 0,
+      thresholdAmount: isExcessCashMode ? excessCashThreshold : 0,
+      allowWithdrawals: smartInvestPolicy.withdrawal.enabled,
+      allowContributions: isExcessCashMode,
+    });
+    const previousKey = formatWithdrawalScheduleKey(withdrawalSchedule);
+    const nextKey = formatWithdrawalScheduleKey(
+      updatedTransferPlan.withdrawalScheduleByBucketId
+    );
+    if (previousKey !== nextKey) {
+      withdrawalSchedule = updatedTransferPlan.withdrawalScheduleByBucketId;
+      transferSeries = updatedTransferPlan.transferSeries;
+      withdrawalWarnings = updatedTransferPlan.shortfallsByMonth.map((shortfall) => ({
+        code: "smart-invest-reserve-shortfall",
+        message: "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
+        meta: shortfall,
+      }));
+      runProjectionPass({
+        smartInvestContributionSchedules: contributionSchedule ?? undefined,
+        smartInvestWithdrawalSchedules: withdrawalSchedule,
+      });
+    }
+  }
+
   if (smartInvestPolicy.contribution.mode === "rebalance") {
     const updatedAllocationBalancesById = getAllocationBalancesById();
     const candidateSchedule = solveRebalanceSchedule({
@@ -464,6 +543,7 @@ export const computeProjectionWithSmartInvest = (
     warnings,
     smartInvestWithdrawalSchedule: withdrawalSchedule,
     smartInvestRebalanceSchedule: rebalanceSchedule,
+    smartInvestTransferSeries: transferSeries,
   };
 };
 
@@ -483,6 +563,7 @@ export const useProjectionWithLedger = (
       projection,
       smartInvestWithdrawalSchedule,
       smartInvestRebalanceSchedule,
+      smartInvestTransferSeries,
     } = computeProjectionWithSmartInvest(scenario, eventLibrary, {
       members: options.members ?? [],
       budgetRules: options.budgetRules ?? [],
@@ -632,5 +713,6 @@ export const useProjectionWithLedger = (
       projectionNetCashflowMode: netCashflowLookup.mode,
       netWorthBreakdownByMonth,
       projectionWarnings: warnings,
+      smartInvestTransferSeries,
     };
   }, [eventLibrary, options.budgetRules, options.members, scenario]);

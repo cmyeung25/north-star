@@ -165,4 +165,82 @@ describe("smartInvest projection integration", () => {
       true
     );
   });
+
+  it("maintains reserve by investing surplus and withdrawing on deficits", () => {
+    const scenario = buildScenario({
+      assumptions: {
+        horizonMonths: 14,
+        initialCash: 100000,
+        baseMonth: "2024-01",
+        smartInvest: {
+          enabled: true,
+          reserve: { mode: "fixed", amount: 100000 },
+          contribution: {
+            mode: "excessCash",
+            investPct: 100,
+            thresholdAmount: 0,
+          },
+          allocation: [
+            {
+              id: "core",
+              name: "Core",
+              targetPct: 100,
+              assumedAnnualReturnPct: 0,
+            },
+          ],
+          withdrawal: {
+            enabled: true,
+            mode: "sellToMaintainReserve",
+            sellOrder: "proRata",
+          },
+        },
+      },
+      eventRefs: [
+        { refId: "salary-long", enabled: true },
+        { refId: "expense-long", enabled: true },
+      ],
+    });
+
+    const localEventLibrary: EventDefinition[] = [
+      {
+        id: "salary-long",
+        title: "Salary",
+        type: "salary",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2024-01",
+          endMonth: "2024-12",
+          monthlyAmount: 10000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+        currency: "USD",
+      },
+      {
+        id: "expense-long",
+        title: "Expense",
+        type: "custom",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2024-01",
+          endMonth: "2025-02",
+          monthlyAmount: 6000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+        currency: "USD",
+      },
+    ];
+
+    const { projection } = computeProjectionWithSmartInvest(
+      scenario,
+      localEventLibrary
+    );
+
+    expect(projection.cashBalance[0]).toBeCloseTo(100000, 2);
+    expect(projection.cashBalance[11]).toBeCloseTo(100000, 2);
+    expect(projection.cashBalance[12]).toBeCloseTo(100000, 2);
+  });
 });
