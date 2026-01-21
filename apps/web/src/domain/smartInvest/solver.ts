@@ -26,6 +26,11 @@ export type SmartInvestContributionSeries = {
   contributionsByBucketId: Record<string, Array<{ month: string; amount: number }>>;
 };
 
+export type SmartInvestContributionSchedule = Record<
+  string,
+  Array<{ month: string; amount: number }>
+>;
+
 export type SmartInvestRebalanceSchedule = {
   contributionsByBucketId: Record<string, Array<{ month: string; amount: number }>>;
   withdrawalsByBucketId: Record<string, Array<{ month: string; amount: number }>>;
@@ -34,6 +39,14 @@ export type SmartInvestRebalanceSchedule = {
 export type SmartInvestWithdrawalSolveResult = {
   scheduleByBucketId: SmartInvestWithdrawalSchedule;
   totalByMonth: number[];
+  shortfallsByMonth: Array<{ month: string; shortfall: number; available: number }>;
+};
+
+export type SmartInvestExcessCashPlan = {
+  contributionScheduleByBucketId: SmartInvestContributionSchedule;
+  withdrawalScheduleByBucketId: SmartInvestWithdrawalSchedule;
+  contributionTotalsByMonth: number[];
+  withdrawalTotalsByMonth: number[];
   shortfallsByMonth: Array<{ month: string; shortfall: number; available: number }>;
 };
 
@@ -169,6 +182,124 @@ const buildContributionTarget = (
     return Math.max(0, (surplus * (policy.contribution.pct ?? 0)) / 100);
   }
   return 0;
+};
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+type ExcessCashTransferParams = {
+  months: string[];
+  cashBalances: number[];
+  reserveTargets: number[];
+  allocationBalancesById: Record<string, number[]>;
+  weightsById: Record<string, number[]>;
+  investPct: number;
+  thresholdAmount: number;
+  allowWithdrawals: boolean;
+  allowContributions: boolean;
+};
+
+export const solveExcessCashTransferPlan = ({
+  months,
+  cashBalances,
+  reserveTargets,
+  allocationBalancesById,
+  weightsById,
+  investPct,
+  thresholdAmount,
+  allowWithdrawals,
+  allowContributions,
+}: ExcessCashTransferParams): SmartInvestExcessCashPlan => {
+  const contributionScheduleByBucketId: SmartInvestContributionSchedule = {};
+  const withdrawalScheduleByBucketId: SmartInvestWithdrawalSchedule = {};
+  const contributionTotalsByMonth = Array.from({ length: months.length }, () => 0);
+  const withdrawalTotalsByMonth = Array.from({ length: months.length }, () => 0);
+  const shortfallsByMonth: SmartInvestExcessCashPlan["shortfallsByMonth"] = [];
+  const allocationIds = new Set<string>([
+    ...Object.keys(allocationBalancesById),
+    ...Object.keys(weightsById),
+  ]);
+  const normalizedInvestPct = clamp(investPct, 0, 100) / 100;
+  const normalizedThreshold = Math.max(0, thresholdAmount);
+
+  months.forEach((month, index) => {
+    const cashBalance = cashBalances[index] ?? 0;
+    const reserveTarget = reserveTargets[index] ?? 0;
+
+    if (cashBalance < reserveTarget) {
+      if (!allowWithdrawals) {
+        return;
+      }
+      const shortfall = reserveTarget - cashBalance;
+      const allocationBalances = Array.from(allocationIds)
+        .map((id) => ({ id, balance: allocationBalancesById[id]?.[index] ?? 0 }))
+        .filter((entry) => entry.balance > 0);
+      const totalBalance = allocationBalances.reduce(
+        (sum, entry) => sum + entry.balance,
+        0
+      );
+      if (shortfall <= 0 || totalBalance <= 0) {
+        if (shortfall > 0) {
+          shortfallsByMonth.push({ month, shortfall, available: totalBalance });
+        }
+        return;
+      }
+
+      const withdrawalAmount = Math.min(shortfall, totalBalance);
+      withdrawalTotalsByMonth[index] = withdrawalAmount;
+      allocationBalances.forEach((entry) => {
+        const amount = withdrawalAmount * (entry.balance / totalBalance);
+        if (amount <= 0) {
+          return;
+        }
+        withdrawalScheduleByBucketId[entry.id] = withdrawalScheduleByBucketId[entry.id] ?? [];
+        withdrawalScheduleByBucketId[entry.id].push({ month, amount });
+      });
+
+      if (totalBalance < shortfall) {
+        shortfallsByMonth.push({ month, shortfall, available: totalBalance });
+      }
+      return;
+    }
+
+    if (!allowContributions) {
+      return;
+    }
+
+    if (cashBalance <= reserveTarget + normalizedThreshold) {
+      return;
+    }
+
+    const excess = cashBalance - reserveTarget;
+    const investAmount = Math.min(excess, excess * normalizedInvestPct);
+    if (investAmount <= 0) {
+      return;
+    }
+    const totalWeight = Array.from(allocationIds).reduce((sum, id) => {
+      return sum + (weightsById[id]?.[index] ?? 0);
+    }, 0);
+    if (totalWeight <= 0) {
+      return;
+    }
+    contributionTotalsByMonth[index] = investAmount;
+    allocationIds.forEach((id) => {
+      const weight = (weightsById[id]?.[index] ?? 0) / totalWeight;
+      const amount = investAmount * weight;
+      if (amount <= 0) {
+        return;
+      }
+      contributionScheduleByBucketId[id] = contributionScheduleByBucketId[id] ?? [];
+      contributionScheduleByBucketId[id].push({ month, amount });
+    });
+  });
+
+  return {
+    contributionScheduleByBucketId,
+    withdrawalScheduleByBucketId,
+    contributionTotalsByMonth,
+    withdrawalTotalsByMonth,
+    shortfallsByMonth,
+  };
 };
 
 export const compileContributionSeries = (params: {

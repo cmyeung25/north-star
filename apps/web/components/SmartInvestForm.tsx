@@ -24,6 +24,13 @@ type SmartInvestFormProps = {
 export default function SmartInvestForm({ policy, onChange }: SmartInvestFormProps) {
   const t = useTranslations("assumptions");
   const common = useTranslations("common");
+  const percentContribution =
+    policy.contribution.mode === "percentOfIncome" ||
+    policy.contribution.mode === "percentOfSurplus"
+      ? policy.contribution
+      : null;
+  const excessCashContribution =
+    policy.contribution.mode === "excessCash" ? policy.contribution : null;
 
   return (
     <Stack gap="md">
@@ -117,6 +124,10 @@ export default function SmartInvestForm({ policy, onChange }: SmartInvestFormPro
               label: t("smartInvestContributionSurplus"),
             },
             {
+              value: "excessCash",
+              label: t("smartInvestContributionExcess"),
+            },
+            {
               value: "rebalance",
               label: t("smartInvestContributionRebalance"),
             },
@@ -140,35 +151,88 @@ export default function SmartInvestForm({ policy, onChange }: SmartInvestFormPro
                           ? policy.contribution.pct
                           : 0,
                     }
-                  : {
-                      mode: "rebalance" as const,
-                    };
+                  : value === "excessCash"
+                    ? {
+                        mode: "excessCash" as const,
+                        investPct:
+                          policy.contribution.mode === "excessCash"
+                            ? policy.contribution.investPct
+                            : 100,
+                        thresholdAmount:
+                          policy.contribution.mode === "excessCash"
+                            ? policy.contribution.thresholdAmount
+                            : 0,
+                      }
+                    : {
+                        mode: "rebalance" as const,
+                      };
             onChange({
               ...policy,
               contribution: nextContribution,
             });
           }}
         />
-        {policy.contribution.mode !== "rebalance" && (
+        {percentContribution && (
           <NumberInput
             label={t("smartInvestContributionPct")}
-            value={policy.contribution.pct ?? 0}
+            value={percentContribution.pct ?? 0}
             min={0}
             max={100}
             decimalScale={2}
             suffix="%"
             onChange={(value) =>
-              policy.contribution.mode === "rebalance"
-                ? undefined
-                : onChange({
-                    ...policy,
-                    contribution: {
-                      ...policy.contribution,
-                      pct: typeof value === "number" ? value : 0,
-                    },
-                  })
+              onChange({
+                ...policy,
+                contribution: {
+                  mode: percentContribution.mode,
+                  pct: typeof value === "number" ? value : 0,
+                },
+              })
             }
           />
+        )}
+        {excessCashContribution && (
+          <Stack gap={6}>
+            <Group grow>
+              <NumberInput
+                label={t("smartInvestContributionExcessPct")}
+                value={excessCashContribution.investPct ?? 100}
+                min={0}
+                max={100}
+                decimalScale={2}
+                suffix="%"
+                onChange={(value) =>
+                  onChange({
+                    ...policy,
+                    contribution: {
+                      mode: "excessCash",
+                      investPct: typeof value === "number" ? value : 0,
+                      thresholdAmount: excessCashContribution.thresholdAmount ?? 0,
+                    },
+                  })
+                }
+              />
+              <NumberInput
+                label={t("smartInvestContributionExcessThreshold")}
+                value={excessCashContribution.thresholdAmount ?? 0}
+                min={0}
+                thousandSeparator=","
+                onChange={(value) =>
+                  onChange({
+                    ...policy,
+                    contribution: {
+                      mode: "excessCash",
+                      investPct: excessCashContribution.investPct ?? 100,
+                      thresholdAmount: typeof value === "number" ? value : 0,
+                    },
+                  })
+                }
+              />
+            </Group>
+            <Text size="xs" c="dimmed">
+              {t("smartInvestContributionExcessHint")}
+            </Text>
+          </Stack>
         )}
       </Stack>
       <Divider />
