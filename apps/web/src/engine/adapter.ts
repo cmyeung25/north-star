@@ -28,7 +28,10 @@ import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
 import type { CashflowItem } from "../domain/ledger/types";
 import { normalizeMonthStrict } from "../utils/month";
 import { compileSmartInvest } from "../domain/smartInvest/compileSmartInvest";
-import type { SmartInvestWithdrawalSchedule } from "../domain/smartInvest/solver";
+import type {
+  SmartInvestRebalanceSchedule,
+  SmartInvestWithdrawalSchedule,
+} from "../domain/smartInvest/solver";
 import { compileSellLifecycle } from "../domain/positions/compileSellLifecycle";
 
 type AdapterOptions = {
@@ -40,6 +43,7 @@ type AdapterOptions = {
   members?: ScenarioMember[];
   budgetRules?: BudgetRule[];
   smartInvestWithdrawalSchedules?: SmartInvestWithdrawalSchedule;
+  smartInvestRebalanceSchedules?: SmartInvestRebalanceSchedule;
 };
 
 export type AdapterWarning = {
@@ -490,6 +494,7 @@ export const mapScenarioToEngineInput = (
             amount: entry.amount,
           })),
           withdrawalScheduleByAllocation: options.smartInvestWithdrawalSchedules,
+          rebalanceScheduleByAllocation: options.smartInvestRebalanceSchedules,
         })
       : [];
   const sellCashflows = compileSellLifecycle(scenario)

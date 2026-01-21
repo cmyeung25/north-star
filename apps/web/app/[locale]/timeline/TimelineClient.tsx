@@ -111,10 +111,14 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
   const baseCurrency = scenario?.baseCurrency ?? "";
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
   const assumptions = scenario?.assumptions ?? { baseMonth: null, horizonMonths: 0, initialCash: 0 };
-  const { projection } = useProjectionWithLedger(scenario, eventLibrary, {
+  const { projection, projectionWarnings } = useProjectionWithLedger(
+    scenario,
+    eventLibrary,
+    {
     members,
     budgetRules,
-  });
+    }
+  );
 
   if (!scenario) {
     return null;
@@ -137,6 +141,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         assumptions={assumptions}
         scenarioId={scenario.id}
         projection={projection}
+        projectionWarnings={projectionWarnings}
         onAddDefinition={(definition, scenarioIds) => {
           if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
             addEventDefinition(definition);
@@ -206,6 +211,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       assumptions={assumptions}
       scenarioId={scenario.id}
       projection={projection}
+      projectionWarnings={projectionWarnings}
       onAddDefinition={(definition, scenarioIds) => {
         if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
           addEventDefinition(definition);

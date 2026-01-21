@@ -116,6 +116,10 @@ export default function SmartInvestForm({ policy, onChange }: SmartInvestFormPro
               value: "percentOfSurplus",
               label: t("smartInvestContributionSurplus"),
             },
+            {
+              value: "rebalance",
+              label: t("smartInvestContributionRebalance"),
+            },
           ]}
           value={policy.contribution.mode}
           onChange={(value) => {
@@ -128,36 +132,44 @@ export default function SmartInvestForm({ policy, onChange }: SmartInvestFormPro
                         ? policy.contribution.pct
                         : 0,
                   }
-                : {
-                    mode: "percentOfSurplus" as const,
-                    pct:
-                      policy.contribution.mode === "percentOfSurplus"
-                        ? policy.contribution.pct
-                        : 0,
-                  };
+                : value === "percentOfSurplus"
+                  ? {
+                      mode: "percentOfSurplus" as const,
+                      pct:
+                        policy.contribution.mode === "percentOfSurplus"
+                          ? policy.contribution.pct
+                          : 0,
+                    }
+                  : {
+                      mode: "rebalance" as const,
+                    };
             onChange({
               ...policy,
               contribution: nextContribution,
             });
           }}
         />
-        <NumberInput
-          label={t("smartInvestContributionPct")}
-          value={policy.contribution.pct ?? 0}
-          min={0}
-          max={100}
-          decimalScale={2}
-          suffix="%"
-          onChange={(value) =>
-            onChange({
-              ...policy,
-              contribution: {
-                ...policy.contribution,
-                pct: typeof value === "number" ? value : 0,
-              },
-            })
-          }
-        />
+        {policy.contribution.mode !== "rebalance" && (
+          <NumberInput
+            label={t("smartInvestContributionPct")}
+            value={policy.contribution.pct ?? 0}
+            min={0}
+            max={100}
+            decimalScale={2}
+            suffix="%"
+            onChange={(value) =>
+              policy.contribution.mode === "rebalance"
+                ? undefined
+                : onChange({
+                    ...policy,
+                    contribution: {
+                      ...policy.contribution,
+                      pct: typeof value === "number" ? value : 0,
+                    },
+                  })
+            }
+          />
+        )}
       </Stack>
       <Divider />
       <Stack gap="xs">

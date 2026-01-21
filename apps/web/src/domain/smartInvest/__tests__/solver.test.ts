@@ -3,6 +3,7 @@ import type { SmartInvestPolicy } from "../types";
 import {
   compileAllocationWeightsByMonth,
   computeReserveTargetByMonth,
+  solveRebalanceSchedule,
   solveWithdrawalsToMaintainReserve,
 } from "../solver";
 
@@ -104,5 +105,55 @@ describe("smartInvest solver", () => {
     expect(schedule.satellite?.[0]?.amount ?? 0).toBeCloseTo(166.6667, 3);
     expect(schedule.core?.[1]).toBeUndefined();
     expect(schedule.satellite?.[1]).toBeUndefined();
+  });
+
+  it("clamps withdrawals to available assets", () => {
+    const result = solveWithdrawalsToMaintainReserve({
+      months: ["2024-01"],
+      cashBalances: [0],
+      reserveTargets: [1000],
+      allocationBalancesById: {
+        core: [200],
+        satellite: [300],
+      },
+    });
+
+    const totalWithdrawals = Object.values(result.scheduleByBucketId).flat().reduce(
+      (sum, entry) => sum + entry.amount,
+      0
+    );
+
+    expect(totalWithdrawals).toBeCloseTo(500, 2);
+    expect(result.shortfallsByMonth).toEqual([
+      { month: "2024-01", shortfall: 1000, available: 500 },
+    ]);
+  });
+
+  it("builds rebalance schedules that net to zero", () => {
+    const schedule = solveRebalanceSchedule({
+      months: ["2024-01"],
+      allocationBalancesById: {
+        core: [80],
+        satellite: [20],
+      },
+      weightsById: {
+        core: [0.5],
+        satellite: [0.5],
+      },
+    });
+
+    const contributions = Object.values(schedule.contributionsByBucketId)
+      .flat()
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    const withdrawals = Object.values(schedule.withdrawalsByBucketId)
+      .flat()
+      .reduce((sum, entry) => sum + entry.amount, 0);
+
+    expect(contributions).toBeCloseTo(withdrawals, 4);
+    expect(schedule.contributionsByBucketId.satellite?.[0]?.amount ?? 0).toBeCloseTo(
+      30,
+      2
+    );
+    expect(schedule.withdrawalsByBucketId.core?.[0]?.amount ?? 0).toBeCloseTo(30, 2);
   });
 });

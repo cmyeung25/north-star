@@ -88,6 +88,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);
+  const budgetRules = useScenarioStore((state) => state.budgetRules);
   const appSettings = useScenarioStore((state) => state.appSettings);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const globalHorizonMonths = appSettings.globalHorizonMonths;
@@ -155,12 +156,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     netWorthBreakdownByMonth,
   } = useProjectionWithLedger(selectedScenario, eventLibrary, {
     members,
+    budgetRules,
   });
   const compareProjections = useScenarioProjections(
     scenarios,
     eventLibrary,
     compareScenarioIds,
-    { horizonMonths: globalHorizonMonths, members }
+    { horizonMonths: globalHorizonMonths, members, budgetRules }
   );
 
   const overviewViewModel = useMemo(
@@ -251,7 +253,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       value: entry.value / deflator(index),
     }));
   }, [deflator, displayMode, months, projectionNetCashflowByMonth]);
-  const snapshotTargets = useMemo(() => [5, 10, 15, 20, 30], []);
+  const snapshotTargets = useMemo(() => [0, 5, 10, 15, 20, 30], []);
   const autoSnapshots = useMemo(() => {
     if (!projection || !selectedScenario) {
       return [];
@@ -262,6 +264,30 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
     return snapshotTargets
       .map((years) => {
+        if (years === 0) {
+          const monthIndex = 0;
+          const month = projection.months[monthIndex];
+          if (!month) {
+            return null;
+          }
+          const deflatorValue = displayMode === "real" ? deflator(monthIndex) : 1;
+          const ageLabels = scenarioMembers.map((member) => {
+            const ageYears = Math.max(0, getMemberAgeYears(member, month, baseMonth));
+            return t("snapshotAgeLabel", {
+              name: member.name,
+              age: formatAge(ageYears),
+            });
+          });
+          return {
+            label: t("snapshotsNowLabel"),
+            month,
+            cash: (projection.cashBalance[monthIndex] ?? 0) / deflatorValue,
+            assets: (projection.assets.total[monthIndex] ?? 0) / deflatorValue,
+            liabilities: (projection.liabilities.total[monthIndex] ?? 0) / deflatorValue,
+            netWorth: (projection.netWorth[monthIndex] ?? 0) / deflatorValue,
+            ageLabels,
+          };
+        }
         const requiredMonths = years * 12;
         if (globalHorizonMonths < requiredMonths) {
           return null;
@@ -322,6 +348,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     return compareProjections.map((item) => {
       const horizonMonths = globalHorizonMonths;
       const netWorthByYear = snapshotTargets.map((years) => {
+        if (years === 0) {
+          const deflatorValue = displayMode === "real" ? deflator(0) : 1;
+          return (item.projection.netWorth[0] ?? 0) / deflatorValue;
+        }
         const requiredMonths = years * 12;
         if (horizonMonths < requiredMonths) {
           return null;
@@ -581,7 +611,11 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                   <Table.Tr>
                     <Table.Th>{t("compareScenarioLabel")}</Table.Th>
                     {snapshotTargets.map((years) => (
-                      <Table.Th key={years}>{t("compareYearLabel", { years })}</Table.Th>
+                      <Table.Th key={years}>
+                        {years === 0
+                          ? t("snapshotsNowLabel")
+                          : t("compareYearLabel", { years })}
+                      </Table.Th>
                     ))}
                   </Table.Tr>
                 </Table.Thead>

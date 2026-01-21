@@ -3,6 +3,7 @@ import type { BudgetRule, Scenario, ScenarioMember } from "../../store/scenarioS
 import { getMemberAgeYears, monthsBetween } from "../members/age";
 import { appliesToScenario } from "../applyScope";
 import type { CashflowItem } from "../ledger/types";
+import { normalizeMonthStrict } from "../../utils/month";
 
 export type BudgetRuleMonthlyEntry = CashflowItem;
 
@@ -29,15 +30,32 @@ export const compileBudgetRuleToMonthlySeries = (
   if (!baseMonth || horizonMonths <= 0) {
     return [];
   }
+  const normalizedBaseMonth = normalizeMonthStrict(baseMonth);
+  if (!normalizedBaseMonth.ok) {
+    return [];
+  }
 
-  const months = buildMonthRange(baseMonth, horizonMonths);
+  const months = buildMonthRange(normalizedBaseMonth.month, horizonMonths);
   const horizonEndMonth = months.at(-1);
   if (!horizonEndMonth) {
     return [];
   }
 
-  const effectiveStartMonth = rule.startMonth ?? baseMonth;
-  const effectiveEndMonth = rule.endMonth ?? horizonEndMonth;
+  const normalizedStartMonth = rule.startMonth
+    ? normalizeMonthStrict(rule.startMonth)
+    : null;
+  if (rule.startMonth && !normalizedStartMonth?.ok) {
+    return [];
+  }
+  const normalizedEndMonth = rule.endMonth ? normalizeMonthStrict(rule.endMonth) : null;
+  if (rule.endMonth && !normalizedEndMonth?.ok) {
+    return [];
+  }
+
+  const effectiveStartMonth = normalizedStartMonth?.ok
+    ? normalizedStartMonth.month
+    : normalizedBaseMonth.month;
+  const effectiveEndMonth = normalizedEndMonth?.ok ? normalizedEndMonth.month : horizonEndMonth;
   const monthlyAmountBase = -Math.abs(rule.monthlyAmount ?? 0);
   const annualGrowthPct = rule.annualGrowthPct ?? 0;
   const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);

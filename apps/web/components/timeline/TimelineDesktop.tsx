@@ -10,6 +10,7 @@ import {
   Modal,
   Notification,
   SegmentedControl,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -17,6 +18,7 @@ import {
   Text,
   Title,
   UnstyledButton,
+  Tooltip,
 } from "@mantine/core";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { monthIndex, type EventGroup } from "@north-star/engine";
@@ -72,6 +74,7 @@ import type {
 } from "../../src/store/scenarioStore";
 import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
 import type { ProjectionResult } from "@north-star/engine";
+import type { AdapterWarning } from "../../src/engine/adapter";
 import {
   buildCarCashflowBreakdown,
   buildHomeCashflowBreakdown,
@@ -110,6 +113,7 @@ interface TimelineDesktopProps {
   assumptions: ScenarioAssumptions;
   scenarioId: string;
   projection?: ProjectionResult | null;
+  projectionWarnings?: AdapterWarning[];
   onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onUpdateDefinition: (id: string, patch: Partial<EventDefinition>) => void;
   onUpdateEventRef: (refId: string, patch: Partial<ScenarioEventRef>) => void;
@@ -169,6 +173,7 @@ export default function TimelineDesktop({
   assumptions,
   scenarioId,
   projection,
+  projectionWarnings,
   onAddDefinition,
   onUpdateDefinition,
   onUpdateEventRef,
@@ -234,9 +239,11 @@ export default function TimelineDesktop({
         ? t("smartInvestContributionIncome", {
             pct: smartInvestPolicy.contribution.pct ?? 0,
           })
-        : t("smartInvestContributionSurplus", {
-            pct: smartInvestPolicy.contribution.pct ?? 0,
-          });
+        : smartInvestPolicy.contribution.mode === "percentOfSurplus"
+          ? t("smartInvestContributionSurplus", {
+              pct: smartInvestPolicy.contribution.pct ?? 0,
+            })
+          : t("smartInvestContributionRebalance");
     const allocationValue = smartInvestPolicy.allocation
       .map((allocation) =>
         t("smartInvestAllocationItem", {
@@ -263,6 +270,74 @@ export default function TimelineDesktop({
       { label: t("smartInvestSummaryAllocation"), value: allocationValue },
     ];
   }, [baseCurrency, locale, smartInvestBreakdown, smartInvestPolicy, t]);
+  const projectionMonthIndex = 0;
+  const assetValuesByKey = projection?.breakdown?.assets.assetsByKey ?? {};
+  const liabilityValuesByKey = projection?.breakdown?.assets.liabilitiesByKey ?? {};
+  const formatValue = (value: number | null | undefined) =>
+    typeof value === "number"
+      ? formatCurrency(value, baseCurrency, locale)
+      : common("notAvailable");
+  const getAssetValue = (key: string) => assetValuesByKey[key]?.[projectionMonthIndex];
+  const getLiabilityValue = (key: string) =>
+    liabilityValuesByKey[key]?.[projectionMonthIndex];
+  const doubleCountLookup = useMemo(() => {
+    const lookup = new Set<string>();
+    (projectionWarnings ?? []).forEach((warning) => {
+      if (warning.code !== "double-count") {
+        return;
+      }
+      const positionId = warning.meta?.positionId;
+      const type = warning.meta?.type;
+      if (typeof positionId === "string" && typeof type === "string") {
+        lookup.add(`${type}:${positionId}`);
+      }
+    });
+    return lookup;
+  }, [projectionWarnings]);
+  const assetIndicators = useMemo(
+    () => [
+      { key: "home", label: homes("title"), icon: "🏠", visible: homePositions.length > 0 },
+      { key: "car", label: cars("title"), icon: "🚗", visible: carPositions.length > 0 },
+      {
+        key: "loan",
+        label: loans("title"),
+        icon: "💳",
+        visible: loanPositions.length > 0,
+      },
+      {
+        key: "investment",
+        label: investments("title"),
+        icon: "📈",
+        visible: investmentPositions.length > 0,
+      },
+      {
+        key: "insurance",
+        label: insurances("title"),
+        icon: "🛡️",
+        visible: insurancePositions.length > 0,
+      },
+      {
+        key: "smartInvest",
+        label: t("smartInvestTitle"),
+        icon: "🤖",
+        visible: hasSmartInvestConfig,
+      },
+    ],
+    [
+      carPositions.length,
+      hasSmartInvestConfig,
+      homePositions.length,
+      insurancePositions.length,
+      insurances,
+      investmentPositions.length,
+      investments,
+      loans,
+      loanPositions.length,
+      cars,
+      homes,
+      t,
+    ]
+  );
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
@@ -721,293 +796,183 @@ export default function TimelineDesktop({
 
                   return (
                     <Card key={home.id} withBorder padding="md" radius="md">
-                    <Group justify="space-between" align="center" wrap="wrap">
-                      <div>
-                        <Group gap="xs" align="center">
-                          <Text fw={600}>
-                            {homes("homeLabel", { index: index + 1 })}
-                          </Text>
-                          {sellBadgeLabel && (
-                            <Badge
-                              size="sm"
-                              color={homeSold ? "gray" : "blue"}
+                      <Stack gap="sm">
+                        <Group justify="space-between" align="center" wrap="wrap">
+                          <Group gap="xs" align="center">
+                            <Text>🏠</Text>
+                            <Text fw={600}>
+                              {homes("homeLabel", { index: index + 1 })}
+                            </Text>
+                            {sellBadgeLabel && (
+                              <Badge
+                                size="sm"
+                                color={homeSold ? "gray" : "blue"}
+                                variant="light"
+                              >
+                                {sellBadgeLabel}
+                              </Badge>
+                            )}
+                          </Group>
+                          <Group gap="sm" wrap="wrap">
+                            <Button
+                              size="xs"
                               variant="light"
+                              onClick={() => {
+                                const breakdown = buildHomeCashflowBreakdown({
+                                  home,
+                                  baseMonth:
+                                    baseMonth ??
+                                    ((home.mode ?? "new_purchase") === "existing"
+                                      ? home.existing?.asOfMonth
+                                      : home.purchaseMonth) ??
+                                    null,
+                                  horizonMonths,
+                                });
+                                setCashflowModal({
+                                  title: t("positionCashflowTitle", {
+                                    label: homes("homeLabel", { index: index + 1 }),
+                                  }),
+                                  entries: breakdown.entries,
+                                  series: breakdown.series,
+                                });
+                              }}
                             >
-                              {sellBadgeLabel}
-                            </Badge>
-                          )}
+                              {t("positionViewCashflow")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => {
+                                const isExisting =
+                                  (home.mode ?? "new_purchase") === "existing" &&
+                                  Boolean(home.existing);
+                                const startMonth = isExisting
+                                  ? home.existing?.asOfMonth ?? baseMonth ?? ""
+                                  : home.purchaseMonth ?? baseMonth ?? "";
+                                const principal = isExisting
+                                  ? home.existing?.mortgageBalance ?? 0
+                                  : (home.purchasePrice ?? 0) - (home.downPayment ?? 0);
+                                const annualRateDecimal = isExisting
+                                  ? (home.existing?.annualRatePct ?? 0) / 100
+                                  : (home.mortgageRatePct ?? 0) / 100;
+                                const termMonths = isExisting
+                                  ? home.existing?.remainingTermMonths ?? 0
+                                  : Math.round((home.mortgageTermYears ?? 0) * 12);
+                                const amortizationRows = startMonth
+                                  ? buildAmortizationSchedule({
+                                      principal,
+                                      annualRateDecimal,
+                                      termMonths,
+                                      startMonth,
+                                    })
+                                  : [];
+                                const valueRows = startMonth
+                                  ? buildValueSchedule({
+                                      baseValue: isExisting
+                                        ? home.existing?.marketValue ?? 0
+                                        : home.purchasePrice ?? 0,
+                                      annualAppreciationDecimal:
+                                        (home.annualAppreciationPct ?? 0) / 100,
+                                      startMonth,
+                                      months: horizonMonths,
+                                    })
+                                  : [];
+                                setCalculatorModal({
+                                  title: t("positionCalculatorTitle", {
+                                    label: homes("homeLabel", { index: index + 1 }),
+                                  }),
+                                  amortizationRows,
+                                  valueRows,
+                                });
+                              }}
+                            >
+                              {t("positionViewCalculations")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => setEditingHomeId(home.id)}
+                            >
+                              {common("actionEdit")}
+                            </Button>
+                          </Group>
                         </Group>
                         <Text size="sm">
                           {formatHomeSummary(homes, home, baseCurrency, locale)}
                         </Text>
-                        <Text size="xs" c="dimmed">
-                          {(home.mode ?? "new_purchase") === "existing"
-                            ? `${homes("existingAsOfMonth")}: ${home.existing?.asOfMonth ?? "--"}`
-                            : `${homes("purchaseMonth")}: ${home.purchaseMonth ?? "--"}`}
-                        </Text>
-                        <PositionDetailList
-                          items={(() => {
-                            const isExisting =
-                              (home.mode ?? "new_purchase") === "existing" &&
-                              Boolean(home.existing);
-                            const annualAppreciation = `${(
-                              home.annualAppreciationPct ?? 0
-                            ).toFixed(2)}%`;
-                            const holdingGrowth = `${(
-                              home.holdingCostAnnualGrowthPct ?? 0
-                            ).toFixed(2)}%`;
-                            if (isExisting && home.existing) {
-                              const mortgagePayment = computeMonthlyPayment(
-                                home.existing.mortgageBalance,
-                                (home.existing.annualRatePct ?? 0) / 100,
-                                home.existing.remainingTermMonths
-                              );
-                              return [
-                                {
-                                  label: homes("existingAsOfMonth"),
-                                  value: home.existing.asOfMonth,
-                                },
-                                {
-                                  label: homes("existingMarketValue"),
-                                  value: formatCurrency(
-                                    home.existing.marketValue,
-                                    baseCurrency,
-                                    locale
-                                  ),
-                                },
-                                {
-                                  label: homes("existingMortgageBalance"),
-                                  value: formatCurrency(
-                                    home.existing.mortgageBalance,
-                                    baseCurrency,
-                                    locale
-                                  ),
-                                },
-                                {
-                                  label: homes("existingRemainingTerm"),
-                                  value: String(home.existing.remainingTermMonths),
-                                },
-                                {
-                                  label: homes("existingMortgageRate"),
-                                  value: `${(home.existing.annualRatePct ?? 0).toFixed(2)}%`,
-                                },
-                                {
-                                  label: homes("mortgagePayment"),
-                                  value: formatCurrency(
-                                    mortgagePayment,
-                                    baseCurrency,
-                                    locale
-                                  ),
-                                },
-                                {
-                                  label: homes("annualAppreciation"),
-                                  value: annualAppreciation,
-                                },
-                                {
-                                  label: homes("holdingCostMonthly"),
-                                  value: formatCurrency(
-                                    home.holdingCostMonthly ?? 0,
-                                    baseCurrency,
-                                    locale
-                                  ),
-                                },
-                                {
-                                  label: homes("holdingCostGrowth"),
-                                  value: holdingGrowth,
-                                },
-                              ];
-                            }
-
-                            const principal =
-                              (home.purchasePrice ?? 0) - (home.downPayment ?? 0);
-                            const mortgagePayment = computeMonthlyPayment(
-                              principal,
-                              (home.mortgageRatePct ?? 0) / 100,
-                              Math.round((home.mortgageTermYears ?? 0) * 12)
-                            );
-
-                            return [
-                              {
-                                label: homes("purchaseMonth"),
-                                value: home.purchaseMonth ?? "--",
-                              },
-                              {
-                                label: homes("purchasePrice"),
-                                value: formatCurrency(
-                                  home.purchasePrice ?? 0,
-                                  baseCurrency,
-                                  locale
-                                ),
-                              },
-                              {
-                                label: homes("downPayment"),
-                                value: formatCurrency(
-                                  home.downPayment ?? 0,
-                                  baseCurrency,
-                                  locale
-                                ),
-                              },
-                              {
-                                label: homes("mortgageRate"),
-                                value: `${(home.mortgageRatePct ?? 0).toFixed(2)}%`,
-                              },
-                              {
-                                label: homes("mortgageTerm"),
-                                value: String(home.mortgageTermYears ?? 0),
-                              },
-                              {
-                                label: homes("mortgagePayment"),
-                                value: formatCurrency(
-                                  mortgagePayment,
-                                  baseCurrency,
-                                  locale
-                                ),
-                              },
-                              {
-                                label: homes("feesOneTime"),
-                                value: formatCurrency(
-                                  home.feesOneTime ?? 0,
-                                  baseCurrency,
-                                  locale
-                                ),
-                              },
-                              {
-                                label: homes("annualAppreciation"),
-                                value: annualAppreciation,
-                              },
-                              {
-                                label: homes("holdingCostMonthly"),
-                                value: formatCurrency(
-                                  home.holdingCostMonthly ?? 0,
-                                  baseCurrency,
-                                  locale
-                                ),
-                              },
-                              {
-                                label: homes("holdingCostGrowth"),
-                                value: holdingGrowth,
-                              },
-                            ];
-                          })()}
-                        />
-                      </div>
-                      <Group gap="sm">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const breakdown = buildHomeCashflowBreakdown({
-                              home,
-                              baseMonth:
-                                baseMonth ??
-                                ((home.mode ?? "new_purchase") === "existing"
-                                  ? home.existing?.asOfMonth
-                                  : home.purchaseMonth) ??
-                                null,
-                              horizonMonths,
-                            });
-                            setCashflowModal({
-                              title: t("positionCashflowTitle", {
-                                label: homes("homeLabel", { index: index + 1 }),
-                              }),
-                              entries: breakdown.entries,
-                              series: breakdown.series,
-                            });
-                          }}
-                        >
-                          {t("positionViewCashflow")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const isExisting =
-                              (home.mode ?? "new_purchase") === "existing" &&
-                              Boolean(home.existing);
-                            const startMonth = isExisting
-                              ? home.existing?.asOfMonth ?? baseMonth ?? ""
-                              : home.purchaseMonth ?? baseMonth ?? "";
-                            const principal = isExisting
-                              ? home.existing?.mortgageBalance ?? 0
-                              : (home.purchasePrice ?? 0) - (home.downPayment ?? 0);
-                            const annualRateDecimal = isExisting
-                              ? (home.existing?.annualRatePct ?? 0) / 100
-                              : (home.mortgageRatePct ?? 0) / 100;
-                            const termMonths = isExisting
-                              ? home.existing?.remainingTermMonths ?? 0
-                              : Math.round((home.mortgageTermYears ?? 0) * 12);
-                            const amortizationRows = startMonth
-                              ? buildAmortizationSchedule({
-                                  principal,
-                                  annualRateDecimal,
-                                  termMonths,
-                                  startMonth,
-                                })
-                              : [];
-                            const valueRows = startMonth
-                              ? buildValueSchedule({
-                                  baseValue: isExisting
-                                    ? home.existing?.marketValue ?? 0
-                                    : home.purchasePrice ?? 0,
-                                  annualAppreciationDecimal:
-                                    (home.annualAppreciationPct ?? 0) / 100,
-                                  startMonth,
-                                  months: horizonMonths,
-                                })
-                              : [];
-                            setCalculatorModal({
-                              title: t("positionCalculatorTitle", {
-                                label: homes("homeLabel", { index: index + 1 }),
-                              }),
-                              amortizationRows,
-                              valueRows,
-                            });
-                          }}
-                        >
-                          {t("positionViewCalculations")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() =>
-                            openCopyModal(
-                              t("copyPositionTitle", {
-                                label: homes("homeLabel", { index: index + 1 }),
-                              }),
-                              (scenarioIds) =>
-                                onCopyPositionToScenarios(
-                                  "home",
-                                  home.id,
-                                  scenarioIds
+                        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {homes("currentMarketValue")}
+                            </Text>
+                            <Text size="sm" fw={600}>
+                              {formatValue(getAssetValue(`home:${home.id}`))}
+                            </Text>
+                          </Stack>
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {homes("mortgageBalance")}
+                            </Text>
+                            <Text size="sm" fw={600}>
+                              {formatValue(
+                                getLiabilityValue(`home:${home.id}:mortgage`)
+                              )}
+                            </Text>
+                          </Stack>
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {(home.mode ?? "new_purchase") === "existing"
+                                ? homes("existingAsOfMonth")
+                                : homes("purchaseMonth")}
+                            </Text>
+                            <Text size="sm" fw={600}>
+                              {(home.mode ?? "new_purchase") === "existing"
+                                ? home.existing?.asOfMonth ?? common("notAvailable")
+                                : home.purchaseMonth ?? common("notAvailable")}
+                            </Text>
+                          </Stack>
+                        </SimpleGrid>
+                        <Group justify="space-between" align="center" wrap="wrap">
+                          <Text size="xs" c="dimmed">
+                            {t("positionIncludedInProjection")}
+                          </Text>
+                          <Group gap="xs">
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() =>
+                                openCopyModal(
+                                  t("copyPositionTitle", {
+                                    label: homes("homeLabel", { index: index + 1 }),
+                                  }),
+                                  (scenarioIds) =>
+                                    onCopyPositionToScenarios(
+                                      "home",
+                                      home.id,
+                                      scenarioIds
+                                    )
                                 )
-                            )
-                          }
-                        >
-                          {t("copyToOtherScenarios")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => setEditingHomeId(home.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          color="red"
-                          variant="light"
-                          onClick={() =>
-                            setConfirmDelete({
-                              type: "home",
-                              id: home.id,
-                              label: homes("homeLabel", { index: index + 1 }),
-                            })
-                          }
-                        >
-                          {homes("removeHome")}
-                        </Button>
-                      </Group>
-                    </Group>
+                              }
+                            >
+                              {t("copyToOtherScenarios")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              color="red"
+                              variant="light"
+                              onClick={() =>
+                                setConfirmDelete({
+                                  type: "home",
+                                  id: home.id,
+                                  label: homes("homeLabel", { index: index + 1 }),
+                                })
+                              }
+                            >
+                              {homes("removeHome")}
+                            </Button>
+                          </Group>
+                        </Group>
+                      </Stack>
                     </Card>
                   );
                 })
@@ -1042,188 +1007,156 @@ export default function TimelineDesktop({
 
                   return (
                     <Card key={car.id} withBorder padding="md" radius="md">
-                    <Group justify="space-between" align="center" wrap="wrap">
-                      <div>
-                        <Group gap="xs" align="center">
-                          <Text fw={600}>
-                            {cars("carLabel", { index: index + 1 })}
-                          </Text>
-                          {sellBadgeLabel && (
-                            <Badge
-                              size="sm"
-                              color={carSold ? "gray" : "blue"}
+                      <Stack gap="sm">
+                        <Group justify="space-between" align="center" wrap="wrap">
+                          <Group gap="xs" align="center">
+                            <Text>🚗</Text>
+                            <Text fw={600}>
+                              {cars("carLabel", { index: index + 1 })}
+                            </Text>
+                            {sellBadgeLabel && (
+                              <Badge
+                                size="sm"
+                                color={carSold ? "gray" : "blue"}
+                                variant="light"
+                              >
+                                {sellBadgeLabel}
+                              </Badge>
+                            )}
+                            {doubleCountLookup.has(`car:${car.id}`) && (
+                              <Badge color="yellow" variant="light">
+                                {t("positionOverlapWarning")}
+                              </Badge>
+                            )}
+                          </Group>
+                          <Group gap="sm" wrap="wrap">
+                            <Button
+                              size="xs"
                               variant="light"
+                              onClick={() => {
+                                const breakdown = buildCarCashflowBreakdown({
+                                  car,
+                                  baseMonth: baseMonth ?? car.purchaseMonth ?? null,
+                                  horizonMonths,
+                                });
+                                setCashflowModal({
+                                  title: t("positionCashflowTitle", {
+                                    label: cars("carLabel", { index: index + 1 }),
+                                  }),
+                                  entries: breakdown.entries,
+                                  series: breakdown.series,
+                                });
+                              }}
                             >
-                              {sellBadgeLabel}
-                            </Badge>
-                          )}
+                              {t("positionViewCashflow")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => {
+                                const startMonth = car.purchaseMonth ?? baseMonth ?? "";
+                                const amortizationRows =
+                                  car.loan && startMonth
+                                    ? buildAmortizationSchedule({
+                                        principal: car.loan.principal,
+                                        annualRateDecimal:
+                                          (car.loan.annualInterestRatePct ?? 0) /
+                                          100,
+                                        termMonths: Math.round(
+                                          (car.loan.termYears ?? 0) * 12
+                                        ),
+                                        startMonth,
+                                      })
+                                    : [];
+                                setCalculatorModal({
+                                  title: t("positionCalculatorTitle", {
+                                    label: cars("carLabel", { index: index + 1 }),
+                                  }),
+                                  amortizationRows,
+                                });
+                              }}
+                            >
+                              {t("positionViewCalculations")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => setEditingCarId(car.id)}
+                            >
+                              {common("actionEdit")}
+                            </Button>
+                          </Group>
                         </Group>
                         <Text size="sm">
                           {formatCarSummary(cars, car, baseCurrency, locale)}
                         </Text>
-                        <Text size="xs" c="dimmed">
-                          {cars("purchaseMonth")}: {car.purchaseMonth ?? "--"}
-                        </Text>
-                        <PositionDetailList
-                          items={[
-                            {
-                              label: cars("purchaseMonth"),
-                              value: car.purchaseMonth ?? "--",
-                            },
-                            {
-                              label: cars("purchasePrice"),
-                              value: formatCurrency(
-                                car.purchasePrice ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: cars("downPayment"),
-                              value: formatCurrency(
-                                car.downPayment ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: cars("annualDepreciationRate"),
-                              value: `${(car.annualDepreciationRatePct ?? 0).toFixed(2)}%`,
-                            },
-                            {
-                              label: cars("holdingCostMonthly"),
-                              value: formatCurrency(
-                                car.holdingCostMonthly ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: cars("holdingCostGrowth"),
-                              value: `${(car.holdingCostAnnualGrowthPct ?? 0).toFixed(2)}%`,
-                            },
-                            ...(car.loan
-                              ? [
-                                  {
-                                    label: cars("loanPrincipal"),
-                                    value: formatCurrency(
-                                      car.loan.principal ?? 0,
-                                      baseCurrency,
-                                      locale
-                                    ),
-                                  },
-                                  {
-                                    label: cars("loanRate"),
-                                    value: `${(car.loan.annualInterestRatePct ?? 0).toFixed(2)}%`,
-                                  },
-                                  {
-                                    label: cars("loanTerm"),
-                                    value: String(car.loan.termYears ?? 0),
-                                  },
-                                  {
-                                    label: cars("loanMonthlyPayment"),
-                                    value: formatCurrency(
-                                      car.loan.monthlyPayment ??
-                                        computeMonthlyPayment(
-                                          car.loan.principal,
-                                          (car.loan.annualInterestRatePct ?? 0) / 100,
-                                          Math.round((car.loan.termYears ?? 0) * 12)
-                                        ),
-                                      baseCurrency,
-                                      locale
-                                    ),
-                                  },
-                                ]
-                              : []),
-                          ]}
-                        />
-                      </div>
-                      <Group gap="sm">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const breakdown = buildCarCashflowBreakdown({
-                              car,
-                              baseMonth: baseMonth ?? car.purchaseMonth ?? null,
-                              horizonMonths,
-                            });
-                            setCashflowModal({
-                              title: t("positionCashflowTitle", {
-                                label: cars("carLabel", { index: index + 1 }),
-                              }),
-                              entries: breakdown.entries,
-                              series: breakdown.series,
-                            });
-                          }}
-                        >
-                          {t("positionViewCashflow")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const startMonth = car.purchaseMonth ?? baseMonth ?? "";
-                            const amortizationRows =
-                              car.loan && startMonth
-                                ? buildAmortizationSchedule({
-                                    principal: car.loan.principal,
-                                    annualRateDecimal:
-                                      (car.loan.annualInterestRatePct ?? 0) / 100,
-                                    termMonths: Math.round(
-                                      (car.loan.termYears ?? 0) * 12
-                                    ),
-                                    startMonth,
-                                  })
-                                : [];
-                            setCalculatorModal({
-                              title: t("positionCalculatorTitle", {
-                                label: cars("carLabel", { index: index + 1 }),
-                              }),
-                              amortizationRows,
-                            });
-                          }}
-                        >
-                          {t("positionViewCalculations")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() =>
-                            openCopyModal(
-                              t("copyPositionTitle", {
-                                label: cars("carLabel", { index: index + 1 }),
-                              }),
-                              (scenarioIds) =>
-                                onCopyPositionToScenarios("car", car.id, scenarioIds)
-                            )
-                          }
-                        >
-                          {t("copyToOtherScenarios")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => setEditingCarId(car.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          color="red"
-                          variant="light"
-                          onClick={() =>
-                            setConfirmDelete({
-                              type: "car",
-                              id: car.id,
-                              label: cars("carLabel", { index: index + 1 }),
-                            })
-                          }
-                        >
-                          {cars("removeCar")}
-                        </Button>
-                      </Group>
-                    </Group>
+                        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {cars("marketValue")}
+                            </Text>
+                            <Text size="sm" fw={600}>
+                              {formatValue(getAssetValue(`car:${car.id}`))}
+                            </Text>
+                          </Stack>
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {cars("loanBalance")}
+                            </Text>
+                            <Text size="sm" fw={600}>
+                              {formatValue(getLiabilityValue(`car:${car.id}:loan`))}
+                            </Text>
+                          </Stack>
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {cars("purchaseMonth")}
+                            </Text>
+                            <Text size="sm" fw={600}>
+                              {car.purchaseMonth ?? common("notAvailable")}
+                            </Text>
+                          </Stack>
+                        </SimpleGrid>
+                        <Group justify="space-between" align="center" wrap="wrap">
+                          <Text size="xs" c="dimmed">
+                            {t("positionIncludedInProjection")}
+                          </Text>
+                          <Group gap="xs">
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() =>
+                                openCopyModal(
+                                  t("copyPositionTitle", {
+                                    label: cars("carLabel", { index: index + 1 }),
+                                  }),
+                                  (scenarioIds) =>
+                                    onCopyPositionToScenarios(
+                                      "car",
+                                      car.id,
+                                      scenarioIds
+                                    )
+                                )
+                              }
+                            >
+                              {t("copyToOtherScenarios")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              color="red"
+                              variant="light"
+                              onClick={() =>
+                                setConfirmDelete({
+                                  type: "car",
+                                  id: car.id,
+                                  label: cars("carLabel", { index: index + 1 }),
+                                })
+                              }
+                            >
+                              {cars("removeCar")}
+                            </Button>
+                          </Group>
+                        </Group>
+                      </Stack>
                     </Card>
                   );
                 })
@@ -1252,165 +1185,161 @@ export default function TimelineDesktop({
               ) : (
                 investmentPositions.map((investment, index) => (
                   <Card key={investment.id} withBorder padding="md" radius="md">
-                    <Group justify="space-between" align="center" wrap="wrap">
-                      <div>
-                        <Text fw={600}>
-                          {investments("investmentLabel", { index: index + 1 })}
-                        </Text>
-                        <Text size="sm">
-                          {formatInvestmentSummary(
-                            investments,
-                            investment,
-                            baseCurrency,
-                            locale
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Group gap="xs" align="center">
+                          <Text>📈</Text>
+                          <Text fw={600}>
+                            {investments("investmentLabel", { index: index + 1 })}
+                          </Text>
+                          {doubleCountLookup.has(`investment:${investment.id}`) && (
+                            <Badge color="yellow" variant="light">
+                              {t("positionOverlapWarning")}
+                            </Badge>
                           )}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {investments("startMonth")}: {investment.startMonth ?? "--"}
-                        </Text>
-                        <PositionDetailList
-                          items={[
-                            {
-                              label: investments("startMonth"),
-                              value: investment.startMonth ?? "--",
-                            },
-                            {
-                              label: investments("initialValue"),
-                              value: formatCurrency(
-                                investment.initialValue ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: investments("expectedReturn"),
-                              value: `${(investment.expectedAnnualReturnPct ?? 0).toFixed(
-                                2
-                              )}%`,
-                            },
-                            {
-                              label: investments("monthlyContribution"),
-                              value: formatCurrency(
-                                investment.monthlyContribution ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: investments("monthlyWithdrawal"),
-                              value: formatCurrency(
-                                investment.monthlyWithdrawal ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: investments("feeAnnualRate"),
-                              value: `${(investment.feeAnnualRatePct ?? 0).toFixed(2)}%`,
-                            },
-                          ]}
-                        />
-                      </div>
-                      <Group gap="sm">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const breakdown = buildInvestmentCashflowBreakdown({
-                              investment,
-                              baseMonth: baseMonth ?? investment.startMonth ?? null,
-                              horizonMonths,
-                            });
-                            setCashflowModal({
-                              title: t("positionCashflowTitle", {
-                                label: investments("investmentLabel", {
-                                  index: index + 1,
+                        </Group>
+                        <Group gap="sm" wrap="wrap">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              const breakdown = buildInvestmentCashflowBreakdown({
+                                investment,
+                                baseMonth: baseMonth ?? investment.startMonth ?? null,
+                                horizonMonths,
+                              });
+                              setCashflowModal({
+                                title: t("positionCashflowTitle", {
+                                  label: investments("investmentLabel", {
+                                    index: index + 1,
+                                  }),
                                 }),
-                              }),
-                              entries: breakdown.entries,
-                              series: breakdown.series,
-                            });
-                          }}
-                        >
-                          {t("positionViewCashflow")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const startMonth = investment.startMonth ?? baseMonth ?? "";
-                            const contributionRows = startMonth
-                              ? buildContributionSchedule({
-                                  startMonth,
-                                  monthlyContribution:
-                                    investment.monthlyContribution ?? 0,
-                                  months: horizonMonths,
-                                })
-                              : [];
-                            const assetValueRows = startMonth
-                              ? buildInvestmentValueTable({
-                                  investment,
-                                  baseMonth: startMonth,
-                                  horizonMonths,
-                                })
-                              : [];
-                            setCalculatorModal({
-                              title: t("positionCalculatorTitle", {
-                                label: investments("investmentLabel", {
-                                  index: index + 1,
+                                entries: breakdown.entries,
+                                series: breakdown.series,
+                              });
+                            }}
+                          >
+                            {t("positionViewCashflow")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              const startMonth = investment.startMonth ?? baseMonth ?? "";
+                              const contributionRows = startMonth
+                                ? buildContributionSchedule({
+                                    startMonth,
+                                    monthlyContribution:
+                                      investment.monthlyContribution ?? 0,
+                                    months: horizonMonths,
+                                  })
+                                : [];
+                              const assetValueRows = startMonth
+                                ? buildInvestmentValueTable({
+                                    investment,
+                                    baseMonth: startMonth,
+                                    horizonMonths,
+                                  })
+                                : [];
+                              setCalculatorModal({
+                                title: t("positionCalculatorTitle", {
+                                  label: investments("investmentLabel", {
+                                    index: index + 1,
+                                  }),
                                 }),
-                              }),
-                              contributionRows,
-                              assetValueRows,
-                            });
-                          }}
-                        >
-                          {t("positionViewCalculations")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() =>
-                            openCopyModal(
-                              t("copyPositionTitle", {
-                                label: investments("investmentLabel", {
-                                  index: index + 1,
-                                }),
-                              }),
-                              (scenarioIds) =>
-                                onCopyPositionToScenarios(
-                                  "investment",
-                                  investment.id,
-                                  scenarioIds
-                                )
-                            )
-                          }
-                        >
-                          {t("copyToOtherScenarios")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => setEditingInvestmentId(investment.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          color="red"
-                          variant="light"
-                          onClick={() =>
-                            setConfirmDelete({
-                              type: "investment",
-                              id: investment.id,
-                              label: investments("investmentLabel", { index: index + 1 }),
-                            })
-                          }
-                        >
-                          {investments("removeInvestment")}
-                        </Button>
+                                contributionRows,
+                                assetValueRows,
+                              });
+                            }}
+                          >
+                            {t("positionViewCalculations")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => setEditingInvestmentId(investment.id)}
+                          >
+                            {common("actionEdit")}
+                          </Button>
+                        </Group>
                       </Group>
-                    </Group>
+                      <Text size="sm">
+                        {formatInvestmentSummary(
+                          investments,
+                          investment,
+                          baseCurrency,
+                          locale
+                        )}
+                      </Text>
+                      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {investments("currentValue")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {formatValue(getAssetValue(`investment:${investment.id}`))}
+                          </Text>
+                        </Stack>
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {investments("monthlyContribution")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {formatValue(investment.monthlyContribution ?? 0)}
+                          </Text>
+                        </Stack>
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {investments("startMonth")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {investment.startMonth ?? common("notAvailable")}
+                          </Text>
+                        </Stack>
+                      </SimpleGrid>
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Text size="xs" c="dimmed">
+                          {t("positionIncludedInProjection")}
+                        </Text>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() =>
+                              openCopyModal(
+                                t("copyPositionTitle", {
+                                  label: investments("investmentLabel", {
+                                    index: index + 1,
+                                  }),
+                                }),
+                                (scenarioIds) =>
+                                  onCopyPositionToScenarios(
+                                    "investment",
+                                    investment.id,
+                                    scenarioIds
+                                  )
+                              )
+                            }
+                          >
+                            {t("copyToOtherScenarios")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            color="red"
+                            variant="light"
+                            onClick={() =>
+                              setConfirmDelete({
+                                type: "investment",
+                                id: investment.id,
+                                label: investments("investmentLabel", { index: index + 1 }),
+                              })
+                            }
+                          >
+                            {investments("removeInvestment")}
+                          </Button>
+                        </Group>
+                      </Group>
+                    </Stack>
                   </Card>
                 ))
               )}
@@ -1438,170 +1367,160 @@ export default function TimelineDesktop({
               ) : (
                 insurancePositions.map((insurance, index) => (
                   <Card key={insurance.id} withBorder padding="md" radius="md">
-                    <Group justify="space-between" align="center" wrap="wrap">
-                      <div>
-                        <Text fw={600}>
-                          {insurance.name?.trim()
-                            ? insurance.name
-                            : insurances("insuranceLabel", { index: index + 1 })}
-                        </Text>
-                        <Text size="sm">
-                          {formatInsuranceSummary(
-                            insurances,
-                            insurance,
-                            baseCurrency,
-                            locale
-                          )}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {insurances("startMonth")}: {insurance.startMonth ?? "--"}
-                        </Text>
-                        <PositionDetailList
-                          items={[
-                            {
-                              label: insurances("kind"),
-                              value:
-                                insurance.kind === "savings"
-                                  ? insurances("kindSavings")
-                                  : insurances("kindProtection"),
-                            },
-                            {
-                              label: insurances("premiumMonthly"),
-                              value: formatCurrency(
-                                insurance.premiumMonthly ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: insurances("premiumAnnualGrowth"),
-                              value: `${(insurance.premiumAnnualGrowthPct ?? 0).toFixed(
-                                2
-                              )}%`,
-                            },
-                            {
-                              label: insurances("startMonth"),
-                              value: insurance.startMonth ?? "--",
-                            },
-                            {
-                              label: insurances("endMonth"),
-                              value: insurance.endMonth ?? "--",
-                            },
-                            ...(insurance.kind === "savings"
-                              ? [
-                                  {
-                                    label: insurances("initialCashValue"),
-                                    value: formatCurrency(
-                                      insurance.initialCashValue ?? 0,
-                                      baseCurrency,
-                                      locale
-                                    ),
-                                  },
-                                  {
-                                    label: insurances("expectedReturn"),
-                                    value: `${(
-                                      insurance.expectedAnnualReturnPct ?? 0
-                                    ).toFixed(2)}%`,
-                                  },
-                                ]
-                              : []),
-                          ]}
-                        />
-                      </div>
-                      <Group gap="sm">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const breakdown = buildInsuranceCashflowBreakdown({
-                              insurance,
-                              baseMonth: baseMonth ?? insurance.startMonth ?? null,
-                              horizonMonths,
-                            });
-                            setCashflowModal({
-                              title: t("positionCashflowTitle", {
-                                label:
-                                  insurance.name?.trim() ||
-                                  insurances("insuranceLabel", { index: index + 1 }),
-                              }),
-                              entries: breakdown.entries,
-                              series: breakdown.series,
-                            });
-                          }}
-                        >
-                          {t("positionViewCashflow")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const startMonth =
-                              insurance.startMonth ?? baseMonth ?? "";
-                            const assetValueRows = startMonth
-                              ? buildInsuranceValueTable({
-                                  insurance,
-                                  baseMonth: startMonth,
-                                  horizonMonths,
-                                })
-                              : [];
-                            setCalculatorModal({
-                              title: t("positionCalculatorTitle", {
-                                label:
-                                  insurance.name?.trim() ||
-                                  insurances("insuranceLabel", { index: index + 1 }),
-                              }),
-                              assetValueRows,
-                            });
-                          }}
-                        >
-                          {t("positionViewCalculations")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() =>
-                            openCopyModal(
-                              t("copyPositionTitle", {
-                                label:
-                                  insurance.name?.trim() ||
-                                  insurances("insuranceLabel", { index: index + 1 }),
-                              }),
-                              (scenarioIds) =>
-                                onCopyPositionToScenarios(
-                                  "insurance",
-                                  insurance.id,
-                                  scenarioIds
-                                )
-                            )
-                          }
-                        >
-                          {t("copyToOtherScenarios")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => setEditingInsuranceId(insurance.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          color="red"
-                          variant="light"
-                          onClick={() =>
-                            setConfirmDelete({
-                              type: "insurance",
-                              id: insurance.id,
-                              label:
-                                insurance.name?.trim() ||
-                                insurances("insuranceLabel", { index: index + 1 }),
-                            })
-                          }
-                        >
-                          {insurances("removeInsurance")}
-                        </Button>
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Group gap="xs" align="center">
+                          <Text>🛡️</Text>
+                          <Text fw={600}>
+                            {insurance.name?.trim()
+                              ? insurance.name
+                              : insurances("insuranceLabel", { index: index + 1 })}
+                          </Text>
+                        </Group>
+                        <Group gap="sm" wrap="wrap">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              const breakdown = buildInsuranceCashflowBreakdown({
+                                insurance,
+                                baseMonth: baseMonth ?? insurance.startMonth ?? null,
+                                horizonMonths,
+                              });
+                              setCashflowModal({
+                                title: t("positionCashflowTitle", {
+                                  label:
+                                    insurance.name?.trim() ||
+                                    insurances("insuranceLabel", { index: index + 1 }),
+                                }),
+                                entries: breakdown.entries,
+                                series: breakdown.series,
+                              });
+                            }}
+                          >
+                            {t("positionViewCashflow")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              const startMonth =
+                                insurance.startMonth ?? baseMonth ?? "";
+                              const assetValueRows = startMonth
+                                ? buildInsuranceValueTable({
+                                    insurance,
+                                    baseMonth: startMonth,
+                                    horizonMonths,
+                                  })
+                                : [];
+                              setCalculatorModal({
+                                title: t("positionCalculatorTitle", {
+                                  label:
+                                    insurance.name?.trim() ||
+                                    insurances("insuranceLabel", { index: index + 1 }),
+                                }),
+                                assetValueRows,
+                              });
+                            }}
+                          >
+                            {t("positionViewCalculations")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => setEditingInsuranceId(insurance.id)}
+                          >
+                            {common("actionEdit")}
+                          </Button>
+                        </Group>
                       </Group>
-                    </Group>
+                      <Text size="sm">
+                        {formatInsuranceSummary(
+                          insurances,
+                          insurance,
+                          baseCurrency,
+                          locale
+                        )}
+                      </Text>
+                      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {insurances("currentValue")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {formatValue(getAssetValue(`insurance:${insurance.id}`))}
+                          </Text>
+                        </Stack>
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {insurances("premiumMonthly")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {formatValue(insurance.premiumMonthly ?? 0)}
+                          </Text>
+                        </Stack>
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {insurances("startMonth")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {insurance.startMonth ?? common("notAvailable")}
+                          </Text>
+                        </Stack>
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {insurances("endMonth")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {insurance.endMonth ?? common("notAvailable")}
+                          </Text>
+                        </Stack>
+                      </SimpleGrid>
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Text size="xs" c="dimmed">
+                          {t("positionIncludedInProjection")}
+                        </Text>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() =>
+                              openCopyModal(
+                                t("copyPositionTitle", {
+                                  label:
+                                    insurance.name?.trim() ||
+                                    insurances("insuranceLabel", { index: index + 1 }),
+                                }),
+                                (scenarioIds) =>
+                                  onCopyPositionToScenarios(
+                                    "insurance",
+                                    insurance.id,
+                                    scenarioIds
+                                  )
+                              )
+                            }
+                          >
+                            {t("copyToOtherScenarios")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            color="red"
+                            variant="light"
+                            onClick={() =>
+                              setConfirmDelete({
+                                type: "insurance",
+                                id: insurance.id,
+                                label:
+                                  insurance.name?.trim() ||
+                                  insurances("insuranceLabel", { index: index + 1 }),
+                              })
+                            }
+                          >
+                            {insurances("removeInsurance")}
+                          </Button>
+                        </Group>
+                      </Group>
+                    </Stack>
                   </Card>
                 ))
               )}
@@ -1627,146 +1546,150 @@ export default function TimelineDesktop({
               ) : (
                 loanPositions.map((loan, index) => (
                   <Card key={loan.id} withBorder padding="md" radius="md">
-                    <Group justify="space-between" align="center" wrap="wrap">
-                      <div>
-                        <Text fw={600}>
-                          {loans("loanLabel", { index: index + 1 })}
-                        </Text>
-                        <Text size="sm">
-                          {formatLoanSummary(loans, loan, baseCurrency, locale)}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {loans("startMonth")}: {loan.startMonth ?? "--"}
-                        </Text>
-                        <PositionDetailList
-                          items={[
-                            {
-                              label: loans("startMonth"),
-                              value: loan.startMonth ?? "--",
-                            },
-                            {
-                              label: loans("principal"),
-                              value: formatCurrency(
-                                loan.principal ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: loans("annualRate"),
-                              value: `${(loan.annualInterestRatePct ?? 0).toFixed(2)}%`,
-                            },
-                            {
-                              label: loans("termYears"),
-                              value: String(loan.termYears ?? 0),
-                            },
-                            {
-                              label: loans("monthlyPayment"),
-                              value: formatCurrency(
-                                loan.monthlyPayment ??
-                                  computeMonthlyPayment(
-                                    loan.principal,
-                                    (loan.annualInterestRatePct ?? 0) / 100,
-                                    Math.round((loan.termYears ?? 0) * 12)
-                                  ),
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                            {
-                              label: loans("feesOneTime"),
-                              value: formatCurrency(
-                                loan.feesOneTime ?? 0,
-                                baseCurrency,
-                                locale
-                              ),
-                            },
-                          ]}
-                        />
-                      </div>
-                      <Group gap="sm">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const breakdown = buildLoanCashflowBreakdown({
-                              loan,
-                              baseMonth: baseMonth ?? loan.startMonth ?? null,
-                              horizonMonths,
-                            });
-                            setCashflowModal({
-                              title: t("positionCashflowTitle", {
-                                label: loans("loanLabel", { index: index + 1 }),
-                              }),
-                              entries: breakdown.entries,
-                              series: breakdown.series,
-                            });
-                          }}
-                        >
-                          {t("positionViewCashflow")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => {
-                            const startMonth = loan.startMonth ?? baseMonth ?? "";
-                            const amortizationRows = startMonth
-                              ? buildAmortizationSchedule({
-                                  principal: loan.principal,
-                                  annualRateDecimal:
-                                    (loan.annualInterestRatePct ?? 0) / 100,
-                                  termMonths: Math.round((loan.termYears ?? 0) * 12),
-                                  startMonth,
-                                })
-                              : [];
-                            setCalculatorModal({
-                              title: t("positionCalculatorTitle", {
-                                label: loans("loanLabel", { index: index + 1 }),
-                              }),
-                              amortizationRows,
-                            });
-                          }}
-                        >
-                          {t("positionViewCalculations")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() =>
-                            openCopyModal(
-                              t("copyPositionTitle", {
-                                label: loans("loanLabel", { index: index + 1 }),
-                              }),
-                              (scenarioIds) =>
-                                onCopyPositionToScenarios("loan", loan.id, scenarioIds)
-                            )
-                          }
-                        >
-                          {t("copyToOtherScenarios")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => setEditingLoanId(loan.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          color="red"
-                          variant="light"
-                          onClick={() =>
-                            setConfirmDelete({
-                              type: "loan",
-                              id: loan.id,
-                              label: loans("loanLabel", { index: index + 1 }),
-                            })
-                          }
-                        >
-                          {loans("removeLoan")}
-                        </Button>
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Group gap="xs" align="center">
+                          <Text>💳</Text>
+                          <Text fw={600}>
+                            {loans("loanLabel", { index: index + 1 })}
+                          </Text>
+                          {doubleCountLookup.has(`loan:${loan.id}`) && (
+                            <Badge color="yellow" variant="light">
+                              {t("positionOverlapWarning")}
+                            </Badge>
+                          )}
+                        </Group>
+                        <Group gap="sm" wrap="wrap">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              const breakdown = buildLoanCashflowBreakdown({
+                                loan,
+                                baseMonth: baseMonth ?? loan.startMonth ?? null,
+                                horizonMonths,
+                              });
+                              setCashflowModal({
+                                title: t("positionCashflowTitle", {
+                                  label: loans("loanLabel", { index: index + 1 }),
+                                }),
+                                entries: breakdown.entries,
+                                series: breakdown.series,
+                              });
+                            }}
+                          >
+                            {t("positionViewCashflow")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              const startMonth = loan.startMonth ?? baseMonth ?? "";
+                              const amortizationRows = startMonth
+                                ? buildAmortizationSchedule({
+                                    principal: loan.principal,
+                                    annualRateDecimal:
+                                      (loan.annualInterestRatePct ?? 0) / 100,
+                                    termMonths: Math.round((loan.termYears ?? 0) * 12),
+                                    startMonth,
+                                  })
+                                : [];
+                              setCalculatorModal({
+                                title: t("positionCalculatorTitle", {
+                                  label: loans("loanLabel", { index: index + 1 }),
+                                }),
+                                amortizationRows,
+                              });
+                            }}
+                          >
+                            {t("positionViewCalculations")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => setEditingLoanId(loan.id)}
+                          >
+                            {common("actionEdit")}
+                          </Button>
+                        </Group>
                       </Group>
-                    </Group>
+                      <Text size="sm">
+                        {formatLoanSummary(loans, loan, baseCurrency, locale)}
+                      </Text>
+                      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {loans("principal")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {formatValue(getLiabilityValue(`loan:${loan.id}`))}
+                          </Text>
+                        </Stack>
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {loans("monthlyPayment")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {formatValue(
+                              loan.monthlyPayment ??
+                                computeMonthlyPayment(
+                                  loan.principal,
+                                  (loan.annualInterestRatePct ?? 0) / 100,
+                                  Math.round((loan.termYears ?? 0) * 12)
+                                )
+                            )}
+                          </Text>
+                        </Stack>
+                        <Stack gap={2}>
+                          <Text size="xs" c="dimmed">
+                            {loans("startMonth")}
+                          </Text>
+                          <Text size="sm" fw={600}>
+                            {loan.startMonth ?? common("notAvailable")}
+                          </Text>
+                        </Stack>
+                      </SimpleGrid>
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Text size="xs" c="dimmed">
+                          {t("positionIncludedInProjection")}
+                        </Text>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() =>
+                              openCopyModal(
+                                t("copyPositionTitle", {
+                                  label: loans("loanLabel", { index: index + 1 }),
+                                }),
+                                (scenarioIds) =>
+                                  onCopyPositionToScenarios(
+                                    "loan",
+                                    loan.id,
+                                    scenarioIds
+                                  )
+                              )
+                            }
+                          >
+                            {t("copyToOtherScenarios")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            color="red"
+                            variant="light"
+                            onClick={() =>
+                              setConfirmDelete({
+                                type: "loan",
+                                id: loan.id,
+                                label: loans("loanLabel", { index: index + 1 }),
+                              })
+                            }
+                          >
+                            {loans("removeLoan")}
+                          </Button>
+                        </Group>
+                      </Group>
+                    </Stack>
                   </Card>
                 ))
               )}
@@ -1776,6 +1699,20 @@ export default function TimelineDesktop({
 
         <Tabs.Panel value="allocation" pt="md">
           <Stack gap="md">
+            {assetIndicators.some((item) => item.visible) && (
+              <Group gap="xs">
+                {assetIndicators
+                  .filter((item) => item.visible)
+                  .map((item) => (
+                    <Tooltip key={item.key} label={item.label} withArrow>
+                      <Badge variant="light" size="lg">
+                        <span style={{ marginRight: 6 }}>{item.icon}</span>
+                        {item.label}
+                      </Badge>
+                    </Tooltip>
+                  ))}
+              </Group>
+            )}
             {hasSmartInvestConfig ? (
               <Stack gap="sm">
                 <Group justify="space-between" align="center">

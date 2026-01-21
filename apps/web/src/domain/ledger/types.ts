@@ -8,4 +8,5 @@ export type CashflowItem = {
   memberId?: string;
   bucketId?: string;
   bucketName?: string;
+  kind?: "contribution" | "withdrawal" | "rebalance";
 };
