@@ -46,6 +46,11 @@ type AdapterOptions = {
   smartInvestWithdrawalSchedules?: SmartInvestWithdrawalSchedule;
   smartInvestRebalanceSchedules?: SmartInvestRebalanceSchedule;
   smartInvestContributionSchedules?: SmartInvestContributionSchedule;
+  smartInvestTransferSeries?: Array<{
+    month: string;
+    amount: number;
+    kind: "contribution" | "withdrawal";
+  }>;
 };
 
 export type AdapterWarning = {
@@ -483,6 +488,29 @@ export const mapScenarioToEngineInput = (
     horizonMonths,
     warnings
   );
+  const hasSmartInvestSchedules =
+    Boolean(options.smartInvestContributionSchedules) ||
+    Boolean(options.smartInvestWithdrawalSchedules) ||
+    Boolean(options.smartInvestRebalanceSchedules);
+  const smartInvestTransferLedger =
+    !hasSmartInvestSchedules && options.smartInvestTransferSeries?.length
+      ? filterCashflowsToHorizon(
+          options.smartInvestTransferSeries.map((entry) => ({
+            month: entry.month,
+            amount: entry.amount,
+            source: "smartInvest",
+            sourceId: `smartInvest:${entry.kind}`,
+            label: entry.kind,
+            category:
+              entry.kind === "withdrawal"
+                ? "investment_withdrawal"
+                : "investment_contribution",
+          })),
+          baseMonth,
+          horizonMonths,
+          warnings
+        )
+      : [];
   const smartInvestPolicy = scenario.assumptions.smartInvest;
   const smartInvestInvestments =
     smartInvestPolicy?.enabled
@@ -526,7 +554,10 @@ export const mapScenarioToEngineInput = (
       category: "position_sell",
     }));
   const combinedLedgerWithSell = [...combinedLedger, ...sellCashflows];
-  const events = buildEngineEventsFromCashflows(combinedLedgerWithSell, warnings);
+  const events = buildEngineEventsFromCashflows(
+    [...combinedLedgerWithSell, ...smartInvestTransferLedger],
+    warnings
+  );
   const mappedHomes =
     validatedHomes.length > 0
       ? validatedHomes.map((home) => {

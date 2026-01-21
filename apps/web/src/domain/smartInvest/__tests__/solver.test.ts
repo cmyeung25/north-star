@@ -182,6 +182,9 @@ describe("smartInvest solver", () => {
       .reduce((sum, entry) => sum + entry.amount, 0);
 
     expect(totalContributions).toBeCloseTo(500, 2);
+    expect(plan.transferSeries).toEqual([
+      { month: "2024-01", amount: -500, kind: "contribution" },
+    ]);
     expect(plan.contributionScheduleByBucketId.core?.[0]?.amount ?? 0).toBeCloseTo(
       300,
       2
@@ -240,5 +243,26 @@ describe("smartInvest solver", () => {
     expect(plan.shortfallsByMonth).toEqual([
       { month: "2024-01", shortfall: 1000, available: 300 },
     ]);
+  });
+
+  it("never applies both withdrawals and contributions in the same month", () => {
+    const plan = solveExcessCashTransferPlan({
+      months: ["2024-01"],
+      cashBalances: [500],
+      reserveTargets: [1000],
+      allocationBalancesById: {
+        core: [2000],
+      },
+      weightsById: {
+        core: [1],
+      },
+      investPct: 100,
+      thresholdAmount: 0,
+      allowWithdrawals: true,
+      allowContributions: true,
+    });
+
+    expect(plan.contributionTotalsByMonth[0]).toBe(0);
+    expect(plan.withdrawalTotalsByMonth[0]).not.toBe(0);
   });
 });

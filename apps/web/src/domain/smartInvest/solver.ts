@@ -47,6 +47,11 @@ export type SmartInvestExcessCashPlan = {
   withdrawalScheduleByBucketId: SmartInvestWithdrawalSchedule;
   contributionTotalsByMonth: number[];
   withdrawalTotalsByMonth: number[];
+  transferSeries: Array<{
+    month: string;
+    amount: number;
+    kind: "contribution" | "withdrawal";
+  }>;
   shortfallsByMonth: Array<{ month: string; shortfall: number; available: number }>;
 };
 
@@ -214,6 +219,7 @@ export const solveExcessCashTransferPlan = ({
   const withdrawalScheduleByBucketId: SmartInvestWithdrawalSchedule = {};
   const contributionTotalsByMonth = Array.from({ length: months.length }, () => 0);
   const withdrawalTotalsByMonth = Array.from({ length: months.length }, () => 0);
+  const transferSeries: SmartInvestExcessCashPlan["transferSeries"] = [];
   const shortfallsByMonth: SmartInvestExcessCashPlan["shortfallsByMonth"] = [];
   const allocationIds = new Set<string>([
     ...Object.keys(allocationBalancesById),
@@ -222,8 +228,16 @@ export const solveExcessCashTransferPlan = ({
   const normalizedInvestPct = clamp(investPct, 0, 100) / 100;
   const normalizedThreshold = Math.max(0, thresholdAmount);
 
+  let runningCash = cashBalances[0] ?? 0;
   months.forEach((month, index) => {
-    const cashBalance = cashBalances[index] ?? 0;
+    const baselineBalance = cashBalances[index] ?? 0;
+    if (index === 0) {
+      runningCash = baselineBalance;
+    } else {
+      const previousBaseline = cashBalances[index - 1] ?? 0;
+      runningCash += baselineBalance - previousBaseline;
+    }
+    const cashBalance = runningCash;
     const reserveTarget = reserveTargets[index] ?? 0;
 
     if (cashBalance < reserveTarget) {
@@ -247,8 +261,13 @@ export const solveExcessCashTransferPlan = ({
 
       const withdrawalAmount = Math.min(shortfall, totalBalance);
       withdrawalTotalsByMonth[index] = withdrawalAmount;
+      transferSeries.push({ month, amount: withdrawalAmount, kind: "withdrawal" });
+      runningCash += withdrawalAmount;
       allocationBalances.forEach((entry) => {
-        const amount = withdrawalAmount * (entry.balance / totalBalance);
+        const amount = Math.min(
+          entry.balance,
+          withdrawalAmount * (entry.balance / totalBalance)
+        );
         if (amount <= 0) {
           return;
         }
@@ -271,7 +290,7 @@ export const solveExcessCashTransferPlan = ({
     }
 
     const excess = cashBalance - reserveTarget;
-    const investAmount = Math.min(excess, excess * normalizedInvestPct);
+    const investAmount = excess * normalizedInvestPct;
     if (investAmount <= 0) {
       return;
     }
@@ -282,6 +301,8 @@ export const solveExcessCashTransferPlan = ({
       return;
     }
     contributionTotalsByMonth[index] = investAmount;
+    transferSeries.push({ month, amount: -investAmount, kind: "contribution" });
+    runningCash -= investAmount;
     allocationIds.forEach((id) => {
       const weight = (weightsById[id]?.[index] ?? 0) / totalWeight;
       const amount = investAmount * weight;
@@ -298,6 +319,7 @@ export const solveExcessCashTransferPlan = ({
     withdrawalScheduleByBucketId,
     contributionTotalsByMonth,
     withdrawalTotalsByMonth,
+    transferSeries,
     shortfallsByMonth,
   };
 };
