@@ -1,4 +1,4 @@
-import PeopleClient from "../people/PeopleClient";
+import PeopleClient from "./PeopleClient";
 
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;

@@ -5,5 +5,5 @@ type HomePageProps = {
 };
 
 export default function HomePage({ params }: HomePageProps) {
-  redirect(`/${params.locale}/scenarios`);
+  redirect(`/${params.locale}/overview`);
 }

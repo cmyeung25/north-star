@@ -8,6 +8,7 @@ import {
   Group,
   Menu,
   MultiSelect,
+  ScrollArea,
   SegmentedControl,
   SimpleGrid,
   Stack,
@@ -233,6 +234,66 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     scenarioMembers,
     selectedScenario,
   ]);
+  const monthIndexLookup = useMemo(
+    () => new Map(months.map((month, index) => [month, index])),
+    [months]
+  );
+  const timelineEvents = useMemo(
+    () =>
+      selectedScenario
+        ? buildScenarioTimelineEvents(selectedScenario, eventLibrary).filter(
+            (event) => event.enabled && !event.derived
+          )
+        : [],
+    [eventLibrary, selectedScenario]
+  );
+  const timelineStripMarkers = useMemo(() => {
+    const markers: Array<{ id: string; label: string; month: string; kind: string }> = [];
+    const baseMonth = projection?.baseMonth ?? months[0];
+    if (baseMonth) {
+      markers.push({
+        id: "now",
+        label: t("timelineNow"),
+        month: baseMonth,
+        kind: "now",
+      });
+    }
+
+    milestoneMarkers.forEach((marker) => {
+      markers.push({
+        id: marker.id,
+        label: t("timelineMarkerLabel", {
+          label: marker.label,
+          name: marker.memberName,
+        }),
+        month: marker.month,
+        kind: "milestone",
+      });
+    });
+
+    timelineEvents.forEach((event) => {
+      if (!event.startMonth) {
+        return;
+      }
+      markers.push({
+        id: event.id,
+        label: event.name,
+        month: event.startMonth,
+        kind: "event",
+      });
+    });
+
+    return markers
+      .filter((marker) => marker.month)
+      .sort((a, b) => {
+        const aIndex = monthIndexLookup.get(a.month) ?? Number.MAX_SAFE_INTEGER;
+        const bIndex = monthIndexLookup.get(b.month) ?? Number.MAX_SAFE_INTEGER;
+        if (aIndex === bIndex) {
+          return a.label.localeCompare(b.label);
+        }
+        return aIndex - bIndex;
+      });
+  }, [milestoneMarkers, monthIndexLookup, months, projection?.baseMonth, t, timelineEvents]);
   const memberLookup = useMemo(
     () =>
       Object.fromEntries(
@@ -323,6 +384,26 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     snapshotTargets,
     t,
   ]);
+  const upcomingMilestones = useMemo(() => {
+    if (milestoneMarkers.length === 0) {
+      return [];
+    }
+    const baseMonth = projection?.baseMonth ?? months[0];
+    const baseIndex = baseMonth
+      ? monthIndexLookup.get(baseMonth) ?? 0
+      : 0;
+    return [...milestoneMarkers]
+      .sort((a, b) => {
+        const aIndex = monthIndexLookup.get(a.month) ?? Number.MAX_SAFE_INTEGER;
+        const bIndex = monthIndexLookup.get(b.month) ?? Number.MAX_SAFE_INTEGER;
+        return aIndex - bIndex;
+      })
+      .filter((marker) => {
+        const markerIndex = monthIndexLookup.get(marker.month) ?? baseIndex;
+        return markerIndex >= baseIndex;
+      })
+      .slice(0, 3);
+  }, [milestoneMarkers, monthIndexLookup, months, projection?.baseMonth]);
 
   const compareChartData = useMemo(() => {
     if (compareProjections.length === 0) {
@@ -473,6 +554,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     setBreakdownOpen(true);
   };
 
+  const visibleTimelineMarkers = timelineStripMarkers.slice(0, 8);
+  const timelineOverflowCount = timelineStripMarkers.length - visibleTimelineMarkers.length;
+
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap="sm">
@@ -564,6 +648,63 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           )}
         </Stack>
       </Stack>
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="center" wrap="wrap">
+            <div>
+              <Text fw={600}>{t("timelineStripTitle")}</Text>
+              <Text size="xs" c="dimmed">
+                {t("timelineStripSubtitle")}
+              </Text>
+            </div>
+            <Button
+              component={Link}
+              href={buildScenarioUrl("/timeline", selectedScenario.id)}
+              size="xs"
+              variant="light"
+            >
+              {t("timelineStripCta")}
+            </Button>
+          </Group>
+          {visibleTimelineMarkers.length > 0 ? (
+            <Stack gap={4}>
+              <ScrollArea type="auto" offsetScrollbars>
+                <Group gap="sm" wrap="nowrap" align="flex-start">
+                  {visibleTimelineMarkers.map((marker) => (
+                    <Stack key={marker.id} gap={4} align="center">
+                      <Badge
+                        color={
+                          marker.kind === "now"
+                            ? "blue"
+                            : marker.kind === "milestone"
+                              ? "teal"
+                              : "grape"
+                        }
+                        variant={marker.kind === "now" ? "filled" : "light"}
+                      >
+                        {marker.label}
+                      </Badge>
+                      <Text size="xs" c="dimmed">
+                        {marker.month}
+                      </Text>
+                    </Stack>
+                  ))}
+                </Group>
+              </ScrollArea>
+              {timelineOverflowCount > 0 && (
+                <Text size="xs" c="dimmed">
+                  {t("timelineStripMore", { count: timelineOverflowCount })}
+                </Text>
+              )}
+            </Stack>
+          ) : (
+            <Text size="xs" c="dimmed">
+              {t("timelineStripEmpty")}
+            </Text>
+          )}
+        </Stack>
+      </Card>
 
       {showCompare ? (
         <Stack gap="md">
@@ -781,6 +922,80 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             currency={selectedScenario.baseCurrency}
             onSelectMonth={handleSelectSnapshot}
           />
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600}>{t("moneySummaryTitle")}</Text>
+                  <Button
+                    component={Link}
+                    href={buildScenarioUrl("/money", selectedScenario.id)}
+                    size="xs"
+                    variant="light"
+                  >
+                    {t("moneySummaryCta")}
+                  </Button>
+                </Group>
+                <SimpleGrid cols={2} spacing="xs">
+                  {[
+                    { key: "income", label: t("moneySummaryIncome") },
+                    { key: "expenses", label: t("moneySummaryExpenses") },
+                    { key: "assets", label: t("moneySummaryAssets") },
+                    { key: "liabilities", label: t("moneySummaryLiabilities") },
+                  ].map((item) => (
+                    <Card key={item.key} withBorder radius="md" padding="xs">
+                      <Stack gap={2}>
+                        <Text size="sm" fw={600}>
+                          {item.label}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {t("moneySummaryHint")}
+                        </Text>
+                      </Stack>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              </Stack>
+            </Card>
+
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600}>{t("peopleSummaryTitle")}</Text>
+                  <Button
+                    component={Link}
+                    href={buildScenarioUrl("/people", selectedScenario.id)}
+                    size="xs"
+                    variant="light"
+                  >
+                    {t("peopleSummaryCta")}
+                  </Button>
+                </Group>
+                <Stack gap={4}>
+                  <Text size="sm">
+                    {t("peopleSummaryMembers", { count: scenarioMembers.length })}
+                  </Text>
+                  {upcomingMilestones.length > 0 ? (
+                    <Stack gap={2}>
+                      {upcomingMilestones.map((marker) => (
+                        <Text key={marker.id} size="xs" c="dimmed">
+                          {t("peopleSummaryMilestone", {
+                            label: marker.label,
+                            name: marker.memberName,
+                            month: marker.month,
+                          })}
+                        </Text>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Text size="xs" c="dimmed">
+                      {t("peopleSummaryEmpty")}
+                    </Text>
+                  )}
+                </Stack>
+              </Stack>
+            </Card>
+          </SimpleGrid>
           <ProjectionDetailsModal
             opened={breakdownOpen}
             onClose={() => setBreakdownOpen(false)}

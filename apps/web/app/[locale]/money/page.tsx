@@ -1,4 +1,4 @@
-import PeopleClient from "../people/PeopleClient";
+import MoneyClient from "./MoneyClient";
 
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -8,5 +8,5 @@ export default function Page({ searchParams }: PageProps) {
   const scenarioId =
     typeof searchParams?.scenarioId === "string" ? searchParams.scenarioId : undefined;
 
-  return <PeopleClient scenarioId={scenarioId} />;
+  return <MoneyClient scenarioId={scenarioId} />;
 }
