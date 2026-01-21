@@ -29,6 +29,9 @@ import { useSettingsStore } from "../src/store/settingsStore";
 import { getActiveScenario, useScenarioStore } from "../src/store/scenarioStore";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import ScenarioSwitcher from "../components/ScenarioSwitcher";
+import DesktopBottomToolbar, {
+  desktopToolbarHeight,
+} from "../components/DesktopBottomToolbar";
 import { Link } from "../src/i18n/navigation";
 
 const theme = createTheme({
@@ -236,10 +239,19 @@ export default function Providers({ children }: { children: ReactNode }) {
         )}
 
         <AppShell.Main>
-          <Container size="lg" px="md" py="xl">
+          <Container
+            size="lg"
+            px="md"
+            pt="xl"
+            pb={isDesktop ? undefined : "xl"}
+            style={{
+              paddingBottom: isDesktop ? desktopToolbarHeight + 32 : undefined,
+            }}
+          >
             {children}
           </Container>
         </AppShell.Main>
+        {isDesktop && <DesktopBottomToolbar />}
       </AppShell>
     </MantineProvider>
   );

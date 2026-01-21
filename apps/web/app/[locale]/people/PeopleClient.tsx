@@ -5,6 +5,7 @@ import SettingsClient from "../settings/SettingsClient";
 type PeopleClientProps = {
   scenarioId?: string;
   initialTab?: string;
+  initialAdd?: string;
 };
 
 const tabMap = {
@@ -14,7 +15,11 @@ const tabMap = {
   settings: "data",
 } as const;
 
-export default function PeopleClient({ scenarioId, initialTab }: PeopleClientProps) {
+export default function PeopleClient({
+  scenarioId,
+  initialTab,
+  initialAdd,
+}: PeopleClientProps) {
   const defaultTab =
     initialTab && initialTab in tabMap
       ? tabMap[initialTab as keyof typeof tabMap]
@@ -27,6 +32,7 @@ export default function PeopleClient({ scenarioId, initialTab }: PeopleClientPro
       subtitleKey="peopleSubtitle"
       defaultTab={defaultTab}
       tabOrder={["global", "members", "budget", "data", "other"]}
+      initialAction={initialAdd}
     />
   );
 }
