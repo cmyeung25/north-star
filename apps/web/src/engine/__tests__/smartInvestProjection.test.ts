@@ -243,4 +243,92 @@ describe("smartInvest projection integration", () => {
     expect(projection.cashBalance[11]).toBeCloseTo(100000, 2);
     expect(projection.cashBalance[12]).toBeCloseTo(100000, 2);
   });
+
+  it("returns to the fixed reserve after a withdrawal once cash recovers", () => {
+    const scenario = buildScenario({
+      assumptions: {
+        horizonMonths: 4,
+        initialCash: 1_200_000,
+        baseMonth: "2023-12",
+        smartInvest: {
+          enabled: true,
+          reserve: { mode: "fixed", amount: 1_000_000 },
+          contribution: {
+            mode: "excessCash",
+            investPct: 100,
+            thresholdAmount: 0,
+          },
+          allocation: [
+            {
+              id: "core",
+              name: "Core",
+              targetPct: 100,
+              assumedAnnualReturnPct: 0,
+            },
+          ],
+          withdrawal: {
+            enabled: true,
+            mode: "sellToMaintainReserve",
+            sellOrder: "proRata",
+          },
+        },
+      },
+      eventRefs: [
+        { refId: "deficit-expense", enabled: true },
+        { refId: "recovery-income", enabled: true },
+      ],
+    });
+
+    const localEventLibrary: EventDefinition[] = [
+      {
+        id: "deficit-expense",
+        title: "Unexpected Expense",
+        type: "rent",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2024-01",
+          endMonth: "2024-01",
+          monthlyAmount: 40_000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+        currency: "USD",
+      },
+      {
+        id: "recovery-income",
+        title: "Recovery Income",
+        type: "salary",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2024-02",
+          endMonth: "2024-02",
+          monthlyAmount: 40_000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+        currency: "USD",
+      },
+    ];
+
+    const { projection, smartInvestTransferSeries } = computeProjectionWithSmartInvest(
+      scenario,
+      localEventLibrary
+    );
+
+    expect(smartInvestTransferSeries).toEqual([
+      { month: "2023-12", amount: -200_000, kind: "contribution" },
+      { month: "2024-01", amount: 40_000, kind: "withdrawal" },
+      { month: "2024-02", amount: -40_000, kind: "contribution" },
+    ]);
+
+    const cashflowByKey = projection.breakdown?.cashflow.byKey ?? {};
+    const contributionSeries =
+      cashflowByKey["investment:smart-invest-core:contribution"] ?? [];
+    expect(contributionSeries[2]).toBeCloseTo(-40_000, 2);
+
+    expect(projection.cashBalance[1]).toBeCloseTo(1_000_000, 2);
+    expect(projection.cashBalance[2]).toBeCloseTo(1_000_000, 2);
+  });
 });

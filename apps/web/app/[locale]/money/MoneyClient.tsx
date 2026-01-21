@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Card,
+  Drawer,
   Group,
   Select,
   SimpleGrid,
@@ -13,11 +14,29 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { getEventGroup } from "@north-star/engine";
+import { getEventGroup, monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "../../../src/i18n/navigation";
 import AddMoneyItemModal from "../../../components/money/AddMoneyItemModal";
+import TimelineEventDrawer from "../../../components/timeline/TimelineEventDrawer";
+import HomeDetailsForm from "../../../components/timeline/HomeDetailsForm";
+import CarDetailsForm from "../../../components/timeline/CarDetailsForm";
+import InvestmentDetailsForm from "../../../components/timeline/InvestmentDetailsForm";
+import InsuranceDetailsForm from "../../../components/timeline/InsuranceDetailsForm";
+import LoanDetailsForm from "../../../components/timeline/LoanDetailsForm";
+import {
+  createCarPositionFromTemplate,
+  createHomePositionFromTemplate,
+  createInsurancePositionFromTemplate,
+  createInvestmentPositionFromTemplate,
+  createLoanPositionFromTemplate,
+  formatCarSummary,
+  formatHomeSummary,
+  formatInsuranceSummary,
+  formatInvestmentSummary,
+  formatLoanSummary,
+} from "../../../components/timeline/utils";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -27,6 +46,16 @@ import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { formatCurrency } from "../../../lib/i18n";
 import { buildScenarioEventViews, buildTimelineEventFromDefinition } from "../../../src/domain/events/utils";
 import { getEventTypeDisplay } from "../../../components/timeline/utils";
+import type { ScenarioEventView } from "../../../components/timeline/types";
+import { isValidMonthStr } from "../../../src/utils/month";
+import type {
+  CarPositionDraft,
+  HomePositionDraft,
+  InsurancePositionDraft,
+  InvestmentPositionDraft,
+  LoanPositionDraft,
+} from "../../../src/store/scenarioStore";
+import type { EventGroup } from "@north-star/engine";
 
 type MoneyTab = "income" | "expenses" | "assets" | "liabilities" | "timeline";
 
@@ -58,6 +87,18 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
   const members = useScenarioStore((state) => state.members);
   const budgetRules = useScenarioStore((state) => state.budgetRules);
   const updateScenarioEventRef = useScenarioStore((state) => state.updateScenarioEventRef);
+  const updateEventDefinition = useScenarioStore((state) => state.updateEventDefinition);
+  const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
+  const addHomePosition = useScenarioStore((state) => state.addHomePosition);
+  const updateHomePosition = useScenarioStore((state) => state.updateHomePosition);
+  const addCarPosition = useScenarioStore((state) => state.addCarPosition);
+  const updateCarPosition = useScenarioStore((state) => state.updateCarPosition);
+  const addInvestmentPosition = useScenarioStore((state) => state.addInvestmentPosition);
+  const updateInvestmentPosition = useScenarioStore((state) => state.updateInvestmentPosition);
+  const addInsurancePosition = useScenarioStore((state) => state.addInsurancePosition);
+  const updateInsurancePosition = useScenarioStore((state) => state.updateInsurancePosition);
+  const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
+  const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const resolvedScenarioId = useMemo(
     () => resolveScenarioIdFromQuery(scenarioId ?? null, activeScenarioId, scenarios),
@@ -66,6 +107,20 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const scenarioIdValue = scenario?.id;
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addEventGroup, setAddEventGroup] = useState<EventGroup | null>(null);
+  const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
+  const [creatingHome, setCreatingHome] = useState<HomePositionDraft | null>(null);
+  const [creatingCar, setCreatingCar] = useState<CarPositionDraft | null>(null);
+  const [creatingInvestment, setCreatingInvestment] =
+    useState<InvestmentPositionDraft | null>(null);
+  const [creatingInsurance, setCreatingInsurance] =
+    useState<InsurancePositionDraft | null>(null);
+  const [creatingLoan, setCreatingLoan] = useState<LoanPositionDraft | null>(null);
+  const [editingHomeId, setEditingHomeId] = useState<string | null>(null);
+  const [editingCarId, setEditingCarId] = useState<string | null>(null);
+  const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(null);
+  const [editingInsuranceId, setEditingInsuranceId] = useState<string | null>(null);
+  const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
 
   const resolvedTab = tabOrder.includes(initialTab as MoneyTab)
     ? (initialTab as MoneyTab)
@@ -108,6 +163,17 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
     (row) => getEventGroup(row.event.type) === "expense"
   );
 
+  const parentGroupOptions = useMemo(
+    () =>
+      eventLibrary
+        .filter((definition) => definition.kind === "group")
+        .map((definition) => ({
+          value: definition.id,
+          label: definition.title,
+        })),
+    [eventLibrary]
+  );
+
   const timelineEvents = useMemo(() => {
     return eventRows.filter(({ event }) => {
       if (highlightOnly && !event.highlighted) {
@@ -142,10 +208,37 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
   const insurances = positions?.insurances ?? [];
   const cars = positions?.cars ?? [];
   const loans = positions?.loans ?? [];
+  const baseMonth = scenario?.assumptions.baseMonth ?? null;
+  const currentProjectionMonth = baseMonth ?? null;
+  const isPastSellMonth = (sellMonth?: string) => {
+    if (!sellMonth || !currentProjectionMonth) {
+      return false;
+    }
+    if (!isValidMonthStr(sellMonth) || !isValidMonthStr(currentProjectionMonth)) {
+      return false;
+    }
+    return monthIndex(currentProjectionMonth, sellMonth) < 0;
+  };
+  const editingHome = homes.find((home) => home.id === editingHomeId) ?? null;
+  const editingCar = cars.find((car) => car.id === editingCarId) ?? null;
+  const editingInvestment =
+    investments.find((investment) => investment.id === editingInvestmentId) ?? null;
+  const editingInsurance =
+    insurances.find((insurance) => insurance.id === editingInsuranceId) ?? null;
+  const editingLoan = loans.find((loan) => loan.id === editingLoanId) ?? null;
+  const homeDrawerDraft = editingHome ?? creatingHome;
+  const carDrawerDraft = editingCar ?? creatingCar;
+  const investmentDrawerDraft = editingInvestment ?? creatingInvestment;
+  const insuranceDrawerDraft = editingInsurance ?? creatingInsurance;
+  const loanDrawerDraft = editingLoan ?? creatingLoan;
 
   const renderEventList = (
     rows: typeof eventRows,
-    options: { showHighlightToggle?: boolean; showOverlapHint?: boolean } = {}
+    options: {
+      showHighlightToggle?: boolean;
+      showOverlapHint?: boolean;
+      showEditButton?: boolean;
+    } = {}
   ) => {
     if (rows.length === 0) {
       return (
@@ -202,6 +295,15 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
                     {view.ref.highlighted ? "★" : "☆"}
                   </Button>
                 )}
+                {options.showEditButton && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setEditingEvent(view)}
+                  >
+                    {common("actionEdit")}
+                  </Button>
+                )}
               </Group>
             </Card>
           );
@@ -245,10 +347,20 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
             <Text size="sm" c="dimmed">
               {t("incomeDescription")}
             </Text>
-            {renderEventList(incomeEvents)}
-            <Button component={Link} href={timelineTabHref} size="xs" variant="light">
-              {t("manageIncomeCta")}
-            </Button>
+            <Group justify="space-between" align="center" wrap="wrap">
+              <Text size="sm" c="dimmed">
+                {t("incomeListLabel")}
+              </Text>
+              <Button
+                size="xs"
+                variant="light"
+                onClick={() => setAddEventGroup("income")}
+                disabled={!scenarioIdValue}
+              >
+                {t("addIncomeEvent")}
+              </Button>
+            </Group>
+            {renderEventList(incomeEvents, { showEditButton: true })}
           </Stack>
         </Tabs.Panel>
 
@@ -261,14 +373,24 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
               <Text size="sm" c="dimmed">
                 {t("expensesDescription")}
               </Text>
-              <Button component={Link} href={budgetHref} size="xs" variant="light">
-                {t("expensesBudgetCta")}
-              </Button>
+              <Group gap="xs">
+                <Button component={Link} href={budgetHref} size="xs" variant="light">
+                  {t("expensesBudgetCta")}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => setAddEventGroup("expense")}
+                  disabled={!scenarioIdValue}
+                >
+                  {t("addExpenseEvent")}
+                </Button>
+              </Group>
             </Group>
-            {renderEventList(expenseEvents, { showOverlapHint: true })}
-            <Button component={Link} href={timelineTabHref} size="xs" variant="light">
-              {t("expensesEventsCta")}
-            </Button>
+            {renderEventList(expenseEvents, {
+              showOverlapHint: true,
+              showEditButton: true,
+            })}
           </Stack>
         </Tabs.Panel>
 
@@ -277,51 +399,176 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
             <Text size="sm" c="dimmed">
               {t("assetsDescription")}
             </Text>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              <Card withBorder radius="md" padding="sm">
-                <Stack gap={4}>
-                  <Text fw={600}>{homesText("title")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {homes.length > 0
-                      ? t("assetCount", { count: homes.length })
-                      : homesText("empty")}
-                  </Text>
-                </Stack>
-              </Card>
-              <Card withBorder radius="md" padding="sm">
-                <Stack gap={4}>
-                  <Text fw={600}>{investmentsText("title")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {investments.length > 0
-                      ? t("assetCount", { count: investments.length })
-                      : investmentsText("empty")}
-                  </Text>
-                </Stack>
-              </Card>
-              <Card withBorder radius="md" padding="sm">
-                <Stack gap={4}>
-                  <Text fw={600}>{insurancesText("title")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {insurances.length > 0
-                      ? t("assetCount", { count: insurances.length })
-                      : insurancesText("empty")}
-                  </Text>
-                </Stack>
-              </Card>
-              <Card withBorder radius="md" padding="sm">
-                <Stack gap={4}>
-                  <Text fw={600}>{carsText("title")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {cars.length > 0
-                      ? t("assetCount", { count: cars.length })
-                      : carsText("empty")}
-                  </Text>
-                </Stack>
-              </Card>
-            </SimpleGrid>
-            <Button component={Link} href={timelineTabHref} size="xs" variant="light">
-              {t("assetsCta")}
-            </Button>
+            <Stack gap="sm">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text fw={600}>{homesText("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    setCreatingHome(createHomePositionFromTemplate({ baseMonth }))
+                  }
+                  disabled={!scenarioIdValue}
+                >
+                  {homesText("addHome")}
+                </Button>
+              </Group>
+              {homes.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {homesText("empty")}
+                </Text>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  {homes.map((home) => (
+                    <Card key={home.id} withBorder radius="md" padding="sm">
+                      <Stack gap={4}>
+                        <Text fw={600}>{homesText("title")}</Text>
+                        <Text size="sm" c="dimmed">
+                          {formatHomeSummary(homesText, home, scenario?.baseCurrency ?? "USD", locale)}
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setEditingHomeId(home.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                      </Stack>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              )}
+            </Stack>
+            <Stack gap="sm">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text fw={600}>{investmentsText("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    setCreatingInvestment(createInvestmentPositionFromTemplate({ baseMonth }))
+                  }
+                  disabled={!scenarioIdValue}
+                >
+                  {investmentsText("addInvestment")}
+                </Button>
+              </Group>
+              {investments.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {investmentsText("empty")}
+                </Text>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  {investments.map((investment) => (
+                    <Card key={investment.id} withBorder radius="md" padding="sm">
+                      <Stack gap={4}>
+                        <Text fw={600}>{investmentsText("title")}</Text>
+                        <Text size="sm" c="dimmed">
+                          {formatInvestmentSummary(
+                            investmentsText,
+                            investment,
+                            scenario?.baseCurrency ?? "USD",
+                            locale
+                          )}
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setEditingInvestmentId(investment.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                      </Stack>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              )}
+            </Stack>
+            <Stack gap="sm">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text fw={600}>{insurancesText("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    setCreatingInsurance(createInsurancePositionFromTemplate({ baseMonth }))
+                  }
+                  disabled={!scenarioIdValue}
+                >
+                  {insurancesText("addInsurance")}
+                </Button>
+              </Group>
+              {insurances.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {insurancesText("empty")}
+                </Text>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  {insurances.map((insurance) => (
+                    <Card key={insurance.id} withBorder radius="md" padding="sm">
+                      <Stack gap={4}>
+                        <Text fw={600}>{insurancesText("title")}</Text>
+                        <Text size="sm" c="dimmed">
+                          {formatInsuranceSummary(
+                            insurancesText,
+                            insurance,
+                            scenario?.baseCurrency ?? "USD",
+                            locale
+                          )}
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setEditingInsuranceId(insurance.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                      </Stack>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              )}
+            </Stack>
+            <Stack gap="sm">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text fw={600}>{carsText("title")}</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    setCreatingCar(createCarPositionFromTemplate({ baseMonth }))
+                  }
+                  disabled={!scenarioIdValue}
+                >
+                  {carsText("addCar")}
+                </Button>
+              </Group>
+              {cars.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {carsText("empty")}
+                </Text>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  {cars.map((car) => (
+                    <Card key={car.id} withBorder radius="md" padding="sm">
+                      <Stack gap={4}>
+                        <Text fw={600}>{carsText("title")}</Text>
+                        <Text size="sm" c="dimmed">
+                          {formatCarSummary(carsText, car, scenario?.baseCurrency ?? "USD", locale)}
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setEditingCarId(car.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                      </Stack>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              )}
+            </Stack>
           </Stack>
         </Tabs.Panel>
 
@@ -330,17 +577,42 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
             <Text size="sm" c="dimmed">
               {t("liabilitiesDescription")}
             </Text>
-            <Card withBorder radius="md" padding="sm">
-              <Stack gap={4}>
-                <Text fw={600}>{loansText("title")}</Text>
-                <Text size="sm" c="dimmed">
-                  {loans.length > 0 ? t("assetCount", { count: loans.length }) : loansText("empty")}
-                </Text>
-              </Stack>
-            </Card>
-            <Button component={Link} href={timelineTabHref} size="xs" variant="light">
-              {t("liabilitiesCta")}
-            </Button>
+            <Group justify="space-between" align="center" wrap="wrap">
+              <Text fw={600}>{loansText("title")}</Text>
+              <Button
+                size="xs"
+                variant="light"
+                onClick={() => setCreatingLoan(createLoanPositionFromTemplate({ baseMonth }))}
+                disabled={!scenarioIdValue}
+              >
+                {loansText("addLoan")}
+              </Button>
+            </Group>
+            {loans.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                {loansText("empty")}
+              </Text>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                {loans.map((loan) => (
+                  <Card key={loan.id} withBorder radius="md" padding="sm">
+                    <Stack gap={4}>
+                      <Text fw={600}>{loansText("title")}</Text>
+                      <Text size="sm" c="dimmed">
+                        {formatLoanSummary(loansText, loan, scenario?.baseCurrency ?? "USD", locale)}
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => setEditingLoanId(loan.id)}
+                      >
+                        {common("actionEdit")}
+                      </Button>
+                    </Stack>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            )}
           </Stack>
         </Tabs.Panel>
 
@@ -388,6 +660,7 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
             {renderEventList(timelineEvents, {
               showHighlightToggle: true,
               showOverlapHint: true,
+              showEditButton: true,
             })}
             <Button component={Link} href={timelineTabHref} size="xs" variant="light">
               {common("openTimeline")}
@@ -401,6 +674,208 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
         onClose={() => setAddModalOpen(false)}
         scenarioId={scenarioIdValue ?? null}
       />
+
+      {scenario && scenarioIdValue && (
+        <>
+          <TimelineEventDrawer
+            mode="create"
+            opened={Boolean(addEventGroup)}
+            onClose={() => setAddEventGroup(null)}
+            baseCurrency={scenario.baseCurrency}
+            baseMonth={baseMonth}
+            assumptions={{
+              baseMonth,
+              horizonMonths: scenario.assumptions.horizonMonths ?? 0,
+            }}
+            members={members}
+            scenarioOptions={scenarios.map((entry) => ({
+              value: entry.id,
+              label: entry.name,
+            }))}
+            defaultScenarioId={scenarioIdValue}
+            defaultMonth={baseMonth}
+            defaultGroup={addEventGroup ?? undefined}
+            parentGroupOptions={parentGroupOptions}
+            onAddDefinition={(definition, scenarioIds) =>
+              addEventToScenarios(definition, scenarioIds)
+            }
+            onAddHomePosition={() =>
+              setCreatingHome(createHomePositionFromTemplate({ baseMonth }))
+            }
+          />
+
+          <TimelineEventDrawer
+            mode="edit"
+            opened={Boolean(editingEvent)}
+            onClose={() => setEditingEvent(null)}
+            baseCurrency={scenario.baseCurrency}
+            baseMonth={baseMonth}
+            assumptions={{
+              baseMonth,
+              horizonMonths: scenario.assumptions.horizonMonths ?? 0,
+            }}
+            members={members}
+            parentGroupOptions={parentGroupOptions}
+            editingEvent={editingEvent}
+            onUpdateDefinition={updateEventDefinition}
+            onUpdateEventRef={(refId, patch) =>
+              updateScenarioEventRef(scenarioIdValue, refId, patch)
+            }
+          />
+
+          <Drawer
+            opened={Boolean(homeDrawerDraft)}
+            onClose={() => {
+              setEditingHomeId(null);
+              setCreatingHome(null);
+            }}
+            position="right"
+            size="md"
+            title={homesText("title")}
+          >
+            {homeDrawerDraft && (
+              <HomeDetailsForm
+                home={homeDrawerDraft}
+                isSold={isPastSellMonth(homeDrawerDraft.sellMonth)}
+                onCancel={() => {
+                  setEditingHomeId(null);
+                  setCreatingHome(null);
+                }}
+                onSave={(updated) => {
+                  if (editingHome) {
+                    updateHomePosition(scenarioIdValue, updated);
+                  } else {
+                    addHomePosition(scenarioIdValue, updated);
+                  }
+                  setEditingHomeId(null);
+                  setCreatingHome(null);
+                }}
+              />
+            )}
+          </Drawer>
+
+          <Drawer
+            opened={Boolean(carDrawerDraft)}
+            onClose={() => {
+              setEditingCarId(null);
+              setCreatingCar(null);
+            }}
+            position="right"
+            size="md"
+            title={carsText("title")}
+          >
+            {carDrawerDraft && (
+              <CarDetailsForm
+                car={carDrawerDraft}
+                isSold={isPastSellMonth(carDrawerDraft.sellMonth)}
+                onCancel={() => {
+                  setEditingCarId(null);
+                  setCreatingCar(null);
+                }}
+                onSave={(updated) => {
+                  if (editingCar) {
+                    updateCarPosition(scenarioIdValue, updated);
+                  } else {
+                    addCarPosition(scenarioIdValue, updated);
+                  }
+                  setEditingCarId(null);
+                  setCreatingCar(null);
+                }}
+              />
+            )}
+          </Drawer>
+
+          <Drawer
+            opened={Boolean(investmentDrawerDraft)}
+            onClose={() => {
+              setEditingInvestmentId(null);
+              setCreatingInvestment(null);
+            }}
+            position="right"
+            size="md"
+            title={investmentsText("title")}
+          >
+            {investmentDrawerDraft && (
+              <InvestmentDetailsForm
+                investment={investmentDrawerDraft}
+                onCancel={() => {
+                  setEditingInvestmentId(null);
+                  setCreatingInvestment(null);
+                }}
+                onSave={(updated) => {
+                  if (editingInvestment) {
+                    updateInvestmentPosition(scenarioIdValue, updated);
+                  } else {
+                    addInvestmentPosition(scenarioIdValue, updated);
+                  }
+                  setEditingInvestmentId(null);
+                  setCreatingInvestment(null);
+                }}
+              />
+            )}
+          </Drawer>
+
+          <Drawer
+            opened={Boolean(insuranceDrawerDraft)}
+            onClose={() => {
+              setEditingInsuranceId(null);
+              setCreatingInsurance(null);
+            }}
+            position="right"
+            size="md"
+            title={insurancesText("title")}
+          >
+            {insuranceDrawerDraft && (
+              <InsuranceDetailsForm
+                insurance={insuranceDrawerDraft}
+                onCancel={() => {
+                  setEditingInsuranceId(null);
+                  setCreatingInsurance(null);
+                }}
+                onSave={(updated) => {
+                  if (editingInsurance) {
+                    updateInsurancePosition(scenarioIdValue, updated);
+                  } else {
+                    addInsurancePosition(scenarioIdValue, updated);
+                  }
+                  setEditingInsuranceId(null);
+                  setCreatingInsurance(null);
+                }}
+              />
+            )}
+          </Drawer>
+
+          <Drawer
+            opened={Boolean(loanDrawerDraft)}
+            onClose={() => {
+              setEditingLoanId(null);
+              setCreatingLoan(null);
+            }}
+            position="right"
+            size="md"
+            title={loansText("title")}
+          >
+            {loanDrawerDraft && (
+              <LoanDetailsForm
+                loan={loanDrawerDraft}
+                onCancel={() => {
+                  setEditingLoanId(null);
+                  setCreatingLoan(null);
+                }}
+                onSave={(updated) => {
+                  if (editingLoan) {
+                    updateLoanPosition(scenarioIdValue, updated);
+                  } else {
+                    addLoanPosition(scenarioIdValue, updated);
+                  }
+                  setEditingLoanId(null);
+                  setCreatingLoan(null);
+                }}
+              />
+            )}
+          </Drawer>
+        </>
+      )}
     </Stack>
   );
 }

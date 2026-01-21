@@ -57,6 +57,7 @@ type TimelineEventDrawerCreateProps = TimelineEventDrawerBaseProps & {
   scenarioOptions: Array<{ value: string; label: string }>;
   defaultScenarioId: string;
   defaultMonth?: string | null;
+  defaultGroup?: EventGroup;
   onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onAddHomePosition: () => void;
   onCreateComplete?: (startMonth?: string | null) => void;
@@ -111,6 +112,16 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       }
     }
   }, [defaultScenarioId, props.mode, props.opened]);
+
+  const defaultGroup = "defaultGroup" in props ? props.defaultGroup : null;
+
+  useEffect(() => {
+    if (!props.opened || props.mode !== "create" || !defaultGroup) {
+      return;
+    }
+    setSelectedGroup(defaultGroup);
+    setStep("type");
+  }, [defaultGroup, props.mode, props.opened]);
 
   useEffect(() => {
     if (props.mode !== "edit" || !editingEvent) {
