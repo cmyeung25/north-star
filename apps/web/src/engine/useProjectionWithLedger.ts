@@ -494,12 +494,27 @@ export const computeProjectionWithSmartInvest = (
       allowWithdrawals: smartInvestPolicy.withdrawal.enabled,
       allowContributions: isExcessCashMode,
     });
-    const previousKey = formatWithdrawalScheduleKey(withdrawalSchedule);
-    const nextKey = formatWithdrawalScheduleKey(
+    const previousWithdrawalKey = formatWithdrawalScheduleKey(withdrawalSchedule);
+    const nextWithdrawalKey = formatWithdrawalScheduleKey(
       updatedTransferPlan.withdrawalScheduleByBucketId
     );
-    if (previousKey !== nextKey) {
+    const previousContributionKey = isExcessCashMode
+      ? formatWithdrawalScheduleKey(contributionSchedule ?? {})
+      : null;
+    const nextContributionKey = isExcessCashMode
+      ? formatWithdrawalScheduleKey(
+          updatedTransferPlan.contributionScheduleByBucketId
+        )
+      : null;
+    const schedulesChanged =
+      previousWithdrawalKey !== nextWithdrawalKey ||
+      previousContributionKey !== nextContributionKey;
+
+    if (schedulesChanged) {
       withdrawalSchedule = updatedTransferPlan.withdrawalScheduleByBucketId;
+      if (isExcessCashMode) {
+        contributionSchedule = updatedTransferPlan.contributionScheduleByBucketId;
+      }
       transferSeries = updatedTransferPlan.transferSeries;
       withdrawalWarnings = updatedTransferPlan.shortfallsByMonth.map((shortfall) => ({
         code: "smart-invest-reserve-shortfall",
