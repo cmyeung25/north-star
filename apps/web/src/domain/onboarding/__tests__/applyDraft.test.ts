@@ -5,7 +5,6 @@ import {
 } from "../applyDraft";
 import type { Scenario } from "../../../store/scenarioStore";
 import { useScenarioStore } from "../../../store/scenarioStore";
-import { buildOnboardingEventId } from "../../../features/onboarding/utils";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   id: "scenario-test",
@@ -29,79 +28,54 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   ...overrides,
 });
 
-const buildDraft = (overrides: Partial<OnboardingDraft> = {}): OnboardingDraft => ({
-  persona: "C",
-  basics: {
+const buildDraft = (): OnboardingDraft => ({
+  members: [
+    {
+      id: "member-1",
+      name: "Alex",
+      kind: "person",
+      birthMonth: "1990-01",
+    },
+  ],
+  settings: {
     baseMonth: "2024-01",
-    initialCash: 0,
     horizonMonths: 240,
+    annualInflationPct: 2,
+    viewMode: "nominal",
   },
-  income: {
-    monthlyAmount: 50000,
-    annualGrowthPct: 0,
-    retirementMonth: null,
-  },
-  lifestyle: {
-    rentEnabled: false,
-    rentMonthly: 0,
-    rentStartMonth: "2024-01",
-    rentDurationYears: undefined,
-    carEnabled: false,
-    car: {
-      purchaseMonth: "2024-01",
-      purchasePrice: 0,
-      downPayment: 0,
-      loanTermYears: 5,
-      loanRatePct: 4,
-      holdingCostMonthly: 0,
-      depreciationPct: 12,
-    },
-    travelEnabled: false,
-    travelAnnualBudget: 0,
-  },
-  family: {
-    partnerEnabled: false,
-    partnerName: "",
-    childEnabled: false,
-    childBirthMonth: "",
-    childcareStartAge: 0,
-    educationStartAge: 6,
-    childcareLevel: "mid",
-    educationLevel: "mid",
-    parentEnabled: false,
-    parentMonthlyCost: 0,
-    petEnabled: false,
-    petMonthlyCost: 0,
-  },
-  decisions: {
-    homeEnabled: false,
-    home: {
-      purchaseMonth: "2024-01",
-      purchasePrice: 0,
-      downPaymentPct: 0,
-      mortgageTermYears: 30,
-      mortgageRatePct: 4,
-      feesOneTime: 0,
-      holdingCostMonthly: 0,
-      appreciationPct: 3,
-    },
-    investmentEnabled: false,
-    investment: {
-      monthlyContribution: 0,
-      expectedAnnualReturnPct: 5,
-      feeAnnualRatePct: undefined,
+  budgetRules: [
+    {
+      id: "rule-1",
+      name: "Childcare",
+      enabled: true,
+      memberId: "household",
+      category: "childcare",
+      ageBand: { fromYears: 0, toYears: 6 },
+      monthlyAmount: 3000,
+      annualGrowthPct: 0,
       startMonth: "2024-01",
+      endMonth: "2030-12",
     },
-    loanEnabled: false,
-    loan: {
-      startMonth: "2024-01",
-      principal: 0,
-      annualInterestRatePct: 4,
-      termYears: 5,
-      monthlyPayment: undefined,
-    },
+  ],
+  positions: {
+    homes: [],
+    cars: [],
+    investments: [],
+    loans: [],
   },
-  ...overrides,
+  incomes: [
+    {
+      id: "income-1",
+      title: "Salary",
+      memberId: "member-1",
+      subtype: "salary",
+      monthlyAmount: 50000,
+      startMonth: "2024-01",
+      endMonth: "",
+      endAtAgeYears: undefined,
+    },
+  ],
+  timelineEvents: [],
 });
 
 beforeEach(() => {
@@ -122,71 +96,20 @@ beforeEach(() => {
 });
 
 describe("applyOnboardingDraftToScenario", () => {
-  it("does not create rent events when rent is disabled", () => {
+  it("creates members, budget rules, and income events", () => {
     const scenario = useScenarioStore.getState().scenarios[0];
-    const draft = buildDraft({
-      lifestyle: {
-        ...buildDraft().lifestyle,
-        rentEnabled: false,
-      },
-    });
+    const draft = buildDraft();
 
     applyOnboardingDraftToScenario(scenario, draft, useScenarioStore.getState());
 
     const state = useScenarioStore.getState();
-    const rentEventId = buildOnboardingEventId(scenario.id, "rent");
-    expect(state.eventLibrary.some((event) => event.id === rentEventId)).toBe(false);
-    expect(state.scenarios[0]?.eventRefs?.some((ref) => ref.refId === rentEventId)).toBe(
-      false
-    );
-  });
-
-  it("does not create child budget rules when child is disabled", () => {
-    const scenario = useScenarioStore.getState().scenarios[0];
-    const draft = buildDraft({
-      family: {
-        ...buildDraft().family,
-        childEnabled: false,
-      },
-    });
-
-    applyOnboardingDraftToScenario(scenario, draft, useScenarioStore.getState());
-
-    const updated = useScenarioStore.getState();
-    expect(updated.budgetRules.length).toBe(0);
-  });
-
-  it("removes rent events when rent is toggled off", () => {
-    const scenario = useScenarioStore.getState().scenarios[0];
-    const rentEventId = buildOnboardingEventId(scenario.id, "rent");
-
-    const enabledDraft = buildDraft({
-      lifestyle: {
-        ...buildDraft().lifestyle,
-        rentEnabled: true,
-        rentMonthly: 18000,
-        rentStartMonth: "2024-02",
-      },
-    });
-
-    applyOnboardingDraftToScenario(scenario, enabledDraft, useScenarioStore.getState());
-
-    let state = useScenarioStore.getState();
-    expect(state.eventLibrary.some((event) => event.id === rentEventId)).toBe(true);
-
-    const disabledDraft = buildDraft({
-      lifestyle: {
-        ...enabledDraft.lifestyle,
-        rentEnabled: false,
-      },
-    });
-
-    applyOnboardingDraftToScenario(scenario, disabledDraft, useScenarioStore.getState());
-
-    state = useScenarioStore.getState();
-    expect(state.eventLibrary.some((event) => event.id === rentEventId)).toBe(false);
-    expect(state.scenarios[0]?.eventRefs?.some((ref) => ref.refId === rentEventId)).toBe(
-      false
+    expect(state.members).toHaveLength(1);
+    expect(state.budgetRules).toHaveLength(1);
+    expect(state.eventLibrary.some((event) => event.id === "income-1")).toBe(true);
+    const eventDefinition = state.eventLibrary.find((event) => event.id === "income-1");
+    expect(eventDefinition?.memberId).toBe("member-1");
+    expect(state.scenarios[0]?.eventRefs?.some((ref) => ref.refId === "income-1")).toBe(
+      true
     );
   });
 });

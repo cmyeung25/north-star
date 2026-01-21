@@ -99,6 +99,7 @@ export type ScenarioMember = {
 
 export type BudgetCategory =
   | "health"
+  | "baseline"
   | "childcare"
   | "education"
   | "eldercare"
