@@ -77,6 +77,7 @@ type SettingsClientProps = {
   subtitleKey?: "settingsSubtitle" | "peopleSubtitle";
   defaultTab?: SettingsTabKey;
   tabOrder?: SettingsTabKey[];
+  initialAction?: string;
 };
 
 type ToastState = {
@@ -92,6 +93,7 @@ export default function SettingsClient({
   subtitleKey = "settingsSubtitle",
   defaultTab = "data",
   tabOrder,
+  initialAction,
 }: SettingsClientProps) {
   const locale = useLocale();
   const t = useTranslations("assumptions");
@@ -198,6 +200,7 @@ export default function SettingsClient({
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasHandledInitialAction = useRef(false);
   const prevMemberMonthRef = useRef<Record<string, string>>({});
   const prevMilestoneMonthRef = useRef<Record<string, string>>({});
 
@@ -426,7 +429,7 @@ export default function SettingsClient({
     };
   }, []);
 
-  const showToast = (message: string, color?: string) => {
+  const showToast = useCallback((message: string, color?: string) => {
     setToast({ message, color });
     if (toastTimeoutRef.current) {
       clearTimeout(toastTimeoutRef.current);
@@ -434,7 +437,7 @@ export default function SettingsClient({
     toastTimeoutRef.current = setTimeout(() => {
       setToast(null);
     }, 2000);
-  };
+  }, []);
 
   const showSyncToast = (message: string, color?: string) => {
     setSyncToast({ message, color });
@@ -445,6 +448,36 @@ export default function SettingsClient({
       setSyncToast(null);
     }, 3000);
   };
+
+  const handleCreateBudgetRule = useCallback(() => {
+    const nextRule = {
+      id: createBudgetRuleId(),
+      name: budgetText("defaultRuleName", {
+        index: budgetRules.length + 1,
+      }),
+      enabled: true,
+      memberId: members[0]?.id,
+      category: "health" as const,
+      ageBand: { fromYears: 0, toYears: 3 },
+      monthlyAmount: 0,
+      applyScope: { scope: "all" } as ApplyScope,
+    };
+    createBudgetRule(nextRule);
+    setExpandedBudgetRuleId(nextRule.id);
+    showToast(common("saved"), "teal");
+  }, [budgetRules.length, budgetText, common, createBudgetRule, members, showToast]);
+
+  useEffect(() => {
+    if (hasHandledInitialAction.current) {
+      return;
+    }
+    if (initialAction !== "rule") {
+      return;
+    }
+    hasHandledInitialAction.current = true;
+    setActiveTab("budget");
+    handleCreateBudgetRule();
+  }, [handleCreateBudgetRule, initialAction]);
 
   const isSignedIn = authState.status === "signed-in" && authState.user;
   const cloudHasData = (cloudSummary?.scenarioCount ?? 0) > 0;
@@ -1594,26 +1627,7 @@ export default function SettingsClient({
         <Stack gap="md">
           <Group justify="space-between" align="center">
             <Text fw={600}>{budgetText("title")}</Text>
-            <Button
-              size="xs"
-              variant="light"
-              onClick={() => {
-                const nextRule = {
-                  id: createBudgetRuleId(),
-                  name: budgetText("defaultRuleName", {
-                    index: budgetRules.length + 1,
-                  }),
-                  enabled: true,
-                  memberId: members[0]?.id,
-                  category: "health" as const,
-                  ageBand: { fromYears: 0, toYears: 3 },
-                  monthlyAmount: 0,
-                  applyScope: { scope: "all" } as ApplyScope,
-                };
-                createBudgetRule(nextRule);
-                showToast(common("saved"), "teal");
-              }}
-            >
+            <Button size="xs" variant="light" onClick={handleCreateBudgetRule}>
               {budgetText("addRule")}
             </Button>
           </Group>

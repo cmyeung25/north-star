@@ -16,7 +16,7 @@ import {
 } from "@mantine/core";
 import { getEventGroup, monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "../../../src/i18n/navigation";
 import AddMoneyItemModal from "../../../components/money/AddMoneyItemModal";
 import TimelineEventDrawer from "../../../components/timeline/TimelineEventDrawer";
@@ -62,6 +62,7 @@ type MoneyTab = "income" | "expenses" | "assets" | "liabilities" | "timeline";
 type MoneyClientProps = {
   scenarioId?: string;
   initialTab?: string;
+  initialAdd?: string;
 };
 
 const tabOrder: MoneyTab[] = [
@@ -72,7 +73,19 @@ const tabOrder: MoneyTab[] = [
   "timeline",
 ];
 
-export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps) {
+type MoneyAddAction =
+  | "event"
+  | "home"
+  | "investment"
+  | "insurance"
+  | "car"
+  | "loan";
+
+export default function MoneyClient({
+  scenarioId,
+  initialTab,
+  initialAdd,
+}: MoneyClientProps) {
   const t = useTranslations("money");
   const timelineText = useTranslations("timeline");
   const homesText = useTranslations("homes");
@@ -108,6 +121,7 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
   const scenarioIdValue = scenario?.id;
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addEventGroup, setAddEventGroup] = useState<EventGroup | null>(null);
+  const [addEventDrawerOpen, setAddEventDrawerOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
   const [creatingHome, setCreatingHome] = useState<HomePositionDraft | null>(null);
   const [creatingCar, setCreatingCar] = useState<CarPositionDraft | null>(null);
@@ -121,6 +135,7 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
   const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(null);
   const [editingInsuranceId, setEditingInsuranceId] = useState<string | null>(null);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
+  const hasHandledInitialAdd = useRef(false);
 
   const resolvedTab = tabOrder.includes(initialTab as MoneyTab)
     ? (initialTab as MoneyTab)
@@ -133,6 +148,11 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
   useEffect(() => {
     setActiveTab(resolvedTab);
   }, [resolvedTab]);
+
+  const openEventDrawer = (group?: EventGroup) => {
+    setAddEventGroup(group ?? null);
+    setAddEventDrawerOpen(true);
+  };
 
   const memberLookup = useMemo(
     () => new Map(members.map((member) => [member.id, member.name])),
@@ -219,6 +239,51 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
     }
     return monthIndex(currentProjectionMonth, sellMonth) < 0;
   };
+
+  useEffect(() => {
+    if (hasHandledInitialAdd.current) {
+      return;
+    }
+    if (!initialAdd || !scenarioIdValue) {
+      return;
+    }
+    const action = initialAdd as MoneyAddAction;
+    if (action === "event") {
+      setAddEventGroup(null);
+      setAddEventDrawerOpen(true);
+      hasHandledInitialAdd.current = true;
+      return;
+    }
+    if (action === "loan") {
+      setActiveTab("liabilities");
+      setCreatingLoan(createLoanPositionFromTemplate({ baseMonth }));
+      hasHandledInitialAdd.current = true;
+      return;
+    }
+    if (action === "home") {
+      setActiveTab("assets");
+      setCreatingHome(createHomePositionFromTemplate({ baseMonth }));
+      hasHandledInitialAdd.current = true;
+      return;
+    }
+    if (action === "investment") {
+      setActiveTab("assets");
+      setCreatingInvestment(createInvestmentPositionFromTemplate({ baseMonth }));
+      hasHandledInitialAdd.current = true;
+      return;
+    }
+    if (action === "insurance") {
+      setActiveTab("assets");
+      setCreatingInsurance(createInsurancePositionFromTemplate({ baseMonth }));
+      hasHandledInitialAdd.current = true;
+      return;
+    }
+    if (action === "car") {
+      setActiveTab("assets");
+      setCreatingCar(createCarPositionFromTemplate({ baseMonth }));
+      hasHandledInitialAdd.current = true;
+    }
+  }, [baseMonth, initialAdd, scenarioIdValue, setActiveTab]);
   const editingHome = homes.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = cars.find((car) => car.id === editingCarId) ?? null;
   const editingInvestment =
@@ -358,7 +423,7 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
               <Button
                 size="xs"
                 variant="light"
-                onClick={() => setAddEventGroup("income")}
+                onClick={() => openEventDrawer("income")}
                 disabled={!scenarioIdValue}
               >
                 {t("addIncomeEvent")}
@@ -384,7 +449,7 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
                 <Button
                   size="xs"
                   variant="light"
-                  onClick={() => setAddEventGroup("expense")}
+                  onClick={() => openEventDrawer("expense")}
                   disabled={!scenarioIdValue}
                 >
                   {t("addExpenseEvent")}
@@ -683,8 +748,11 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
         <>
           <TimelineEventDrawer
             mode="create"
-            opened={Boolean(addEventGroup)}
-            onClose={() => setAddEventGroup(null)}
+            opened={addEventDrawerOpen}
+            onClose={() => {
+              setAddEventDrawerOpen(false);
+              setAddEventGroup(null);
+            }}
             baseCurrency={scenario.baseCurrency}
             baseMonth={baseMonth}
             assumptions={{

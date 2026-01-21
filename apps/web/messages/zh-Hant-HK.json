@@ -104,6 +104,21 @@
     "stress": "壓力測試",
     "settings": "設定"
   },
+  "toolbar": {
+    "addButton": "＋新增",
+    "addRule": "預算規則",
+    "addAssetDebt": "資產與負債",
+    "addEvent": "事件",
+    "assetDebtTitle": "新增資產或負債",
+    "assetDebtHint": "選擇要新增的資產或負債類型。",
+    "addHome": "房屋",
+    "addInvestment": "投資",
+    "addInsurance": "保險",
+    "addCar": "汽車",
+    "addLoan": "貸款",
+    "quickSettings": "快速設定",
+    "quickNav": "快速導覽"
+  },
   "overview": {
     "title": "儀表板",
     "subtitle": "一站式掌握里程碑與資產狀態。",
@@ -810,6 +825,7 @@
     "horizon30y": "30 年",
     "baseMonthHelper": "留空會自動採用最早事件開始月份。",
     "planningHorizon": "規劃年期",
+    "horizonMonths": "規劃（月）",
     "initialCash": "初始現金",
     "baseMonth": "基準月份",
     "annualInflationPct": "全年通脹率 (%)",
