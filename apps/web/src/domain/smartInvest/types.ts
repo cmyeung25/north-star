@@ -19,7 +19,8 @@ export type SmartInvestPolicy = {
     | { mode: "monthsOfOutflow"; months: number };
   contribution:
     | { mode: "percentOfIncome"; pct: number }
-    | { mode: "percentOfSurplus"; pct: number };
+    | { mode: "percentOfSurplus"; pct: number }
+    | { mode: "rebalance" };
   allocation: SmartInvestAllocation[];
   allocationProfiles?: SmartInvestAllocationProfile[];
   withdrawal: {

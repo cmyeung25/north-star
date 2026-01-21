@@ -7,6 +7,7 @@ import {
   compileContributionSeries,
   computeReserveTargetByMonth,
   getSmartInvestInvestmentId,
+  type SmartInvestRebalanceSchedule,
   type SmartInvestWithdrawalSchedule,
 } from "./solver";
 import { normalizeMonthStrict } from "../../utils/month";
@@ -23,6 +24,7 @@ type CompileSmartInvestParams = {
   policy: SmartInvestPolicy;
   baselineCashflows: BaselineCashflowEntry[];
   withdrawalScheduleByAllocation?: SmartInvestWithdrawalSchedule;
+  rebalanceScheduleByAllocation?: SmartInvestRebalanceSchedule;
 };
 
 const buildMonthRange = (baseMonth: string, horizonMonths: number) =>
@@ -65,6 +67,7 @@ export const compileSmartInvest = ({
   policy,
   baselineCashflows,
   withdrawalScheduleByAllocation,
+  rebalanceScheduleByAllocation,
 }: CompileSmartInvestParams): EngineInvestment[] => {
   if (!policy.enabled || horizonMonths <= 0) {
     return [];
@@ -112,6 +115,18 @@ export const compileSmartInvest = ({
   return Object.values(allocationMeta).map((allocation) => {
     const contributionSchedule = contributions.contributionsByBucketId[allocation.id];
     const withdrawalSchedule = withdrawalScheduleByAllocation?.[allocation.id] ?? [];
+    const rebalanceContributionSchedule =
+      rebalanceScheduleByAllocation?.contributionsByBucketId?.[allocation.id] ?? [];
+    const rebalanceWithdrawalSchedule =
+      rebalanceScheduleByAllocation?.withdrawalsByBucketId?.[allocation.id] ?? [];
+    const combinedContributionSchedule = [
+      ...(contributionSchedule ?? []),
+      ...rebalanceContributionSchedule,
+    ];
+    const combinedWithdrawalSchedule = [
+      ...withdrawalSchedule,
+      ...rebalanceWithdrawalSchedule,
+    ];
 
     return {
       id: getSmartInvestInvestmentId(allocation.id),
@@ -119,15 +134,15 @@ export const compileSmartInvest = ({
       initialValue: 0,
       annualReturnRate: (allocation.assumedAnnualReturnPct ?? 0) / 100,
       contributionSchedule:
-        contributionSchedule && contributionSchedule.length > 0
-          ? contributionSchedule.map((entry) => ({
+        combinedContributionSchedule.length > 0
+          ? combinedContributionSchedule.map((entry) => ({
               month: entry.month,
               amount: entry.amount,
             }))
           : undefined,
       withdrawalSchedule:
-        withdrawalSchedule.length > 0
-          ? withdrawalSchedule
+        combinedWithdrawalSchedule.length > 0
+          ? combinedWithdrawalSchedule
               .map((entry) => {
                 const normalized = normalizeMonthStrict(entry.month);
                 if (!normalized.ok) {

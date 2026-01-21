@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Accordion,
   Badge,
   Button,
   Card,
@@ -24,6 +25,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useLocale, useTranslations } from "next-intl";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as ChartTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { signInWithGoogle, signOutUser } from "../../../lib/authActions";
 import { isFirebaseConfigured } from "../../../lib/firebaseClient";
 import {
@@ -142,6 +151,9 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const [budgetMonthErrors, setBudgetMonthErrors] = useState<
     Record<string, { startMonth?: string; endMonth?: string }>
   >({});
+  const [expandedBudgetRuleId, setExpandedBudgetRuleId] = useState<string | null>(
+    null
+  );
   const [cloudSummary, setCloudSummary] = useState<CloudSummary | null>(null);
   const [syncingAction, setSyncingAction] = useState<null | "upload" | "download">(
     null
@@ -213,9 +225,11 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
         ? timelineText("smartInvestContributionIncome", {
             pct: smartInvestPolicy.contribution.pct ?? 0,
           })
-        : timelineText("smartInvestContributionSurplus", {
-            pct: smartInvestPolicy.contribution.pct ?? 0,
-          });
+        : smartInvestPolicy.contribution.mode === "percentOfSurplus"
+          ? timelineText("smartInvestContributionSurplus", {
+              pct: smartInvestPolicy.contribution.pct ?? 0,
+            })
+          : timelineText("smartInvestContributionRebalance");
     const allocationValue = smartInvestPolicy.allocation
       .map((allocation) =>
         timelineText("smartInvestAllocationItem", {
@@ -627,15 +641,36 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       })
     );
   };
+  const budgetCategoryLabels: Record<string, string> = {
+    health: budgetText("categoryHealth"),
+    childcare: budgetText("categoryChildcare"),
+    education: budgetText("categoryEducation"),
+    eldercare: budgetText("categoryEldercare"),
+    petcare: budgetText("categoryPetcare"),
+  };
+  const formatApplyScopeLabel = (applyScope: ApplyScope | undefined) => {
+    const scope = applyScope?.scope ?? "all";
+    if (scope === "include") {
+      return common("applyScopeInclude");
+    }
+    if (scope === "exclude") {
+      return common("applyScopeExclude");
+    }
+    return common("applyScopeAll");
+  };
 
-  const budgetRulePreviews = new Map(
-    budgetRules.map((rule) => [
-      rule.id,
-      rule.enabled
-        ? compileBudgetRuleToMonthlySeries(rule, scenario, members)
-        : buildZeroPreview(rule),
-    ])
+  const expandedRule = useMemo(
+    () => budgetRules.find((rule) => rule.id === expandedBudgetRuleId) ?? null,
+    [budgetRules, expandedBudgetRuleId]
   );
+  const expandedRulePreview = useMemo(() => {
+    if (!expandedRule) {
+      return [];
+    }
+    return expandedRule.enabled
+      ? compileBudgetRuleToMonthlySeries(expandedRule, scenario, members)
+      : buildZeroPreview(expandedRule);
+  }, [expandedRule, members, scenario]);
 
   const lastSyncedLabel = cloudSummary?.lastSyncedAt
     ? common("lastSyncedAt", {
@@ -1554,24 +1589,65 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
               {budgetText("empty")}
             </Text>
           ) : (
-            <Stack gap="sm">
+            <Accordion
+              value={expandedBudgetRuleId}
+              onChange={(value) => setExpandedBudgetRuleId(value)}
+              variant="separated"
+            >
               {budgetRules.map((rule) => {
-                const preview = budgetRulePreviews.get(rule.id) ?? [];
+                const preview = rule.id === expandedRule?.id ? expandedRulePreview : [];
                 const previewSlice = preview.slice(0, 12);
                 const previewTotal = preview.reduce(
                   (total, entry) => total + entry.amount,
                   0
                 );
+                const previewWindow = preview.slice(0, Math.min(preview.length, 24));
+                const memberLabel = rule.memberId
+                  ? members.find((member) => member.id === rule.memberId)?.name ??
+                    budgetText("memberHousehold")
+                  : budgetText("memberHousehold");
+                const categoryLabel =
+                  budgetCategoryLabels[rule.category] ?? rule.category;
+                const applyScopeLabel = formatApplyScopeLabel(rule.applyScope);
 
                 return (
-                  <Card key={rule.id} withBorder radius="md" padding="md">
-                    <Stack gap="sm">
-                      <Group justify="space-between" align="center">
-                        <Text fw={600}>{rule.name}</Text>
-                        <Group gap="sm">
+                  <Accordion.Item key={rule.id} value={rule.id}>
+                    <Accordion.Control>
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Stack gap={4}>
+                          <Group gap="xs" align="center">
+                            <Text fw={600}>{rule.name}</Text>
+                            {!rule.enabled && (
+                              <Badge color="gray" variant="light">
+                                {common("disabled")}
+                              </Badge>
+                            )}
+                          </Group>
+                          <Group gap="xs" wrap="wrap">
+                            <Badge variant="light">{memberLabel}</Badge>
+                            <Badge variant="light">{categoryLabel}</Badge>
+                            <Badge variant="light">
+                              {budgetText("ageBandSummary", {
+                                from: formatAgeYears(rule.ageBand.fromYears),
+                                to: formatAgeYears(rule.ageBand.toYears),
+                              })}
+                            </Badge>
+                            <Badge variant="light">{applyScopeLabel}</Badge>
+                          </Group>
+                        </Stack>
+                        <Group
+                          gap="sm"
+                          wrap="wrap"
+                          align="center"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Text fw={600}>
+                            {formatCurrency(-Math.abs(rule.monthlyAmount ?? 0))}
+                          </Text>
                           <Switch
                             checked={rule.enabled}
                             label={budgetText("enabledLabel")}
+                            onClick={(event) => event.stopPropagation()}
                             onChange={(event) =>
                               updateBudgetRule(rule.id, {
                                 enabled: event.currentTarget.checked,
@@ -1582,7 +1658,8 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                             size="xs"
                             color="red"
                             variant="light"
-                            onClick={() => {
+                            onClick={(event) => {
+                              event.stopPropagation();
                               removeBudgetRule(rule.id);
                               showToast(common("saved"), "teal");
                             }}
@@ -1591,187 +1668,221 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           </Button>
                         </Group>
                       </Group>
-                      <Group grow>
-                        <TextInput
-                          label={budgetText("nameLabel")}
-                          value={rule.name}
-                          onChange={(event) =>
-                            updateBudgetRule(rule.id, {
-                              name: event.currentTarget.value,
-                            })
-                          }
-                        />
-                        <Select
-                          label={budgetText("memberLabel")}
-                          data={[
-                            { value: "household", label: budgetText("memberHousehold") },
-                            ...members.map((member) => ({
-                              value: member.id,
-                              label: member.name,
-                            })),
-                          ]}
-                          value={rule.memberId ?? "household"}
-                          onChange={(value) =>
-                            updateBudgetRule(rule.id, {
-                              memberId:
-                                value && value !== "household" ? value : undefined,
-                            })
-                          }
-                        />
-                      </Group>
-                      <Group grow>
-                        <Select
-                          label={budgetText("categoryLabel")}
-                          data={[
-                            { value: "health", label: budgetText("categoryHealth") },
-                            {
-                              value: "childcare",
-                              label: budgetText("categoryChildcare"),
-                            },
-                            {
-                              value: "education",
-                              label: budgetText("categoryEducation"),
-                            },
-                            {
-                              value: "eldercare",
-                              label: budgetText("categoryEldercare"),
-                            },
-                            { value: "petcare", label: budgetText("categoryPetcare") },
-                          ]}
-                          value={rule.category}
-                          onChange={(value) => {
-                            if (!value) {
-                              return;
+                    </Accordion.Control>
+                    <Accordion.Panel>
+                      <Stack gap="sm">
+                        <Card withBorder radius="md" padding="sm">
+                          <Stack gap="xs">
+                            <Group justify="space-between" align="center">
+                              <Text fw={600} size="sm">
+                                {budgetText("previewTitle")}
+                              </Text>
+                              <Text size="sm" c="dimmed">
+                                {budgetText("previewTotal", {
+                                  total: formatCurrency(previewTotal),
+                                })}
+                              </Text>
+                            </Group>
+                            {previewWindow.length === 0 ? (
+                              <Text size="sm" c="dimmed">
+                                {budgetText("previewEmpty")}
+                              </Text>
+                            ) : (
+                              <div style={{ width: "100%", height: 180 }}>
+                                <ResponsiveContainer>
+                                  <LineChart data={previewWindow}>
+                                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                                    <YAxis
+                                      tick={{ fontSize: 10 }}
+                                      width={72}
+                                      tickFormatter={(value) =>
+                                        formatCurrency(Number(value))
+                                      }
+                                    />
+                                    <ChartTooltip
+                                      formatter={(value) =>
+                                        formatCurrency(Number(value))
+                                      }
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="amount"
+                                      stroke="var(--mantine-color-red-6)"
+                                      strokeWidth={2}
+                                      dot={false}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                            )}
+                          </Stack>
+                        </Card>
+                        <Group grow>
+                          <TextInput
+                            label={budgetText("nameLabel")}
+                            value={rule.name}
+                            onChange={(event) =>
+                              updateBudgetRule(rule.id, {
+                                name: event.currentTarget.value,
+                              })
                             }
-                            updateBudgetRule(rule.id, {
-                              category: value as typeof rule.category,
-                            });
-                          }}
-                        />
-                        <NumberInput
-                          label={budgetText("monthlyAmountLabel")}
-                          value={rule.monthlyAmount}
-                          min={0}
-                          step={100}
-                          thousandSeparator=","
-                          onChange={(value) =>
-                            updateBudgetRule(rule.id, {
-                              monthlyAmount: typeof value === "number" ? value : 0,
-                            })
-                          }
-                        />
-                      </Group>
-                      <Group grow>
-                        <NumberInput
-                          label={budgetText("ageFromLabel")}
-                          value={rule.ageBand.fromYears}
-                          min={0}
-                          step={0.5}
-                          decimalScale={2}
-                          onChange={(value) =>
-                            updateBudgetRule(rule.id, {
-                              ageBand: {
-                                ...rule.ageBand,
-                                fromYears: typeof value === "number" ? value : 0,
-                              },
-                            })
-                          }
-                        />
-                        <NumberInput
-                          label={budgetText("ageToLabel")}
-                          value={rule.ageBand.toYears}
-                          min={0}
-                          step={0.5}
-                          decimalScale={2}
-                          onChange={(value) =>
-                            updateBudgetRule(rule.id, {
-                              ageBand: {
-                                ...rule.ageBand,
-                                toYears: typeof value === "number" ? value : 0,
-                              },
-                            })
-                          }
-                        />
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        {budgetText("ageBandHelper")}
-                      </Text>
-                      <Group grow>
-                        <NumberInput
-                          label={budgetText("annualGrowthLabel")}
-                          value={rule.annualGrowthPct ?? ""}
-                          min={0}
-                          step={0.1}
-                          decimalScale={2}
-                          onChange={(value) =>
-                            updateBudgetRule(rule.id, {
-                              annualGrowthPct:
-                                typeof value === "number" ? value : undefined,
-                            })
-                          }
-                        />
-                        <TextInput
-                          label={budgetText("startMonthLabel")}
-                          placeholder={common("yearMonthOptionalPlaceholder")}
-                          value={
-                            budgetMonthInputs[rule.id]?.startMonth ??
-                            rule.startMonth ??
-                            ""
-                          }
-                          onChange={(event) =>
-                            updateBudgetMonthInput(
-                              rule.id,
-                              "startMonth",
-                              event.currentTarget.value
-                            )
-                          }
-                          onBlur={() => validateBudgetMonth(rule.id, "startMonth")}
-                          error={budgetMonthErrors[rule.id]?.startMonth}
-                        />
-                        <TextInput
-                          label={budgetText("endMonthLabel")}
-                          placeholder={common("yearMonthOptionalPlaceholder")}
-                          value={
-                            budgetMonthInputs[rule.id]?.endMonth ?? rule.endMonth ?? ""
-                          }
-                          onChange={(event) =>
-                            updateBudgetMonthInput(
-                              rule.id,
-                              "endMonth",
-                              event.currentTarget.value
-                            )
-                          }
-                          onBlur={() => validateBudgetMonth(rule.id, "endMonth")}
-                          error={budgetMonthErrors[rule.id]?.endMonth}
-                        />
-                      </Group>
-                      <Stack gap="xs">
-                        <Text fw={600}>{budgetText("applyScopeTitle")}</Text>
-                        <Text size="xs" c="dimmed">
-                          {budgetText("applyScopeHelper")}
-                        </Text>
-                        {renderApplyScope(
-                          normalizeApplyScope(rule.applyScope),
-                          (next) => updateBudgetRule(rule.id, { applyScope: next }),
-                          budgetText("applyScopeHint")
-                        )}
-                      </Stack>
-                      <Stack gap={4}>
-                        <Group justify="space-between" align="center">
-                          <Text fw={600} size="sm">
-                            {budgetText("previewTitle")}
-                          </Text>
-                          <Text size="sm" c="dimmed">
-                            {budgetText("previewTotal", {
-                              total: formatCurrency(previewTotal),
-                            })}
-                          </Text>
+                          />
+                          <Select
+                            label={budgetText("memberLabel")}
+                            data={[
+                              { value: "household", label: budgetText("memberHousehold") },
+                              ...members.map((member) => ({
+                                value: member.id,
+                                label: member.name,
+                              })),
+                            ]}
+                            value={rule.memberId ?? "household"}
+                            onChange={(value) =>
+                              updateBudgetRule(rule.id, {
+                                memberId:
+                                  value && value !== "household" ? value : undefined,
+                              })
+                            }
+                          />
                         </Group>
-                        {previewSlice.length === 0 ? (
-                          <Text size="sm" c="dimmed">
-                            {budgetText("previewEmpty")}
+                        <Group grow>
+                          <Select
+                            label={budgetText("categoryLabel")}
+                            data={[
+                              { value: "health", label: budgetText("categoryHealth") },
+                              {
+                                value: "childcare",
+                                label: budgetText("categoryChildcare"),
+                              },
+                              {
+                                value: "education",
+                                label: budgetText("categoryEducation"),
+                              },
+                              {
+                                value: "eldercare",
+                                label: budgetText("categoryEldercare"),
+                              },
+                              { value: "petcare", label: budgetText("categoryPetcare") },
+                            ]}
+                            value={rule.category}
+                            onChange={(value) => {
+                              if (!value) {
+                                return;
+                              }
+                              updateBudgetRule(rule.id, {
+                                category: value as typeof rule.category,
+                              });
+                            }}
+                          />
+                          <NumberInput
+                            label={budgetText("monthlyAmountLabel")}
+                            value={rule.monthlyAmount}
+                            min={0}
+                            step={100}
+                            thousandSeparator=","
+                            onChange={(value) =>
+                              updateBudgetRule(rule.id, {
+                                monthlyAmount: typeof value === "number" ? value : 0,
+                              })
+                            }
+                          />
+                        </Group>
+                        <Group grow>
+                          <NumberInput
+                            label={budgetText("ageFromLabel")}
+                            value={rule.ageBand.fromYears}
+                            min={0}
+                            step={0.5}
+                            decimalScale={2}
+                            onChange={(value) =>
+                              updateBudgetRule(rule.id, {
+                                ageBand: {
+                                  ...rule.ageBand,
+                                  fromYears: typeof value === "number" ? value : 0,
+                                },
+                              })
+                            }
+                          />
+                          <NumberInput
+                            label={budgetText("ageToLabel")}
+                            value={rule.ageBand.toYears}
+                            min={0}
+                            step={0.5}
+                            decimalScale={2}
+                            onChange={(value) =>
+                              updateBudgetRule(rule.id, {
+                                ageBand: {
+                                  ...rule.ageBand,
+                                  toYears: typeof value === "number" ? value : 0,
+                                },
+                              })
+                            }
+                          />
+                        </Group>
+                        <Text size="xs" c="dimmed">
+                          {budgetText("ageBandHelper")}
+                        </Text>
+                        <Group grow>
+                          <NumberInput
+                            label={budgetText("annualGrowthLabel")}
+                            value={rule.annualGrowthPct ?? ""}
+                            min={0}
+                            step={0.1}
+                            decimalScale={2}
+                            onChange={(value) =>
+                              updateBudgetRule(rule.id, {
+                                annualGrowthPct:
+                                  typeof value === "number" ? value : undefined,
+                              })
+                            }
+                          />
+                          <TextInput
+                            label={budgetText("startMonthLabel")}
+                            placeholder={common("yearMonthOptionalPlaceholder")}
+                            value={
+                              budgetMonthInputs[rule.id]?.startMonth ??
+                              rule.startMonth ??
+                              ""
+                            }
+                            onChange={(event) =>
+                              updateBudgetMonthInput(
+                                rule.id,
+                                "startMonth",
+                                event.currentTarget.value
+                              )
+                            }
+                            onBlur={() => validateBudgetMonth(rule.id, "startMonth")}
+                            error={budgetMonthErrors[rule.id]?.startMonth}
+                          />
+                          <TextInput
+                            label={budgetText("endMonthLabel")}
+                            placeholder={common("yearMonthOptionalPlaceholder")}
+                            value={
+                              budgetMonthInputs[rule.id]?.endMonth ?? rule.endMonth ?? ""
+                            }
+                            onChange={(event) =>
+                              updateBudgetMonthInput(
+                                rule.id,
+                                "endMonth",
+                                event.currentTarget.value
+                              )
+                            }
+                            onBlur={() => validateBudgetMonth(rule.id, "endMonth")}
+                            error={budgetMonthErrors[rule.id]?.endMonth}
+                          />
+                        </Group>
+                        <Stack gap="xs">
+                          <Text fw={600}>{budgetText("applyScopeTitle")}</Text>
+                          <Text size="xs" c="dimmed">
+                            {budgetText("applyScopeHelper")}
                           </Text>
-                        ) : (
+                          {renderApplyScope(
+                            normalizeApplyScope(rule.applyScope),
+                            (next) => updateBudgetRule(rule.id, { applyScope: next }),
+                            budgetText("applyScopeHint")
+                          )}
+                        </Stack>
+                        {previewSlice.length > 0 && (
                           <Stack gap={2}>
                             {previewSlice.map((entry) => (
                               <Text key={`${rule.id}-${entry.month}`} size="sm">
@@ -1788,11 +1899,11 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
                           </Stack>
                         )}
                       </Stack>
-                    </Stack>
-                  </Card>
+                    </Accordion.Panel>
+                  </Accordion.Item>
                 );
               })}
-            </Stack>
+            </Accordion>
           )}
         </Stack>
           </Card>

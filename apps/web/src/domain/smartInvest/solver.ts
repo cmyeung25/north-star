@@ -26,6 +26,11 @@ export type SmartInvestContributionSeries = {
   contributionsByBucketId: Record<string, Array<{ month: string; amount: number }>>;
 };
 
+export type SmartInvestRebalanceSchedule = {
+  contributionsByBucketId: Record<string, Array<{ month: string; amount: number }>>;
+  withdrawalsByBucketId: Record<string, Array<{ month: string; amount: number }>>;
+};
+
 export type SmartInvestWithdrawalSolveResult = {
   scheduleByBucketId: SmartInvestWithdrawalSchedule;
   totalByMonth: number[];
@@ -160,7 +165,10 @@ const buildContributionTarget = (
   if (policy.contribution.mode === "percentOfIncome") {
     return Math.max(0, (income * (policy.contribution.pct ?? 0)) / 100);
   }
-  return Math.max(0, (surplus * (policy.contribution.pct ?? 0)) / 100);
+  if (policy.contribution.mode === "percentOfSurplus") {
+    return Math.max(0, (surplus * (policy.contribution.pct ?? 0)) / 100);
+  }
+  return 0;
 };
 
 export const compileContributionSeries = (params: {
@@ -198,6 +206,9 @@ export const compileContributionSeries = (params: {
       totals.income,
       Math.max(0, totals.net)
     );
+    if (target <= 0) {
+      return;
+    }
     const available = Math.max(0, cashBalance - reserveTarget);
     const investAmount = Math.min(available, target);
     if (investAmount <= 0) {
@@ -222,6 +233,68 @@ export const compileContributionSeries = (params: {
   });
 
   return { totalByMonth, contributionsByBucketId };
+};
+
+type RebalanceScheduleParams = {
+  months: string[];
+  allocationBalancesById: Record<string, number[]>;
+  weightsById: Record<string, number[]>;
+};
+
+export const solveRebalanceSchedule = ({
+  months,
+  allocationBalancesById,
+  weightsById,
+}: RebalanceScheduleParams): SmartInvestRebalanceSchedule => {
+  const contributionsByBucketId: SmartInvestRebalanceSchedule["contributionsByBucketId"] =
+    {};
+  const withdrawalsByBucketId: SmartInvestRebalanceSchedule["withdrawalsByBucketId"] =
+    {};
+  const allocationIds = new Set<string>([
+    ...Object.keys(allocationBalancesById),
+    ...Object.keys(weightsById),
+  ]);
+  const minDelta = 0.01;
+
+  months.forEach((month, index) => {
+    const totalValue = Array.from(allocationIds).reduce((sum, id) => {
+      const balance = allocationBalancesById[id]?.[index] ?? 0;
+      return sum + balance;
+    }, 0);
+    if (totalValue <= 0) {
+      return;
+    }
+
+    const totalWeight = Array.from(allocationIds).reduce((sum, id) => {
+      return sum + (weightsById[id]?.[index] ?? 0);
+    }, 0);
+    if (totalWeight <= 0) {
+      return;
+    }
+
+    allocationIds.forEach((id) => {
+      const weight = (weightsById[id]?.[index] ?? 0) / totalWeight;
+      const currentValue = allocationBalancesById[id]?.[index] ?? 0;
+      const targetValue = totalValue * weight;
+      const delta = targetValue - currentValue;
+      if (Math.abs(delta) < minDelta) {
+        return;
+      }
+      if (delta > 0) {
+        if (!contributionsByBucketId[id]) {
+          contributionsByBucketId[id] = [];
+        }
+        contributionsByBucketId[id].push({ month, amount: delta });
+      } else {
+        if (!withdrawalsByBucketId[id]) {
+          withdrawalsByBucketId[id] = [];
+        }
+        withdrawalsByBucketId[id].push({ month, amount: Math.abs(delta) });
+      }
+    });
+  });
+
+  return { contributionsByBucketId, withdrawalsByBucketId };
 };
 
 type WithdrawalScheduleParams = {
@@ -303,3 +376,24 @@ export const formatWithdrawalScheduleKey = (
           })),
       ])
   );
+
+export const formatRebalanceScheduleKey = (
+  schedule: SmartInvestRebalanceSchedule | null | undefined
+) => {
+  const normalized = schedule ?? { contributionsByBucketId: {}, withdrawalsByBucketId: {} };
+  const normalizeEntries = (entries: Array<{ month: string; amount: number }>) =>
+    [...entries]
+      .sort((a, b) => (a.month < b.month ? -1 : 1))
+      .map((entry) => ({
+        month: entry.month,
+        amount: Number(entry.amount.toFixed(4)),
+      }));
+  return JSON.stringify({
+    contributions: Object.entries(normalized.contributionsByBucketId)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([id, entries]) => [id, normalizeEntries(entries)]),
+    withdrawals: Object.entries(normalized.withdrawalsByBucketId)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([id, entries]) => [id, normalizeEntries(entries)]),
+  });
+};
