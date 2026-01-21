@@ -4,16 +4,29 @@ import SettingsClient from "../settings/SettingsClient";
 
 type PeopleClientProps = {
   scenarioId?: string;
+  initialTab?: string;
 };
 
-export default function PeopleClient({ scenarioId }: PeopleClientProps) {
+const tabMap = {
+  assumptions: "global",
+  members: "members",
+  budget: "budget",
+  settings: "data",
+} as const;
+
+export default function PeopleClient({ scenarioId, initialTab }: PeopleClientProps) {
+  const defaultTab =
+    initialTab && initialTab in tabMap
+      ? tabMap[initialTab as keyof typeof tabMap]
+      : "members";
+
   return (
     <SettingsClient
       scenarioId={scenarioId}
       titleKey="peopleTitle"
       subtitleKey="peopleSubtitle"
-      defaultTab="members"
-      tabOrder={["members", "global", "budget", "other", "data"]}
+      defaultTab={defaultTab}
+      tabOrder={["global", "members", "budget", "data", "other"]}
     />
   );
 }

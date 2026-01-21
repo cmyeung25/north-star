@@ -1149,7 +1149,7 @@ export default function SettingsClient({
                 </div>
                 <Button
                   component={Link}
-                  href={buildScenarioUrl("/timeline", scenario.id)}
+                  href={`${buildScenarioUrl("/money", scenario.id)}&tab=timeline`}
                   size="xs"
                   variant="light"
                 >
@@ -2039,12 +2039,12 @@ export default function SettingsClient({
       </Tabs>
 
       <Group>
-        <Button component={Link} href={buildScenarioUrl("/overview", scenario.id)}>
+          <Button component={Link} href={buildScenarioUrl("/dashboard", scenario.id)}>
           {common("openOverview")}
         </Button>
         <Button
           component={Link}
-          href={buildScenarioUrl("/timeline", scenario.id)}
+          href={`${buildScenarioUrl("/money", scenario.id)}&tab=timeline`}
           variant="light"
         >
           {common("openTimeline")}

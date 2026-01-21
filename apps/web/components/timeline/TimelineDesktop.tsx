@@ -494,7 +494,7 @@ export default function TimelineDesktop({
     setPendingScrollMonth(startMonth);
   };
 
-  const overviewUrl = buildScenarioUrl("/overview", scenarioId);
+  const overviewUrl = buildScenarioUrl("/dashboard", scenarioId);
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;

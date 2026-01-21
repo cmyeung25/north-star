@@ -9,7 +9,14 @@ type MoneyEntryLauncherProps = {
   scenarioId?: string | null;
 };
 
-type EntryPath = "/timeline" | "/people" | "/money" | "/overview" | "/settings" | "/stress";
+type EntryPath =
+  | "/timeline"
+  | "/people"
+  | "/money"
+  | "/overview"
+  | "/dashboard"
+  | "/settings"
+  | "/stress";
 
 export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherProps) {
   const t = useTranslations("entryLauncher");
@@ -37,7 +44,7 @@ export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherPro
                 {t("addIncomeHint")}
               </Text>
               <Group>
-                <Button component={Link} href={`${entryHref("/timeline")}?tab=events`} size="xs">
+                <Button component={Link} href={`${entryHref("/money")}?tab=timeline`} size="xs">
                   {t("openEvents")}
                 </Button>
               </Group>
@@ -50,7 +57,7 @@ export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherPro
                 {t("addExpenseHint")}
               </Text>
               <Group>
-                <Button component={Link} href={`${entryHref("/people")}#budget`} size="xs">
+                <Button component={Link} href={`${entryHref("/people")}?tab=budget`} size="xs">
                   {t("openBudgetRules")}
                 </Button>
               </Group>
@@ -65,7 +72,7 @@ export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherPro
               <Group>
                 <Button
                   component={Link}
-                  href={`${entryHref("/timeline")}?tab=positions`}
+                  href={`${entryHref("/money")}?tab=assets`}
                   size="xs"
                 >
                   {t("openPositions")}
@@ -80,7 +87,7 @@ export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherPro
                 {t("addEventHint")}
               </Text>
               <Group>
-                <Button component={Link} href={`${entryHref("/timeline")}?tab=events`} size="xs">
+                <Button component={Link} href={`${entryHref("/money")}?tab=timeline`} size="xs">
                   {t("openEvents")}
                 </Button>
               </Group>

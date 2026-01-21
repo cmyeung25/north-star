@@ -13,7 +13,10 @@ export default function OverviewActionsCard({ scenarioId }: OverviewActionsCardP
     <Card withBorder radius="md" padding="md">
       <Stack gap="sm">
         <Title order={4}>{t("actionsTitle")}</Title>
-        <Button component={Link} href={buildScenarioUrl("/timeline", scenarioId)}>
+        <Button
+          component={Link}
+          href={`${buildScenarioUrl("/money", scenarioId)}&tab=timeline`}
+        >
           {t("actionsTimeline")}
         </Button>
         <Button

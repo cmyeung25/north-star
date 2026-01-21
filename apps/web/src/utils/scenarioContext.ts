@@ -25,6 +25,13 @@ export const resolveScenarioId = (
 };
 
 export const buildScenarioUrl = (
-  path: "/timeline" | "/overview" | "/stress" | "/settings" | "/money" | "/people",
+  path:
+    | "/timeline"
+    | "/overview"
+    | "/dashboard"
+    | "/stress"
+    | "/settings"
+    | "/money"
+    | "/people",
   scenarioId: string
 ) => `${path}?scenarioId=${scenarioId}`;

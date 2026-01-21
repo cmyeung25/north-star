@@ -175,7 +175,7 @@ export default function ScenariosPage() {
   };
 
   const handleOpenTimeline = (scenarioId: string) => {
-    router.push(`/${locale}${buildScenarioUrl("/timeline", scenarioId)}`);
+    router.push(`/${locale}${buildScenarioUrl("/money", scenarioId)}&tab=timeline`);
   };
 
   if (!selectedScenario && scenarios.length === 0) {

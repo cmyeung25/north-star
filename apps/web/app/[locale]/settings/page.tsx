@@ -1,12 +1,19 @@
-import PeopleClient from "../people/PeopleClient";
+import { redirect } from "next/navigation";
 
 type PageProps = {
+  params: { locale: string };
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-export default function Page({ searchParams }: PageProps) {
+export default function Page({ params, searchParams }: PageProps) {
   const scenarioId =
-    typeof searchParams?.scenarioId === "string" ? searchParams.scenarioId : undefined;
+    typeof searchParams?.scenarioId === "string" ? searchParams.scenarioId : "";
+  const query = new URLSearchParams();
+  if (scenarioId) {
+    query.set("scenarioId", scenarioId);
+  }
+  query.set("tab", "settings");
 
-  return <PeopleClient scenarioId={scenarioId} />;
+  const queryString = query.toString();
+  redirect(`/${params.locale}/people${queryString ? `?${queryString}` : ""}`);
 }
