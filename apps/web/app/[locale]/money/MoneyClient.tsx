@@ -4,6 +4,7 @@ import { Button, Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/co
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { Link } from "../../../src/i18n/navigation";
+import MoneyEntryLauncher from "../../../components/entry/MoneyEntryLauncher";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
@@ -42,6 +43,8 @@ export default function MoneyClient({ scenarioId }: MoneyClientProps) {
           {t("subtitle")}
         </Text>
       </Stack>
+
+      <MoneyEntryLauncher scenarioId={scenarioIdValue ?? null} />
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="xs">

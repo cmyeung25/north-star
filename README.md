@@ -42,6 +42,12 @@ pnpm typecheck
 pnpm test
 ```
 
+### Run the web app
+
+```
+pnpm --filter @north-star/web dev
+```
+
 ## High-level architecture
 
 - **apps/web** provides the PWA shell and UI surfaces.

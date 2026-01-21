@@ -119,10 +119,6 @@ export default function ProjectionDetailsModal({
   const netWorthBreakdown = resolvedMonth
     ? netWorthBreakdownByMonth?.[resolvedMonth]
     : undefined;
-  const positionCashflow = positionItems.reduce(
-    (total, item) => total + item.amount,
-    0
-  );
   const doubleCountingWarning = hasDoubleCountingWarning(monthItems);
   const sortedItems = [...monthItems].sort(
     (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
@@ -131,6 +127,20 @@ export default function ProjectionDetailsModal({
   const eventItems = sortedItems.filter((item) => item.source === "event");
   const otherItems = sortedItems.filter(
     (item) => item.source !== "budget" && item.source !== "event"
+  );
+  const otherItemsAreSmartInvest =
+    otherItems.length > 0 && otherItems.every((item) => item.source === "smartInvest");
+  const positionItemsAreInvestments =
+    positionItems.length > 0 &&
+    positionItems.every((item) => item.sourceId?.startsWith("investment:"));
+  const shouldMergeSmartInvest =
+    otherItemsAreSmartInvest && positionItemsAreInvestments;
+  const mergedPositionItems = shouldMergeSmartInvest
+    ? [...positionItems, ...otherItems]
+    : positionItems;
+  const mergedPositionTotal = mergedPositionItems.reduce(
+    (total, item) => total + item.amount,
+    0
   );
   const sections = [
     {
@@ -147,17 +157,19 @@ export default function ProjectionDetailsModal({
     },
     {
       key: "other",
-      label: t("breakdownSectionOther"),
+      label: otherItemsAreSmartInvest
+        ? t("breakdownSectionSmartInvest")
+        : t("breakdownSectionOther"),
       total: monthSummary.bySource.other,
       items: otherItems,
-      hidden: otherItems.length === 0,
+      hidden: otherItems.length === 0 || shouldMergeSmartInvest,
     },
     {
       key: "position",
       label: t("breakdownSectionPosition"),
-      total: positionCashflow,
-      items: positionItems,
-      hidden: positionItems.length === 0,
+      total: mergedPositionTotal,
+      items: mergedPositionItems,
+      hidden: mergedPositionItems.length === 0,
     },
   ];
   const hasItems = monthItems.length > 0 || positionItems.length > 0;
@@ -308,7 +320,7 @@ export default function ProjectionDetailsModal({
                     <Text size="xs" c="dimmed">
                       {t("breakdownPositionTotal")}
                     </Text>
-                    <Text fw={600}>{formatValue(positionCashflow)}</Text>
+                    <Text fw={600}>{formatValue(mergedPositionTotal)}</Text>
                   </Stack>
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">

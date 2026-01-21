@@ -49,6 +49,7 @@ export type ScenarioEventRef = {
   refId: string;
   enabled: boolean;
   overrides?: EventRuleOverrides;
+  highlighted?: boolean;
 };
 
 export type ScenarioEventView = {

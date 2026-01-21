@@ -527,7 +527,7 @@ export const createCashBucketPositionId = () => `cash-${nanoid(8)}`;
 export const createMemberId = () => `member-${nanoid(8)}`;
 export const createBudgetRuleId = () => `budget-${nanoid(8)}`;
 
-const DEFAULT_MEMBER_NAME = "本人";
+const DEFAULT_MEMBER_NAME = "主要成員";
 
 const normalizeApplyScope = (applyScope?: ApplyScope): ApplyScope =>
   applyScope ?? { scope: "all" };
@@ -544,6 +544,7 @@ const normalizeMembers = (members?: ScenarioMember[]): ScenarioMember[] => {
   if (members && members.length > 0) {
     return members.map((member) => ({
       ...member,
+      name: member.name.trim() === "本人" ? DEFAULT_MEMBER_NAME : member.name,
       applyScope: normalizeApplyScope(member.applyScope),
       milestones: normalizeMemberMilestones(member.milestones),
     }));
@@ -658,6 +659,7 @@ const migrateGlobalBudgetRules = (
 const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
   eventRefs?.map((ref) => ({
     ...ref,
+    highlighted: ref.highlighted ?? false,
     overrides: ref.overrides ? { ...ref.overrides } : undefined,
   }));
 
@@ -941,7 +943,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     scenario.positions,
     scenario.assumptions?.baseMonth
   );
-  const normalizedEventRefs = scenario.eventRefs ?? [];
+  const normalizedEventRefs = cloneEventRefs(scenario.eventRefs) ?? [];
   const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
   const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
   const normalizedAssumptions = {
@@ -1201,6 +1203,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         const nextRef: ScenarioEventRef = {
           refId: definition.id,
           enabled: true,
+          highlighted: false,
           overrides: overrides ? { ...overrides } : undefined,
         };
         return {

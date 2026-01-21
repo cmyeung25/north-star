@@ -15,9 +15,10 @@ import { appliesToScenario } from "../../../src/domain/applyScope";
 
 type TimelineClientProps = {
   scenarioId?: string;
+  initialTab?: string;
 };
 
-export default function TimelineClient({ scenarioId }: TimelineClientProps) {
+export default function TimelineClient({ scenarioId, initialTab }: TimelineClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
@@ -119,6 +120,11 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
     budgetRules,
     }
   );
+  const resolvedTab = ["events", "positions", "overview", "allocation"].includes(
+    initialTab ?? ""
+  )
+    ? (initialTab as "events" | "positions" | "overview" | "allocation")
+    : undefined;
 
   if (!scenario) {
     return null;
@@ -145,7 +151,11 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         onAddDefinition={(definition, scenarioIds) => {
           if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
             addEventDefinition(definition);
-            addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+            addScenarioEventRef(scenario.id, {
+              refId: definition.id,
+              enabled: true,
+              highlighted: false,
+            });
             return;
           }
           addEventToScenarios(definition, scenarioIds);
@@ -191,6 +201,7 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
         onMergeDuplicates={(cluster, baseDefinitionId) =>
           mergeDuplicateEvents(cluster, baseDefinitionId)
         }
+        initialTab={resolvedTab}
       />
     );
   }
@@ -215,7 +226,11 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       onAddDefinition={(definition, scenarioIds) => {
         if (scenarioIds.length <= 1 && scenarioIds[0] === scenario.id) {
           addEventDefinition(definition);
-          addScenarioEventRef(scenario.id, { refId: definition.id, enabled: true });
+          addScenarioEventRef(scenario.id, {
+            refId: definition.id,
+            enabled: true,
+            highlighted: false,
+          });
           return;
         }
         addEventToScenarios(definition, scenarioIds);
@@ -259,9 +274,10 @@ export default function TimelineClient({ scenarioId }: TimelineClientProps) {
       onCopySmartInvestToScenarios={(scenarioIds) =>
         copySmartInvestToScenarios(scenario.id, scenarioIds)
       }
-      onMergeDuplicates={(cluster, baseDefinitionId) =>
-        mergeDuplicateEvents(cluster, baseDefinitionId)
-      }
-    />
+    onMergeDuplicates={(cluster, baseDefinitionId) =>
+      mergeDuplicateEvents(cluster, baseDefinitionId)
+    }
+    initialTab={resolvedTab}
+  />
   );
 }

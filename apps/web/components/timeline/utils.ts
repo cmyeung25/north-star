@@ -238,6 +238,7 @@ export const createGroupDefinition = (
 export const createScenarioEventRef = (definitionId: string): ScenarioEventRef => ({
   refId: definitionId,
   enabled: true,
+  highlighted: false,
 });
 
 export const createDefinitionCopy = (definition: EventDefinition, title: string) => ({
