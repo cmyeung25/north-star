@@ -266,35 +266,39 @@ export default function MoneyClient({ scenarioId, initialTab }: MoneyClientProps
           return (
             <Card key={event.id} withBorder radius="md" padding="sm">
               <Group justify="space-between" align="flex-start" wrap="wrap">
-                <Stack gap={2}>
-                  <Text fw={600}>{displayLabel}</Text>
-                  <Text size="xs" c="dimmed">
-                    {t("eventMeta", { member: memberLabel, month: event.startMonth })}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {t("eventAmount", { amount: amountLabel })}
-                  </Text>
-                  {overlapBadge && (
-                    <Badge color="yellow" variant="light">
-                      {t("overlapWarning")}
-                    </Badge>
+                <Group>
+                  {options.showHighlightToggle && scenarioIdValue && (
+                    <Button
+                      size="xs"
+                      variant={view.ref.highlighted ? "light" : "subtle"}
+                      color={view.ref.highlighted ? "yellow" : "gray"}
+                      onClick={() =>
+                        updateScenarioEventRef(scenarioIdValue, view.ref.refId, {
+                          highlighted: !view.ref.highlighted,
+                        })
+                      }
+                      aria-label={timelineText("highlightToggle")}
+                    >
+                      {view.ref.highlighted ? "★" : "☆"}
+                    </Button>
                   )}
-                </Stack>
-                {options.showHighlightToggle && scenarioIdValue && (
-                  <Button
-                    size="xs"
-                    variant={view.ref.highlighted ? "light" : "subtle"}
-                    color={view.ref.highlighted ? "yellow" : "gray"}
-                    onClick={() =>
-                      updateScenarioEventRef(scenarioIdValue, view.ref.refId, {
-                        highlighted: !view.ref.highlighted,
-                      })
-                    }
-                    aria-label={timelineText("highlightToggle")}
-                  >
-                    {view.ref.highlighted ? "★" : "☆"}
-                  </Button>
-                )}
+                  <Stack gap={2}>
+                    <Text fw={600}>{displayLabel}</Text>
+                    <Text size="xs" c="dimmed">
+                      {t("eventMeta", { member: memberLabel, month: event.startMonth })}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {t("eventAmount", { amount: amountLabel })}
+                    </Text>
+                    {overlapBadge && (
+                      <Badge color="yellow" variant="light">
+                        {t("overlapWarning")}
+                      </Badge>
+                    )}
+                  </Stack>
+                </Group>
+                
+                
                 {options.showEditButton && (
                   <Button
                     size="xs"
