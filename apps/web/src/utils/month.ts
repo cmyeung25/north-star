@@ -71,3 +71,30 @@ export const normalizeMonthInput = (
     month: `${yearPart}-${monthPart.padStart(2, "0")}`,
   };
 };
+
+export type OnboardingMonthNormalization =
+  | { ok: true; month?: string }
+  | { ok: false; reason: string };
+
+export const normalizeOnboardingMonth = (
+  value: string | null | undefined,
+  fallback?: string | null
+): OnboardingMonthNormalization => {
+  const trimmed = (value ?? "").trim();
+  if (trimmed === "") {
+    if (!fallback) {
+      return { ok: true, month: undefined };
+    }
+    const normalizedFallback = normalizeMonthStrict(fallback);
+    if (!normalizedFallback.ok) {
+      return { ok: false, reason: normalizedFallback.reason };
+    }
+    return { ok: true, month: normalizedFallback.month };
+  }
+
+  const normalized = normalizeMonthStrict(trimmed);
+  if (!normalized.ok) {
+    return { ok: false, reason: normalized.reason };
+  }
+  return { ok: true, month: normalized.month };
+};
