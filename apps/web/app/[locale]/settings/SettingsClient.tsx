@@ -229,7 +229,14 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
           ? timelineText("smartInvestContributionSurplus", {
               pct: smartInvestPolicy.contribution.pct ?? 0,
             })
-          : timelineText("smartInvestContributionRebalance");
+          : smartInvestPolicy.contribution.mode === "excessCash"
+            ? timelineText("smartInvestContributionExcessSummary", {
+                pct: smartInvestPolicy.contribution.investPct ?? 100,
+                threshold: formatCurrency(
+                  smartInvestPolicy.contribution.thresholdAmount ?? 0
+                ),
+              })
+            : timelineText("smartInvestContributionRebalance");
     const allocationValue = smartInvestPolicy.allocation
       .map((allocation) =>
         timelineText("smartInvestAllocationItem", {

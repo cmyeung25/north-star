@@ -20,6 +20,7 @@ export type SmartInvestPolicy = {
   contribution:
     | { mode: "percentOfIncome"; pct: number }
     | { mode: "percentOfSurplus"; pct: number }
+    | { mode: "excessCash"; investPct: number; thresholdAmount: number }
     | { mode: "rebalance" };
   allocation: SmartInvestAllocation[];
   allocationProfiles?: SmartInvestAllocationProfile[];

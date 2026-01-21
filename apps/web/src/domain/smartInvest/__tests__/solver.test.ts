@@ -3,6 +3,7 @@ import type { SmartInvestPolicy } from "../types";
 import {
   compileAllocationWeightsByMonth,
   computeReserveTargetByMonth,
+  solveExcessCashTransferPlan,
   solveRebalanceSchedule,
   solveWithdrawalsToMaintainReserve,
 } from "../solver";
@@ -155,5 +156,89 @@ describe("smartInvest solver", () => {
       2
     );
     expect(schedule.withdrawalsByBucketId.core?.[0]?.amount ?? 0).toBeCloseTo(30, 2);
+  });
+
+  it("invests excess cash above reserve with threshold and pct", () => {
+    const plan = solveExcessCashTransferPlan({
+      months: ["2024-01"],
+      cashBalances: [2000],
+      reserveTargets: [1000],
+      allocationBalancesById: {
+        core: [500],
+        satellite: [500],
+      },
+      weightsById: {
+        core: [0.6],
+        satellite: [0.4],
+      },
+      investPct: 50,
+      thresholdAmount: 200,
+      allowWithdrawals: true,
+      allowContributions: true,
+    });
+
+    const totalContributions = Object.values(plan.contributionScheduleByBucketId)
+      .flat()
+      .reduce((sum, entry) => sum + entry.amount, 0);
+
+    expect(totalContributions).toBeCloseTo(500, 2);
+    expect(plan.contributionScheduleByBucketId.core?.[0]?.amount ?? 0).toBeCloseTo(
+      300,
+      2
+    );
+    expect(plan.contributionScheduleByBucketId.satellite?.[0]?.amount ?? 0).toBeCloseTo(
+      200,
+      2
+    );
+  });
+
+  it("skips transfers when cash is within the reserve band", () => {
+    const plan = solveExcessCashTransferPlan({
+      months: ["2024-01"],
+      cashBalances: [1050],
+      reserveTargets: [1000],
+      allocationBalancesById: {
+        core: [500],
+      },
+      weightsById: {
+        core: [1],
+      },
+      investPct: 100,
+      thresholdAmount: 100,
+      allowWithdrawals: true,
+      allowContributions: true,
+    });
+
+    expect(Object.values(plan.contributionScheduleByBucketId).flat().length).toBe(0);
+    expect(Object.values(plan.withdrawalScheduleByBucketId).flat().length).toBe(0);
+  });
+
+  it("withdraws up to available assets and reports shortfalls", () => {
+    const plan = solveExcessCashTransferPlan({
+      months: ["2024-01"],
+      cashBalances: [0],
+      reserveTargets: [1000],
+      allocationBalancesById: {
+        core: [200],
+        satellite: [100],
+      },
+      weightsById: {
+        core: [0.5],
+        satellite: [0.5],
+      },
+      investPct: 100,
+      thresholdAmount: 0,
+      allowWithdrawals: true,
+      allowContributions: true,
+    });
+
+    const totalWithdrawals = Object.values(plan.withdrawalScheduleByBucketId)
+      .flat()
+      .reduce((sum, entry) => sum + entry.amount, 0);
+
+    expect(totalWithdrawals).toBeCloseTo(300, 2);
+    expect(plan.shortfallsByMonth).toEqual([
+      { month: "2024-01", shortfall: 1000, available: 300 },
+    ]);
   });
 });

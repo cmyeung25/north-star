@@ -29,6 +29,7 @@ import type { CashflowItem } from "../domain/ledger/types";
 import { normalizeMonthStrict } from "../utils/month";
 import { compileSmartInvest } from "../domain/smartInvest/compileSmartInvest";
 import type {
+  SmartInvestContributionSchedule,
   SmartInvestRebalanceSchedule,
   SmartInvestWithdrawalSchedule,
 } from "../domain/smartInvest/solver";
@@ -44,6 +45,7 @@ type AdapterOptions = {
   budgetRules?: BudgetRule[];
   smartInvestWithdrawalSchedules?: SmartInvestWithdrawalSchedule;
   smartInvestRebalanceSchedules?: SmartInvestRebalanceSchedule;
+  smartInvestContributionSchedules?: SmartInvestContributionSchedule;
 };
 
 export type AdapterWarning = {
@@ -493,6 +495,7 @@ export const mapScenarioToEngineInput = (
             month: entry.month,
             amount: entry.amount,
           })),
+          contributionScheduleByAllocation: options.smartInvestContributionSchedules,
           withdrawalScheduleByAllocation: options.smartInvestWithdrawalSchedules,
           rebalanceScheduleByAllocation: options.smartInvestRebalanceSchedules,
         })
