@@ -115,4 +115,54 @@ describe("smartInvest projection integration", () => {
       withWithdrawals.cashBalance[1] === withoutWithdrawals.cashBalance[1]
     ).toBe(false);
   });
+
+  it("invests excess cash when excess-cash mode is enabled", () => {
+    const baseScenario = buildScenario();
+    const scenarioWithExcessCash = buildScenario({
+      assumptions: {
+        ...baseScenario.assumptions,
+        initialCash: 0,
+        smartInvest: {
+          ...baseScenario.assumptions.smartInvest!,
+          reserve: { mode: "fixed", amount: 1000 },
+          contribution: {
+            mode: "excessCash",
+            investPct: 100,
+            thresholdAmount: 0,
+          },
+          withdrawal: {
+            enabled: false,
+            mode: "sellToMaintainReserve",
+            sellOrder: "proRata",
+          },
+        },
+      },
+    });
+    const scenarioWithoutSmartInvest = buildScenario({
+      assumptions: {
+        ...baseScenario.assumptions,
+        initialCash: 0,
+        smartInvest: {
+          ...baseScenario.assumptions.smartInvest!,
+          enabled: false,
+        },
+      },
+    });
+
+    const { projection: withExcessCash } = computeProjectionWithSmartInvest(
+      scenarioWithExcessCash,
+      eventLibrary
+    );
+    const { projection: withoutSmartInvest } = computeProjectionWithSmartInvest(
+      scenarioWithoutSmartInvest,
+      eventLibrary
+    );
+
+    expect(withExcessCash.cashBalance[0]).not.toEqual(
+      withoutSmartInvest.cashBalance[0]
+    );
+    expect(withExcessCash.cashBalance[0] < withoutSmartInvest.cashBalance[0]).toBe(
+      true
+    );
+  });
 });

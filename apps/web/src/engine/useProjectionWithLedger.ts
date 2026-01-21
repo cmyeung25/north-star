@@ -22,12 +22,11 @@ import {
 import {
   computeReserveTargetByMonth,
   compileAllocationWeightsByMonth,
-  formatRebalanceScheduleKey,
-  formatWithdrawalScheduleKey,
   getSmartInvestAssetKey,
   normalizeAllocations,
+  solveExcessCashTransferPlan,
   solveRebalanceSchedule,
-  solveWithdrawalsToMaintainReserve,
+  type SmartInvestContributionSchedule,
   type SmartInvestRebalanceSchedule,
   type SmartInvestWithdrawalSchedule,
 } from "../domain/smartInvest/solver";
@@ -333,10 +332,9 @@ export const computeProjectionWithSmartInvest = (
 
   let withdrawalSchedule: SmartInvestWithdrawalSchedule = {};
   let rebalanceSchedule: SmartInvestRebalanceSchedule | null = null;
-  let previousKey = formatWithdrawalScheduleKey(withdrawalSchedule);
-  let previousRebalanceKey = formatRebalanceScheduleKey(rebalanceSchedule);
-  let projectionNeedsUpdate = false;
+  let contributionSchedule: SmartInvestContributionSchedule | null = null;
   let withdrawalWarnings: AdapterWarning[] = [];
+  let passCount = 1;
 
   const getAllocationBalancesById = () => {
     const assetsByKey = projection.breakdown?.assets.assetsByKey ?? {};
@@ -351,112 +349,111 @@ export const computeProjectionWithSmartInvest = (
     }, {});
   };
 
-  const getCashBalancesForSolve = (schedule: SmartInvestWithdrawalSchedule) => {
-    const indexLookup = new Map(
-      projection.months.map((month, index) => [month, index])
-    );
-    const totalsByMonth = projection.months.map(() => 0);
-    Object.values(schedule).forEach((entries) => {
-      entries.forEach((entry) => {
-        const index = indexLookup.get(entry.month);
-        if (index === undefined) {
-          return;
-        }
-        totalsByMonth[index] += entry.amount;
-      });
+  const weightsByMonth = compileAllocationWeightsByMonth(
+    smartInvestPolicy.allocationProfiles && smartInvestPolicy.allocationProfiles.length > 0
+      ? smartInvestPolicy.allocationProfiles
+      : [
+          {
+            id: "default",
+            name: "default",
+            startMonth: input.baseMonth,
+            allocation: smartInvestPolicy.allocation,
+          },
+        ],
+    input.baseMonth,
+    input.horizonMonths
+  );
+
+  const allocationBalancesById = getAllocationBalancesById();
+  const excessCashContribution =
+    smartInvestPolicy.contribution.mode === "excessCash"
+      ? smartInvestPolicy.contribution
+      : null;
+  const isExcessCashMode = Boolean(excessCashContribution);
+  const excessCashInvestPct = excessCashContribution?.investPct ?? 100;
+  const excessCashThreshold = excessCashContribution?.thresholdAmount ?? 0;
+
+  if (isExcessCashMode || smartInvestPolicy.withdrawal.enabled) {
+    const transferPlan = solveExcessCashTransferPlan({
+      months: projection.months,
+      cashBalances: projection.cashBalance,
+      reserveTargets,
+      allocationBalancesById,
+      weightsById: weightsByMonth.weightsById,
+      investPct: isExcessCashMode ? excessCashInvestPct : 0,
+      thresholdAmount: isExcessCashMode ? excessCashThreshold : 0,
+      allowWithdrawals: smartInvestPolicy.withdrawal.enabled,
+      allowContributions: isExcessCashMode,
     });
-    return projection.cashBalance.map(
-      (balance, index) => balance - (totalsByMonth[index] ?? 0)
-    );
+    if (smartInvestPolicy.withdrawal.enabled) {
+      withdrawalSchedule = transferPlan.withdrawalScheduleByBucketId;
+    }
+    if (isExcessCashMode) {
+      contributionSchedule = transferPlan.contributionScheduleByBucketId;
+    }
+    withdrawalWarnings = transferPlan.shortfallsByMonth.map((shortfall) => ({
+      code: "smart-invest-reserve-shortfall",
+      message: "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
+      meta: shortfall,
+    }));
+  }
+
+  const hasWithdrawalSchedule =
+    Object.values(withdrawalSchedule).flat().length > 0;
+  const hasContributionSchedule =
+    Boolean(contributionSchedule) &&
+    Object.values(contributionSchedule ?? {}).flat().length > 0;
+
+  const runProjectionPass = (params: {
+    smartInvestContributionSchedules?: SmartInvestContributionSchedule;
+    smartInvestWithdrawalSchedules?: SmartInvestWithdrawalSchedule;
+    smartInvestRebalanceSchedules?: SmartInvestRebalanceSchedule;
+  }) => {
+    if (passCount >= maxPasses) {
+      return;
+    }
+    const result = mapScenarioToEngineInput(scenario, eventLibrary, {
+      strict: false,
+      members,
+      budgetRules,
+      smartInvestContributionSchedules: params.smartInvestContributionSchedules,
+      smartInvestWithdrawalSchedules: params.smartInvestWithdrawalSchedules,
+      smartInvestRebalanceSchedules: params.smartInvestRebalanceSchedules,
+      horizonMonths: options.horizonMonths,
+    });
+    input = result.input;
+    warnings = result.warnings;
+    projection = computeProjection(result.input);
+    passCount += 1;
   };
 
-  for (let pass = 0; pass < maxPasses; pass += 1) {
-    const allocationBalancesById = getAllocationBalancesById();
-    let nextWithdrawalSchedule = withdrawalSchedule;
-    let nextRebalanceSchedule: SmartInvestRebalanceSchedule | null = rebalanceSchedule;
-    let nextWithdrawalKey = previousKey;
-    let nextRebalanceKey = previousRebalanceKey;
-
-    if (smartInvestPolicy.withdrawal.enabled) {
-      const nextResult = solveWithdrawalsToMaintainReserve({
-        months: projection.months,
-        cashBalances: getCashBalancesForSolve(withdrawalSchedule),
-        reserveTargets,
-        allocationBalancesById,
-      });
-      nextWithdrawalSchedule = nextResult.scheduleByBucketId;
-      withdrawalWarnings = nextResult.shortfallsByMonth.map((shortfall) => ({
-        code: "smart-invest-reserve-shortfall",
-        message:
-          "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
-        meta: shortfall,
-      }));
-      nextWithdrawalKey = formatWithdrawalScheduleKey(nextWithdrawalSchedule);
-    }
-
-    if (smartInvestPolicy.contribution.mode === "rebalance") {
-      const weightsByMonth = compileAllocationWeightsByMonth(
-        smartInvestPolicy.allocationProfiles && smartInvestPolicy.allocationProfiles.length > 0
-          ? smartInvestPolicy.allocationProfiles
-          : [
-              {
-                id: "default",
-                name: "default",
-                startMonth: input.baseMonth,
-                allocation: smartInvestPolicy.allocation,
-              },
-            ],
-        input.baseMonth,
-        input.horizonMonths
-      );
-      nextRebalanceSchedule = solveRebalanceSchedule({
-        months: projection.months,
-        allocationBalancesById,
-        weightsById: weightsByMonth.weightsById,
-      });
-      nextRebalanceKey = formatRebalanceScheduleKey(nextRebalanceSchedule);
-    } else {
-      nextRebalanceSchedule = null;
-      nextRebalanceKey = formatRebalanceScheduleKey(nextRebalanceSchedule);
-    }
-
-    if (nextWithdrawalKey === previousKey && nextRebalanceKey === previousRebalanceKey) {
-      break;
-    }
-    withdrawalSchedule = nextWithdrawalSchedule;
-    rebalanceSchedule = nextRebalanceSchedule;
-    previousKey = nextWithdrawalKey;
-    previousRebalanceKey = nextRebalanceKey;
-    if (pass >= maxPasses - 1) {
-      projectionNeedsUpdate = true;
-      break;
-    }
-    const result = mapScenarioToEngineInput(scenario, eventLibrary, {
-      strict: false,
-      members,
-      budgetRules,
+  if (hasWithdrawalSchedule || hasContributionSchedule) {
+    runProjectionPass({
+      smartInvestContributionSchedules: contributionSchedule ?? undefined,
       smartInvestWithdrawalSchedules: withdrawalSchedule,
-      smartInvestRebalanceSchedules: rebalanceSchedule ?? undefined,
-      horizonMonths: options.horizonMonths,
     });
-    input = result.input;
-    warnings = result.warnings;
-    projection = computeProjection(result.input);
   }
 
-  if (projectionNeedsUpdate) {
-    const result = mapScenarioToEngineInput(scenario, eventLibrary, {
-      strict: false,
-      members,
-      budgetRules,
-      smartInvestWithdrawalSchedules: withdrawalSchedule,
-      smartInvestRebalanceSchedules: rebalanceSchedule ?? undefined,
-      horizonMonths: options.horizonMonths,
+  if (smartInvestPolicy.contribution.mode === "rebalance") {
+    const updatedAllocationBalancesById = getAllocationBalancesById();
+    const candidateSchedule = solveRebalanceSchedule({
+      months: projection.months,
+      allocationBalancesById: updatedAllocationBalancesById,
+      weightsById: weightsByMonth.weightsById,
     });
-    input = result.input;
-    warnings = result.warnings;
-    projection = computeProjection(result.input);
+    const hasRebalanceEntries =
+      Object.values(candidateSchedule.contributionsByBucketId).flat().length > 0 ||
+      Object.values(candidateSchedule.withdrawalsByBucketId).flat().length > 0;
+    rebalanceSchedule = hasRebalanceEntries ? candidateSchedule : null;
+    if (rebalanceSchedule) {
+      runProjectionPass({
+        smartInvestContributionSchedules: contributionSchedule ?? undefined,
+        smartInvestWithdrawalSchedules: withdrawalSchedule,
+        smartInvestRebalanceSchedules: rebalanceSchedule ?? undefined,
+      });
+    }
   }
+
   if (withdrawalWarnings.length > 0) {
     warnings = [...warnings, ...withdrawalWarnings];
   }

@@ -7,6 +7,7 @@ import {
   compileContributionSeries,
   computeReserveTargetByMonth,
   getSmartInvestInvestmentId,
+  type SmartInvestContributionSchedule,
   type SmartInvestRebalanceSchedule,
   type SmartInvestWithdrawalSchedule,
 } from "./solver";
@@ -23,6 +24,7 @@ type CompileSmartInvestParams = {
   scenario: Scenario;
   policy: SmartInvestPolicy;
   baselineCashflows: BaselineCashflowEntry[];
+  contributionScheduleByAllocation?: SmartInvestContributionSchedule;
   withdrawalScheduleByAllocation?: SmartInvestWithdrawalSchedule;
   rebalanceScheduleByAllocation?: SmartInvestRebalanceSchedule;
 };
@@ -66,6 +68,7 @@ export const compileSmartInvest = ({
   scenario,
   policy,
   baselineCashflows,
+  contributionScheduleByAllocation,
   withdrawalScheduleByAllocation,
   rebalanceScheduleByAllocation,
 }: CompileSmartInvestParams): EngineInvestment[] => {
@@ -103,14 +106,20 @@ export const compileSmartInvest = ({
     policy.reserve,
     monthlyTotals.map((entry) => entry.outflow)
   );
-  const contributions = compileContributionSeries({
-    policy,
-    months,
-    monthlyTotals,
-    reserveTargets,
-    weightsById: weightsByMonth.weightsById,
-    initialCash: scenario.assumptions.initialCash ?? 0,
-  });
+  const contributions =
+    contributionScheduleByAllocation
+      ? {
+          totalByMonth: Array.from({ length: months.length }, () => 0),
+          contributionsByBucketId: contributionScheduleByAllocation,
+        }
+      : compileContributionSeries({
+          policy,
+          months,
+          monthlyTotals,
+          reserveTargets,
+          weightsById: weightsByMonth.weightsById,
+          initialCash: scenario.assumptions.initialCash ?? 0,
+        });
 
   return Object.values(allocationMeta).map((allocation) => {
     const contributionSchedule = contributions.contributionsByBucketId[allocation.id];

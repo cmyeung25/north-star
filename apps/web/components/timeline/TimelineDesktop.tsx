@@ -243,7 +243,16 @@ export default function TimelineDesktop({
           ? t("smartInvestContributionSurplus", {
               pct: smartInvestPolicy.contribution.pct ?? 0,
             })
-          : t("smartInvestContributionRebalance");
+          : smartInvestPolicy.contribution.mode === "excessCash"
+            ? t("smartInvestContributionExcessSummary", {
+                pct: smartInvestPolicy.contribution.investPct ?? 100,
+                threshold: formatCurrency(
+                  smartInvestPolicy.contribution.thresholdAmount ?? 0,
+                  baseCurrency,
+                  locale
+                ),
+              })
+            : t("smartInvestContributionRebalance");
     const allocationValue = smartInvestPolicy.allocation
       .map((allocation) =>
         t("smartInvestAllocationItem", {
