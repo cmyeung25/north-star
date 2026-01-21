@@ -579,6 +579,75 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
     [scenarios]
   );
 
+  const baseMonth = appSettings.globalBaseMonth;
+  const horizonMonths = appSettings.globalHorizonMonths;
+  const scopedBudgetRules = scenario
+    ? budgetRules.filter((rule) => appliesToScenario(rule.applyScope, scenario.id))
+    : [];
+  const hasHousingRules = scopedBudgetRules.some((rule) =>
+    isHousingCategory(rule.category)
+  );
+  const horizonValue = horizonOptions.some(
+    (option) => Number(option.value) === horizonMonths
+  )
+    ? String(horizonMonths)
+    : "240";
+  const horizonEndMonth =
+    baseMonth && horizonMonths > 0
+      ? buildMonthRange(baseMonth, horizonMonths).at(-1) ?? null
+      : null;
+  const formatAgeYears = (value: number) =>
+    Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+  const buildZeroPreview = useCallback(
+    (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
+      if (!baseMonth || horizonMonths <= 0) {
+        return [];
+      }
+      return buildMonthRange(baseMonth, horizonMonths).map(
+        (month) => ({
+          month,
+          amount: 0,
+          source: "budget",
+          sourceId: rule.id,
+          memberId: rule.memberId,
+          label: rule.name,
+          category: rule.category,
+        })
+      );
+    },
+    [baseMonth, horizonMonths]
+  );
+  const budgetCategoryLabels: Record<string, string> = {
+    health: budgetText("categoryHealth"),
+    childcare: budgetText("categoryChildcare"),
+    education: budgetText("categoryEducation"),
+    eldercare: budgetText("categoryEldercare"),
+    petcare: budgetText("categoryPetcare"),
+  };
+  const formatApplyScopeLabel = (applyScope: ApplyScope | undefined) => {
+    const scope = applyScope?.scope ?? "all";
+    if (scope === "include") {
+      return common("applyScopeInclude");
+    }
+    if (scope === "exclude") {
+      return common("applyScopeExclude");
+    }
+    return common("applyScopeAll");
+  };
+
+  const expandedRule = useMemo(
+    () => budgetRules.find((rule) => rule.id === expandedBudgetRuleId) ?? null,
+    [budgetRules, expandedBudgetRuleId]
+  );
+  const expandedRulePreview = useMemo(() => {
+    if (!expandedRule || !scenario) {
+      return [];
+    }
+    return expandedRule.enabled
+      ? compileBudgetRuleToMonthlySeries(expandedRule, scenario, members)
+      : buildZeroPreview(expandedRule);
+  }, [buildZeroPreview, expandedRule, members, scenario]);
+
   if (!scenario) {
     return (
       <Stack gap="lg">
@@ -606,71 +675,6 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   }
 
   const { assumptions } = scenario;
-  const baseMonth = appSettings.globalBaseMonth;
-  const horizonMonths = appSettings.globalHorizonMonths;
-  const scopedBudgetRules = budgetRules.filter((rule) =>
-    appliesToScenario(rule.applyScope, scenario.id)
-  );
-  const hasHousingRules = scopedBudgetRules.some((rule) =>
-    isHousingCategory(rule.category)
-  );
-  const horizonValue = horizonOptions.some(
-    (option) => Number(option.value) === horizonMonths
-  )
-    ? String(horizonMonths)
-    : "240";
-  const horizonEndMonth =
-    baseMonth && horizonMonths > 0
-      ? buildMonthRange(baseMonth, horizonMonths).at(-1) ?? null
-      : null;
-  const formatAgeYears = (value: number) =>
-    Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
-  const buildZeroPreview = (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
-    if (!baseMonth || horizonMonths <= 0) {
-      return [];
-    }
-    return buildMonthRange(baseMonth, horizonMonths).map(
-      (month) => ({
-        month,
-        amount: 0,
-        source: "budget",
-        sourceId: rule.id,
-        memberId: rule.memberId,
-        label: rule.name,
-        category: rule.category,
-      })
-    );
-  };
-  const budgetCategoryLabels: Record<string, string> = {
-    health: budgetText("categoryHealth"),
-    childcare: budgetText("categoryChildcare"),
-    education: budgetText("categoryEducation"),
-    eldercare: budgetText("categoryEldercare"),
-    petcare: budgetText("categoryPetcare"),
-  };
-  const formatApplyScopeLabel = (applyScope: ApplyScope | undefined) => {
-    const scope = applyScope?.scope ?? "all";
-    if (scope === "include") {
-      return common("applyScopeInclude");
-    }
-    if (scope === "exclude") {
-      return common("applyScopeExclude");
-    }
-    return common("applyScopeAll");
-  };
-
-  const expandedRule = useMemo(
-    () => budgetRules.find((rule) => rule.id === expandedBudgetRuleId) ?? null,
-    [budgetRules, expandedBudgetRuleId]
-  );
-  const expandedRulePreview = useMemo(() => {
-    if (!expandedRule) {
-      return [];
-    }
-    return expandedRule.enabled
-      ? compileBudgetRuleToMonthlySeries(expandedRule, scenario, members)
-      : buildZeroPreview(expandedRule);
-  }, [expandedRule, members, scenario]);
 
   const lastSyncedLabel = cloudSummary?.lastSyncedAt
     ? common("lastSyncedAt", {

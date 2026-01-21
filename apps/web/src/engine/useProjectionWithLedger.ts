@@ -373,7 +373,7 @@ export const computeProjectionWithSmartInvest = (
   for (let pass = 0; pass < maxPasses; pass += 1) {
     const allocationBalancesById = getAllocationBalancesById();
     let nextWithdrawalSchedule = withdrawalSchedule;
-    let nextRebalanceSchedule = rebalanceSchedule;
+    let nextRebalanceSchedule: SmartInvestRebalanceSchedule | null = rebalanceSchedule;
     let nextWithdrawalKey = previousKey;
     let nextRebalanceKey = previousRebalanceKey;
 
@@ -575,17 +575,21 @@ export const useProjectionWithLedger = (
           ? buildSmartInvestProjectionBreakdown(
               projection,
               scenario.assumptions.smartInvest?.allocation
-            ).cashflowEntries.map((entry) => ({
-              month: entry.month,
-              amount: entry.amount,
-              source: "smartInvest" as const,
-              sourceId: entry.sourceId,
-              label: entry.label,
-              category: "smartInvest",
-              bucketId: entry.bucketId,
-              bucketName: entry.bucketName,
-              kind: entry.label === "withdrawal" ? "withdrawal" : "contribution",
-            }))
+            ).cashflowEntries.map((entry) => {
+              const kind: CashflowItem["kind"] =
+                entry.label === "withdrawal" ? "withdrawal" : "contribution";
+              return {
+                month: entry.month,
+                amount: entry.amount,
+                source: "smartInvest" as const,
+                sourceId: entry.sourceId,
+                label: entry.label,
+                category: "smartInvest",
+                bucketId: entry.bucketId,
+                bucketName: entry.bucketName,
+                kind,
+              };
+            })
           : [];
     const ledger = filterLedgerToHorizon(
       [...eventLedger, ...budgetLedger, ...smartInvestLedger],

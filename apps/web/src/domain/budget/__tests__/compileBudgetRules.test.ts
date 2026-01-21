@@ -42,9 +42,9 @@ describe("compileBudgetRuleToMonthlySeries", () => {
     const series = compileBudgetRuleToMonthlySeries(rule, scenario, members);
 
     expect(series).toHaveLength(3);
-    expect(series[0]?.amount ?? 0).toBeLessThan(0);
-    expect(Math.abs(series[1]?.amount ?? 0)).toBeGreaterThan(
-      Math.abs(series[0]?.amount ?? 0)
+    expect((series[0]?.amount ?? 0) < 0).toBe(true);
+    expect(Math.abs(series[1]?.amount ?? 0) > Math.abs(series[0]?.amount ?? 0)).toBe(
+      true
     );
   });
 });

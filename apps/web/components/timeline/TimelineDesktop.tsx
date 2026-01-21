@@ -272,7 +272,7 @@ export default function TimelineDesktop({
   }, [baseCurrency, locale, smartInvestBreakdown, smartInvestPolicy, t]);
   const projectionMonthIndex = 0;
   const assetValuesByKey = projection?.breakdown?.assets.assetsByKey ?? {};
-  const liabilityValuesByKey = projection?.breakdown?.liabilities.liabilitiesByKey ?? {};
+  const liabilityValuesByKey = projection?.breakdown?.assets.liabilitiesByKey ?? {};
   const formatValue = (value: number | null | undefined) =>
     typeof value === "number"
       ? formatCurrency(value, baseCurrency, locale)

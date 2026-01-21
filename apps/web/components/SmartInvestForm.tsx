@@ -158,13 +158,15 @@ export default function SmartInvestForm({ policy, onChange }: SmartInvestFormPro
             decimalScale={2}
             suffix="%"
             onChange={(value) =>
-              onChange({
-                ...policy,
-                contribution: {
-                  ...policy.contribution,
-                  pct: typeof value === "number" ? value : 0,
-                },
-              })
+              policy.contribution.mode === "rebalance"
+                ? undefined
+                : onChange({
+                    ...policy,
+                    contribution: {
+                      ...policy.contribution,
+                      pct: typeof value === "number" ? value : 0,
+                    },
+                  })
             }
           />
         )}

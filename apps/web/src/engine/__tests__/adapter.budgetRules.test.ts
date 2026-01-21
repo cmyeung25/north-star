@@ -45,7 +45,7 @@ describe("mapScenarioToEngineInput budget rules", () => {
       strict: false,
     });
 
-    expect(input.events.length).toBeGreaterThan(0);
+    expect(input.events.length > 0).toBe(true);
     expect(
       input.events.some(
         (event) =>
