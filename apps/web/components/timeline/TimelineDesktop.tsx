@@ -140,6 +140,7 @@ interface TimelineDesktopProps {
   ) => void;
   onCopySmartInvestToScenarios: (scenarioIds: string[]) => void;
   onMergeDuplicates: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
+  initialTab?: "events" | "positions" | "overview" | "allocation";
 }
 
 type CashflowModalState = {
@@ -196,6 +197,7 @@ export default function TimelineDesktop({
   onCopyPositionToScenarios,
   onCopySmartInvestToScenarios,
   onMergeDuplicates,
+  initialTab,
 }: TimelineDesktopProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
@@ -352,7 +354,7 @@ export default function TimelineDesktop({
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [activeTab, setActiveTab] = useState<
     "events" | "positions" | "overview" | "allocation"
-  >("events");
+  >(initialTab ?? "events");
   const [pendingScrollMonth, setPendingScrollMonth] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
@@ -589,6 +591,7 @@ export default function TimelineDesktop({
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>{t("tableEnabled")}</Table.Th>
+                      <Table.Th>{t("tableHighlight")}</Table.Th>
                       <Table.Th>{t("tableGroup")}</Table.Th>
                       <Table.Th>{t("tableType")}</Table.Th>
                       <Table.Th>{t("tableName")}</Table.Th>
@@ -609,7 +612,7 @@ export default function TimelineDesktop({
                       return (
                         <Fragment key={monthKey}>
                           <Table.Tr id={`month-${monthKey}`} data-month={monthKey}>
-                            <Table.Td colSpan={13}>
+                            <Table.Td colSpan={14}>
                               <UnstyledButton
                                 style={{ width: "100%" }}
                                 onClick={() => {
@@ -642,20 +645,46 @@ export default function TimelineDesktop({
 
                             return (
                               <Table.Tr key={view.definition.id}>
-                                <Table.Td>
-                                  <Switch
-                                    checked={view.ref.enabled}
-                                    onChange={(eventChange) =>
-                                      handleToggle(
-                                        view.definition.id,
-                                        eventChange.currentTarget.checked
-                                      )
+                              <Table.Td>
+                                <Switch
+                                  checked={view.ref.enabled}
+                                  onChange={(eventChange) =>
+                                    handleToggle(
+                                      view.definition.id,
+                                      eventChange.currentTarget.checked
+                                    )
+                                  }
+                                />
+                              </Table.Td>
+                              <Table.Td>
+                                {isGroup ? (
+                                  t("tablePlaceholder")
+                                ) : (
+                                  <Tooltip
+                                    label={
+                                      view.ref.highlighted
+                                        ? t("highlightOn")
+                                        : t("highlightOff")
                                     }
-                                  />
-                                </Table.Td>
-                                <Table.Td>
-                                  <Badge variant="light" color="gray">
-                                    {isGroup
+                                  >
+                                    <ActionIcon
+                                      variant={view.ref.highlighted ? "light" : "subtle"}
+                                      color={view.ref.highlighted ? "yellow" : "gray"}
+                                      onClick={() =>
+                                        onUpdateEventRef(view.definition.id, {
+                                          highlighted: !view.ref.highlighted,
+                                        })
+                                      }
+                                      aria-label={t("highlightToggle")}
+                                    >
+                                      {view.ref.highlighted ? "★" : "☆"}
+                                    </ActionIcon>
+                                  </Tooltip>
+                                )}
+                              </Table.Td>
+                              <Table.Td>
+                                <Badge variant="light" color="gray">
+                                  {isGroup
                                       ? t("groupLabel")
                                       : getEventGroupLabel(t, view.definition.type)}
                                   </Badge>

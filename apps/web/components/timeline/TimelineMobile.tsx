@@ -147,6 +147,7 @@ interface TimelineMobileProps {
   ) => void;
   onCopySmartInvestToScenarios: (scenarioIds: string[]) => void;
   onMergeDuplicates: (cluster: DuplicateCluster, baseDefinitionId: string) => void;
+  initialTab?: "events" | "positions" | "overview" | "allocation";
 }
 
 type CashflowModalState = {
@@ -204,6 +205,7 @@ export default function TimelineMobile({
   onCopyPositionToScenarios,
   onCopySmartInvestToScenarios,
   onMergeDuplicates,
+  initialTab,
 }: TimelineMobileProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
@@ -360,7 +362,7 @@ export default function TimelineMobile({
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [activeTab, setActiveTab] = useState<
     "events" | "positions" | "overview" | "allocation"
-  >("events");
+  >(initialTab ?? "events");
   const [pendingScrollMonth, setPendingScrollMonth] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
@@ -693,6 +695,28 @@ export default function TimelineMobile({
                                   }
                                   label={t("tableEnabled")}
                                 />
+                                {!isGroup && (
+                                  <Tooltip
+                                    label={
+                                      view.ref.highlighted
+                                        ? t("highlightOn")
+                                        : t("highlightOff")
+                                    }
+                                  >
+                                    <ActionIcon
+                                      variant={view.ref.highlighted ? "light" : "subtle"}
+                                      color={view.ref.highlighted ? "yellow" : "gray"}
+                                      onClick={() =>
+                                        onUpdateEventRef(view.definition.id, {
+                                          highlighted: !view.ref.highlighted,
+                                        })
+                                      }
+                                      aria-label={t("highlightToggle")}
+                                    >
+                                      {view.ref.highlighted ? "★" : "☆"}
+                                    </ActionIcon>
+                                  </Tooltip>
+                                )}
                               </Group>
 
                               <Group gap="xs">

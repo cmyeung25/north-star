@@ -25,6 +25,7 @@ const DEFAULT_INVESTMENT_RETURN_PCTS = {
   fund: 5,
   crypto: 8,
 } as const;
+const DEFAULT_MEMBER_NAME = "主要成員";
 
 const clampPct = (value: number, min = -100, max = 100) =>
   Math.min(Math.max(value, min), max);
@@ -82,7 +83,7 @@ export const applyOnboardingToScenario = (
   const members: ScenarioMember[] =
     draft.members.map((member) => ({
       id: member.id,
-      name: member.name.trim() || "本人",
+      name: member.name.trim() || DEFAULT_MEMBER_NAME,
       kind: member.kind as ScenarioMember["kind"],
     })) ?? [];
   const normalizedMembers: ScenarioMember[] =
@@ -91,7 +92,7 @@ export const applyOnboardingToScenario = (
       : [
           {
             id: createMemberId(),
-            name: "本人",
+            name: DEFAULT_MEMBER_NAME,
             kind: "person",
           },
         ];

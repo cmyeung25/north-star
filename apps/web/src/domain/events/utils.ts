@@ -50,6 +50,7 @@ export const buildTimelineEventFromDefinition = (
       endAtAgeYears: definition.endAtAgeYears,
       templateId: definition.templateId,
       templateParams: definition.templateParams,
+      highlighted: ref.highlighted ?? false,
     },
     {
       baseCurrency: options.baseCurrency,

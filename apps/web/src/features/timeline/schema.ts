@@ -37,6 +37,7 @@ export const TimelineEventSchema = z.object({
   endAtAgeYears: z.number().optional(),
   templateId: z.string().optional(),
   templateParams: z.record(z.number()).optional(),
+  highlighted: z.boolean().optional(),
   derived: z.boolean().optional(),
   sourceId: z.string().optional(),
 });
@@ -98,6 +99,7 @@ export const normalizeEvent = (
     endAtAgeYears: event.endAtAgeYears,
     templateId: event.templateId,
     templateParams: event.templateParams,
+    highlighted: event.highlighted,
     derived: event.derived,
     sourceId: event.sourceId,
   });

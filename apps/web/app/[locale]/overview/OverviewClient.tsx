@@ -32,6 +32,8 @@ import FullScreenChartModal, {
   type FullScreenChartType,
 } from "../../../components/FullScreenChartModal";
 import ProjectionDetailsModal from "../../../components/ProjectionDetailsModal";
+import RunwayDetailModal from "../../../components/metrics/RunwayDetailModal";
+import RiskDetailModal from "../../../components/metrics/RiskDetailModal";
 import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
 import KpiCard from "../../../features/overview/components/KpiCard";
 import KpiCarousel from "../../../features/overview/components/KpiCarousel";
@@ -48,6 +50,11 @@ import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLe
 import { useScenarioProjections } from "../../../src/engine/useScenarioProjections";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import {
+  buildRunwayNetCashflowSeries,
+  computeRunwaySimulation,
+} from "../../../src/domain/metrics/runway";
+import { computeRiskAssessment } from "../../../src/domain/metrics/risk";
+import {
   buildExportFilename,
   downloadTextFile,
   projectionToCSV,
@@ -62,6 +69,7 @@ import { Link } from "../../../src/i18n/navigation";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
 import { appliesToScenario } from "../../../src/domain/applyScope";
 import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
+import { normalizeMonthStrict } from "../../../src/utils/month";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -99,6 +107,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [viewMode, setViewMode] = useState<"single" | "compare">("single");
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
+  const [riskDetailOpen, setRiskDetailOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
   const [fullscreenChart, setFullscreenChart] = useState<{
     type: FullScreenChartType;
@@ -207,7 +217,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       }, {}),
     [netWorthSeries]
   );
-  const computedKpis = overviewViewModel?.kpis;
   const scenarioMembers = useMemo(
     () =>
       selectedScenario
@@ -242,11 +251,68 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     () =>
       selectedScenario
         ? buildScenarioTimelineEvents(selectedScenario, eventLibrary).filter(
-            (event) => event.enabled && !event.derived
+            (event) => event.enabled && !event.derived && event.highlighted
           )
         : [],
     [eventLibrary, selectedScenario]
   );
+  const assetMarkers = useMemo(() => {
+    if (!selectedScenario) {
+      return [];
+    }
+    const markers: Array<{ id: string; label: string; month: string; kind: string }> = [];
+    const pushMarker = (id: string, label: string, month?: string) => {
+      if (!month) {
+        return;
+      }
+      const normalized = normalizeMonthStrict(month);
+      if (!normalized.ok) {
+        return;
+      }
+      markers.push({ id, label, month: normalized.month, kind: "asset" });
+    };
+    const homes =
+      selectedScenario.positions?.homes ??
+      (selectedScenario.positions?.home ? [selectedScenario.positions.home] : []);
+    const cars = selectedScenario.positions?.cars ?? [];
+    const investments = selectedScenario.positions?.investments ?? [];
+
+    homes.forEach((home, index) => {
+      pushMarker(
+        `home-buy-${index}`,
+        t("timelineAssetBuyHome", { index: index + 1 }),
+        home.purchaseMonth
+      );
+      pushMarker(
+        `home-sell-${index}`,
+        t("timelineAssetSellHome", { index: index + 1 }),
+        home.sellMonth
+      );
+    });
+
+    cars.forEach((car, index) => {
+      pushMarker(
+        `car-buy-${index}`,
+        t("timelineAssetBuyCar", { index: index + 1 }),
+        car.purchaseMonth
+      );
+      pushMarker(
+        `car-sell-${index}`,
+        t("timelineAssetSellCar", { index: index + 1 }),
+        car.sellMonth
+      );
+    });
+
+    investments.forEach((investment, index) => {
+      pushMarker(
+        `investment-buy-${index}`,
+        t("timelineAssetBuyInvestment", { index: index + 1 }),
+        investment.startMonth
+      );
+    });
+
+    return markers;
+  }, [selectedScenario, t]);
   const timelineStripMarkers = useMemo(() => {
     const markers: Array<{ id: string; label: string; month: string; kind: string }> = [];
     const baseMonth = projection?.baseMonth ?? months[0];
@@ -283,6 +349,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       });
     });
 
+    assetMarkers.forEach((marker) => {
+      markers.push(marker);
+    });
+
     return markers
       .filter((marker) => marker.month)
       .sort((a, b) => {
@@ -293,7 +363,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         }
         return aIndex - bIndex;
       });
-  }, [milestoneMarkers, monthIndexLookup, months, projection?.baseMonth, t, timelineEvents]);
+  }, [
+    assetMarkers,
+    milestoneMarkers,
+    monthIndexLookup,
+    months,
+    projection?.baseMonth,
+    t,
+    timelineEvents,
+  ]);
   const memberLookup = useMemo(
     () =>
       Object.fromEntries(
@@ -451,6 +529,42 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     });
   }, [compareProjections, deflator, displayMode, globalHorizonMonths, snapshotTargets]);
 
+  const runwaySimulation = useMemo(() => {
+    if (!projection || !selectedScenario) {
+      return null;
+    }
+    const netCashflowSeries = buildRunwayNetCashflowSeries(projection);
+    const baseMonth =
+      appSettings.globalBaseMonth ??
+      projection.baseMonth ??
+      selectedScenario.assumptions.baseMonth ??
+      null;
+    const startingCash =
+      selectedScenario.assumptions.initialCash ??
+      projection.cashBalance[0] ??
+      0;
+    const withdrawableAssets =
+      (projection.assets?.investments?.[0] ?? 0) +
+      (projection.assets?.insurance?.[0] ?? 0);
+
+    return computeRunwaySimulation({
+      projection,
+      baseMonth,
+      startingCash,
+      withdrawableAssets,
+      horizonMonths: globalHorizonMonths,
+      netCashflowSeries,
+      traceMonths: 12,
+    });
+  }, [appSettings.globalBaseMonth, globalHorizonMonths, projection, selectedScenario]);
+
+  const riskAssessment = useMemo(() => {
+    if (!projection || !runwaySimulation) {
+      return null;
+    }
+    return computeRiskAssessment({ projection, runway: runwaySimulation });
+  }, [projection, runwaySimulation]);
+
 
   useEffect(() => {
     if (months.length === 0) {
@@ -472,11 +586,21 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       (event) => event.enabled
     ).length > 0;
 
+  const runwayValueLabel = (() => {
+    if (!runwaySimulation || runwaySimulation.months === null) {
+      return t("kpiRunwayUnavailable");
+    }
+    if (runwaySimulation.isCapped) {
+      return t("kpiRunwayCapped", { months: runwaySimulation.horizonMonths });
+    }
+    return t("kpiRunwayValue", { months: runwaySimulation.months });
+  })();
+
   const kpiItems = [
     {
       label: t("kpiLowestBalance"),
       value: formatCurrency(
-        computedKpis?.lowestMonthlyBalance ?? 0,
+        overviewViewModel?.kpis.lowestMonthlyBalance ?? 0,
         selectedScenario.baseCurrency,
         locale
       ),
@@ -486,29 +610,18 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     },
     {
       label: t("kpiRunway"),
-      value: t("kpiRunwayValue", { months: computedKpis?.runwayMonths ?? 0 }),
+      value: runwayValueLabel,
       helper: t("kpiRunwayHelper"),
-      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
-      detailsLabel: t("breakdownCta"),
-    },
-    {
-      label: t("kpiNetWorth"),
-      value: formatCurrency(
-        computedKpis?.netWorthYear5 ?? 0,
-        selectedScenario.baseCurrency,
-        locale
-      ),
-      helper: t("kpiNetWorthHelper"),
-      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
-      detailsLabel: t("breakdownCta"),
+      onDetails: projection ? () => setRunwayDetailOpen(true) : undefined,
+      detailsLabel: t("runwayDetailCta"),
     },
     {
       label: t("kpiRisk"),
-      value: common(`risk${computedKpis?.riskLevel ?? "Low"}`),
-      badgeLabel: common(`risk${computedKpis?.riskLevel ?? "Low"}`),
-      badgeColor: riskBadgeColor[computedKpis?.riskLevel ?? "Low"],
-      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
-      detailsLabel: t("breakdownCta"),
+      value: common(`risk${riskAssessment?.level ?? "Medium"}`),
+      badgeLabel: common(`risk${riskAssessment?.level ?? "Medium"}`),
+      badgeColor: riskBadgeColor[riskAssessment?.level ?? "Medium"],
+      onDetails: projection ? () => setRiskDetailOpen(true) : undefined,
+      detailsLabel: t("riskDetailCta"),
     },
   ];
 
@@ -781,7 +894,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       ) : (
         <>
           {isDesktop ? (
-            <SimpleGrid cols={4} spacing="md">
+            <SimpleGrid cols={3} spacing="md">
               {kpiItems.map((item) => (
                 <KpiCard key={item.label} {...item} />
               ))}
@@ -1011,6 +1124,21 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             netWorthBreakdownByMonth={netWorthBreakdownByMonth}
             currency={selectedScenario.baseCurrency}
             memberLookup={memberLookup}
+          />
+          <RunwayDetailModal
+            opened={runwayDetailOpen}
+            onClose={() => setRunwayDetailOpen(false)}
+            simulation={runwaySimulation}
+            currency={selectedScenario.baseCurrency}
+          />
+          <RiskDetailModal
+            opened={riskDetailOpen}
+            onClose={() => setRiskDetailOpen(false)}
+            assessment={riskAssessment}
+            onOpenRunwayDetails={() => {
+              setRiskDetailOpen(false);
+              setRunwayDetailOpen(true);
+            }}
           />
           <FullScreenChartModal
             opened={Boolean(fullscreenChart)}

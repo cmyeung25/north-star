@@ -228,16 +228,10 @@ export const solveExcessCashTransferPlan = ({
   const normalizedInvestPct = clamp(investPct, 0, 100) / 100;
   const normalizedThreshold = Math.max(0, thresholdAmount);
 
-  let runningCash = cashBalances[0] ?? 0;
+  let transferDelta = 0;
   months.forEach((month, index) => {
     const baselineBalance = cashBalances[index] ?? 0;
-    if (index === 0) {
-      runningCash = baselineBalance;
-    } else {
-      const previousBaseline = cashBalances[index - 1] ?? 0;
-      runningCash += baselineBalance - previousBaseline;
-    }
-    const cashBalance = runningCash;
+    const cashBalance = baselineBalance + transferDelta;
     const reserveTarget = reserveTargets[index] ?? 0;
 
     if (cashBalance < reserveTarget) {
@@ -262,7 +256,7 @@ export const solveExcessCashTransferPlan = ({
       const withdrawalAmount = Math.min(shortfall, totalBalance);
       withdrawalTotalsByMonth[index] = withdrawalAmount;
       transferSeries.push({ month, amount: withdrawalAmount, kind: "withdrawal" });
-      runningCash += withdrawalAmount;
+      transferDelta += withdrawalAmount;
       allocationBalances.forEach((entry) => {
         const amount = Math.min(
           entry.balance,
@@ -302,7 +296,7 @@ export const solveExcessCashTransferPlan = ({
     }
     contributionTotalsByMonth[index] = investAmount;
     transferSeries.push({ month, amount: -investAmount, kind: "contribution" });
-    runningCash -= investAmount;
+    transferDelta -= investAmount;
     allocationIds.forEach((id) => {
       const weight = (weightsById[id]?.[index] ?? 0) / totalWeight;
       const amount = investAmount * weight;

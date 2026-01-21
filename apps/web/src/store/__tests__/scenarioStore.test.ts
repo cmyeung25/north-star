@@ -30,6 +30,7 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
     {
       refId: "event-1",
       enabled: true,
+      highlighted: false,
     },
   ],
   positions: {

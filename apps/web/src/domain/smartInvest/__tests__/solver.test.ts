@@ -245,6 +245,30 @@ describe("smartInvest solver", () => {
     ]);
   });
 
+  it("keeps fixed reserve targets stable after withdrawals", () => {
+    const plan = solveExcessCashTransferPlan({
+      months: ["2024-01", "2024-02"],
+      cashBalances: [960000, 960000],
+      reserveTargets: [1000000, 1000000],
+      allocationBalancesById: {
+        core: [200000, 190000],
+      },
+      weightsById: {
+        core: [1, 1],
+      },
+      investPct: 100,
+      thresholdAmount: 0,
+      allowWithdrawals: true,
+      allowContributions: true,
+    });
+
+    expect(plan.withdrawalTotalsByMonth[0]).toBeCloseTo(40000, 2);
+    expect(plan.withdrawalTotalsByMonth[1]).toBe(0);
+    expect(plan.transferSeries).toEqual([
+      { month: "2024-01", amount: 40000, kind: "withdrawal" },
+    ]);
+  });
+
   it("never applies both withdrawals and contributions in the same month", () => {
     const plan = solveExcessCashTransferPlan({
       months: ["2024-01"],

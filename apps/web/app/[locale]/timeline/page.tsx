@@ -7,6 +7,7 @@ type PageProps = {
 export default function Page({ searchParams }: PageProps) {
   const scenarioId =
     typeof searchParams?.scenarioId === "string" ? searchParams.scenarioId : undefined;
+  const tab = typeof searchParams?.tab === "string" ? searchParams.tab : undefined;
 
-  return <TimelineClient scenarioId={scenarioId} />;
+  return <TimelineClient scenarioId={scenarioId} initialTab={tab} />;
 }

@@ -7,6 +7,7 @@ import {
   Group,
   SegmentedControl,
   Select,
+  Switch,
   Stack,
   Text,
   TextInput,
@@ -499,6 +500,15 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
             </Stack>
           ) : (
             <Stack gap="md">
+              <Switch
+                checked={editingEvent.ref.highlighted ?? false}
+                onChange={(eventChange) =>
+                  props.onUpdateEventRef(editingEvent.ref.refId, {
+                    highlighted: eventChange.currentTarget.checked,
+                  })
+                }
+                label={t("highlightToggleLabel")}
+              />
               <SegmentedControl
                 data={[
                   { value: "shared", label: t("editShared") },
