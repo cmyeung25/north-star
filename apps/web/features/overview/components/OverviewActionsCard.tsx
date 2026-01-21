@@ -25,7 +25,7 @@ export default function OverviewActionsCard({ scenarioId }: OverviewActionsCardP
         </Button>
         <Button
           component={Link}
-          href={buildScenarioUrl("/settings", scenarioId)}
+          href={buildScenarioUrl("/people", scenarioId)}
           variant="subtle"
         >
           {t("actionsSettings")}

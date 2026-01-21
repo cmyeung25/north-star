@@ -19,7 +19,7 @@ export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
 export type ScenarioRiskLevel = "Low" | "Medium" | "High";
 
-export type OnboardingPersona = "A" | "B" | "C" | "D" | "E";
+export type OnboardingPersona = "forumKid" | "middleClassFamily" | "richSingle";
 
 export type ScenarioKpis = {
   lowestMonthlyBalance: number;

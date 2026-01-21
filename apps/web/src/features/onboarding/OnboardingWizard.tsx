@@ -19,12 +19,18 @@ import {
   getActiveScenario,
   useScenarioStore,
   type BudgetRule,
+  type OnboardingPersona,
   type ScenarioMember,
 } from "../../store/scenarioStore";
 import { normalizeOnboardingMonth } from "../../utils/month";
 import { getBaseMonth } from "./utils";
 import { detectOnboardingOverlaps } from "../../domain/onboarding/overlapDetector";
 import { hasIncomeAttribution } from "../../domain/onboarding/validation";
+import {
+  applyPersonaPreset,
+  mergePersonaDraft,
+  personaPresets,
+} from "../../domain/onboarding/personas";
 import StepHouseholdMembers from "./steps/StepHouseholdMembers";
 import StepGlobalSettings from "./steps/StepGlobalSettings";
 import StepBudgetRules from "./steps/StepBudgetRules";
@@ -32,9 +38,11 @@ import StepPositions from "./steps/StepPositions";
 import StepIncomeSources from "./steps/StepIncomeSources";
 import StepTimelineEvents from "./steps/StepTimelineEvents";
 import StepReviewConfirm from "./steps/StepReviewConfirm";
+import StepPersonaPreset from "./steps/StepPersonaPreset";
 import { buildScenarioUrl } from "../../utils/scenarioContext";
 
 const steps = [
+  "persona",
   "members",
   "settings",
   "budget",
@@ -158,6 +166,9 @@ export default function OnboardingWizard() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<OnboardingDraft | null>(null);
   const [housingCostsIncluded, setHousingCostsIncluded] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState<OnboardingPersona | null>(
+    null
+  );
   const draftScenarioIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -172,6 +183,7 @@ export default function OnboardingWizard() {
       nextDraft.settings.annualInflationPct = appSettings.annualInflationPct;
       nextDraft.settings.viewMode = appSettings.viewMode;
       setDraft(nextDraft);
+      setSelectedPersona(scenario.clientComputed?.onboardingPersona ?? null);
       draftScenarioIdRef.current = scenario.id;
     }
   }, [appSettings, scenario]);
@@ -485,6 +497,19 @@ export default function OnboardingWizard() {
     return Object.keys(nextErrors).length === 0;
   };
 
+  const handleSelectPersona = (personaId: OnboardingPersona) => {
+    const baseMonth = draft.settings.baseMonth;
+    const personaDraft = applyPersonaPreset(personaId, baseMonth);
+    setDraft((current) => (current ? mergePersonaDraft(current, personaDraft) : current));
+    setSelectedPersona(personaId);
+    updateScenarioClientComputed(scenario.id, { onboardingPersona: personaId });
+  };
+
+  const handleSkipPersona = () => {
+    setSelectedPersona(null);
+    updateScenarioClientComputed(scenario.id, { onboardingPersona: undefined });
+  };
+
   const handleNext = () => {
     const currentKey = steps[step];
     if (!validateStep(currentKey)) {
@@ -570,6 +595,16 @@ export default function OnboardingWizard() {
           <Stepper.Step key={key} label={onboardingText(`step.${key}`)} />
         ))}
       </Stepper>
+
+      {stepKey === "persona" && (
+        <StepPersonaPreset
+          presets={personaPresets}
+          selectedId={selectedPersona}
+          onSelect={handleSelectPersona}
+          onSkip={handleSkipPersona}
+          t={onboardingText}
+        />
+      )}
 
       {stepKey === "members" && (
         <StepHouseholdMembers

@@ -69,8 +69,14 @@ import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import { getEventMeta } from "../../../src/events/eventCatalog";
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
 
+type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
+
 type SettingsClientProps = {
   scenarioId?: string;
+  titleKey?: "settingsTitle" | "peopleTitle";
+  subtitleKey?: "settingsSubtitle" | "peopleSubtitle";
+  defaultTab?: SettingsTabKey;
+  tabOrder?: SettingsTabKey[];
 };
 
 type ToastState = {
@@ -80,7 +86,13 @@ type ToastState = {
 
 const isHousingCategory = (category: string) => category === "housing";
 
-export default function SettingsClient({ scenarioId }: SettingsClientProps) {
+export default function SettingsClient({
+  scenarioId,
+  titleKey = "settingsTitle",
+  subtitleKey = "settingsSubtitle",
+  defaultTab = "data",
+  tabOrder,
+}: SettingsClientProps) {
   const locale = useLocale();
   const t = useTranslations("assumptions");
   const membersText = useTranslations("members");
@@ -144,7 +156,28 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   const [milestoneMonthErrors, setMilestoneMonthErrors] = useState<
     Record<string, string | null>
   >({});
-  const [activeTab, setActiveTab] = useState("data");
+  const resolvedTabOrder = useMemo<SettingsTabKey[]>(
+    () =>
+      tabOrder ?? [
+        "data",
+        "global",
+        "members",
+        "budget",
+        "other",
+      ],
+    [tabOrder]
+  );
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>(defaultTab);
+  const tabLabels: Record<SettingsTabKey, string> = useMemo(
+    () => ({
+      data: common("settingsTabData"),
+      global: common("settingsTabGlobal"),
+      members: common("settingsTabMembers"),
+      budget: common("settingsTabBudget"),
+      other: common("settingsTabOther"),
+    }),
+    [common]
+  );
   const [budgetMonthInputs, setBudgetMonthInputs] = useState<
     Record<string, { startMonth: string; endMonth: string }>
   >({});
@@ -177,6 +210,24 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
       setActiveScenario(scenarioIdFromQuery);
     }
   }, [activeScenarioId, scenarioIdFromQuery, scenarios, setActiveScenario]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const hash = window.location.hash.replace("#", "");
+    if (hash && resolvedTabOrder.includes(hash as SettingsTabKey)) {
+      setActiveTab(hash as SettingsTabKey);
+    }
+  }, [resolvedTabOrder]);
+
+  const handleTabChange = (value: string | null) => {
+    const nextTab = (value ?? defaultTab) as SettingsTabKey;
+    setActiveTab(nextTab);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${nextTab}`);
+    }
+  };
 
   const resolvedScenarioId = useMemo(
     () => resolveScenarioIdFromQuery(scenarioIdFromQuery, activeScenarioId, scenarios),
@@ -789,9 +840,9 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
   return (
     <Stack gap="xl">
       <Stack gap={4}>
-        <Title order={2}>{common("settingsTitle")}</Title>
+        <Title order={2}>{common(titleKey)}</Title>
         <Text c="dimmed" size="sm">
-          {common("settingsSubtitle", { name: scenario.name })}
+          {common(subtitleKey, { name: scenario.name })}
         </Text>
       </Stack>
 
@@ -801,13 +852,13 @@ export default function SettingsClient({ scenarioId }: SettingsClientProps) {
         </Notification>
       )}
 
-      <Tabs value={activeTab} onChange={(value) => setActiveTab(value ?? "data")}>
+      <Tabs value={activeTab} onChange={handleTabChange}>
         <Tabs.List>
-          <Tabs.Tab value="data">{common("settingsTabData")}</Tabs.Tab>
-          <Tabs.Tab value="global">{common("settingsTabGlobal")}</Tabs.Tab>
-          <Tabs.Tab value="members">{common("settingsTabMembers")}</Tabs.Tab>
-          <Tabs.Tab value="budget">{common("settingsTabBudget")}</Tabs.Tab>
-          <Tabs.Tab value="other">{common("settingsTabOther")}</Tabs.Tab>
+          {resolvedTabOrder.map((tabKey) => (
+            <Tabs.Tab key={tabKey} value={tabKey}>
+              {tabLabels[tabKey]}
+            </Tabs.Tab>
+          ))}
         </Tabs.List>
 
         <Tabs.Panel value="data" pt="md">

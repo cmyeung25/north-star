@@ -72,12 +72,10 @@ export default function Providers({ children }: { children: ReactNode }) {
   );
 
   const navItems = [
-    { label: nav("home"), href: "/" },
-    { label: nav("overview"), href: "/overview" },
+    { label: nav("dashboard"), href: "/overview" },
+    { label: nav("money"), href: "/money" },
+    { label: nav("people"), href: "/people" },
     { label: nav("scenarios"), href: "/scenarios" },
-    { label: nav("timeline"), href: "/timeline" },
-    { label: nav("stress"), href: "/stress" },
-    { label: nav("settings"), href: "/settings" },
   ];
 
   const isSignedIn = authState.status === "signed-in";
@@ -190,7 +188,7 @@ export default function Providers({ children }: { children: ReactNode }) {
               </Text>
               <Button
                 component={Link}
-                href="/settings#sync"
+                href="/people#sync"
                 size="xs"
                 variant="subtle"
                 disabled={!isFirebaseConfigured && !isSignedIn}
