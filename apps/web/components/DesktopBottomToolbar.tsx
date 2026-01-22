@@ -152,7 +152,7 @@ export default function DesktopBottomToolbar() {
                 label={assumptions("horizonMonths")}
                 value={appSettings.globalHorizonMonths}
                 min={60}
-                max={480}
+                max={960}
                 step={12}
                 size="xs"
                 w={140}

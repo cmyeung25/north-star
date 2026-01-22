@@ -6,6 +6,7 @@ import {
   Card,
   Drawer,
   Group,
+  Modal,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -172,6 +173,7 @@ export default function MoneyClient({
   const removeInsurancePosition = useScenarioStore((state) => state.removeInsurancePosition);
   const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
   const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
+  const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
   const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -213,6 +215,11 @@ export default function MoneyClient({
     id?: string;
   } | null>(null);
   const [assetDetailsMonth, setAssetDetailsMonth] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    type: "event" | "asset" | "loan";
+    id: string;
+    label: string;
+  } | null>(null);
   const [cashflowModal, setCashflowModal] = useState<CashflowModalState>({
     opened: false,
     title: "",
@@ -608,6 +615,81 @@ export default function MoneyClient({
     }
     setAssetDetailsMonth(latestProjectionMonth);
   }, [assetDetails, latestProjectionMonth]);
+
+  // Close asset details drawer if the displayed asset was deleted
+  useEffect(() => {
+    if (!assetDetails || !scenarioIdValue) return;
+    
+    const assetExists = (() => {
+      switch (assetDetails.type) {
+        case "home":
+          return assetDetails.id && homes.some((h) => h.id === assetDetails.id);
+        case "car":
+          return assetDetails.id && cars.some((c) => c.id === assetDetails.id);
+        case "investment":
+          return assetDetails.id && investments.some((i) => i.id === assetDetails.id);
+        case "insurance":
+          return assetDetails.id && insurances.some((i) => i.id === assetDetails.id);
+        case "smartInvest":
+          return true; // smartInvest is never truly deleted, just disabled
+        default:
+          return false;
+      }
+    })();
+
+    if (!assetExists) {
+      setAssetDetails(null);
+    }
+  }, [homes, cars, investments, insurances, assetDetails, scenarioIdValue]);
+
+  // Close editing drawers if the edited item was deleted
+  useEffect(() => {
+    if (editingHomeId && !homes.some((h) => h.id === editingHomeId)) {
+      setEditingHomeId(null);
+    }
+    if (editingCarId && !cars.some((c) => c.id === editingCarId)) {
+      setEditingCarId(null);
+    }
+    if (editingInvestmentId && !investments.some((i) => i.id === editingInvestmentId)) {
+      setEditingInvestmentId(null);
+    }
+    if (editingInsuranceId && !insurances.some((i) => i.id === editingInsuranceId)) {
+      setEditingInsuranceId(null);
+    }
+    if (editingLoanId && !loans.some((l) => l.id === editingLoanId)) {
+      setEditingLoanId(null);
+    }
+  }, [homes, cars, investments, insurances, loans, editingHomeId, editingCarId, editingInvestmentId, editingInsuranceId, editingLoanId]);
+
+  const handleConfirmDelete = () => {
+    if (!deleteConfirmation || !scenarioIdValue) return;
+
+    const { type, id } = deleteConfirmation;
+    
+    switch (type) {
+      case "event":
+        removeScenarioEventRef(scenarioIdValue, id);
+        break;
+      case "asset":
+        // Determine asset type from the homes, cars, investments, insurances lists
+        if (homes.some((h) => h.id === id)) {
+          removeHomePosition(scenarioIdValue, id);
+        } else if (cars.some((c) => c.id === id)) {
+          removeCarPosition(scenarioIdValue, id);
+        } else if (investments.some((i) => i.id === id)) {
+          removeInvestmentPosition(scenarioIdValue, id);
+        } else if (insurances.some((i) => i.id === id)) {
+          removeInsurancePosition(scenarioIdValue, id);
+        }
+        break;
+      case "loan":
+        removeLoanPosition(scenarioIdValue, id);
+        break;
+    }
+
+    setDeleteConfirmation(null);
+  };
+  
   const editingHome = homes.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = cars.find((car) => car.id === editingCarId) ?? null;
   const editingInvestment =
@@ -1093,16 +1175,32 @@ export default function MoneyClient({
                   </Stack>
                 </Group>
                 
-                
-                {options.showEditButton && (
+                <Group gap="xs">
+                  {options.showEditButton && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={() => setEditingEvent(view)}
+                    >
+                      {common("actionEdit")}
+                    </Button>
+                  )}
                   <Button
                     size="xs"
-                    variant="light"
-                    onClick={() => setEditingEvent(view)}
+                    variant="subtle"
+                    color="red"
+                    onClick={() => {
+                      const displayLabel = event.name || getEventTypeDisplay(timelineText, event.type);
+                      setDeleteConfirmation({
+                        type: "event",
+                        id: view.definition.id,
+                        label: displayLabel,
+                      });
+                    }}
                   >
-                    {common("actionEdit")}
+                    {common("actionDelete")}
                   </Button>
-                )}
+                </Group>
               </Group>
             </Card>
           );
@@ -1241,6 +1339,20 @@ export default function MoneyClient({
                           >
                             {common("actionEdit")}
                           </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            color="red"
+                            onClick={() => {
+                              setDeleteConfirmation({
+                                type: "asset",
+                                id: home.id,
+                                label: homesText("title"),
+                              });
+                            }}
+                          >
+                            {common("actionDelete")}
+                          </Button>
                         </Group>
                       </Stack>
                     </Card>
@@ -1296,6 +1408,20 @@ export default function MoneyClient({
                             onClick={() => setEditingInvestmentId(investment.id)}
                           >
                             {common("actionEdit")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            color="red"
+                            onClick={() => {
+                              setDeleteConfirmation({
+                                type: "asset",
+                                id: investment.id ?? "",
+                                label: investmentsText("title"),
+                              });
+                            }}
+                          >
+                            {common("actionDelete")}
                           </Button>
                         </Group>
                       </Stack>
@@ -1392,6 +1518,20 @@ export default function MoneyClient({
                           >
                             {common("actionEdit")}
                           </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            color="red"
+                            onClick={() => {
+                              setDeleteConfirmation({
+                                type: "asset",
+                                id: insurance.id ?? "",
+                                label: insurancesText("title"),
+                              });
+                            }}
+                          >
+                            {common("actionDelete")}
+                          </Button>
                         </Group>
                       </Stack>
                     </Card>
@@ -1441,6 +1581,20 @@ export default function MoneyClient({
                           >
                             {common("actionEdit")}
                           </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            color="red"
+                            onClick={() => {
+                              setDeleteConfirmation({
+                                type: "asset",
+                                id: car.id ?? "",
+                                label: carsText("title"),
+                              });
+                            }}
+                          >
+                            {common("actionDelete")}
+                          </Button>
                         </Group>
                       </Stack>
                     </Card>
@@ -1480,13 +1634,29 @@ export default function MoneyClient({
                       <Text size="sm" c="dimmed">
                         {formatLoanSummary(loansText, loan, scenario?.baseCurrency ?? "USD", locale)}
                       </Text>
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        onClick={() => setEditingLoanId(loan.id)}
-                      >
-                        {common("actionEdit")}
-                      </Button>
+                      <Group gap="xs">
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setEditingLoanId(loan.id)}
+                        >
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={() => {
+                            setDeleteConfirmation({
+                              type: "loan",
+                              id: loan.id ?? "",
+                              label: loansText("title"),
+                            });
+                          }}
+                        >
+                          {common("actionDelete")}
+                        </Button>
+                      </Group>
                     </Stack>
                   </Card>
                 ))}
@@ -1974,7 +2144,35 @@ export default function MoneyClient({
             assetValueRows={calculatorModal.assetValueRows}
             bucketValueSeries={calculatorModal.bucketValueSeries}
             bucketCurrentRows={calculatorModal.bucketCurrentRows}
-          />        </>
+          />
+
+          <Modal
+            opened={Boolean(deleteConfirmation)}
+            onClose={() => setDeleteConfirmation(null)}
+            title={common("actionDelete")}
+            centered
+          >
+            <Stack gap="md">
+              <Text>
+                {t("deleteConfirmation", { label: deleteConfirmation?.label ?? "" })}
+              </Text>
+              <Group justify="flex-end" gap="sm">
+                <Button
+                  variant="subtle"
+                  onClick={() => setDeleteConfirmation(null)}
+                >
+                  {common("actionCancel")}
+                </Button>
+                <Button
+                  color="red"
+                  onClick={handleConfirmDelete}
+                >
+                  {common("actionDelete")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
+        </>
       )}
     </Stack>
   );

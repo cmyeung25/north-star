@@ -508,7 +508,7 @@ const defaultAppSettings: AppSettings = {
   viewMode: "nominal",
 };
 
-const horizonRange = { min: 60, max: 480 };
+const horizonRange = { min: 60, max: 960 };
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
