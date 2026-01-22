@@ -238,6 +238,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       rule: nextRule,
       currency: nextDefinition.currency,
       memberId: nextDefinition.memberId,
+      endAtAgeYears: nextDefinition.endAtAgeYears,
       templateId: nextDefinition.templateId,
       templateParams: nextDefinition.templateParams,
       parentId: editingParentId ?? undefined,

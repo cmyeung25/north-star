@@ -27,6 +27,7 @@ import CarDetailsForm from "../../../components/timeline/CarDetailsForm";
 import InvestmentDetailsForm from "../../../components/timeline/InvestmentDetailsForm";
 import InsuranceDetailsForm from "../../../components/timeline/InsuranceDetailsForm";
 import LoanDetailsForm from "../../../components/timeline/LoanDetailsForm";
+import SmartInvestForm from "../../../components/SmartInvestForm";
 import {
   createCarPositionFromTemplate,
   createHomePositionFromTemplate,
@@ -50,6 +51,10 @@ import { buildScenarioEventViews, buildTimelineEventFromDefinition } from "../..
 import { getEventTypeDisplay } from "../../../components/timeline/utils";
 import type { ScenarioEventView } from "../../../components/timeline/types";
 import { isValidMonthStr } from "../../../src/utils/month";
+import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
+import { buildSmartInvestProjectionBreakdown } from "../../../src/domain/smartInvest/projection";
+import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
+import { compileSellLifecycle } from "../../../src/domain/positions/compileSellLifecycle";
 import type {
   CarPositionDraft,
   HomePositionDraft,
@@ -67,6 +72,7 @@ type MoneyClientProps = {
   initialAdd?: string;
   initialEditEventId?: string;
   initialEditHomeId?: string;
+  initialEditSmartInvest?: string;
 };
 
 const tabOrder: MoneyTab[] = [
@@ -92,6 +98,7 @@ export default function MoneyClient({
   initialAdd,
   initialEditEventId,
   initialEditHomeId,
+  initialEditSmartInvest,
 }: MoneyClientProps) {
   const t = useTranslations("money");
   const timelineText = useTranslations("timeline");
@@ -126,6 +133,7 @@ export default function MoneyClient({
   const removeInsurancePosition = useScenarioStore((state) => state.removeInsurancePosition);
   const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
   const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
+  const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const resolvedScenarioId = useMemo(
@@ -134,6 +142,16 @@ export default function MoneyClient({
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const scenarioIdValue = scenario?.id;
+  const { projection } = useProjectionWithLedger(
+    scenario,
+    eventLibrary,
+    {
+      members,
+      budgetRules,
+    }
+  );
+  const projectionMonths = projection?.months ?? [];
+  const latestProjectionMonth = projectionMonths.at(-1) ?? null;
   const [addFlowOpen, setAddFlowOpen] = useState(false);
   const [addEventGroup, setAddEventGroup] = useState<EventGroup | null>(null);
   const [addEventDrawerOpen, setAddEventDrawerOpen] = useState(false);
@@ -150,6 +168,12 @@ export default function MoneyClient({
   const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(null);
   const [editingInsuranceId, setEditingInsuranceId] = useState<string | null>(null);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
+  const [smartInvestDrawerOpen, setSmartInvestDrawerOpen] = useState(false);
+  const [assetDetails, setAssetDetails] = useState<{
+    type: "home" | "investment" | "insurance" | "car" | "smartInvest";
+    id?: string;
+  } | null>(null);
+  const [assetDetailsMonth, setAssetDetailsMonth] = useState<string | null>(null);
   const hasHandledInitialAdd = useRef(false);
   const hasHandledInitialEdit = useRef(false);
 
@@ -254,6 +278,22 @@ export default function MoneyClient({
   const loans = useMemo(() => positions?.loans ?? [], [positions?.loans]);
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
   const currentProjectionMonth = baseMonth ?? null;
+  const defaultSmartInvestPolicy = useMemo(
+    () => buildDefaultSmartInvestPolicy(timelineText("smartInvestDefaultAllocation")),
+    [timelineText]
+  );
+  const smartInvestPolicy =
+    scenario?.assumptions.smartInvest ?? defaultSmartInvestPolicy;
+  const smartInvestBreakdown = useMemo(
+    () =>
+      projection
+        ? buildSmartInvestProjectionBreakdown(
+            projection,
+            smartInvestPolicy.allocation
+          )
+        : null,
+    [projection, smartInvestPolicy.allocation]
+  );
   const inputRuleItems = useMemo(() => {
     const categoryLabels: Record<string, string> = {
       health: budgetText("categoryHealth"),
@@ -496,8 +536,29 @@ export default function MoneyClient({
       setActiveTab("assets");
       setEditingHomeId(initialEditHomeId);
       hasHandledInitialEdit.current = true;
+      return;
     }
-  }, [eventRows, initialEditEventId, initialEditHomeId, scenarioIdValue, setActiveTab]);
+    if (initialEditSmartInvest) {
+      setActiveTab("assets");
+      setSmartInvestDrawerOpen(true);
+      hasHandledInitialEdit.current = true;
+    }
+  }, [
+    eventRows,
+    initialEditEventId,
+    initialEditHomeId,
+    initialEditSmartInvest,
+    scenarioIdValue,
+    setActiveTab,
+  ]);
+
+  useEffect(() => {
+    if (!assetDetails) {
+      setAssetDetailsMonth(null);
+      return;
+    }
+    setAssetDetailsMonth(latestProjectionMonth);
+  }, [assetDetails, latestProjectionMonth]);
   const editingHome = homes.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = cars.find((car) => car.id === editingCarId) ?? null;
   const editingInvestment =
@@ -505,6 +566,168 @@ export default function MoneyClient({
   const editingInsurance =
     insurances.find((insurance) => insurance.id === editingInsuranceId) ?? null;
   const editingLoan = loans.find((loan) => loan.id === editingLoanId) ?? null;
+
+  const sellEntries = useMemo(
+    () => (scenario ? compileSellLifecycle(scenario) : []),
+    [scenario]
+  );
+
+  const buildAssetCashflowSeries = useMemo(() => {
+    if (!projection) {
+      return () => [];
+    }
+    return (
+      predicate: (key: string) => boolean,
+      extraEntries?: Array<{ month: string; amount: number }>
+    ) => {
+      const totals = new Map<string, number>();
+      projection.months.forEach((month) => totals.set(month, 0));
+      const breakdown = projection.breakdown?.cashflow.byKey ?? {};
+      Object.entries(breakdown).forEach(([key, series]) => {
+        if (!predicate(key)) {
+          return;
+        }
+        series.forEach((amount, index) => {
+          if (!amount) {
+            return;
+          }
+          const month = projection.months[index];
+          if (!month) {
+            return;
+          }
+          totals.set(month, (totals.get(month) ?? 0) + amount);
+        });
+      });
+      extraEntries?.forEach((entry) => {
+        if (!totals.has(entry.month)) {
+          return;
+        }
+        totals.set(entry.month, (totals.get(entry.month) ?? 0) + entry.amount);
+      });
+      return projection.months.map((month) => ({
+        month,
+        amount: totals.get(month) ?? 0,
+      }));
+    };
+  }, [projection]);
+
+  const assetDetailsData = useMemo(() => {
+    if (!assetDetails || !projection) {
+      return null;
+    }
+    const assetsByKey = projection.breakdown?.assets.assetsByKey ?? {};
+    const liabilitiesByKey = projection.breakdown?.assets.liabilitiesByKey ?? {};
+    const monthIndexValue =
+      assetDetailsMonth && projection.months.includes(assetDetailsMonth)
+        ? projection.months.indexOf(assetDetailsMonth)
+        : Math.max(projection.months.length - 1, 0);
+    const selectedMonth = projection.months[monthIndexValue];
+    const withSeriesValue = (series: number[] | undefined) =>
+      series?.[monthIndexValue] ?? 0;
+
+    if (assetDetails.type === "home" && assetDetails.id) {
+      const assetKey = `home:${assetDetails.id}`;
+      const liabilityKey = `home:${assetDetails.id}:mortgage`;
+      const cashflowSeries = buildAssetCashflowSeries(
+        (key) => key.startsWith(`home:${assetDetails.id}:`),
+        sellEntries
+          .filter((entry) => entry.positionType === "home" && entry.positionId === assetDetails.id)
+          .map((entry) => ({ month: entry.month, amount: entry.amount }))
+      );
+      return {
+        title: homesText("title"),
+        selectedMonth,
+        cashflowSeries,
+        assetValue: withSeriesValue(assetsByKey[assetKey]),
+        liabilityValue: withSeriesValue(liabilitiesByKey[liabilityKey]),
+      };
+    }
+
+    if (assetDetails.type === "investment" && assetDetails.id) {
+      const assetKey = `investment:${assetDetails.id}`;
+      const cashflowSeries = buildAssetCashflowSeries((key) =>
+        key.startsWith(`investment:${assetDetails.id}:`)
+      );
+      return {
+        title: investmentsText("title"),
+        selectedMonth,
+        cashflowSeries,
+        assetValue: withSeriesValue(assetsByKey[assetKey]),
+      };
+    }
+
+    if (assetDetails.type === "insurance" && assetDetails.id) {
+      const assetKey = `insurance:${assetDetails.id}`;
+      const cashflowSeries = buildAssetCashflowSeries((key) =>
+        key.startsWith(`insurance:${assetDetails.id}:`)
+      );
+      return {
+        title: insurancesText("title"),
+        selectedMonth,
+        cashflowSeries,
+        assetValue: withSeriesValue(assetsByKey[assetKey]),
+      };
+    }
+
+    if (assetDetails.type === "car" && assetDetails.id) {
+      const assetKey = `car:${assetDetails.id}`;
+      const liabilityKey = `car:${assetDetails.id}:loan`;
+      const cashflowSeries = buildAssetCashflowSeries(
+        (key) => key.startsWith(`car:${assetDetails.id}:`),
+        sellEntries
+          .filter((entry) => entry.positionType === "car" && entry.positionId === assetDetails.id)
+          .map((entry) => ({ month: entry.month, amount: entry.amount }))
+      );
+      return {
+        title: carsText("title"),
+        selectedMonth,
+        cashflowSeries,
+        assetValue: withSeriesValue(assetsByKey[assetKey]),
+        liabilityValue: withSeriesValue(liabilitiesByKey[liabilityKey]),
+      };
+    }
+
+    if (assetDetails.type === "smartInvest") {
+      return {
+        title: timelineText("smartInvestTitle"),
+        selectedMonth,
+        cashflowSeries: buildAssetCashflowSeries((key) =>
+          key.startsWith("investment:smart-invest-")
+        ),
+        assetValue:
+          smartInvestBreakdown?.totalValueSeries[monthIndexValue]?.value ?? 0,
+        allocationRows: smartInvestBreakdown?.currentBucketValues ?? [],
+      };
+    }
+
+    return null;
+  }, [
+    assetDetails,
+    assetDetailsMonth,
+    buildAssetCashflowSeries,
+    carsText,
+    homesText,
+    insurancesText,
+    investmentsText,
+    projection,
+    sellEntries,
+    smartInvestBreakdown,
+    timelineText,
+  ]);
+
+  const assetCashflowSeries = assetDetailsData?.cashflowSeries ?? [];
+  const assetMonthIndex =
+    assetDetailsMonth && assetCashflowSeries.length > 0
+      ? assetCashflowSeries.findIndex((entry) => entry.month === assetDetailsMonth)
+      : assetCashflowSeries.length - 1;
+  const resolvedAssetMonthIndex = assetMonthIndex >= 0 ? assetMonthIndex : assetCashflowSeries.length - 1;
+  const assetCashflowWindowStart = Math.max(resolvedAssetMonthIndex - 11, 0);
+  const assetCashflowWindow = assetCashflowSeries.slice(
+    assetCashflowWindowStart,
+    resolvedAssetMonthIndex + 1
+  );
+  const selectedAssetCashflow =
+    assetCashflowSeries[resolvedAssetMonthIndex]?.amount ?? 0;
   const homeDrawerDraft = editingHome ?? creatingHome;
   const carDrawerDraft = editingCar ?? creatingCar;
   const investmentDrawerDraft = editingInvestment ?? creatingInvestment;
@@ -710,13 +933,22 @@ export default function MoneyClient({
                         <Text size="sm" c="dimmed">
                           {formatHomeSummary(homesText, home, scenario?.baseCurrency ?? "USD", locale)}
                         </Text>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setEditingHomeId(home.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => setAssetDetails({ type: "home", id: home.id })}
+                          >
+                            {common("actionDetails")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => setEditingHomeId(home.id)}
+                          >
+                            {common("actionEdit")}
+                          </Button>
+                        </Group>
                       </Stack>
                     </Card>
                   ))}
@@ -755,18 +987,68 @@ export default function MoneyClient({
                             locale
                           )}
                         </Text>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setEditingInvestmentId(investment.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() =>
+                              setAssetDetails({ type: "investment", id: investment.id })
+                            }
+                          >
+                            {common("actionDetails")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => setEditingInvestmentId(investment.id)}
+                          >
+                            {common("actionEdit")}
+                          </Button>
+                        </Group>
                       </Stack>
                     </Card>
                   ))}
                 </SimpleGrid>
               )}
+            </Stack>
+            <Stack gap="sm">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text fw={600}>{timelineText("smartInvestTitle")}</Text>
+                <Group gap="xs">
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => setAssetDetails({ type: "smartInvest" })}
+                    disabled={!projection}
+                  >
+                    {common("actionDetails")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setSmartInvestDrawerOpen(true)}
+                    disabled={!scenarioIdValue}
+                  >
+                    {common("actionEdit")}
+                  </Button>
+                </Group>
+              </Group>
+              <Card withBorder radius="md" padding="sm">
+                <Stack gap={4}>
+                  <Text size="sm" c="dimmed">
+                    {timelineText("smartInvestSubtitle")}
+                  </Text>
+                  <Text size="sm">
+                    {t("assetDetailsTotalValue", {
+                      value: formatCurrency(
+                        smartInvestBreakdown?.totalValueSeries.at(-1)?.value ?? 0,
+                        scenario?.baseCurrency ?? "USD",
+                        locale
+                      ),
+                    })}
+                  </Text>
+                </Stack>
+              </Card>
             </Stack>
             <Stack gap="sm">
               <Group justify="space-between" align="center" wrap="wrap">
@@ -800,13 +1082,24 @@ export default function MoneyClient({
                             locale
                           )}
                         </Text>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setEditingInsuranceId(insurance.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() =>
+                              setAssetDetails({ type: "insurance", id: insurance.id })
+                            }
+                          >
+                            {common("actionDetails")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => setEditingInsuranceId(insurance.id)}
+                          >
+                            {common("actionEdit")}
+                          </Button>
+                        </Group>
                       </Stack>
                     </Card>
                   ))}
@@ -840,13 +1133,22 @@ export default function MoneyClient({
                         <Text size="sm" c="dimmed">
                           {formatCarSummary(carsText, car, scenario?.baseCurrency ?? "USD", locale)}
                         </Text>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setEditingCarId(car.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => setAssetDetails({ type: "car", id: car.id })}
+                          >
+                            {common("actionDetails")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => setEditingCarId(car.id)}
+                          >
+                            {common("actionEdit")}
+                          </Button>
+                        </Group>
                       </Stack>
                     </Card>
                   ))}
@@ -1008,6 +1310,118 @@ export default function MoneyClient({
         onClose={() => setAddFlowOpen(false)}
         scenarioId={scenarioIdValue ?? null}
       />
+
+      <Drawer
+        opened={Boolean(assetDetails)}
+        onClose={() => setAssetDetails(null)}
+        position="right"
+        size="md"
+        title={assetDetailsData?.title ?? t("assetDetailsTitle")}
+      >
+        <Stack gap="md">
+          {assetDetailsData ? (
+            <>
+              <Select
+                label={t("assetDetailsMonthLabel")}
+                value={assetDetailsMonth ?? assetDetailsData.selectedMonth ?? null}
+                data={projectionMonths.map((month) => ({ value: month, label: month }))}
+                onChange={(value) => setAssetDetailsMonth(value ?? null)}
+              />
+              <Card withBorder radius="md" padding="sm">
+                <Stack gap="xs">
+                  <Text fw={600}>{t("assetDetailsCashflowTitle")}</Text>
+                  <Text size="sm" c="dimmed">
+                    {t("assetDetailsCashflowMonth", {
+                      month: assetDetailsData.selectedMonth ?? "--",
+                      value: formatCurrency(
+                        selectedAssetCashflow,
+                        scenario?.baseCurrency ?? "USD",
+                        locale
+                      ),
+                    })}
+                  </Text>
+                  {assetCashflowWindow.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      {t("assetDetailsCashflowEmpty")}
+                    </Text>
+                  ) : (
+                    <Stack gap={4}>
+                      {assetCashflowWindow.map((entry) => (
+                        <Group key={entry.month} justify="space-between">
+                          <Text size="sm">{entry.month}</Text>
+                          <Text size="sm">
+                            {formatCurrency(
+                              entry.amount ?? 0,
+                              scenario?.baseCurrency ?? "USD",
+                              locale
+                            )}
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                  )}
+                </Stack>
+              </Card>
+              <Card withBorder radius="md" padding="sm">
+                <Stack gap="xs">
+                  <Text fw={600}>{t("assetDetailsValueTitle")}</Text>
+                  <Group justify="space-between">
+                    <Text size="sm">{t("assetDetailsTotalValueLabel")}</Text>
+                    <Text size="sm">
+                      {formatCurrency(
+                        assetDetailsData.assetValue ?? 0,
+                        scenario?.baseCurrency ?? "USD",
+                        locale
+                      )}
+                    </Text>
+                  </Group>
+                  {typeof assetDetailsData.liabilityValue === "number" && (
+                    <Group justify="space-between">
+                      <Text size="sm">{t("assetDetailsLiabilitiesLabel")}</Text>
+                      <Text size="sm">
+                        {formatCurrency(
+                          assetDetailsData.liabilityValue ?? 0,
+                          scenario?.baseCurrency ?? "USD",
+                          locale
+                        )}
+                      </Text>
+                    </Group>
+                  )}
+                  {assetDetailsData.allocationRows && (
+                    <Stack gap={4}>
+                      <Text size="sm" fw={500}>
+                        {t("assetDetailsAllocationTitle")}
+                      </Text>
+                      {assetDetailsData.allocationRows.length === 0 ? (
+                        <Text size="sm" c="dimmed">
+                          {t("assetDetailsAllocationEmpty")}
+                        </Text>
+                      ) : (
+                        assetDetailsData.allocationRows.map((row) => (
+                          <Group key={row.bucketId} justify="space-between">
+                            <Text size="sm">{row.bucketName}</Text>
+                            <Text size="sm">
+                              {formatCurrency(
+                                row.value ?? 0,
+                                scenario?.baseCurrency ?? "USD",
+                                locale
+                              )}
+                            </Text>
+                          </Group>
+                        ))
+                      )}
+                    </Stack>
+                  )}
+                </Stack>
+              </Card>
+            </>
+          ) : (
+            <Text size="sm" c="dimmed">
+              {t("assetDetailsEmpty")}
+            </Text>
+          )}
+        </Stack>
+      </Drawer>
 
       {scenario && scenarioIdValue && (
         <>
@@ -1210,6 +1624,19 @@ export default function MoneyClient({
                 }}
               />
             )}
+          </Drawer>
+
+          <Drawer
+            opened={smartInvestDrawerOpen}
+            onClose={() => setSmartInvestDrawerOpen(false)}
+            position="right"
+            size="md"
+            title={timelineText("smartInvestTitle")}
+          >
+            <SmartInvestForm
+              policy={smartInvestPolicy}
+              onChange={(nextPolicy) => updateSmartInvest(scenarioIdValue, nextPolicy)}
+            />
           </Drawer>
         </>
       )}

@@ -23,6 +23,7 @@ export const desktopToolbarHeight = 72;
 export default function DesktopBottomToolbar() {
   const t = useTranslations("toolbar");
   const nav = useTranslations("nav");
+  const timeline = useTranslations("timeline");
   const assumptions = useTranslations("assumptions");
   const common = useTranslations("common");
   const validation = useTranslations("validation");
@@ -78,22 +79,34 @@ export default function DesktopBottomToolbar() {
     Array<{
       label: string;
       href: "/money" | "/timeline" | "/people" | "/settings";
+      query?: string;
     }>
   >(
     () => [
       { label: nav("money"), href: "/money" },
       { label: nav("timeline"), href: "/timeline" },
       { label: nav("people"), href: "/people" },
+      {
+        label: timeline("smartInvestTitle"),
+        href: "/money",
+        query: "tab=assets&editSmartInvest=1",
+      },
       { label: nav("settings"), href: "/settings" },
     ],
-    [nav]
+    [nav, timeline]
   );
 
   const scenarioId = activeScenarioId;
-  const resolvedNavLinks = navLinks.map((link) => ({
-    ...link,
-    href: scenarioId ? buildScenarioUrl(link.href, scenarioId) : link.href,
-  }));
+  const resolvedNavLinks = navLinks.map((link) => {
+    const base = scenarioId ? buildScenarioUrl(link.href, scenarioId) : link.href;
+    if (!link.query) {
+      return { ...link, href: base };
+    }
+    return {
+      ...link,
+      href: `${base}${base.includes("?") ? "&" : "?"}${link.query}`,
+    };
+  });
 
   return (
     <Paper

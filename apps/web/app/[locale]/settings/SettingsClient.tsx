@@ -20,7 +20,6 @@ import {
   Text,
   TextInput,
   Title,
-  SimpleGrid,
 } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
@@ -191,6 +190,7 @@ export default function SettingsClient({
   const [expandedBudgetRuleId, setExpandedBudgetRuleId] = useState<string | null>(
     null
   );
+  const [expandedMemberIds, setExpandedMemberIds] = useState<string[]>([]);
   const [cloudSummary, setCloudSummary] = useState<CloudSummary | null>(null);
   const [syncingAction, setSyncingAction] = useState<null | "upload" | "download">(
     null
@@ -451,23 +451,38 @@ export default function SettingsClient({
     }, 3000);
   };
 
+  const createBudgetRuleForMember = useCallback(
+    (memberId?: string) => {
+      const nextRule = {
+        id: createBudgetRuleId(),
+        name: budgetText("defaultRuleName", {
+          index: budgetRules.length + 1,
+        }),
+        enabled: true,
+        memberId,
+        category: "health" as const,
+        ageBand: { fromYears: 0, toYears: 3 },
+        monthlyAmount: 0,
+        applyScope: { scope: "all" } as ApplyScope,
+      };
+      createBudgetRule(nextRule);
+      setExpandedBudgetRuleId(nextRule.id);
+      showToast(common("saved"), "teal");
+      return nextRule.id;
+    },
+    [
+      budgetRules.length,
+      budgetText,
+      common,
+      createBudgetRule,
+      setExpandedBudgetRuleId,
+      showToast,
+    ]
+  );
+
   const handleCreateBudgetRule = useCallback(() => {
-    const nextRule = {
-      id: createBudgetRuleId(),
-      name: budgetText("defaultRuleName", {
-        index: budgetRules.length + 1,
-      }),
-      enabled: true,
-      memberId: members[0]?.id,
-      category: "health" as const,
-      ageBand: { fromYears: 0, toYears: 3 },
-      monthlyAmount: 0,
-      applyScope: { scope: "all" } as ApplyScope,
-    };
-    createBudgetRule(nextRule);
-    setExpandedBudgetRuleId(nextRule.id);
-    showToast(common("saved"), "teal");
-  }, [budgetRules.length, budgetText, common, createBudgetRule, members, showToast]);
+    createBudgetRuleForMember(members[0]?.id);
+  }, [createBudgetRuleForMember, members]);
 
   useEffect(() => {
     if (hasHandledInitialAction.current) {
@@ -725,6 +740,10 @@ export default function SettingsClient({
     eldercare: budgetText("categoryEldercare"),
     petcare: budgetText("categoryPetcare"),
   };
+  const householdBudgetRules = useMemo(
+    () => budgetRules.filter((rule) => !rule.memberId),
+    [budgetRules]
+  );
   const formatApplyScopeLabel = (applyScope: ApplyScope | undefined) => {
     const scope = applyScope?.scope ?? "all";
     if (scope === "include") {
@@ -1237,10 +1256,11 @@ export default function SettingsClient({
                 {membersText("subtitle")}
               </Text>
               <Stack gap="sm">
-                <SimpleGrid
-                  cols={{ base: 1, sm: 1, lg: 2 }}
-                  spacing={{ base: 10, sm: 'xl' }}
-                  verticalSpacing={{ base: 'md', sm: 'xl' }}
+                <Accordion
+                  multiple
+                  value={expandedMemberIds}
+                  onChange={(value) => setExpandedMemberIds(value as string[])}
+                  variant="separated"
                 >
                   {members.map((member, index) => {
                     const birthMonthInput =
@@ -1266,283 +1286,334 @@ export default function SettingsClient({
                         ? getMemberAgeYears(member, horizonEndMonth!, validBaseMonth!)
                         : null;
                     const showAgeError = !hasBirthMonth && !hasAgeAtBase;
+                    const memberBudgetRules = budgetRules.filter(
+                      (rule) => rule.memberId === member.id
+                    );
 
                     return (
-                      <Card key={member.id} withBorder radius="md" padding="md">
-                        <Stack gap="sm">
-                          <Group justify="space-between" align="center">
+                      <Accordion.Item key={member.id} value={member.id}>
+                        <Accordion.Control>
+                          <Group justify="space-between" align="center" wrap="wrap">
                             <Text fw={600}>
-                              {membersText("memberLabel", { index: index + 1 })}
+                              {member.name ||
+                                membersText("memberLabel", { index: index + 1 })}
                             </Text>
-                            <Button
-                              size="xs"
-                              color="red"
-                              variant="light"
-                              disabled={members.length <= 1}
-                              onClick={() => {
-                                deleteMember(member.id);
-                                showToast(common("saved"), "teal");
-                              }}
-                            >
-                              {membersText("removeMember")}
-                            </Button>
+                            <Badge variant="light">
+                              {member.kind === "person"
+                                ? membersText("kindPerson")
+                                : membersText("kindPet")}
+                            </Badge>
                           </Group>
-                          <Group grow>
-                            <TextInput
-                              label={membersText("nameLabel")}
-                              value={member.name}
-                              onChange={(event) =>
-                                updateMember(member.id, {
-                                  name: event.currentTarget.value,
-                                })
-                              }
-                            />
-                            <Select
-                              label={membersText("kindLabel")}
-                              data={[
-                                { value: "person", label: membersText("kindPerson") },
-                                { value: "pet", label: membersText("kindPet") },
-                              ]}
-                              value={member.kind}
-                              onChange={(value) => {
-                                if (!value) {
-                                  return;
+                        </Accordion.Control>
+                        <Accordion.Panel>
+                          <Stack gap="sm">
+                            <Group justify="space-between" align="center">
+                              <Text fw={600}>
+                                {membersText("memberLabel", { index: index + 1 })}
+                              </Text>
+                              <Button
+                                size="xs"
+                                color="red"
+                                variant="light"
+                                disabled={members.length <= 1}
+                                onClick={() => {
+                                  deleteMember(member.id);
+                                  showToast(common("saved"), "teal");
+                                }}
+                              >
+                                {membersText("removeMember")}
+                              </Button>
+                            </Group>
+                            <Group grow>
+                              <TextInput
+                                label={membersText("nameLabel")}
+                                value={member.name}
+                                onChange={(event) =>
+                                  updateMember(member.id, {
+                                    name: event.currentTarget.value,
+                                  })
                                 }
-                                updateMember(member.id, {
-                                  kind: value as typeof member.kind,
-                                });
-                              }}
-                            />
-                          </Group>
-                          <Group grow>
-                            <TextInput
-                              label={membersText("birthMonthLabel")}
-                              placeholder={common("yearMonthPlaceholder")}
-                              value={birthMonthInput}
-                              error={birthMonthError}
-                              onChange={(event) => {
-                                const nextValue = event.currentTarget.value;
-                                setMemberBirthMonthInputs((current) => ({
-                                  ...current,
-                                  [member.id]: nextValue,
-                                }));
-                                setMemberBirthMonthErrors((current) => ({
-                                  ...current,
-                                  [member.id]: null,
-                                }));
-                              }}
-                              onBlur={() => {
-                                const trimmed = birthMonthInput.trim();
-                                if (trimmed === "") {
-                                  updateMember(member.id, { birthMonth: undefined });
+                              />
+                              <Select
+                                label={membersText("kindLabel")}
+                                data={[
+                                  { value: "person", label: membersText("kindPerson") },
+                                  { value: "pet", label: membersText("kindPet") },
+                                ]}
+                                value={member.kind}
+                                onChange={(value) => {
+                                  if (!value) {
+                                    return;
+                                  }
+                                  updateMember(member.id, {
+                                    kind: value as typeof member.kind,
+                                  });
+                                }}
+                              />
+                            </Group>
+                            <Group grow>
+                              <TextInput
+                                label={membersText("birthMonthLabel")}
+                                placeholder={common("yearMonthPlaceholder")}
+                                value={birthMonthInput}
+                                error={birthMonthError}
+                                onChange={(event) => {
+                                  const nextValue = event.currentTarget.value;
+                                  setMemberBirthMonthInputs((current) => ({
+                                    ...current,
+                                    [member.id]: nextValue,
+                                  }));
+                                  setMemberBirthMonthErrors((current) => ({
+                                    ...current,
+                                    [member.id]: null,
+                                  }));
+                                }}
+                                onBlur={() => {
+                                  const trimmed = birthMonthInput.trim();
+                                  if (trimmed === "") {
+                                    updateMember(member.id, { birthMonth: undefined });
+                                    setMemberBirthMonthErrors((current) => ({
+                                      ...current,
+                                      [member.id]: null,
+                                    }));
+                                    setMemberBirthMonthInputs((current) => ({
+                                      ...current,
+                                      [member.id]: "",
+                                    }));
+                                    return;
+                                  }
+                                  const normalized = normalizeMonthStrict(trimmed);
+                                  if (!normalized.ok) {
+                                    setMemberBirthMonthErrors((current) => ({
+                                      ...current,
+                                      [member.id]: validation("useYearMonth"),
+                                    }));
+                                    return;
+                                  }
+                                  updateMember(member.id, {
+                                    birthMonth: normalized.month,
+                                  });
                                   setMemberBirthMonthErrors((current) => ({
                                     ...current,
                                     [member.id]: null,
                                   }));
                                   setMemberBirthMonthInputs((current) => ({
                                     ...current,
-                                    [member.id]: "",
+                                    [member.id]: normalized.month,
                                   }));
-                                  return;
+                                }}
+                              />
+                              <NumberInput
+                                label={membersText("ageAtBaseLabel")}
+                                value={member.ageAtBaseMonth ?? ""}
+                                min={0}
+                                step={0.5}
+                                decimalScale={2}
+                                onChange={(value) =>
+                                  updateMember(member.id, {
+                                    ageAtBaseMonth:
+                                      typeof value === "number" ? value : undefined,
+                                  })
                                 }
-                                const normalized = normalizeMonthStrict(trimmed);
-                                if (!normalized.ok) {
-                                  setMemberBirthMonthErrors((current) => ({
-                                    ...current,
-                                    [member.id]: validation("useYearMonth"),
-                                  }));
-                                  return;
-                                }
-                                updateMember(member.id, {
-                                  birthMonth: normalized.month,
-                                });
-                                setMemberBirthMonthErrors((current) => ({
-                                  ...current,
-                                  [member.id]: null,
-                                }));
-                                setMemberBirthMonthInputs((current) => ({
-                                  ...current,
-                                  [member.id]: normalized.month,
-                                }));
-                              }}
-                            />
-                            <NumberInput
-                              label={membersText("ageAtBaseLabel")}
-                              value={member.ageAtBaseMonth ?? ""}
-                              min={0}
-                              step={0.5}
-                              decimalScale={2}
-                              onChange={(value) =>
-                                updateMember(member.id, {
-                                  ageAtBaseMonth:
-                                    typeof value === "number" ? value : undefined,
-                                })
-                              }
-                            />
-                          </Group>
-                          {showAgeError && (
-                            <Text size="xs" c="red">
-                              {membersText("ageRequired")}
-                            </Text>
-                          )}
-                          <Group gap="xl" wrap="wrap">
-                            <Text size="sm" c="dimmed">
-                              {membersText("baseAgeLabel")}:{" "}
-                              {baseAge === null
-                                ? t("notAvailable")
-                                : formatAgeYears(baseAge)}
-                            </Text>
-                            <Text size="sm" c="dimmed">
-                              {membersText("endAgeLabel")}:{" "}
-                              {endAge === null ? t("notAvailable") : formatAgeYears(endAge)}
-                            </Text>
-                          </Group>
-                          <Stack gap="xs">
-                            <Text fw={600}>{membersText("applyScopeTitle")}</Text>
-                            <Text size="xs" c="dimmed">
-                              {membersText("applyScopeHelper")}
-                            </Text>
-                            {renderApplyScope(
-                              normalizeApplyScope(member.applyScope),
-                              (next) => setMemberApplyScope(member.id, next),
-                              membersText("applyScopeHint")
-                            )}
-                          </Stack>
-                          <Stack gap="xs">
-                            <Group justify="space-between" align="center">
-                              <Text fw={600}>{membersText("milestonesTitle")}</Text>
-                              <Button
-                                size="xs"
-                                variant="light"
-                                onClick={() =>
-                                  updateMemberMilestones(member.id, (current) => [
-                                    ...current,
-                                    {
-                                      id: createMilestoneId(),
-                                      kind: "custom",
-                                      label: membersText("milestoneCustomDefault"),
-                                      applyScope: { scope: "all" },
-                                    },
-                                  ])
-                                }
-                              >
-                                {membersText("addMilestone")}
-                              </Button>
+                              />
                             </Group>
-                            <Text size="xs" c="dimmed">
-                              {membersText("milestonesHelper")}
-                            </Text>
-                            {member.birthMonth && (
-                              <Card withBorder radius="md" padding="sm">
-                                <Group justify="space-between" align="center">
-                                  <Text fw={500}>{membersText("milestoneBirth")}</Text>
-                                  <Text size="sm" c="dimmed">
-                                    {member.birthMonth}
-                                  </Text>
-                                </Group>
-                              </Card>
+                            {showAgeError && (
+                              <Text size="xs" c="red">
+                                {membersText("ageRequired")}
+                              </Text>
                             )}
-                            {(member.milestones ?? [])
-                              .filter((milestone) => milestone.kind !== "birth")
-                              .map((milestone) => {
-                                const milestoneKey = `${member.id}:${milestone.id}`;
-                                const monthInput =
-                                  milestoneMonthInputs[milestoneKey] ??
-                                  milestone.month ??
-                                  "";
-                                const monthError =
-                                  milestoneMonthErrors[milestoneKey] ?? undefined;
-                                return (
-                                  <Card
-                                    key={milestone.id}
-                                    withBorder
-                                    radius="md"
-                                    padding="sm"
-                                  >
-                                    <Stack gap="sm">
-                                      <Group justify="space-between" align="center">
-                                        <Text fw={500}>
-                                          {membersText(
-                                            `milestoneKind.${milestone.kind}`
-                                          )}
-                                        </Text>
-                                        <Button
-                                          size="xs"
-                                          variant="light"
-                                          color="red"
-                                          onClick={() =>
-                                            updateMemberMilestones(member.id, (current) =>
-                                              current.filter(
-                                                (entry) => entry.id !== milestone.id
+                            <Group gap="xl" wrap="wrap">
+                              <Text size="sm" c="dimmed">
+                                {membersText("baseAgeLabel")}:{" "}
+                                {baseAge === null
+                                  ? t("notAvailable")
+                                  : formatAgeYears(baseAge)}
+                              </Text>
+                              <Text size="sm" c="dimmed">
+                                {membersText("endAgeLabel")}:{" "}
+                                {endAge === null
+                                  ? t("notAvailable")
+                                  : formatAgeYears(endAge)}
+                              </Text>
+                            </Group>
+                            <Stack gap="xs">
+                              <Text fw={600}>{membersText("applyScopeTitle")}</Text>
+                              <Text size="xs" c="dimmed">
+                                {membersText("applyScopeHelper")}
+                              </Text>
+                              {renderApplyScope(
+                                normalizeApplyScope(member.applyScope),
+                                (next) => setMemberApplyScope(member.id, next),
+                                membersText("applyScopeHint")
+                              )}
+                            </Stack>
+                            <Stack gap="xs">
+                              <Group justify="space-between" align="center">
+                                <Text fw={600}>{membersText("milestonesTitle")}</Text>
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  onClick={() =>
+                                    updateMemberMilestones(member.id, (current) => [
+                                      ...current,
+                                      {
+                                        id: createMilestoneId(),
+                                        kind: "custom",
+                                        label: membersText("milestoneCustomDefault"),
+                                        applyScope: { scope: "all" },
+                                      },
+                                    ])
+                                  }
+                                >
+                                  {membersText("addMilestone")}
+                                </Button>
+                              </Group>
+                              <Text size="xs" c="dimmed">
+                                {membersText("milestonesHelper")}
+                              </Text>
+                              {member.birthMonth && (
+                                <Card withBorder radius="md" padding="sm">
+                                  <Group justify="space-between" align="center">
+                                    <Text fw={500}>{membersText("milestoneBirth")}</Text>
+                                    <Text size="sm" c="dimmed">
+                                      {member.birthMonth}
+                                    </Text>
+                                  </Group>
+                                </Card>
+                              )}
+                              {(member.milestones ?? [])
+                                .filter((milestone) => milestone.kind !== "birth")
+                                .map((milestone) => {
+                                  const milestoneKey = `${member.id}:${milestone.id}`;
+                                  const monthInput =
+                                    milestoneMonthInputs[milestoneKey] ??
+                                    milestone.month ??
+                                    "";
+                                  const monthError =
+                                    milestoneMonthErrors[milestoneKey] ?? undefined;
+                                  return (
+                                    <Card
+                                      key={milestone.id}
+                                      withBorder
+                                      radius="md"
+                                      padding="sm"
+                                    >
+                                      <Stack gap="sm">
+                                        <Group justify="space-between" align="center">
+                                          <Text fw={500}>
+                                            {membersText(
+                                              `milestoneKind.${milestone.kind}`
+                                            )}
+                                          </Text>
+                                          <Button
+                                            size="xs"
+                                            variant="light"
+                                            color="red"
+                                            onClick={() =>
+                                              updateMemberMilestones(member.id, (current) =>
+                                                current.filter(
+                                                  (entry) => entry.id !== milestone.id
+                                                )
                                               )
-                                            )
-                                          }
-                                        >
-                                          {membersText("removeMilestone")}
-                                        </Button>
-                                      </Group>
-                                      <TextInput
-                                        label={membersText("milestoneLabel")}
-                                        value={milestone.label}
-                                        onChange={(event) =>
-                                          updateMemberMilestones(member.id, (current) =>
-                                            current.map((entry) =>
-                                              entry.id === milestone.id
-                                                ? {
-                                                    ...entry,
-                                                    label: event.currentTarget.value,
-                                                  }
-                                                : entry
-                                            )
-                                          )
-                                        }
-                                      />
-                                      <Group grow>
-                                        <NumberInput
-                                          label={membersText("milestoneAgeLabel")}
-                                          value={milestone.atAgeYears ?? ""}
-                                          min={0}
-                                          step={0.5}
-                                          decimalScale={2}
-                                          onChange={(value) =>
+                                            }
+                                          >
+                                            {membersText("removeMilestone")}
+                                          </Button>
+                                        </Group>
+                                        <TextInput
+                                          label={membersText("milestoneLabel")}
+                                          value={milestone.label}
+                                          onChange={(event) =>
                                             updateMemberMilestones(member.id, (current) =>
                                               current.map((entry) =>
                                                 entry.id === milestone.id
                                                   ? {
                                                       ...entry,
-                                                      atAgeYears:
-                                                        typeof value === "number"
-                                                          ? value
-                                                          : undefined,
-                                                      month:
-                                                        typeof value === "number"
-                                                          ? undefined
-                                                          : entry.month,
+                                                      label: event.currentTarget.value,
                                                     }
                                                   : entry
                                               )
                                             )
                                           }
                                         />
-                                        <TextInput
-                                          label={membersText("milestoneMonthLabel")}
-                                          placeholder={common("yearMonthPlaceholder")}
-                                          value={monthInput}
-                                          error={monthError}
-                                          onChange={(event) => {
-                                            const nextValue = event.currentTarget.value;
-                                            setMilestoneMonthInputs((current) => ({
-                                              ...current,
-                                              [milestoneKey]: nextValue,
-                                            }));
-                                            setMilestoneMonthErrors((current) => ({
-                                              ...current,
-                                              [milestoneKey]: null,
-                                            }));
-                                          }}
-                                          onBlur={() => {
-                                            const trimmed = monthInput.trim();
-                                            if (trimmed === "") {
+                                        <Group grow>
+                                          <NumberInput
+                                            label={membersText("milestoneAgeLabel")}
+                                            value={milestone.atAgeYears ?? ""}
+                                            min={0}
+                                            step={0.5}
+                                            decimalScale={2}
+                                            onChange={(value) =>
+                                              updateMemberMilestones(member.id, (current) =>
+                                                current.map((entry) =>
+                                                  entry.id === milestone.id
+                                                    ? {
+                                                        ...entry,
+                                                        atAgeYears:
+                                                          typeof value === "number"
+                                                            ? value
+                                                            : undefined,
+                                                        month:
+                                                          typeof value === "number"
+                                                            ? undefined
+                                                            : entry.month,
+                                                      }
+                                                    : entry
+                                                )
+                                              )
+                                            }
+                                          />
+                                          <TextInput
+                                            label={membersText("milestoneMonthLabel")}
+                                            placeholder={common("yearMonthPlaceholder")}
+                                            value={monthInput}
+                                            error={monthError}
+                                            onChange={(event) => {
+                                              const nextValue = event.currentTarget.value;
+                                              setMilestoneMonthInputs((current) => ({
+                                                ...current,
+                                                [milestoneKey]: nextValue,
+                                              }));
+                                              setMilestoneMonthErrors((current) => ({
+                                                ...current,
+                                                [milestoneKey]: null,
+                                              }));
+                                            }}
+                                            onBlur={() => {
+                                              const trimmed = monthInput.trim();
+                                              if (trimmed === "") {
+                                                updateMemberMilestones(
+                                                  member.id,
+                                                  (current) =>
+                                                    current.map((entry) =>
+                                                      entry.id === milestone.id
+                                                        ? {
+                                                            ...entry,
+                                                            month: undefined,
+                                                          }
+                                                        : entry
+                                                    )
+                                                );
+                                                setMilestoneMonthErrors((current) => ({
+                                                  ...current,
+                                                  [milestoneKey]: null,
+                                                }));
+                                                setMilestoneMonthInputs((current) => ({
+                                                  ...current,
+                                                  [milestoneKey]: "",
+                                                }));
+                                                return;
+                                              }
+                                              const normalized =
+                                                normalizeMonthStrict(trimmed);
+                                              if (!normalized.ok) {
+                                                setMilestoneMonthErrors((current) => ({
+                                                  ...current,
+                                                  [milestoneKey]:
+                                                    validation("useYearMonth"),
+                                                }));
+                                                return;
+                                              }
                                               updateMemberMilestones(
                                                 member.id,
                                                 (current) =>
@@ -1550,7 +1621,8 @@ export default function SettingsClient({
                                                     entry.id === milestone.id
                                                       ? {
                                                           ...entry,
-                                                          month: undefined,
+                                                          month: normalized.month,
+                                                          atAgeYears: undefined,
                                                         }
                                                       : entry
                                                   )
@@ -1561,72 +1633,158 @@ export default function SettingsClient({
                                               }));
                                               setMilestoneMonthInputs((current) => ({
                                                 ...current,
-                                                [milestoneKey]: "",
+                                                [milestoneKey]: normalized.month,
                                               }));
-                                              return;
-                                            }
-                                            const normalized =
-                                              normalizeMonthStrict(trimmed);
-                                            if (!normalized.ok) {
-                                              setMilestoneMonthErrors((current) => ({
-                                                ...current,
-                                                [milestoneKey]:
-                                                  validation("useYearMonth"),
-                                              }));
-                                              return;
-                                            }
-                                            updateMemberMilestones(
-                                              member.id,
-                                              (current) =>
-                                                current.map((entry) =>
-                                                  entry.id === milestone.id
-                                                    ? {
-                                                        ...entry,
-                                                        month: normalized.month,
-                                                        atAgeYears: undefined,
-                                                      }
-                                                    : entry
-                                                )
-                                            );
-                                            setMilestoneMonthErrors((current) => ({
-                                              ...current,
-                                              [milestoneKey]: null,
-                                            }));
-                                            setMilestoneMonthInputs((current) => ({
-                                              ...current,
-                                              [milestoneKey]: normalized.month,
-                                            }));
-                                          }}
-                                        />
-                                      </Group>
-                                      <Stack gap="xs">
-                                        <Text fw={500}>
-                                          {membersText("milestoneApplyScope")}
-                                        </Text>
-                                        {renderApplyScope(
-                                          normalizeApplyScope(milestone.applyScope),
-                                          (next) =>
-                                            updateMemberMilestones(
-                                              member.id,
-                                              (current) =>
-                                                current.map((entry) =>
-                                                  entry.id === milestone.id
-                                                    ? { ...entry, applyScope: next }
-                                                    : entry
-                                                )
-                                            )
-                                        )}
+                                            }}
+                                          />
+                                        </Group>
+                                        <Stack gap="xs">
+                                          <Text fw={500}>
+                                            {membersText("milestoneApplyScope")}
+                                          </Text>
+                                          {renderApplyScope(
+                                            normalizeApplyScope(milestone.applyScope),
+                                            (next) =>
+                                              updateMemberMilestones(
+                                                member.id,
+                                                (current) =>
+                                                  current.map((entry) =>
+                                                    entry.id === milestone.id
+                                                      ? { ...entry, applyScope: next }
+                                                      : entry
+                                                  )
+                                              )
+                                          )}
+                                        </Stack>
                                       </Stack>
-                                    </Stack>
-                                  </Card>
-                                );
-                              })}
+                                    </Card>
+                                  );
+                                })}
+                            </Stack>
+                            <Stack gap="xs">
+                              <Group justify="space-between" align="center">
+                                <Text fw={600}>
+                                  {membersText("memberBudgetTitle")}
+                                </Text>
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  onClick={() => {
+                                    const nextId = createBudgetRuleForMember(member.id);
+                                    setActiveTab("budget");
+                                    setExpandedBudgetRuleId(nextId);
+                                  }}
+                                >
+                                  {membersText("addMemberRule")}
+                                </Button>
+                              </Group>
+                              {memberBudgetRules.length === 0 ? (
+                                <Text size="xs" c="dimmed">
+                                  {membersText("memberBudgetEmpty")}
+                                </Text>
+                              ) : (
+                                <Stack gap="xs">
+                                  {memberBudgetRules.map((rule) => (
+                                    <Card
+                                      key={rule.id}
+                                      withBorder
+                                      radius="md"
+                                      padding="sm"
+                                    >
+                                      <Group
+                                        justify="space-between"
+                                        align="center"
+                                        wrap="wrap"
+                                      >
+                                        <Stack gap={2}>
+                                          <Text fw={500}>{rule.name}</Text>
+                                          <Text size="xs" c="dimmed">
+                                            {budgetCategoryLabels[rule.category] ??
+                                              rule.category}
+                                          </Text>
+                                        </Stack>
+                                        <Group gap="xs" align="center">
+                                          <Text size="sm">
+                                            {formatCurrency(
+                                              -Math.abs(rule.monthlyAmount ?? 0)
+                                            )}
+                                          </Text>
+                                          <Button
+                                            size="xs"
+                                            variant="light"
+                                            onClick={() => {
+                                              setActiveTab("budget");
+                                              setExpandedBudgetRuleId(rule.id);
+                                            }}
+                                          >
+                                            {common("actionEdit")}
+                                          </Button>
+                                        </Group>
+                                      </Group>
+                                    </Card>
+                                  ))}
+                                </Stack>
+                              )}
+                            </Stack>
                           </Stack>
-                        </Stack>
-                      </Card>
+                        </Accordion.Panel>
+                      </Accordion.Item>
                     );
                   })}
-                </SimpleGrid>
+                </Accordion>
+                <Card withBorder radius="md" padding="md">
+                  <Stack gap="xs">
+                    <Group justify="space-between" align="center">
+                      <Text fw={600}>{membersText("householdBudgetTitle")}</Text>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => {
+                          const nextId = createBudgetRuleForMember(undefined);
+                          setActiveTab("budget");
+                          setExpandedBudgetRuleId(nextId);
+                        }}
+                      >
+                        {membersText("addHouseholdRule")}
+                      </Button>
+                    </Group>
+                    {householdBudgetRules.length === 0 ? (
+                      <Text size="xs" c="dimmed">
+                        {membersText("householdBudgetEmpty")}
+                      </Text>
+                    ) : (
+                      <Stack gap="xs">
+                        {householdBudgetRules.map((rule) => (
+                          <Card key={rule.id} withBorder radius="md" padding="sm">
+                            <Group justify="space-between" align="center" wrap="wrap">
+                              <Stack gap={2}>
+                                <Text fw={500}>{rule.name}</Text>
+                                <Text size="xs" c="dimmed">
+                                  {budgetCategoryLabels[rule.category] ?? rule.category}
+                                </Text>
+                              </Stack>
+                              <Group gap="xs" align="center">
+                                <Text size="sm">
+                                  {formatCurrency(-Math.abs(rule.monthlyAmount ?? 0))}
+                                </Text>
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  onClick={() => {
+                                    setActiveTab("budget");
+                                    setExpandedBudgetRuleId(rule.id);
+                                  }}
+                                >
+                                  {common("actionEdit")}
+                                </Button>
+                              </Group>
+                            </Group>
+                          </Card>
+                        ))}
+                      </Stack>
+                    )}
+                  </Stack>
+                </Card>
               </Stack>
             </Stack>
           </Card>

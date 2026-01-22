@@ -12,7 +12,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildMonthRange, type EventField, type EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import { normalizeEvent } from "../../src/features/timeline/schema";
@@ -29,6 +29,7 @@ import { compileEventToMonthlyCashflowSeries } from "../../src/domain/events/com
 import { getEventMeta, getEventSign } from "../../src/events/eventCatalog";
 import type { EventRule, EventRuleScheduleEntry } from "../../src/domain/events/types";
 import CashflowPreviewChart from "./CashflowPreviewChart";
+import EndConditionPicker, { type EndConditionMode } from "../EndConditionPicker";
 
 export type TimelineEventFormResult = {
   event: TimelineEvent;
@@ -95,22 +96,28 @@ export default function TimelineEventForm({
   );
   const [startMonthInput, setStartMonthInput] = useState(event?.startMonth ?? "");
   const [endMonthInput, setEndMonthInput] = useState(event?.endMonth ?? "");
+  const [endConditionMode, setEndConditionMode] = useState<EndConditionMode>(
+    event?.endAtAgeYears ? "age" : "month"
+  );
   const [cashflowMode, setCashflowMode] = useState<"view" | "edit">("view");
   const [scheduleDraft, setScheduleDraft] = useState<Record<string, number>>({});
   const [ruleMode, setRuleMode] = useState<EventRule["mode"]>(initialRuleMode);
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [editingAmount, setEditingAmount] = useState<number>(0);
   const [endAtAgeError, setEndAtAgeError] = useState<string | null>(null);
+  const lastManualEndMonthRef = useRef<string>("");
 
   useEffect(() => {
     setFormValues(event);
     setErrors({});
     setStartMonthInput(event?.startMonth ?? "");
     setEndMonthInput(event?.endMonth ?? "");
+    setEndConditionMode(event?.endAtAgeYears ? "age" : "month");
     setCashflowMode("view");
     setRuleMode(initialRuleMode ?? "params");
     setScheduleDraft(buildScheduleMap(schedule));
     setEndAtAgeError(null);
+    lastManualEndMonthRef.current = event?.endMonth ?? "";
   }, [event, initialRuleMode, schedule]);
 
   const fieldKeys = fields?.map((field) => field.key) ?? [];
@@ -169,7 +176,9 @@ export default function TimelineEventForm({
 
     const normalizedStartMonth = normalizeMonthStrict(startMonthInput);
     const normalizedEndMonth =
-      endMonthInput.trim() === "" ? null : normalizeMonthStrict(endMonthInput);
+      endConditionMode === "month" && endMonthInput.trim() !== ""
+        ? normalizeMonthStrict(endMonthInput)
+        : null;
     const nextErrors: { startMonth?: string; endMonth?: string } = {};
 
     if (
@@ -179,14 +188,16 @@ export default function TimelineEventForm({
       nextErrors.startMonth = validation("useYearMonth");
     }
 
-    if (shouldShowField("endMonth") && endMonthInput.trim() !== "") {
-      if (!normalizedEndMonth?.ok) {
-        nextErrors.endMonth = validation("useYearMonth");
-      } else if (
-        normalizedStartMonth.ok &&
-        normalizedEndMonth.month < normalizedStartMonth.month
-      ) {
-        nextErrors.endMonth = validation("endMonthAfterStart");
+    if (shouldShowField("endMonth") && endConditionMode === "month") {
+      if (endMonthInput.trim() !== "") {
+        if (!normalizedEndMonth?.ok) {
+          nextErrors.endMonth = validation("useYearMonth");
+        } else if (
+          normalizedStartMonth.ok &&
+          normalizedEndMonth.month < normalizedStartMonth.month
+        ) {
+          nextErrors.endMonth = validation("endMonthAfterStart");
+        }
       }
     }
 
@@ -194,6 +205,17 @@ export default function TimelineEventForm({
       setErrors(nextErrors);
       return;
     }
+
+    if (endConditionMode === "age" && formValues.endAtAgeYears && endAtAgeError) {
+      return;
+    }
+
+    const resolvedEndMonth =
+      endConditionMode === "age"
+        ? computedEndMonth
+        : normalizedEndMonth?.ok
+          ? normalizedEndMonth.month
+          : null;
 
     const normalizedEvent = normalizeEvent(
       {
@@ -205,7 +227,8 @@ export default function TimelineEventForm({
         startMonth: normalizedStartMonth.ok
           ? normalizedStartMonth.month
           : formValues.startMonth,
-        endMonth: normalizedEndMonth?.ok ? normalizedEndMonth.month : null,
+        endMonth: resolvedEndMonth ?? null,
+        endAtAgeYears: endConditionMode === "age" ? formValues.endAtAgeYears : undefined,
       },
       { baseCurrency }
     );
@@ -321,34 +344,75 @@ export default function TimelineEventForm({
   const canUseEndAtAge = Boolean(
     formValues && isIncomeEvent && selectedMember?.kind === "person"
   );
+  const handleEndConditionModeChange = (nextMode: EndConditionMode) => {
+    setEndConditionMode(nextMode);
+    if (nextMode === "age") {
+      lastManualEndMonthRef.current = endMonthInput;
+      setEndMonthInput("");
+      updateField("endMonth", null as TimelineEvent["endMonth"]);
+      setErrors((current) => ({ ...current, endMonth: undefined }));
+    } else {
+      updateField("endAtAgeYears", undefined);
+      setEndAtAgeError(null);
+      const restored = lastManualEndMonthRef.current;
+      setEndMonthInput(restored);
+      const normalized = normalizeMonthInput(restored);
+      if (normalized.status === "valid" && normalized.month) {
+        updateField("endMonth", normalized.month as TimelineEvent["endMonth"]);
+      } else if (normalized.status === "empty") {
+        updateField("endMonth", null as TimelineEvent["endMonth"]);
+      }
+    }
+  };
 
   useEffect(() => {
+    if (!canUseEndAtAge && endConditionMode === "age") {
+      setEndConditionMode("month");
+      updateField("endAtAgeYears", undefined);
+    }
+  }, [canUseEndAtAge, endConditionMode, updateField]);
+
+  const computedEndMonth = useMemo(() => {
     if (!formValues?.endAtAgeYears || !canUseEndAtAge) {
-      setEndAtAgeError(null);
-      return;
+      return null;
     }
-
     if (!assumptions.baseMonth || !selectedMember) {
-      setEndAtAgeError(t("endAtAgeMissingBase"));
-      return;
+      return null;
     }
-
-    const computedEndMonth = monthAtAge(
-      selectedMember,
-      formValues.endAtAgeYears,
-      assumptions.baseMonth
-    );
-    if (!computedEndMonth) {
-      setEndAtAgeError(t("endAtAgeMissingBirth"));
-      return;
-    }
-
-    setEndAtAgeError(null);
-    setEndMonthInput(computedEndMonth);
-    updateField("endMonth", computedEndMonth as TimelineEvent["endMonth"]);
+    return monthAtAge(selectedMember, formValues.endAtAgeYears, assumptions.baseMonth);
   }, [
     assumptions.baseMonth,
     canUseEndAtAge,
+    formValues?.endAtAgeYears,
+    selectedMember,
+  ]);
+
+  useEffect(() => {
+    if (endConditionMode !== "age") {
+      setEndAtAgeError(null);
+      return;
+    }
+    if (!formValues?.endAtAgeYears) {
+      updateField("endMonth", null as TimelineEvent["endMonth"]);
+      setEndAtAgeError(null);
+      return;
+    }
+    if (!assumptions.baseMonth || !selectedMember) {
+      updateField("endMonth", null as TimelineEvent["endMonth"]);
+      setEndAtAgeError(t("endAtAgeMissingBase"));
+      return;
+    }
+    if (!computedEndMonth) {
+      updateField("endMonth", null as TimelineEvent["endMonth"]);
+      setEndAtAgeError(t("endAtAgeMissingBirth"));
+      return;
+    }
+    setEndAtAgeError(null);
+    updateField("endMonth", computedEndMonth as TimelineEvent["endMonth"]);
+  }, [
+    assumptions.baseMonth,
+    computedEndMonth,
+    endConditionMode,
     formValues?.endAtAgeYears,
     selectedMember,
     t,
@@ -441,50 +505,73 @@ export default function TimelineEventForm({
           }
         />
       )}
-      {shouldShowField("endMonth") && (
-        <TextInput
-          label={t("eventFormEndMonth")}
-          placeholder={common("yearMonthOptionalPlaceholder")}
-          value={endMonthInput}
-          error={errors.endMonth}
-          onChange={(eventChange) => {
-            const nextValue = eventChange.target.value;
-            setEndMonthInput(nextValue);
-            const normalized = normalizeMonthInput(nextValue);
-            if (normalized.status === "valid" && normalized.month) {
-              updateField("endMonth", normalized.month as TimelineEvent["endMonth"]);
-            } else if (normalized.status === "empty") {
-              updateField("endMonth", null as TimelineEvent["endMonth"]);
-            } else {
-              updateField("endMonth", null as TimelineEvent["endMonth"]);
+      {shouldShowField("endMonth") &&
+        (canUseEndAtAge ? (
+          <EndConditionPicker
+            mode={endConditionMode}
+            onModeChange={handleEndConditionModeChange}
+            monthLabel={t("eventFormEndMonth")}
+            monthPlaceholder={common("yearMonthOptionalPlaceholder")}
+            monthValue={endMonthInput}
+            monthError={errors.endMonth}
+            onMonthChange={(value) => {
+              setEndMonthInput(value);
+              const normalized = normalizeMonthInput(value);
+              if (normalized.status === "valid" && normalized.month) {
+                updateField("endMonth", normalized.month as TimelineEvent["endMonth"]);
+              } else if (normalized.status === "empty") {
+                updateField("endMonth", null as TimelineEvent["endMonth"]);
+              } else {
+                updateField("endMonth", null as TimelineEvent["endMonth"]);
+              }
+              if (errors.endMonth) {
+                setErrors((current) => ({ ...current, endMonth: undefined }));
+              }
+              lastManualEndMonthRef.current = value;
+            }}
+            onMonthBlur={() => handleNormalizeMonth("endMonth", endMonthInput)}
+            ageLabel={t("endAtAgeLabel")}
+            ageValue={formValues.endAtAgeYears ?? ""}
+            ageError={endAtAgeError ?? undefined}
+            onAgeChange={(value) => {
+              if (typeof value === "number") {
+                updateField("endAtAgeYears", value);
+              } else {
+                updateField("endAtAgeYears", undefined);
+                setEndAtAgeError(null);
+              }
+            }}
+            monthOptionLabel={t("endConditionMonth")}
+            ageOptionLabel={t("endConditionAge")}
+            computedMonthLabel={t("endConditionComputed")}
+            computedMonthValue={computedEndMonth}
+          />
+        ) : (
+          <TextInput
+            label={t("eventFormEndMonth")}
+            placeholder={common("yearMonthOptionalPlaceholder")}
+            value={endMonthInput}
+            error={errors.endMonth}
+            onChange={(eventChange) => {
+              const nextValue = eventChange.target.value;
+              setEndMonthInput(nextValue);
+              const normalized = normalizeMonthInput(nextValue);
+              if (normalized.status === "valid" && normalized.month) {
+                updateField("endMonth", normalized.month as TimelineEvent["endMonth"]);
+              } else if (normalized.status === "empty") {
+                updateField("endMonth", null as TimelineEvent["endMonth"]);
+              } else {
+                updateField("endMonth", null as TimelineEvent["endMonth"]);
+              }
+              if (errors.endMonth) {
+                setErrors((current) => ({ ...current, endMonth: undefined }));
+              }
+            }}
+            onBlur={(eventChange) =>
+              handleNormalizeMonth("endMonth", eventChange.target.value)
             }
-            if (errors.endMonth) {
-              setErrors((current) => ({ ...current, endMonth: undefined }));
-            }
-          }}
-          onBlur={(eventChange) =>
-            handleNormalizeMonth("endMonth", eventChange.target.value)
-          }
-        />
-      )}
-      {canUseEndAtAge && (
-        <NumberInput
-          label={t("endAtAgeLabel")}
-          value={formValues.endAtAgeYears ?? ""}
-          min={0}
-          step={0.5}
-          decimalScale={2}
-          error={endAtAgeError ?? undefined}
-          onChange={(value) => {
-            if (typeof value === "number") {
-              updateField("endAtAgeYears", value);
-            } else {
-              updateField("endAtAgeYears", undefined);
-              setEndAtAgeError(null);
-            }
-          }}
-        />
-      )}
+          />
+        ))}
       {shouldShowField("monthlyAmount") && (
         <NumberInput
           label={t("eventFormMonthlyAmount")}

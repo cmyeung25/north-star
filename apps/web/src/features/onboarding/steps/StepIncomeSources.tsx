@@ -9,11 +9,13 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { useEffect, useState } from "react";
 import type {
   OnboardingIncomeDraft,
   OnboardingMemberDraft,
 } from "../../../domain/onboarding/applyDraft";
 import type { IncomeSubtype } from "../../timeline/schema";
+import EndConditionPicker, { type EndConditionMode } from "../../../../components/EndConditionPicker";
 
 interface StepIncomeSourcesProps {
   incomes: OnboardingIncomeDraft[];
@@ -44,6 +46,22 @@ export default function StepIncomeSources({
   onRemoveIncome,
   t,
 }: StepIncomeSourcesProps) {
+  const [endConditionModes, setEndConditionModes] = useState<
+    Record<string, EndConditionMode>
+  >({});
+
+  useEffect(() => {
+    setEndConditionModes((current) => {
+      const next = { ...current };
+      incomes.forEach((income) => {
+        if (!next[income.id]) {
+          next[income.id] = income.endAtAgeYears ? "age" : "month";
+        }
+      });
+      return next;
+    });
+  }, [incomes]);
+
   const memberOptions = [
     { value: "household", label: t("householdShared") },
     ...members.map((member) => ({ value: member.id, label: member.name })),
@@ -118,7 +136,7 @@ export default function StepIncomeSources({
                   error={errors[`income.${income.id}.monthlyAmount`]}
                 />
               </Group>
-              <Group grow align="flex-start">
+              <Stack gap="xs">
                 <TextInput
                   label={t("startMonth")}
                   placeholder="YYYY-MM"
@@ -128,24 +146,36 @@ export default function StepIncomeSources({
                   }
                   error={errors[`income.${income.id}.startMonth`]}
                 />
-                <TextInput
-                  label={t("endMonth")}
-                  placeholder="YYYY-MM"
-                  value={income.endMonth ?? ""}
-                  onChange={(event) =>
-                    onUpdateIncome(income.id, { endMonth: event.currentTarget.value })
+                <EndConditionPicker
+                  mode={endConditionModes[income.id] ?? "month"}
+                  onModeChange={(value) => {
+                    setEndConditionModes((current) => ({
+                      ...current,
+                      [income.id]: value,
+                    }));
+                    onUpdateIncome(income.id, {
+                      endMonth: value === "age" ? "" : income.endMonth ?? "",
+                      endAtAgeYears: value === "month" ? undefined : income.endAtAgeYears,
+                    });
+                  }}
+                  monthLabel={t("endMonth")}
+                  monthPlaceholder="YYYY-MM"
+                  monthValue={income.endMonth ?? ""}
+                  monthError={errors[`income.${income.id}.endMonth`]}
+                  onMonthChange={(value) =>
+                    onUpdateIncome(income.id, { endMonth: value })
                   }
-                  error={errors[`income.${income.id}.endMonth`]}
-                />
-                <NumberInput
-                  label={t("endAtAge")}
-                  min={0}
-                  value={income.endAtAgeYears ?? ""}
-                  onChange={(value) =>
-                    onUpdateIncome(income.id, { endAtAgeYears: Number(value) })
+                  ageLabel={t("endAtAge")}
+                  ageValue={income.endAtAgeYears ?? ""}
+                  onAgeChange={(value) =>
+                    onUpdateIncome(income.id, {
+                      endAtAgeYears: typeof value === "number" ? value : undefined,
+                    })
                   }
+                  monthOptionLabel={t("endConditionMonth")}
+                  ageOptionLabel={t("endConditionAge")}
                 />
-              </Group>
+              </Stack>
             </Stack>
           </Card>
         ))}
