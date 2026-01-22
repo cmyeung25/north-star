@@ -30,8 +30,10 @@ import InsuranceDetailsForm from "./InsuranceDetailsForm";
 import PositionDetailList from "./PositionDetailList";
 import TimelineEventDrawer from "./TimelineEventDrawer";
 import MergeDuplicatesModal from "./MergeDuplicatesModal";
-import PositionCashflowModal from "./PositionCashflowModal";
-import PositionCalculatorModal from "./PositionCalculatorModal";
+import {
+  PositionCashflowModal,
+  PositionCalculatorModal,
+} from "../PositionModals";
 import CopyToScenariosModal from "./CopyToScenariosModal";
 import SmartInvestForm from "../SmartInvestForm";
 import type {

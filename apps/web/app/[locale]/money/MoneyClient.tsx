@@ -29,6 +29,27 @@ import InsuranceDetailsForm from "../../../components/timeline/InsuranceDetailsF
 import LoanDetailsForm from "../../../components/timeline/LoanDetailsForm";
 import SmartInvestForm from "../../../components/SmartInvestForm";
 import {
+  PositionCashflowModal,
+  PositionCalculatorModal,
+} from "../../../components/PositionModals";
+import { type CashflowPreviewPoint } from "../../../components/timeline/CashflowPreviewChart";
+import {
+  buildHomeCashflowBreakdown,
+  buildCarCashflowBreakdown,
+  buildInvestmentCashflowBreakdown,
+  buildInsuranceCashflowBreakdown,
+  type PositionCashflowEntry,
+} from "../../../src/domain/positions/cashflowBreakdown";
+import {
+  buildAmortizationSchedule,
+  buildValueSchedule,
+  buildContributionSchedule,
+  type AmortizationRow,
+  type ValueRow,
+  type ContributionRow,
+} from "../../../src/domain/positions/calculations";
+import { buildInvestmentValueTable, type ValueTableRow } from "../../../src/domain/positions/investmentValueTable";
+import {
   createCarPositionFromTemplate,
   createHomePositionFromTemplate,
   createInsurancePositionFromTemplate,
@@ -52,7 +73,7 @@ import { getEventTypeDisplay } from "../../../components/timeline/utils";
 import type { ScenarioEventView } from "../../../components/timeline/types";
 import { isValidMonthStr } from "../../../src/utils/month";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
-import { buildSmartInvestProjectionBreakdown } from "../../../src/domain/smartInvest/projection";
+import { buildSmartInvestProjectionBreakdown, type SmartInvestProjectionBreakdown } from "../../../src/domain/smartInvest/projection";
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
 import { compileSellLifecycle } from "../../../src/domain/positions/compileSellLifecycle";
 import type {
@@ -63,6 +84,24 @@ import type {
   LoanPositionDraft,
 } from "../../../src/store/scenarioStore";
 import type { EventGroup } from "@north-star/engine";
+
+type CashflowModalState = {
+  opened: boolean;
+  title: string;
+  entries: ReturnType<typeof buildHomeCashflowBreakdown>["entries"];
+  series: ReturnType<typeof buildHomeCashflowBreakdown>["series"];
+};
+
+type CalculatorModalState = {
+  opened: boolean;
+  title: string;
+  amortizationRows?: ReturnType<typeof buildAmortizationSchedule>;
+  valueRows?: ReturnType<typeof buildValueSchedule>;
+  contributionRows?: ReturnType<typeof buildContributionSchedule>;
+  assetValueRows?: ReturnType<typeof buildInvestmentValueTable>;
+  bucketValueSeries?: ReturnType<typeof buildSmartInvestProjectionBreakdown>["bucketSeries"];
+  bucketCurrentRows?: ReturnType<typeof buildSmartInvestProjectionBreakdown>["currentBucketValues"];
+};
 
 type MoneyTab = "income" | "expenses" | "assets" | "liabilities" | "timeline" | "inputs";
 
@@ -174,6 +213,16 @@ export default function MoneyClient({
     id?: string;
   } | null>(null);
   const [assetDetailsMonth, setAssetDetailsMonth] = useState<string | null>(null);
+  const [cashflowModal, setCashflowModal] = useState<CashflowModalState>({
+    opened: false,
+    title: "",
+    entries: [],
+    series: [],
+  });
+  const [calculatorModal, setCalculatorModal] = useState<CalculatorModalState>({
+    opened: false,
+    title: "",
+  });
   const hasHandledInitialAdd = useRef(false);
   const hasHandledInitialEdit = useRef(false);
 
@@ -714,6 +763,250 @@ export default function MoneyClient({
     smartInvestBreakdown,
     timelineText,
   ]);
+
+  const openCashflowModal = (
+    title: string,
+    entries: PositionCashflowEntry[],
+    series: CashflowPreviewPoint[]
+  ) => {
+    setCashflowModal({
+      opened: true,
+      title,
+      entries,
+      series,
+    });
+  };
+
+  const openCalculatorModal = (
+    title: string,
+    amortizationRows?: AmortizationRow[],
+    valueRows?: ValueRow[],
+    contributionRows?: ContributionRow[],
+    assetValueRows?: ValueTableRow[],
+    bucketValueSeries?: SmartInvestProjectionBreakdown["bucketSeries"],
+    bucketCurrentRows?: SmartInvestProjectionBreakdown["currentBucketValues"]
+  ) => {
+    setCalculatorModal({
+      opened: true,
+      title,
+      amortizationRows,
+      valueRows,
+      contributionRows,
+      assetValueRows,
+      bucketValueSeries,
+      bucketCurrentRows,
+    });
+  };
+
+  const handleViewCashflow = () => {
+    if (!assetDetails || !projection) return;
+
+    const horizonMonths = projection.months.length;
+
+    if (assetDetails.type === "home" && assetDetails.id) {
+      const home = homes.find((h) => h.id === assetDetails.id);
+      if (!home) return;
+      const breakdown = buildHomeCashflowBreakdown({
+        home,
+        baseMonth,
+        horizonMonths,
+      });
+      openCashflowModal(
+        homesText("title"),
+        breakdown.entries,
+        breakdown.series
+      );
+    } else if (assetDetails.type === "car" && assetDetails.id) {
+      const car = cars.find((c) => c.id === assetDetails.id);
+      if (!car) return;
+      const breakdown = buildCarCashflowBreakdown({
+        car,
+        baseMonth,
+        horizonMonths,
+      });
+      openCashflowModal(
+        carsText("title"),
+        breakdown.entries,
+        breakdown.series
+      );
+    } else if (assetDetails.type === "investment" && assetDetails.id) {
+      const investment = investments.find((i) => i.id === assetDetails.id);
+      if (!investment) return;
+      const breakdown = buildInvestmentCashflowBreakdown({
+        investment,
+        baseMonth,
+        horizonMonths,
+      });
+      openCashflowModal(
+        investmentsText("title"),
+        breakdown.entries,
+        breakdown.series
+      );
+    } else if (assetDetails.type === "insurance" && assetDetails.id) {
+      const insurance = insurances.find((i) => i.id === assetDetails.id);
+      if (!insurance) return;
+      const breakdown = buildInsuranceCashflowBreakdown({
+        insurance,
+        baseMonth,
+        horizonMonths,
+      });
+      openCashflowModal(
+        insurancesText("title"),
+        breakdown.entries,
+        breakdown.series
+      );
+    } else if (assetDetails.type === "smartInvest") {
+      if (!smartInvestBreakdown) return;
+      const entries = smartInvestBreakdown.cashflowSeries.map(
+        (item: { month: string; amount: number }) => ({
+          month: item.month,
+          amount: item.amount,
+          label: "smartInvest",
+          sourceId: "smart-invest",
+        })
+      );
+      openCashflowModal(
+        timelineText("smartInvestTitle"),
+        entries,
+        smartInvestBreakdown.cashflowSeries.map(
+          (item: { month: string; amount: number }) => ({
+            month: item.month,
+            amount: item.amount,
+          })
+        )
+      );
+    }
+  };
+
+  const handleViewCalculations = () => {
+    if (!assetDetails || !projection) return;
+
+    const horizonMonths = projection.months.length;
+
+    if (assetDetails.type === "home" && assetDetails.id) {
+      const home = homes.find((h) => h.id === assetDetails.id);
+      if (!home) return;
+
+      const amortizationRows: AmortizationRow[] = [];
+      const valueRows: ValueRow[] = [];
+
+      // Build amortization for existing or new purchase
+      if (home.mode === "existing" && home.existing) {
+        amortizationRows.push(
+          ...buildAmortizationSchedule({
+            principal: home.existing.mortgageBalance ?? 0,
+            annualRateDecimal: (home.existing.annualRatePct ?? 0) / 100,
+            termMonths: home.existing.remainingTermMonths ?? 0,
+            startMonth: home.existing.asOfMonth ?? baseMonth ?? "",
+          })
+        );
+      } else if (home.mode !== "existing" && home.mortgageTermYears && home.mortgageTermYears > 0) {
+        const purchasePrice = home.purchasePrice ?? 0;
+        const downPayment = home.downPayment ?? 0;
+        const principal = purchasePrice - downPayment;
+        amortizationRows.push(
+          ...buildAmortizationSchedule({
+            principal,
+            annualRateDecimal: (home.mortgageRatePct ?? 0) / 100,
+            termMonths: Math.round((home.mortgageTermYears ?? 0) * 12),
+            startMonth: home.purchaseMonth ?? baseMonth ?? "",
+          })
+        );
+      }
+
+      // Build value schedule
+      if (home.annualAppreciationPct !== undefined) {
+        valueRows.push(
+          ...buildValueSchedule({
+            baseValue: home.purchasePrice ?? 0,
+            annualAppreciationDecimal: (home.annualAppreciationPct ?? 0) / 100,
+            startMonth: home.purchaseMonth ?? baseMonth ?? "",
+            months: horizonMonths,
+          })
+        );
+      }
+
+      openCalculatorModal(
+        homesText("title"),
+        amortizationRows.length > 0 ? amortizationRows : undefined,
+        valueRows.length > 0 ? valueRows : undefined
+      );
+    } else if (assetDetails.type === "car" && assetDetails.id) {
+      const car = cars.find((c) => c.id === assetDetails.id);
+      if (!car) return;
+
+      const amortizationRows: AmortizationRow[] = [];
+      const valueRows: ValueRow[] = [];
+
+      // Build amortization for car loan
+      if (car.loan) {
+        amortizationRows.push(
+          ...buildAmortizationSchedule({
+            principal: car.loan.principal ?? 0,
+            annualRateDecimal: (car.loan.annualInterestRatePct ?? 0) / 100,
+            termMonths: Math.round((car.loan.termYears ?? 0) * 12),
+            startMonth: car.purchaseMonth ?? baseMonth ?? "",
+          })
+        );
+      }
+
+      // Build value schedule (depreciation)
+      if (car.annualDepreciationRatePct !== undefined) {
+        valueRows.push(
+          ...buildValueSchedule({
+            baseValue: car.purchasePrice ?? 0,
+            annualAppreciationDecimal: -(car.annualDepreciationRatePct ?? 0) / 100,
+            startMonth: car.purchaseMonth ?? baseMonth ?? "",
+            months: horizonMonths,
+          })
+        );
+      }
+
+      openCalculatorModal(
+        carsText("title"),
+        amortizationRows.length > 0 ? amortizationRows : undefined,
+        valueRows.length > 0 ? valueRows : undefined
+      );
+    } else if (assetDetails.type === "investment" && assetDetails.id) {
+      const investment = investments.find((i) => i.id === assetDetails.id);
+      if (!investment) return;
+
+      const assetValueRows = buildInvestmentValueTable({
+        investment,
+        baseMonth: baseMonth ?? "",
+        horizonMonths,
+      });
+
+      const contributionRows = investment.monthlyContribution
+        ? buildContributionSchedule({
+            startMonth: investment.startMonth ?? baseMonth ?? "",
+            monthlyContribution: investment.monthlyContribution,
+            months: horizonMonths,
+            annualGrowthDecimal: (investment.expectedAnnualReturnPct ?? 0) / 100,
+          })
+        : [];
+
+      openCalculatorModal(
+        investmentsText("title"),
+        undefined,
+        undefined,
+        contributionRows.length > 0 ? contributionRows : undefined,
+        assetValueRows.length > 0 ? assetValueRows : undefined
+      );
+    } else if (assetDetails.type === "smartInvest") {
+      if (!smartInvestBreakdown) return;
+
+      openCalculatorModal(
+        timelineText("smartInvestTitle"),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        smartInvestBreakdown.bucketSeries,
+        smartInvestBreakdown.currentBucketValues
+      );
+    }
+  };
 
   const assetCashflowSeries = assetDetailsData?.cashflowSeries ?? [];
   const assetMonthIndex =
@@ -1327,6 +1620,24 @@ export default function MoneyClient({
                 data={projectionMonths.map((month) => ({ value: month, label: month }))}
                 onChange={(value) => setAssetDetailsMonth(value ?? null)}
               />
+              <Group gap="xs">
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={handleViewCashflow}
+                  disabled={!projection}
+                >
+                  {t("assetDetailsViewCashflow")}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={handleViewCalculations}
+                  disabled={!projection}
+                >
+                  {t("assetDetailsViewCalculations")}
+                </Button>
+              </Group>
               <Card withBorder radius="md" padding="sm">
                 <Stack gap="xs">
                   <Text fw={600}>{t("assetDetailsCashflowTitle")}</Text>
@@ -1638,7 +1949,32 @@ export default function MoneyClient({
               onChange={(nextPolicy) => updateSmartInvest(scenarioIdValue, nextPolicy)}
             />
           </Drawer>
-        </>
+
+          <PositionCashflowModal
+            opened={cashflowModal.opened}
+            onClose={() =>
+              setCashflowModal({ ...cashflowModal, opened: false })
+            }
+            title={cashflowModal.title}
+            currency={scenario?.baseCurrency ?? "USD"}
+            entries={cashflowModal.entries}
+            series={cashflowModal.series}
+          />
+
+          <PositionCalculatorModal
+            opened={calculatorModal.opened}
+            onClose={() =>
+              setCalculatorModal({ ...calculatorModal, opened: false })
+            }
+            title={calculatorModal.title}
+            currency={scenario?.baseCurrency ?? "USD"}
+            amortizationRows={calculatorModal.amortizationRows}
+            valueRows={calculatorModal.valueRows}
+            contributionRows={calculatorModal.contributionRows}
+            assetValueRows={calculatorModal.assetValueRows}
+            bucketValueSeries={calculatorModal.bucketValueSeries}
+            bucketCurrentRows={calculatorModal.bucketCurrentRows}
+          />        </>
       )}
     </Stack>
   );
