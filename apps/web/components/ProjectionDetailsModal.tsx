@@ -6,6 +6,7 @@ import {
   Button,
   Group,
   Modal,
+  Notification,
   ScrollArea,
   Select,
   SimpleGrid,
@@ -19,6 +20,7 @@ import { formatCurrency } from "../lib/i18n";
 import type { CashflowItem } from "../src/domain/ledger/types";
 import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
+import { useJumpToSource } from "../src/hooks/useJumpToSource";
 
 type ProjectionDetailsModalProps = {
   opened: boolean;
@@ -123,6 +125,7 @@ export default function ProjectionDetailsModal({
   const sortedItems = [...monthItems].sort(
     (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
   );
+  const { jumpToSource, toast, clearToast } = useJumpToSource();
   const budgetItems = sortedItems.filter((item) => item.source === "budget");
   const eventItems = sortedItems.filter((item) => item.source === "event");
   const otherItems = sortedItems.filter(
@@ -296,6 +299,11 @@ export default function ProjectionDetailsModal({
             </Tabs.List>
 
             <Tabs.Panel value="cashflow" pt="md">
+              {toast && (
+                <Notification color={toast.color} onClose={clearToast}>
+                  {toast.message}
+                </Notification>
+              )}
               <Stack gap="xs">
                 <SimpleGrid cols={{ base: 1, sm: 5 }}>
                   <Stack gap={2}>
@@ -380,6 +388,7 @@ export default function ProjectionDetailsModal({
                                   <Table.Tr>
                                     <Table.Th>{t("breakdownItem")}</Table.Th>
                                     <Table.Th>{t("breakdownAmount")}</Table.Th>
+                                    <Table.Th>{t("breakdownActions")}</Table.Th>
                                   </Table.Tr>
                                 </Table.Thead>
                                 <Table.Tbody>
@@ -408,6 +417,15 @@ export default function ProjectionDetailsModal({
                                           >
                                             {formatValue(item.amount)}
                                           </Text>
+                                        </Table.Td>
+                                        <Table.Td>
+                                          <Button
+                                            size="xs"
+                                            variant="subtle"
+                                            onClick={() => jumpToSource(item)}
+                                          >
+                                            {t("breakdownEditSource")}
+                                          </Button>
                                         </Table.Td>
                                       </Table.Tr>
                                     );

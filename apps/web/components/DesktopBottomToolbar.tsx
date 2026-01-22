@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Button,
   Group,
   NumberInput,
   Paper,
@@ -15,7 +16,7 @@ import { useScenarioStore } from "../src/store/scenarioStore";
 import { normalizeMonthInput } from "../src/utils/month";
 import { Link } from "../src/i18n/navigation";
 import { buildScenarioUrl } from "../src/utils/scenarioContext";
-import AddMenu from "./AddMenu";
+import AddFlowDrawer from "../features/add/AddFlowDrawer";
 
 export const desktopToolbarHeight = 72;
 
@@ -31,6 +32,7 @@ export default function DesktopBottomToolbar() {
   const setGlobalHorizonMonths = useScenarioStore((state) => state.setGlobalHorizonMonths);
   const setAnnualInflationPct = useScenarioStore((state) => state.setAnnualInflationPct);
   const setViewMode = useScenarioStore((state) => state.setViewMode);
+  const [addOpen, setAddOpen] = useState(false);
 
   const baseMonthStoreValue = appSettings.globalBaseMonth ?? "";
   const [baseMonthInput, setBaseMonthInput] = useState(baseMonthStoreValue);
@@ -109,7 +111,9 @@ export default function DesktopBottomToolbar() {
     >
       <Group justify="space-between" align="center" wrap="nowrap">
         <Group gap="md" align="center" wrap="nowrap">
-          <AddMenu scenarioId={scenarioId} />
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            {t("addButton")}
+          </Button>
         </Group>
 
         <Group gap="lg" align="center" wrap="nowrap">
@@ -194,6 +198,11 @@ export default function DesktopBottomToolbar() {
           </Stack>
         </Group>
       </Group>
+      <AddFlowDrawer
+        opened={addOpen}
+        onClose={() => setAddOpen(false)}
+        scenarioId={scenarioId}
+      />
     </Paper>
   );
 }

@@ -6,6 +6,7 @@ import {
   Card,
   Drawer,
   Group,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
@@ -16,9 +17,10 @@ import {
 } from "@mantine/core";
 import { getEventGroup, monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "../../../src/i18n/navigation";
-import AddMoneyItemModal from "../../../components/money/AddMoneyItemModal";
+import AddFlowDrawer from "../../../features/add/AddFlowDrawer";
 import TimelineEventDrawer from "../../../components/timeline/TimelineEventDrawer";
 import HomeDetailsForm from "../../../components/timeline/HomeDetailsForm";
 import CarDetailsForm from "../../../components/timeline/CarDetailsForm";
@@ -57,12 +59,14 @@ import type {
 } from "../../../src/store/scenarioStore";
 import type { EventGroup } from "@north-star/engine";
 
-type MoneyTab = "income" | "expenses" | "assets" | "liabilities" | "timeline";
+type MoneyTab = "income" | "expenses" | "assets" | "liabilities" | "timeline" | "inputs";
 
 type MoneyClientProps = {
   scenarioId?: string;
   initialTab?: string;
   initialAdd?: string;
+  initialEditEventId?: string;
+  initialEditHomeId?: string;
 };
 
 const tabOrder: MoneyTab[] = [
@@ -71,6 +75,7 @@ const tabOrder: MoneyTab[] = [
   "assets",
   "liabilities",
   "timeline",
+  "inputs",
 ];
 
 type MoneyAddAction =
@@ -85,6 +90,8 @@ export default function MoneyClient({
   scenarioId,
   initialTab,
   initialAdd,
+  initialEditEventId,
+  initialEditHomeId,
 }: MoneyClientProps) {
   const t = useTranslations("money");
   const timelineText = useTranslations("timeline");
@@ -93,8 +100,10 @@ export default function MoneyClient({
   const insurancesText = useTranslations("insurances");
   const loansText = useTranslations("loans");
   const carsText = useTranslations("cars");
+  const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
   const locale = useLocale();
+  const router = useRouter();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);
@@ -102,16 +111,22 @@ export default function MoneyClient({
   const updateScenarioEventRef = useScenarioStore((state) => state.updateScenarioEventRef);
   const updateEventDefinition = useScenarioStore((state) => state.updateEventDefinition);
   const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
+  const removeScenarioEventRef = useScenarioStore((state) => state.removeScenarioEventRef);
   const addHomePosition = useScenarioStore((state) => state.addHomePosition);
   const updateHomePosition = useScenarioStore((state) => state.updateHomePosition);
+  const removeHomePosition = useScenarioStore((state) => state.removeHomePosition);
   const addCarPosition = useScenarioStore((state) => state.addCarPosition);
   const updateCarPosition = useScenarioStore((state) => state.updateCarPosition);
+  const removeCarPosition = useScenarioStore((state) => state.removeCarPosition);
   const addInvestmentPosition = useScenarioStore((state) => state.addInvestmentPosition);
   const updateInvestmentPosition = useScenarioStore((state) => state.updateInvestmentPosition);
+  const removeInvestmentPosition = useScenarioStore((state) => state.removeInvestmentPosition);
   const addInsurancePosition = useScenarioStore((state) => state.addInsurancePosition);
   const updateInsurancePosition = useScenarioStore((state) => state.updateInsurancePosition);
+  const removeInsurancePosition = useScenarioStore((state) => state.removeInsurancePosition);
   const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
   const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
+  const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const resolvedScenarioId = useMemo(
     () => resolveScenarioIdFromQuery(scenarioId ?? null, activeScenarioId, scenarios),
@@ -119,7 +134,7 @@ export default function MoneyClient({
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const scenarioIdValue = scenario?.id;
-  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addFlowOpen, setAddFlowOpen] = useState(false);
   const [addEventGroup, setAddEventGroup] = useState<EventGroup | null>(null);
   const [addEventDrawerOpen, setAddEventDrawerOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
@@ -136,6 +151,7 @@ export default function MoneyClient({
   const [editingInsuranceId, setEditingInsuranceId] = useState<string | null>(null);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const hasHandledInitialAdd = useRef(false);
+  const hasHandledInitialEdit = useRef(false);
 
   const resolvedTab = tabOrder.includes(initialTab as MoneyTab)
     ? (initialTab as MoneyTab)
@@ -144,6 +160,9 @@ export default function MoneyClient({
   const [highlightOnly, setHighlightOnly] = useState(false);
   const [memberFilter, setMemberFilter] = useState<string | null>("all");
   const [categoryFilter, setCategoryFilter] = useState<string | null>("all");
+  const [inputsFilter, setInputsFilter] = useState<
+    "all" | "rules" | "assets" | "events"
+  >("all");
 
   useEffect(() => {
     setActiveTab(resolvedTab);
@@ -213,7 +232,6 @@ export default function MoneyClient({
     });
   }, [categoryFilter, eventRows, highlightOnly, memberFilter]);
   const hasBudgetRules = budgetRules.length > 0;
-
   const timelineHref = scenarioIdValue
     ? buildScenarioUrl("/money", scenarioIdValue)
     : "/money";
@@ -223,13 +241,186 @@ export default function MoneyClient({
     : "/people?tab=budget";
 
   const positions = scenario?.positions;
-  const homes = positions?.homes ?? [];
-  const investments = positions?.investments ?? [];
-  const insurances = positions?.insurances ?? [];
-  const cars = positions?.cars ?? [];
-  const loans = positions?.loans ?? [];
+  const homes = useMemo(() => positions?.homes ?? [], [positions?.homes]);
+  const investments = useMemo(
+    () => positions?.investments ?? [],
+    [positions?.investments]
+  );
+  const insurances = useMemo(
+    () => positions?.insurances ?? [],
+    [positions?.insurances]
+  );
+  const cars = useMemo(() => positions?.cars ?? [], [positions?.cars]);
+  const loans = useMemo(() => positions?.loans ?? [], [positions?.loans]);
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
   const currentProjectionMonth = baseMonth ?? null;
+  const inputRuleItems = useMemo(() => {
+    const categoryLabels: Record<string, string> = {
+      health: budgetText("categoryHealth"),
+      baseline: budgetText("categoryBaseline"),
+      childcare: budgetText("categoryChildcare"),
+      education: budgetText("categoryEducation"),
+      eldercare: budgetText("categoryEldercare"),
+      petcare: budgetText("categoryPetcare"),
+    };
+
+    return budgetRules.map((rule) => ({
+        id: rule.id,
+        kind: "rule" as const,
+        label: rule.name,
+        description: t("inputsRuleMeta", {
+          category: categoryLabels[rule.category] ?? rule.category,
+          amount: formatCurrency(rule.monthlyAmount, scenario?.baseCurrency ?? "USD", locale),
+        }),
+        onEdit: () => {
+          const query = new URLSearchParams();
+          if (scenarioIdValue) {
+            query.set("scenarioId", scenarioIdValue);
+          }
+          query.set("tab", "budget");
+          query.set("ruleId", rule.id);
+          router.push(`/${locale}/people?${query.toString()}`);
+        },
+        onDelete: () => removeBudgetRule(rule.id),
+      }));
+  }, [
+    budgetRules,
+    budgetText,
+    locale,
+    removeBudgetRule,
+    router,
+    scenario?.baseCurrency,
+    scenarioIdValue,
+    t,
+  ]);
+
+  const inputAssetItems = useMemo(() => {
+    if (!scenario) {
+      return [];
+    }
+    const currency = scenario.baseCurrency;
+    const items = [
+      ...homes.map((home) => ({
+        id: home.id,
+        kind: "asset" as const,
+        label: homesText("title"),
+        description: formatHomeSummary(homesText, home, currency, locale),
+        onEdit: () => setEditingHomeId(home.id),
+        onDelete: () => removeHomePosition(scenario.id, home.id),
+      })),
+      ...investments.map((investment) => ({
+        id: investment.id ?? "",
+        kind: "asset" as const,
+        label: investmentsText("title"),
+        description: formatInvestmentSummary(investmentsText, investment, currency, locale),
+        onEdit: () => {
+          if (investment.id) {
+            setEditingInvestmentId(investment.id);
+          }
+        },
+        onDelete: () => {
+          if (investment.id) {
+            removeInvestmentPosition(scenario.id, investment.id);
+          }
+        },
+      })),
+      ...insurances.map((insurance) => ({
+        id: insurance.id ?? "",
+        kind: "asset" as const,
+        label: insurancesText("title"),
+        description: formatInsuranceSummary(insurancesText, insurance, currency, locale),
+        onEdit: () => {
+          if (insurance.id) {
+            setEditingInsuranceId(insurance.id);
+          }
+        },
+        onDelete: () => {
+          if (insurance.id) {
+            removeInsurancePosition(scenario.id, insurance.id);
+          }
+        },
+      })),
+      ...cars.map((car) => ({
+        id: car.id ?? "",
+        kind: "asset" as const,
+        label: carsText("title"),
+        description: formatCarSummary(carsText, car, currency, locale),
+        onEdit: () => {
+          if (car.id) {
+            setEditingCarId(car.id);
+          }
+        },
+        onDelete: () => {
+          if (car.id) {
+            removeCarPosition(scenario.id, car.id);
+          }
+        },
+      })),
+    ];
+    return items;
+  }, [
+    cars,
+    carsText,
+    homes,
+    homesText,
+    insurances,
+    insurancesText,
+    investments,
+    investmentsText,
+    locale,
+    removeCarPosition,
+    removeHomePosition,
+    removeInsurancePosition,
+    removeInvestmentPosition,
+    scenario,
+  ]);
+
+  const inputEventItems = useMemo(
+    () =>
+      eventRows.map((row) => ({
+        id: row.view.definition.id,
+        kind: "event" as const,
+        label: row.event.name || getEventTypeDisplay(timelineText, row.event.type),
+        description: t("inputsEventMeta", {
+          month: row.event.startMonth,
+          amount:
+            row.event.monthlyAmount || row.event.oneTimeAmount
+              ? formatCurrency(
+                  row.event.monthlyAmount || row.event.oneTimeAmount,
+                  scenario?.baseCurrency ?? "USD",
+                  locale
+                )
+              : t("amountUnset"),
+        }),
+        onEdit: () => setEditingEvent(row.view),
+        onDelete: () => {
+          if (scenarioIdValue) {
+            removeScenarioEventRef(scenarioIdValue, row.view.definition.id);
+          }
+        },
+      })),
+    [
+      eventRows,
+      locale,
+      removeScenarioEventRef,
+      scenario?.baseCurrency,
+      scenarioIdValue,
+      t,
+      timelineText,
+    ]
+  );
+  const inputsItems = useMemo(() => {
+    if (inputsFilter === "rules") {
+      return inputRuleItems;
+    }
+    if (inputsFilter === "assets") {
+      return inputAssetItems;
+    }
+    if (inputsFilter === "events") {
+      return inputEventItems;
+    }
+    return [...inputRuleItems, ...inputAssetItems, ...inputEventItems];
+  }, [inputAssetItems, inputEventItems, inputRuleItems, inputsFilter]);
   const isPastSellMonth = (sellMonth?: string) => {
     if (!sellMonth || !currentProjectionMonth) {
       return false;
@@ -284,6 +475,29 @@ export default function MoneyClient({
       hasHandledInitialAdd.current = true;
     }
   }, [baseMonth, initialAdd, scenarioIdValue, setActiveTab]);
+
+  useEffect(() => {
+    if (hasHandledInitialEdit.current) {
+      return;
+    }
+    if (!scenarioIdValue) {
+      return;
+    }
+    if (initialEditEventId) {
+      const match = eventRows.find((row) => row.view.definition.id === initialEditEventId);
+      if (match) {
+        setActiveTab("timeline");
+        setEditingEvent(match.view);
+        hasHandledInitialEdit.current = true;
+        return;
+      }
+    }
+    if (initialEditHomeId) {
+      setActiveTab("assets");
+      setEditingHomeId(initialEditHomeId);
+      hasHandledInitialEdit.current = true;
+    }
+  }, [eventRows, initialEditEventId, initialEditHomeId, scenarioIdValue, setActiveTab]);
   const editingHome = homes.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = cars.find((car) => car.id === editingCarId) ?? null;
   const editingInvestment =
@@ -390,7 +604,7 @@ export default function MoneyClient({
             {t("subtitle")}
           </Text>
         </Stack>
-        <Button onClick={() => setAddModalOpen(true)}>{t("addButton")}</Button>
+        <Button onClick={() => setAddFlowOpen(true)}>{t("addButton")}</Button>
       </Group>
 
       <Card withBorder radius="md" padding="md">
@@ -409,6 +623,7 @@ export default function MoneyClient({
           <Tabs.Tab value="assets">{t("assetsTitle")}</Tabs.Tab>
           <Tabs.Tab value="liabilities">{t("liabilitiesTitle")}</Tabs.Tab>
           <Tabs.Tab value="timeline">{t("timelineTitle")}</Tabs.Tab>
+          <Tabs.Tab value="inputs">{t("inputsTitle")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="income" pt="md">
@@ -736,11 +951,61 @@ export default function MoneyClient({
             </Button>
           </Stack>
         </Tabs.Panel>
+
+        <Tabs.Panel value="inputs" pt="md">
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              {t("inputsDescription")}
+            </Text>
+            <SegmentedControl
+              value={inputsFilter}
+              onChange={(value) =>
+                setInputsFilter(value as "all" | "rules" | "assets" | "events")
+              }
+              data={[
+                { value: "all", label: t("inputsFilterAll") },
+                { value: "rules", label: t("inputsFilterRules") },
+                { value: "assets", label: t("inputsFilterAssets") },
+                { value: "events", label: t("inputsFilterEvents") },
+              ]}
+            />
+            {inputsItems.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                {t("inputsEmpty")}
+              </Text>
+            ) : (
+              <Stack gap="sm">
+                {inputsItems.map((item) => (
+                  <Card key={`${item.kind}-${item.id}`} withBorder radius="md" padding="sm">
+                    <Group justify="space-between" align="flex-start" wrap="wrap">
+                      <Stack gap={2}>
+                        <Text fw={600}>{item.label}</Text>
+                        {item.description && (
+                          <Text size="xs" c="dimmed">
+                            {item.description}
+                          </Text>
+                        )}
+                      </Stack>
+                      <Group gap="xs">
+                        <Button size="xs" variant="light" onClick={item.onEdit}>
+                          {common("actionEdit")}
+                        </Button>
+                        <Button size="xs" variant="subtle" color="red" onClick={item.onDelete}>
+                          {common("actionDelete")}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </Tabs.Panel>
       </Tabs>
 
-      <AddMoneyItemModal
-        opened={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
+      <AddFlowDrawer
+        opened={addFlowOpen}
+        onClose={() => setAddFlowOpen(false)}
         scenarioId={scenarioIdValue ?? null}
       />
 

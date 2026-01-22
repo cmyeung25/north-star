@@ -78,6 +78,7 @@ type SettingsClientProps = {
   defaultTab?: SettingsTabKey;
   tabOrder?: SettingsTabKey[];
   initialAction?: string;
+  initialRuleId?: string;
 };
 
 type ToastState = {
@@ -94,6 +95,7 @@ export default function SettingsClient({
   defaultTab = "data",
   tabOrder,
   initialAction,
+  initialRuleId,
 }: SettingsClientProps) {
   const locale = useLocale();
   const t = useTranslations("assumptions");
@@ -478,6 +480,14 @@ export default function SettingsClient({
     setActiveTab("budget");
     handleCreateBudgetRule();
   }, [handleCreateBudgetRule, initialAction]);
+
+  useEffect(() => {
+    if (!initialRuleId) {
+      return;
+    }
+    setActiveTab("budget");
+    setExpandedBudgetRuleId(initialRuleId);
+  }, [initialRuleId]);
 
   const isSignedIn = authState.status === "signed-in" && authState.user;
   const cloudHasData = (cloudSummary?.scenarioCount ?? 0) > 0;
