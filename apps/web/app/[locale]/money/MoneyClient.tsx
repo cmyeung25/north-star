@@ -232,19 +232,6 @@ export default function MoneyClient({
     });
   }, [categoryFilter, eventRows, highlightOnly, memberFilter]);
   const hasBudgetRules = budgetRules.length > 0;
-  const inputsItems = useMemo(() => {
-    if (inputsFilter === "rules") {
-      return inputRuleItems;
-    }
-    if (inputsFilter === "assets") {
-      return inputAssetItems;
-    }
-    if (inputsFilter === "events") {
-      return inputEventItems;
-    }
-    return [...inputRuleItems, ...inputAssetItems, ...inputEventItems];
-  }, [inputAssetItems, inputEventItems, inputRuleItems, inputsFilter]);
-
   const timelineHref = scenarioIdValue
     ? buildScenarioUrl("/money", scenarioIdValue)
     : "/money";
@@ -254,11 +241,17 @@ export default function MoneyClient({
     : "/people?tab=budget";
 
   const positions = scenario?.positions;
-  const homes = positions?.homes ?? [];
-  const investments = positions?.investments ?? [];
-  const insurances = positions?.insurances ?? [];
-  const cars = positions?.cars ?? [];
-  const loans = positions?.loans ?? [];
+  const homes = useMemo(() => positions?.homes ?? [], [positions?.homes]);
+  const investments = useMemo(
+    () => positions?.investments ?? [],
+    [positions?.investments]
+  );
+  const insurances = useMemo(
+    () => positions?.insurances ?? [],
+    [positions?.insurances]
+  );
+  const cars = useMemo(() => positions?.cars ?? [], [positions?.cars]);
+  const loans = useMemo(() => positions?.loans ?? [], [positions?.loans]);
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
   const currentProjectionMonth = baseMonth ?? null;
   const inputRuleItems = useMemo(() => {
@@ -416,6 +409,18 @@ export default function MoneyClient({
       timelineText,
     ]
   );
+  const inputsItems = useMemo(() => {
+    if (inputsFilter === "rules") {
+      return inputRuleItems;
+    }
+    if (inputsFilter === "assets") {
+      return inputAssetItems;
+    }
+    if (inputsFilter === "events") {
+      return inputEventItems;
+    }
+    return [...inputRuleItems, ...inputAssetItems, ...inputEventItems];
+  }, [inputAssetItems, inputEventItems, inputRuleItems, inputsFilter]);
   const isPastSellMonth = (sellMonth?: string) => {
     if (!sellMonth || !currentProjectionMonth) {
       return false;

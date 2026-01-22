@@ -24,10 +24,11 @@ import { useRouter } from "next/navigation";
 import { formatCurrency } from "../../lib/i18n";
 import {
   createBudgetRuleId,
+  createHomePositionId,
   getScenarioById,
   type BudgetCategory,
   type BudgetRule,
-  type HomePosition,
+  type HomePositionDraft,
 } from "../../src/store/scenarioStore";
 import { useScenarioStore } from "../../src/store/scenarioStore";
 import { useUiStore } from "../../src/store/uiStore";
@@ -35,12 +36,9 @@ import { compileBudgetRuleToMonthlySeries } from "../../src/domain/budget/compil
 import { normalizeMonthInput, normalizeMonthStrict } from "../../src/utils/month";
 import { addMonths, monthAtAge, monthsBetween } from "../../src/domain/members/age";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
-import {
-  createEventId,
-  getEventTypeDisplay,
-  type EventType,
-} from "../../components/timeline/utils";
+import { createEventId, getEventTypeDisplay } from "../../components/timeline/utils";
 import type { EventDefinition } from "../../src/domain/events/types";
+import type { EventType } from "../../src/features/timeline/schema";
 
 const budgetCategories: BudgetCategory[] = [
   "health",
@@ -504,7 +502,8 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
       if (!monthResolution.ok || !monthResolution.purchaseMonth) {
         return;
       }
-      const nextHome: HomePosition = {
+      const nextHome: HomePositionDraft = {
+        id: createHomePositionId(),
         usage: "primary",
         mode: "new_purchase",
         purchaseMonth: monthResolution.purchaseMonth,

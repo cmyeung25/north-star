@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Button,
   Group,
   NumberInput,
   Paper,
