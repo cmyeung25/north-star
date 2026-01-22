@@ -70,6 +70,7 @@ import { getMemberAgeYears } from "../../../src/domain/members/age";
 import { appliesToScenario } from "../../../src/domain/applyScope";
 import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
 import { normalizeMonthStrict } from "../../../src/utils/month";
+import { useUiStore } from "../../../src/store/uiStore";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -103,10 +104,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const globalHorizonMonths = appSettings.globalHorizonMonths;
   const setViewModeSetting = useScenarioStore((state) => state.setViewMode);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const breakdownOpen = useUiStore((state) => state.breakdownOpen);
+  const breakdownMonth = useUiStore((state) => state.breakdownMonth);
+  const openBreakdown = useUiStore((state) => state.openBreakdown);
+  const closeBreakdown = useUiStore((state) => state.closeBreakdown);
+  const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
   const scenarioIdFromQuery = scenarioId ?? null;
   const [viewMode, setViewMode] = useState<"single" | "compare">("single");
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
-  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
   const [riskDetailOpen, setRiskDetailOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
@@ -180,6 +185,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     () => (projection ? projectionToOverviewViewModel(projection) : null),
     [projection]
   );
+
+  useEffect(() => {
+    if (breakdownMonth) {
+      setCurrentMonth(breakdownMonth);
+    }
+  }, [breakdownMonth]);
   const inflationPct = appSettings.annualInflationPct ?? 0;
   const displayMode = appSettings.viewMode;
   const deflator = useMemo(
@@ -571,10 +582,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       setCurrentMonth(undefined);
       return;
     }
-    setCurrentMonth((previous) =>
-      previous && months.includes(previous) ? previous : months[0]
-    );
-  }, [months]);
+    setCurrentMonth((previous) => {
+      const next = previous && months.includes(previous) ? previous : months[0];
+      setBreakdownMonth(next ?? null);
+      return next;
+    });
+  }, [months, setBreakdownMonth]);
 
   if (!selectedScenario) {
     return null;
@@ -605,7 +618,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         locale
       ),
       helper: t("kpiLowestBalanceHelper"),
-      onDetails: projection ? () => setBreakdownOpen(true) : undefined,
+      onDetails: projection
+        ? () => openBreakdown(currentMonth ?? months[0])
+        : undefined,
       detailsLabel: t("breakdownCta"),
     },
     {
@@ -664,7 +679,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       return;
     }
     setCurrentMonth(month);
-    setBreakdownOpen(true);
+    setBreakdownMonth(month);
+    openBreakdown(month);
   };
 
   const visibleTimelineMarkers = timelineStripMarkers.slice(0, 8);
@@ -1112,10 +1128,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           </SimpleGrid>
           <ProjectionDetailsModal
             opened={breakdownOpen}
-            onClose={() => setBreakdownOpen(false)}
+            onClose={closeBreakdown}
             months={months}
             currentMonth={currentMonth}
-            onMonthChange={setCurrentMonth}
+            onMonthChange={(value) => {
+              setCurrentMonth(value);
+              setBreakdownMonth(value);
+            }}
             ledgerByMonth={ledgerByMonth}
             summaryByMonth={summaryByMonth}
             positionCashflowsByMonth={positionCashflowsByMonth}

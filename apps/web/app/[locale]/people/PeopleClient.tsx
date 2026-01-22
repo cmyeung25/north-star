@@ -6,6 +6,7 @@ type PeopleClientProps = {
   scenarioId?: string;
   initialTab?: string;
   initialAdd?: string;
+  initialRuleId?: string;
 };
 
 const tabMap = {
@@ -19,6 +20,7 @@ export default function PeopleClient({
   scenarioId,
   initialTab,
   initialAdd,
+  initialRuleId,
 }: PeopleClientProps) {
   const defaultTab =
     initialTab && initialTab in tabMap
@@ -33,6 +35,7 @@ export default function PeopleClient({
       defaultTab={defaultTab}
       tabOrder={["global", "members", "budget", "data", "other"]}
       initialAction={initialAdd}
+      initialRuleId={initialRuleId}
     />
   );
 }
