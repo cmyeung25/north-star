@@ -78,6 +78,7 @@ export default function Providers({ children }: { children: ReactNode }) {
     { label: nav("dashboard"), href: "/dashboard" },
     { label: nav("money"), href: "/money" },
     { label: nav("people"), href: "/people" },
+    { label: nav("settings"), href: "/settings" },
     { label: nav("scenarios"), href: "/scenarios" },
   ];
 

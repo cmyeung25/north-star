@@ -569,7 +569,7 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const carStates = cars.map((car, carIndex) => {
     const startIndex = monthIndex(input.baseMonth, car.purchaseMonth);
     const sellIndex = car.sellMonth ? monthIndex(input.baseMonth, car.sellMonth) : null;
-    const monthlyDepreciation = Math.pow(1 + car.annualDepreciationRate, 1 / 12);
+    const monthlyDepreciation = Math.pow(1 - car.annualDepreciationRate, 1 / 12);
     const holdingCostMonthly = car.holdingCostMonthly ?? 0;
     const holdingCostAnnualGrowth = car.holdingCostAnnualGrowth ?? 0;
     const carId = car.id ?? `car-${carIndex + 1}`;

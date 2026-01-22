@@ -37,6 +37,7 @@ import { normalizeMonthInput, normalizeMonthStrict } from "../../src/utils/month
 import { addMonths, monthAtAge, monthsBetween } from "../../src/domain/members/age";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import { createEventId, getEventTypeDisplay } from "../../components/timeline/utils";
+import EndConditionPicker from "../../components/EndConditionPicker";
 import type { EventDefinition } from "../../src/domain/events/types";
 import type { EventType } from "../../src/features/timeline/schema";
 
@@ -83,6 +84,7 @@ type EventDraft = {
   amount: number;
   startMonthInput: string;
   endMonthInput: string;
+  endConditionMode: "month" | "age";
   oneOffMonthInput: string;
   annualGrowthPct: number;
   memberId: string | null;
@@ -188,6 +190,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     amount: 0,
     startMonthInput: baseMonth,
     endMonthInput: "",
+    endConditionMode: "month",
     oneOffMonthInput: baseMonth,
     annualGrowthPct: 0,
     memberId: members[0]?.id ?? null,
@@ -242,6 +245,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
       amount: 0,
       startMonthInput: baseMonth,
       endMonthInput: "",
+      endConditionMode: "month",
       oneOffMonthInput: baseMonth,
       annualGrowthPct: 0,
       memberId: members[0]?.id ?? null,
@@ -359,21 +363,47 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     if (!normalizedStart?.ok) {
       return [] as string[];
     }
-    const endInput = eventDraft.intent === "oneOff" ? null : eventDraft.endMonthInput;
-    const normalizedEnd = endInput ? normalizeMonthStrict(endInput) : null;
-    if (endInput && !normalizedEnd?.ok) {
-      return [] as string[];
+    let resolvedEnd: string | null = null;
+    if (eventDraft.intent !== "oneOff") {
+      if (eventDraft.endConditionMode === "month") {
+        const endInput = eventDraft.endMonthInput;
+        const normalizedEnd = endInput ? normalizeMonthStrict(endInput) : null;
+        if (endInput && !normalizedEnd?.ok) {
+          return [] as string[];
+        }
+        resolvedEnd = normalizedEnd?.ok ? normalizedEnd.month : null;
+      } else if (eventDraft.endConditionMode === "age" && eventDraft.endAtAgeYears) {
+        const member = members.find((entry) => entry.id === eventDraft.memberId);
+        if (!member || !baseMonth) {
+          return [] as string[];
+        }
+        resolvedEnd = monthAtAge(member, eventDraft.endAtAgeYears, baseMonth);
+      }
     }
-    return buildMonthSeries(
-      normalizedStart.month,
-      normalizedEnd?.ok ? normalizedEnd.month : null
-    );
-  }, [eventDraft]);
+    return buildMonthSeries(normalizedStart.month, resolvedEnd);
+  }, [baseMonth, eventDraft, members]);
 
   const eventIntentLabel = useMemo(() => {
     const type = eventTypeByIntent[eventDraft.intent];
     return getEventTypeDisplay(timelineText, type, eventDraft.incomeSubtype ?? undefined);
   }, [eventDraft.intent, eventDraft.incomeSubtype, timelineText]);
+
+  const endAtAgePreviewMonth = useMemo(() => {
+    if (eventDraft.endConditionMode !== "age" || eventDraft.endAtAgeYears === null) {
+      return null;
+    }
+    const member = members.find((entry) => entry.id === eventDraft.memberId);
+    if (!member || !baseMonth) {
+      return null;
+    }
+    return monthAtAge(member, eventDraft.endAtAgeYears, baseMonth);
+  }, [
+    baseMonth,
+    eventDraft.endAtAgeYears,
+    eventDraft.endConditionMode,
+    eventDraft.memberId,
+    members,
+  ]);
 
   const resolveRuleMonths = () => {
     const nextErrors: { start?: string; end?: string } = {};
@@ -423,7 +453,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
       nextErrors[isOneOff ? "oneOff" : "start"] = validationText("useYearMonth");
     }
     let endMonth: string | undefined;
-    if (!isOneOff && eventDraft.endMonthInput) {
+    if (!isOneOff && eventDraft.endConditionMode === "month" && eventDraft.endMonthInput) {
       const end = normalizeMonthStrict(eventDraft.endMonthInput);
       if (!end.ok) {
         nextErrors.end = validationText("useYearMonth");
@@ -435,14 +465,18 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     }
 
     let endFromAge: string | null = null;
-    if (eventDraft.endAtAgeYears !== null) {
-      const member = members.find((entry) => entry.id === eventDraft.memberId);
-      if (!member || !baseMonth) {
+    if (!isOneOff && eventDraft.endConditionMode === "age") {
+      if (eventDraft.endAtAgeYears === null) {
         nextErrors.endAtAge = validationText("endAtAgeMissingBase");
       } else {
-        endFromAge = monthAtAge(member, eventDraft.endAtAgeYears, baseMonth);
-        if (!endFromAge) {
+        const member = members.find((entry) => entry.id === eventDraft.memberId);
+        if (!member || !baseMonth) {
           nextErrors.endAtAge = validationText("endAtAgeMissingBase");
+        } else {
+          endFromAge = monthAtAge(member, eventDraft.endAtAgeYears, baseMonth);
+          if (!endFromAge) {
+            nextErrors.endAtAge = validationText("endAtAgeMissingBase");
+          }
         }
       }
     }
@@ -588,7 +622,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     if (!start.ok) {
       return false;
     }
-    if (!isOneOff && eventDraft.endMonthInput) {
+    if (!isOneOff && eventDraft.endConditionMode === "month" && eventDraft.endMonthInput) {
       const end = normalizeMonthStrict(eventDraft.endMonthInput);
       if (!end.ok) {
         return false;
@@ -597,7 +631,10 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
         return false;
       }
     }
-    if (eventDraft.endAtAgeYears !== null) {
+    if (!isOneOff && eventDraft.endConditionMode === "age") {
+      if (eventDraft.endAtAgeYears === null) {
+        return false;
+      }
       const member = members.find((entry) => entry.id === eventDraft.memberId);
       if (!member || !baseMonth) {
         return false;
@@ -1124,13 +1161,26 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
                       }));
                     }}
                   />
-                  <TextInput
-                    label={t("eventEndMonth")}
-                    value={eventDraft.endMonthInput}
-                    placeholder={common("yearMonthPlaceholder")}
-                    error={eventErrors.end}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
+                  <EndConditionPicker
+                    mode={eventDraft.endConditionMode}
+                    onModeChange={(value) => {
+                      setEventDraft((current) => ({
+                        ...current,
+                        endConditionMode: value,
+                        endMonthInput: value === "age" ? "" : current.endMonthInput,
+                        endAtAgeYears: value === "month" ? null : current.endAtAgeYears,
+                      }));
+                      setEventErrors((current) => ({
+                        ...current,
+                        end: value === "age" ? undefined : current.end,
+                        endAtAge: value === "month" ? undefined : current.endAtAge,
+                      }));
+                    }}
+                    monthLabel={t("eventEndMonth")}
+                    monthPlaceholder={common("yearMonthPlaceholder")}
+                    monthValue={eventDraft.endMonthInput}
+                    monthError={eventErrors.end}
+                    onMonthChange={(value) => {
                       setEventDraft((current) => ({ ...current, endMonthInput: value }));
                       const normalized = normalizeMonthInput(value);
                       setEventErrors((current) => ({
@@ -1141,6 +1191,20 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
                             : undefined,
                       }));
                     }}
+                    ageLabel={t("eventEndAtAge")}
+                    ageValue={eventDraft.endAtAgeYears ?? ""}
+                    ageError={eventErrors.endAtAge}
+                    ageMax={120}
+                    onAgeChange={(value) =>
+                      setEventDraft((current) => ({
+                        ...current,
+                        endAtAgeYears: typeof value === "number" ? value : null,
+                      }))
+                    }
+                    monthOptionLabel={t("endConditionMonth")}
+                    ageOptionLabel={t("endConditionAge")}
+                    computedMonthLabel={t("endConditionComputed")}
+                    computedMonthValue={endAtAgePreviewMonth ?? undefined}
                   />
                 </Group>
               )}
@@ -1199,19 +1263,6 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
                   }
                 />
               )}
-              <NumberInput
-                label={t("eventEndAtAge")}
-                value={eventDraft.endAtAgeYears ?? ""}
-                min={0}
-                max={120}
-                onChange={(value) =>
-                  setEventDraft((current) => ({
-                    ...current,
-                    endAtAgeYears: typeof value === "number" ? value : null,
-                  }))
-                }
-                error={eventErrors.endAtAge}
-              />
               <SegmentedControl
                 data={[
                   { value: "no", label: t("eventHighlightOff") },

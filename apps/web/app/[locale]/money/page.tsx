@@ -13,6 +13,10 @@ export default function Page({ searchParams }: PageProps) {
     typeof searchParams?.editEventId === "string" ? searchParams.editEventId : undefined;
   const editHomeId =
     typeof searchParams?.editHomeId === "string" ? searchParams.editHomeId : undefined;
+  const editSmartInvest =
+    typeof searchParams?.editSmartInvest === "string"
+      ? searchParams.editSmartInvest
+      : undefined;
 
   return (
     <MoneyClient
@@ -21,6 +25,7 @@ export default function Page({ searchParams }: PageProps) {
       initialAdd={add}
       initialEditEventId={editEventId}
       initialEditHomeId={editHomeId}
+      initialEditSmartInvest={editSmartInvest}
     />
   );
 }

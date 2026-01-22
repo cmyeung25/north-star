@@ -95,7 +95,7 @@ describe("car positions", () => {
               purchaseMonth: "2025-01",
               purchasePrice: 12000,
               downPayment: 2000,
-              annualDepreciationRate: -0.12,
+              annualDepreciationRate: 0.12,
               holdingCostMonthly: 100,
               holdingCostAnnualGrowth: 0.12,
             },
