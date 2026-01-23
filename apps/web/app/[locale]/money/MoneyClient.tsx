@@ -73,6 +73,7 @@ import { formatCurrency } from "../../../lib/i18n";
 import { buildScenarioEventViews, buildTimelineEventFromDefinition } from "../../../src/domain/events/utils";
 import { getEventTypeDisplay } from "../../../components/timeline/utils";
 import type { ScenarioEventView } from "../../../components/timeline/types";
+import { monthsBetween } from "../../../src/domain/members/age";
 import { isValidMonthStr } from "../../../src/utils/month";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { buildSmartInvestProjectionBreakdown, type SmartInvestProjectionBreakdown } from "../../../src/domain/smartInvest/projection";
@@ -252,8 +253,28 @@ export default function MoneyClient({
   const openModal = useUiStore((state) => state.openModal);
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
+  const breakdownMonthRange = useUiStore((state) => state.breakdownMonthRange);
+  const setBreakdownMonthRange = useUiStore((state) => state.setBreakdownMonthRange);
   const smartInvestDrawerOpen = activeDrawer?.type === "smartInvest";
-  const selectedDashboardMonth = breakdownMonth ?? projectionMonths[0] ?? null;
+  const normalizedRange = useMemo(() => {
+    if (projectionMonths.length === 0) {
+      return { fromMonth: null, toMonth: null };
+    }
+    const baseMonth = projectionMonths[0];
+    const clampMonth = (value: string | null, fallback: string) => {
+      const index = monthsBetween(baseMonth, value ?? fallback);
+      const clampedIndex = Math.min(Math.max(index, 0), projectionMonths.length - 1);
+      return projectionMonths[clampedIndex];
+    };
+    const fallback = breakdownMonth ?? baseMonth;
+    const fromMonth = clampMonth(breakdownMonthRange.fromMonth ?? fallback, baseMonth);
+    let toMonth = clampMonth(breakdownMonthRange.toMonth ?? fromMonth, fromMonth);
+    if (monthsBetween(fromMonth, toMonth) < 0) {
+      toMonth = fromMonth;
+    }
+    return { fromMonth, toMonth };
+  }, [breakdownMonth, breakdownMonthRange, projectionMonths]);
+  const selectedDashboardMonth = normalizedRange.toMonth ?? projectionMonths[0] ?? null;
   const selectedDashboardIndex =
     selectedDashboardMonth && projectionMonths.includes(selectedDashboardMonth)
       ? projectionMonths.indexOf(selectedDashboardMonth)
@@ -310,10 +331,32 @@ export default function MoneyClient({
   }, [resolvedTab]);
 
   useEffect(() => {
-    if (!breakdownMonth && projectionMonths.length > 0) {
-      setBreakdownMonth(projectionMonths[0]);
+    if (projectionMonths.length === 0) {
+      if (breakdownMonth !== null) {
+        setBreakdownMonth(null);
+      }
+      if (breakdownMonthRange.fromMonth || breakdownMonthRange.toMonth) {
+        setBreakdownMonthRange({ fromMonth: null, toMonth: null });
+      }
+      return;
     }
-  }, [breakdownMonth, projectionMonths, setBreakdownMonth]);
+    if (
+      normalizedRange.fromMonth !== breakdownMonthRange.fromMonth ||
+      normalizedRange.toMonth !== breakdownMonthRange.toMonth
+    ) {
+      setBreakdownMonthRange(normalizedRange);
+    }
+    if (normalizedRange.toMonth !== breakdownMonth) {
+      setBreakdownMonth(normalizedRange.toMonth);
+    }
+  }, [
+    breakdownMonth,
+    breakdownMonthRange,
+    normalizedRange,
+    projectionMonths.length,
+    setBreakdownMonth,
+    setBreakdownMonthRange,
+  ]);
 
   const openEventDrawer = (group?: EventGroup) => {
     setAddEventGroup(group ?? null);
@@ -1901,8 +1944,8 @@ export default function MoneyClient({
         }
         right={
           <RightPaneDashboard
-            selectedMonth={selectedDashboardMonth}
             months={projectionMonths}
+            selectedRange={normalizedRange}
             currency={scenario?.baseCurrency ?? "USD"}
             cashBalance={cashBalanceValue}
             netWorth={netWorthValue}
@@ -1910,7 +1953,10 @@ export default function MoneyClient({
             cashSeries={cashSeries}
             netWorthSeries={netWorthSeries}
             netCashflowSeries={netCashflowSeries}
-            onMonthChange={(month) => setBreakdownMonth(month)}
+            onRangeChange={(range) => {
+              setBreakdownMonthRange(range);
+              setBreakdownMonth(range.toMonth ?? null);
+            }}
             onOpenBreakdown={(focus) => {
               if (!selectedDashboardMonth) {
                 return;

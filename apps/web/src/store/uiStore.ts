@@ -21,6 +21,7 @@ type UiState = {
   activeModal: ActiveModal | null;
   breakdownOpen: boolean;
   breakdownMonth: string | null;
+  breakdownMonthRange: { fromMonth: string | null; toMonth: string | null };
   openDrawer: (type: DrawerType) => void;
   closeDrawer: () => void;
   openModal: (
@@ -31,6 +32,7 @@ type UiState = {
   openBreakdown: (month?: string | null) => void;
   closeBreakdown: () => void;
   setBreakdownMonth: (month: string | null) => void;
+  setBreakdownMonthRange: (range: { fromMonth: string | null; toMonth: string | null }) => void;
 };
 
 export const useUiStore = create<UiState>((set) => ({
@@ -38,6 +40,7 @@ export const useUiStore = create<UiState>((set) => ({
   activeModal: null,
   breakdownOpen: false,
   breakdownMonth: null,
+  breakdownMonthRange: { fromMonth: null, toMonth: null },
   openDrawer: (type) =>
     set((state) => ({
       activeDrawer: {
@@ -80,5 +83,9 @@ export const useUiStore = create<UiState>((set) => ({
         state.activeModal?.type === "monthlyBreakdown"
           ? { ...state.activeModal, month }
           : state.activeModal,
+    })),
+  setBreakdownMonthRange: (range) =>
+    set(() => ({
+      breakdownMonthRange: { fromMonth: range.fromMonth ?? null, toMonth: range.toMonth ?? null },
     })),
 }));

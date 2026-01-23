@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
+import { monthsBetween } from "../../../src/domain/members/age";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import {
   getScenarioById,
@@ -41,6 +42,8 @@ export default function PeopleClient({
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
+  const breakdownMonthRange = useUiStore((state) => state.breakdownMonthRange);
+  const setBreakdownMonthRange = useUiStore((state) => state.setBreakdownMonthRange);
   const openModal = useUiStore((state) => state.openModal);
   const resolvedScenarioId = useMemo(
     () =>
@@ -82,7 +85,25 @@ export default function PeopleClient({
       return acc;
     }, {});
   }, [projection]);
-  const selectedDashboardMonth = breakdownMonth ?? projectionMonths[0] ?? null;
+  const normalizedRange = useMemo(() => {
+    if (projectionMonths.length === 0) {
+      return { fromMonth: null, toMonth: null };
+    }
+    const baseMonth = projectionMonths[0];
+    const clampMonth = (value: string | null, fallback: string) => {
+      const index = monthsBetween(baseMonth, value ?? fallback);
+      const clampedIndex = Math.min(Math.max(index, 0), projectionMonths.length - 1);
+      return projectionMonths[clampedIndex];
+    };
+    const fallback = breakdownMonth ?? baseMonth;
+    const fromMonth = clampMonth(breakdownMonthRange.fromMonth ?? fallback, baseMonth);
+    let toMonth = clampMonth(breakdownMonthRange.toMonth ?? fromMonth, fromMonth);
+    if (monthsBetween(fromMonth, toMonth) < 0) {
+      toMonth = fromMonth;
+    }
+    return { fromMonth, toMonth };
+  }, [breakdownMonth, breakdownMonthRange, projectionMonths]);
+  const selectedDashboardMonth = normalizedRange.toMonth ?? projectionMonths[0] ?? null;
   const selectedDashboardIndex =
     selectedDashboardMonth && projectionMonths.includes(selectedDashboardMonth)
       ? projectionMonths.indexOf(selectedDashboardMonth)
@@ -102,10 +123,32 @@ export default function PeopleClient({
   }, [ledgerByMonth, selectedDashboardMonth]);
 
   useEffect(() => {
-    if (!breakdownMonth && projectionMonths.length > 0) {
-      setBreakdownMonth(projectionMonths[0]);
+    if (projectionMonths.length === 0) {
+      if (breakdownMonth !== null) {
+        setBreakdownMonth(null);
+      }
+      if (breakdownMonthRange.fromMonth || breakdownMonthRange.toMonth) {
+        setBreakdownMonthRange({ fromMonth: null, toMonth: null });
+      }
+      return;
     }
-  }, [breakdownMonth, projectionMonths, setBreakdownMonth]);
+    if (
+      normalizedRange.fromMonth !== breakdownMonthRange.fromMonth ||
+      normalizedRange.toMonth !== breakdownMonthRange.toMonth
+    ) {
+      setBreakdownMonthRange(normalizedRange);
+    }
+    if (normalizedRange.toMonth !== breakdownMonth) {
+      setBreakdownMonth(normalizedRange.toMonth);
+    }
+  }, [
+    breakdownMonth,
+    breakdownMonthRange,
+    normalizedRange,
+    projectionMonths.length,
+    setBreakdownMonth,
+    setBreakdownMonthRange,
+  ]);
 
   const defaultTab =
     initialTab && initialTab in tabMap
@@ -128,8 +171,8 @@ export default function PeopleClient({
         }
         right={
           <RightPaneDashboard
-            selectedMonth={selectedDashboardMonth}
             months={projectionMonths}
+            selectedRange={normalizedRange}
             currency={scenario?.baseCurrency ?? "USD"}
             cashBalance={cashBalanceValue}
             netWorth={netWorthValue}
@@ -137,7 +180,10 @@ export default function PeopleClient({
             cashSeries={cashSeries}
             netWorthSeries={netWorthSeries}
             netCashflowSeries={netCashflowSeries}
-            onMonthChange={(month) => setBreakdownMonth(month)}
+            onRangeChange={(range) => {
+              setBreakdownMonthRange(range);
+              setBreakdownMonth(range.toMonth ?? null);
+            }}
             onOpenBreakdown={(focus) => {
               if (!selectedDashboardMonth) {
                 return;
