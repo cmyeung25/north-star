@@ -140,7 +140,7 @@ export default function MoneyDashboardPanel({
             {t("breakdownRangeEmpty")}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+          <SimpleGrid cols={{ base: 1, md: 1 }} spacing="sm">
             {metrics.map((metric) => (
               <Card
                 key={metric.key}
