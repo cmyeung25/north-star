@@ -9,6 +9,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { useEffect, useState } from "react";
 import type {
   OnboardingBudgetRuleDraft,
   OnboardingMemberDraft,
@@ -16,13 +17,16 @@ import type {
 import type { BudgetCategory } from "../../../store/scenarioStore";
 import NetWorthChart from "../../../../features/overview/components/NetWorthChart";
 import type { TimeSeriesPoint } from "../../../../features/overview/types";
-import DateOrAgeBasisPicker from "../../../../components/DateOrAgeBasisPicker";
+import DateOrAgeBasisPicker, {
+  type DateOrAgeBasis,
+} from "../../../../components/DateOrAgeBasisPicker";
 
 interface StepBudgetRulesProps {
   rules: OnboardingBudgetRuleDraft[];
   members: OnboardingMemberDraft[];
   previewSeries: TimeSeriesPoint[];
   errors: Record<string, string>;
+  baseMonth: string;
   onAddRule: () => void;
   onUpdateRule: (id: string, patch: Partial<OnboardingBudgetRuleDraft>) => void;
   onRemoveRule: (id: string) => void;
@@ -43,6 +47,7 @@ export default function StepBudgetRules({
   members,
   previewSeries,
   errors,
+  baseMonth,
   onAddRule,
   onUpdateRule,
   onRemoveRule,
@@ -52,6 +57,27 @@ export default function StepBudgetRules({
     { value: "household", label: t("householdShared") },
     ...members.map((member) => ({ value: member.id, label: member.name })),
   ];
+  const [basisByRuleId, setBasisByRuleId] = useState<Record<string, DateOrAgeBasis>>(
+    {}
+  );
+
+  useEffect(() => {
+    setBasisByRuleId((current) => {
+      const next = { ...current };
+      rules.forEach((rule) => {
+        if (!next[rule.id]) {
+          next[rule.id] =
+            rule.startMonth?.trim() || rule.endMonth?.trim() ? "month" : "age";
+        }
+      });
+      Object.keys(next).forEach((ruleId) => {
+        if (!rules.some((rule) => rule.id === ruleId)) {
+          delete next[ruleId];
+        }
+      });
+      return next;
+    });
+  }, [rules]);
 
   return (
     <Stack gap="xl">
@@ -109,7 +135,19 @@ export default function StepBudgetRules({
                   label={t("belongsTo")}
                   data={memberOptions}
                   value={rule.memberId ?? "household"}
-                  onChange={(value) => onUpdateRule(rule.id, { memberId: value })}
+                  onChange={(value) => {
+                    onUpdateRule(rule.id, { memberId: value });
+                    const isHousehold = !value || value === "household";
+                    if (isHousehold) {
+                      setBasisByRuleId((current) => ({
+                        ...current,
+                        [rule.id]: "month",
+                      }));
+                      if (!rule.startMonth?.trim()) {
+                        onUpdateRule(rule.id, { startMonth: baseMonth });
+                      }
+                    }
+                  }}
                   error={errors[`rule.${rule.id}.memberId`]}
                 />
                 <NumberInput
@@ -124,20 +162,31 @@ export default function StepBudgetRules({
               </Group>
               {(() => {
                 const hasMember = Boolean(rule.memberId && rule.memberId !== "household");
-                const basis =
-                  hasMember && (rule.startMonth || rule.endMonth) ? "month" : "age";
                 const disableAge = !hasMember;
+                const basis = disableAge
+                  ? "month"
+                  : basisByRuleId[rule.id] ??
+                    (rule.startMonth?.trim() || rule.endMonth?.trim()
+                      ? "month"
+                      : "age");
 
                 return (
                   <>
                     <DateOrAgeBasisPicker
                       value={disableAge ? "month" : basis}
                       onChange={(value) => {
+                        setBasisByRuleId((current) => ({
+                          ...current,
+                          [rule.id]: value,
+                        }));
                         if (value === "age") {
                           onUpdateRule(rule.id, { startMonth: "", endMonth: "" });
+                          onUpdateRule(rule.id, {
+                            ageBand: rule.ageBand ?? { fromYears: 0, toYears: 120 },
+                          });
                         } else {
                           onUpdateRule(rule.id, {
-                            ageBand: { fromYears: 0, toYears: 120 },
+                            startMonth: rule.startMonth?.trim() || baseMonth,
                           });
                         }
                       }}
@@ -145,6 +194,11 @@ export default function StepBudgetRules({
                       ageLabel={t("basisAge")}
                       disableAge={disableAge}
                     />
+                    {disableAge && (
+                      <Text size="xs" c="dimmed">
+                        {t("basisAgeDisabled")}
+                      </Text>
+                    )}
                     <Group grow align="flex-start">
                       {disableAge || basis === "month" ? (
                         <>

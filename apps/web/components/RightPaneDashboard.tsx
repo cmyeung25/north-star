@@ -1,13 +1,22 @@
 "use client";
 
 import { Card, Group, Select, SimpleGrid, Stack, Text } from "@mantine/core";
+import { useMemo } from "react";
+import { Line, LineChart, ResponsiveContainer, XAxis } from "recharts";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../lib/i18n";
+
+type SparklinePoint = {
+  month: string;
+  value: number;
+};
 
 type DashboardMetric = {
   key: "cash" | "netWorth" | "netCashflow";
   label: string;
   value: number | null;
+  series: number[];
+  color: string;
   onClick: () => void;
 };
 
@@ -18,9 +27,14 @@ type RightPaneDashboardProps = {
   cashBalance: number | null;
   netWorth: number | null;
   netCashflow: number | null;
+  cashSeries: number[];
+  netWorthSeries: number[];
+  netCashflowSeries: number[];
   onMonthChange: (month: string) => void;
   onOpenBreakdown: (focus?: "cashflow" | "networth") => void;
 };
+
+const sparklineWindow = 24;
 
 export default function RightPaneDashboard({
   selectedMonth,
@@ -29,6 +43,9 @@ export default function RightPaneDashboard({
   cashBalance,
   netWorth,
   netCashflow,
+  cashSeries,
+  netWorthSeries,
+  netCashflowSeries,
   onMonthChange,
   onOpenBreakdown,
 }: RightPaneDashboardProps) {
@@ -41,21 +58,42 @@ export default function RightPaneDashboard({
       key: "cash",
       label: t("cashBalanceTitle"),
       value: cashBalance,
+      series: cashSeries,
+      color: "#228be6",
       onClick: () => onOpenBreakdown("cashflow"),
     },
     {
       key: "netWorth",
       label: t("netWorthTitle"),
       value: netWorth,
+      series: netWorthSeries,
+      color: "#12b886",
       onClick: () => onOpenBreakdown("networth"),
     },
     {
       key: "netCashflow",
       label: t("netCashflowTitle"),
       value: netCashflow,
+      series: netCashflowSeries,
+      color: "#f59f00",
       onClick: () => onOpenBreakdown("cashflow"),
     },
   ];
+
+  const sparklineData = useMemo(() => {
+    const startIndex = Math.max(months.length - sparklineWindow, 0);
+    const visibleMonths = months.slice(startIndex);
+    const buildSeries = (series: number[]) =>
+      visibleMonths.map((month, index) => ({
+        month,
+        value: series[startIndex + index] ?? 0,
+      }));
+    return {
+      cash: buildSeries(cashSeries),
+      netWorth: buildSeries(netWorthSeries),
+      netCashflow: buildSeries(netCashflowSeries),
+    } satisfies Record<DashboardMetric["key"], SparklinePoint[]>;
+  }, [cashSeries, months, netCashflowSeries, netWorthSeries]);
 
   return (
     <Stack gap="md">
@@ -92,6 +130,20 @@ export default function RightPaneDashboard({
               <Text size="lg" fw={600}>
                 {formatValue(metric.value)}
               </Text>
+              <div style={{ width: "100%", height: 48 }}>
+                <ResponsiveContainer>
+                  <LineChart data={sparklineData[metric.key]}>
+                    <XAxis dataKey="month" hide />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke={metric.color}
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
               {selectedMonth && (
                 <Text size="xs" c="dimmed">
                   {selectedMonth}
