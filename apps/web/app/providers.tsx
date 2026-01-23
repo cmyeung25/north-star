@@ -68,6 +68,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const [scenarioHydrated, setScenarioHydrated] = useState(false);
   const normalizedPathname = stripLocalePrefix(pathname, locale);
+  const isOnboarding = normalizedPathname.startsWith("/onboarding");
 
   const activeScenario = useMemo(
     () => getActiveScenario(scenarios, activeScenarioId),
@@ -204,7 +205,7 @@ export default function Providers({ children }: { children: ReactNode }) {
           </Group>
         </AppShell.Header>
 
-        {isDesktop && (
+        {isDesktop && !isOnboarding && (
           <AppShell.Navbar p="md">
             <Stack gap="xs">
               {navItems.map((item) => (
@@ -222,7 +223,7 @@ export default function Providers({ children }: { children: ReactNode }) {
           </AppShell.Navbar>
         )}
 
-        {!isDesktop && (
+        {!isDesktop && !isOnboarding && (
           <AppShell.Footer p="xs">
             <Group grow>
               {navItems.map((item) => (
@@ -246,13 +247,14 @@ export default function Providers({ children }: { children: ReactNode }) {
             pt="xl"
             pb={isDesktop ? undefined : "xl"}
             style={{
-              paddingBottom: isDesktop ? desktopToolbarHeight + 32 : undefined,
+              paddingBottom:
+                isDesktop && !isOnboarding ? desktopToolbarHeight + 32 : undefined,
             }}
           >
             {children}
           </Container>
         </AppShell.Main>
-        {isDesktop && <DesktopBottomToolbar />}
+        {isDesktop && !isOnboarding && <DesktopBottomToolbar />}
       </AppShell>
     </MantineProvider>
   );

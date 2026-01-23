@@ -333,6 +333,7 @@ export const LoanPositionSchema = z.object({
     .min(1, "validation.loanTermMin")
     .max(50, "validation.loanTermMax"),
   monthlyPayment: z.number().min(0, "validation.loanPaymentMin").optional(),
+  paymentMethod: z.enum(["amortization", "manual"]).optional(),
   feesOneTime: z.number().min(0, "validation.feesOneTimeMin").optional(),
 });
 

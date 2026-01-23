@@ -216,7 +216,13 @@ export const applyOnboardingDraftToScenario = (
   });
 
   draft.budgetRules.forEach((rule) => {
-    const normalizedStart = normalizeOnboardingMonth(rule.startMonth, baseMonth);
+    const usesMonthBasis = Boolean(
+      rule.startMonth?.trim() || rule.endMonth?.trim()
+    );
+    const normalizedStart = normalizeOnboardingMonth(
+      rule.startMonth,
+      usesMonthBasis ? baseMonth : null
+    );
     const normalizedEnd = normalizeOnboardingMonth(rule.endMonth);
     if (!normalizedStart.ok || !normalizedEnd.ok) {
       return;
@@ -233,8 +239,8 @@ export const applyOnboardingDraftToScenario = (
       ageBand: rule.ageBand ?? { fromYears: 0, toYears: 120 },
       monthlyAmount: rule.monthlyAmount,
       annualGrowthPct: rule.annualGrowthPct ?? 0,
-      startMonth: normalizedStart.month,
-      endMonth: normalizedEnd.month,
+      startMonth: usesMonthBasis ? normalizedStart.month : undefined,
+      endMonth: usesMonthBasis ? normalizedEnd.month : undefined,
       applyScope: defaultApplyScope,
     });
   });

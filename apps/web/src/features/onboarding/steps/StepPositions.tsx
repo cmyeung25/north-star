@@ -1,7 +1,6 @@
 import {
   Button,
   Card,
-  Checkbox,
   Group,
   NumberInput,
   Stack,
@@ -21,8 +20,6 @@ interface StepPositionsProps {
   cars: CarPosition[];
   investments: InvestmentPosition[];
   loans: LoanPosition[];
-  housingCostsIncluded: boolean;
-  onHousingCostsIncludedChange: (value: boolean) => void;
   onAddHome: () => void;
   onAddCar: () => void;
   onAddInvestment: () => void;
@@ -44,8 +41,6 @@ export default function StepPositions({
   cars,
   investments,
   loans,
-  housingCostsIncluded,
-  onHousingCostsIncludedChange,
   onAddHome,
   onAddCar,
   onAddInvestment,
@@ -69,17 +64,6 @@ export default function StepPositions({
           {t("positionsDescription")}
         </Text>
       </Stack>
-
-      <Checkbox
-        label={t("housingCostsIncluded")}
-        checked={housingCostsIncluded}
-        onChange={(event) => onHousingCostsIncludedChange(event.currentTarget.checked)}
-      />
-      {housingCostsIncluded && homes.length > 0 && (
-        <Text size="sm" c="orange">
-          {t("housingCostsWarning")}
-        </Text>
-      )}
 
       <Stack gap="md">
         <Group justify="space-between" align="center">

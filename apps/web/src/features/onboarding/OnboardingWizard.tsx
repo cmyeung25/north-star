@@ -61,8 +61,6 @@ const templates = [
   { label: "寵物", kind: "pet", name: "寵物" },
 ] as const;
 
-const categoryAgeRequired = new Set(["childcare", "education", "eldercare", "petcare"]);
-
 const createMemberDraft = (template?: { name: string; kind: "person" | "pet" }) => ({
   id: nanoid(),
   name: template?.name ?? "",
@@ -165,7 +163,6 @@ export default function OnboardingWizard() {
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<OnboardingDraft | null>(null);
-  const [housingCostsIncluded, setHousingCostsIncluded] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<OnboardingPersona | null>(
     null
   );
@@ -361,6 +358,8 @@ export default function OnboardingWizard() {
 
     if (nextStepKey === "budget") {
       draft.budgetRules.forEach((rule) => {
+        const hasMember = Boolean(rule.memberId && rule.memberId !== "household");
+        const usesMonthBasis = !hasMember || Boolean(rule.startMonth || rule.endMonth);
         if (!rule.name.trim()) {
           nextErrors[`rule.${rule.id}.name`] = onboardingText("ruleNameRequired");
         }
@@ -370,19 +369,19 @@ export default function OnboardingWizard() {
         if (rule.monthlyAmount <= 0) {
           nextErrors[`rule.${rule.id}.monthlyAmount`] = onboardingText("amountRequired");
         }
-        if (categoryAgeRequired.has(rule.category)) {
+        if (!usesMonthBasis) {
           const ageBand = rule.ageBand;
           if (!ageBand || ageBand.fromYears < 0 || ageBand.toYears <= ageBand.fromYears) {
             nextErrors[`rule.${rule.id}.ageFrom`] = onboardingText("ageBandRequired");
           }
         }
-        if (rule.startMonth) {
+        if (usesMonthBasis && rule.startMonth) {
           const normalized = normalizeOnboardingMonth(rule.startMonth, draft.settings.baseMonth);
           if (!normalized.ok) {
             nextErrors[`rule.${rule.id}.startMonth`] = onboardingText("monthInvalid");
           }
         }
-        if (rule.endMonth) {
+        if (usesMonthBasis && rule.endMonth) {
           const normalized = normalizeOnboardingMonth(rule.endMonth);
           if (!normalized.ok) {
             nextErrors[`rule.${rule.id}.endMonth`] = onboardingText("monthInvalid");
@@ -700,8 +699,6 @@ export default function OnboardingWizard() {
           cars={draft.positions.cars}
           investments={draft.positions.investments}
           loans={draft.positions.loans}
-          housingCostsIncluded={housingCostsIncluded}
-          onHousingCostsIncludedChange={setHousingCostsIncluded}
           onAddHome={() =>
             setDraft((current) =>
               current
@@ -714,12 +711,12 @@ export default function OnboardingWizard() {
                         {
                           id: nanoid(),
                           purchaseMonth: current.settings.baseMonth,
-                          purchasePrice: 0,
-                          downPayment: 0,
-                          annualAppreciationPct: 0,
+                          purchasePrice: 8_000_000,
+                          downPayment: 2_400_000,
+                          annualAppreciationPct: 2,
                           mortgageRatePct: 0,
                           mortgageTermYears: 30,
-                          holdingCostMonthly: 0,
+                          holdingCostMonthly: 3_000,
                           holdingCostAnnualGrowthPct: 0,
                         },
                       ],
@@ -795,7 +792,8 @@ export default function OnboardingWizard() {
                           principal: 0,
                           annualInterestRatePct: 0,
                           termYears: 5,
-                          monthlyPayment: 0,
+                          paymentMethod: "amortization",
+                          monthlyPayment: undefined,
                         },
                       ],
                     },

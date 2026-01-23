@@ -39,6 +39,7 @@ import {
   buildCarCashflowBreakdown,
   buildInvestmentCashflowBreakdown,
   buildInsuranceCashflowBreakdown,
+  buildLoanCashflowBreakdown,
   type PositionCashflowEntry,
 } from "../../../src/domain/positions/cashflowBreakdown";
 import {
@@ -211,7 +212,7 @@ export default function MoneyClient({
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [smartInvestDrawerOpen, setSmartInvestDrawerOpen] = useState(false);
   const [assetDetails, setAssetDetails] = useState<{
-    type: "home" | "investment" | "insurance" | "car" | "smartInvest";
+    type: "home" | "investment" | "insurance" | "car" | "loan" | "smartInvest";
     id?: string;
   } | null>(null);
   const [assetDetailsMonth, setAssetDetailsMonth] = useState<string | null>(null);
@@ -630,6 +631,8 @@ export default function MoneyClient({
           return assetDetails.id && investments.some((i) => i.id === assetDetails.id);
         case "insurance":
           return assetDetails.id && insurances.some((i) => i.id === assetDetails.id);
+        case "loan":
+          return assetDetails.id && loans.some((loan) => loan.id === assetDetails.id);
         case "smartInvest":
           return true; // smartInvest is never truly deleted, just disabled
         default:
@@ -640,7 +643,7 @@ export default function MoneyClient({
     if (!assetExists) {
       setAssetDetails(null);
     }
-  }, [homes, cars, investments, insurances, assetDetails, scenarioIdValue]);
+  }, [homes, cars, investments, insurances, loans, assetDetails, scenarioIdValue]);
 
   // Close editing drawers if the edited item was deleted
   useEffect(() => {
@@ -818,6 +821,25 @@ export default function MoneyClient({
       };
     }
 
+    if (assetDetails.type === "loan" && assetDetails.id) {
+      const liabilityKey = `loan:${assetDetails.id}`;
+      const loan = loans.find((entry) => entry.id === assetDetails.id);
+      const cashflowSeries =
+        loan && baseMonth
+          ? buildLoanCashflowBreakdown({
+              loan,
+              baseMonth,
+              horizonMonths: projection.months.length,
+            }).series
+          : [];
+      return {
+        title: loansText("title"),
+        selectedMonth,
+        cashflowSeries,
+        liabilityValue: withSeriesValue(liabilitiesByKey[liabilityKey]),
+      };
+    }
+
     if (assetDetails.type === "smartInvest") {
       return {
         title: timelineText("smartInvestTitle"),
@@ -835,11 +857,14 @@ export default function MoneyClient({
   }, [
     assetDetails,
     assetDetailsMonth,
+    baseMonth,
     buildAssetCashflowSeries,
     carsText,
     homesText,
     insurancesText,
     investmentsText,
+    loans,
+    loansText,
     projection,
     sellEntries,
     smartInvestBreakdown,
@@ -934,6 +959,19 @@ export default function MoneyClient({
       });
       openCashflowModal(
         insurancesText("title"),
+        breakdown.entries,
+        breakdown.series
+      );
+    } else if (assetDetails.type === "loan" && assetDetails.id) {
+      const loan = loans.find((entry) => entry.id === assetDetails.id);
+      if (!loan) return;
+      const breakdown = buildLoanCashflowBreakdown({
+        loan,
+        baseMonth,
+        horizonMonths,
+      });
+      openCashflowModal(
+        loansText("title"),
         breakdown.entries,
         breakdown.series
       );
@@ -1074,6 +1112,21 @@ export default function MoneyClient({
         undefined,
         contributionRows.length > 0 ? contributionRows : undefined,
         assetValueRows.length > 0 ? assetValueRows : undefined
+      );
+    } else if (assetDetails.type === "loan" && assetDetails.id) {
+      const loan = loans.find((entry) => entry.id === assetDetails.id);
+      if (!loan) return;
+
+      const amortizationRows = buildAmortizationSchedule({
+        principal: loan.principal ?? 0,
+        annualRateDecimal: (loan.annualInterestRatePct ?? 0) / 100,
+        termMonths: Math.round((loan.termYears ?? 0) * 12),
+        startMonth: loan.startMonth ?? baseMonth ?? "",
+      });
+
+      openCalculatorModal(
+        loansText("title"),
+        amortizationRows.length > 0 ? amortizationRows : undefined
       );
     } else if (assetDetails.type === "smartInvest") {
       if (!smartInvestBreakdown) return;
@@ -1635,6 +1688,13 @@ export default function MoneyClient({
                         {formatLoanSummary(loansText, loan, scenario?.baseCurrency ?? "USD", locale)}
                       </Text>
                       <Group gap="xs">
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setAssetDetails({ type: "loan", id: loan.id })}
+                        >
+                          {common("actionDetails")}
+                        </Button>
                         <Button
                           size="xs"
                           variant="subtle"
