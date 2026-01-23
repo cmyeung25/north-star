@@ -5,7 +5,9 @@ import {
   Button,
   Group,
   NumberInput,
+  SegmentedControl,
   Stack,
+  Text,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -14,6 +16,7 @@ import { useTranslations } from "next-intl";
 import { normalizeMonthStrict } from "../../src/utils/month";
 import type { LoanPositionDraft } from "../../src/store/scenarioStore";
 import { LoanPositionSchema, getLoanPositionErrors } from "../../src/store/scenarioValidation";
+import { computeMonthlyPayment } from "../../src/domain/positions/calculations";
 
 type LoanDetailsFormProps = {
   loan: LoanPositionDraft;
@@ -42,6 +45,12 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
 
   const toPositiveNumber = (value: number | string | null | undefined) =>
     Math.max(0, Number(value ?? 0));
+  const paymentMethod = formValues.paymentMethod ?? "amortization";
+  const computedPayment = computeMonthlyPayment(
+    toPositiveNumber(formValues.principal),
+    toPositiveNumber(formValues.annualInterestRatePct) / 100,
+    Math.round(toPositiveNumber(formValues.termYears) * 12)
+  );
 
   const handleSave = () => {
     const normalizedMonth = normalizeMonthStrict(formValues.startMonth);
@@ -49,6 +58,8 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
     const nextValues = {
       ...formValues,
       startMonth: normalizedMonth.ok ? normalizedMonth.month : formValues.startMonth,
+      monthlyPayment: paymentMethod === "manual" ? formValues.monthlyPayment : undefined,
+      paymentMethod,
     };
 
     const parsed = LoanPositionSchema.safeParse(nextValues);
@@ -100,14 +111,39 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
         min={1}
         max={50}
       />
-      <NumberInput
-        label={t("monthlyPayment")}
-        value={formValues.monthlyPayment ?? 0}
-        error={errors.monthlyPayment}
-        onChange={(value) => updateField("monthlyPayment", toPositiveNumber(value))}
-        thousandSeparator=","
-        min={0}
-      />
+      <Stack gap="xs">
+        <Text fw={500}>{t("paymentMethodLabel")}</Text>
+        <SegmentedControl
+          data={[
+            { value: "amortization", label: t("paymentMethodAmortization") },
+            { value: "manual", label: t("paymentMethodManual") },
+          ]}
+          value={paymentMethod}
+          onChange={(value) =>
+            updateField("paymentMethod", value as "amortization" | "manual")
+          }
+        />
+      </Stack>
+      {paymentMethod === "manual" ? (
+        <NumberInput
+          label={t("monthlyPayment")}
+          value={formValues.monthlyPayment ?? 0}
+          error={errors.monthlyPayment}
+          onChange={(value) =>
+            updateField("monthlyPayment", toPositiveNumber(value))
+          }
+          thousandSeparator=","
+          min={0}
+        />
+      ) : (
+        <NumberInput
+          label={t("monthlyPaymentAuto")}
+          value={computedPayment}
+          thousandSeparator=","
+          min={0}
+          disabled
+        />
+      )}
       <NumberInput
         label={t("feesOneTime")}
         value={formValues.feesOneTime ?? 0}

@@ -63,6 +63,7 @@ import {
   type BudgetRuleMonthlyEntry,
 } from "../../../src/domain/budget/compileBudgetRules";
 import DataManagementSection from "../../../components/DataManagementSection";
+import DateOrAgeBasisPicker from "../../../components/DateOrAgeBasisPicker";
 import PositionDetailList from "../../../components/timeline/PositionDetailList";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import { getEventMeta } from "../../../src/events/eventCatalog";
@@ -1271,6 +1272,11 @@ export default function SettingsClient({
                       typeof member.birthMonth === "string" &&
                       isValidMonthStr(member.birthMonth);
                     const hasAgeAtBase = typeof member.ageAtBaseMonth === "number";
+                    const memberBasis = birthMonthInput.trim()
+                      ? "month"
+                      : hasAgeAtBase
+                        ? "age"
+                        : "month";
                     const baseMonthValue = baseMonth;
                     const validBaseMonth =
                       baseMonthValue && isValidMonthStr(baseMonthValue)
@@ -1351,72 +1357,100 @@ export default function SettingsClient({
                                 }}
                               />
                             </Group>
-                            <Group grow>
-                              <TextInput
-                                label={membersText("birthMonthLabel")}
-                                placeholder={common("yearMonthPlaceholder")}
-                                value={birthMonthInput}
-                                error={birthMonthError}
-                                onChange={(event) => {
-                                  const nextValue = event.currentTarget.value;
-                                  setMemberBirthMonthInputs((current) => ({
-                                    ...current,
-                                    [member.id]: nextValue,
-                                  }));
-                                  setMemberBirthMonthErrors((current) => ({
-                                    ...current,
-                                    [member.id]: null,
-                                  }));
-                                }}
-                                onBlur={() => {
-                                  const trimmed = birthMonthInput.trim();
-                                  if (trimmed === "") {
-                                    updateMember(member.id, { birthMonth: undefined });
-                                    setMemberBirthMonthErrors((current) => ({
-                                      ...current,
-                                      [member.id]: null,
-                                    }));
+                            <Stack gap="xs">
+                              <DateOrAgeBasisPicker
+                                value={memberBasis}
+                                onChange={(value) => {
+                                  if (value === "month") {
+                                    updateMember(member.id, { ageAtBaseMonth: undefined });
+                                  } else {
+                                    updateMember(member.id, {
+                                      birthMonth: undefined,
+                                      ageAtBaseMonth: member.ageAtBaseMonth ?? 0,
+                                    });
                                     setMemberBirthMonthInputs((current) => ({
                                       ...current,
                                       [member.id]: "",
                                     }));
-                                    return;
-                                  }
-                                  const normalized = normalizeMonthStrict(trimmed);
-                                  if (!normalized.ok) {
                                     setMemberBirthMonthErrors((current) => ({
                                       ...current,
-                                      [member.id]: validation("useYearMonth"),
+                                      [member.id]: null,
                                     }));
-                                    return;
                                   }
-                                  updateMember(member.id, {
-                                    birthMonth: normalized.month,
-                                  });
-                                  setMemberBirthMonthErrors((current) => ({
-                                    ...current,
-                                    [member.id]: null,
-                                  }));
-                                  setMemberBirthMonthInputs((current) => ({
-                                    ...current,
-                                    [member.id]: normalized.month,
-                                  }));
                                 }}
+                                monthLabel={membersText("basisMonth")}
+                                ageLabel={membersText("basisAge")}
                               />
-                              <NumberInput
-                                label={membersText("ageAtBaseLabel")}
-                                value={member.ageAtBaseMonth ?? ""}
-                                min={0}
-                                step={0.5}
-                                decimalScale={2}
-                                onChange={(value) =>
-                                  updateMember(member.id, {
-                                    ageAtBaseMonth:
-                                      typeof value === "number" ? value : undefined,
-                                  })
-                                }
-                              />
-                            </Group>
+                              <Group grow>
+                                {memberBasis === "month" ? (
+                                  <TextInput
+                                    label={membersText("birthMonthLabel")}
+                                    placeholder={common("yearMonthPlaceholder")}
+                                    value={birthMonthInput}
+                                    error={birthMonthError}
+                                    onChange={(event) => {
+                                      const nextValue = event.currentTarget.value;
+                                      setMemberBirthMonthInputs((current) => ({
+                                        ...current,
+                                        [member.id]: nextValue,
+                                      }));
+                                      setMemberBirthMonthErrors((current) => ({
+                                        ...current,
+                                        [member.id]: null,
+                                      }));
+                                    }}
+                                    onBlur={() => {
+                                      const trimmed = birthMonthInput.trim();
+                                      if (trimmed === "") {
+                                        updateMember(member.id, { birthMonth: undefined });
+                                        setMemberBirthMonthErrors((current) => ({
+                                          ...current,
+                                          [member.id]: null,
+                                        }));
+                                        setMemberBirthMonthInputs((current) => ({
+                                          ...current,
+                                          [member.id]: "",
+                                        }));
+                                        return;
+                                      }
+                                      const normalized = normalizeMonthStrict(trimmed);
+                                      if (!normalized.ok) {
+                                        setMemberBirthMonthErrors((current) => ({
+                                          ...current,
+                                          [member.id]: validation("useYearMonth"),
+                                        }));
+                                        return;
+                                      }
+                                      updateMember(member.id, {
+                                        birthMonth: normalized.month,
+                                      });
+                                      setMemberBirthMonthErrors((current) => ({
+                                        ...current,
+                                        [member.id]: null,
+                                      }));
+                                      setMemberBirthMonthInputs((current) => ({
+                                        ...current,
+                                        [member.id]: normalized.month,
+                                      }));
+                                    }}
+                                  />
+                                ) : (
+                                  <NumberInput
+                                    label={membersText("ageAtBaseLabel")}
+                                    value={member.ageAtBaseMonth ?? ""}
+                                    min={0}
+                                    step={0.5}
+                                    decimalScale={2}
+                                    onChange={(value) =>
+                                      updateMember(member.id, {
+                                        ageAtBaseMonth:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                )}
+                              </Group>
+                            </Stack>
                             {showAgeError && (
                               <Text size="xs" c="red">
                                 {membersText("ageRequired")}
@@ -2031,90 +2065,144 @@ export default function SettingsClient({
                             }
                           />
                         </Group>
-                        <Group grow>
-                          <NumberInput
-                            label={budgetText("ageFromLabel")}
-                            value={rule.ageBand.fromYears}
-                            min={0}
-                            step={0.5}
-                            decimalScale={2}
-                            onChange={(value) =>
-                              updateBudgetRule(rule.id, {
-                                ageBand: {
-                                  ...rule.ageBand,
-                                  fromYears: typeof value === "number" ? value : 0,
-                                },
-                              })
-                            }
-                          />
-                          <NumberInput
-                            label={budgetText("ageToLabel")}
-                            value={rule.ageBand.toYears}
-                            min={0}
-                            step={0.5}
-                            decimalScale={2}
-                            onChange={(value) =>
-                              updateBudgetRule(rule.id, {
-                                ageBand: {
-                                  ...rule.ageBand,
-                                  toYears: typeof value === "number" ? value : 0,
-                                },
-                              })
-                            }
-                          />
-                        </Group>
-                        <Text size="xs" c="dimmed">
-                          {budgetText("ageBandHelper")}
-                        </Text>
-                        <Group grow>
-                          <NumberInput
-                            label={budgetText("annualGrowthLabel")}
-                            value={rule.annualGrowthPct ?? ""}
-                            min={0}
-                            step={0.1}
-                            decimalScale={2}
-                            onChange={(value) =>
-                              updateBudgetRule(rule.id, {
-                                annualGrowthPct:
-                                  typeof value === "number" ? value : undefined,
-                              })
-                            }
-                          />
-                          <TextInput
-                            label={budgetText("startMonthLabel")}
-                            placeholder={common("yearMonthOptionalPlaceholder")}
-                            value={
-                              budgetMonthInputs[rule.id]?.startMonth ??
-                              rule.startMonth ??
-                              ""
-                            }
-                            onChange={(event) =>
-                              updateBudgetMonthInput(
-                                rule.id,
-                                "startMonth",
-                                event.currentTarget.value
-                              )
-                            }
-                            onBlur={() => validateBudgetMonth(rule.id, "startMonth")}
-                            error={budgetMonthErrors[rule.id]?.startMonth}
-                          />
-                          <TextInput
-                            label={budgetText("endMonthLabel")}
-                            placeholder={common("yearMonthOptionalPlaceholder")}
-                            value={
-                              budgetMonthInputs[rule.id]?.endMonth ?? rule.endMonth ?? ""
-                            }
-                            onChange={(event) =>
-                              updateBudgetMonthInput(
-                                rule.id,
-                                "endMonth",
-                                event.currentTarget.value
-                              )
-                            }
-                            onBlur={() => validateBudgetMonth(rule.id, "endMonth")}
-                            error={budgetMonthErrors[rule.id]?.endMonth}
-                          />
-                        </Group>
+                        {(() => {
+                          const hasMember = Boolean(rule.memberId);
+                          const basis =
+                            hasMember && (rule.startMonth || rule.endMonth)
+                              ? "month"
+                              : "age";
+                          const disableAge = !hasMember;
+
+                          return (
+                            <>
+                              <DateOrAgeBasisPicker
+                                value={disableAge ? "month" : basis}
+                                onChange={(value) => {
+                                  if (value === "age") {
+                                    updateBudgetRule(rule.id, {
+                                      startMonth: undefined,
+                                      endMonth: undefined,
+                                    });
+                                    updateBudgetMonthInput(rule.id, "startMonth", "");
+                                    updateBudgetMonthInput(rule.id, "endMonth", "");
+                                    setBudgetMonthErrors((current) => ({
+                                      ...current,
+                                      [rule.id]: {},
+                                    }));
+                                  } else {
+                                    updateBudgetRule(rule.id, {
+                                      ageBand: { fromYears: 0, toYears: 120 },
+                                    });
+                                  }
+                                }}
+                                monthLabel={budgetText("basisMonth")}
+                                ageLabel={budgetText("basisAge")}
+                                disableAge={disableAge}
+                              />
+                              <Group grow>
+                                {disableAge || basis === "month" ? (
+                                  <>
+                                    <TextInput
+                                      label={budgetText("startMonthLabel")}
+                                      placeholder={common("yearMonthOptionalPlaceholder")}
+                                      value={
+                                        budgetMonthInputs[rule.id]?.startMonth ??
+                                        rule.startMonth ??
+                                        ""
+                                      }
+                                      onChange={(event) =>
+                                        updateBudgetMonthInput(
+                                          rule.id,
+                                          "startMonth",
+                                          event.currentTarget.value
+                                        )
+                                      }
+                                      onBlur={() =>
+                                        validateBudgetMonth(rule.id, "startMonth")
+                                      }
+                                      error={budgetMonthErrors[rule.id]?.startMonth}
+                                    />
+                                    <TextInput
+                                      label={budgetText("endMonthLabel")}
+                                      placeholder={common("yearMonthOptionalPlaceholder")}
+                                      value={
+                                        budgetMonthInputs[rule.id]?.endMonth ??
+                                        rule.endMonth ??
+                                        ""
+                                      }
+                                      onChange={(event) =>
+                                        updateBudgetMonthInput(
+                                          rule.id,
+                                          "endMonth",
+                                          event.currentTarget.value
+                                        )
+                                      }
+                                      onBlur={() =>
+                                        validateBudgetMonth(rule.id, "endMonth")
+                                      }
+                                      error={budgetMonthErrors[rule.id]?.endMonth}
+                                    />
+                                  </>
+                                ) : (
+                                  <>
+                                    <NumberInput
+                                      label={budgetText("ageFromLabel")}
+                                      value={rule.ageBand.fromYears}
+                                      min={0}
+                                      step={0.5}
+                                      decimalScale={2}
+                                      onChange={(value) =>
+                                        updateBudgetRule(rule.id, {
+                                          ageBand: {
+                                            ...rule.ageBand,
+                                            fromYears:
+                                              typeof value === "number" ? value : 0,
+                                          },
+                                        })
+                                      }
+                                    />
+                                    <NumberInput
+                                      label={budgetText("ageToLabel")}
+                                      value={rule.ageBand.toYears}
+                                      min={0}
+                                      step={0.5}
+                                      decimalScale={2}
+                                      onChange={(value) =>
+                                        updateBudgetRule(rule.id, {
+                                          ageBand: {
+                                            ...rule.ageBand,
+                                            toYears:
+                                              typeof value === "number" ? value : 0,
+                                          },
+                                        })
+                                      }
+                                    />
+                                  </>
+                                )}
+                              </Group>
+                              {!disableAge && basis === "age" && (
+                                <Text size="xs" c="dimmed">
+                                  {budgetText("ageBandHelper")}
+                                </Text>
+                              )}
+                              <Group grow>
+                                <NumberInput
+                                  label={budgetText("annualGrowthLabel")}
+                                  value={rule.annualGrowthPct ?? ""}
+                                  min={0}
+                                  step={0.1}
+                                  decimalScale={2}
+                                  onChange={(value) =>
+                                    updateBudgetRule(rule.id, {
+                                      annualGrowthPct:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                              </Group>
+                            </>
+                          );
+                        })()}
                         <Stack gap="xs">
                           <Text fw={600}>{budgetText("applyScopeTitle")}</Text>
                           <Text size="xs" c="dimmed">

@@ -2,6 +2,7 @@
 
 import {
   Button,
+  Card,
   Group,
   Modal,
   NumberInput,
@@ -13,6 +14,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { nanoid } from "nanoid";
 import { buildMonthRange, type EventField, type EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import { normalizeEvent } from "../../src/features/timeline/schema";
@@ -23,18 +25,24 @@ import {
 } from "../../src/utils/month";
 import type { TimelineEvent } from "./types";
 import type { ScenarioAssumptions, ScenarioMember } from "../../src/store/scenarioStore";
-import { monthAtAge } from "../../src/domain/members/age";
+import { monthAtAge, monthsBetween } from "../../src/domain/members/age";
 import { buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import { compileEventToMonthlyCashflowSeries } from "../../src/domain/events/compiler";
 import { getEventMeta, getEventSign } from "../../src/events/eventCatalog";
-import type { EventRule, EventRuleScheduleEntry } from "../../src/domain/events/types";
+import type {
+  EventRule,
+  EventRuleScheduleEntry,
+  SalaryStep,
+} from "../../src/domain/events/types";
 import CashflowPreviewChart from "./CashflowPreviewChart";
 import EndConditionPicker, { type EndConditionMode } from "../EndConditionPicker";
+import DateOrAgeBasisPicker from "../DateOrAgeBasisPicker";
 
 export type TimelineEventFormResult = {
   event: TimelineEvent;
   ruleMode: EventRule["mode"];
   schedule?: EventRuleScheduleEntry[];
+  salarySteps?: SalaryStep[];
 };
 
 interface TimelineEventFormProps {
@@ -46,6 +54,7 @@ interface TimelineEventFormProps {
   showMember?: boolean;
   ruleMode?: EventRule["mode"];
   schedule?: EventRuleScheduleEntry[];
+  salarySteps?: SalaryStep[];
   allowCashflowEdit?: boolean;
   onCancel: () => void;
   onSave: (result: TimelineEventFormResult) => void;
@@ -73,6 +82,105 @@ const buildScheduleFromSeries = (series: Array<{ month: string; amount: number }
     return result;
   }, {});
 
+const buildSalaryScheduleEntries = (params: {
+  baseMonth: string;
+  horizonMonths: number;
+  eventStartMonth: string;
+  eventEndMonth?: string | null;
+  annualGrowthPct?: number;
+  member?: ScenarioMember;
+  steps: SalaryStep[];
+  baseMonthlyAmount: number;
+}): EventRuleScheduleEntry[] => {
+  const {
+    baseMonth,
+    horizonMonths,
+    eventStartMonth,
+    eventEndMonth,
+    annualGrowthPct = 0,
+    member,
+    steps,
+    baseMonthlyAmount,
+  } = params;
+  const normalizedBase = normalizeMonthStrict(baseMonth);
+  const normalizedStart = normalizeMonthStrict(eventStartMonth);
+  if (!normalizedBase.ok || !normalizedStart.ok || horizonMonths <= 0) {
+    return [];
+  }
+  const normalizedEnd = eventEndMonth ? normalizeMonthStrict(eventEndMonth) : null;
+  const effectiveEnd = normalizedEnd?.ok ? normalizedEnd.month : null;
+  const months = buildMonthRange(normalizedBase.month, horizonMonths);
+  const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);
+  const resolvedSteps = steps.flatMap((step) => {
+    if (step.basis === "month") {
+      const normalized = normalizeMonthStrict(step.startMonth ?? "");
+      if (!normalized.ok) {
+        return [];
+      }
+      return [
+        {
+          id: step.id,
+          startMonth: normalized.month,
+          monthlyAmount: Math.abs(step.monthlyAmount ?? 0),
+        },
+      ];
+    }
+    if (!member) {
+      return [];
+    }
+    const month = monthAtAge(member, step.startAgeYears ?? 0, normalizedBase.month);
+    if (!month) {
+      return [];
+    }
+    return [
+      {
+        id: step.id,
+        startMonth: month,
+        monthlyAmount: Math.abs(step.monthlyAmount ?? 0),
+      },
+    ];
+  });
+
+  const filteredSteps = resolvedSteps.filter(
+    (step) => step.startMonth >= normalizedStart.month
+  );
+  const allSteps = [
+    {
+      id: "base",
+      startMonth: normalizedStart.month,
+      monthlyAmount: Math.abs(baseMonthlyAmount ?? 0),
+    },
+    ...filteredSteps,
+  ].sort((a, b) => a.startMonth.localeCompare(b.startMonth));
+
+  let stepIndex = 0;
+  const schedule: EventRuleScheduleEntry[] = [];
+
+  for (const month of months) {
+    if (monthsBetween(normalizedStart.month, month) < 0) {
+      continue;
+    }
+    if (effectiveEnd && monthsBetween(month, effectiveEnd) > 0) {
+      break;
+    }
+    while (
+      stepIndex + 1 < allSteps.length &&
+      monthsBetween(allSteps[stepIndex + 1].startMonth, month) <= 0
+    ) {
+      stepIndex += 1;
+    }
+    const step = allSteps[stepIndex];
+    const monthsSinceStart = monthsBetween(step.startMonth, month);
+    if (monthsSinceStart < 0) {
+      continue;
+    }
+    const amount = step.monthlyAmount * Math.pow(monthlyFactor, monthsSinceStart);
+    schedule.push({ month, amount: Math.round(amount) });
+  }
+
+  return schedule;
+};
+
 export default function TimelineEventForm({
   event,
   baseCurrency,
@@ -82,6 +190,7 @@ export default function TimelineEventForm({
   showMember = true,
   ruleMode: initialRuleMode = "params",
   schedule,
+  salarySteps: initialSalarySteps,
   allowCashflowEdit = false,
   onCancel,
   onSave,
@@ -102,6 +211,12 @@ export default function TimelineEventForm({
   const [cashflowMode, setCashflowMode] = useState<"view" | "edit">("view");
   const [scheduleDraft, setScheduleDraft] = useState<Record<string, number>>({});
   const [ruleMode, setRuleMode] = useState<EventRule["mode"]>(initialRuleMode);
+  const [salarySteps, setSalarySteps] = useState<SalaryStep[]>(
+    initialSalarySteps ?? []
+  );
+  const [salaryStepErrors, setSalaryStepErrors] = useState<
+    Record<string, { startMonth?: string; startAgeYears?: string; monthlyAmount?: string }>
+  >({});
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [editingAmount, setEditingAmount] = useState<number>(0);
   const [endAtAgeError, setEndAtAgeError] = useState<string | null>(null);
@@ -116,9 +231,11 @@ export default function TimelineEventForm({
     setCashflowMode("view");
     setRuleMode(initialRuleMode ?? "params");
     setScheduleDraft(buildScheduleMap(schedule));
+    setSalarySteps(initialSalarySteps ?? []);
+    setSalaryStepErrors({});
     setEndAtAgeError(null);
     lastManualEndMonthRef.current = event?.endMonth ?? "";
-  }, [event, initialRuleMode, schedule]);
+  }, [event, initialRuleMode, schedule, initialSalarySteps]);
 
   const fieldKeys = fields?.map((field) => field.key) ?? [];
   const shouldShowField = (key: EventFieldKey) =>
@@ -206,8 +323,53 @@ export default function TimelineEventForm({
       return;
     }
 
+    if (!normalizedStartMonth.ok) {
+      return;
+    }
+
     if (endConditionMode === "age" && formValues.endAtAgeYears && endAtAgeError) {
       return;
+    }
+
+    if (isSalaryEvent && salarySteps.length > 0) {
+      const nextStepErrors: Record<
+        string,
+        { startMonth?: string; startAgeYears?: string; monthlyAmount?: string }
+      > = {};
+      salarySteps.forEach((step) => {
+        if (!step.monthlyAmount || step.monthlyAmount <= 0) {
+          nextStepErrors[step.id] = {
+            ...nextStepErrors[step.id],
+            monthlyAmount: validation("amountRequired"),
+          };
+        }
+        if (step.basis === "month") {
+          const normalized = normalizeMonthStrict(step.startMonth ?? "");
+          if (!normalized.ok) {
+            nextStepErrors[step.id] = {
+              ...nextStepErrors[step.id],
+              startMonth: validation("useYearMonth"),
+            };
+          }
+        } else {
+          if (!selectedMember) {
+            nextStepErrors[step.id] = {
+              ...nextStepErrors[step.id],
+              startAgeYears: t("salaryStepsMissingMember"),
+            };
+          } else if (typeof step.startAgeYears !== "number" || step.startAgeYears < 0) {
+            nextStepErrors[step.id] = {
+              ...nextStepErrors[step.id],
+              startAgeYears: t("salaryStepAgeRequired"),
+            };
+          }
+        }
+      });
+      if (Object.keys(nextStepErrors).length > 0) {
+        setSalaryStepErrors(nextStepErrors);
+        return;
+      }
+      setSalaryStepErrors({});
     }
 
     const resolvedEndMonth =
@@ -234,7 +396,18 @@ export default function TimelineEventForm({
     );
 
     let normalizedSchedule: EventRuleScheduleEntry[] | undefined;
-    if (ruleMode === "schedule") {
+    if (isSalaryEvent && salarySteps.length > 0) {
+      normalizedSchedule = buildSalaryScheduleEntries({
+        baseMonth: assumptions.baseMonth ?? normalizedStartMonth.month,
+        horizonMonths: assumptions.horizonMonths ?? 0,
+        eventStartMonth: normalizedStartMonth.month,
+        eventEndMonth: resolvedEndMonth ?? null,
+        annualGrowthPct: normalizedEvent.annualGrowthPct ?? 0,
+        member: selectedMember,
+        steps: salarySteps,
+        baseMonthlyAmount: normalizedEvent.monthlyAmount ?? 0,
+      });
+    } else if (ruleMode === "schedule") {
       const entries = buildScheduleEntries(scheduleDraft);
       if (horizonMonthsList.length > 0) {
         const allowedMonths = new Set(horizonMonthsList);
@@ -246,71 +419,11 @@ export default function TimelineEventForm({
 
     onSave({
       event: normalizedEvent,
-      ruleMode,
+      ruleMode: isSalaryEvent && salarySteps.length > 0 ? "schedule" : ruleMode,
       schedule: normalizedSchedule,
+      salarySteps: salarySteps.length > 0 ? salarySteps : undefined,
     });
   };
-
-  const baseMonth = assumptions.baseMonth ?? null;
-  const fallbackMonth = isValidMonthStr(formValues?.startMonth ?? "")
-    ? formValues?.startMonth ?? null
-    : null;
-  const previewBaseMonth = isValidMonthStr(baseMonth ?? "") ? baseMonth : fallbackMonth;
-  const horizonMonths = assumptions.horizonMonths ?? 0;
-  const horizonMonthsList = useMemo(
-    () =>
-      previewBaseMonth && horizonMonths > 0
-        ? buildMonthRange(previewBaseMonth, horizonMonths)
-        : [],
-    [previewBaseMonth, horizonMonths]
-  );
-  const scheduleEntries = useMemo(
-    () => buildScheduleEntries(scheduleDraft),
-    [scheduleDraft]
-  );
-
-  const previewSeries = useMemo(() => {
-    if (!formValues || !assumptions.baseMonth) {
-      return [];
-    }
-    if (!isValidMonthStr(assumptions.baseMonth)) {
-      return [];
-    }
-
-    const definition = buildDefinitionFromTimelineEvent(formValues);
-    try {
-      return compileEventToMonthlyCashflowSeries({
-        definition: {
-          ...definition,
-          rule: {
-            ...definition.rule,
-            mode: ruleMode,
-            schedule: ruleMode === "schedule" ? scheduleEntries : undefined,
-          },
-        },
-        ref: { refId: definition.id, enabled: formValues.enabled },
-        assumptions,
-        signByType: getEventSign,
-      });
-    } catch {
-      return [];
-    }
-  }, [assumptions, formValues, ruleMode, scheduleEntries]);
-
-  const editableSeries = useMemo(() => {
-    if (!formValues || horizonMonthsList.length === 0) {
-      return [];
-    }
-    const sign = getEventSign(formValues.type);
-    return horizonMonthsList.map((month) => ({
-      month,
-      amount: sign * (scheduleDraft[month] ?? 0),
-    }));
-  }, [formValues, horizonMonthsList, scheduleDraft]);
-
-  const canEditCashflow =
-    allowCashflowEdit &&
-    (shouldShowField("monthlyAmount") || shouldShowField("oneTimeAmount"));
 
   const handleEditMonth = (month: string, amount: number) => {
     setEditingMonth(month);
@@ -338,6 +451,7 @@ export default function TimelineEventForm({
   const isIncomeEvent = formValues
     ? getEventMeta(formValues.type).group === "income"
     : false;
+  const isSalaryEvent = formValues?.type === "salary";
   const selectedMember = formValues
     ? members.find((member) => member.id === formValues.memberId)
     : undefined;
@@ -418,6 +532,128 @@ export default function TimelineEventForm({
     t,
     updateField,
   ]);
+
+  useEffect(() => {
+    if (!selectedMember || !formValues) {
+      setSalarySteps((current) =>
+        current.map((step) =>
+          step.basis === "age"
+            ? {
+                ...step,
+                basis: "month",
+                startMonth: formValues?.startMonth ?? step.startMonth,
+                startAgeYears: undefined,
+              }
+            : step
+        )
+      );
+    }
+  }, [formValues, selectedMember]);
+
+  const salaryScheduleEntries = useMemo(() => {
+    if (!formValues || !isSalaryEvent || salarySteps.length === 0) {
+      return [];
+    }
+    if (!assumptions.baseMonth || !isValidMonthStr(assumptions.baseMonth)) {
+      return [];
+    }
+
+    const resolvedEndMonth =
+      endConditionMode === "age"
+        ? computedEndMonth
+        : formValues.endMonth ?? null;
+
+    return buildSalaryScheduleEntries({
+      baseMonth: assumptions.baseMonth,
+      horizonMonths: assumptions.horizonMonths ?? 0,
+      eventStartMonth: formValues.startMonth,
+      eventEndMonth: resolvedEndMonth,
+      annualGrowthPct: formValues.annualGrowthPct ?? 0,
+      member: selectedMember,
+      steps: salarySteps,
+      baseMonthlyAmount: formValues.monthlyAmount ?? 0,
+    });
+  }, [
+    assumptions.baseMonth,
+    assumptions.horizonMonths,
+    computedEndMonth,
+    endConditionMode,
+    formValues,
+    isSalaryEvent,
+    salarySteps,
+    selectedMember,
+  ]);
+
+  const baseMonth = assumptions.baseMonth ?? null;
+  const fallbackMonth = isValidMonthStr(formValues?.startMonth ?? "")
+    ? formValues?.startMonth ?? null
+    : null;
+  const previewBaseMonth = isValidMonthStr(baseMonth ?? "") ? baseMonth : fallbackMonth;
+  const horizonMonths = assumptions.horizonMonths ?? 0;
+  const horizonMonthsList = useMemo(
+    () =>
+      previewBaseMonth && horizonMonths > 0
+        ? buildMonthRange(previewBaseMonth, horizonMonths)
+        : [],
+    [previewBaseMonth, horizonMonths]
+  );
+  const scheduleEntries = useMemo(
+    () => buildScheduleEntries(scheduleDraft),
+    [scheduleDraft]
+  );
+  const effectiveRuleMode =
+    isSalaryEvent && salarySteps.length > 0 ? "schedule" : ruleMode;
+  const effectiveScheduleEntries =
+    isSalaryEvent && salarySteps.length > 0
+      ? salaryScheduleEntries
+      : effectiveRuleMode === "schedule"
+        ? scheduleEntries
+        : undefined;
+
+  const previewSeries = useMemo(() => {
+    if (!formValues) {
+      return [];
+    }
+    if (!assumptions.baseMonth || !isValidMonthStr(assumptions.baseMonth)) {
+      return [];
+    }
+
+    const definition = buildDefinitionFromTimelineEvent(formValues);
+    try {
+      return compileEventToMonthlyCashflowSeries({
+        definition: {
+          ...definition,
+          rule: {
+            ...definition.rule,
+            mode: effectiveRuleMode,
+            schedule:
+              effectiveRuleMode === "schedule" ? effectiveScheduleEntries : undefined,
+          },
+        },
+        ref: { refId: definition.id, enabled: formValues.enabled },
+        assumptions,
+        signByType: getEventSign,
+      });
+    } catch {
+      return [];
+    }
+  }, [assumptions, effectiveRuleMode, effectiveScheduleEntries, formValues]);
+
+  const editableSeries = useMemo(() => {
+    if (!formValues || horizonMonthsList.length === 0) {
+      return [];
+    }
+    const sign = getEventSign(formValues.type);
+    return horizonMonthsList.map((month) => ({
+      month,
+      amount: sign * (scheduleDraft[month] ?? 0),
+    }));
+  }, [formValues, horizonMonthsList, scheduleDraft]);
+
+  const canEditCashflow =
+    allowCashflowEdit &&
+    (shouldShowField("monthlyAmount") || shouldShowField("oneTimeAmount")) &&
+    salarySteps.length === 0;
 
   if (!formValues) {
     return null;
@@ -603,6 +839,152 @@ export default function TimelineEventForm({
           decimalScale={2}
           suffix="%"
         />
+      )}
+      {isSalaryEvent && (
+        <Stack gap="xs">
+          <Group justify="space-between" align="center">
+            <Text fw={600}>{t("salaryStepsTitle")}</Text>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() =>
+                setSalarySteps((current) => [
+                  ...current,
+                  {
+                    id: nanoid(),
+                    basis: selectedMember ? "age" : "month",
+                    startMonth: formValues.startMonth,
+                    startAgeYears: selectedMember ? 0 : undefined,
+                    monthlyAmount: Math.max(formValues.monthlyAmount ?? 0, 0),
+                  },
+                ])
+              }
+              disabled={!formValues.enabled}
+            >
+              {t("salaryStepsAdd")}
+            </Button>
+          </Group>
+          <Text size="xs" c="dimmed">
+            {t("salaryStepsHint")}
+          </Text>
+          {salarySteps.length === 0 ? (
+            <Text size="xs" c="dimmed">
+              {t("salaryStepsEmpty")}
+            </Text>
+          ) : (
+            <Stack gap="sm">
+              {salarySteps.map((step) => {
+                const disableAge = !selectedMember;
+                return (
+                  <Card key={step.id} withBorder radius="md" padding="sm">
+                    <Stack gap="xs">
+                      <Group justify="space-between" align="center">
+                        <Text fw={500}>{t("salaryStepLabel")}</Text>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={() =>
+                            setSalarySteps((current) =>
+                              current.filter((entry) => entry.id !== step.id)
+                            )
+                          }
+                        >
+                          {common("actionRemove")}
+                        </Button>
+                      </Group>
+                      <DateOrAgeBasisPicker
+                        value={disableAge ? "month" : step.basis}
+                        onChange={(value) => {
+                          setSalarySteps((current) =>
+                            current.map((entry) =>
+                              entry.id === step.id
+                                ? {
+                                    ...entry,
+                                    basis: value,
+                                    startMonth:
+                                      value === "month"
+                                        ? formValues.startMonth
+                                        : undefined,
+                                    startAgeYears:
+                                      value === "age" ? entry.startAgeYears ?? 0 : undefined,
+                                  }
+                                : entry
+                            )
+                          );
+                        }}
+                        monthLabel={t("basisMonth")}
+                        ageLabel={t("basisAge")}
+                        disableAge={disableAge}
+                      />
+                      <Group grow>
+                        {step.basis === "month" ? (
+                          <TextInput
+                            label={t("salaryStepStartMonth")}
+                            placeholder={common("yearMonthPlaceholder")}
+                            value={step.startMonth ?? ""}
+                            error={salaryStepErrors[step.id]?.startMonth}
+                            onChange={(eventChange) => {
+                              const nextValue = eventChange.target.value;
+                              setSalarySteps((current) =>
+                                current.map((entry) =>
+                                  entry.id === step.id
+                                    ? { ...entry, startMonth: nextValue }
+                                    : entry
+                                )
+                              );
+                            }}
+                          />
+                        ) : (
+                          <NumberInput
+                            label={t("salaryStepStartAge")}
+                            value={step.startAgeYears ?? ""}
+                            min={0}
+                            step={0.5}
+                            decimalScale={2}
+                            error={salaryStepErrors[step.id]?.startAgeYears}
+                            onChange={(value) =>
+                              setSalarySteps((current) =>
+                                current.map((entry) =>
+                                  entry.id === step.id
+                                    ? {
+                                        ...entry,
+                                        startAgeYears:
+                                          typeof value === "number" ? value : undefined,
+                                      }
+                                    : entry
+                                )
+                              )
+                            }
+                          />
+                        )}
+                        <NumberInput
+                          label={t("salaryStepMonthlyAmount")}
+                          value={step.monthlyAmount ?? 0}
+                          min={0}
+                          thousandSeparator=","
+                          error={salaryStepErrors[step.id]?.monthlyAmount}
+                          onChange={(value) =>
+                            setSalarySteps((current) =>
+                              current.map((entry) =>
+                                entry.id === step.id
+                                  ? {
+                                      ...entry,
+                                      monthlyAmount: Math.max(Number(value ?? 0), 0),
+                                    }
+                                  : entry
+                              )
+                            )
+                          }
+                        />
+                      </Group>
+                    </Stack>
+                  </Card>
+                );
+              })}
+            </Stack>
+          )}
+        </Stack>
       )}
       {(shouldShowField("monthlyAmount") || shouldShowField("oneTimeAmount")) && (
         <Stack gap="xs">

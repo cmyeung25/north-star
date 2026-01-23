@@ -186,18 +186,40 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     if (props.mode !== "create") {
       return;
     }
-    const baseDefinition = buildDefinitionFromTimelineEvent(result.event);
+    const resolvedEvent =
+      result.event.name.trim() === ""
+        ? {
+            ...result.event,
+            name: getEventTypeDisplay(
+              t,
+              result.event.type,
+              result.event.incomeSubtype
+            ),
+          }
+        : result.event;
+    const baseDefinition = buildDefinitionFromTimelineEvent(resolvedEvent);
     const targets =
       selectedScenarioIds.length > 0 ? selectedScenarioIds : [defaultScenarioId];
     props.onAddDefinition(
       {
         ...baseDefinition,
+        rule: {
+          ...baseDefinition.rule,
+          mode: result.ruleMode,
+          schedule:
+            result.ruleMode === "schedule" ? result.schedule : undefined,
+          salarySteps: result.salarySteps,
+        },
         parentId: parentId ?? undefined,
       },
       targets
     );
-    syncRetirementMilestone(result.event);
-    props.onCreateComplete?.(result.event.startMonth ?? null);
+    syncRetirementMilestone(resolvedEvent);
+    syncSalaryStepMilestones({
+      event: resolvedEvent,
+      salarySteps: result.salarySteps,
+    });
+    props.onCreateComplete?.(resolvedEvent.startMonth ?? null);
     props.onClose();
   };
 
@@ -222,6 +244,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     event: updated,
     ruleMode,
     schedule,
+    salarySteps,
   }: TimelineEventFormResult) => {
     if (props.mode !== "edit" || !editingEvent) {
       return;
@@ -231,6 +254,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       ...nextDefinition.rule,
       mode: ruleMode,
       schedule: ruleMode === "schedule" ? schedule : undefined,
+      salarySteps,
     };
     props.onUpdateDefinition(editingEvent.definition.id, {
       title: nextDefinition.title,
@@ -244,6 +268,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       parentId: editingParentId ?? undefined,
     });
     syncRetirementMilestone(updated);
+    syncSalaryStepMilestones({ event: updated, salarySteps });
     props.onClose();
   };
 
@@ -306,6 +331,59 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
           entry.id === milestoneId ? { ...entry, ...nextMilestone } : entry
         )
       : [...milestones, nextMilestone];
+
+    updateMember(member.id, { milestones: nextMilestones });
+  };
+
+  const syncSalaryStepMilestones = ({
+    event,
+    salarySteps,
+  }: Pick<TimelineEventFormResult, "event" | "salarySteps">) => {
+    const isSalaryEvent = event.type === "salary";
+    if (!isSalaryEvent || !event.memberId) {
+      return;
+    }
+
+    const member = props.members.find((entry) => entry.id === event.memberId);
+    if (!member) {
+      return;
+    }
+
+    const existingMilestones = member.milestones ?? [];
+    const nextSteps = salarySteps ?? [];
+    const salaryStepIds = new Set(
+      nextSteps.map((step) => `salary-step-${event.id}-${step.id}`)
+    );
+    const retained = existingMilestones.filter(
+      (milestone) =>
+        milestone.sourceEventId !== event.id || salaryStepIds.has(milestone.id)
+    );
+
+    if (nextSteps.length === 0) {
+      updateMember(member.id, { milestones: retained });
+      return;
+    }
+
+    const nextMilestones = nextSteps.reduce((acc, step) => {
+      const milestoneId = `salary-step-${event.id}-${step.id}`;
+      const label = t("salaryStepMilestoneLabel");
+      const baseMilestone = {
+        id: milestoneId,
+        kind: "custom" as const,
+        label,
+        applyScope: { scope: "all" } as const,
+        sourceEventId: event.id,
+        month: step.basis === "month" ? step.startMonth : undefined,
+        atAgeYears: step.basis === "age" ? step.startAgeYears : undefined,
+      };
+      const existing = acc.find((entry) => entry.id === milestoneId);
+      if (existing) {
+        return acc.map((entry) =>
+          entry.id === milestoneId ? { ...entry, ...baseMilestone } : entry
+        );
+      }
+      return [...acc, baseMilestone];
+    }, retained);
 
     updateMember(member.id, { milestones: nextMilestones });
   };
@@ -433,6 +511,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
                   members={props.members}
                   fields={getEventMeta(selectedType).fields}
                   showMember
+                  salarySteps={draftDefinition?.rule.salarySteps}
                   onCancel={() => setStep("type")}
                   onSave={handleSaveCreate}
                   submitLabel={t("addEvent")}
@@ -576,6 +655,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
                     showMember
                     ruleMode={editingEvent.definition.rule.mode}
                     schedule={editingEvent.definition.rule.schedule}
+                    salarySteps={editingEvent.definition.rule.salarySteps}
                     allowCashflowEdit
                     onCancel={props.onClose}
                     onSave={handleSaveShared}
@@ -597,6 +677,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
                   members={props.members}
                   ruleMode={scenarioRule?.mode}
                   schedule={scenarioRule?.schedule}
+                  salarySteps={[]}
                   fields={[
                     { key: "startMonth", input: "month" },
                     { key: "endMonth", input: "month" },

@@ -16,6 +16,7 @@ import type {
 import type { BudgetCategory } from "../../../store/scenarioStore";
 import NetWorthChart from "../../../../features/overview/components/NetWorthChart";
 import type { TimeSeriesPoint } from "../../../../features/overview/types";
+import DateOrAgeBasisPicker from "../../../../components/DateOrAgeBasisPicker";
 
 interface StepBudgetRulesProps {
   rules: OnboardingBudgetRuleDraft[];
@@ -121,66 +122,103 @@ export default function StepBudgetRules({
                   error={errors[`rule.${rule.id}.monthlyAmount`]}
                 />
               </Group>
-              <Group grow align="flex-start">
-                <NumberInput
-                  label={t("ageFrom")}
-                  min={0}
-                  value={rule.ageBand?.fromYears ?? ""}
-                  onChange={(value) =>
-                    onUpdateRule(rule.id, {
-                      ageBand: {
-                        fromYears: Number(value),
-                        toYears: rule.ageBand?.toYears ?? 0,
-                      },
-                    })
-                  }
-                  error={errors[`rule.${rule.id}.ageFrom`]}
-                />
-                <NumberInput
-                  label={t("ageTo")}
-                  min={0}
-                  value={rule.ageBand?.toYears ?? ""}
-                  onChange={(value) =>
-                    onUpdateRule(rule.id, {
-                      ageBand: {
-                        fromYears: rule.ageBand?.fromYears ?? 0,
-                        toYears: Number(value),
-                      },
-                    })
-                  }
-                  error={errors[`rule.${rule.id}.ageTo`]}
-                />
-              </Group>
-              <Group grow align="flex-start">
-                <NumberInput
-                  label={t("annualGrowth")}
-                  min={0}
-                  max={50}
-                  step={0.1}
-                  value={rule.annualGrowthPct ?? 0}
-                  onChange={(value) =>
-                    onUpdateRule(rule.id, { annualGrowthPct: Number(value) })
-                  }
-                />
-                <TextInput
-                  label={t("startMonth")}
-                  placeholder="YYYY-MM"
-                  value={rule.startMonth ?? ""}
-                  onChange={(event) =>
-                    onUpdateRule(rule.id, { startMonth: event.currentTarget.value })
-                  }
-                  error={errors[`rule.${rule.id}.startMonth`]}
-                />
-                <TextInput
-                  label={t("endMonth")}
-                  placeholder="YYYY-MM"
-                  value={rule.endMonth ?? ""}
-                  onChange={(event) =>
-                    onUpdateRule(rule.id, { endMonth: event.currentTarget.value })
-                  }
-                  error={errors[`rule.${rule.id}.endMonth`]}
-                />
-              </Group>
+              {(() => {
+                const hasMember = Boolean(rule.memberId && rule.memberId !== "household");
+                const basis =
+                  hasMember && (rule.startMonth || rule.endMonth) ? "month" : "age";
+                const disableAge = !hasMember;
+
+                return (
+                  <>
+                    <DateOrAgeBasisPicker
+                      value={disableAge ? "month" : basis}
+                      onChange={(value) => {
+                        if (value === "age") {
+                          onUpdateRule(rule.id, { startMonth: "", endMonth: "" });
+                        } else {
+                          onUpdateRule(rule.id, {
+                            ageBand: { fromYears: 0, toYears: 120 },
+                          });
+                        }
+                      }}
+                      monthLabel={t("basisMonth")}
+                      ageLabel={t("basisAge")}
+                      disableAge={disableAge}
+                    />
+                    <Group grow align="flex-start">
+                      {disableAge || basis === "month" ? (
+                        <>
+                          <TextInput
+                            label={t("startMonth")}
+                            placeholder="YYYY-MM"
+                            value={rule.startMonth ?? ""}
+                            onChange={(event) =>
+                              onUpdateRule(rule.id, {
+                                startMonth: event.currentTarget.value,
+                              })
+                            }
+                            error={errors[`rule.${rule.id}.startMonth`]}
+                          />
+                          <TextInput
+                            label={t("endMonth")}
+                            placeholder="YYYY-MM"
+                            value={rule.endMonth ?? ""}
+                            onChange={(event) =>
+                              onUpdateRule(rule.id, {
+                                endMonth: event.currentTarget.value,
+                              })
+                            }
+                            error={errors[`rule.${rule.id}.endMonth`]}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <NumberInput
+                            label={t("ageFrom")}
+                            min={0}
+                            value={rule.ageBand?.fromYears ?? ""}
+                            onChange={(value) =>
+                              onUpdateRule(rule.id, {
+                                ageBand: {
+                                  fromYears: Number(value),
+                                  toYears: rule.ageBand?.toYears ?? 0,
+                                },
+                              })
+                            }
+                            error={errors[`rule.${rule.id}.ageFrom`]}
+                          />
+                          <NumberInput
+                            label={t("ageTo")}
+                            min={0}
+                            value={rule.ageBand?.toYears ?? ""}
+                            onChange={(value) =>
+                              onUpdateRule(rule.id, {
+                                ageBand: {
+                                  fromYears: rule.ageBand?.fromYears ?? 0,
+                                  toYears: Number(value),
+                                },
+                              })
+                            }
+                            error={errors[`rule.${rule.id}.ageTo`]}
+                          />
+                        </>
+                      )}
+                    </Group>
+                    <Group grow align="flex-start">
+                      <NumberInput
+                        label={t("annualGrowth")}
+                        min={0}
+                        max={50}
+                        step={0.1}
+                        value={rule.annualGrowthPct ?? 0}
+                        onChange={(value) =>
+                          onUpdateRule(rule.id, { annualGrowthPct: Number(value) })
+                        }
+                      />
+                    </Group>
+                  </>
+                );
+              })()}
               <Text size="xs" c="dimmed">
                 {t("budgetRuleHint")}
               </Text>

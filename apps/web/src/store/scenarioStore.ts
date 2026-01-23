@@ -192,6 +192,7 @@ export type LoanPosition = {
   annualInterestRatePct: number;
   termYears: number;
   monthlyPayment?: number;
+  paymentMethod?: "amortization" | "manual";
   feesOneTime?: number;
 };
 

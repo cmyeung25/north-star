@@ -62,6 +62,8 @@ export const compileBudgetRuleToMonthlySeries = (
   const member = rule.memberId
     ? members.find((entry) => entry.id === rule.memberId) ?? null
     : null;
+  const shouldApplyAgeBand =
+    Boolean(member) && !rule.startMonth && !rule.endMonth;
 
   if (rule.memberId && !member) {
     return [];
@@ -73,9 +75,9 @@ export const compileBudgetRuleToMonthlySeries = (
     const withinEffectiveRange =
       monthsBetween(effectiveStartMonth, month) >= 0 &&
       monthsBetween(month, effectiveEndMonth) >= 0;
-    const withinAgeBand = member
+    const withinAgeBand = shouldApplyAgeBand
       ? (() => {
-          const ageYears = getMemberAgeYears(member, month, baseMonth);
+          const ageYears = getMemberAgeYears(member!, month, baseMonth);
           return ageYears >= rule.ageBand.fromYears && ageYears < rule.ageBand.toYears;
         })()
       : true;

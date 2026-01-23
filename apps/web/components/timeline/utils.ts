@@ -256,13 +256,13 @@ export const createHomePositionFromTemplate = (
     mode: "new_purchase",
     purchaseMonth:
       normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "",
-    purchasePrice: 0,
-    downPayment: 0,
-    annualAppreciationPct: 0,
+    purchasePrice: 8_000_000,
+    downPayment: 2_400_000,
+    annualAppreciationPct: 2,
     mortgageRatePct: 0,
     mortgageTermYears: 30,
     feesOneTime: 0,
-    holdingCostMonthly: 0,
+    holdingCostMonthly: 3_000,
     holdingCostAnnualGrowthPct: 0,
   };
 };
@@ -314,7 +314,8 @@ export const createLoanPositionFromTemplate = (
     principal: 500_000,
     annualInterestRatePct: 4,
     termYears: 5,
-    monthlyPayment: 0,
+    paymentMethod: "amortization",
+    monthlyPayment: undefined,
     feesOneTime: 0,
   };
 };

@@ -5,6 +5,16 @@ export type EventRuleScheduleEntry = {
   amount: number;
 };
 
+export type SalaryStepBasis = "month" | "age";
+
+export type SalaryStep = {
+  id: string;
+  basis: SalaryStepBasis;
+  startMonth?: string;
+  startAgeYears?: number;
+  monthlyAmount: number;
+};
+
 export type EventRule = {
   mode: "params" | "schedule";
   startMonth?: string;
@@ -13,6 +23,7 @@ export type EventRule = {
   oneTimeAmount?: number;
   annualGrowthPct?: number;
   schedule?: EventRuleScheduleEntry[];
+  salarySteps?: SalaryStep[];
 };
 
 export type EventDefinitionKind = "group" | "cashflow";

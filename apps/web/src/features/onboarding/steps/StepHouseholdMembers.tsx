@@ -11,6 +11,7 @@ import {
 } from "@mantine/core";
 import type { OnboardingMemberDraft } from "../../../domain/onboarding/applyDraft";
 import type { OnboardingMemberTemplate } from "../types";
+import DateOrAgeBasisPicker from "../../../../components/DateOrAgeBasisPicker";
 
 interface StepHouseholdMembersProps {
   members: OnboardingMemberDraft[];
@@ -68,8 +69,15 @@ export default function StepHouseholdMembers({
       )}
 
       <Stack gap="md">
-        {members.map((member, index) => (
-          <Card key={member.id} withBorder radius="md" padding="md">
+        {members.map((member, index) => {
+          const basis = member.birthMonth?.trim()
+            ? "month"
+            : typeof member.ageAtBaseMonth === "number"
+              ? "age"
+              : "month";
+
+          return (
+            <Card key={member.id} withBorder radius="md" padding="md">
             <Stack gap="sm">
               <Group justify="space-between" align="center">
                 <Text fw={600}>
@@ -105,32 +113,53 @@ export default function StepHouseholdMembers({
                   }
                 />
               </Group>
+              <DateOrAgeBasisPicker
+                value={basis}
+                onChange={(value) => {
+                  if (value === "month") {
+                    onUpdateMember(member.id, { ageAtBaseMonth: undefined });
+                  } else {
+                    onUpdateMember(member.id, {
+                      birthMonth: "",
+                      ageAtBaseMonth: member.ageAtBaseMonth ?? 0,
+                    });
+                  }
+                }}
+                monthLabel={t("basisMonth")}
+                ageLabel={t("basisAge")}
+              />
               <Group grow align="flex-start">
-                <TextInput
-                  label={t("birthMonth")}
-                  placeholder="YYYY-MM"
-                  value={member.birthMonth ?? ""}
-                  onChange={(event) =>
-                    onUpdateMember(member.id, { birthMonth: event.currentTarget.value })
-                  }
-                  error={errors[`member.${member.id}.birthMonth`]}
-                />
-                <NumberInput
-                  label={t("ageAtBaseMonth")}
-                  min={0}
-                  value={member.ageAtBaseMonth ?? ""}
-                  onChange={(value) =>
-                    onUpdateMember(member.id, { ageAtBaseMonth: Number(value) })
-                  }
-                  error={errors[`member.${member.id}.ageAtBaseMonth`]}
-                />
+                {basis === "month" ? (
+                  <TextInput
+                    label={t("birthMonth")}
+                    placeholder="YYYY-MM"
+                    value={member.birthMonth ?? ""}
+                    onChange={(event) =>
+                      onUpdateMember(member.id, { birthMonth: event.currentTarget.value })
+                    }
+                    error={errors[`member.${member.id}.birthMonth`]}
+                  />
+                ) : (
+                  <NumberInput
+                    label={t("ageAtBaseMonth")}
+                    min={0}
+                    value={member.ageAtBaseMonth ?? ""}
+                    onChange={(value) =>
+                      onUpdateMember(member.id, {
+                        ageAtBaseMonth: typeof value === "number" ? value : undefined,
+                      })
+                    }
+                    error={errors[`member.${member.id}.ageAtBaseMonth`]}
+                  />
+                )}
               </Group>
               <Text size="xs" c="dimmed">
                 {t("birthMonthHint")}
               </Text>
             </Stack>
           </Card>
-        ))}
+        );
+        })}
       </Stack>
     </Stack>
   );
