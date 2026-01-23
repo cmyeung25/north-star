@@ -15,6 +15,7 @@ import {
   Tabs,
   Text,
 } from "@mantine/core";
+import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../lib/i18n";
 import type { CashflowItem } from "../src/domain/ledger/types";
@@ -38,6 +39,7 @@ type ProjectionDetailsModalProps = {
   netWorthBreakdownByMonth?: Record<string, NetWorthBreakdown>;
   currency: string;
   memberLookup?: Record<string, string>;
+  initialTab?: "cashflow" | "netWorth";
 };
 
 const buildEmptySummary = (): LedgerMonthSummary => ({
@@ -103,10 +105,18 @@ export default function ProjectionDetailsModal({
   netWorthBreakdownByMonth,
   currency,
   memberLookup,
+  initialTab = "cashflow",
 }: ProjectionDetailsModalProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
   const formatValue = (value: number) => formatCurrency(value, currency, locale);
+  const [activeTab, setActiveTab] = useState<"cashflow" | "netWorth">(initialTab);
+
+  useEffect(() => {
+    if (opened) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, opened]);
   const resolvedMonth = currentMonth ?? months[0];
   const monthItems = resolvedMonth ? ledgerByMonth[resolvedMonth] ?? [] : [];
   const positionItems = resolvedMonth
@@ -297,7 +307,10 @@ export default function ProjectionDetailsModal({
             />
           </Group>
 
-          <Tabs defaultValue="cashflow">
+          <Tabs
+            value={activeTab}
+            onChange={(value) => setActiveTab(value as "cashflow" | "netWorth")}
+          >
             <Tabs.List>
               <Tabs.Tab value="cashflow">{t("breakdownTabCashflow")}</Tabs.Tab>
               <Tabs.Tab value="netWorth">{t("breakdownTabNetWorth")}</Tabs.Tab>
