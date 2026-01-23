@@ -1386,7 +1386,6 @@ export default function MoneyClient({
               </Stack>
               <Button onClick={() => setAddFlowOpen(true)}>{t("addButton")}</Button>
             </Group>
-
             <Card withBorder radius="md" padding="md">
               <Stack gap="xs">
                 <Text fw={600}>{t("orderTitle")}</Text>
@@ -1953,6 +1952,7 @@ export default function MoneyClient({
             cashSeries={cashSeries}
             netWorthSeries={netWorthSeries}
             netCashflowSeries={netCashflowSeries}
+            showCharts={false}
             onRangeChange={(range) => {
               setBreakdownMonthRange(range);
               setBreakdownMonth(range.toMonth ?? null);
