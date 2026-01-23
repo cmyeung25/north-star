@@ -31,7 +31,7 @@ import {
 import FullScreenChartModal, {
   type FullScreenChartType,
 } from "../../../components/FullScreenChartModal";
-import ProjectionDetailsModal from "../../../components/ProjectionDetailsModal";
+import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import RunwayDetailModal from "../../../components/metrics/RunwayDetailModal";
 import RiskDetailModal from "../../../components/metrics/RiskDetailModal";
 import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
@@ -105,17 +105,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const globalHorizonMonths = appSettings.globalHorizonMonths;
   const setViewModeSetting = useScenarioStore((state) => state.setViewMode);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
-  const breakdownOpen = useUiStore((state) => state.breakdownOpen);
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const openBreakdown = useUiStore((state) => state.openBreakdown);
-  const closeBreakdown = useUiStore((state) => state.closeBreakdown);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
   const scenarioIdFromQuery = scenarioId ?? null;
   const [viewMode, setViewMode] = useState<"single" | "compare">("single");
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
   const [riskDetailOpen, setRiskDetailOpen] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
   const [cashflowView, setCashflowView] = useState<"all" | "operational">("all");
   const [fullscreenChart, setFullscreenChart] = useState<{
     type: FullScreenChartType;
@@ -188,11 +185,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     [projection]
   );
 
-  useEffect(() => {
-    if (breakdownMonth) {
-      setCurrentMonth(breakdownMonth);
-    }
-  }, [breakdownMonth]);
   const inflationPct = appSettings.annualInflationPct ?? 0;
   const displayMode = appSettings.viewMode;
   const deflator = useMemo(
@@ -613,15 +605,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   useEffect(() => {
     if (months.length === 0) {
-      setCurrentMonth(undefined);
+      setBreakdownMonth(null);
       return;
     }
-    setCurrentMonth((previous) => {
-      const next = previous && months.includes(previous) ? previous : months[0];
-      setBreakdownMonth(next ?? null);
-      return next;
-    });
-  }, [months, setBreakdownMonth]);
+    const next =
+      breakdownMonth && months.includes(breakdownMonth)
+        ? breakdownMonth
+        : months[0];
+    setBreakdownMonth(next ?? null);
+  }, [breakdownMonth, months, setBreakdownMonth]);
 
   if (!selectedScenario) {
     return null;
@@ -653,7 +645,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       ),
       helper: t("kpiLowestBalanceHelper"),
       onDetails: projection
-        ? () => openBreakdown(currentMonth ?? months[0])
+        ? () => openBreakdown(breakdownMonth ?? months[0])
         : undefined,
       detailsLabel: t("breakdownCta"),
     },
@@ -712,8 +704,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     if (!projection) {
       return;
     }
-    setCurrentMonth(month);
-    setBreakdownMonth(month);
     openBreakdown(month);
   };
 
@@ -1184,15 +1174,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </Stack>
             </Card>
           </SimpleGrid>
-          <ProjectionDetailsModal
-            opened={breakdownOpen}
-            onClose={closeBreakdown}
+          <MonthlyBreakdownModalHost
             months={months}
-            currentMonth={currentMonth}
-            onMonthChange={(value) => {
-              setCurrentMonth(value);
-              setBreakdownMonth(value);
-            }}
             ledgerByMonth={ledgerByMonth}
             summaryByMonth={summaryByMonth}
             positionCashflowsByMonth={positionCashflowsByMonth}

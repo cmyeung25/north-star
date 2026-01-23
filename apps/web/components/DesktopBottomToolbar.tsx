@@ -10,13 +10,15 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useScenarioStore } from "../src/store/scenarioStore";
 import { normalizeMonthInput } from "../src/utils/month";
 import { Link } from "../src/i18n/navigation";
 import { buildScenarioUrl } from "../src/utils/scenarioContext";
 import AddFlowDrawer from "../features/add/AddFlowDrawer";
+import { usePathname, useRouter } from "next/navigation";
+import { useUiStore } from "../src/store/uiStore";
 
 export const desktopToolbarHeight = 72;
 
@@ -34,6 +36,9 @@ export default function DesktopBottomToolbar() {
   const setAnnualInflationPct = useScenarioStore((state) => state.setAnnualInflationPct);
   const setViewMode = useScenarioStore((state) => state.setViewMode);
   const [addOpen, setAddOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const openDrawer = useUiStore((state) => state.openDrawer);
 
   const baseMonthStoreValue = appSettings.globalBaseMonth ?? "";
   const [baseMonthInput, setBaseMonthInput] = useState(baseMonthStoreValue);
@@ -79,7 +84,7 @@ export default function DesktopBottomToolbar() {
     Array<{
       label: string;
       href: "/money" | "/timeline" | "/people" | "/settings";
-      query?: string;
+      action?: "smartInvest";
     }>
   >(
     () => [
@@ -89,7 +94,7 @@ export default function DesktopBottomToolbar() {
       {
         label: timeline("smartInvestTitle"),
         href: "/money",
-        query: "tab=assets&editSmartInvest=1",
+        action: "smartInvest",
       },
       { label: nav("settings"), href: "/settings" },
     ],
@@ -97,16 +102,24 @@ export default function DesktopBottomToolbar() {
   );
 
   const scenarioId = activeScenarioId;
-  const resolvedNavLinks = navLinks.map((link) => {
-    const base = scenarioId ? buildScenarioUrl(link.href, scenarioId) : link.href;
-    if (!link.query) {
-      return { ...link, href: base };
+  const resolvedNavLinks = navLinks.map((link) => ({
+    ...link,
+    href: scenarioId ? buildScenarioUrl(link.href, scenarioId) : link.href,
+  }));
+
+  const handleNavClick = (
+    event: MouseEvent<HTMLAnchorElement>,
+    link: (typeof resolvedNavLinks)[number]
+  ) => {
+    if (link.action !== "smartInvest") {
+      return;
     }
-    return {
-      ...link,
-      href: `${base}${base.includes("?") ? "&" : "?"}${link.query}`,
-    };
-  });
+    event.preventDefault();
+    openDrawer("smartInvest");
+    if (!pathname.endsWith("/money")) {
+      router.push(link.href);
+    }
+  };
 
   return (
     <Paper
@@ -198,6 +211,7 @@ export default function DesktopBottomToolbar() {
                   href={link.href}
                   size="sm"
                   fw={500}
+                  onClick={(event) => handleNavClick(event, link)}
                 >
                   {link.label}
                 </Text>

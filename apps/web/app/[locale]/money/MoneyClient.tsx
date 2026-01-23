@@ -78,6 +78,9 @@ import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLe
 import { buildSmartInvestProjectionBreakdown, type SmartInvestProjectionBreakdown } from "../../../src/domain/smartInvest/projection";
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
 import { compileSellLifecycle } from "../../../src/domain/positions/compileSellLifecycle";
+import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
+import RightPaneDashboard from "../../../components/RightPaneDashboard";
+import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import type {
   CarPositionDraft,
   HomePositionDraft,
@@ -86,6 +89,7 @@ import type {
   LoanPositionDraft,
 } from "../../../src/store/scenarioStore";
 import type { EventGroup } from "@north-star/engine";
+import { useUiStore } from "../../../src/store/uiStore";
 
 type CashflowModalState = {
   opened: boolean;
@@ -184,7 +188,16 @@ export default function MoneyClient({
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const scenarioIdValue = scenario?.id;
-  const { projection } = useProjectionWithLedger(
+  const {
+    projection,
+    months,
+    ledgerByMonth,
+    summaryByMonth,
+    positionCashflowsByMonth,
+    projectionNetCashflowByMonth,
+    projectionNetCashflowMode,
+    netWorthBreakdownByMonth,
+  } = useProjectionWithLedger(
     scenario,
     eventLibrary,
     {
@@ -192,8 +205,22 @@ export default function MoneyClient({
       budgetRules,
     }
   );
-  const projectionMonths = projection?.months ?? [];
+  const projectionMonths = useMemo(() => projection?.months ?? [], [projection]);
   const latestProjectionMonth = projectionMonths.at(-1) ?? null;
+  const memberLookupRecord = useMemo(
+    () =>
+      Object.fromEntries(members.map((member) => [member.id, member.name])),
+    [members]
+  );
+  const netWorthByMonth = useMemo(() => {
+    if (!projection) {
+      return {};
+    }
+    return projection.months.reduce<Record<string, number>>((acc, month, index) => {
+      acc[month] = projection.netWorth[index] ?? 0;
+      return acc;
+    }, {});
+  }, [projection]);
   const [addFlowOpen, setAddFlowOpen] = useState(false);
   const [addEventGroup, setAddEventGroup] = useState<EventGroup | null>(null);
   const [addEventDrawerOpen, setAddEventDrawerOpen] = useState(false);
@@ -210,7 +237,31 @@ export default function MoneyClient({
   const [editingInvestmentId, setEditingInvestmentId] = useState<string | null>(null);
   const [editingInsuranceId, setEditingInsuranceId] = useState<string | null>(null);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
-  const [smartInvestDrawerOpen, setSmartInvestDrawerOpen] = useState(false);
+  const activeDrawer = useUiStore((state) => state.activeDrawer);
+  const openDrawer = useUiStore((state) => state.openDrawer);
+  const closeDrawer = useUiStore((state) => state.closeDrawer);
+  const openModal = useUiStore((state) => state.openModal);
+  const breakdownMonth = useUiStore((state) => state.breakdownMonth);
+  const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
+  const smartInvestDrawerOpen = activeDrawer?.type === "smartInvest";
+  const selectedDashboardMonth = breakdownMonth ?? projectionMonths[0] ?? null;
+  const selectedDashboardIndex =
+    selectedDashboardMonth && projectionMonths.includes(selectedDashboardMonth)
+      ? projectionMonths.indexOf(selectedDashboardMonth)
+      : 0;
+  const cashBalanceValue = projection
+    ? projection.cashBalance[selectedDashboardIndex] ?? null
+    : null;
+  const netWorthValue = projection
+    ? projection.netWorth[selectedDashboardIndex] ?? null
+    : null;
+  const netCashflowValue = useMemo(() => {
+    if (!selectedDashboardMonth) {
+      return null;
+    }
+    const items = ledgerByMonth[selectedDashboardMonth] ?? [];
+    return items.reduce((total, item) => total + item.amount, 0);
+  }, [ledgerByMonth, selectedDashboardMonth]);
   const [assetDetails, setAssetDetails] = useState<{
     type: "home" | "investment" | "insurance" | "car" | "loan" | "smartInvest";
     id?: string;
@@ -248,6 +299,12 @@ export default function MoneyClient({
   useEffect(() => {
     setActiveTab(resolvedTab);
   }, [resolvedTab]);
+
+  useEffect(() => {
+    if (!breakdownMonth && projectionMonths.length > 0) {
+      setBreakdownMonth(projectionMonths[0]);
+    }
+  }, [breakdownMonth, projectionMonths, setBreakdownMonth]);
 
   const openEventDrawer = (group?: EventGroup) => {
     setAddEventGroup(group ?? null);
@@ -597,7 +654,7 @@ export default function MoneyClient({
     }
     if (initialEditSmartInvest) {
       setActiveTab("assets");
-      setSmartInvestDrawerOpen(true);
+      openDrawer("smartInvest");
       hasHandledInitialEdit.current = true;
     }
   }, [
@@ -605,6 +662,7 @@ export default function MoneyClient({
     initialEditEventId,
     initialEditHomeId,
     initialEditSmartInvest,
+    openDrawer,
     scenarioIdValue,
     setActiveTab,
   ]);
@@ -1264,34 +1322,37 @@ export default function MoneyClient({
 
   return (
     <Stack gap="xl">
-      <Group justify="space-between" align="flex-start" wrap="wrap">
-        <Stack gap={4}>
-          <Title order={2}>{t("title")}</Title>
-          <Text size="sm" c="dimmed">
-            {t("subtitle")}
-          </Text>
-        </Stack>
-        <Button onClick={() => setAddFlowOpen(true)}>{t("addButton")}</Button>
-      </Group>
+      <TwoPaneLayout
+        left={
+          <Stack gap="xl">
+            <Group justify="space-between" align="flex-start" wrap="wrap">
+              <Stack gap={4}>
+                <Title order={2}>{t("title")}</Title>
+                <Text size="sm" c="dimmed">
+                  {t("subtitle")}
+                </Text>
+              </Stack>
+              <Button onClick={() => setAddFlowOpen(true)}>{t("addButton")}</Button>
+            </Group>
 
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="xs">
-          <Text fw={600}>{t("orderTitle")}</Text>
-          <Text size="sm" c="dimmed">
-            {t("orderHint")}
-          </Text>
-        </Stack>
-      </Card>
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="xs">
+                <Text fw={600}>{t("orderTitle")}</Text>
+                <Text size="sm" c="dimmed">
+                  {t("orderHint")}
+                </Text>
+              </Stack>
+            </Card>
 
-      <Tabs value={activeTab} onChange={(value) => setActiveTab(value as MoneyTab)}>
-        <Tabs.List>
-          <Tabs.Tab value="income">{t("incomeTitle")}</Tabs.Tab>
-          <Tabs.Tab value="expenses">{t("expensesTitle")}</Tabs.Tab>
-          <Tabs.Tab value="assets">{t("assetsTitle")}</Tabs.Tab>
-          <Tabs.Tab value="liabilities">{t("liabilitiesTitle")}</Tabs.Tab>
-          <Tabs.Tab value="timeline">{t("timelineTitle")}</Tabs.Tab>
-          <Tabs.Tab value="inputs">{t("inputsTitle")}</Tabs.Tab>
-        </Tabs.List>
+            <Tabs value={activeTab} onChange={(value) => setActiveTab(value as MoneyTab)}>
+              <Tabs.List>
+                <Tabs.Tab value="income">{t("incomeTitle")}</Tabs.Tab>
+                <Tabs.Tab value="expenses">{t("expensesTitle")}</Tabs.Tab>
+                <Tabs.Tab value="assets">{t("assetsTitle")}</Tabs.Tab>
+                <Tabs.Tab value="liabilities">{t("liabilitiesTitle")}</Tabs.Tab>
+                <Tabs.Tab value="timeline">{t("timelineTitle")}</Tabs.Tab>
+                <Tabs.Tab value="inputs">{t("inputsTitle")}</Tabs.Tab>
+              </Tabs.List>
 
         <Tabs.Panel value="income" pt="md">
           <Stack gap="md">
@@ -1498,7 +1559,7 @@ export default function MoneyClient({
                   <Button
                     size="xs"
                     variant="light"
-                    onClick={() => setSmartInvestDrawerOpen(true)}
+                    onClick={() => openDrawer("smartInvest")}
                     disabled={!scenarioIdValue}
                   >
                     {common("actionEdit")}
@@ -1826,7 +1887,30 @@ export default function MoneyClient({
             )}
           </Stack>
         </Tabs.Panel>
-      </Tabs>
+            </Tabs>
+          </Stack>
+        }
+        right={
+          <RightPaneDashboard
+            selectedMonth={selectedDashboardMonth}
+            months={projectionMonths}
+            currency={scenario?.baseCurrency ?? "USD"}
+            cashBalance={cashBalanceValue}
+            netWorth={netWorthValue}
+            netCashflow={netCashflowValue}
+            onMonthChange={(month) => setBreakdownMonth(month)}
+            onOpenBreakdown={(focus) => {
+              if (!selectedDashboardMonth) {
+                return;
+              }
+              openModal("monthlyBreakdown", {
+                month: selectedDashboardMonth,
+                focus,
+              });
+            }}
+          />
+        }
+      />
 
       <AddFlowDrawer
         opened={addFlowOpen}
@@ -2169,7 +2253,7 @@ export default function MoneyClient({
 
           <Drawer
             opened={smartInvestDrawerOpen}
-            onClose={() => setSmartInvestDrawerOpen(false)}
+            onClose={closeDrawer}
             position="right"
             size="md"
             title={timelineText("smartInvestTitle")}
@@ -2234,6 +2318,18 @@ export default function MoneyClient({
           </Modal>
         </>
       )}
+      <MonthlyBreakdownModalHost
+        months={months}
+        ledgerByMonth={ledgerByMonth}
+        summaryByMonth={summaryByMonth}
+        positionCashflowsByMonth={positionCashflowsByMonth}
+        projectionNetCashflowByMonth={projectionNetCashflowByMonth}
+        projectionNetCashflowMode={projectionNetCashflowMode}
+        netWorthByMonth={netWorthByMonth}
+        netWorthBreakdownByMonth={netWorthBreakdownByMonth}
+        currency={scenario?.baseCurrency ?? "USD"}
+        memberLookup={memberLookupRecord}
+      />
     </Stack>
   );
 }
