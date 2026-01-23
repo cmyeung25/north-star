@@ -1,4 +1,5 @@
-import { Card, Stack, Text } from "@mantine/core";
+import { Card, Group, Stack, Text } from "@mantine/core";
+import type { ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -18,6 +19,7 @@ interface NetCashflowChartProps {
   markers?: MilestoneMarker[];
   title?: string;
   onClick?: () => void;
+  headerRight?: ReactNode;
 }
 
 export default function NetCashflowChart({
@@ -25,6 +27,7 @@ export default function NetCashflowChart({
   markers = [],
   title,
   onClick,
+  headerRight,
 }: NetCashflowChartProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
@@ -62,7 +65,18 @@ export default function NetCashflowChart({
       }}
     >
       <Stack gap="sm">
-        <Text fw={600}>{title ?? t("netCashflowTitle")}</Text>
+        <Group justify="space-between" align="center" wrap="wrap">
+          <Text fw={600}>{title ?? t("netCashflowTitle")}</Text>
+          {headerRight ? (
+            <div
+              onClick={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              {headerRight}
+            </div>
+          ) : null}
+        </Group>
         <div style={{ width: "100%", height: 240 }}>
           <ResponsiveContainer>
             <BarChart data={chartData} margin={{ left: 8, right: 12 }}>
