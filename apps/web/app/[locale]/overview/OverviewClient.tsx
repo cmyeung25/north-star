@@ -71,6 +71,7 @@ import { appliesToScenario } from "../../../src/domain/applyScope";
 import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
 import { normalizeMonthStrict } from "../../../src/utils/month";
 import { useUiStore } from "../../../src/store/uiStore";
+import { isInvestmentCashflow } from "../../../src/domain/ledger/cashflowFilters";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -115,6 +116,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
   const [riskDetailOpen, setRiskDetailOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string | undefined>(undefined);
+  const [cashflowView, setCashflowView] = useState<"all" | "operational">("all");
   const [fullscreenChart, setFullscreenChart] = useState<{
     type: FullScreenChartType;
     data: TimeSeriesPoint[];
@@ -403,6 +405,38 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       value: entry.value / deflator(index),
     }));
   }, [deflator, displayMode, months, projectionNetCashflowByMonth]);
+  const operationalNetCashflowByMonth = useMemo(() => {
+    const totals: Record<string, number> = {};
+    months.forEach((month) => {
+      totals[month] = 0;
+    });
+    Object.entries(ledgerByMonth).forEach(([month, items]) => {
+      if (!(month in totals)) {
+        totals[month] = 0;
+      }
+      items.forEach((item) => {
+        if (!isInvestmentCashflow(item)) {
+          totals[month] += item.amount;
+        }
+      });
+    });
+    return totals;
+  }, [ledgerByMonth, months]);
+  const operationalNetCashflowSeries = useMemo(() => {
+    const base = months.map((month) => ({
+      month,
+      value: operationalNetCashflowByMonth[month] ?? 0,
+    }));
+    if (displayMode !== "real") {
+      return base;
+    }
+    return base.map((entry, index) => ({
+      ...entry,
+      value: entry.value / deflator(index),
+    }));
+  }, [deflator, displayMode, months, operationalNetCashflowByMonth]);
+  const displayedNetCashflowSeries =
+    cashflowView === "operational" ? operationalNetCashflowSeries : netCashflowSeries;
   const snapshotTargets = useMemo(() => [0, 5, 10, 15, 20, 30], []);
   const autoSnapshots = useMemo(() => {
     if (!projection || !selectedScenario) {
@@ -953,15 +987,26 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 }
               />
               <NetCashflowChart
-                data={netCashflowSeries}
+                data={displayedNetCashflowSeries}
                 markers={milestoneMarkers}
                 title={t("netCashflowTitle")}
+                headerRight={
+                  <SegmentedControl
+                    size="xs"
+                    data={[
+                      { value: "all", label: t("cashflowFilterAll") },
+                      { value: "operational", label: t("cashflowFilterOperational") },
+                    ]}
+                    value={cashflowView}
+                    onChange={(value) => setCashflowView(value as "all" | "operational")}
+                  />
+                }
                 onClick={
                   projection
                     ? () =>
                         setFullscreenChart({
                           type: "netCashflow",
-                          data: netCashflowSeries,
+                          data: displayedNetCashflowSeries,
                           markers: milestoneMarkers,
                         })
                     : undefined
@@ -1009,14 +1054,27 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                   <Accordion.Control>{t("netCashflowTitle")}</Accordion.Control>
                   <Accordion.Panel>
                     <NetCashflowChart
-                      data={netCashflowSeries}
+                      data={displayedNetCashflowSeries}
                       markers={milestoneMarkers}
+                      headerRight={
+                        <SegmentedControl
+                          size="xs"
+                          data={[
+                            { value: "all", label: t("cashflowFilterAll") },
+                            { value: "operational", label: t("cashflowFilterOperational") },
+                          ]}
+                          value={cashflowView}
+                          onChange={(value) =>
+                            setCashflowView(value as "all" | "operational")
+                          }
+                        />
+                      }
                       onClick={
                         projection
                           ? () =>
                               setFullscreenChart({
                                 type: "netCashflow",
-                                data: netCashflowSeries,
+                                data: displayedNetCashflowSeries,
                                 markers: milestoneMarkers,
                               })
                           : undefined

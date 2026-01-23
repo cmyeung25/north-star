@@ -21,6 +21,7 @@ import type { CashflowItem } from "../src/domain/ledger/types";
 import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
 import { useJumpToSource } from "../src/hooks/useJumpToSource";
+import { isInvestmentCashflow } from "../src/domain/ledger/cashflowFilters";
 
 type ProjectionDetailsModalProps = {
   opened: boolean;
@@ -115,6 +116,10 @@ export default function ProjectionDetailsModal({
     ? summaryByMonth[resolvedMonth] ?? buildEmptySummary()
     : buildEmptySummary();
   const netCashflow = monthSummary.total;
+  const operationalNetCashflow = monthItems.reduce(
+    (total, item) => (isInvestmentCashflow(item) ? total : total + item.amount),
+    0
+  );
   const projectionNetCashflow = resolvedMonth
     ? projectionNetCashflowByMonth?.[resolvedMonth]
     : undefined;
@@ -305,12 +310,18 @@ export default function ProjectionDetailsModal({
                 </Notification>
               )}
               <Stack gap="xs">
-                <SimpleGrid cols={{ base: 1, sm: 5 }}>
+                <SimpleGrid cols={{ base: 1, sm: 6 }}>
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">
                       {t("breakdownTotalNet")}
                     </Text>
                     <Text fw={600}>{formatValue(netCashflow)}</Text>
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("breakdownOperationalNet")}
+                    </Text>
+                    <Text fw={600}>{formatValue(operationalNetCashflow)}</Text>
                   </Stack>
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">

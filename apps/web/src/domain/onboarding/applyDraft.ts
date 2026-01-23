@@ -117,6 +117,15 @@ export type OnboardingApplyActions = {
 };
 
 const defaultApplyScope: ApplyScope = { scope: "all" };
+const DEFAULT_MEMBER_NAME = "主要成員";
+
+const isDefaultSeedMember = (member: ScenarioMember) =>
+  member.name.trim() === DEFAULT_MEMBER_NAME &&
+  member.kind === "person" &&
+  (member.applyScope?.scope ?? "all") === "all" &&
+  (member.milestones?.length ?? 0) === 0 &&
+  !member.birthMonth &&
+  member.ageAtBaseMonth === undefined;
 
 const upsertMember = (
   actions: OnboardingApplyActions,
@@ -173,7 +182,30 @@ export const applyOnboardingDraftToScenario = (
     includeBudgetRulesInProjection: true,
   });
 
-  draft.members.forEach((member) => {
+  const shouldReplaceDefaultMember =
+    !scenario.clientComputed?.onboardingCompleted &&
+    actions.members.length === 1 &&
+    isDefaultSeedMember(actions.members[0]) &&
+    draft.members.length > 0;
+
+  const memberIdMap = new Map<string, string>();
+  const normalizedMembers = shouldReplaceDefaultMember
+    ? (() => {
+        const [defaultMember] = actions.members;
+        const [primaryDraft, ...rest] = draft.members;
+        memberIdMap.set(primaryDraft.id, defaultMember.id);
+        return [{ ...primaryDraft, id: defaultMember.id }, ...rest];
+      })()
+    : draft.members;
+
+  const resolveMemberId = (memberId: string | "household" | null | undefined) => {
+    if (!memberId || memberId === "household") {
+      return memberId ?? undefined;
+    }
+    return memberIdMap.get(memberId) ?? memberId;
+  };
+
+  normalizedMembers.forEach((member) => {
     upsertMember(actions, {
       id: member.id,
       name: member.name,
@@ -189,12 +221,14 @@ export const applyOnboardingDraftToScenario = (
     if (!normalizedStart.ok || !normalizedEnd.ok) {
       return;
     }
+    const mappedMemberId = resolveMemberId(rule.memberId);
 
     upsertBudgetRule(actions, {
       id: rule.id,
       name: rule.name,
       enabled: rule.enabled,
-      memberId: rule.memberId === "household" ? undefined : rule.memberId ?? undefined,
+      memberId:
+        mappedMemberId === "household" ? undefined : (mappedMemberId as string | undefined),
       category: rule.category,
       ageBand: rule.ageBand ?? { fromYears: 0, toYears: 120 },
       monthlyAmount: rule.monthlyAmount,
@@ -250,6 +284,7 @@ export const applyOnboardingDraftToScenario = (
       return;
     }
 
+    const mappedMemberId = resolveMemberId(income.memberId);
     const definition: EventDefinition = {
       id: income.id,
       title: income.title,
@@ -264,7 +299,8 @@ export const applyOnboardingDraftToScenario = (
         annualGrowthPct: income.annualGrowthPct ?? 0,
       },
       currency: scenario.baseCurrency,
-      memberId: income.memberId === "household" ? undefined : income.memberId ?? undefined,
+      memberId:
+        mappedMemberId === "household" ? undefined : (mappedMemberId as string | undefined),
       incomeSubtype: income.subtype,
       endAtAgeYears: income.endAtAgeYears ?? undefined,
     };
@@ -279,6 +315,7 @@ export const applyOnboardingDraftToScenario = (
       return;
     }
 
+    const mappedMemberId = resolveMemberId(event.memberId);
     const definition: EventDefinition = {
       id: event.id,
       title: event.title,
@@ -293,7 +330,8 @@ export const applyOnboardingDraftToScenario = (
         annualGrowthPct: event.annualGrowthPct ?? 0,
       },
       currency: scenario.baseCurrency,
-      memberId: event.memberId === "household" ? undefined : event.memberId ?? undefined,
+      memberId:
+        mappedMemberId === "household" ? undefined : (mappedMemberId as string | undefined),
     };
 
     upsertEvent(scenario, actions, definition);
