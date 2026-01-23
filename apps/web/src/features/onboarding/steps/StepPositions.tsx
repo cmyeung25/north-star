@@ -14,6 +14,7 @@ import type {
   InvestmentPosition,
   LoanPosition,
 } from "../../../store/scenarioStore";
+import HomePositionForm from "../../../../components/homes/HomePositionForm";
 
 interface StepPositionsProps {
   homes: HomePositionDraft[];
@@ -56,6 +57,9 @@ export default function StepPositions({
   errors,
   t,
 }: StepPositionsProps) {
+  const homeLabels = (key: string) =>
+    key === "mortgageTerm" ? t("mortgageTermYears") : t(key);
+
   return (
     <Stack gap="xl">
       <Stack gap={4}>
@@ -86,61 +90,21 @@ export default function StepPositions({
                   {t("remove")}
                 </Button>
               </Group>
-              <Group grow align="flex-start">
-                <TextInput
-                  label={t("purchaseMonth")}
-                  placeholder="YYYY-MM"
-                  value={home.purchaseMonth ?? ""}
-                  onChange={(event) =>
-                    onUpdateHome(home.id, { purchaseMonth: event.currentTarget.value })
-                  }
-                  error={errors[`home.${home.id}.purchaseMonth`]}
-                />
-                <NumberInput
-                  label={t("purchasePrice")}
-                  min={0}
-                  value={home.purchasePrice ?? 0}
-                  onChange={(value) =>
-                    onUpdateHome(home.id, { purchasePrice: Number(value) })
-                  }
-                  error={errors[`home.${home.id}.purchasePrice`]}
-                />
-                <NumberInput
-                  label={t("downPayment")}
-                  min={0}
-                  value={home.downPayment ?? 0}
-                  onChange={(value) =>
-                    onUpdateHome(home.id, { downPayment: Number(value) })
-                  }
-                />
-              </Group>
-              <Group grow align="flex-start">
-                <NumberInput
-                  label={t("mortgageRate")}
-                  min={0}
-                  step={0.1}
-                  value={home.mortgageRatePct ?? 0}
-                  onChange={(value) =>
-                    onUpdateHome(home.id, { mortgageRatePct: Number(value) })
-                  }
-                />
-                <NumberInput
-                  label={t("mortgageTermYears")}
-                  min={1}
-                  value={home.mortgageTermYears ?? 30}
-                  onChange={(value) =>
-                    onUpdateHome(home.id, { mortgageTermYears: Number(value) })
-                  }
-                />
-                <NumberInput
-                  label={t("holdingCostMonthly")}
-                  min={0}
-                  value={home.holdingCostMonthly ?? 0}
-                  onChange={(value) =>
-                    onUpdateHome(home.id, { holdingCostMonthly: Number(value) })
-                  }
-                />
-              </Group>
+              <HomePositionForm
+                value={home}
+                onChange={(patch) => onUpdateHome(home.id, patch)}
+                errors={{
+                  purchaseMonth: errors[`home.${home.id}.purchaseMonth`],
+                  purchasePrice: errors[`home.${home.id}.purchasePrice`],
+                }}
+                variant="onboarding"
+                showFeesOneTime={false}
+                showAnnualAppreciation={false}
+                showHoldingCostFields
+                showHoldingCostGrowth={false}
+                monthPlaceholder="YYYY-MM"
+                t={homeLabels}
+              />
             </Stack>
           </Card>
         ))}

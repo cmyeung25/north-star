@@ -31,6 +31,7 @@ import {
   mergePersonaDraft,
   personaPresets,
 } from "../../domain/onboarding/personas";
+import { createHomePositionFromTemplate } from "../../../components/timeline/utils";
 import StepHouseholdMembers from "./steps/StepHouseholdMembers";
 import StepGlobalSettings from "./steps/StepGlobalSettings";
 import StepBudgetRules from "./steps/StepBudgetRules";
@@ -666,6 +667,7 @@ export default function OnboardingWizard() {
           members={draft.members}
           previewSeries={previewBudgetSeries}
           errors={errors}
+          baseMonth={draft.settings.baseMonth}
           onAddRule={() =>
             setDraft((current) =>
               current
@@ -709,17 +711,9 @@ export default function OnboardingWizard() {
                       ...current.positions,
                       homes: [
                         ...current.positions.homes,
-                        {
-                          id: nanoid(),
-                          purchaseMonth: current.settings.baseMonth,
-                          purchasePrice: 8_000_000,
-                          downPayment: 2_400_000,
-                          annualAppreciationPct: 2,
-                          mortgageRatePct: 0,
-                          mortgageTermYears: 30,
-                          holdingCostMonthly: 3_000,
-                          holdingCostAnnualGrowthPct: 0,
-                        },
+                        createHomePositionFromTemplate({
+                          baseMonth: current.settings.baseMonth,
+                        }),
                       ],
                     },
                   }

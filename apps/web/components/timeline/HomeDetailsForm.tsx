@@ -10,9 +10,7 @@ import {
   Select,
   Stack,
   Switch,
-  Text,
   TextInput,
-  Tooltip,
   Title,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
@@ -23,6 +21,7 @@ import {
   HomePositionSchema,
   getHomePositionErrors,
 } from "../../src/store/scenarioValidation";
+import HomePositionForm from "../homes/HomePositionForm";
 
 type HomeDetailsFormProps = {
   home: HomePositionDraft;
@@ -61,12 +60,6 @@ export default function HomeDetailsForm({
   const usageValue = formValues.usage ?? "primary";
   const modeValue = formValues.mode ?? "new_purchase";
   const disableHolding = isSold;
-  const downPaymentPct =
-    formValues.purchasePrice && formValues.purchasePrice > 0
-      ? (toPositiveNumber(formValues.downPayment) /
-          toPositiveNumber(formValues.purchasePrice)) *
-        100
-      : 0;
 
   const handleModeChange = (value: string | null) => {
     if (!value) {
@@ -313,136 +306,31 @@ export default function HomeDetailsForm({
           />
         </>
       ) : (
-        <>
-          <TextInput
-            label={t("purchaseMonth")}
-            placeholder={common("yearMonthPlaceholder")}
-            value={formValues.purchaseMonth ?? ""}
-            error={errors.purchaseMonth}
-            disabled={disableHolding}
-            onChange={(event) => updateField("purchaseMonth", event.target.value)}
-          />
-          <NumberInput
-            label={t("purchasePrice")}
-            value={formValues.purchasePrice ?? 0}
-            error={errors.purchasePrice}
-            disabled={disableHolding}
-            onChange={(value) =>
-              updateField("purchasePrice", toPositiveNumber(value))
-            }
-            thousandSeparator=","
-            min={0}
-          />
-          <Group grow>
-            <NumberInput
-              label={t("downPayment")}
-              value={formValues.downPayment ?? 0}
-              error={errors.downPayment}
-              disabled={disableHolding}
-              onChange={(value) =>
-                updateField("downPayment", toPositiveNumber(value))
-              }
-              thousandSeparator=","
-              min={0}
-            />
-            <NumberInput
-              label={t("downPaymentPct")}
-              value={downPaymentPct}
-              disabled={disableHolding}
-              onChange={(value) => {
-                const pctValue = Math.max(0, Number(value ?? 0));
-                const basePrice = toPositiveNumber(formValues.purchasePrice);
-                updateField("downPayment", (basePrice * pctValue) / 100);
-              }}
-              min={0}
-              max={100}
-              decimalScale={2}
-              suffix="%"
-            />
-          </Group>
-          <NumberInput
-            label={t("mortgageRate")}
-            value={formValues.mortgageRatePct ?? 0}
-            error={errors.mortgageRatePct}
-            disabled={disableHolding}
-            onChange={(value) =>
-              updateField("mortgageRatePct", toPositiveNumber(value))
-            }
-            min={0}
-            max={100}
-            decimalScale={2}
-            suffix="%"
-          />
-          <NumberInput
-            label={t("mortgageTerm")}
-            value={formValues.mortgageTermYears ?? 0}
-            error={errors.mortgageTermYears}
-            disabled={disableHolding}
-            onChange={(value) =>
-              updateField("mortgageTermYears", Math.max(0, Number(value ?? 0)))
-            }
-            min={1}
-            max={50}
-          />
-          <NumberInput
-            label={t("feesOneTime")}
-            value={formValues.feesOneTime ?? 0}
-            error={errors.feesOneTime}
-            disabled={disableHolding}
-            onChange={(value) => updateField("feesOneTime", toPositiveNumber(value))}
-            thousandSeparator=","
-            min={0}
-          />
-        </>
+        <HomePositionForm
+          value={formValues}
+          onChange={(patch) =>
+            setFormValues((current) => ({ ...current, ...patch }))
+          }
+          errors={errors}
+          disabled={disableHolding}
+          showFeesOneTime
+          monthPlaceholder={common("yearMonthPlaceholder")}
+          t={t}
+        />
       )}
-      <NumberInput
-        label={t("annualAppreciation")}
-        value={formValues.annualAppreciationPct}
-        error={errors.annualAppreciationPct}
+      <HomePositionForm
+        value={formValues}
+        onChange={(patch) =>
+          setFormValues((current) => ({ ...current, ...patch }))
+        }
+        errors={errors}
         disabled={disableHolding}
-        onChange={(value) =>
-          updateField(
-            "annualAppreciationPct",
-            Math.min(Math.max(Number(value ?? 0), -100), 100)
-          )
-        }
-        min={-100}
-        max={100}
-        decimalScale={2}
-        suffix="%"
-      />
-      <NumberInput
-        label={
-          <Group gap={4}>
-            <Text size="sm">{t("holdingCostMonthly")}</Text>
-            <Tooltip label={t("holdingCostTooltip")} withArrow>
-              <Text size="sm" c="dimmed" span>
-                ⓘ
-              </Text>
-            </Tooltip>
-          </Group>
-        }
-        value={formValues.holdingCostMonthly ?? 0}
-        error={errors.holdingCostMonthly}
-        disabled={disableHolding}
-        onChange={(value) =>
-          updateField("holdingCostMonthly", toPositiveNumber(value))
-        }
-        thousandSeparator=","
-        min={0}
-      />
-      <NumberInput
-        label={t("holdingCostGrowth")}
-        value={formValues.holdingCostAnnualGrowthPct ?? 0}
-        error={errors.holdingCostAnnualGrowthPct}
-        disabled={disableHolding}
-        onChange={(value) =>
-          updateField("holdingCostAnnualGrowthPct", toPositiveNumber(value))
-        }
-        min={0}
-        max={100}
-        decimalScale={2}
-        suffix="%"
+        showPurchaseFields={false}
+        showMortgageFields={false}
+        showAnnualAppreciation
+        showHoldingCostFields
+        showHoldingCostGrowth
+        t={t}
       />
       <Switch
         label={t("rentalEnabled")}
