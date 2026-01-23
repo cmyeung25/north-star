@@ -80,6 +80,7 @@ import { buildSmartInvestProjectionBreakdown, type SmartInvestProjectionBreakdow
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
 import { compileSellLifecycle } from "../../../src/domain/positions/compileSellLifecycle";
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
+import MoneyDashboardPanel from "../../../components/MoneyDashboardPanel";
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import type {
@@ -1387,6 +1388,27 @@ export default function MoneyClient({
               <Button onClick={() => setAddFlowOpen(true)}>{t("addButton")}</Button>
             </Group>
 
+            <MoneyDashboardPanel
+              months={projectionMonths}
+              range={normalizedRange}
+              currency={scenario?.baseCurrency ?? "USD"}
+              cashBalance={cashBalanceValue}
+              netWorth={netWorthValue}
+              netCashflow={netCashflowValue}
+              cashSeries={cashSeries}
+              netWorthSeries={netWorthSeries}
+              netCashflowSeries={netCashflowSeries}
+              onOpenBreakdown={(focus) => {
+                if (!selectedDashboardMonth) {
+                  return;
+                }
+                openModal("monthlyBreakdown", {
+                  month: selectedDashboardMonth,
+                  focus,
+                });
+              }}
+            />
+
             <Card withBorder radius="md" padding="md">
               <Stack gap="xs">
                 <Text fw={600}>{t("orderTitle")}</Text>
@@ -1953,6 +1975,7 @@ export default function MoneyClient({
             cashSeries={cashSeries}
             netWorthSeries={netWorthSeries}
             netCashflowSeries={netCashflowSeries}
+            showCharts={false}
             onRangeChange={(range) => {
               setBreakdownMonthRange(range);
               setBreakdownMonth(range.toMonth ?? null);
