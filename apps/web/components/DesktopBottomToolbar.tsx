@@ -118,22 +118,17 @@ export default function DesktopBottomToolbar() {
         left: 0,
         right: 0,
         zIndex: 200,
+        borderRadius: 0,
       }}
       px="lg"
       py="sm"
     >
       <Group justify="space-between" align="center" wrap="nowrap">
-        <Group gap="md" align="center" wrap="nowrap">
-          <Button size="sm" onClick={() => setAddOpen(true)}>
-            {t("addButton")}
-          </Button>
-        </Group>
-
         <Group gap="lg" align="center" wrap="nowrap">
           <Stack gap={4}>
-            <Text size="xs" fw={600} c="dimmed">
+            {/* <Text size="xs" fw={600} c="dimmed">
               {t("quickSettings")}
-            </Text>
+            </Text> */}
             <Group gap="sm" wrap="nowrap">
               <TextInput
                 label={assumptions("baseMonth")}
@@ -209,6 +204,11 @@ export default function DesktopBottomToolbar() {
               ))}
             </Group>
           </Stack>
+        </Group>
+        <Group gap="md" align="center" wrap="nowrap">
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            {t("addButton")}
+          </Button>
         </Group>
       </Group>
       <AddFlowDrawer
