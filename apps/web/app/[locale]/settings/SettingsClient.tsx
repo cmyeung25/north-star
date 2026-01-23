@@ -63,7 +63,9 @@ import {
   type BudgetRuleMonthlyEntry,
 } from "../../../src/domain/budget/compileBudgetRules";
 import DataManagementSection from "../../../components/DataManagementSection";
-import DateOrAgeBasisPicker from "../../../components/DateOrAgeBasisPicker";
+import DateOrAgeBasisPicker, {
+  type DateOrAgeBasis,
+} from "../../../components/DateOrAgeBasisPicker";
 import PositionDetailList from "../../../components/timeline/PositionDetailList";
 import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import { getEventMeta } from "../../../src/events/eventCatalog";
@@ -188,6 +190,9 @@ export default function SettingsClient({
   const [budgetMonthErrors, setBudgetMonthErrors] = useState<
     Record<string, { startMonth?: string; endMonth?: string }>
   >({});
+  const [budgetRuleBasis, setBudgetRuleBasis] = useState<
+    Record<string, DateOrAgeBasis>
+  >({});
   const [expandedBudgetRuleId, setExpandedBudgetRuleId] = useState<string | null>(
     null
   );
@@ -206,6 +211,24 @@ export default function SettingsClient({
   const hasHandledInitialAction = useRef(false);
   const prevMemberMonthRef = useRef<Record<string, string>>({});
   const prevMilestoneMonthRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    setBudgetRuleBasis((current) => {
+      const next = { ...current };
+      budgetRules.forEach((rule) => {
+        if (!next[rule.id]) {
+          next[rule.id] =
+            rule.startMonth?.trim() || rule.endMonth?.trim() ? "month" : "age";
+        }
+      });
+      Object.keys(next).forEach((ruleId) => {
+        if (!budgetRules.some((rule) => rule.id === ruleId)) {
+          delete next[ruleId];
+        }
+      });
+      return next;
+    });
+  }, [budgetRules]);
 
   useEffect(() => {
     if (
@@ -2015,12 +2038,26 @@ export default function SettingsClient({
                               })),
                             ]}
                             value={rule.memberId ?? "household"}
-                            onChange={(value) =>
+                            onChange={(value) => {
                               updateBudgetRule(rule.id, {
                                 memberId:
                                   value && value !== "household" ? value : undefined,
-                              })
-                            }
+                              });
+                              if (!value || value === "household") {
+                                setBudgetRuleBasis((current) => ({
+                                  ...current,
+                                  [rule.id]: "month",
+                                }));
+                                if (!rule.startMonth?.trim()) {
+                                  updateBudgetRule(rule.id, { startMonth: baseMonth ?? "" });
+                                  updateBudgetMonthInput(
+                                    rule.id,
+                                    "startMonth",
+                                    baseMonth ?? ""
+                                  );
+                                }
+                              }
+                            }}
                           />
                         </Group>
                         <Group grow>
@@ -2067,17 +2104,23 @@ export default function SettingsClient({
                         </Group>
                         {(() => {
                           const hasMember = Boolean(rule.memberId);
-                          const basis =
-                            hasMember && (rule.startMonth || rule.endMonth)
-                              ? "month"
-                              : "age";
                           const disableAge = !hasMember;
+                          const basis = disableAge
+                            ? "month"
+                            : budgetRuleBasis[rule.id] ??
+                              (rule.startMonth?.trim() || rule.endMonth?.trim()
+                                ? "month"
+                                : "age");
 
                           return (
                             <>
                               <DateOrAgeBasisPicker
                                 value={disableAge ? "month" : basis}
                                 onChange={(value) => {
+                                  setBudgetRuleBasis((current) => ({
+                                    ...current,
+                                    [rule.id]: value,
+                                  }));
                                   if (value === "age") {
                                     updateBudgetRule(rule.id, {
                                       startMonth: undefined,
@@ -2091,14 +2134,27 @@ export default function SettingsClient({
                                     }));
                                   } else {
                                     updateBudgetRule(rule.id, {
-                                      ageBand: { fromYears: 0, toYears: 120 },
+                                      startMonth:
+                                        rule.startMonth?.trim() ||
+                                        baseMonth ||
+                                        rule.startMonth,
                                     });
+                                    updateBudgetMonthInput(
+                                      rule.id,
+                                      "startMonth",
+                                      rule.startMonth?.trim() || baseMonth || ""
+                                    );
                                   }
                                 }}
                                 monthLabel={budgetText("basisMonth")}
                                 ageLabel={budgetText("basisAge")}
                                 disableAge={disableAge}
                               />
+                              {disableAge && (
+                                <Text size="xs" c="dimmed">
+                                  {budgetText("basisAgeDisabled")}
+                                </Text>
+                              )}
                               <Group grow>
                                 {disableAge || basis === "month" ? (
                                   <>

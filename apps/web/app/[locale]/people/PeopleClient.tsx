@@ -59,6 +59,15 @@ export default function PeopleClient({
     netWorthBreakdownByMonth,
   } = useProjectionWithLedger(scenario, eventLibrary, { members, budgetRules });
   const projectionMonths = useMemo(() => projection?.months ?? [], [projection]);
+  const cashSeries = useMemo(() => projection?.cashBalance ?? [], [projection]);
+  const netWorthSeries = useMemo(() => projection?.netWorth ?? [], [projection]);
+  const netCashflowSeries = useMemo(
+    () =>
+      projectionMonths.map((month) =>
+        (ledgerByMonth[month] ?? []).reduce((total, item) => total + item.amount, 0)
+      ),
+    [ledgerByMonth, projectionMonths]
+  );
   const memberLookupRecord = useMemo(
     () =>
       Object.fromEntries(members.map((member) => [member.id, member.name])),
@@ -125,6 +134,9 @@ export default function PeopleClient({
             cashBalance={cashBalanceValue}
             netWorth={netWorthValue}
             netCashflow={netCashflowValue}
+            cashSeries={cashSeries}
+            netWorthSeries={netWorthSeries}
+            netCashflowSeries={netCashflowSeries}
             onMonthChange={(month) => setBreakdownMonth(month)}
             onOpenBreakdown={(focus) => {
               if (!selectedDashboardMonth) {
