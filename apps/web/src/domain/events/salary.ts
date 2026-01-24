@@ -114,6 +114,7 @@ export const buildSalaryScheduleEntries = ({
   const effectiveEnd = normalizedEnd?.ok ? normalizedEnd.month : null;
   const months = buildMonthRange(normalizedBase.month, horizonMonths);
   const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);
+  const baseAmount = Math.abs(baseMonthlyAmount ?? 0);
   const resolvedSteps = steps.flatMap((step, index) => {
     const resolvedMonth = resolveSalaryStepMonth({
       step,
@@ -143,14 +144,31 @@ export const buildSalaryScheduleEntries = ({
     return true;
   });
 
+  if (baseAmount <= 0 && filteredSteps.length === 0) {
+    return [];
+  }
+
+  const dedupedSteps = Array.from(
+    filteredSteps.reduce((map, step) => {
+      map.set(step.startMonth, step);
+      return map;
+    }, new Map<string, (typeof filteredSteps)[number]>())
+  ).map(([, step]) => step);
+  const hasStepAtStart = dedupedSteps.some(
+    (step) => step.startMonth === normalizedStart.month
+  );
   const allSteps = [
-    {
-      id: "base",
-      startMonth: normalizedStart.month,
-      monthlyAmount: Math.abs(baseMonthlyAmount ?? 0),
-      index: -1,
-    },
-    ...filteredSteps,
+    ...(hasStepAtStart
+      ? []
+      : [
+          {
+            id: "base",
+            startMonth: normalizedStart.month,
+            monthlyAmount: baseAmount,
+            index: -1,
+          },
+        ]),
+    ...dedupedSteps,
   ].sort((a, b) => {
     const monthCompare = a.startMonth.localeCompare(b.startMonth);
     if (monthCompare !== 0) {
@@ -184,5 +202,5 @@ export const buildSalaryScheduleEntries = ({
     schedule.push({ month, amount: Math.round(amount) });
   }
 
-  return schedule;
+  return schedule.filter((entry) => entry.amount > 0);
 };

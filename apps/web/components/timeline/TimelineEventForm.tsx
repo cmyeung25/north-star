@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Alert,
   Button,
   Card,
   Group,
@@ -192,6 +193,18 @@ export default function TimelineEventForm({
     setErrors((current) => ({ ...current, [key]: validation("useYearMonth") }));
   };
 
+  const isIncomeEvent = formValues
+    ? getEventMeta(formValues.type).group === "income"
+    : false;
+  const isSalaryEvent = formValues?.type === "salary";
+  const isSalarySubtype = (formValues?.incomeSubtype ?? "salary") === "salary";
+  const hasActiveSalarySteps = Boolean(
+    isSalaryEvent && isSalarySubtype && salarySteps.length > 0
+  );
+  const selectedMember = formValues
+    ? members.find((member) => member.id === formValues.memberId)
+    : undefined;
+
   const handleSave = () => {
     if (!formValues) {
       return;
@@ -244,7 +257,7 @@ export default function TimelineEventForm({
           ? normalizedEndMonth.month
           : null;
 
-    if (isSalaryEvent && salarySteps.length > 0) {
+    if (hasActiveSalarySteps) {
       const nextStepErrors: Record<
         string,
         { startMonth?: string; startAgeYears?: string; monthlyAmount?: string }
@@ -369,11 +382,10 @@ export default function TimelineEventForm({
     );
 
     let normalizedSchedule: EventRuleScheduleEntry[] | undefined;
-    const normalizedSalarySteps =
-      isSalaryEvent && salarySteps.length > 0
-        ? normalizeSalarySteps(salarySteps)
-        : salarySteps;
-    if (isSalaryEvent && salarySteps.length > 0) {
+    const normalizedSalarySteps = hasActiveSalarySteps
+      ? normalizeSalarySteps(salarySteps)
+      : salarySteps;
+    if (hasActiveSalarySteps) {
       normalizedSchedule = buildSalaryScheduleEntries({
         baseMonth: assumptions.baseMonth ?? normalizedStartMonth.month,
         horizonMonths: assumptions.horizonMonths ?? 0,
@@ -396,7 +408,7 @@ export default function TimelineEventForm({
 
     onSave({
       event: normalizedEvent,
-      ruleMode: isSalaryEvent && salarySteps.length > 0 ? "schedule" : ruleMode,
+      ruleMode: hasActiveSalarySteps ? "schedule" : ruleMode,
       schedule: normalizedSchedule,
       salarySteps: salarySteps.length > 0 ? normalizedSalarySteps : undefined,
     });
@@ -425,13 +437,6 @@ export default function TimelineEventForm({
     setEditingMonth(null);
   };
 
-  const isIncomeEvent = formValues
-    ? getEventMeta(formValues.type).group === "income"
-    : false;
-  const isSalaryEvent = formValues?.type === "salary";
-  const selectedMember = formValues
-    ? members.find((member) => member.id === formValues.memberId)
-    : undefined;
   const canUseEndAtAge = Boolean(
     formValues && isIncomeEvent && selectedMember?.kind === "person"
   );
@@ -528,7 +533,7 @@ export default function TimelineEventForm({
   }, [formValues, selectedMember]);
 
   const salaryScheduleEntries = useMemo(() => {
-    if (!formValues || !isSalaryEvent || salarySteps.length === 0) {
+    if (!formValues || !hasActiveSalarySteps) {
       return [];
     }
     if (!assumptions.baseMonth || !isValidMonthStr(assumptions.baseMonth)) {
@@ -556,7 +561,7 @@ export default function TimelineEventForm({
     computedEndMonth,
     endConditionMode,
     formValues,
-    isSalaryEvent,
+    hasActiveSalarySteps,
     salarySteps,
     selectedMember,
   ]);
@@ -578,10 +583,9 @@ export default function TimelineEventForm({
     () => buildScheduleEntries(scheduleDraft),
     [scheduleDraft]
   );
-  const effectiveRuleMode =
-    isSalaryEvent && salarySteps.length > 0 ? "schedule" : ruleMode;
+  const effectiveRuleMode = hasActiveSalarySteps ? "schedule" : ruleMode;
   const effectiveScheduleEntries =
-    isSalaryEvent && salarySteps.length > 0
+    hasActiveSalarySteps
       ? salaryScheduleEntries
       : effectiveRuleMode === "schedule"
         ? scheduleEntries
@@ -630,7 +634,10 @@ export default function TimelineEventForm({
   const canEditCashflow =
     allowCashflowEdit &&
     (shouldShowField("monthlyAmount") || shouldShowField("oneTimeAmount")) &&
-    salarySteps.length === 0;
+    !hasActiveSalarySteps;
+
+  const showSalaryStepsDisabled =
+    Boolean(isSalaryEvent && !isSalarySubtype && salarySteps.length > 0);
 
   if (!formValues) {
     return null;
@@ -817,7 +824,28 @@ export default function TimelineEventForm({
           suffix="%"
         />
       )}
-      {isSalaryEvent && (
+      {showSalaryStepsDisabled && (
+        <Alert
+          color="yellow"
+          title={t("salaryStepsTitle")}
+          variant="light"
+        >
+          <Stack gap="xs">
+            <Text size="sm">{t("salaryStepsDisabled")}</Text>
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => {
+                setSalarySteps([]);
+                setSalaryStepErrors({});
+              }}
+            >
+              {t("salaryStepsClear")}
+            </Button>
+          </Stack>
+        </Alert>
+      )}
+      {isSalaryEvent && isSalarySubtype && (
         <Stack gap="xs">
           <Group justify="space-between" align="center">
             <Text fw={600}>{t("salaryStepsTitle")}</Text>

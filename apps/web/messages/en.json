@@ -784,6 +784,8 @@
     "salaryStepsHint": "Add stepwise salary changes by month or age.",
     "salaryStepsAdd": "Add step",
     "salaryStepsEmpty": "No salary steps yet.",
+    "salaryStepsDisabled": "Salary steps only apply to the Salary subtype and are currently disabled.",
+    "salaryStepsClear": "Clear steps",
     "salaryStepLabel": "Step",
     "salaryStepStartMonth": "Step start month",
     "salaryStepStartAge": "Step start age (years)",

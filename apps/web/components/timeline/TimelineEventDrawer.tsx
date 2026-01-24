@@ -340,6 +340,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     salarySteps,
   }: Pick<TimelineEventFormResult, "event" | "salarySteps">) => {
     const isSalaryEvent = event.type === "salary";
+    const isSalarySubtype = (event.incomeSubtype ?? "salary") === "salary";
     if (!isSalaryEvent || !event.memberId) {
       return;
     }
@@ -378,7 +379,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       return false;
     });
 
-    if (nextSteps.length === 0) {
+    if (!isSalarySubtype || nextSteps.length === 0) {
       updateMember(member.id, { milestones: retained });
       return;
     }
