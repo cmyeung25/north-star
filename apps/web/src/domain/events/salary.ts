@@ -184,12 +184,12 @@ export const buildSalaryScheduleEntries = ({
     if (monthsBetween(normalizedStart.month, month) < 0) {
       continue;
     }
-    if (effectiveEnd && monthsBetween(month, effectiveEnd) > 0) {
+    if (effectiveEnd && monthsBetween(effectiveEnd, month) > 0) {
       break;
     }
     while (
       stepIndex + 1 < allSteps.length &&
-      monthsBetween(allSteps[stepIndex + 1].startMonth, month) <= 0
+      monthsBetween(allSteps[stepIndex + 1].startMonth, month) >= 0
     ) {
       stepIndex += 1;
     }

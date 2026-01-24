@@ -42,6 +42,31 @@ const buildScheduleMap = (
     return result;
   }, {});
 
+const resolveMonthRange = ({
+  baseMonth,
+  horizonMonths,
+  startMonth,
+  endMonth,
+}: {
+  baseMonth: string;
+  horizonMonths: number;
+  startMonth: string;
+  endMonth?: string | null;
+}) => {
+  const startIndex = monthIndex(baseMonth, startMonth);
+  const endIndex = endMonth
+    ? monthIndex(baseMonth, endMonth)
+    : horizonMonths - 1;
+  const rangeStart = Math.max(0, startIndex);
+  const rangeEnd = Math.min(horizonMonths - 1, endIndex);
+
+  if (rangeStart > rangeEnd) {
+    return null;
+  }
+
+  return { startIndex, rangeStart, rangeEnd };
+};
+
 export const compileEventToMonthlyCashflowSeries = ({
   definition,
   ref,
@@ -92,28 +117,59 @@ export const compileEventToMonthlyCashflowSeries = ({
   });
 
   const isSalarySubtype = (definition.incomeSubtype ?? "salary") === "salary";
-  const salarySchedule =
-    definition.type === "salary" && isSalarySubtype && effectiveRule.salarySteps?.length
-      ? buildSalaryScheduleEntries({
-          baseMonth,
-          horizonMonths,
-          eventStartMonth: effectiveRule.startMonth ?? "",
-          eventEndMonth: resolvedEndMonth,
-          annualGrowthPct: effectiveRule.annualGrowthPct ?? 0,
-          member,
-          steps: effectiveRule.salarySteps,
-          baseMonthlyAmount: effectiveRule.monthlyAmount ?? 0,
-        })
-      : null;
+  const isSalaryEvent = definition.type === "salary" && isSalarySubtype;
 
-  if (salarySchedule && salarySchedule.length > 0) {
-    const scheduleMap = buildScheduleMap(salarySchedule);
+  if (isSalaryEvent) {
+    if (!effectiveRule.startMonth) {
+      return [];
+    }
+    const normalizedStart = normalizeMonthStrict(effectiveRule.startMonth);
+    if (!normalizedStart.ok) {
+      return [];
+    }
+
     const months = buildMonthRange(baseMonth, horizonMonths);
-    return months.map((month) => ({
-      month,
-      amount: applySignedAmount(scheduleMap[month] ?? 0, sign),
-      sourceEventId: definition.id,
-    }));
+    if (months.length === 0) {
+      return [];
+    }
+    const horizonEndMonth = months[months.length - 1];
+    const effectiveEndMonth = resolvedEndMonth ?? horizonEndMonth;
+    const range = resolveMonthRange({
+      baseMonth,
+      horizonMonths,
+      startMonth: normalizedStart.month,
+      endMonth: effectiveEndMonth,
+    });
+    if (!range) {
+      return [];
+    }
+
+    const salarySchedule = buildSalaryScheduleEntries({
+      baseMonth,
+      horizonMonths,
+      eventStartMonth: normalizedStart.month,
+      eventEndMonth: resolvedEndMonth,
+      annualGrowthPct: effectiveRule.annualGrowthPct ?? 0,
+      member,
+      steps: effectiveRule.salarySteps ?? [],
+      baseMonthlyAmount: effectiveRule.monthlyAmount ?? 0,
+    });
+
+    if (salarySchedule.length === 0) {
+      return [];
+    }
+
+    const scheduleMap = buildScheduleMap(salarySchedule);
+    const series: MonthlyCashflowPoint[] = [];
+    for (let i = range.rangeStart; i <= range.rangeEnd; i += 1) {
+      const month = months[i];
+      series.push({
+        month,
+        amount: applySignedAmount(scheduleMap[month] ?? 0, sign),
+        sourceEventId: definition.id,
+      });
+    }
+    return series;
   }
 
   if (effectiveRule.mode === "schedule") {
@@ -142,26 +198,25 @@ export const compileEventToMonthlyCashflowSeries = ({
   const annualGrowthPct = effectiveRule.annualGrowthPct ?? 0;
   const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);
 
-  const startIndex = monthIndex(baseMonth, startMonth);
-  const endIndex = endMonth
-    ? monthIndex(baseMonth, endMonth)
-    : horizonMonths - 1;
-  const rangeStart = Math.max(0, startIndex);
-  const rangeEnd = Math.min(horizonMonths - 1, endIndex);
-
-  if (rangeStart > rangeEnd) {
+  const range = resolveMonthRange({
+    baseMonth,
+    horizonMonths,
+    startMonth,
+    endMonth,
+  });
+  if (!range) {
     return [];
   }
 
   const months = buildMonthRange(baseMonth, horizonMonths);
   const series: MonthlyCashflowPoint[] = [];
 
-  for (let i = rangeStart; i <= rangeEnd; i += 1) {
-    const monthsSinceStart = i - startIndex;
+  for (let i = range.rangeStart; i <= range.rangeEnd; i += 1) {
+    const monthsSinceStart = i - range.startIndex;
     const grownMonthlyAmount = monthlyAmount * Math.pow(monthlyFactor, monthsSinceStart);
     let amount = applySignedAmount(grownMonthlyAmount, sign);
 
-    if (i === startIndex && oneTimeAmount !== 0) {
+    if (i === range.startIndex && oneTimeAmount !== 0) {
       amount += applySignedAmount(oneTimeAmount, sign);
     }
 
