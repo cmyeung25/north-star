@@ -22,6 +22,7 @@ import ScenarioCard from "../../../features/scenarios/components/ScenarioCard";
 import ConfirmDeleteDialog from "../../../features/scenarios/components/ConfirmDeleteDialog";
 import NewScenarioModal from "../../../features/scenarios/components/NewScenarioModal";
 import RenameScenarioModal from "../../../features/scenarios/components/RenameScenarioModal";
+import ScenarioComparisonWizard from "../../../features/scenarios/components/ScenarioComparisonWizard";
 import type { Scenario } from "../../../features/scenarios/types";
 import { formatRelativeTime } from "../../../features/scenarios/utils";
 import { useScenarioSummary } from "../../../src/scenarios/useScenarioSummary";
@@ -93,6 +94,7 @@ export default function ScenariosPage() {
   const [deleteScenarioTarget, setDeleteScenarioTarget] = useState<Scenario | null>(
     null
   );
+  const [comparisonWizardOpen, setComparisonWizardOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const activeScenario = useMemo(
@@ -234,9 +236,12 @@ export default function ScenariosPage() {
           <Stack gap="md">
             <Group justify="space-between">
               <Text fw={600}>{t("yourScenarios")}</Text>
-              <Button onClick={() => setNewModalOpen(true)}>
-                {t("newScenario")}
-              </Button>
+              <Group gap="sm">
+                <Button variant="default" onClick={() => setComparisonWizardOpen(true)}>
+                  {t("compareScenarios")}
+                </Button>
+                <Button onClick={() => setNewModalOpen(true)}>{t("newScenario")}</Button>
+              </Group>
             </Group>
 
             <Stack gap="sm">
@@ -356,9 +361,12 @@ export default function ScenariosPage() {
       )}
 
       {!isDesktop && (
-        <Button style={floatingButtonStyle} onClick={() => setNewModalOpen(true)}>
-          {t("newScenario")}
-        </Button>
+        <Stack style={floatingButtonStyle} gap={8}>
+          <Button variant="default" onClick={() => setComparisonWizardOpen(true)}>
+            {t("compareScenarios")}
+          </Button>
+          <Button onClick={() => setNewModalOpen(true)}>{t("newScenario")}</Button>
+        </Stack>
       )}
 
       <NewScenarioModal
@@ -386,6 +394,10 @@ export default function ScenariosPage() {
             setDeleteScenarioTarget(null);
           }
         }}
+      />
+      <ScenarioComparisonWizard
+        opened={comparisonWizardOpen}
+        onClose={() => setComparisonWizardOpen(false)}
       />
     </Stack>
   );

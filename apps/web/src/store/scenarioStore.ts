@@ -140,6 +140,7 @@ export type RentalDetails = {
 };
 
 export type HomePosition = {
+  name?: string;
   usage?: HomeUsage;
   mode?: HomeMode;
   purchasePrice?: number;
@@ -723,6 +724,7 @@ const initialScenarios: Scenario[] = [];
 
 const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePositionDraft => ({
   id: "id" in home ? home.id : createHomePositionId(),
+  name: home.name,
   usage: home.usage ?? "primary",
   mode: home.mode ?? "new_purchase",
   purchasePrice: home.purchasePrice,

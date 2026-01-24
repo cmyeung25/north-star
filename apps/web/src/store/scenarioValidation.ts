@@ -58,6 +58,7 @@ const rentalSchema = z
 
 export const HomePositionSchema = z
   .object({
+    name: z.string().optional(),
     usage: z.enum(["primary", "investment"]).optional(),
     mode: z.enum(["new_purchase", "existing"]).optional(),
     purchasePrice: z

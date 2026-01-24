@@ -179,6 +179,12 @@ export default function HomeDetailsForm({
   return (
     <Stack gap="md">
       <Title order={5}>{t("title")}</Title>
+      <TextInput
+        label={t("name")}
+        placeholder={t("namePlaceholder")}
+        value={formValues.name ?? ""}
+        onChange={(event) => updateField("name", event.currentTarget.value)}
+      />
       <Select
         label={t("usageLabel")}
         value={usageValue}

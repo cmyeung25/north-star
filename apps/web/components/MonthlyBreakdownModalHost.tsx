@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import ProjectionDetailsModal from "./ProjectionDetailsModal";
 import { useUiStore } from "../src/store/uiStore";
 import type { CashflowItem } from "../src/domain/ledger/types";
 import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
+import { resolveMonthInList } from "../src/utils/month";
 
 type MonthlyBreakdownModalHostProps = {
   months: string[];
@@ -37,22 +38,28 @@ export default function MonthlyBreakdownModalHost({
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const closeModal = useUiStore((state) => state.closeModal);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
-  const resolvedMonth = activeModal?.month ?? breakdownMonth ?? months[0];
+  const resolvedMonth = useMemo(
+    () => resolveMonthInList(months, activeModal?.month ?? breakdownMonth),
+    [activeModal?.month, breakdownMonth, months]
+  );
   const opened = activeModal?.type === "monthlyBreakdown" || breakdownOpen;
   const initialTab = activeModal?.focus === "networth" ? "netWorth" : "cashflow";
 
   useEffect(() => {
-    if (!breakdownMonth && months.length > 0) {
-      setBreakdownMonth(months[0]);
+    if (!opened) {
+      return;
     }
-  }, [breakdownMonth, months, setBreakdownMonth]);
+    if (resolvedMonth && resolvedMonth !== breakdownMonth) {
+      setBreakdownMonth(resolvedMonth);
+    }
+  }, [breakdownMonth, opened, resolvedMonth, setBreakdownMonth]);
 
   return (
     <ProjectionDetailsModal
       opened={opened}
       onClose={closeModal}
       months={months}
-      currentMonth={resolvedMonth}
+      currentMonth={resolvedMonth ?? undefined}
       onMonthChange={(value) => {
         setBreakdownMonth(value);
       }}

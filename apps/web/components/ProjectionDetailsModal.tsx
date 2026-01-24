@@ -23,6 +23,7 @@ import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
 import { useJumpToSource } from "../src/hooks/useJumpToSource";
 import { isInvestmentCashflow } from "../src/domain/ledger/cashflowFilters";
+import { resolveMonthInList } from "../src/utils/month";
 
 type ProjectionDetailsModalProps = {
   opened: boolean;
@@ -117,7 +118,7 @@ export default function ProjectionDetailsModal({
       setActiveTab(initialTab);
     }
   }, [initialTab, opened]);
-  const resolvedMonth = currentMonth ?? months[0];
+  const resolvedMonth = resolveMonthInList(months, currentMonth);
   const monthItems = resolvedMonth ? ledgerByMonth[resolvedMonth] ?? [] : [];
   const positionItems = resolvedMonth
     ? positionCashflowsByMonth?.[resolvedMonth] ?? []
@@ -269,13 +270,14 @@ export default function ProjectionDetailsModal({
                 variant="subtle"
                 size="xs"
                 onClick={() => {
-                  const currentIndex = months.indexOf(resolvedMonth);
-                  const previousMonth = months[currentIndex - 1];
+                  const currentIndex = resolvedMonth ? months.indexOf(resolvedMonth) : -1;
+                  const previousMonth =
+                    currentIndex > 0 ? months[currentIndex - 1] : undefined;
                   if (previousMonth) {
                     onMonthChange(previousMonth);
                   }
                 }}
-                disabled={months.indexOf(resolvedMonth) <= 0}
+                disabled={!resolvedMonth || months.indexOf(resolvedMonth) <= 0}
               >
                 {t("breakdownPrevMonth")}
               </Button>
@@ -283,20 +285,23 @@ export default function ProjectionDetailsModal({
                 variant="subtle"
                 size="xs"
                 onClick={() => {
-                  const currentIndex = months.indexOf(resolvedMonth);
-                  const nextMonth = months[currentIndex + 1];
+                  const currentIndex = resolvedMonth ? months.indexOf(resolvedMonth) : -1;
+                  const nextMonth =
+                    currentIndex >= 0 ? months[currentIndex + 1] : undefined;
                   if (nextMonth) {
                     onMonthChange(nextMonth);
                   }
                 }}
-                disabled={months.indexOf(resolvedMonth) >= months.length - 1}
+                disabled={
+                  !resolvedMonth || months.indexOf(resolvedMonth) >= months.length - 1
+                }
               >
                 {t("breakdownNextMonth")}
               </Button>
             </Group>
             <Select
               data={months.map((month) => ({ value: month, label: month }))}
-              value={resolvedMonth}
+              value={resolvedMonth ?? null}
               onChange={(value) => {
                 if (value) {
                   onMonthChange(value);

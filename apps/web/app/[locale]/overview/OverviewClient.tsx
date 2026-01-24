@@ -18,7 +18,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Line,
@@ -96,6 +96,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const t = useTranslations("overview");
   const common = useTranslations("common");
   const exportT = useTranslations("export");
+  const searchParams = useSearchParams();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);
@@ -109,6 +110,17 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const openBreakdown = useUiStore((state) => state.openBreakdown);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
   const scenarioIdFromQuery = scenarioId ?? null;
+  const compareScenarioIdsFromQuery = useMemo(() => {
+    const param = searchParams.get("compareScenarioIds");
+    if (!param) {
+      return [];
+    }
+    return param
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+  }, [searchParams]);
+  const hasCompareQuery = compareScenarioIdsFromQuery.length > 0;
   const [viewMode, setViewMode] = useState<"single" | "compare">("single");
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
@@ -146,6 +158,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
 
   useEffect(() => {
+    if (hasCompareQuery) {
+      setViewMode("compare");
+      setCompareScenarioIds(compareScenarioIdsFromQuery);
+      return;
+    }
+
     if (!selectedScenario || viewMode !== "compare") {
       return;
     }
@@ -159,7 +177,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         .slice(0, 2);
       return fallback.length > 0 ? fallback : current;
     });
-  }, [scenarios, selectedScenario, viewMode]);
+  }, [compareScenarioIdsFromQuery, hasCompareQuery, scenarios, selectedScenario, viewMode]);
   const {
     projection,
     months,
