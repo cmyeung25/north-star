@@ -85,6 +85,7 @@ export type MemberMilestone = {
   atAgeYears?: number;
   applyScope?: ApplyScope;
   sourceEventId?: string;
+  metadata?: Record<string, string>;
 };
 
 export type ScenarioMember = {

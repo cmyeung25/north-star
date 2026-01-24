@@ -13,6 +13,7 @@ export type SalaryStep = {
   startMonth?: string;
   startAgeYears?: number;
   monthlyAmount: number;
+  note?: string;
 };
 
 export type EventRule = {
