@@ -1,8 +1,9 @@
-import type { Scenario } from "../../store/scenarioStore";
+import type { Scenario, ScenarioMember } from "../../store/scenarioStore";
 import type { EventDefinition, ScenarioEventRef } from "./types";
 import { buildScenarioEventViews, resolveEventRule } from "./utils";
 import { buildMonthRange, monthIndex } from "@north-star/engine";
 import { normalizeMonthStrict } from "../../utils/month";
+import { buildSalaryScheduleEntries, resolveSalaryEndMonth } from "./salary";
 
 export type MonthlyCashflowPoint = {
   month: string;
@@ -25,6 +26,7 @@ type CashflowCompilerOptions = {
   ref: ScenarioEventRef;
   assumptions: Pick<Scenario["assumptions"], "baseMonth" | "horizonMonths">;
   signByType: (type: EventDefinition["type"]) => 1 | -1;
+  members?: ScenarioMember[];
 };
 
 const applySignedAmount = (value: number | null | undefined, sign: 1 | -1) => {
@@ -45,6 +47,7 @@ export const compileEventToMonthlyCashflowSeries = ({
   ref,
   assumptions,
   signByType,
+  members,
 }: CashflowCompilerOptions): MonthlyCashflowPoint[] => {
   if (definition.kind !== "cashflow") {
     return [];
@@ -68,6 +71,49 @@ export const compileEventToMonthlyCashflowSeries = ({
   const baseMonth = normalizedBase.month;
 
   const sign = signByType(definition.type);
+  const member = definition.memberId
+    ? members?.find((entry) => entry.id === definition.memberId)
+    : undefined;
+
+  const rawEndMonth = effectiveRule.endMonth ?? "";
+  const normalizedEnd =
+    typeof rawEndMonth === "string" && rawEndMonth.trim() !== ""
+      ? normalizeMonthStrict(rawEndMonth)
+      : null;
+  if (normalizedEnd && !normalizedEnd.ok) {
+    return [];
+  }
+
+  const resolvedEndMonth = resolveSalaryEndMonth({
+    endMonth: normalizedEnd?.ok ? normalizedEnd.month : null,
+    endAtAgeYears: definition.endAtAgeYears,
+    member,
+    baseMonth,
+  });
+
+  const salarySchedule =
+    definition.type === "salary" && effectiveRule.salarySteps?.length
+      ? buildSalaryScheduleEntries({
+          baseMonth,
+          horizonMonths,
+          eventStartMonth: effectiveRule.startMonth ?? "",
+          eventEndMonth: resolvedEndMonth,
+          annualGrowthPct: effectiveRule.annualGrowthPct ?? 0,
+          member,
+          steps: effectiveRule.salarySteps,
+          baseMonthlyAmount: effectiveRule.monthlyAmount ?? 0,
+        })
+      : null;
+
+  if (salarySchedule && salarySchedule.length > 0) {
+    const scheduleMap = buildScheduleMap(salarySchedule);
+    const months = buildMonthRange(baseMonth, horizonMonths);
+    return months.map((month) => ({
+      month,
+      amount: applySignedAmount(scheduleMap[month] ?? 0, sign),
+      sourceEventId: definition.id,
+    }));
+  }
 
   if (effectiveRule.mode === "schedule") {
     const scheduleMap = buildScheduleMap(effectiveRule.schedule);
@@ -87,14 +133,8 @@ export const compileEventToMonthlyCashflowSeries = ({
   if (!normalizedStart.ok) {
     return [];
   }
-  const normalizedEnd = effectiveRule.endMonth
-    ? normalizeMonthStrict(effectiveRule.endMonth)
-    : null;
-  if (normalizedEnd && !normalizedEnd.ok) {
-    return [];
-  }
   const startMonth = normalizedStart.month;
-  const endMonth = normalizedEnd?.ok ? normalizedEnd.month : null;
+  const endMonth = resolvedEndMonth;
 
   const monthlyAmount = Math.abs(effectiveRule.monthlyAmount ?? 0);
   const oneTimeAmount = Math.abs(effectiveRule.oneTimeAmount ?? 0);
@@ -138,17 +178,20 @@ type ScenarioCompilerOptions = {
   scenario: Scenario;
   eventLibrary: EventDefinition[];
   signByType: (type: EventDefinition["type"]) => 1 | -1;
+  members?: ScenarioMember[];
 };
 
 export const compileScenarioCashflows = ({
   scenario,
   eventLibrary,
   signByType,
+  members,
 }: ScenarioCompilerOptions): ScenarioCashflowEntry[] => {
   const assumptions = {
     baseMonth: scenario.assumptions.baseMonth,
     horizonMonths: scenario.assumptions.horizonMonths,
   };
+  const resolvedMembers = members ?? [];
 
   return buildScenarioEventViews(scenario, eventLibrary)
     .filter((view) => view.definition.kind === "cashflow")
@@ -158,6 +201,7 @@ export const compileScenarioCashflows = ({
         ref: view.ref,
         assumptions,
         signByType,
+        members: resolvedMembers,
       }).map((point) => ({
         month: point.month,
         amountSigned: point.amount,

@@ -25,9 +25,13 @@ import {
 } from "../../src/utils/month";
 import type { TimelineEvent } from "./types";
 import type { ScenarioAssumptions, ScenarioMember } from "../../src/store/scenarioStore";
-import { monthAtAge, monthsBetween } from "../../src/domain/members/age";
+import { monthAtAge } from "../../src/domain/members/age";
 import { buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import { compileEventToMonthlyCashflowSeries } from "../../src/domain/events/compiler";
+import {
+  buildSalaryScheduleEntries,
+  normalizeSalarySteps,
+} from "../../src/domain/events/salary";
 import { getEventMeta, getEventSign } from "../../src/events/eventCatalog";
 import type {
   EventRule,
@@ -82,104 +86,6 @@ const buildScheduleFromSeries = (series: Array<{ month: string; amount: number }
     return result;
   }, {});
 
-const buildSalaryScheduleEntries = (params: {
-  baseMonth: string;
-  horizonMonths: number;
-  eventStartMonth: string;
-  eventEndMonth?: string | null;
-  annualGrowthPct?: number;
-  member?: ScenarioMember;
-  steps: SalaryStep[];
-  baseMonthlyAmount: number;
-}): EventRuleScheduleEntry[] => {
-  const {
-    baseMonth,
-    horizonMonths,
-    eventStartMonth,
-    eventEndMonth,
-    annualGrowthPct = 0,
-    member,
-    steps,
-    baseMonthlyAmount,
-  } = params;
-  const normalizedBase = normalizeMonthStrict(baseMonth);
-  const normalizedStart = normalizeMonthStrict(eventStartMonth);
-  if (!normalizedBase.ok || !normalizedStart.ok || horizonMonths <= 0) {
-    return [];
-  }
-  const normalizedEnd = eventEndMonth ? normalizeMonthStrict(eventEndMonth) : null;
-  const effectiveEnd = normalizedEnd?.ok ? normalizedEnd.month : null;
-  const months = buildMonthRange(normalizedBase.month, horizonMonths);
-  const monthlyFactor = Math.pow(1 + annualGrowthPct / 100, 1 / 12);
-  const resolvedSteps = steps.flatMap((step) => {
-    if (step.basis === "month") {
-      const normalized = normalizeMonthStrict(step.startMonth ?? "");
-      if (!normalized.ok) {
-        return [];
-      }
-      return [
-        {
-          id: step.id,
-          startMonth: normalized.month,
-          monthlyAmount: Math.abs(step.monthlyAmount ?? 0),
-        },
-      ];
-    }
-    if (!member) {
-      return [];
-    }
-    const month = monthAtAge(member, step.startAgeYears ?? 0, normalizedBase.month);
-    if (!month) {
-      return [];
-    }
-    return [
-      {
-        id: step.id,
-        startMonth: month,
-        monthlyAmount: Math.abs(step.monthlyAmount ?? 0),
-      },
-    ];
-  });
-
-  const filteredSteps = resolvedSteps.filter(
-    (step) => step.startMonth >= normalizedStart.month
-  );
-  const allSteps = [
-    {
-      id: "base",
-      startMonth: normalizedStart.month,
-      monthlyAmount: Math.abs(baseMonthlyAmount ?? 0),
-    },
-    ...filteredSteps,
-  ].sort((a, b) => a.startMonth.localeCompare(b.startMonth));
-
-  let stepIndex = 0;
-  const schedule: EventRuleScheduleEntry[] = [];
-
-  for (const month of months) {
-    if (monthsBetween(normalizedStart.month, month) < 0) {
-      continue;
-    }
-    if (effectiveEnd && monthsBetween(month, effectiveEnd) > 0) {
-      break;
-    }
-    while (
-      stepIndex + 1 < allSteps.length &&
-      monthsBetween(allSteps[stepIndex + 1].startMonth, month) <= 0
-    ) {
-      stepIndex += 1;
-    }
-    const step = allSteps[stepIndex];
-    const monthsSinceStart = monthsBetween(step.startMonth, month);
-    if (monthsSinceStart < 0) {
-      continue;
-    }
-    const amount = step.monthlyAmount * Math.pow(monthlyFactor, monthsSinceStart);
-    schedule.push({ month, amount: Math.round(amount) });
-  }
-
-  return schedule;
-};
 
 export default function TimelineEventForm({
   event,
@@ -331,53 +237,120 @@ export default function TimelineEventForm({
       return;
     }
 
-    if (isSalaryEvent && salarySteps.length > 0) {
-      const nextStepErrors: Record<
-        string,
-        { startMonth?: string; startAgeYears?: string; monthlyAmount?: string }
-      > = {};
-      salarySteps.forEach((step) => {
-        if (!step.monthlyAmount || step.monthlyAmount <= 0) {
-          nextStepErrors[step.id] = {
-            ...nextStepErrors[step.id],
-            monthlyAmount: validation("amountRequired"),
-          };
-        }
-        if (step.basis === "month") {
-          const normalized = normalizeMonthStrict(step.startMonth ?? "");
-          if (!normalized.ok) {
-            nextStepErrors[step.id] = {
-              ...nextStepErrors[step.id],
-              startMonth: validation("useYearMonth"),
-            };
-          }
-        } else {
-          if (!selectedMember) {
-            nextStepErrors[step.id] = {
-              ...nextStepErrors[step.id],
-              startAgeYears: t("salaryStepsMissingMember"),
-            };
-          } else if (typeof step.startAgeYears !== "number" || step.startAgeYears < 0) {
-            nextStepErrors[step.id] = {
-              ...nextStepErrors[step.id],
-              startAgeYears: t("salaryStepAgeRequired"),
-            };
-          }
-        }
-      });
-      if (Object.keys(nextStepErrors).length > 0) {
-        setSalaryStepErrors(nextStepErrors);
-        return;
-      }
-      setSalaryStepErrors({});
-    }
-
     const resolvedEndMonth =
       endConditionMode === "age"
         ? computedEndMonth
         : normalizedEndMonth?.ok
           ? normalizedEndMonth.month
           : null;
+
+    if (isSalaryEvent && salarySteps.length > 0) {
+      const nextStepErrors: Record<
+        string,
+        { startMonth?: string; startAgeYears?: string; monthlyAmount?: string }
+      > = {};
+      const normalizedBaseMonth = assumptions.baseMonth
+        ? normalizeMonthStrict(assumptions.baseMonth)
+        : null;
+      const resolvedStepMonths: Array<{
+        id: string;
+        basis: SalaryStep["basis"];
+        month: string;
+      }> = [];
+      const setStepError = (
+        stepId: string,
+        key: "startMonth" | "startAgeYears" | "monthlyAmount",
+        message: string
+      ) => {
+        nextStepErrors[stepId] = {
+          ...nextStepErrors[stepId],
+          [key]: message,
+        };
+      };
+      salarySteps.forEach((step) => {
+        if (!step.monthlyAmount || step.monthlyAmount <= 0) {
+          setStepError(step.id, "monthlyAmount", validation("amountRequired"));
+        }
+        if (step.basis === "month") {
+          const normalized = normalizeMonthStrict(step.startMonth ?? "");
+          if (!normalized.ok) {
+            setStepError(step.id, "startMonth", validation("useYearMonth"));
+          } else {
+            resolvedStepMonths.push({
+              id: step.id,
+              basis: step.basis,
+              month: normalized.month,
+            });
+          }
+        } else {
+          if (!selectedMember || selectedMember.kind !== "person") {
+            setStepError(step.id, "startAgeYears", t("salaryStepsMissingPerson"));
+          } else if (!normalizedBaseMonth?.ok) {
+            setStepError(step.id, "startAgeYears", t("salaryStepMissingBaseMonth"));
+          } else if (typeof step.startAgeYears !== "number" || step.startAgeYears < 0) {
+            setStepError(step.id, "startAgeYears", t("salaryStepAgeRequired"));
+          } else {
+            const resolvedMonth = monthAtAge(
+              selectedMember,
+              step.startAgeYears,
+              normalizedBaseMonth.month
+            );
+            if (!resolvedMonth) {
+              setStepError(step.id, "startAgeYears", t("salaryStepMissingBirth"));
+            } else {
+              resolvedStepMonths.push({
+                id: step.id,
+                basis: step.basis,
+                month: resolvedMonth,
+              });
+            }
+          }
+        }
+      });
+
+      resolvedStepMonths.forEach(({ id, basis, month }) => {
+        if (month < normalizedStartMonth.month) {
+          setStepError(
+            id,
+            basis === "month" ? "startMonth" : "startAgeYears",
+            t("salaryStepBeforeStart")
+          );
+          return;
+        }
+        if (resolvedEndMonth && month > resolvedEndMonth) {
+          setStepError(
+            id,
+            basis === "month" ? "startMonth" : "startAgeYears",
+            t("salaryStepAfterEnd")
+          );
+        }
+      });
+
+      const monthToSteps = new Map<string, Array<{ id: string; basis: SalaryStep["basis"] }>>();
+      resolvedStepMonths.forEach(({ id, basis, month }) => {
+        const list = monthToSteps.get(month) ?? [];
+        list.push({ id, basis });
+        monthToSteps.set(month, list);
+      });
+      monthToSteps.forEach((entries) => {
+        if (entries.length <= 1) {
+          return;
+        }
+        entries.forEach(({ id, basis }) => {
+          setStepError(
+            id,
+            basis === "month" ? "startMonth" : "startAgeYears",
+            t("salaryStepDuplicateMonth")
+          );
+        });
+      });
+
+      if (Object.keys(nextStepErrors).length > 0) {
+        setSalaryStepErrors(nextStepErrors);
+        return;
+      }
+      setSalaryStepErrors({});
+    }
 
     const normalizedEvent = normalizeEvent(
       {
@@ -396,6 +369,10 @@ export default function TimelineEventForm({
     );
 
     let normalizedSchedule: EventRuleScheduleEntry[] | undefined;
+    const normalizedSalarySteps =
+      isSalaryEvent && salarySteps.length > 0
+        ? normalizeSalarySteps(salarySteps)
+        : salarySteps;
     if (isSalaryEvent && salarySteps.length > 0) {
       normalizedSchedule = buildSalaryScheduleEntries({
         baseMonth: assumptions.baseMonth ?? normalizedStartMonth.month,
@@ -404,7 +381,7 @@ export default function TimelineEventForm({
         eventEndMonth: resolvedEndMonth ?? null,
         annualGrowthPct: normalizedEvent.annualGrowthPct ?? 0,
         member: selectedMember,
-        steps: salarySteps,
+        steps: normalizedSalarySteps ?? [],
         baseMonthlyAmount: normalizedEvent.monthlyAmount ?? 0,
       });
     } else if (ruleMode === "schedule") {
@@ -421,7 +398,7 @@ export default function TimelineEventForm({
       event: normalizedEvent,
       ruleMode: isSalaryEvent && salarySteps.length > 0 ? "schedule" : ruleMode,
       schedule: normalizedSchedule,
-      salarySteps: salarySteps.length > 0 ? salarySteps : undefined,
+      salarySteps: salarySteps.length > 0 ? normalizedSalarySteps : undefined,
     });
   };
 
@@ -534,7 +511,7 @@ export default function TimelineEventForm({
   ]);
 
   useEffect(() => {
-    if (!selectedMember || !formValues) {
+    if (!selectedMember || selectedMember.kind !== "person" || !formValues) {
       setSalarySteps((current) =>
         current.map((step) =>
           step.basis === "age"
@@ -852,9 +829,9 @@ export default function TimelineEventForm({
                   ...current,
                   {
                     id: nanoid(),
-                    basis: selectedMember ? "age" : "month",
+                    basis: selectedMember?.kind === "person" ? "age" : "month",
                     startMonth: formValues.startMonth,
-                    startAgeYears: selectedMember ? 0 : undefined,
+                    startAgeYears: selectedMember?.kind === "person" ? 0 : undefined,
                     monthlyAmount: Math.max(formValues.monthlyAmount ?? 0, 0),
                   },
                 ])
@@ -867,6 +844,11 @@ export default function TimelineEventForm({
           <Text size="xs" c="dimmed">
             {t("salaryStepsHint")}
           </Text>
+          {(!selectedMember || selectedMember.kind !== "person") && (
+            <Text size="xs" c="dimmed">
+              {t("salaryStepsMissingPerson")}
+            </Text>
+          )}
           {salarySteps.length === 0 ? (
             <Text size="xs" c="dimmed">
               {t("salaryStepsEmpty")}
@@ -874,7 +856,7 @@ export default function TimelineEventForm({
           ) : (
             <Stack gap="sm">
               {salarySteps.map((step) => {
-                const disableAge = !selectedMember;
+                const disableAge = !selectedMember || selectedMember.kind !== "person";
                 return (
                   <Card key={step.id} withBorder radius="md" padding="sm">
                     <Stack gap="xs">

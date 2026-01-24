@@ -84,7 +84,8 @@ const filterLedgerToHorizon = (
 
 const compileEventLedger = (
   scenario: Scenario,
-  eventLibrary: EventDefinition[]
+  eventLibrary: EventDefinition[],
+  members: ScenarioMember[]
 ): CashflowItem[] => {
   const eventLookup = new Map(
     eventLibrary.map((definition) => [definition.id, definition])
@@ -93,6 +94,7 @@ const compileEventLedger = (
     scenario,
     eventLibrary,
     signByType: getEventSign,
+    members,
   });
 
   return cashflows.map((entry) => {
@@ -325,6 +327,7 @@ export const computeProjectionWithSmartInvest = (
     scenario: scenarioForLedger,
     eventLibrary,
     signByType: getEventSign,
+    members,
   }).map((entry) => ({
     month: entry.month,
     amount: entry.amountSigned,
@@ -593,8 +596,12 @@ export const useProjectionWithLedger = (
     };
     const includeBudgetRulesInProjection =
       scenario.assumptions.includeBudgetRulesInProjection ?? true;
-    const eventLedger = compileEventLedger(scenarioForLedger, eventLibrary);
     const members = options.members ?? [];
+    const eventLedger = compileEventLedger(
+      scenarioForLedger,
+      eventLibrary,
+      members
+    );
     const budgetRules = normalizeBudgetRulesForLedger(options.budgetRules ?? []);
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)

@@ -468,15 +468,16 @@ export const mapScenarioToEngineInput = (
         },
       ];
     });
+  const includeBudgetRulesInProjection =
+    scenario.assumptions.includeBudgetRulesInProjection ?? true;
+  const members = options.members ?? [];
   const cashflowLedger = compileScenarioCashflows({
     scenario,
     eventLibrary,
     signByType: getEventSign,
+    members,
   });
   const eventLedger = eventCashflowsToLedger(cashflowLedger);
-  const includeBudgetRulesInProjection =
-    scenario.assumptions.includeBudgetRulesInProjection ?? true;
-  const members = options.members ?? [];
   const budgetRules = options.budgetRules ?? [];
   const normalizedBudgetRules = normalizeBudgetRules(budgetRules);
   const budgetLedger = includeBudgetRulesInProjection

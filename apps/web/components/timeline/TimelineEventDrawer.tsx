@@ -351,13 +351,32 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
 
     const existingMilestones = member.milestones ?? [];
     const nextSteps = salarySteps ?? [];
-    const salaryStepIds = new Set(
-      nextSteps.map((step) => `salary-step-${event.id}-${step.id}`)
-    );
-    const retained = existingMilestones.filter(
-      (milestone) =>
-        milestone.sourceEventId !== event.id || salaryStepIds.has(milestone.id)
-    );
+    const legacyPrefix = `salary-step-${event.id}-`;
+    const getSalaryStepKey = (milestone: (typeof existingMilestones)[number]) => {
+      if (
+        milestone.metadata?.source === "salaryStep" &&
+        milestone.metadata.sourceEventId === event.id &&
+        milestone.metadata.stepId
+      ) {
+        return milestone.metadata.stepId;
+      }
+      if (milestone.id.startsWith(legacyPrefix)) {
+        return milestone.id.slice(legacyPrefix.length);
+      }
+      return null;
+    };
+
+    const existingByStepId = new Map<string, (typeof existingMilestones)[number]>();
+    const retained = existingMilestones.filter((milestone) => {
+      const stepId = getSalaryStepKey(milestone);
+      if (!stepId) {
+        return true;
+      }
+      if (!existingByStepId.has(stepId)) {
+        existingByStepId.set(stepId, milestone);
+      }
+      return false;
+    });
 
     if (nextSteps.length === 0) {
       updateMember(member.id, { milestones: retained });
@@ -365,7 +384,8 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     }
 
     const nextMilestones = nextSteps.reduce((acc, step) => {
-      const milestoneId = `salary-step-${event.id}-${step.id}`;
+      const existing = existingByStepId.get(step.id);
+      const milestoneId = existing?.id ?? `salary-step-${event.id}-${step.id}`;
       const label = t("salaryStepMilestoneLabel");
       const baseMilestone = {
         id: milestoneId,
@@ -375,12 +395,14 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
         sourceEventId: event.id,
         month: step.basis === "month" ? step.startMonth : undefined,
         atAgeYears: step.basis === "age" ? step.startAgeYears : undefined,
+        metadata: {
+          source: "salaryStep",
+          sourceEventId: event.id,
+          stepId: step.id,
+        },
       };
-      const existing = acc.find((entry) => entry.id === milestoneId);
       if (existing) {
-        return acc.map((entry) =>
-          entry.id === milestoneId ? { ...entry, ...baseMilestone } : entry
-        );
+        return [...acc, { ...existing, ...baseMilestone }];
       }
       return [...acc, baseMilestone];
     }, retained);
