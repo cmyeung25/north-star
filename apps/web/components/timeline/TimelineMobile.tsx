@@ -537,6 +537,10 @@ export default function TimelineMobile({
     }
     return monthIndex(currentProjectionMonth, sellMonth) < 0;
   };
+  const resolveHomeLabel = (home: HomePositionDraft, index: number) => {
+    const trimmedName = home.name?.trim();
+    return trimmedName ? trimmedName : homes("homeDefaultName", { index: index + 1 });
+  };
   const homeDrawerDraft = editingHome ?? creatingHome;
   const carDrawerDraft = editingCar ?? creatingCar;
 
@@ -839,6 +843,7 @@ export default function TimelineMobile({
               ) : (
                 homePositions.map((home, index) => {
                   const homeSold = isPastSellMonth(home.sellMonth);
+                  const homeLabel = resolveHomeLabel(home, index);
                   const sellBadgeLabel = home.sellMonth
                     ? homeSold
                       ? t("positionSold")
@@ -851,9 +856,7 @@ export default function TimelineMobile({
                       <Group justify="space-between" align="center" wrap="wrap">
                         <Group gap="xs" align="center">
                           <Text>🏠</Text>
-                          <Text fw={600}>
-                            {homes("homeLabel", { index: index + 1 })}
-                          </Text>
+                          <Text fw={600}>{homeLabel}</Text>
                           {sellBadgeLabel && (
                             <Badge
                               size="sm"
@@ -881,7 +884,7 @@ export default function TimelineMobile({
                               });
                               setCashflowModal({
                                 title: t("positionCashflowTitle", {
-                                  label: homes("homeLabel", { index: index + 1 }),
+                                  label: homeLabel,
                                 }),
                                 entries: breakdown.entries,
                                 series: breakdown.series,
@@ -930,7 +933,7 @@ export default function TimelineMobile({
                                 : [];
                               setCalculatorModal({
                                 title: t("positionCalculatorTitle", {
-                                  label: homes("homeLabel", { index: index + 1 }),
+                                  label: homeLabel,
                                 }),
                                 amortizationRows,
                                 valueRows,
@@ -992,12 +995,12 @@ export default function TimelineMobile({
                             size="xs"
                             variant="light"
                             onClick={() =>
-                              openCopyModal(
-                                t("copyPositionTitle", {
-                                  label: homes("homeLabel", { index: index + 1 }),
-                                }),
-                                (scenarioIds) =>
-                                  onCopyPositionToScenarios(
+                                openCopyModal(
+                                  t("copyPositionTitle", {
+                                    label: homeLabel,
+                                  }),
+                                  (scenarioIds) =>
+                                    onCopyPositionToScenarios(
                                     "home",
                                     home.id,
                                     scenarioIds
@@ -1011,14 +1014,14 @@ export default function TimelineMobile({
                             size="xs"
                             color="red"
                             variant="light"
-                            onClick={() =>
-                              setConfirmDelete({
-                                type: "home",
-                                id: home.id,
-                                label: homes("homeLabel", { index: index + 1 }),
-                              })
-                            }
-                          >
+                              onClick={() =>
+                                setConfirmDelete({
+                                  type: "home",
+                                  id: home.id,
+                                  label: homeLabel,
+                                })
+                              }
+                            >
                             {homes("removeHome")}
                           </Button>
                         </Group>

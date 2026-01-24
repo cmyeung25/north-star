@@ -67,6 +67,7 @@ type RuleDraft = {
 };
 
 type HomeDraft = {
+  name: string;
   purchaseMonthInput: string;
   purchasePrice: number;
   downPayment: number;
@@ -171,6 +172,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
   const [ruleErrors, setRuleErrors] = useState<{ start?: string; end?: string }>({});
 
   const [homeDraft, setHomeDraft] = useState<HomeDraft>(() => ({
+    name: "",
     purchaseMonthInput: baseMonth,
     purchasePrice: 0,
     downPayment: 0,
@@ -227,6 +229,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     setRuleErrors({});
 
     setHomeDraft({
+      name: "",
       purchaseMonthInput: baseMonth,
       purchasePrice: 0,
       downPayment: 0,
@@ -538,6 +541,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
       }
       const nextHome: HomePositionDraft = {
         id: createHomePositionId(),
+        name: homeDraft.name.trim() ? homeDraft.name.trim() : undefined,
         usage: "primary",
         mode: "new_purchase",
         purchaseMonth: monthResolution.purchaseMonth,
@@ -942,6 +946,17 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
 
           {flowType === "home" && step === 2 && (
             <Stack gap="md">
+              <TextInput
+                label={t("homeName")}
+                placeholder={t("homeNamePlaceholder")}
+                value={homeDraft.name}
+                onChange={(event) =>
+                  setHomeDraft((current) => ({
+                    ...current,
+                    name: event.currentTarget.value,
+                  }))
+                }
+              />
               <TextInput
                 label={t("homePurchaseMonth")}
                 value={homeDraft.purchaseMonthInput}

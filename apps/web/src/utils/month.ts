@@ -1,3 +1,5 @@
+import { monthsBetween } from "../domain/members/age";
+
 export type MonthInputStatus = "valid" | "partial" | "empty" | "invalid";
 
 export const isValidMonthStr = (value: string): boolean =>
@@ -97,4 +99,34 @@ export const normalizeOnboardingMonth = (
     return { ok: false, reason: normalized.reason };
   }
   return { ok: true, month: normalized.month };
+};
+
+export const resolveMonthInList = (
+  months: string[],
+  target?: string | null
+): string | null => {
+  if (months.length === 0) {
+    return null;
+  }
+
+  const fallback = months[0] ?? null;
+  if (!target) {
+    return fallback;
+  }
+
+  if (months.includes(target)) {
+    return target;
+  }
+
+  if (!isValidMonthStr(target) || !fallback || !isValidMonthStr(fallback)) {
+    return fallback;
+  }
+
+  const offset = monthsBetween(fallback, target);
+  if (!Number.isFinite(offset)) {
+    return fallback;
+  }
+
+  const clampedIndex = Math.min(Math.max(offset, 0), months.length - 1);
+  return months[clampedIndex] ?? fallback;
 };
