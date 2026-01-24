@@ -1302,7 +1302,6 @@ export default function MoneyClient({
               : t("amountUnset");
           const overlapBadge =
             options.showOverlapHint && hasBudgetRules && getEventGroup(event.type) === "expense";
-
           return (
             <Card key={event.id} withBorder radius="md" padding="sm">
               <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -1325,7 +1324,10 @@ export default function MoneyClient({
                   <Stack gap={2}>
                     <Text fw={600}>{displayLabel}</Text>
                     <Text size="xs" c="dimmed">
-                      {t("eventMeta", { member: memberLabel, month: event.startMonth })}
+                      {event.endMonth == event.startMonth ?
+                        t("eventMetaSingleMonth", { member: memberLabel, startMonth: event.startMonth })
+                        : t("eventMeta", { member: memberLabel, startMonth: event.startMonth, endMonth: event.endMonth })
+                      }
                     </Text>
                     <Text size="xs" c="dimmed">
                       {t("eventAmount", { amount: amountLabel })}
