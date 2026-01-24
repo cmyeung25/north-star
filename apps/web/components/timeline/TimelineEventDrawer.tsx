@@ -39,6 +39,7 @@ import {
   iconMap,
   listEventTypesForGroup,
 } from "./utils";
+import { purgeSalaryStepMilestones } from "../../src/domain/members/salaryStepMilestones";
 
 type AddEventStep = "group" | "type" | "details" | "groupDetails";
 
@@ -215,10 +216,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       targets
     );
     syncRetirementMilestone(resolvedEvent);
-    syncSalaryStepMilestones({
-      event: resolvedEvent,
-      salarySteps: result.salarySteps,
-    });
+    purgeMemberSalaryStepMilestones(resolvedEvent);
     props.onCreateComplete?.(resolvedEvent.startMonth ?? null);
     props.onClose();
   };
@@ -268,7 +266,7 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       parentId: editingParentId ?? undefined,
     });
     syncRetirementMilestone(updated);
-    syncSalaryStepMilestones({ event: updated, salarySteps });
+    purgeMemberSalaryStepMilestones(updated);
     props.onClose();
   };
 
@@ -335,13 +333,12 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     updateMember(member.id, { milestones: nextMilestones });
   };
 
-  const syncSalaryStepMilestones = ({
-    event,
-    salarySteps,
-  }: Pick<TimelineEventFormResult, "event" | "salarySteps">) => {
+  const purgeMemberSalaryStepMilestones = (
+    event: TimelineEventFormResult["event"]
+  ) => {
     const isSalaryEvent = event.type === "salary";
     const isSalarySubtype = (event.incomeSubtype ?? "salary") === "salary";
-    if (!isSalaryEvent || !event.memberId) {
+    if (!isSalaryEvent || !isSalarySubtype || !event.memberId) {
       return;
     }
 
@@ -350,65 +347,10 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       return;
     }
 
-    const existingMilestones = member.milestones ?? [];
-    const nextSteps = salarySteps ?? [];
-    const legacyPrefix = `salary-step-${event.id}-`;
-    const getSalaryStepKey = (milestone: (typeof existingMilestones)[number]) => {
-      if (
-        milestone.metadata?.source === "salaryStep" &&
-        milestone.metadata.sourceEventId === event.id &&
-        milestone.metadata.stepId
-      ) {
-        return milestone.metadata.stepId;
-      }
-      if (milestone.id.startsWith(legacyPrefix)) {
-        return milestone.id.slice(legacyPrefix.length);
-      }
-      return null;
-    };
-
-    const existingByStepId = new Map<string, (typeof existingMilestones)[number]>();
-    const retained = existingMilestones.filter((milestone) => {
-      const stepId = getSalaryStepKey(milestone);
-      if (!stepId) {
-        return true;
-      }
-      if (!existingByStepId.has(stepId)) {
-        existingByStepId.set(stepId, milestone);
-      }
-      return false;
-    });
-
-    if (!isSalarySubtype || nextSteps.length === 0) {
-      updateMember(member.id, { milestones: retained });
-      return;
+    const nextMilestones = purgeSalaryStepMilestones(member.milestones, event.id);
+    if ((member.milestones ?? []).length !== nextMilestones.length) {
+      updateMember(member.id, { milestones: nextMilestones });
     }
-
-    const nextMilestones = nextSteps.reduce((acc, step) => {
-      const existing = existingByStepId.get(step.id);
-      const milestoneId = existing?.id ?? `salary-step-${event.id}-${step.id}`;
-      const label = t("salaryStepMilestoneLabel");
-      const baseMilestone = {
-        id: milestoneId,
-        kind: "custom" as const,
-        label,
-        applyScope: { scope: "all" } as const,
-        sourceEventId: event.id,
-        month: step.basis === "month" ? step.startMonth : undefined,
-        atAgeYears: step.basis === "age" ? step.startAgeYears : undefined,
-        metadata: {
-          source: "salaryStep",
-          sourceEventId: event.id,
-          stepId: step.id,
-        },
-      };
-      if (existing) {
-        return [...acc, { ...existing, ...baseMilestone }];
-      }
-      return [...acc, baseMilestone];
-    }, retained);
-
-    updateMember(member.id, { milestones: nextMilestones });
   };
 
   const title =
