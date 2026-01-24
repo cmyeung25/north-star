@@ -790,6 +790,8 @@
     "salaryStepsHint": "以月份或年齡設定薪金變動。",
     "salaryStepsAdd": "新增階梯",
     "salaryStepsEmpty": "尚未新增薪金階梯。",
+    "salaryStepsDisabled": "薪金階梯只適用於「薪金」子類型，目前已停用。",
+    "salaryStepsClear": "清除階梯",
     "salaryStepLabel": "階梯",
     "salaryStepStartMonth": "階梯開始月份",
     "salaryStepStartAge": "階梯開始年齡（歲）",

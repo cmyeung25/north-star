@@ -91,8 +91,9 @@ export const compileEventToMonthlyCashflowSeries = ({
     baseMonth,
   });
 
+  const isSalarySubtype = (definition.incomeSubtype ?? "salary") === "salary";
   const salarySchedule =
-    definition.type === "salary" && effectiveRule.salarySteps?.length
+    definition.type === "salary" && isSalarySubtype && effectiveRule.salarySteps?.length
       ? buildSalaryScheduleEntries({
           baseMonth,
           horizonMonths,
