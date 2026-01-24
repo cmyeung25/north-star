@@ -56,7 +56,7 @@ import { useSettingsStore } from "../../../src/store/settingsStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
-import { getMemberAgeYears } from "../../../src/domain/members/age";
+import { getMemberAgeYears, monthAtAge } from "../../../src/domain/members/age";
 import { isValidMonthStr, normalizeMonthStrict } from "../../../src/utils/month";
 import {
   compileBudgetRuleToMonthlySeries,
@@ -67,9 +67,16 @@ import DateOrAgeBasisPicker, {
   type DateOrAgeBasis,
 } from "../../../components/DateOrAgeBasisPicker";
 import PositionDetailList from "../../../components/timeline/PositionDetailList";
-import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
+import {
+  buildScenarioEventViews,
+  buildScenarioTimelineEvents,
+} from "../../../src/domain/events/utils";
 import { getEventMeta } from "../../../src/events/eventCatalog";
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
+import {
+  deriveSalaryStepMilestones,
+  isPersistedSalaryStepMilestone,
+} from "../../../src/domain/members/salaryStepMilestones";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -279,6 +286,37 @@ export default function SettingsClient({
       (event) => event.enabled && getEventMeta(event.type).group === "expense"
     );
   }, [eventLibrary, scenario]);
+  const normalizedScenarioBaseMonth = useMemo(() => {
+    const baseMonth = scenario?.assumptions.baseMonth ?? null;
+    if (!baseMonth) {
+      return null;
+    }
+    const normalized = normalizeMonthStrict(baseMonth);
+    return normalized.ok ? normalized.month : null;
+  }, [scenario?.assumptions.baseMonth]);
+  const salaryStepMilestones = useMemo(() => {
+    if (!scenario) {
+      return [];
+    }
+    const eventViews = buildScenarioEventViews(scenario, eventLibrary);
+    return deriveSalaryStepMilestones({
+      events: eventViews,
+      members,
+      baseMonth: scenario.assumptions.baseMonth,
+      scenarioId: scenario.id,
+    });
+  }, [eventLibrary, members, scenario]);
+  const salaryStepMilestonesByMember = useMemo(() => {
+    return salaryStepMilestones.reduce<Map<string, typeof salaryStepMilestones>>(
+      (acc, milestone) => {
+        const list = acc.get(milestone.memberId) ?? [];
+        list.push(milestone);
+        acc.set(milestone.memberId, list);
+        return acc;
+      },
+      new Map()
+    );
+  }, [salaryStepMilestones]);
   const baseCurrency = scenario?.baseCurrency ?? "";
   const formatCurrency = useCallback(
     (value: number) => {
@@ -1538,9 +1576,92 @@ export default function SettingsClient({
                                   </Group>
                                 </Card>
                               )}
-                              {(member.milestones ?? [])
-                                .filter((milestone) => milestone.kind !== "birth")
-                                .map((milestone) => {
+                              {[
+                                ...(member.milestones ?? [])
+                                  .filter((milestone) => milestone.kind !== "birth")
+                                  .filter(
+                                    (milestone) => !isPersistedSalaryStepMilestone(milestone)
+                                  )
+                                  .map((milestone) => {
+                                    let month: string | null = null;
+                                    if (milestone.month) {
+                                      const normalized = normalizeMonthStrict(
+                                        milestone.month
+                                      );
+                                      month = normalized.ok ? normalized.month : null;
+                                    } else if (
+                                      typeof milestone.atAgeYears === "number" &&
+                                      normalizedScenarioBaseMonth
+                                    ) {
+                                      const resolved = monthAtAge(
+                                        member,
+                                        milestone.atAgeYears,
+                                        normalizedScenarioBaseMonth
+                                      );
+                                      if (resolved) {
+                                        const normalized = normalizeMonthStrict(resolved);
+                                        month = normalized.ok ? normalized.month : null;
+                                      }
+                                    }
+                                    return {
+                                      type: "editable" as const,
+                                      milestone,
+                                      month,
+                                    };
+                                  }),
+                                ...(salaryStepMilestonesByMember.get(member.id) ?? []).map(
+                                  (milestone) => ({
+                                    type: "derived" as const,
+                                    milestone,
+                                    month: milestone.month,
+                                  })
+                                ),
+                              ]
+                                .sort((a, b) => {
+                                  if (a.month && b.month) {
+                                    const compare = a.month.localeCompare(b.month);
+                                    if (compare !== 0) {
+                                      return compare;
+                                    }
+                                  } else if (a.month && !b.month) {
+                                    return -1;
+                                  } else if (!a.month && b.month) {
+                                    return 1;
+                                  }
+                                  return a.milestone.id.localeCompare(b.milestone.id);
+                                })
+                                .map((entry) => {
+                                  if (entry.type === "derived") {
+                                    return (
+                                      <Card
+                                        key={entry.milestone.id}
+                                        withBorder
+                                        radius="md"
+                                        padding="sm"
+                                      >
+                                        <Stack gap="sm">
+                                          <Group justify="space-between" align="center">
+                                            <Text fw={500}>
+                                              {timelineText("salaryStepMilestoneLabel")}
+                                            </Text>
+                                            <Badge variant="light" color="gray">
+                                              {membersText("milestoneLinkedSalaryStep")}
+                                            </Badge>
+                                          </Group>
+                                          <Group justify="space-between" align="center">
+                                            <Text size="sm" c="dimmed">
+                                              {membersText("milestoneMonthLabel")}
+                                            </Text>
+                                            <Text size="sm" c="dimmed">
+                                              {entry.milestone.month}
+                                            </Text>
+                                          </Group>
+                                        </Stack>
+                                      </Card>
+                                    );
+                                  }
+
+                                  const milestone = entry.milestone;
                                   const milestoneKey = `${member.id}:${milestone.id}`;
                                   const monthInput =
                                     milestoneMonthInputs[milestoneKey] ??

@@ -1066,6 +1066,7 @@
     "milestoneLabel": "Label",
     "milestoneAgeLabel": "Age (years)",
     "milestoneMonthLabel": "Month",
+    "milestoneLinkedSalaryStep": "Linked to salary step",
     "milestoneApplyScope": "Apply scope",
     "memberBudgetTitle": "Budget rules for this member",
     "addMemberRule": "Add rule for this member",
