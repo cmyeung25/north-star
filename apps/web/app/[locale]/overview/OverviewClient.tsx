@@ -41,6 +41,7 @@ import NetCashflowChart from "../../../features/overview/components/NetCashflowC
 import NetWorthChart from "../../../features/overview/components/NetWorthChart";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
+import PlanLabPanel from "../../../features/planLab/PlanLabPanel";
 import type { RiskLevel, TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import {
@@ -1102,6 +1103,19 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
       {!showCompare && (
         <>
+          <PlanLabPanel
+            scenario={selectedScenario}
+            eventLibrary={eventLibrary}
+            members={members}
+            budgetRules={budgetRules}
+            displayMode={displayMode}
+            deflateSeries={deflateSeries}
+            baselineSeries={{
+              cash: cashSeries,
+              netWorth: netWorthSeries,
+              netCashflow: displayedNetCashflowSeries,
+            }}
+          />
           {!hasEnabledEvents && (
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm" align="flex-start">

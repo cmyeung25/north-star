@@ -186,6 +186,27 @@ export const compilePlanLabDraft = (
       };
       eventDefinitions.push(babyDefinition);
       eventRefs.push({ refId: babyDefinition.id, enabled: true });
+      const oneOffAmount = clampNonNegative(
+        toNumber(draft.babyPlan.oneOffBabyCost)
+      );
+      if (oneOffAmount > 0) {
+        const babyOneOffDefinition: EventDefinition = {
+          id: "plan-lab-baby-one-off",
+          title: "Plan Lab Baby One-Off",
+          type: "baby",
+          kind: "cashflow",
+          rule: {
+            mode: "params",
+            startMonth: targetMonth,
+            endMonth: targetMonth,
+            monthlyAmount: 0,
+            oneTimeAmount: oneOffAmount,
+            annualGrowthPct: 0,
+          },
+        };
+        eventDefinitions.push(babyOneOffDefinition);
+        eventRefs.push({ refId: babyOneOffDefinition.id, enabled: true });
+      }
     }
   }
 
