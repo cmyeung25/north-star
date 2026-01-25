@@ -4,6 +4,7 @@ import {
   Card,
   Group,
   NumberInput,
+  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -11,12 +12,16 @@ import {
   Title,
 } from "@mantine/core";
 import type { EventType } from "@north-star/engine";
-import { eventTypes } from "@north-star/engine";
+import { useEffect, useMemo, useState } from "react";
 import type {
   OnboardingTimelineEventDraft,
   OnboardingMemberDraft,
 } from "../../../domain/onboarding/applyDraft";
 import type { OverlapWarning } from "../../../domain/onboarding/overlapDetector";
+import {
+  ONBOARDING_EVENT_TYPES,
+  getEventTypeLabel,
+} from "../../../domain/events/eventTypeLabels";
 
 interface StepTimelineEventsProps {
   events: OnboardingTimelineEventDraft[];
@@ -43,10 +48,37 @@ export default function StepTimelineEvents({
     { value: "household", label: t("householdShared") },
     ...members.map((member) => ({ value: member.id, label: member.name })),
   ];
-  const eventOptions = eventTypes.map((type) => ({
-    value: type,
-    label: t(`eventType.${type}`),
-  }));
+  const [amountBasisByEventId, setAmountBasisByEventId] = useState<
+    Record<string, "monthly" | "yearly">
+  >({});
+
+  useEffect(() => {
+    setAmountBasisByEventId((current) => {
+      const next = { ...current };
+      events.forEach((event) => {
+        if (!next[event.id]) {
+          next[event.id] = "monthly";
+        }
+      });
+      Object.keys(next).forEach((eventId) => {
+        if (!events.some((event) => event.id === eventId)) {
+          delete next[eventId];
+        }
+      });
+      return next;
+    });
+  }, [events]);
+
+  const eventOptions = useMemo(() => {
+    const extraTypes = events
+      .map((event) => event.type)
+      .filter((type) => !ONBOARDING_EVENT_TYPES.includes(type));
+    const uniqueTypes = Array.from(new Set([...ONBOARDING_EVENT_TYPES, ...extraTypes]));
+    return uniqueTypes.map((type) => ({
+      value: type,
+      label: getEventTypeLabel(type, t),
+    }));
+  }, [events, t]);
 
   return (
     <Stack gap="xl">
@@ -107,6 +139,11 @@ export default function StepTimelineEvents({
                     }
                   />
                 </Group>
+                {!ONBOARDING_EVENT_TYPES.includes(event.type) && (
+                  <Text size="xs" c="orange">
+                    {t("eventTypeUnsupported")}
+                  </Text>
+                )}
                 <Group grow align="flex-start">
                   <Select
                     label={t("belongsTo")}
@@ -135,13 +172,37 @@ export default function StepTimelineEvents({
                   />
                 </Group>
                 <Group grow align="flex-start">
+                  <Stack gap="xs">
+                    <Text size="sm">{t("eventAmountBasis")}</Text>
+                    <SegmentedControl
+                      data={[
+                        { value: "monthly", label: t("amountBasisMonthly") },
+                        { value: "yearly", label: t("amountBasisYearly") },
+                      ]}
+                      value={amountBasisByEventId[event.id] ?? "monthly"}
+                      onChange={(value) =>
+                        setAmountBasisByEventId((current) => ({
+                          ...current,
+                          [event.id]: value as "monthly" | "yearly",
+                        }))
+                      }
+                    />
+                  </Stack>
                   <NumberInput
                     label={t("monthlyAmount")}
                     min={0}
-                    value={event.monthlyAmount ?? 0}
-                    onChange={(value) =>
-                      onUpdateEvent(event.id, { monthlyAmount: Number(value) })
+                    value={
+                      (amountBasisByEventId[event.id] ?? "monthly") === "yearly"
+                        ? (event.monthlyAmount ?? 0) * 12
+                        : event.monthlyAmount ?? 0
                     }
+                    onChange={(value) => {
+                      const nextValue = typeof value === "number" ? value : 0;
+                      const basis = amountBasisByEventId[event.id] ?? "monthly";
+                      onUpdateEvent(event.id, {
+                        monthlyAmount: basis === "yearly" ? nextValue / 12 : nextValue,
+                      });
+                    }}
                     error={errors[`event.${event.id}.monthlyAmount`]}
                   />
                   <NumberInput

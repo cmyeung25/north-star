@@ -1355,6 +1355,9 @@
     "addEvent": "Add event",
     "timelineItem": "Timeline event",
     "eventName": "Event name",
+    "eventAmountBasis": "Amount basis",
+    "amountBasisMonthly": "Monthly",
+    "amountBasisYearly": "Yearly",
     "eventType": {
       "rent": "Rent",
       "salary": "Salary",
@@ -1372,6 +1375,8 @@
       "tax_benefit": "Tax benefit",
       "custom": "Custom"
     },
+    "eventTypeFallback": "Other ({type})",
+    "eventTypeUnsupported": "This event type is better tracked in Budget rules or Assets/Homes.",
     "oneTimeAmount": "One-time amount",
     "reviewTitle": "Review & confirm",
     "reviewDescription": "Confirm members, cashflow, and overlap warnings.",
