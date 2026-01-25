@@ -32,6 +32,13 @@ export default function StepGlobalSettings({
           error={errors.baseMonth}
         />
         <NumberInput
+          label={t("initialCash")}
+          description={t("initialCashHint")}
+          min={0}
+          value={settings.initialCash}
+          onChange={(value) => onChange({ initialCash: Number(value) })}
+        />
+        <NumberInput
           label={t("horizonMonths")}
           min={12}
           value={settings.horizonMonths}

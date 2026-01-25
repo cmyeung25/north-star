@@ -7,6 +7,8 @@ import type { CashflowItem } from "../src/domain/ledger/types";
 import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
 import { resolveMonthInList } from "../src/utils/month";
+import type { ScenarioEventView } from "../src/domain/events/types";
+import type { ScenarioMember } from "../src/store/scenarioStore";
 
 type MonthlyBreakdownModalHostProps = {
   months: string[];
@@ -19,6 +21,11 @@ type MonthlyBreakdownModalHostProps = {
   netWorthBreakdownByMonth?: Record<string, NetWorthBreakdown>;
   currency: string;
   memberLookup?: Record<string, string>;
+  scenarioId?: string;
+  baseMonth?: string | null;
+  horizonMonths?: number;
+  members?: ScenarioMember[];
+  eventViews?: ScenarioEventView[];
 };
 
 export default function MonthlyBreakdownModalHost({
@@ -32,6 +39,11 @@ export default function MonthlyBreakdownModalHost({
   netWorthBreakdownByMonth,
   currency,
   memberLookup,
+  scenarioId,
+  baseMonth,
+  horizonMonths,
+  members,
+  eventViews,
 }: MonthlyBreakdownModalHostProps) {
   const activeModal = useUiStore((state) => state.activeModal);
   const breakdownOpen = useUiStore((state) => state.breakdownOpen);
@@ -73,6 +85,11 @@ export default function MonthlyBreakdownModalHost({
       currency={currency}
       memberLookup={memberLookup}
       initialTab={initialTab}
+      scenarioId={scenarioId}
+      baseMonth={baseMonth}
+      horizonMonths={horizonMonths}
+      members={members}
+      eventViews={eventViews}
     />
   );
 }

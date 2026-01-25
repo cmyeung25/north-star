@@ -32,6 +32,7 @@ export type OnboardingBudgetRuleDraft = {
   annualGrowthPct?: number;
   startMonth?: string | null;
   endMonth?: string | null;
+  applyScope?: ApplyScope;
 };
 
 export type OnboardingIncomeDraft = {
@@ -70,6 +71,7 @@ export type OnboardingSettingsDraft = {
   horizonMonths: number;
   annualInflationPct: number;
   viewMode: "nominal" | "real";
+  initialCash: number;
 };
 
 export type OnboardingDraft = {
@@ -180,6 +182,7 @@ export const applyOnboardingDraftToScenario = (
     baseMonth,
     horizonMonths: settings.horizonMonths,
     includeBudgetRulesInProjection: true,
+    initialCash: Math.max(0, Number(settings.initialCash ?? 0)),
   });
 
   const shouldReplaceDefaultMember =
@@ -241,7 +244,7 @@ export const applyOnboardingDraftToScenario = (
       annualGrowthPct: rule.annualGrowthPct ?? 0,
       startMonth: usesMonthBasis ? normalizedStart.month : undefined,
       endMonth: usesMonthBasis ? normalizedEnd.month : undefined,
-      applyScope: defaultApplyScope,
+      applyScope: rule.applyScope ?? defaultApplyScope,
     });
   });
 
@@ -355,6 +358,7 @@ export const buildDefaultOnboardingDraft = (
     horizonMonths: scenario.assumptions.horizonMonths ?? 360,
     annualInflationPct: 0,
     viewMode: "nominal",
+    initialCash: scenario.assumptions.initialCash ?? 0,
   },
   budgetRules: [],
   positions: {

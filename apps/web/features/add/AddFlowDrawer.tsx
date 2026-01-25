@@ -40,6 +40,7 @@ import { createEventId, getEventTypeDisplay } from "../../components/timeline/ut
 import EndConditionPicker from "../../components/EndConditionPicker";
 import type { EventDefinition } from "../../src/domain/events/types";
 import type { EventType } from "../../src/features/timeline/schema";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 
 const budgetCategories: BudgetCategory[] = [
   "health",
@@ -164,7 +165,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     ageFrom: 0,
     ageTo: 3,
     monthlyAmount: 0,
-    annualGrowthPct: 0,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
     startMonthInput: baseMonth,
     endMonthInput: "",
   }));
@@ -180,8 +181,8 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     mortgageTermYears: 30,
     mortgageRatePct: 4,
     holdingCostMonthly: 0,
-    holdingCostAnnualGrowthPct: 0,
-    annualAppreciationPct: 0,
+    holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+    annualAppreciationPct: DEFAULT_ANNUAL_GROWTH_PCT,
   }));
 
   const [homeErrors, setHomeErrors] = useState<{ purchaseMonth?: string }>({});
@@ -194,7 +195,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     endMonthInput: "",
     endConditionMode: "month",
     oneOffMonthInput: baseMonth,
-    annualGrowthPct: 0,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
     memberId: members[0]?.id ?? null,
     incomeSubtype: "salary",
     highlighted: false,
@@ -222,7 +223,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
       ageFrom: 0,
       ageTo: 3,
       monthlyAmount: 0,
-      annualGrowthPct: 0,
+      annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
       startMonthInput: baseMonth,
       endMonthInput: "",
     });
@@ -237,8 +238,8 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
       mortgageTermYears: 30,
       mortgageRatePct: 4,
       holdingCostMonthly: 0,
-      holdingCostAnnualGrowthPct: 0,
-      annualAppreciationPct: 0,
+      holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+      annualAppreciationPct: DEFAULT_ANNUAL_GROWTH_PCT,
     });
     setHomeErrors({});
 
@@ -250,7 +251,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
       endMonthInput: "",
       endConditionMode: "month",
       oneOffMonthInput: baseMonth,
-      annualGrowthPct: 0,
+      annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
       memberId: members[0]?.id ?? null,
       incomeSubtype: "salary",
       highlighted: false,

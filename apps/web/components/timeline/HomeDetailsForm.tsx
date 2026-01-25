@@ -22,6 +22,7 @@ import {
   getHomePositionErrors,
 } from "../../src/store/scenarioValidation";
 import HomePositionForm from "../homes/HomePositionForm";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 
 type HomeDetailsFormProps = {
   home: HomePositionDraft;
@@ -92,10 +93,10 @@ export default function HomeDetailsForm({
       rental: checked
         ? current.rental ?? {
             rentMonthly: 0,
-            rentStartMonth:
+          rentStartMonth:
               current.purchaseMonth ?? current.existing?.asOfMonth ?? "",
             rentEndMonth: null,
-            rentAnnualGrowthPct: 0,
+            rentAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
             vacancyRatePct: 0,
           }
         : undefined,
@@ -107,7 +108,7 @@ export default function HomeDetailsForm({
       rentMonthly: 0,
       rentStartMonth: "",
       rentEndMonth: null,
-      rentAnnualGrowthPct: 0,
+      rentAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
       vacancyRatePct: 0,
     };
 

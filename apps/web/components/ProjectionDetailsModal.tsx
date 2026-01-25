@@ -15,15 +15,18 @@ import {
   Tabs,
   Text,
 } from "@mantine/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "../lib/i18n";
 import type { CashflowItem } from "../src/domain/ledger/types";
 import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
+import { getMonthlyHighlights } from "../src/domain/timeline/getMonthlyHighlights";
+import type { ScenarioEventView } from "../src/domain/events/types";
 import { useJumpToSource } from "../src/hooks/useJumpToSource";
 import { isInvestmentCashflow } from "../src/domain/ledger/cashflowFilters";
 import { resolveMonthInList } from "../src/utils/month";
+import type { ScenarioMember } from "../src/store/scenarioStore";
 
 type ProjectionDetailsModalProps = {
   opened: boolean;
@@ -41,6 +44,11 @@ type ProjectionDetailsModalProps = {
   currency: string;
   memberLookup?: Record<string, string>;
   initialTab?: "cashflow" | "netWorth";
+  scenarioId?: string;
+  baseMonth?: string | null;
+  horizonMonths?: number;
+  members?: ScenarioMember[];
+  eventViews?: ScenarioEventView[];
 };
 
 const buildEmptySummary = (): LedgerMonthSummary => ({
@@ -107,6 +115,11 @@ export default function ProjectionDetailsModal({
   currency,
   memberLookup,
   initialTab = "cashflow",
+  scenarioId,
+  baseMonth,
+  horizonMonths,
+  members,
+  eventViews,
 }: ProjectionDetailsModalProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
@@ -250,6 +263,25 @@ export default function ProjectionDetailsModal({
     return { ...item, label: item.key };
   });
 
+  const highlights = useMemo(() => {
+    if (!scenarioId || !members || !eventViews || !resolvedMonth) {
+      return { milestones: [], events: [] };
+    }
+    return getMonthlyHighlights({
+      scenarioId,
+      baseMonth,
+      horizonMonths,
+      members,
+      eventViews,
+      targetMonth: resolvedMonth,
+    });
+  }, [baseMonth, eventViews, horizonMonths, members, resolvedMonth, scenarioId]);
+
+  const hasHighlights =
+    highlights.milestones.length > 0 || highlights.events.length > 0;
+  const renderHighlightLabel = (label: string, memberName?: string) =>
+    memberName ? `${memberName} · ${label}` : label;
+
   return (
     <Modal
       opened={opened}
@@ -381,6 +413,38 @@ export default function ProjectionDetailsModal({
                   <Badge color="yellow" variant="light">
                     {t("breakdownDoubleCounting")}
                   </Badge>
+                )}
+              </Stack>
+
+              <Stack gap={4}>
+                <Text fw={600}>{t("breakdownHighlightsTitle")}</Text>
+                {!hasHighlights ? (
+                  <Text size="sm" c="dimmed">
+                    {t("breakdownHighlightsEmpty")}
+                  </Text>
+                ) : (
+                  <Stack gap={4}>
+                    {highlights.milestones.map((item) => (
+                      <Group key={`milestone-${item.id}`} gap="xs" wrap="nowrap">
+                        <Badge size="sm" variant="light">
+                          {t("breakdownHighlightMilestone")}
+                        </Badge>
+                        <Text size="sm">
+                          {renderHighlightLabel(item.label, item.memberName)}
+                        </Text>
+                      </Group>
+                    ))}
+                    {highlights.events.map((item) => (
+                      <Group key={`event-${item.id}`} gap="xs" wrap="nowrap">
+                        <Badge size="sm" variant="light" color="grape">
+                          {t("breakdownHighlightEvent")}
+                        </Badge>
+                        <Text size="sm">
+                          {renderHighlightLabel(item.label, item.memberName)}
+                        </Text>
+                      </Group>
+                    ))}
+                  </Stack>
                 )}
               </Stack>
 

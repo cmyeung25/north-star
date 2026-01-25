@@ -42,6 +42,7 @@ const buildDraft = (): OnboardingDraft => ({
     horizonMonths: 240,
     annualInflationPct: 2,
     viewMode: "nominal",
+    initialCash: 10000,
   },
   budgetRules: [
     {
@@ -73,6 +74,7 @@ const buildDraft = (): OnboardingDraft => ({
       startMonth: "2024-01",
       endMonth: "",
       endAtAgeYears: undefined,
+      annualGrowthPct: 0,
     },
   ],
   timelineEvents: [],

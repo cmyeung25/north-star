@@ -9,6 +9,7 @@ import type {
   OnboardingSettingsDraft,
   OnboardingTimelineEventDraft,
 } from "./applyDraft";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../constants";
 
 export type PersonaPreset = {
   id: OnboardingPersona;
@@ -71,7 +72,7 @@ const createBudgetRule = (
   category: options.category,
   ageBand: options.ageBand ?? { fromYears: 0, toYears: 99 },
   monthlyAmount: options.monthlyAmount,
-  annualGrowthPct: 0,
+  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
   startMonth: baseMonth,
   endMonth: "",
 });
@@ -93,6 +94,7 @@ const createIncome = (
   startMonth: baseMonth,
   endMonth: "",
   endAtAgeYears: undefined,
+  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
 });
 
 const emptyPositions: OnboardingPositionsDraft = {
@@ -197,7 +199,7 @@ export const applyPersonaPreset = (
           assetClass: "fund",
           startMonth: baseMonth,
           initialValue: 5000000,
-          expectedAnnualReturnPct: 5,
+          expectedAnnualReturnPct: DEFAULT_ANNUAL_GROWTH_PCT,
           monthlyContribution: 0,
         },
       ],

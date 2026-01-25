@@ -35,6 +35,7 @@ import {
   type LoanPosition,
   type LoanPositionDraft,
 } from "../../src/store/scenarioStore";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import type {
   EventDefinition,
   ScenarioEventRef,
@@ -163,21 +164,49 @@ const templateDefaults: Record<
   EventType,
   { monthlyAmount: number; oneTimeAmount: number; annualGrowthPct: number }
 > = {
-  rent: { monthlyAmount: 1800, oneTimeAmount: 0, annualGrowthPct: 3 },
-  salary: { monthlyAmount: 6000, oneTimeAmount: 0, annualGrowthPct: 3 },
-  buy_home: { monthlyAmount: 0, oneTimeAmount: 800000, annualGrowthPct: 0 },
-  baby: { monthlyAmount: 900, oneTimeAmount: 5000, annualGrowthPct: 2 },
-  car: { monthlyAmount: 600, oneTimeAmount: 20000, annualGrowthPct: 0 },
-  travel: { monthlyAmount: 0, oneTimeAmount: 4000, annualGrowthPct: 0 },
-  insurance: { monthlyAmount: 250, oneTimeAmount: 0, annualGrowthPct: 0 },
-  insurance_product: { monthlyAmount: 300, oneTimeAmount: 0, annualGrowthPct: 0 },
-  insurance_premium: { monthlyAmount: 300, oneTimeAmount: 0, annualGrowthPct: 0 },
-  insurance_payout: { monthlyAmount: 0, oneTimeAmount: 15000, annualGrowthPct: 0 },
-  tax_benefit: { monthlyAmount: 0, oneTimeAmount: 6000, annualGrowthPct: 0 },
-  helper: { monthlyAmount: 600, oneTimeAmount: 0, annualGrowthPct: 0 },
-  investment_contribution: { monthlyAmount: 500, oneTimeAmount: 0, annualGrowthPct: 0 },
-  investment_withdrawal: { monthlyAmount: 0, oneTimeAmount: 5000, annualGrowthPct: 0 },
-  custom: { monthlyAmount: 0, oneTimeAmount: 0, annualGrowthPct: 0 },
+  rent: { monthlyAmount: 1800, oneTimeAmount: 0, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
+  salary: { monthlyAmount: 6000, oneTimeAmount: 0, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
+  buy_home: {
+    monthlyAmount: 0,
+    oneTimeAmount: 800000,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  },
+  baby: { monthlyAmount: 900, oneTimeAmount: 5000, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
+  car: { monthlyAmount: 600, oneTimeAmount: 20000, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
+  travel: { monthlyAmount: 0, oneTimeAmount: 4000, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
+  insurance: { monthlyAmount: 250, oneTimeAmount: 0, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
+  insurance_product: {
+    monthlyAmount: 300,
+    oneTimeAmount: 0,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  },
+  insurance_premium: {
+    monthlyAmount: 300,
+    oneTimeAmount: 0,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  },
+  insurance_payout: {
+    monthlyAmount: 0,
+    oneTimeAmount: 15000,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  },
+  tax_benefit: {
+    monthlyAmount: 0,
+    oneTimeAmount: 6000,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  },
+  helper: { monthlyAmount: 600, oneTimeAmount: 0, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
+  investment_contribution: {
+    monthlyAmount: 500,
+    oneTimeAmount: 0,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  },
+  investment_withdrawal: {
+    monthlyAmount: 0,
+    oneTimeAmount: 5000,
+    annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  },
+  custom: { monthlyAmount: 0, oneTimeAmount: 0, annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT },
 };
 
 type CreateEventOptions = {
@@ -258,12 +287,12 @@ export const createHomePositionFromTemplate = (
       normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "",
     purchasePrice: 8_000_000,
     downPayment: 2_400_000,
-    annualAppreciationPct: 2,
+    annualAppreciationPct: DEFAULT_ANNUAL_GROWTH_PCT,
     mortgageRatePct: 0,
     mortgageTermYears: 30,
     feesOneTime: 0,
     holdingCostMonthly: 3_000,
-    holdingCostAnnualGrowthPct: 0,
+    holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
   };
 };
 
@@ -278,7 +307,7 @@ export const createCarPositionFromTemplate = (
     downPayment: 0,
     annualDepreciationRatePct: 0,
     holdingCostMonthly: 0,
-    holdingCostAnnualGrowthPct: 0,
+    holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
   };
 };
 
@@ -294,7 +323,7 @@ export const createInvestmentPositionFromTemplate = (
     startMonth,
     initialValue: 200_000,
     assetClass: "fund",
-    expectedAnnualReturnPct: 5,
+    expectedAnnualReturnPct: DEFAULT_ANNUAL_GROWTH_PCT,
     monthlyContribution: 5000,
     monthlyWithdrawal: 0,
     feeAnnualRatePct: 0.6,
@@ -334,9 +363,9 @@ export const createInsurancePositionFromTemplate = (
     kind: "protection",
     startMonth,
     premiumMonthly: 1200,
-    premiumAnnualGrowthPct: 0,
+    premiumAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
     initialCashValue: 0,
-    expectedAnnualReturnPct: 3,
+    expectedAnnualReturnPct: DEFAULT_ANNUAL_GROWTH_PCT,
   };
 };
 

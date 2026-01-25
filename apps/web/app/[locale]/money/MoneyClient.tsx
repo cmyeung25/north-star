@@ -188,6 +188,10 @@ export default function MoneyClient({
     [activeScenarioId, scenarioId, scenarios]
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
+  const scenarioEventViews = useMemo(
+    () => (scenario ? buildScenarioEventViews(scenario, eventLibrary) : []),
+    [eventLibrary, scenario]
+  );
   const scenarioIdValue = scenario?.id;
   const {
     projection,
@@ -2378,18 +2382,23 @@ export default function MoneyClient({
           </Modal>
         </>
       )}
-      <MonthlyBreakdownModalHost
-        months={months}
-        ledgerByMonth={ledgerByMonth}
-        summaryByMonth={summaryByMonth}
-        positionCashflowsByMonth={positionCashflowsByMonth}
-        projectionNetCashflowByMonth={projectionNetCashflowByMonth}
-        projectionNetCashflowMode={projectionNetCashflowMode}
-        netWorthByMonth={netWorthByMonth}
-        netWorthBreakdownByMonth={netWorthBreakdownByMonth}
-        currency={scenario?.baseCurrency ?? "USD"}
-        memberLookup={memberLookupRecord}
-      />
+        <MonthlyBreakdownModalHost
+          months={months}
+          ledgerByMonth={ledgerByMonth}
+          summaryByMonth={summaryByMonth}
+          positionCashflowsByMonth={positionCashflowsByMonth}
+          projectionNetCashflowByMonth={projectionNetCashflowByMonth}
+          projectionNetCashflowMode={projectionNetCashflowMode}
+          netWorthByMonth={netWorthByMonth}
+          netWorthBreakdownByMonth={netWorthBreakdownByMonth}
+          currency={scenario?.baseCurrency ?? "USD"}
+          memberLookup={memberLookupRecord}
+          scenarioId={scenario?.id}
+          baseMonth={scenario?.assumptions.baseMonth}
+          horizonMonths={scenario?.assumptions.horizonMonths}
+          members={members}
+          eventViews={scenarioEventViews}
+        />
     </Stack>
   );
 }
