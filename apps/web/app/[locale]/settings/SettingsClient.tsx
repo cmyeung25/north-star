@@ -77,6 +77,7 @@ import {
   deriveSalaryStepMilestones,
   isPersistedSalaryStepMilestone,
 } from "../../../src/domain/members/salaryStepMilestones";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../../src/domain/constants";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -525,6 +526,7 @@ export default function SettingsClient({
         category: "health" as const,
         ageBand: { fromYears: 0, toYears: 3 },
         monthlyAmount: 0,
+        annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
         applyScope: { scope: "all" } as ApplyScope,
       };
       createBudgetRule(nextRule);

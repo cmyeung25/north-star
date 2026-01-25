@@ -18,6 +18,7 @@ type HomePositionFormProps = {
   showAnnualAppreciation?: boolean;
   showHoldingCostFields?: boolean;
   showHoldingCostGrowth?: boolean;
+  showPurchaseHint?: boolean;
   monthPlaceholder?: string;
   t: (key: string) => string;
 };
@@ -37,6 +38,7 @@ export default function HomePositionForm({
   showAnnualAppreciation,
   showHoldingCostFields = false,
   showHoldingCostGrowth,
+  showPurchaseHint = true,
   monthPlaceholder = "YYYY-MM",
   t,
 }: HomePositionFormProps) {
@@ -57,6 +59,11 @@ export default function HomePositionForm({
 
   return (
     <>
+      {showPurchaseFields && showPurchaseHint && (
+        <Text size="xs" c="dimmed">
+          {t("purchaseHint")}
+        </Text>
+      )}
       {showPurchaseFields && (
         <>
           <TextInput

@@ -6,6 +6,7 @@ import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModal
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import { monthsBetween } from "../../../src/domain/members/age";
+import { buildScenarioEventViews } from "../../../src/domain/events/utils";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import {
   getScenarioById,
@@ -51,6 +52,10 @@ export default function PeopleClient({
     [activeScenarioId, scenarioId, scenarios]
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
+  const scenarioEventViews = useMemo(
+    () => (scenario ? buildScenarioEventViews(scenario, eventLibrary) : []),
+    [eventLibrary, scenario]
+  );
   const {
     projection,
     months,
@@ -207,6 +212,11 @@ export default function PeopleClient({
         netWorthBreakdownByMonth={netWorthBreakdownByMonth}
         currency={scenario?.baseCurrency ?? "USD"}
         memberLookup={memberLookupRecord}
+        scenarioId={scenario?.id}
+        baseMonth={scenario?.assumptions.baseMonth}
+        horizonMonths={scenario?.assumptions.horizonMonths}
+        members={members}
+        eventViews={scenarioEventViews}
       />
     </Stack>
   );

@@ -48,7 +48,7 @@ import {
 } from "../../../src/engine/adapter";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { useScenarioProjections } from "../../../src/engine/useScenarioProjections";
-import { buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
+import { buildScenarioEventViews, buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
 import {
   buildRunwayNetCashflowSeries,
   computeRunwaySimulation,
@@ -148,6 +148,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
 
   const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
+  const scenarioEventViews = useMemo(
+    () => (selectedScenario ? buildScenarioEventViews(selectedScenario, eventLibrary) : []),
+    [eventLibrary, selectedScenario]
+  );
   const compareScenarioOptions = useMemo(
     () =>
       scenarios.map((scenarioOption) => ({
@@ -1203,6 +1207,11 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             netWorthBreakdownByMonth={netWorthBreakdownByMonth}
             currency={selectedScenario.baseCurrency}
             memberLookup={memberLookup}
+            scenarioId={selectedScenario.id}
+            baseMonth={selectedScenario.assumptions.baseMonth}
+            horizonMonths={selectedScenario.assumptions.horizonMonths}
+            members={members}
+            eventViews={scenarioEventViews}
           />
           <RunwayDetailModal
             opened={runwayDetailOpen}

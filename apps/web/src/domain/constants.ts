@@ -1,0 +1,1 @@
+export const DEFAULT_ANNUAL_GROWTH_PCT = 3;

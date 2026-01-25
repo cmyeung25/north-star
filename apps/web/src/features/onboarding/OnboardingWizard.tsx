@@ -32,6 +32,8 @@ import {
   personaPresets,
 } from "../../domain/onboarding/personas";
 import { createHomePositionFromTemplate } from "../../../components/timeline/utils";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../domain/constants";
+import { buildOnboardingDefaults } from "../../domain/onboarding/buildOnboardingDefaults";
 import StepHouseholdMembers from "./steps/StepHouseholdMembers";
 import StepGlobalSettings from "./steps/StepGlobalSettings";
 import StepBudgetRules from "./steps/StepBudgetRules";
@@ -79,7 +81,7 @@ const createBudgetRuleDraft = (baseMonth: string): OnboardingBudgetRuleDraft => 
   category: "baseline",
   ageBand: { fromYears: 0, toYears: 99 },
   monthlyAmount: 0,
-  annualGrowthPct: 0,
+  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
   startMonth: baseMonth,
   endMonth: "",
 });
@@ -96,6 +98,7 @@ const createIncomeDraft = (
   startMonth: baseMonth,
   endMonth: "",
   endAtAgeYears: undefined,
+  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
 });
 
 const createTimelineEventDraft = (baseMonth: string): OnboardingTimelineEventDraft => ({
@@ -107,6 +110,7 @@ const createTimelineEventDraft = (baseMonth: string): OnboardingTimelineEventDra
   endMonth: "",
   monthlyAmount: 0,
   oneTimeAmount: 0,
+  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
 });
 
 export default function OnboardingWizard() {
@@ -170,6 +174,24 @@ export default function OnboardingWizard() {
   );
   const draftScenarioIdRef = useRef<string | null>(null);
 
+  const onboardingSeedKey = useMemo(() => {
+    if (!draft || !scenario) {
+      return null;
+    }
+    const memberSignature = draft.members
+      .map((member) =>
+        [
+          member.id,
+          member.kind,
+          member.birthMonth ?? "",
+          member.ageAtBaseMonth ?? "",
+        ].join(":")
+      )
+      .sort()
+      .join("|");
+    return `${scenario.id}:${draft.settings.baseMonth}:${memberSignature}`;
+  }, [draft, scenario]);
+
   useEffect(() => {
     if (!scenario) {
       return;
@@ -186,6 +208,44 @@ export default function OnboardingWizard() {
       draftScenarioIdRef.current = scenario.id;
     }
   }, [appSettings, scenario]);
+
+  useEffect(() => {
+    if (!scenario || !onboardingSeedKey) {
+      return;
+    }
+    if (draft?.members.length ?? 0 < 2) {
+      return;
+    }
+    setDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      const { incomesToUpsert, timelineEventsToUpsert, budgetRulesToUpsert } =
+        buildOnboardingDefaults({
+          members: current.members,
+          baseMonth: current.settings.baseMonth,
+          scenarioId: scenario.id,
+          existingIncomes: current.incomes,
+          existingTimelineEvents: current.timelineEvents,
+          existingBudgetRules: current.budgetRules,
+        });
+
+      if (
+        incomesToUpsert.length === 0 &&
+        timelineEventsToUpsert.length === 0 &&
+        budgetRulesToUpsert.length === 0
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        incomes: [...current.incomes, ...incomesToUpsert],
+        timelineEvents: [...current.timelineEvents, ...timelineEventsToUpsert],
+        budgetRules: [...current.budgetRules, ...budgetRulesToUpsert],
+      };
+    });
+  }, [draft?.members.length, onboardingSeedKey, scenario]);
 
   const stepKey: StepKey = steps[step] ?? "members";
 
