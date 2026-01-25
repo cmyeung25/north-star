@@ -22,6 +22,7 @@ export type PlanLabHousingDraft =
 export type PlanLabBabyPlanDraft = {
   targetMonth?: string;
   monthlyBabyBudget?: number;
+  oneOffBabyCost?: number;
   durationMonths?: number;
 };
 
