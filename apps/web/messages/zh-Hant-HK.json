@@ -1059,6 +1059,7 @@
     "defaultName": "成員",
     "memberLabel": "成員 {index}",
     "addMember": "新增成員",
+    "seedDefaultsLabel": "為此成員建立預設收入／預算項目",
     "removeMember": "移除",
     "nameLabel": "姓名",
     "kindLabel": "類型",

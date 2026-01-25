@@ -1049,6 +1049,7 @@
     "defaultName": "Member",
     "memberLabel": "Member {index}",
     "addMember": "Add member",
+    "seedDefaultsLabel": "Create default income/budget items for this member",
     "removeMember": "Remove",
     "nameLabel": "Name",
     "kindLabel": "Type",
