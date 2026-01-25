@@ -20,6 +20,7 @@ import {
   summarizeMonth,
   type LedgerMonthSummary,
 } from "../domain/ledger/ledgerUtils";
+import { WarningCode, type CompilerWarning } from "../domain/warnings/types";
 
 export type OnboardingDraftProjectionBundle = {
   projection: ProjectionResult | null;
@@ -35,6 +36,7 @@ export type OnboardingDraftProjection = {
   baseline: OnboardingDraftProjectionBundle;
   option: OnboardingDraftProjectionBundle;
   errors: OnboardingDraftValidationError[];
+  warnings: CompilerWarning[];
 };
 
 const emptyBundle: OnboardingDraftProjectionBundle = {
@@ -211,7 +213,8 @@ const buildNetCashflowEvent = (baseMonth: string, amount: number): EngineEvent =
 const normalizeMonth = (
   value: string | undefined,
   field: string,
-  errors: OnboardingDraftValidationError[]
+  errors: OnboardingDraftValidationError[],
+  warnings: CompilerWarning[]
 ) => {
   if (!value) {
     return null;
@@ -219,6 +222,14 @@ const normalizeMonth = (
   const normalized = normalizeMonthStrict(value);
   if (!normalized.ok) {
     errors.push({ field, reason: "invalid-month" });
+    warnings.push({
+      code: WarningCode.MonthInvalid,
+      severity: "warning",
+      messageKey: "warnings.monthInvalid",
+      defaultMessage: `${field} has invalid month ${value}.`,
+      refs: { month: value },
+      debug: { rawValue: value, reason: normalized.reason },
+    });
     return null;
   }
   return normalized.month;
@@ -226,12 +237,18 @@ const normalizeMonth = (
 
 const buildHousingPosition = (
   housing: Extract<OnboardingDraft["microPlan"], { kind: "housing" }>["housing"],
-  errors: OnboardingDraftValidationError[]
+  errors: OnboardingDraftValidationError[],
+  warnings: CompilerWarning[]
 ): HomePosition | null => {
   if (housing.kind === "rent") {
     return null;
   }
-  const purchaseMonth = normalizeMonth(housing.purchaseMonth, "housing.purchaseMonth", errors);
+  const purchaseMonth = normalizeMonth(
+    housing.purchaseMonth,
+    "housing.purchaseMonth",
+    errors,
+    warnings
+  );
   if (!purchaseMonth) {
     return null;
   }
@@ -268,12 +285,18 @@ const buildHousingPosition = (
 const buildOptionEvents = (
   draft: OnboardingDraft,
   baseMonth: string,
-  errors: OnboardingDraftValidationError[]
+  errors: OnboardingDraftValidationError[],
+  warnings: CompilerWarning[]
 ): EngineEvent[] => {
   if (draft.microPlan.kind === "housing") {
     const housing = draft.microPlan.housing;
     if (housing.kind === "rent") {
-      const startMonth = normalizeMonth(housing.startMonth, "housing.startMonth", errors);
+      const startMonth = normalizeMonth(
+        housing.startMonth,
+        "housing.startMonth",
+        errors,
+        warnings
+      );
       if (!startMonth) {
         return [];
       }
@@ -295,7 +318,7 @@ const buildOptionEvents = (
   }
 
   const baby = draft.microPlan.baby;
-  const dueMonth = normalizeMonth(baby.dueMonth, "baby.dueMonth", errors);
+  const dueMonth = normalizeMonth(baby.dueMonth, "baby.dueMonth", errors, warnings);
   if (!dueMonth) {
     return [];
   }
@@ -335,16 +358,27 @@ export const useOnboardingDraftProjectionWithLedger = (
 ): OnboardingDraftProjection =>
   useMemo(() => {
     if (!draft) {
-      return { baseline: emptyBundle, option: emptyBundle, errors: [] };
+      return { baseline: emptyBundle, option: emptyBundle, errors: [], warnings: [] };
     }
 
     const errors: OnboardingDraftValidationError[] = [];
+    const warnings: CompilerWarning[] = [];
     const baseMonthNormalized = normalizeMonthStrict(settings.baseMonth);
     if (!baseMonthNormalized.ok) {
       return {
         baseline: emptyBundle,
         option: emptyBundle,
         errors: [{ field: "baseMonth", reason: "invalid-month" }],
+        warnings: [
+          {
+            code: WarningCode.MonthInvalid,
+            severity: "warning",
+            messageKey: "warnings.monthInvalid",
+            defaultMessage: `baseMonth has invalid month ${settings.baseMonth}.`,
+            refs: { month: settings.baseMonth },
+            debug: { rawValue: settings.baseMonth, reason: baseMonthNormalized.reason },
+          },
+        ],
       };
     }
 
@@ -368,7 +402,7 @@ export const useOnboardingDraftProjectionWithLedger = (
 
     const baselineBundle = buildBundle(baselineInput, initialCash);
 
-    const optionEvents = buildOptionEvents(draft, baseMonth, errors);
+    const optionEvents = buildOptionEvents(draft, baseMonth, errors, warnings);
     const optionInput: ProjectionInput = {
       baseMonth,
       horizonMonths,
@@ -377,16 +411,16 @@ export const useOnboardingDraftProjectionWithLedger = (
     };
 
     if (draft.microPlan.kind === "housing" && draft.microPlan.housing.kind === "buy") {
-      const home = buildHousingPosition(draft.microPlan.housing, errors);
+      const home = buildHousingPosition(draft.microPlan.housing, errors, warnings);
       if (home) {
         optionInput.positions = { homes: [home] };
       }
     }
 
     if (errors.length > 0) {
-      return { baseline: baselineBundle, option: emptyBundle, errors };
+      return { baseline: baselineBundle, option: emptyBundle, errors, warnings };
     }
 
     const optionBundle = buildBundle(optionInput, initialCash);
-    return { baseline: baselineBundle, option: optionBundle, errors };
+    return { baseline: baselineBundle, option: optionBundle, errors, warnings };
   }, [draft, settings.baseMonth, settings.horizonMonths]);

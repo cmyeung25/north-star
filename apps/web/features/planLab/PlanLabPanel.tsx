@@ -35,6 +35,7 @@ import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
+import WarningsPanel from "../../components/WarningsPanel";
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
@@ -177,6 +178,9 @@ export default function PlanLabPanel({
   const rentStartMonthError = getMonthError(rentStartMonth, monthInvalidMessage);
   const purchaseMonthError = getMonthError(purchaseMonth, monthInvalidMessage);
   const babyDueMonthError = getMonthError(babyDueMonth, monthInvalidMessage);
+  const projectionWarningsTitle = t.has("planLabProjectionWarningsTitle")
+    ? t("planLabProjectionWarningsTitle")
+    : "Projection warnings";
 
   const { draft, hasInvalidMonths } = useMemo(() => {
     const invalid =
@@ -617,6 +621,11 @@ export default function PlanLabPanel({
               <Divider />
 
               <Stack gap="xs">
+                <WarningsPanel
+                  warnings={planLabProjection.projectionWarnings}
+                  title={projectionWarningsTitle}
+                  defaultOpen={false}
+                />
                 <Text fw={600}>{t("planLabWarningsTitle")}</Text>
                 {saveWarnings.length === 0 && !saveError && (
                   <Text size="sm" c="dimmed">

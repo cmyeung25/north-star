@@ -32,6 +32,7 @@ import {
   type SmartInvestWithdrawalSchedule,
 } from "../domain/smartInvest/solver";
 import { buildSmartInvestProjectionBreakdown } from "../domain/smartInvest/projection";
+import { WarningCode } from "../domain/warnings/types";
 
 type ProjectionWithLedger = {
   projection: ProjectionResult | null;
@@ -438,9 +439,12 @@ export const computeProjectionWithSmartInvest = (
     }
     transferSeries = transferPlan.transferSeries;
     withdrawalWarnings = transferPlan.shortfallsByMonth.map((shortfall) => ({
-      code: "smart-invest-reserve-shortfall",
-      message: "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
-      meta: shortfall,
+      code: WarningCode.SmartInvestReserveShortfall,
+      severity: "warning",
+      messageKey: "warnings.smartInvestReserveShortfall",
+      defaultMessage: "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
+      refs: { month: shortfall.month },
+      debug: shortfall,
     }));
   }
 
@@ -520,9 +524,12 @@ export const computeProjectionWithSmartInvest = (
       }
       transferSeries = updatedTransferPlan.transferSeries;
       withdrawalWarnings = updatedTransferPlan.shortfallsByMonth.map((shortfall) => ({
-        code: "smart-invest-reserve-shortfall",
-        message: "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
-        meta: shortfall,
+        code: WarningCode.SmartInvestReserveShortfall,
+        severity: "warning",
+        messageKey: "warnings.smartInvestReserveShortfall",
+        defaultMessage: "Smart Invest withdrawals cannot fully cover the reserve shortfall.",
+        refs: { month: shortfall.month },
+        debug: shortfall,
       }));
       runProjectionPass({
         smartInvestContributionSchedules: contributionSchedule ?? undefined,

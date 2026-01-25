@@ -3,7 +3,12 @@ import type { EventDefinition, ScenarioEventRef } from "./types";
 import { buildScenarioEventViews, resolveEventRule } from "./utils";
 import { buildMonthRange, monthIndex } from "@north-star/engine";
 import { normalizeMonthStrict } from "../../utils/month";
-import { buildSalaryScheduleEntries, resolveSalaryEndMonth } from "./salary";
+import {
+  buildSalaryScheduleEntries,
+  resolveSalaryEndMonth,
+  resolveSalaryStepMonth,
+} from "./salary";
+import { WarningCode, type CompilerWarning } from "../warnings/types";
 
 export type MonthlyCashflowPoint = {
   month: string;
@@ -27,6 +32,7 @@ type CashflowCompilerOptions = {
   assumptions: Pick<Scenario["assumptions"], "baseMonth" | "horizonMonths">;
   signByType: (type: EventDefinition["type"]) => 1 | -1;
   members?: ScenarioMember[];
+  warnings?: CompilerWarning[];
 };
 
 const applySignedAmount = (value: number | null | undefined, sign: 1 | -1) => {
@@ -41,6 +47,47 @@ const buildScheduleMap = (
     result[entry.month] = Math.abs(entry.amount ?? 0);
     return result;
   }, {});
+
+const pushWarning = (
+  warnings: CompilerWarning[] | undefined,
+  warning: CompilerWarning
+) => {
+  warnings?.push(warning);
+};
+
+const warnInvalidMonth = (params: {
+  warnings: CompilerWarning[] | undefined;
+  label: string;
+  value: string;
+  reason?: string;
+  eventId: string;
+  month?: string;
+  debug?: Record<string, unknown>;
+}) => {
+  pushWarning(params.warnings, {
+    code: WarningCode.MonthInvalid,
+    severity: "warning",
+    messageKey: "warnings.monthInvalid",
+    defaultMessage: `${params.label} has invalid month ${params.value}.`,
+    refs: { eventId: params.eventId, month: params.month ?? params.value },
+    debug: { label: params.label, rawValue: params.value, reason: params.reason, ...params.debug },
+  });
+};
+
+const warnSalaryLadderInvalid = (params: {
+  warnings: CompilerWarning[] | undefined;
+  eventId: string;
+  debug?: Record<string, unknown>;
+}) => {
+  pushWarning(params.warnings, {
+    code: WarningCode.SalaryLadderInvalid,
+    severity: "warning",
+    messageKey: "warnings.salaryLadderInvalid",
+    defaultMessage: "Salary ladder could not be compiled; salary steps were skipped.",
+    refs: { eventId: params.eventId },
+    debug: params.debug,
+  });
+};
 
 const resolveMonthRange = ({
   baseMonth,
@@ -73,6 +120,7 @@ export const compileEventToMonthlyCashflowSeries = ({
   assumptions,
   signByType,
   members,
+  warnings,
 }: CashflowCompilerOptions): MonthlyCashflowPoint[] => {
   if (definition.kind !== "cashflow") {
     return [];
@@ -91,6 +139,13 @@ export const compileEventToMonthlyCashflowSeries = ({
   }
   const normalizedBase = normalizeMonthStrict(baseMonthRaw);
   if (!normalizedBase.ok) {
+    warnInvalidMonth({
+      warnings,
+      label: "event.baseMonth",
+      value: baseMonthRaw,
+      reason: normalizedBase.reason,
+      eventId: definition.id,
+    });
     return [];
   }
   const baseMonth = normalizedBase.month;
@@ -106,6 +161,14 @@ export const compileEventToMonthlyCashflowSeries = ({
       ? normalizeMonthStrict(rawEndMonth)
       : null;
   if (normalizedEnd && !normalizedEnd.ok) {
+    warnInvalidMonth({
+      warnings,
+      label: "event.endMonth",
+      value: rawEndMonth,
+      reason: normalizedEnd.reason,
+      eventId: definition.id,
+      month: rawEndMonth,
+    });
     return [];
   }
 
@@ -125,6 +188,14 @@ export const compileEventToMonthlyCashflowSeries = ({
     }
     const normalizedStart = normalizeMonthStrict(effectiveRule.startMonth);
     if (!normalizedStart.ok) {
+      warnInvalidMonth({
+        warnings,
+        label: "event.startMonth",
+        value: effectiveRule.startMonth,
+        reason: normalizedStart.reason,
+        eventId: definition.id,
+        month: effectiveRule.startMonth,
+      });
       return [];
     }
 
@@ -141,7 +212,52 @@ export const compileEventToMonthlyCashflowSeries = ({
       endMonth: effectiveEndMonth,
     });
     if (!range) {
+      warnSalaryLadderInvalid({
+        warnings,
+        eventId: definition.id,
+        debug: {
+          reason: "empty-range",
+          startMonth: normalizedStart.month,
+          endMonth: effectiveEndMonth,
+        },
+      });
       return [];
+    }
+
+    const invalidStepIds = (effectiveRule.salarySteps ?? [])
+      .filter((step) => {
+        const resolved = resolveSalaryStepMonth({
+          step,
+          member,
+          baseMonth,
+        });
+        if (resolved) {
+          return false;
+        }
+        if (step.basis === "month") {
+          const raw = step.startMonth ?? "";
+          const normalized = normalizeMonthStrict(raw);
+          if (!normalized.ok) {
+            warnInvalidMonth({
+              warnings,
+              label: "salaryStep.startMonth",
+              value: raw,
+              reason: normalized.reason,
+              eventId: definition.id,
+              month: raw,
+              debug: { stepId: step.id },
+            });
+          }
+        }
+        return true;
+      })
+      .map((step) => step.id);
+    if (invalidStepIds.length > 0) {
+      warnSalaryLadderInvalid({
+        warnings,
+        eventId: definition.id,
+        debug: { reason: "invalid-step", stepIds: invalidStepIds },
+      });
     }
 
     const salarySchedule = buildSalaryScheduleEntries({
@@ -156,6 +272,17 @@ export const compileEventToMonthlyCashflowSeries = ({
     });
 
     if (salarySchedule.length === 0) {
+      warnSalaryLadderInvalid({
+        warnings,
+        eventId: definition.id,
+        debug: {
+          reason: "empty-schedule",
+          startMonth: normalizedStart.month,
+          endMonth: resolvedEndMonth,
+          baseMonthlyAmount: effectiveRule.monthlyAmount ?? 0,
+          stepCount: effectiveRule.salarySteps?.length ?? 0,
+        },
+      });
       return [];
     }
 
@@ -173,6 +300,19 @@ export const compileEventToMonthlyCashflowSeries = ({
   }
 
   if (effectiveRule.mode === "schedule") {
+    (effectiveRule.schedule ?? []).forEach((entry) => {
+      const normalized = normalizeMonthStrict(entry.month);
+      if (!normalized.ok) {
+        warnInvalidMonth({
+          warnings,
+          label: "event.schedule.month",
+          value: entry.month,
+          reason: normalized.reason,
+          eventId: definition.id,
+          month: entry.month,
+        });
+      }
+    });
     const scheduleMap = buildScheduleMap(effectiveRule.schedule);
     const months = buildMonthRange(baseMonth, horizonMonths);
     return months.map((month) => ({
@@ -188,6 +328,14 @@ export const compileEventToMonthlyCashflowSeries = ({
 
   const normalizedStart = normalizeMonthStrict(effectiveRule.startMonth);
   if (!normalizedStart.ok) {
+    warnInvalidMonth({
+      warnings,
+      label: "event.startMonth",
+      value: effectiveRule.startMonth,
+      reason: normalizedStart.reason,
+      eventId: definition.id,
+      month: effectiveRule.startMonth,
+    });
     return [];
   }
   const startMonth = normalizedStart.month;
@@ -235,6 +383,7 @@ type ScenarioCompilerOptions = {
   eventLibrary: EventDefinition[];
   signByType: (type: EventDefinition["type"]) => 1 | -1;
   members?: ScenarioMember[];
+  warnings?: CompilerWarning[];
 };
 
 export const compileScenarioCashflows = ({
@@ -242,6 +391,7 @@ export const compileScenarioCashflows = ({
   eventLibrary,
   signByType,
   members,
+  warnings,
 }: ScenarioCompilerOptions): ScenarioCashflowEntry[] => {
   const assumptions = {
     baseMonth: scenario.assumptions.baseMonth,
@@ -258,6 +408,7 @@ export const compileScenarioCashflows = ({
         assumptions,
         signByType,
         members: resolvedMembers,
+        warnings,
       }).map((point) => ({
         month: point.month,
         amountSigned: point.amount,
