@@ -91,6 +91,7 @@ import type {
 } from "../../../src/store/scenarioStore";
 import type { EventGroup } from "@north-star/engine";
 import { useUiStore } from "../../../src/store/uiStore";
+import { ONBOARDING_PLACEHOLDER_TAG } from "../../../src/domain/onboarding/mapOnboardingDraftToStoreItems";
 
 type CashflowModalState = {
   opened: boolean;
@@ -119,6 +120,8 @@ type MoneyClientProps = {
   initialEditEventId?: string;
   initialEditHomeId?: string;
   initialEditSmartInvest?: string;
+  initialShowOnboardingBanner?: boolean;
+  initialShowOnboardingSkipped?: boolean;
 };
 
 const tabOrder: MoneyTab[] = [
@@ -145,6 +148,8 @@ export default function MoneyClient({
   initialEditEventId,
   initialEditHomeId,
   initialEditSmartInvest,
+  initialShowOnboardingBanner = false,
+  initialShowOnboardingSkipped = false,
 }: MoneyClientProps) {
   const t = useTranslations("money");
   const timelineText = useTranslations("timeline");
@@ -192,6 +197,17 @@ export default function MoneyClient({
     () => (scenario ? buildScenarioEventViews(scenario, eventLibrary) : []),
     [eventLibrary, scenario]
   );
+  const hasPlaceholderEvents = useMemo(
+    () =>
+      scenarioEventViews.some((view) =>
+        view.definition.title.includes(ONBOARDING_PLACEHOLDER_TAG)
+      ),
+    [scenarioEventViews]
+  );
+  const [dismissedPlaceholderBanner, setDismissedPlaceholderBanner] = useState(false);
+  const showPlaceholderBanner =
+    !dismissedPlaceholderBanner &&
+    (hasPlaceholderEvents || initialShowOnboardingBanner || initialShowOnboardingSkipped);
   const scenarioIdValue = scenario?.id;
   const {
     projection,
@@ -1392,6 +1408,30 @@ export default function MoneyClient({
               </Stack>
               <Button onClick={() => setAddFlowOpen(true)}>{t("addButton")}</Button>
             </Group>
+            {showPlaceholderBanner && (
+              <Card withBorder radius="md" padding="md">
+                <Group justify="space-between" align="flex-start" wrap="wrap">
+                  <Stack gap={2}>
+                    <Text fw={600}>{t("placeholdersBannerTitle")}</Text>
+                    <Text size="sm" c="dimmed">
+                      {t("placeholdersBannerBody")}
+                    </Text>
+                    {initialShowOnboardingSkipped && (
+                      <Text size="sm" c="dimmed">
+                        {t("placeholdersBannerSkipped")}
+                      </Text>
+                    )}
+                  </Stack>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => setDismissedPlaceholderBanner(true)}
+                  >
+                    {t("placeholdersBannerDismiss")}
+                  </Button>
+                </Group>
+              </Card>
+            )}
             <Card withBorder radius="md" padding="md">
               <Stack gap="xs">
                 <Text fw={600}>{t("orderTitle")}</Text>

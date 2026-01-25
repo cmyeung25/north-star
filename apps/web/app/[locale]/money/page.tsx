@@ -17,6 +17,14 @@ export default function Page({ searchParams }: PageProps) {
     typeof searchParams?.editSmartInvest === "string"
       ? searchParams.editSmartInvest
       : undefined;
+  const showOnboardingBanner =
+    typeof searchParams?.onboardingPlaceholders === "string"
+      ? searchParams.onboardingPlaceholders === "1"
+      : false;
+  const showOnboardingSkipped =
+    typeof searchParams?.onboardingSkipped === "string"
+      ? searchParams.onboardingSkipped === "1"
+      : false;
 
   return (
     <MoneyClient
@@ -26,6 +34,8 @@ export default function Page({ searchParams }: PageProps) {
       initialEditEventId={editEventId}
       initialEditHomeId={editHomeId}
       initialEditSmartInvest={editSmartInvest}
+      initialShowOnboardingBanner={showOnboardingBanner}
+      initialShowOnboardingSkipped={showOnboardingSkipped}
     />
   );
 }
