@@ -78,6 +78,7 @@ import {
   isPersistedSalaryStepMilestone,
 } from "../../../src/domain/members/salaryStepMilestones";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../../src/domain/constants";
+import { buildDefaultsForNewMember } from "../../../src/domain/onboarding/buildDefaultsForNewMember";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -148,6 +149,12 @@ export default function SettingsClient({
   const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
   const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
+  const upsertEventDefinition = useScenarioStore(
+    (state) => state.upsertEventDefinition
+  );
+  const upsertScenarioEventRef = useScenarioStore(
+    (state) => state.upsertScenarioEventRef
+  );
   const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
   const lastAutoSyncAt = useSettingsStore((state) => state.lastAutoSyncAt);
   const autoSyncError = useSettingsStore((state) => state.autoSyncError);
@@ -210,6 +217,8 @@ export default function SettingsClient({
     null
   );
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [seedDefaultsOnAddMember, setSeedDefaultsOnAddMember] = useState(true);
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine
   );
@@ -547,6 +556,47 @@ export default function SettingsClient({
   const handleCreateBudgetRule = useCallback(() => {
     createBudgetRuleForMember(members[0]?.id);
   }, [createBudgetRuleForMember, members]);
+
+  const handleAddMember = () => {
+    const newMember = {
+      id: createMemberId(),
+      name: membersText("defaultName"),
+      kind: "person" as const,
+      ageAtBaseMonth: 0,
+      applyScope: { scope: "all" } as ApplyScope,
+      milestones: buildDefaultMilestones("person"),
+    };
+
+    createMember(newMember);
+
+    if (scenario && seedDefaultsOnAddMember) {
+      const eventViews = buildScenarioEventViews(scenario, eventLibrary);
+      const { eventDefinitionsToUpsert, budgetRulesToUpsert } =
+        buildDefaultsForNewMember({
+          member: newMember,
+          members: [...members, newMember],
+          baseMonth: scenario.assumptions.baseMonth ?? "",
+          scenarioId: scenario.id,
+          baseCurrency: scenario.baseCurrency,
+          existingBudgetRules: budgetRules,
+          existingEventViews: eventViews,
+        });
+
+      eventDefinitionsToUpsert.forEach((definition) => {
+        upsertEventDefinition(definition);
+        upsertScenarioEventRef(scenario.id, {
+          refId: definition.id,
+          enabled: true,
+        });
+      });
+
+      budgetRulesToUpsert.forEach((rule) => {
+        createBudgetRule(rule);
+      });
+    }
+
+    showToast(common("saved"), "teal");
+  };
 
   useEffect(() => {
     if (hasHandledInitialAction.current) {
@@ -1302,15 +1352,8 @@ export default function SettingsClient({
                   size="xs"
                   variant="light"
                   onClick={() => {
-                    createMember({
-                      id: createMemberId(),
-                      name: membersText("defaultName"),
-                      kind: "person",
-                      ageAtBaseMonth: 0,
-                      applyScope: { scope: "all" },
-                      milestones: buildDefaultMilestones("person"),
-                    });
-                    showToast(common("saved"), "teal");
+                    setSeedDefaultsOnAddMember(true);
+                    setIsAddMemberModalOpen(true);
                   }}
                 >
                   {membersText("addMember")}
@@ -1968,6 +2011,36 @@ export default function SettingsClient({
               </Stack>
             </Stack>
           </Card>
+          <Modal
+            opened={isAddMemberModalOpen}
+            onClose={() => setIsAddMemberModalOpen(false)}
+            title={membersText("addMember")}
+            centered
+          >
+            <Stack>
+              <Switch
+                checked={seedDefaultsOnAddMember}
+                onChange={(event) => setSeedDefaultsOnAddMember(event.currentTarget.checked)}
+                label={membersText("seedDefaultsLabel")}
+              />
+              <Group justify="flex-end">
+                <Button
+                  variant="light"
+                  onClick={() => setIsAddMemberModalOpen(false)}
+                >
+                  {common("cancel")}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsAddMemberModalOpen(false);
+                    handleAddMember();
+                  }}
+                >
+                  {membersText("addMember")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
         </Tabs.Panel>
 
         <Tabs.Panel value="budget" pt="md">
