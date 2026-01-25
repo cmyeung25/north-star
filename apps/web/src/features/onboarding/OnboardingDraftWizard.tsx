@@ -46,7 +46,7 @@ import type { TimeSeriesPoint } from "../../../features/overview/types";
 
 const steps = ["members", "totals", "microPlan", "preview"] as const;
 
-type StepKey = (typeof steps)[number];
+// type StepKey = (typeof steps)[number];
 
 const mergeSeries = (baseline: TimeSeriesPoint[], option: TimeSeriesPoint[]) => {
   const monthSet = new Set<string>();
