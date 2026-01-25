@@ -8,12 +8,9 @@ import type {
 } from "../../store/scenarioStore";
 import { normalizeMonthStrict } from "../../utils/month";
 import type { PlanLabDraft } from "./types";
+import { WarningCode, type CompilerWarning } from "../warnings/types";
 
-export type PlanLabDraftWarning = {
-  code: "invalid-month";
-  message: string;
-  meta?: Record<string, unknown>;
-};
+export type PlanLabDraftWarning = CompilerWarning;
 
 export type PlanLabDraftCompilation = {
   assumptions: Partial<ScenarioAssumptions>;
@@ -46,9 +43,12 @@ const normalizeDraftMonth = (
   const normalized = normalizeMonthStrict(value);
   if (!normalized.ok) {
     warnings.push({
-      code: "invalid-month",
-      message: `${label} has invalid month ${value}.`,
-      meta: { ...meta, reason: normalized.reason },
+      code: WarningCode.MonthInvalid,
+      severity: "warning",
+      messageKey: "warnings.monthInvalid",
+      defaultMessage: `${label} has invalid month ${value}.`,
+      refs: { month: value },
+      debug: { ...meta, rawValue: value, reason: normalized.reason },
     });
     return null;
   }

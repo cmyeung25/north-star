@@ -45,6 +45,7 @@ import {
 import { buildScenarioUrl } from "../../utils/scenarioContext";
 import type { TimeSeriesPoint } from "../../../features/overview/types";
 import { mapOnboardingDraftToStoreItems } from "../../domain/onboarding/mapOnboardingDraftToStoreItems";
+import WarningsPanel from "../../../components/WarningsPanel";
 
 const steps = ["members", "totals", "microPlan", "preview", "result"] as const;
 
@@ -212,7 +213,7 @@ export default function OnboardingDraftWizard() {
     ]
   );
 
-  const { baseline, option, errors } = useOnboardingDraftProjectionWithLedger(draft, {
+  const { baseline, option, errors, warnings } = useOnboardingDraftProjectionWithLedger(draft, {
     baseMonth: resolvedBaseMonth,
     horizonMonths: appSettings.globalHorizonMonths,
   });
@@ -645,6 +646,10 @@ export default function OnboardingDraftWizard() {
                   </ResponsiveContainer>
                 </div>
               )}
+              <WarningsPanel
+                warnings={warnings}
+                defaultOpen={false}
+              />
               {errors.length > 0 && (
                 <Text size="sm" c="red">
                   {t("previewErrors")}

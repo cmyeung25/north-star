@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventDefinition } from "../../domain/events/types";
 import type { Scenario } from "../../store/scenarioStore";
+import { WarningCode } from "../../domain/warnings/types";
 import { mapScenarioToEngineInput } from "../adapter";
 
 const baseScenario: Scenario = {
@@ -60,9 +61,7 @@ describe("mapScenarioToEngineInput warnings", () => {
     const result = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
 
     expect(result.input.positions?.loans).toHaveLength(0);
-    expect(result.warnings.some((warning) => warning.code === "invalid-month")).toBe(
-      true
-    );
+    expect(result.warnings.some((warning) => warning.code === WarningCode.MonthInvalid)).toBe(true);
   });
 
   it("warns on potential double count for loan repayments", () => {
@@ -103,8 +102,10 @@ describe("mapScenarioToEngineInput warnings", () => {
 
     const result = mapScenarioToEngineInput(scenario, eventLibrary, { strict: false });
 
-    expect(result.warnings.some((warning) => warning.code === "double-count")).toBe(
-      true
-    );
+    expect(
+      result.warnings.some(
+        (warning) => warning.code === WarningCode.DoubleCountingPosition
+      )
+    ).toBe(true);
   });
 });

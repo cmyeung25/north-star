@@ -77,6 +77,7 @@ import type {
 import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
 import type { ProjectionResult } from "@north-star/engine";
 import type { AdapterWarning } from "../../src/engine/adapter";
+import { WarningCode } from "../../src/domain/warnings/types";
 import {
   buildCarCashflowBreakdown,
   buildHomeCashflowBreakdown,
@@ -296,11 +297,11 @@ export default function TimelineDesktop({
   const doubleCountLookup = useMemo(() => {
     const lookup = new Set<string>();
     (projectionWarnings ?? []).forEach((warning) => {
-      if (warning.code !== "double-count") {
+      if (warning.code !== WarningCode.DoubleCountingPosition) {
         return;
       }
-      const positionId = warning.meta?.positionId;
-      const type = warning.meta?.type;
+      const positionId = warning.refs?.positionId;
+      const type = warning.debug?.positionType;
       if (typeof positionId === "string" && typeof type === "string") {
         lookup.add(`${type}:${positionId}`);
       }
