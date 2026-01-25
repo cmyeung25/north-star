@@ -14,13 +14,11 @@ import {
   type OnboardingMemberDraft,
   type OnboardingTimelineEventDraft,
 } from "../../domain/onboarding/applyDraft";
-import { compileBudgetRuleToMonthlySeries, sumByMonth } from "../../domain/budget/compileBudgetRules";
 import {
   getActiveScenario,
   useScenarioStore,
-  type BudgetRule,
   type OnboardingPersona,
-  type ScenarioMember,
+  type BudgetRule,
 } from "../../store/scenarioStore";
 import { normalizeOnboardingMonth } from "../../utils/month";
 import { getBaseMonth } from "./utils";
@@ -214,7 +212,7 @@ export default function OnboardingWizard() {
     if (!scenario || !onboardingSeedKey) {
       return;
     }
-    if (draft?.members.length ?? 0 < 2) {
+    if (draft?.members.length ?? 0 < 1) {
       return;
     }
     setDraft((current) => {
@@ -249,51 +247,6 @@ export default function OnboardingWizard() {
   }, [draft?.members.length, onboardingSeedKey, scenario]);
 
   const stepKey: StepKey = steps[step] ?? "members";
-
-  const previewBudgetSeries = useMemo(() => {
-    if (!draft || !scenario) {
-      return [];
-    }
-    const draftMembers: ScenarioMember[] = draft.members.map((member) => ({
-      id: member.id,
-      name: member.name,
-      kind: member.kind,
-      birthMonth: member.birthMonth || undefined,
-      ageAtBaseMonth: member.ageAtBaseMonth,
-      applyScope: { scope: "all" },
-    }));
-
-    const draftRules: BudgetRule[] = draft.budgetRules.map((rule) => ({
-      id: rule.id,
-      name: rule.name || "",
-      enabled: rule.enabled,
-      memberId: rule.memberId === "household" ? undefined : rule.memberId ?? undefined,
-      category: rule.category,
-      ageBand: rule.ageBand ?? { fromYears: 0, toYears: 120 },
-      monthlyAmount: rule.monthlyAmount,
-      annualGrowthPct: rule.annualGrowthPct ?? 0,
-      startMonth: rule.startMonth ?? undefined,
-      endMonth: rule.endMonth ?? undefined,
-      applyScope: { scope: "all" },
-    }));
-
-    const scenarioForBudget = {
-      ...scenario,
-      assumptions: {
-        ...scenario.assumptions,
-        baseMonth: draft.settings.baseMonth,
-        horizonMonths: draft.settings.horizonMonths,
-      },
-    };
-
-    const ledger = draftRules.flatMap((rule) =>
-      compileBudgetRuleToMonthlySeries(rule, scenarioForBudget, draftMembers)
-    );
-    return sumByMonth(ledger).map((entry) => ({
-      month: entry.month,
-      value: Math.abs(entry.totalAmountSigned),
-    }));
-  }, [draft, scenario]);
 
   const overlapWarnings = useMemo(() => {
     if (!draft) {
@@ -726,7 +679,6 @@ export default function OnboardingWizard() {
         <StepBudgetRules
           rules={draft.budgetRules}
           members={draft.members}
-          previewSeries={previewBudgetSeries}
           errors={errors}
           baseMonth={draft.settings.baseMonth}
           onAddRule={() =>

@@ -15,8 +15,6 @@ import type {
   OnboardingMemberDraft,
 } from "../../../domain/onboarding/applyDraft";
 import type { BudgetCategory } from "../../../store/scenarioStore";
-import NetWorthChart from "../../../../features/overview/components/NetWorthChart";
-import type { TimeSeriesPoint } from "../../../../features/overview/types";
 import DateOrAgeBasisPicker, {
   type DateOrAgeBasis,
 } from "../../../../components/DateOrAgeBasisPicker";
@@ -24,7 +22,6 @@ import DateOrAgeBasisPicker, {
 interface StepBudgetRulesProps {
   rules: OnboardingBudgetRuleDraft[];
   members: OnboardingMemberDraft[];
-  previewSeries: TimeSeriesPoint[];
   errors: Record<string, string>;
   baseMonth: string;
   onAddRule: () => void;
@@ -45,7 +42,6 @@ const categoryOptions = [
 export default function StepBudgetRules({
   rules,
   members,
-  previewSeries,
   errors,
   baseMonth,
   onAddRule,
@@ -281,19 +277,6 @@ export default function StepBudgetRules({
         ))}
       </Stack>
 
-      <Stack gap="sm">
-        <Title order={5}>{t("budgetPreview")}</Title>
-        {previewSeries.length > 0 ? (
-          <NetWorthChart data={previewSeries} title={t("budgetPreviewTitle")} />
-        ) : (
-          <Text size="sm" c="dimmed">
-            {t("budgetPreviewEmpty")}
-          </Text>
-        )}
-        <Text size="xs" c="dimmed">
-          {t("budgetRulesNote")}
-        </Text>
-      </Stack>
     </Stack>
   );
 }

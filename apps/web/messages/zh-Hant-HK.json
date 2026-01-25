@@ -1371,6 +1371,9 @@
     "addEvent": "新增事件",
     "timelineItem": "事件",
     "eventName": "事件名稱",
+    "eventAmountBasis": "金額基準",
+    "amountBasisMonthly": "每月",
+    "amountBasisYearly": "每年",
     "eventType": {
       "rent": "租金",
       "salary": "薪資",
@@ -1388,6 +1391,8 @@
       "tax_benefit": "稅務優惠",
       "custom": "自訂"
     },
+    "eventTypeFallback": "其他（{type}）",
+    "eventTypeUnsupported": "此事件類型較適合用預算規則或資產／房產追蹤。",
     "oneTimeAmount": "一次性金額",
     "reviewTitle": "確認與完成",
     "reviewDescription": "檢查成員、現金流與重複警示。",

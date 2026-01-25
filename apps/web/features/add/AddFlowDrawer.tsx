@@ -772,12 +772,13 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
               <TextInput
                 label={t("ruleName")}
                 value={ruleDraft.name}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const value = event.currentTarget?.value ?? "";
                   setRuleDraft((current) => ({
                     ...current,
-                    name: event.currentTarget.value,
-                  }))
-                }
+                    name: value,
+                  }));
+                }}
               />
               <Select
                 label={t("ruleMember")}
@@ -951,12 +952,13 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
                 label={t("homeName")}
                 placeholder={t("homeNamePlaceholder")}
                 value={homeDraft.name}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const value = event.currentTarget?.value ?? "";
                   setHomeDraft((current) => ({
                     ...current,
-                    name: event.currentTarget.value,
-                  }))
-                }
+                    name: value,
+                  }));
+                }}
               />
               <TextInput
                 label={t("homePurchaseMonth")}
@@ -1116,12 +1118,13 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
               <TextInput
                 label={t("eventName")}
                 value={eventDraft.name}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const value = event.currentTarget?.value ?? "";
                   setEventDraft((current) => ({
                     ...current,
-                    name: event.currentTarget.value,
-                  }))
-                }
+                    name: value,
+                  }));
+                }}
               />
               <NumberInput
                 label={

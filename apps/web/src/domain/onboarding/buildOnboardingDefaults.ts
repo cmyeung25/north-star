@@ -1,5 +1,4 @@
 import type { ApplyScope } from "../applyScope";
-import type { ScenarioEventView } from "../events/types";
 import { getMemberAgeYears } from "../members/age";
 import { normalizeMonthStrict } from "../../utils/month";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../constants";
@@ -17,7 +16,6 @@ type BuildOnboardingDefaultsParams = {
   existingIncomes?: OnboardingIncomeDraft[];
   existingTimelineEvents?: OnboardingTimelineEventDraft[];
   existingBudgetRules?: OnboardingBudgetRuleDraft[];
-  existingEventViews?: ScenarioEventView[];
 };
 
 type OnboardingDefaults = {
@@ -25,8 +23,6 @@ type OnboardingDefaults = {
   timelineEventsToUpsert: OnboardingTimelineEventDraft[];
   budgetRulesToUpsert: OnboardingBudgetRuleDraft[];
 };
-
-const DAILY_LIVING_EVENT_TITLE = "Daily living expense";
 
 const buildApplyScope = (scenarioId: string): ApplyScope => ({
   scope: "include",
@@ -36,36 +32,24 @@ const buildApplyScope = (scenarioId: string): ApplyScope => ({
 const normalizeMemberId = (memberId?: string | null) =>
   memberId ? memberId : "household";
 
-const buildIncomeFingerprint = (
-  memberId?: string | null,
-  subtype?: OnboardingIncomeDraft["subtype"]
-) => `${normalizeMemberId(memberId)}:${subtype ?? "salary"}`;
+const buildSalaryFingerprint = (memberId?: string | null) =>
+  `seed:salary:${normalizeMemberId(memberId)}`;
 
-const buildBudgetFingerprint = (
+const buildBasicExpenseFingerprint = (memberId?: string | null) =>
+  `seed:basicExpense:${normalizeMemberId(memberId)}`;
+
+const buildCategoryFingerprint = (
   memberId: string | null | undefined,
   category: OnboardingBudgetRuleDraft["category"]
-) => `${normalizeMemberId(memberId)}:${category}`;
-
-const buildEventFingerprint = (memberId?: string | null) =>
-  `${normalizeMemberId(memberId)}:dailyLivingExpense`;
+) => `seed:${category}:${normalizeMemberId(memberId)}`;
 
 const buildExistingIncomeFingerprints = (params: BuildOnboardingDefaultsParams) => {
   const fingerprints = new Set<string>();
 
   params.existingIncomes?.forEach((income) => {
-    fingerprints.add(buildIncomeFingerprint(income.memberId, income.subtype));
-  });
-
-  params.existingEventViews?.forEach((view) => {
-    if (view.definition.kind !== "cashflow") {
-      return;
+    if (income.subtype === "salary") {
+      fingerprints.add(buildSalaryFingerprint(income.memberId));
     }
-    if (!view.definition.incomeSubtype && view.definition.type !== "salary") {
-      return;
-    }
-    fingerprints.add(
-      buildIncomeFingerprint(view.definition.memberId, view.definition.incomeSubtype)
-    );
   });
 
   return fingerprints;
@@ -75,25 +59,11 @@ const buildExistingBudgetFingerprints = (params: BuildOnboardingDefaultsParams) 
   const fingerprints = new Set<string>();
 
   params.existingBudgetRules?.forEach((rule) => {
-    fingerprints.add(buildBudgetFingerprint(rule.memberId, rule.category));
-  });
-
-  return fingerprints;
-};
-
-const buildExistingEventFingerprints = (params: BuildOnboardingDefaultsParams) => {
-  const fingerprints = new Set<string>();
-
-  params.existingTimelineEvents?.forEach((event) => {
-    if (event.title === DAILY_LIVING_EVENT_TITLE) {
-      fingerprints.add(buildEventFingerprint(event.memberId ?? "household"));
+    if (rule.category === "baseline") {
+      fingerprints.add(buildBasicExpenseFingerprint(rule.memberId));
+      return;
     }
-  });
-
-  params.existingEventViews?.forEach((view) => {
-    if (view.definition.title === DAILY_LIVING_EVENT_TITLE) {
-      fingerprints.add(buildEventFingerprint(view.definition.memberId));
-    }
+    fingerprints.add(buildCategoryFingerprint(rule.memberId, rule.category));
   });
 
   return fingerprints;
@@ -128,19 +98,36 @@ export const buildOnboardingDefaults = (
 
   const incomeFingerprints = buildExistingIncomeFingerprints(params);
   const budgetFingerprints = buildExistingBudgetFingerprints(params);
-  const eventFingerprints = buildExistingEventFingerprints(params);
 
   const incomesToUpsert: OnboardingIncomeDraft[] = [];
   const budgetRulesToUpsert: OnboardingBudgetRuleDraft[] = [];
   const timelineEventsToUpsert: OnboardingTimelineEventDraft[] = [];
 
   params.members.forEach((member) => {
+    const basicExpenseFingerprint = buildBasicExpenseFingerprint(member.id);
+    if (!budgetFingerprints.has(basicExpenseFingerprint)) {
+      budgetFingerprints.add(basicExpenseFingerprint);
+      budgetRulesToUpsert.push({
+        id: basicExpenseFingerprint,
+        name: "",
+        enabled: true,
+        memberId: member.id,
+        category: "baseline",
+        ageBand: { fromYears: 0, toYears: 120 },
+        monthlyAmount: 0,
+        annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+        startMonth: normalizedBaseMonth.month,
+        endMonth: "",
+        applyScope: buildApplyScope(params.scenarioId),
+      });
+    }
+
     if (member.kind === "pet") {
-      const fingerprint = buildBudgetFingerprint(member.id, "petcare");
+      const fingerprint = buildCategoryFingerprint(member.id, "petcare");
       if (!budgetFingerprints.has(fingerprint)) {
         budgetFingerprints.add(fingerprint);
         budgetRulesToUpsert.push({
-          id: `seed-budget-${member.id}-petcare`,
+          id: fingerprint,
           name: "",
           enabled: true,
           memberId: member.id,
@@ -170,11 +157,11 @@ export const buildOnboardingDefaults = (
     );
 
     if (ageYears >= 18) {
-      const fingerprint = buildIncomeFingerprint(member.id, "salary");
+      const fingerprint = buildSalaryFingerprint(member.id);
       if (!incomeFingerprints.has(fingerprint)) {
         incomeFingerprints.add(fingerprint);
         incomesToUpsert.push({
-          id: `seed-income-${member.id}-salary`,
+          id: fingerprint,
           title: "",
           memberId: member.id,
           subtype: "salary",
@@ -188,11 +175,11 @@ export const buildOnboardingDefaults = (
     }
 
     if (ageYears < 18) {
-      const fingerprint = buildBudgetFingerprint(member.id, "childcare");
+      const fingerprint = buildCategoryFingerprint(member.id, "childcare");
       if (!budgetFingerprints.has(fingerprint)) {
         budgetFingerprints.add(fingerprint);
         budgetRulesToUpsert.push({
-          id: `seed-budget-${member.id}-childcare`,
+          id: fingerprint,
           name: "",
           enabled: true,
           memberId: member.id,
@@ -208,11 +195,11 @@ export const buildOnboardingDefaults = (
     }
 
     if (ageYears >= 65) {
-      const fingerprint = buildBudgetFingerprint(member.id, "eldercare");
+      const fingerprint = buildCategoryFingerprint(member.id, "eldercare");
       if (!budgetFingerprints.has(fingerprint)) {
         budgetFingerprints.add(fingerprint);
         budgetRulesToUpsert.push({
-          id: `seed-budget-${member.id}-eldercare`,
+          id: fingerprint,
           name: "",
           enabled: true,
           memberId: member.id,
@@ -227,21 +214,6 @@ export const buildOnboardingDefaults = (
       }
     }
   });
-
-  const dailyLivingFingerprint = buildEventFingerprint("household");
-  if (!eventFingerprints.has(dailyLivingFingerprint)) {
-    timelineEventsToUpsert.push({
-      id: "seed-event-household-daily-living",
-      title: DAILY_LIVING_EVENT_TITLE,
-      type: "custom",
-      memberId: "household",
-      startMonth: normalizedBaseMonth.month,
-      endMonth: "",
-      monthlyAmount: 0,
-      oneTimeAmount: 0,
-      annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
-    });
-  }
 
   return { incomesToUpsert, timelineEventsToUpsert, budgetRulesToUpsert };
 };
