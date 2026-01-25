@@ -2,9 +2,10 @@
 
 import { Skeleton, Stack } from "@mantine/core";
 import { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import OnboardingWizard from "../../../src/features/onboarding/OnboardingWizard";
+import OnboardingDraftWizard from "../../../src/features/onboarding/OnboardingDraftWizard";
 import {
   getActiveScenario,
   useScenarioStore,
@@ -12,6 +13,7 @@ import {
 
 export default function OnboardingClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = useLocale();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -51,6 +53,12 @@ export default function OnboardingClient() {
 
   if (!activeScenario) {
     return null;
+  }
+
+  const mode = searchParams.get("mode");
+
+  if (mode === "draft") {
+    return <OnboardingDraftWizard />;
   }
 
   return <OnboardingWizard />;
