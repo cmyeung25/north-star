@@ -19,6 +19,7 @@ import { nanoid } from "nanoid";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Line,
   LineChart,
@@ -43,8 +44,9 @@ import {
 } from "../../store/scenarioStore";
 import { buildScenarioUrl } from "../../utils/scenarioContext";
 import type { TimeSeriesPoint } from "../../../features/overview/types";
+import { mapOnboardingDraftToStoreItems } from "../../domain/onboarding/mapOnboardingDraftToStoreItems";
 
-const steps = ["members", "totals", "microPlan", "preview"] as const;
+const steps = ["members", "totals", "microPlan", "preview", "result"] as const;
 
 // type StepKey = (typeof steps)[number];
 
@@ -78,9 +80,29 @@ const normalizeNumber = (value: number | "", fallback = 0) => {
 export default function OnboardingDraftWizard() {
   const t = useTranslations("onboardingDraft");
   const locale = useLocale();
+  const router = useRouter();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const appSettings = useScenarioStore((state) => state.appSettings);
+  const membersStore = useScenarioStore((state) => state.members);
+  const budgetRulesStore = useScenarioStore((state) => state.budgetRules);
+  const updateScenarioAssumptions = useScenarioStore(
+    (state) => state.updateScenarioAssumptions
+  );
+  const updateScenarioClientComputed = useScenarioStore(
+    (state) => state.updateScenarioClientComputed
+  );
+  const updateScenarioMeta = useScenarioStore((state) => state.updateScenarioMeta);
+  const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
+  const upsertScenarioEventRef = useScenarioStore(
+    (state) => state.upsertScenarioEventRef
+  );
+  const addHomePosition = useScenarioStore((state) => state.addHomePosition);
+  const updateHomePosition = useScenarioStore((state) => state.updateHomePosition);
+  const createMember = useScenarioStore((state) => state.createMember);
+  const updateMember = useScenarioStore((state) => state.updateMember);
+  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
+  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
   const scenario = useMemo(
     () => getActiveScenario(scenarios, activeScenarioId),
     [activeScenarioId, scenarios]
@@ -112,6 +134,7 @@ export default function OnboardingDraftWizard() {
   const [babyDueMonth, setBabyDueMonth] = useState("");
   const [babyMonthlyBudget, setBabyMonthlyBudget] = useState<number | "">("");
   const [babyOneOffCost, setBabyOneOffCost] = useState<number | "">("");
+  const [saveErrors, setSaveErrors] = useState<string[]>([]);
 
   const resolvedBaseMonth = useMemo(() => {
     const raw = appSettings.globalBaseMonth ?? getCurrentMonth();
@@ -234,6 +257,80 @@ export default function OnboardingDraftWizard() {
   };
 
   const hasOption = optionSeries.length > 0;
+
+  const handleSave = () => {
+    if (!scenarioId) {
+      return;
+    }
+    const mapping = mapOnboardingDraftToStoreItems({
+      draft,
+      baseMonth: resolvedBaseMonth,
+      scenarioId,
+      members: membersStore,
+    });
+    const nextErrors = mapping.errors.map((error) => error.message);
+    setSaveErrors(nextErrors);
+    const hasNonBlockingErrors = mapping.errors.length > 0;
+    if (mapping.errors.some((error) => error.blocking)) {
+      return;
+    }
+
+    mapping.globalChanges.members.forEach((member) => {
+      const existing = membersStore.find((entry) => entry.id === member.id);
+      if (existing) {
+        updateMember(member.id, member);
+      } else {
+        createMember(member);
+      }
+    });
+
+    mapping.globalChanges.budgetRules.forEach((rule) => {
+      const existing = budgetRulesStore.find((entry) => entry.id === rule.id);
+      if (existing) {
+        updateBudgetRule(rule.id, rule);
+      } else {
+        createBudgetRule(rule);
+      }
+    });
+
+    mapping.scenarioChanges.eventDefinitions.forEach((definition) => {
+      upsertEventDefinition(definition);
+      upsertScenarioEventRef(scenarioId, { refId: definition.id, enabled: true });
+    });
+
+    mapping.scenarioChanges.homePositions.forEach((home) => {
+      const exists = scenario?.positions?.homes?.some((entry) => entry.id === home.id);
+      if (exists) {
+        updateHomePosition(scenarioId, home);
+      } else {
+        addHomePosition(scenarioId, home);
+      }
+    });
+
+    if (mapping.scenarioChanges.initialCash !== undefined) {
+      updateScenarioAssumptions(scenarioId, {
+        initialCash: mapping.scenarioChanges.initialCash,
+      });
+    }
+
+    updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
+    updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+    const onboardingFlags = `&onboardingPlaceholders=1${
+      hasNonBlockingErrors ? "&onboardingSkipped=1" : ""
+    }`;
+    router.push(
+      `/${locale}${buildScenarioUrl("/money", scenarioId)}${onboardingFlags}`
+    );
+  };
+
+  const handleLater = () => {
+    if (!scenarioId) {
+      return;
+    }
+    updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
+    updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+    router.push(`/${locale}${buildScenarioUrl("/dashboard", scenarioId)}`);
+  };
 
   return (
     <Stack gap="lg">
@@ -585,13 +682,41 @@ export default function OnboardingDraftWizard() {
                   {t("nextPlanLab")}
                 </Button>
               </Group>
-              <Divider />
-              <Button disabled variant="default">
-                {t("saveDisabled")}
-              </Button>
             </Stack>
           </Card>
         </Stack>
+      )}
+
+      {step === 4 && (
+        <Card withBorder radius="md" padding="md">
+          <Stack gap="md">
+            <Title order={4}>{t("resultTitle")}</Title>
+            <Text size="sm" c="dimmed">
+              {t("resultHint")}
+            </Text>
+            {saveErrors.length > 0 && (
+              <Stack gap={4}>
+                <Text size="sm" c="red">
+                  {t("saveErrorsTitle")}
+                </Text>
+                {saveErrors.map((error) => (
+                  <Text key={error} size="sm" c="red">
+                    • {error}
+                  </Text>
+                ))}
+              </Stack>
+            )}
+            <Group align="center" wrap="wrap">
+              <Button onClick={handleSave}>{t("saveCta")}</Button>
+              <Button variant="default" onClick={handleLater}>
+                {t("laterCta")}
+              </Button>
+            </Group>
+            <Text size="xs" c="dimmed">
+              {t("saveHint")}
+            </Text>
+          </Stack>
+        </Card>
       )}
 
       <Group justify="space-between">
