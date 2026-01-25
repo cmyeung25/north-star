@@ -59,8 +59,9 @@ type StepKey = (typeof steps)[number];
 
 const templates = [
   { label: "本人", kind: "person", name: "本人" },
-  { label: "爸爸", kind: "person", name: "爸爸" },
-  { label: "媽媽", kind: "person", name: "媽媽" },
+  { label: "配偶", kind: "person", name: "配偶" },
+  // { label: "爸爸", kind: "person", name: "爸爸" },
+  // { label: "媽媽", kind: "person", name: "媽媽" },
   { label: "小朋友", kind: "person", name: "小朋友" },
   { label: "寵物", kind: "pet", name: "寵物" },
 ] as const;
