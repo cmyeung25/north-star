@@ -227,17 +227,21 @@ export default function PlanLabPanel({
   );
 
   const optionSeries = useMemo(() => {
-    if (!optionViewModel) {
+    if (!optionViewModel || !planLabProjection.projection) {
       return {
         cash: [],
         netWorth: [],
         netCashflow: [],
       };
     }
+    const netCashflowBase = planLabProjection.months.map((month) => ({
+      month,
+      value: planLabProjection.projectionNetCashflowByMonth?.[month] ?? 0,
+    }));
     const base = {
       cash: optionViewModel.cashSeries ?? [],
       netWorth: optionViewModel.netWorthSeries ?? [],
-      netCashflow: optionViewModel.netCashflowSeries ?? [],
+      netCashflow: netCashflowBase,
     };
     if (displayMode === "real") {
       return {
@@ -247,7 +251,7 @@ export default function PlanLabPanel({
       };
     }
     return base;
-  }, [deflateSeries, displayMode, optionViewModel]);
+  }, [deflateSeries, displayMode, optionViewModel, planLabProjection]);
 
   const chartData = useMemo(() => {
     const baseline =
