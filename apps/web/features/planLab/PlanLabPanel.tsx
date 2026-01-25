@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import {
   Line,
   LineChart,
@@ -26,10 +27,13 @@ import {
 import type { PlanLabDraft } from "../../src/domain/planLab/types";
 import type { EventDefinition } from "../../src/domain/events/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
+import { useScenarioStore } from "../../src/store/scenarioStore";
+import { applyPlanLabDraftToScenario } from "../../src/domain/planLab/applyPlanLabDraftToScenario";
 import { normalizeMonthInput, normalizeMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
+import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
@@ -49,6 +53,38 @@ type PlanLabPanelProps = {
     netWorth: TimeSeriesPoint[];
     netCashflow: TimeSeriesPoint[];
   };
+};
+
+const buildPlanLabScenarioName = (
+  draft: PlanLabDraft,
+  locale: string,
+  currency: string,
+  t: ReturnType<typeof useTranslations>
+) => {
+  if (draft.housing?.kind === "buy" && draft.housing.purchaseMonth) {
+    const price =
+      typeof draft.housing.purchasePrice === "number"
+        ? formatCurrency(draft.housing.purchasePrice, currency, locale)
+        : "";
+    return t("planLabScenarioNameBuy", {
+      price,
+      month: draft.housing.purchaseMonth,
+    });
+  }
+  if (draft.housing?.kind === "rent" && draft.housing.startMonth) {
+    const rent =
+      typeof draft.housing.monthlyRent === "number"
+        ? formatCurrency(draft.housing.monthlyRent, currency, locale)
+        : "";
+    return t("planLabScenarioNameRent", {
+      rent,
+      month: draft.housing.startMonth,
+    });
+  }
+  if (draft.babyPlan?.targetMonth) {
+    return t("planLabScenarioNameBaby", { month: draft.babyPlan.targetMonth });
+  }
+  return t("planLabScenarioNameOption");
 };
 
 const mergeSeries = (
@@ -93,6 +129,11 @@ export default function PlanLabPanel({
 }: PlanLabPanelProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
+  const router = useRouter();
+  const duplicateScenario = useScenarioStore((state) => state.duplicateScenario);
+  const replaceScenario = useScenarioStore((state) => state.replaceScenario);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
   const [panelValue, setPanelValue] = useState<string | null>(null);
   const [chartType, setChartType] = useState<ChartType>("netWorth");
   const [housingMode, setHousingMode] = useState<"rent" | "rent-bigger" | "buy">(
@@ -128,6 +169,7 @@ export default function PlanLabPanel({
   const [babyMonthlyBudget, setBabyMonthlyBudget] = useState<number | "">("");
   const [babyOneOffCost, setBabyOneOffCost] = useState<number | "">("");
   const [buyPanelOpen, setBuyPanelOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const isOpen = panelValue === "plan-lab";
 
@@ -270,6 +312,55 @@ export default function PlanLabPanel({
   }, [baselineSeries, chartType, optionSeries]);
 
   const planLabEnabled = isOpen && !hasInvalidMonths;
+  const hasExistingHomes = Boolean(
+    (scenario.positions?.homes && scenario.positions.homes.length > 0) ||
+      scenario.positions?.home
+  );
+  const saveWarnings = [
+    ...(hasInvalidMonths ? [t("planLabSaveInvalidMonths")] : []),
+    ...(housingMode === "buy" && hasExistingHomes ? [t("planLabHomeReplaceWarning")] : []),
+  ];
+
+  const handleSave = () => {
+    setSaveError(null);
+    if (!draft) {
+      setSaveError(t("planLabSaveMissingDraft"));
+      return;
+    }
+    if (hasInvalidMonths) {
+      setSaveError(t("planLabSaveInvalidMonths"));
+      return;
+    }
+    const validation = applyPlanLabDraftToScenario(scenario, draft, {
+      scenarioId: scenario.id,
+    });
+    if (validation.errors.length > 0) {
+      setSaveError(t("planLabSaveInvalidMonths"));
+      return;
+    }
+    const duplicated = duplicateScenario(scenario.id);
+    if (!duplicated) {
+      setSaveError(t("planLabSaveFailed"));
+      return;
+    }
+    const result = applyPlanLabDraftToScenario(duplicated, draft, {
+      scenarioId: duplicated.id,
+    });
+    if (result.errors.length > 0) {
+      setSaveError(t("planLabSaveInvalidMonths"));
+      return;
+    }
+    result.eventDefinitions.forEach((definition) => {
+      upsertEventDefinition(definition);
+    });
+    const nextScenario = {
+      ...result.scenario,
+      name: buildPlanLabScenarioName(draft, locale, scenario.baseCurrency, t),
+    };
+    replaceScenario(nextScenario);
+    setActiveScenario(nextScenario.id);
+    router.push(`/${locale}${buildScenarioUrl("/dashboard", nextScenario.id)}`);
+  };
 
   return (
     <Card withBorder radius="md" padding="md">
@@ -291,8 +382,9 @@ export default function PlanLabPanel({
               <Button
                 size="xs"
                 variant="light"
-                disabled
-                title={t("planLabSaveDisabled")}
+                disabled={!planLabEnabled}
+                title={planLabEnabled ? t("planLabSaveEnabled") : t("planLabSaveDisabled")}
+                onClick={handleSave}
               >
                 {t("planLabSave")}
               </Button>
@@ -526,9 +618,21 @@ export default function PlanLabPanel({
 
               <Stack gap="xs">
                 <Text fw={600}>{t("planLabWarningsTitle")}</Text>
-                <Text size="sm" c="dimmed">
-                  {t("planLabWarningsPlaceholder")}
-                </Text>
+                {saveWarnings.length === 0 && !saveError && (
+                  <Text size="sm" c="dimmed">
+                    {t("planLabWarningsPlaceholder")}
+                  </Text>
+                )}
+                {saveWarnings.map((warning) => (
+                  <Text key={warning} size="sm" c="orange">
+                    {warning}
+                  </Text>
+                ))}
+                {saveError && (
+                  <Text size="sm" c="red">
+                    {saveError}
+                  </Text>
+                )}
               </Stack>
               <Text size="xs" c="dimmed">
                 {t("planLabSaveHint")}
