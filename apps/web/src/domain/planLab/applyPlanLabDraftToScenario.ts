@@ -1,7 +1,12 @@
-import { addMonths } from "@north-star/engine";
+import { addMonths, monthIndex } from "@north-star/engine";
 import { nanoid } from "nanoid";
 import type { EventDefinition, ScenarioEventRef } from "../events/types";
-import type { HomePositionDraft, Scenario, ScenarioPositions } from "../../store/scenarioStore";
+import type {
+  CarPositionDraft,
+  HomePositionDraft,
+  Scenario,
+  ScenarioPositions,
+} from "../../store/scenarioStore";
 import { normalizeMonthStrict } from "../../utils/month";
 import type { PlanLabDraft } from "./types";
 
@@ -82,6 +87,64 @@ const normalizeOptionalMonth = (
   return normalized.month;
 };
 
+const normalizeOptionalMonthSafe = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+  const normalized = normalizeMonthStrict(value);
+  return normalized.ok ? normalized.month : null;
+};
+
+const applyEventRefOverrides = (
+  refs: ScenarioEventRef[],
+  overrides: ScenarioEventRef[]
+) => {
+  if (overrides.length === 0) {
+    return refs;
+  }
+  const overridesById = new Map(
+    overrides.map((override) => [override.refId, override])
+  );
+  return refs.map((ref) => {
+    const override = overridesById.get(ref.refId);
+    if (!override) {
+      return ref;
+    }
+    return {
+      ...ref,
+      enabled: override.enabled ?? ref.enabled,
+      overrides: {
+        ...(ref.overrides ?? {}),
+        ...(override.overrides ?? {}),
+      },
+    };
+  });
+};
+
+const buildAnnualSchedule = (params: {
+  startMonth: string;
+  annualAmount: number;
+  baseMonth?: string | null;
+  horizonMonths?: number | null;
+}) => {
+  const schedule: Array<{ month: string; amount: number }> = [];
+  if (!params.baseMonth || !params.horizonMonths) {
+    return [{ month: params.startMonth, amount: params.annualAmount }];
+  }
+  let nextMonth = params.startMonth;
+  const baseIndex = (month: string) =>
+    monthIndex(params.baseMonth ?? "", month);
+  let index = baseIndex(nextMonth);
+  while (index < params.horizonMonths) {
+    if (index >= 0) {
+      schedule.push({ month: nextMonth, amount: params.annualAmount });
+    }
+    nextMonth = addMonths(nextMonth, 12);
+    index = baseIndex(nextMonth);
+  }
+  return schedule;
+};
+
 export const applyPlanLabDraftToScenario = (
   baseScenario: Scenario,
   draft: PlanLabDraft,
@@ -102,6 +165,25 @@ export const applyPlanLabDraftToScenario = (
   let nextEventRefs = (baseScenario.eventRefs ?? []).filter(
     (ref) => !isPlanLabEventId(ref.refId)
   );
+
+  const baselineOverrides =
+    draft.baselineEdits?.flatMap<ScenarioEventRef>((edit) => {
+      if (edit.action === "keep" || edit.isEnabled === false) {
+        return [];
+      }
+      const endMonth = normalizeOptionalMonthSafe(edit.endMonth);
+      if (!endMonth) {
+        return [];
+      }
+      return [
+        {
+          refId: edit.refId,
+          enabled: true,
+          overrides: { endMonth },
+        },
+      ];
+    }) ?? [];
+  nextEventRefs = applyEventRefOverrides(nextEventRefs, baselineOverrides);
 
   if (draft.goalType === "family-launch") {
     const family = draft.familyLaunch;
@@ -436,6 +518,201 @@ export const applyPlanLabDraftToScenario = (
         }
       }
     }
+  }
+
+  const homeExperiments: HomePositionDraft[] = [];
+  const carExperiments: CarPositionDraft[] = [];
+  (draft.experiments ?? []).forEach((experiment) => {
+    if (experiment.isEnabled === false) {
+      return;
+    }
+    if (experiment.type === "oneOffExpense") {
+      const month = normalizeOptionalMonthSafe(experiment.month);
+      const amount = clampNonNegative(toNumber(experiment.amount));
+      if (!month || amount <= 0) {
+        return;
+      }
+      const definition: EventDefinition = {
+        id: buildPlanLabEventId(options.scenarioId, `exp-one-off-${experiment.id}`),
+        title: "Plan Lab One-Off Expense",
+        type: "custom",
+        kind: "cashflow",
+        currency: baseScenario.baseCurrency,
+        rule: {
+          mode: "params",
+          startMonth: month,
+          endMonth: month,
+          monthlyAmount: 0,
+          oneTimeAmount: amount,
+          annualGrowthPct: 0,
+        },
+      };
+      eventDefinitions.push(definition);
+      planLabEventRefs.push({ refId: definition.id, enabled: true });
+    }
+    if (experiment.type === "rangeExpense") {
+      const startMonth = normalizeOptionalMonthSafe(experiment.startMonth);
+      const endMonth = normalizeOptionalMonthSafe(experiment.endMonth);
+      const amount = clampNonNegative(toNumber(experiment.monthlyAmount));
+      if (!startMonth || !endMonth || amount <= 0) {
+        return;
+      }
+      const definition: EventDefinition = {
+        id: buildPlanLabEventId(options.scenarioId, `exp-range-${experiment.id}`),
+        title: "Plan Lab Range Expense",
+        type: "custom",
+        kind: "cashflow",
+        currency: baseScenario.baseCurrency,
+        rule: {
+          mode: "params",
+          startMonth,
+          endMonth,
+          monthlyAmount: amount,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+      };
+      eventDefinitions.push(definition);
+      planLabEventRefs.push({ refId: definition.id, enabled: true });
+    }
+    if (experiment.type === "incomeAdjust") {
+      const startMonth = normalizeOptionalMonthSafe(experiment.startMonth);
+      const amount = clampNonNegative(toNumber(experiment.monthlyAmount));
+      if (!startMonth || amount <= 0) {
+        return;
+      }
+      const definition: EventDefinition = {
+        id: buildPlanLabEventId(options.scenarioId, `exp-income-${experiment.id}`),
+        title: "Plan Lab Income Adjustment",
+        type: "salary",
+        kind: "cashflow",
+        currency: baseScenario.baseCurrency,
+        rule: {
+          mode: "params",
+          startMonth,
+          endMonth: null,
+          monthlyAmount: amount,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+      };
+      eventDefinitions.push(definition);
+      planLabEventRefs.push({ refId: definition.id, enabled: true });
+    }
+    if (experiment.type === "travelAnnual") {
+      const startMonth = normalizeOptionalMonthSafe(experiment.startMonth);
+      const amount = clampNonNegative(toNumber(experiment.annualAmount));
+      if (!startMonth || amount <= 0) {
+        return;
+      }
+      const schedule = buildAnnualSchedule({
+        startMonth,
+        annualAmount: amount,
+        baseMonth: baseScenario.assumptions.baseMonth,
+        horizonMonths: baseScenario.assumptions.horizonMonths,
+      });
+      if (schedule.length === 0) {
+        return;
+      }
+      const definition: EventDefinition = {
+        id: buildPlanLabEventId(options.scenarioId, `exp-travel-${experiment.id}`),
+        title: "Plan Lab Annual Travel",
+        type: "travel",
+        kind: "cashflow",
+        currency: baseScenario.baseCurrency,
+        rule: {
+          mode: "schedule",
+          schedule,
+        },
+      };
+      eventDefinitions.push(definition);
+      planLabEventRefs.push({ refId: definition.id, enabled: true });
+    }
+    if (experiment.type === "homeBuy") {
+      const purchaseMonth = normalizeOptionalMonthSafe(experiment.purchaseMonth);
+      if (!purchaseMonth) {
+        return;
+      }
+      const purchasePrice = clampNonNegative(toNumber(experiment.purchasePrice));
+      const downPaymentAmount =
+        experiment.downPaymentAmount !== undefined
+          ? clampNonNegative(toNumber(experiment.downPaymentAmount))
+          : experiment.downPaymentPct !== undefined
+            ? clampNonNegative(
+                purchasePrice * (toNumber(experiment.downPaymentPct) / 100)
+              )
+            : 0;
+      const mortgageRatePct =
+        experiment.mortgageRatePct ??
+        baseScenario.assumptions.mortgageRatePct ??
+        0;
+      const termYears =
+        experiment.termYears ?? baseScenario.assumptions.mortgageTermYears ?? 0;
+      homeExperiments.push({
+        id: `plan-lab-home-${experiment.id}`,
+        usage: "primary",
+        mode: "new_purchase",
+        purchaseMonth,
+        purchasePrice,
+        downPayment: downPaymentAmount,
+        annualAppreciationPct: clampNonNegative(
+          toNumber(experiment.annualAppreciationPct)
+        ),
+        mortgageRatePct: toNumber(mortgageRatePct),
+        mortgageTermYears: toNumber(termYears),
+        feesOneTime: clampNonNegative(toNumber(experiment.oneTimeFees)),
+        holdingCostMonthly: clampNonNegative(toNumber(experiment.holdingCostMonthly)),
+        holdingCostAnnualGrowthPct: 0,
+      });
+    }
+    if (experiment.type === "carPlan") {
+      const purchaseMonth = normalizeOptionalMonthSafe(experiment.purchaseMonth);
+      const purchasePrice = clampNonNegative(toNumber(experiment.purchasePrice));
+      if (!purchaseMonth || purchasePrice <= 0) {
+        return;
+      }
+      carExperiments.push({
+        id: `plan-lab-car-${experiment.id}`,
+        purchaseMonth,
+        purchasePrice,
+        downPayment: clampNonNegative(toNumber(experiment.downPayment)),
+        annualDepreciationRatePct: clampNonNegative(
+          toNumber(experiment.annualDepreciationRatePct)
+        ),
+        holdingCostMonthly: clampNonNegative(toNumber(experiment.holdingCostMonthly)),
+        holdingCostAnnualGrowthPct: clampNonNegative(
+          toNumber(experiment.holdingCostAnnualGrowthPct)
+        ),
+        loan:
+          experiment.loanPrincipal && experiment.loanInterestRatePct
+            ? {
+                principal: clampNonNegative(toNumber(experiment.loanPrincipal)),
+                annualInterestRatePct: clampNonNegative(
+                  toNumber(experiment.loanInterestRatePct)
+                ),
+                termYears: clampNonNegative(toNumber(experiment.loanTermYears)),
+                monthlyPayment:
+                  experiment.loanMonthlyPayment !== undefined
+                    ? clampNonNegative(toNumber(experiment.loanMonthlyPayment))
+                    : undefined,
+              }
+            : undefined,
+      });
+    }
+  });
+
+  if (homeExperiments.length > 0) {
+    nextPositions = {
+      ...(nextPositions ?? {}),
+      home: undefined,
+      homes: homeExperiments,
+    };
+  }
+  if (carExperiments.length > 0) {
+    nextPositions = {
+      ...(nextPositions ?? {}),
+      cars: [...(nextPositions?.cars ?? []), ...carExperiments],
+    };
   }
 
   if (errors.length > 0) {
