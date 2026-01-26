@@ -1171,13 +1171,14 @@ export default function PlanLabPanel({
                     />
                   </Group>
                 </Group>
-                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
                   <TextInput
                     label="Search"
                     placeholder="Search items"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.currentTarget.value)}
                   />
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+
                   <SegmentedControl
                     data={[
                       { value: "all", label: "All" },
