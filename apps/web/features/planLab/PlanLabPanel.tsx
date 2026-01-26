@@ -48,6 +48,11 @@ import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
 import { computeFirstBucket } from "../../src/domain/planLab/computeFirstBucket";
+import {
+  computeCashRiskScorecard,
+  computeBufferThresholdFromLedger,
+} from "../../src/domain/planLab/scorecard/cashRisk";
+import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
 import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import TimelineEventForm, { type TimelineEventFormResult } from "../../components/timeline/TimelineEventForm";
 import { getEventMeta } from "../../src/events/eventCatalog";
@@ -707,6 +712,22 @@ export default function PlanLabPanel({
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
 
+  // Compute cash risk scorecard metrics
+  const cashRiskScorecard = useMemo(() => {
+    if (!optionSeries.cash || optionSeries.cash.length === 0) {
+      return null;
+    }
+    // Compute buffer threshold from ledger items (3-month expense buffer)
+    const bufferThreshold = computeBufferThresholdFromLedger(
+      planLabProjection.ledger,
+      planLabProjection.months
+    );
+    return computeCashRiskScorecard({
+      cashSeries: optionSeries.cash,
+      bufferThreshold,
+    });
+  }, [optionSeries.cash, planLabProjection.ledger, planLabProjection.months]);
+
   const experimentTypeOptions = useMemo(
     () => [
       {
@@ -1128,7 +1149,7 @@ export default function PlanLabPanel({
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" align="center" wrap="wrap">
-                  <Text fw={600}>Scenario Editor</Text>
+                  <Text fw={600}>{t("planLabScenarioEditor")}</Text>
                   <Group gap="xs">
                     <Switch
                       size="sm"
@@ -1802,6 +1823,14 @@ export default function PlanLabPanel({
                   </Stack>
                 </Stack>
               </Card>
+
+              {cashRiskScorecard && (
+                <PlanLabCashRiskScorecard
+                  result={cashRiskScorecard}
+                  baseCurrency={scenario.baseCurrency}
+                  locale={locale}
+                />
+              )}
 
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
