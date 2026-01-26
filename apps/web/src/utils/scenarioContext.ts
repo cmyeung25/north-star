@@ -32,6 +32,7 @@ export const buildScenarioUrl = (
     | "/stress"
     | "/settings"
     | "/money"
-    | "/people",
+    | "/people"
+    | "/plan-lab",
   scenarioId: string
 ) => `${path}?scenarioId=${scenarioId}`;
