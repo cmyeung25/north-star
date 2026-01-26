@@ -7,9 +7,11 @@ import {
   Grid,
   Group,
   NumberInput,
+  Select,
   SegmentedControl,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -17,6 +19,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { nanoid } from "nanoid";
 import {
   Line,
   LineChart,
@@ -25,7 +28,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { FamilyLaunchDraft, PlanLabDraft, PlanLabGoalType } from "../../src/domain/planLab/types";
+import type {
+  FamilyLaunchDraft,
+  PlanLabBaselineEdit,
+  PlanLabDraft,
+  PlanLabExperiment,
+  PlanLabExperimentType,
+  PlanLabGoalType,
+} from "../../src/domain/planLab/types";
 import type { EventDefinition } from "../../src/domain/events/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
 import { useScenarioStore } from "../../src/store/scenarioStore";
@@ -38,7 +48,9 @@ import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
 import { computeFamilyLaunchScorecard } from "../../src/domain/planLab/computeFamilyLaunchScorecard";
+import { computeFirstBucket } from "../../src/domain/planLab/computeFirstBucket";
 import { familyLaunchExperiments } from "../../src/domain/planLab/familyLaunchExperiments";
+import { buildScenarioEventViews } from "../../src/domain/events/utils";
 import { usePlanLabDeepLink } from "./usePlanLabDeepLink";
 import { addMonths } from "../../src/domain/members/age";
 
@@ -46,6 +58,14 @@ type ChartType = "netWorth" | "cash" | "netCashflow";
 
 const defaultPurchasePrice = 8_000_000;
 const defaultDownPaymentPct = 30;
+
+type BaselineItem = {
+  refId: string;
+  kind: PlanLabBaselineEdit["kind"];
+  title: string;
+  startMonth?: string;
+  endMonth?: string | null;
+};
 
 type PlanLabPanelProps = {
   scenario: Scenario;
@@ -128,6 +148,8 @@ const getMonthError = (value: string, message: string) => {
   }
   return undefined;
 };
+
+const isStrictMonth = (value: string) => normalizeMonthStrict(value).ok;
 
 export default function PlanLabPanel({
   scenario,
@@ -268,8 +290,16 @@ export default function PlanLabPanel({
   const [familyAppreciationPct, setFamilyAppreciationPct] = useState<number | "">(
     deepLink.familyLaunchDraft.housing?.annualAppreciationPct ?? ""
   );
+  const [baselineEdits, setBaselineEdits] = useState<PlanLabBaselineEdit[]>([]);
+  const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
+  const [newExperimentType, setNewExperimentType] =
+    useState<PlanLabExperimentType | null>(null);
+  const [firstBucketTargetAmount, setFirstBucketTargetAmount] = useState<number | "">(
+    ""
+  );
 
   const monthInvalidMessage = t("planLabMonthInvalid");
+  const monthRequiredMessage = t("planLabMonthRequired");
   const rentStartMonthError = getMonthError(rentStartMonth, monthInvalidMessage);
   const purchaseMonthError = getMonthError(purchaseMonth, monthInvalidMessage);
   const babyDueMonthError = getMonthError(babyDueMonth, monthInvalidMessage);
@@ -292,6 +322,15 @@ export default function PlanLabPanel({
   const projectionWarningsTitle = t.has("planLabProjectionWarningsTitle")
     ? t("planLabProjectionWarningsTitle")
     : "Projection warnings";
+  const getStrictMonthError = (value: string) => {
+    if (!value) {
+      return monthRequiredMessage;
+    }
+    if (!isStrictMonth(value)) {
+      return monthInvalidMessage;
+    }
+    return undefined;
+  };
 
   useEffect(() => {
     if (deepLink.openPanel) {
@@ -379,6 +418,185 @@ export default function PlanLabPanel({
     familyHoneymoonBudget,
   ]);
 
+  const baselineItems = useMemo<BaselineItem[]>(() => {
+    const views = buildScenarioEventViews(scenario, eventLibrary);
+    return views
+      .filter(
+        (view) =>
+          view.definition.type === "rent" || view.definition.type === "car"
+      )
+      .map((view) => ({
+        refId: view.ref.refId,
+        kind: view.definition.type === "rent" ? "rent" : "car_running",
+        title: view.definition.title,
+        startMonth: view.rule.startMonth,
+        endMonth: view.rule.endMonth ?? null,
+      }));
+  }, [eventLibrary, scenario]);
+
+  useEffect(() => {
+    setBaselineEdits((current) =>
+      current.filter((edit) =>
+        baselineItems.some((item) => item.refId === edit.refId)
+      )
+    );
+  }, [baselineItems]);
+
+  const baselineEditLookup = useMemo(
+    () => new Map(baselineEdits.map((edit) => [edit.refId, edit])),
+    [baselineEdits]
+  );
+
+  const updateBaselineEdit = (
+    item: BaselineItem,
+    patch: Partial<PlanLabBaselineEdit>
+  ) => {
+    setBaselineEdits((current) => {
+      const existing = current.find((edit) => edit.refId === item.refId);
+      const next: PlanLabBaselineEdit = {
+        id: existing?.id ?? `baseline-${item.refId}`,
+        refType: "event",
+        refId: item.refId,
+        kind: item.kind,
+        action: existing?.action ?? "keep",
+        isEnabled: existing?.isEnabled ?? true,
+        endMonth: existing?.endMonth,
+        ...patch,
+      };
+
+      if (next.action === "keep") {
+        return current.filter((edit) => edit.refId !== item.refId);
+      }
+
+      return [
+        ...current.filter((edit) => edit.refId !== item.refId),
+        next,
+      ];
+    });
+  };
+
+  const buildExperimentDefaults = (type: PlanLabExperimentType): PlanLabExperiment => {
+    const baseMonth = scenario.assumptions.baseMonth ?? "";
+    if (type === "oneOffExpense") {
+      return { id: nanoid(), type, month: baseMonth, amount: 5000, isEnabled: true };
+    }
+    if (type === "rangeExpense") {
+      return {
+        id: nanoid(),
+        type,
+        startMonth: baseMonth,
+        endMonth: baseMonth,
+        monthlyAmount: 1500,
+        isEnabled: true,
+      };
+    }
+    if (type === "homeBuy") {
+      return {
+        id: nanoid(),
+        type,
+        purchaseMonth: baseMonth,
+        purchasePrice: defaultPurchasePrice,
+        downPaymentPct: defaultDownPaymentPct,
+        isEnabled: true,
+      };
+    }
+    if (type === "carPlan") {
+      return {
+        id: nanoid(),
+        type,
+        purchaseMonth: baseMonth,
+        purchasePrice: 300000,
+        downPayment: 60000,
+        annualDepreciationRatePct: 15,
+        holdingCostMonthly: 3000,
+        isEnabled: true,
+      };
+    }
+    if (type === "incomeAdjust") {
+      return {
+        id: nanoid(),
+        type,
+        startMonth: baseMonth,
+        monthlyAmount: 5000,
+        isEnabled: true,
+      };
+    }
+    return {
+      id: nanoid(),
+      type: "travelAnnual",
+      startMonth: baseMonth,
+      annualAmount: 20000,
+      isEnabled: true,
+    };
+  };
+
+  const addExperiment = () => {
+    if (!newExperimentType) {
+      return;
+    }
+    setExperiments((current) => [
+      ...current,
+      buildExperimentDefaults(newExperimentType),
+    ]);
+    setNewExperimentType(null);
+  };
+
+  const updateExperiment = (id: string, patch: Partial<PlanLabExperiment>) => {
+    setExperiments((current) =>
+      current.map((experiment) =>
+        experiment.id === id ? { ...experiment, ...patch } : experiment
+      )
+    );
+  };
+
+  const removeExperiment = (id: string) => {
+    setExperiments((current) => current.filter((experiment) => experiment.id !== id));
+  };
+
+  const validBaselineEdits = useMemo(
+    () =>
+      baselineEdits.filter(
+        (edit) =>
+          edit.action !== "keep" &&
+          edit.isEnabled !== false &&
+          Boolean(edit.endMonth) &&
+          isStrictMonth(edit.endMonth ?? "")
+      ),
+    [baselineEdits]
+  );
+
+  const validExperiments = useMemo(() => {
+    const isValidMonth = (value?: string) => Boolean(value && isStrictMonth(value));
+    return experiments.filter((experiment) => {
+      if (experiment.isEnabled === false) {
+        return false;
+      }
+      if (experiment.type === "oneOffExpense") {
+        return isValidMonth(experiment.month) && (experiment.amount ?? 0) > 0;
+      }
+      if (experiment.type === "rangeExpense") {
+        return (
+          isValidMonth(experiment.startMonth) &&
+          isValidMonth(experiment.endMonth) &&
+          (experiment.monthlyAmount ?? 0) > 0
+        );
+      }
+      if (experiment.type === "homeBuy") {
+        return isValidMonth(experiment.purchaseMonth);
+      }
+      if (experiment.type === "carPlan") {
+        return (
+          isValidMonth(experiment.purchaseMonth) &&
+          (experiment.purchasePrice ?? 0) > 0
+        );
+      }
+      if (experiment.type === "incomeAdjust") {
+        return isValidMonth(experiment.startMonth) && (experiment.monthlyAmount ?? 0) > 0;
+      }
+      return isValidMonth(experiment.startMonth) && (experiment.annualAmount ?? 0) > 0;
+    });
+  }, [experiments]);
+
   const { draft, hasInvalidMonths } = useMemo(() => {
     const invalid =
       (rentStartMonth &&
@@ -398,7 +616,17 @@ export default function PlanLabPanel({
       return { draft: null, hasInvalidMonths: true };
     }
 
-    const planLabDraft: PlanLabDraft = { goalType };
+    const planLabDraft: PlanLabDraft = {
+      goalType,
+      baselineEdits: validBaselineEdits,
+      experiments: validExperiments,
+      scorecardSettings: {
+        firstBucketTargetAmount:
+          typeof firstBucketTargetAmount === "number"
+            ? firstBucketTargetAmount
+            : undefined,
+      },
+    };
 
     if (goalType === "classic") {
       if (housingMode === "rent" || housingMode === "rent-bigger") {
@@ -565,6 +793,9 @@ export default function PlanLabPanel({
     goalType,
     scenario.assumptions.rentAnnualGrowthPct,
     termYears,
+    validBaselineEdits,
+    validExperiments,
+    firstBucketTargetAmount,
   ]);
 
   const applyFamilyDraft = (nextDraft: FamilyLaunchDraft) => {
@@ -623,6 +854,12 @@ export default function PlanLabPanel({
     eventLibrary,
     { members, budgetRules }
   );
+  const baselineProjection = usePlanLabProjectionWithLedger(
+    null,
+    scenario,
+    eventLibrary,
+    { members, budgetRules }
+  );
 
   const optionViewModel = useMemo(
     () =>
@@ -658,6 +895,23 @@ export default function PlanLabPanel({
     }
     return base;
   }, [deflateSeries, displayMode, optionViewModel, planLabProjection]);
+
+  const firstBucketTargetValue =
+    typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : null;
+  const firstBucketResult = useMemo(
+    () => computeFirstBucket(planLabProjection.projection, firstBucketTargetValue),
+    [firstBucketTargetValue, planLabProjection.projection]
+  );
+  const baselineFirstBucketResult = useMemo(
+    () => computeFirstBucket(baselineProjection.projection, firstBucketTargetValue),
+    [firstBucketTargetValue, baselineProjection.projection]
+  );
+  const optionBucketIndex = firstBucketResult?.achievedIndex;
+  const baselineBucketIndex = baselineFirstBucketResult?.achievedIndex;
+  const firstBucketDeltaMonths =
+    optionBucketIndex != null && baselineBucketIndex != null
+      ? baselineBucketIndex - optionBucketIndex
+      : null;
 
   const familyScorecard = useMemo(() => {
     if (goalType !== "family-launch") {
@@ -819,6 +1073,169 @@ export default function PlanLabPanel({
     rentStartMonth,
     t,
   ]);
+
+  const baselineItemLookup = useMemo(
+    () => new Map(baselineItems.map((item) => [item.refId, item])),
+    [baselineItems]
+  );
+
+  const experimentTypeOptions = useMemo(
+    () => [
+      {
+        value: "oneOffExpense",
+        label: t.has("planLabExperimentOneOff")
+          ? t("planLabExperimentOneOff")
+          : "One-off expense",
+      },
+      {
+        value: "rangeExpense",
+        label: t.has("planLabExperimentRange")
+          ? t("planLabExperimentRange")
+          : "Range expense",
+      },
+      {
+        value: "homeBuy",
+        label: t.has("planLabExperimentHomeBuy")
+          ? t("planLabExperimentHomeBuy")
+          : "Home buy",
+      },
+      {
+        value: "carPlan",
+        label: t.has("planLabExperimentCarPlan")
+          ? t("planLabExperimentCarPlan")
+          : "Car plan",
+      },
+      {
+        value: "incomeAdjust",
+        label: t.has("planLabExperimentIncomeAdjust")
+          ? t("planLabExperimentIncomeAdjust")
+          : "Income adjust",
+      },
+      {
+        value: "travelAnnual",
+        label: t.has("planLabExperimentTravelAnnual")
+          ? t("planLabExperimentTravelAnnual")
+          : "Annual travel",
+      },
+    ],
+    [t]
+  );
+
+  const appliedControls = useMemo(() => {
+    const controls: Array<{
+      id: string;
+      label: string;
+      isEnabled: boolean;
+      onToggle: () => void;
+      onRemove: () => void;
+    }> = [];
+
+    baselineEdits
+      .filter((edit) => edit.action !== "keep")
+      .forEach((edit) => {
+        const item = baselineItemLookup.get(edit.refId);
+        const title = item?.title ?? edit.kind;
+        const endMonth = edit.endMonth ?? "";
+        const label =
+          edit.action === "replace"
+            ? t("planLabAppliedBaselineReplace", {
+                name: title,
+                month: endMonth,
+              })
+            : t("planLabAppliedBaselineEnd", { name: title, month: endMonth });
+        controls.push({
+          id: `baseline-${edit.refId}`,
+          label,
+          isEnabled: edit.isEnabled !== false,
+          onToggle: () =>
+            updateBaselineEdit(item ?? { refId: edit.refId, kind: edit.kind, title }, {
+              isEnabled: edit.isEnabled === false,
+            }),
+          onRemove: () =>
+            updateBaselineEdit(item ?? { refId: edit.refId, kind: edit.kind, title }, {
+              action: "keep",
+              endMonth: undefined,
+              isEnabled: true,
+            }),
+        });
+      });
+
+    experiments.forEach((experiment) => {
+      const currency = scenario.baseCurrency;
+      let label = "";
+      if (experiment.type === "oneOffExpense") {
+        label = t("planLabAppliedExperimentOneOff", {
+          month: experiment.month ?? "",
+          amount: formatCurrency(experiment.amount ?? 0, currency, locale),
+        });
+      } else if (experiment.type === "rangeExpense") {
+        label = t("planLabAppliedExperimentRange", {
+          start: experiment.startMonth ?? "",
+          end: experiment.endMonth ?? "",
+          amount: formatCurrency(experiment.monthlyAmount ?? 0, currency, locale),
+        });
+      } else if (experiment.type === "homeBuy") {
+        label = t("planLabAppliedExperimentHomeBuy", {
+          month: experiment.purchaseMonth ?? "",
+        });
+      } else if (experiment.type === "carPlan") {
+        label = t("planLabAppliedExperimentCarPlan", {
+          month: experiment.purchaseMonth ?? "",
+        });
+      } else if (experiment.type === "incomeAdjust") {
+        label = t("planLabAppliedExperimentIncome", {
+          month: experiment.startMonth ?? "",
+          amount: formatCurrency(experiment.monthlyAmount ?? 0, currency, locale),
+        });
+      } else {
+        label = t("planLabAppliedExperimentTravel", {
+          month: experiment.startMonth ?? "",
+          amount: formatCurrency(experiment.annualAmount ?? 0, currency, locale),
+        });
+      }
+
+      controls.push({
+        id: `experiment-${experiment.id}`,
+        label,
+        isEnabled: experiment.isEnabled !== false,
+        onToggle: () =>
+          updateExperiment(experiment.id, {
+            isEnabled: experiment.isEnabled === false,
+          }),
+        onRemove: () => removeExperiment(experiment.id),
+      });
+    });
+
+    return controls;
+  }, [
+    baselineEdits,
+    baselineItemLookup,
+    experiments,
+    locale,
+    removeExperiment,
+    scenario.baseCurrency,
+    t,
+    updateBaselineEdit,
+    updateExperiment,
+  ]);
+
+  const handleDisableAllControls = () => {
+    setBaselineEdits((current) =>
+      current.map((edit) => ({ ...edit, isEnabled: false }))
+    );
+    setExperiments((current) =>
+      current.map((experiment) => ({ ...experiment, isEnabled: false }))
+    );
+  };
+
+  const handleResetAllControls = () => {
+    setBaselineEdits([]);
+    setExperiments([]);
+  };
+
+  const handleRevertBaselineEdits = () => {
+    setBaselineEdits([]);
+  };
 
   const recommendedFixes = useMemo(() => {
     if (goalType === "family-launch") {
@@ -1012,6 +1429,510 @@ export default function PlanLabPanel({
             <Card withBorder radius="md" padding="md">
               <Stack gap="lg">
                 <Text fw={600}>{t("planLabControlsTitle")}</Text>
+                <Stack gap="sm">
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{t("planLabAppliedControlsTitle")}</Text>
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={handleDisableAllControls}
+                      >
+                        {t("planLabAppliedDisableAll")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={handleResetAllControls}
+                      >
+                        {t("planLabAppliedResetAll")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={handleRevertBaselineEdits}
+                      >
+                        {t("planLabAppliedRevertBaseline")}
+                      </Button>
+                    </Group>
+                  </Group>
+                  {appliedControls.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      {t("planLabAppliedControlsEmpty")}
+                    </Text>
+                  ) : (
+                    <Stack gap="xs">
+                      {appliedControls.map((control) => (
+                        <Group key={control.id} justify="space-between" align="center">
+                          <Text size="sm">{control.label}</Text>
+                          <Group gap="xs">
+                            <Switch
+                              size="sm"
+                              checked={control.isEnabled}
+                              onChange={control.onToggle}
+                            />
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              onClick={control.onRemove}
+                            >
+                              {t("planLabAppliedRemove")}
+                            </Button>
+                          </Group>
+                        </Group>
+                      ))}
+                    </Stack>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600}>{t("planLabBaselineTitle")}</Text>
+                  {baselineItems.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      {t("planLabBaselineEmpty")}
+                    </Text>
+                  ) : (
+                    <Stack gap="md">
+                      {baselineItems.map((item) => {
+                        const edit = baselineEditLookup.get(item.refId);
+                        const action = edit?.action ?? "keep";
+                        const endMonth = edit?.endMonth ?? "";
+                        const endMonthError =
+                          action === "keep" ? undefined : getStrictMonthError(endMonth);
+                        const rangeLabel = t("planLabBaselineRange", {
+                          start: item.startMonth ?? "—",
+                          end: item.endMonth ?? t("planLabBaselineOngoing"),
+                        });
+                        return (
+                          <Stack key={item.refId} gap="xs">
+                            <Group justify="space-between" align="center" wrap="wrap">
+                              <Text fw={600} size="sm">
+                                {item.title}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {rangeLabel}
+                              </Text>
+                            </Group>
+                            <SegmentedControl
+                              size="xs"
+                              data={[
+                                { value: "keep", label: t("planLabBaselineKeep") },
+                                { value: "end", label: t("planLabBaselineEnd") },
+                                { value: "replace", label: t("planLabBaselineReplace") },
+                              ]}
+                              value={action}
+                              onChange={(value) =>
+                                updateBaselineEdit(item, {
+                                  action: value as PlanLabBaselineEdit["action"],
+                                })
+                              }
+                            />
+                            {action !== "keep" && (
+                              <TextInput
+                                label={t("planLabBaselineEndMonth")}
+                                placeholder="YYYY-MM"
+                                value={endMonth}
+                                onChange={(event) =>
+                                  updateBaselineEdit(item, {
+                                    endMonth: event.currentTarget.value,
+                                  })
+                                }
+                                error={endMonthError}
+                              />
+                            )}
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
+                  <Group align="flex-end" wrap="wrap">
+                    <Select
+                      label={t("planLabExperimentsAddLabel")}
+                      placeholder={t("planLabExperimentsSelectPlaceholder")}
+                      data={experimentTypeOptions}
+                      value={newExperimentType}
+                      onChange={(value) =>
+                        setNewExperimentType(value as PlanLabExperimentType | null)
+                      }
+                      clearable
+                    />
+                    <Button
+                      size="sm"
+                      variant="light"
+                      onClick={addExperiment}
+                      disabled={!newExperimentType}
+                    >
+                      {t("planLabExperimentsAddAction")}
+                    </Button>
+                  </Group>
+                  {experiments.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      {t("planLabExperimentsEmpty")}
+                    </Text>
+                  ) : (
+                    <Stack gap="md">
+                      {experiments.map((experiment) => {
+                        const monthError =
+                          experiment.type === "oneOffExpense"
+                            ? getStrictMonthError(experiment.month ?? "")
+                            : experiment.type === "rangeExpense"
+                              ? getStrictMonthError(experiment.startMonth ?? "")
+                              : experiment.type === "incomeAdjust"
+                                ? getStrictMonthError(experiment.startMonth ?? "")
+                                : experiment.type === "travelAnnual"
+                                  ? getStrictMonthError(experiment.startMonth ?? "")
+                                  : experiment.type === "homeBuy"
+                                    ? getStrictMonthError(experiment.purchaseMonth ?? "")
+                                    : getStrictMonthError(experiment.purchaseMonth ?? "");
+                        const endMonthError =
+                          experiment.type === "rangeExpense"
+                            ? getStrictMonthError(experiment.endMonth ?? "")
+                            : undefined;
+                        return (
+                          <Card key={experiment.id} withBorder radius="md" padding="sm">
+                            <Stack gap="sm">
+                              <Group justify="space-between" align="center" wrap="wrap">
+                                <Text fw={600} size="sm">
+                                  {
+                                    experimentTypeOptions.find(
+                                      (option) => option.value === experiment.type
+                                    )?.label
+                                  }
+                                </Text>
+                                <Group gap="xs">
+                                  <Switch
+                                    size="sm"
+                                    checked={experiment.isEnabled !== false}
+                                    onChange={() =>
+                                      updateExperiment(experiment.id, {
+                                        isEnabled: experiment.isEnabled === false,
+                                      })
+                                    }
+                                  />
+                                  <Button
+                                    size="xs"
+                                    variant="subtle"
+                                    onClick={() => removeExperiment(experiment.id)}
+                                  >
+                                    {t("planLabAppliedRemove")}
+                                  </Button>
+                                </Group>
+                              </Group>
+
+                              {experiment.type === "oneOffExpense" && (
+                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                  <TextInput
+                                    label={t("planLabExperimentMonth")}
+                                    placeholder="YYYY-MM"
+                                    value={experiment.month ?? ""}
+                                    onChange={(event) =>
+                                      updateExperiment(experiment.id, {
+                                        month: event.currentTarget.value,
+                                      })
+                                    }
+                                    error={monthError}
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentAmount")}
+                                    value={experiment.amount ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        amount: typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                </SimpleGrid>
+                              )}
+
+                              {experiment.type === "rangeExpense" && (
+                                <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                                  <TextInput
+                                    label={t("planLabExperimentStartMonth")}
+                                    placeholder="YYYY-MM"
+                                    value={experiment.startMonth ?? ""}
+                                    onChange={(event) =>
+                                      updateExperiment(experiment.id, {
+                                        startMonth: event.currentTarget.value,
+                                      })
+                                    }
+                                    error={monthError}
+                                  />
+                                  <TextInput
+                                    label={t("planLabExperimentEndMonth")}
+                                    placeholder="YYYY-MM"
+                                    value={experiment.endMonth ?? ""}
+                                    onChange={(event) =>
+                                      updateExperiment(experiment.id, {
+                                        endMonth: event.currentTarget.value,
+                                      })
+                                    }
+                                    error={endMonthError}
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentMonthlyAmount")}
+                                    value={experiment.monthlyAmount ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        monthlyAmount:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                </SimpleGrid>
+                              )}
+
+                              {experiment.type === "homeBuy" && (
+                                <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                                  <TextInput
+                                    label={t("planLabExperimentPurchaseMonth")}
+                                    placeholder="YYYY-MM"
+                                    value={experiment.purchaseMonth ?? ""}
+                                    onChange={(event) =>
+                                      updateExperiment(experiment.id, {
+                                        purchaseMonth: event.currentTarget.value,
+                                      })
+                                    }
+                                    error={monthError}
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentPurchasePrice")}
+                                    value={experiment.purchasePrice ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        purchasePrice:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentDownPaymentAmount")}
+                                    value={experiment.downPaymentAmount ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        downPaymentAmount:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentDownPaymentPct")}
+                                    value={experiment.downPaymentPct ?? ""}
+                                    min={0}
+                                    max={100}
+                                    decimalScale={2}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        downPaymentPct:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentMortgageRate")}
+                                    value={experiment.mortgageRatePct ?? ""}
+                                    min={0}
+                                    decimalScale={2}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        mortgageRatePct:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentMortgageTerm")}
+                                    value={experiment.termYears ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        termYears:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentOneOffFees")}
+                                    value={experiment.oneTimeFees ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        oneTimeFees:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentHoldingCost")}
+                                    value={experiment.holdingCostMonthly ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        holdingCostMonthly:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentAppreciation")}
+                                    value={experiment.annualAppreciationPct ?? ""}
+                                    min={0}
+                                    decimalScale={2}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        annualAppreciationPct:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                </SimpleGrid>
+                              )}
+
+                              {experiment.type === "carPlan" && (
+                                <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                                  <TextInput
+                                    label={t("planLabExperimentPurchaseMonth")}
+                                    placeholder="YYYY-MM"
+                                    value={experiment.purchaseMonth ?? ""}
+                                    onChange={(event) =>
+                                      updateExperiment(experiment.id, {
+                                        purchaseMonth: event.currentTarget.value,
+                                      })
+                                    }
+                                    error={monthError}
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentCarPrice")}
+                                    value={experiment.purchasePrice ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        purchasePrice:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentCarDownPayment")}
+                                    value={experiment.downPayment ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        downPayment:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentCarDepreciation")}
+                                    value={experiment.annualDepreciationRatePct ?? ""}
+                                    min={0}
+                                    decimalScale={2}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        annualDepreciationRatePct:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentCarHoldingCost")}
+                                    value={experiment.holdingCostMonthly ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        holdingCostMonthly:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentCarHoldingGrowth")}
+                                    value={experiment.holdingCostAnnualGrowthPct ?? ""}
+                                    min={0}
+                                    decimalScale={2}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        holdingCostAnnualGrowthPct:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                </SimpleGrid>
+                              )}
+
+                              {experiment.type === "incomeAdjust" && (
+                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                  <TextInput
+                                    label={t("planLabExperimentStartMonth")}
+                                    placeholder="YYYY-MM"
+                                    value={experiment.startMonth ?? ""}
+                                    onChange={(event) =>
+                                      updateExperiment(experiment.id, {
+                                        startMonth: event.currentTarget.value,
+                                      })
+                                    }
+                                    error={monthError}
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentMonthlyAmount")}
+                                    value={experiment.monthlyAmount ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        monthlyAmount:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                </SimpleGrid>
+                              )}
+
+                              {experiment.type === "travelAnnual" && (
+                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                  <TextInput
+                                    label={t("planLabExperimentStartMonth")}
+                                    placeholder="YYYY-MM"
+                                    value={experiment.startMonth ?? ""}
+                                    onChange={(event) =>
+                                      updateExperiment(experiment.id, {
+                                        startMonth: event.currentTarget.value,
+                                      })
+                                    }
+                                    error={monthError}
+                                  />
+                                  <NumberInput
+                                    label={t("planLabExperimentAnnualAmount")}
+                                    value={experiment.annualAmount ?? ""}
+                                    min={0}
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        annualAmount:
+                                          typeof value === "number" ? value : undefined,
+                                      })
+                                    }
+                                  />
+                                </SimpleGrid>
+                              )}
+                            </Stack>
+                          </Card>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </Stack>
+
                 {/* <Stack gap="xs">
                   <Text fw={600}>{t("planLabGoalTitle")}</Text>
                   <SegmentedControl
@@ -1499,6 +2420,110 @@ export default function PlanLabPanel({
             <Stack gap="lg">
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{t("planLabScorecardTitle")}</Text>
+                  </Group>
+                  <Stack gap="xs">
+                    <Text fw={600}>{t("planLabScorecardFirstBucketTitle")}</Text>
+                    <NumberInput
+                      label={t("planLabScorecardTargetAmount")}
+                      value={firstBucketTargetAmount}
+                      min={0}
+                      onChange={(value) =>
+                        setFirstBucketTargetAmount(
+                          typeof value === "number" ? value : ""
+                        )
+                      }
+                    />
+                    {firstBucketTargetValue === null ? (
+                      <Text size="sm" c="dimmed">
+                        {t("planLabScorecardTargetPrompt")}
+                      </Text>
+                    ) : !planLabProjection.projection ? (
+                      <Text size="sm" c="dimmed">
+                        {t("planLabScorecardDisabled")}
+                      </Text>
+                    ) : (
+                      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                        <Card withBorder radius="md" padding="sm">
+                          <Stack gap={4}>
+                            <Text size="sm" fw={600}>
+                              {t("planLabScorecardAchievedMonth")}
+                            </Text>
+                            {firstBucketResult?.achievedMonth ? (
+                              <Text size="sm">
+                                {t("monthLabel", {
+                                  month: firstBucketResult.achievedMonth,
+                                })}
+                              </Text>
+                            ) : (
+                              <Text size="sm" c="dimmed">
+                                {t("planLabScorecardTargetNotReached")}
+                              </Text>
+                            )}
+                          </Stack>
+                        </Card>
+                        <Card withBorder radius="md" padding="sm">
+                          <Stack gap={4}>
+                            <Text size="sm" fw={600}>
+                              {t("planLabScorecardMinCash")}
+                            </Text>
+                            {firstBucketResult?.achievedMonth ? (
+                              <>
+                                <Text size="sm">
+                                  {formatCurrency(
+                                    firstBucketResult.minCash.value,
+                                    scenario.baseCurrency,
+                                    locale
+                                  )}
+                                </Text>
+                                {firstBucketResult.minCash.month && (
+                                  <Text size="xs" c="dimmed">
+                                    {t("monthLabel", {
+                                      month: firstBucketResult.minCash.month,
+                                    })}
+                                  </Text>
+                                )}
+                              </>
+                            ) : (
+                              <Text size="sm" c="dimmed">
+                                {t("planLabScorecardValueUnavailable")}
+                              </Text>
+                            )}
+                          </Stack>
+                        </Card>
+                        <Card withBorder radius="md" padding="sm">
+                          <Stack gap={4}>
+                            <Text size="sm" fw={600}>
+                              {t("planLabScorecardDeltaLabel")}
+                            </Text>
+                            {firstBucketDeltaMonths === null ? (
+                              <Text size="sm" c="dimmed">
+                                {t("planLabScorecardDeltaUnavailable")}
+                              </Text>
+                            ) : firstBucketDeltaMonths === 0 ? (
+                              <Text size="sm">{t("planLabScorecardDeltaSame")}</Text>
+                            ) : firstBucketDeltaMonths > 0 ? (
+                              <Text size="sm">
+                                {t("planLabScorecardDeltaFaster", {
+                                  months: firstBucketDeltaMonths,
+                                })}
+                              </Text>
+                            ) : (
+                              <Text size="sm">
+                                {t("planLabScorecardDeltaSlower", {
+                                  months: Math.abs(firstBucketDeltaMonths),
+                                })}
+                              </Text>
+                            )}
+                          </Stack>
+                        </Card>
+                      </SimpleGrid>
+                    )}
+                  </Stack>
+
+                  <Divider />
+
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{t("planLabFamilyScorecardTitle")}</Text>
                     {goalType === "family-launch" && (

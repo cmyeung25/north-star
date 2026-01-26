@@ -12,7 +12,7 @@ import {
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { getEventSign } from "../events/eventCatalog";
-import type { EventDefinition } from "../domain/events/types";
+import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
 import type { CashflowItem } from "../domain/ledger/types";
 import {
   groupLedgerByMonth,
@@ -219,6 +219,32 @@ const buildPositionCashflowsByMonth = (projection: ProjectionResult) => {
   }, {});
 };
 
+const applyEventRefOverrides = (
+  refs: ScenarioEventRef[] | undefined,
+  overrides: ScenarioEventRef[]
+) => {
+  if (!refs || refs.length === 0 || overrides.length === 0) {
+    return refs ?? [];
+  }
+  const overridesById = new Map(
+    overrides.map((override) => [override.refId, override])
+  );
+  return refs.map((ref) => {
+    const override = overridesById.get(ref.refId);
+    if (!override) {
+      return ref;
+    }
+    return {
+      ...ref,
+      enabled: override.enabled ?? ref.enabled,
+      overrides: {
+        ...(ref.overrides ?? {}),
+        ...(override.overrides ?? {}),
+      },
+    };
+  });
+};
+
 export const usePlanLabProjectionWithLedger = (
   draft: PlanLabDraft | null | undefined,
   scenario: Scenario | null | undefined,
@@ -232,7 +258,13 @@ export const usePlanLabProjectionWithLedger = (
 
     const planLabCompilation = compilePlanLabDraft(draft, {
       baselineScenario: scenario ?? null,
+      eventLibrary,
     });
+
+    const eventRefsWithOverrides = applyEventRefOverrides(
+      scenario?.eventRefs,
+      planLabCompilation.eventRefOverrides
+    );
 
     const baselineScenario: Scenario | null = scenario
       ? {
@@ -246,7 +278,7 @@ export const usePlanLabProjectionWithLedger = (
             ...planLabCompilation.positions,
           },
           eventRefs: [
-            ...(scenario.eventRefs ?? []),
+            ...eventRefsWithOverrides,
             ...planLabCompilation.eventRefs,
           ],
         }

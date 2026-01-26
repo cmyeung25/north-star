@@ -8,6 +8,7 @@ import type {
 } from "../../store/scenarioStore";
 import type { PlanLabDraft } from "./types";
 import { compileFamilyLaunchDraft } from "./compileFamilyLaunchDraft";
+import { compilePlanLabExtras } from "./compilePlanLabExtras";
 import {
   clampNonNegative,
   normalizeDraftMonth,
@@ -20,11 +21,13 @@ export type PlanLabDraftCompilation = {
   positions: Partial<ScenarioPositions>;
   eventDefinitions: EventDefinition[];
   eventRefs: ScenarioEventRef[];
+  eventRefOverrides: ScenarioEventRef[];
   warnings: PlanLabDraftWarning[];
 };
 
 type CompilePlanLabDraftOptions = {
   baselineScenario?: Scenario | null;
+  eventLibrary?: EventDefinition[];
 };
 
 export const compilePlanLabDraft = (
@@ -37,6 +40,7 @@ export const compilePlanLabDraft = (
       positions: {},
       eventDefinitions: [],
       eventRefs: [],
+      eventRefOverrides: [],
       warnings: [],
     };
   }
@@ -50,6 +54,7 @@ export const compilePlanLabDraft = (
   const positions: Partial<ScenarioPositions> = {};
   const eventDefinitions: EventDefinition[] = [];
   const eventRefs: ScenarioEventRef[] = [];
+  const eventRefOverrides: ScenarioEventRef[] = [];
   const baseline = options.baselineScenario;
 
   const normalizedBaseMonth = normalizeDraftMonth(
@@ -186,11 +191,22 @@ export const compilePlanLabDraft = (
     }
   }
 
+  const extras = compilePlanLabExtras(draft, {
+    baselineScenario: options.baselineScenario,
+    eventLibrary: options.eventLibrary,
+  });
+  warnings.push(...extras.warnings);
+  eventDefinitions.push(...extras.eventDefinitions);
+  eventRefs.push(...extras.eventRefs);
+  eventRefOverrides.push(...extras.eventRefOverrides);
+  Object.assign(positions, extras.positions);
+
   return {
     assumptions,
     positions,
     eventDefinitions,
     eventRefs,
+    eventRefOverrides,
     warnings,
   };
 };

@@ -7,6 +7,7 @@ import type {
   ScenarioPositions,
 } from "../../store/scenarioStore";
 import type { PlanLabDraft } from "./types";
+import { compilePlanLabExtras } from "./compilePlanLabExtras";
 import {
   clampNonNegative,
   normalizeDraftMonth,
@@ -16,6 +17,7 @@ import {
 
 type CompilePlanLabDraftOptions = {
   baselineScenario?: Scenario | null;
+  eventLibrary?: EventDefinition[];
 };
 
 export const compileFamilyLaunchDraft = (
@@ -27,6 +29,7 @@ export const compileFamilyLaunchDraft = (
   const positions: Partial<ScenarioPositions> = {};
   const eventDefinitions: EventDefinition[] = [];
   const eventRefs: ScenarioEventRef[] = [];
+  const eventRefOverrides: ScenarioEventRef[] = [];
   const baseline = options.baselineScenario;
   const family = draft.familyLaunch;
 
@@ -201,11 +204,22 @@ export const compileFamilyLaunchDraft = (
     }
   }
 
+  const extras = compilePlanLabExtras(draft, {
+    baselineScenario: options.baselineScenario,
+    eventLibrary: options.eventLibrary,
+  });
+  warnings.push(...extras.warnings);
+  eventDefinitions.push(...extras.eventDefinitions);
+  eventRefs.push(...extras.eventRefs);
+  eventRefOverrides.push(...extras.eventRefOverrides);
+  Object.assign(positions, extras.positions);
+
   return {
     assumptions,
     positions,
     eventDefinitions,
     eventRefs,
+    eventRefOverrides,
     warnings,
   };
 };
