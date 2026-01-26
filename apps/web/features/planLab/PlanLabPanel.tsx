@@ -967,7 +967,7 @@ export default function PlanLabPanel({
       </Card>
 
       <Grid gutter="lg">
-        <Grid.Col span={{ base: 12, md: 8 }} order={{ base: 2, md: 1 }}>
+        <Grid.Col span={{ base: 12, md: 6 }} order={{ base: 1, md: 2 }}>
           <Stack gap="lg">
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
@@ -1011,7 +1011,7 @@ export default function PlanLabPanel({
 
             <Card withBorder radius="md" padding="md">
               <Stack gap="lg">
-                <Stack gap="xs">
+                {/* <Stack gap="xs">
                   <Text fw={600}>{t("planLabControlsTitle")}</Text>
                   <Text fw={600}>{t("planLabGoalTitle")}</Text>
                   <SegmentedControl
@@ -1022,7 +1022,7 @@ export default function PlanLabPanel({
                     value={goalType}
                     onChange={(value) => setGoalType(value as PlanLabGoalType)}
                   />
-                </Stack>
+                </Stack> */}
 
                 {goalType === "family-launch" ? (
                   <Accordion multiple defaultValue={["wedding"]}>
@@ -1494,7 +1494,7 @@ export default function PlanLabPanel({
           </Stack>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 4 }} order={{ base: 1, md: 2 }}>
+        <Grid.Col span={{ base: 12, md: 6 }} order={{ base: 1, md: 2 }}>
           <div style={{ position: "sticky", top: 88 }}>
             <Stack gap="lg">
               <Card withBorder radius="md" padding="md">

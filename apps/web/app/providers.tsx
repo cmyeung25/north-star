@@ -251,9 +251,9 @@ export default function Providers({ children }: { children: ReactNode }) {
 
         <AppShell.Main>
           <Container
-            size="lg"
+            size="xl"
             px="md"
-            pt="xl"
+            fluid 
             pb={isDesktop ? undefined : "xl"}
             style={{
               paddingBottom:
