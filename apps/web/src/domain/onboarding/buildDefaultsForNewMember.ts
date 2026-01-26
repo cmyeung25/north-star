@@ -87,6 +87,19 @@ const normalizeMemberForAge = (member: ScenarioMember) => {
   };
 };
 
+const getCategoryName = (category: BudgetRule["category"], memberName?: string): string => {
+  const baselineNameByLocale = memberName ? `${memberName} 基本支出` : "家庭基本支出";
+  const categoryNameMap: Record<BudgetRule["category"], string> = {
+    baseline: baselineNameByLocale,
+    health: memberName ? `${memberName} 健康` : "健康",
+    childcare: memberName ? `${memberName} 育兒` : "育兒",
+    education: memberName ? `${memberName} 教育` : "教育",
+    eldercare: memberName ? `${memberName} 長者照護` : "長者照護",
+    petcare: memberName ? `${memberName} 寵物照護` : "寵物照護",
+  };
+  return categoryNameMap[category] || category;
+};
+
 export const buildDefaultsForNewMember = (
   params: BuildDefaultsForNewMemberParams
 ): DefaultsForNewMember => {
@@ -113,7 +126,7 @@ export const buildDefaultsForNewMember = (
     budgetFingerprints.add(basicExpenseFingerprint);
     budgetRulesToUpsert.push({
       id: basicExpenseFingerprint,
-      name: "",
+      name: getCategoryName("baseline", member.name),
       enabled: true,
       memberId: member.id,
       category: "baseline",
@@ -132,7 +145,7 @@ export const buildDefaultsForNewMember = (
       budgetFingerprints.add(fingerprint);
       budgetRulesToUpsert.push({
         id: fingerprint,
-        name: "",
+        name: getCategoryName("petcare", member.name),
         enabled: true,
         memberId: member.id,
         category: "petcare",
@@ -185,7 +198,7 @@ export const buildDefaultsForNewMember = (
           budgetFingerprints.add(fingerprint);
           budgetRulesToUpsert.push({
             id: fingerprint,
-            name: "",
+            name: getCategoryName("childcare", member.name),
             enabled: true,
             memberId: member.id,
             category: "childcare",
@@ -205,7 +218,7 @@ export const buildDefaultsForNewMember = (
           budgetFingerprints.add(fingerprint);
           budgetRulesToUpsert.push({
             id: fingerprint,
-            name: "",
+            name: getCategoryName("eldercare", member.name),
             enabled: true,
             memberId: member.id,
             category: "eldercare",

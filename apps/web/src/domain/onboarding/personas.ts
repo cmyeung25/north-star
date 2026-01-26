@@ -55,45 +55,90 @@ const createMember = (
   birthMonth: "",
 });
 
-const createBudgetRule = (
+/**
+ * Creates a house rental event
+ */
+const createHouseRentalEvent = (
   baseMonth: string,
-  options: {
-    name: string;
-    memberId: string | "household";
-    category: OnboardingBudgetRuleDraft["category"];
-    monthlyAmount: number;
-    ageBand?: { fromYears: number; toYears: number };
-  }
-): OnboardingBudgetRuleDraft => ({
+  options?: { title?: string; monthlyAmount?: number; startMonth?: string }
+): OnboardingTimelineEventDraft => ({
   id: nanoid(),
-  name: options.name,
-  enabled: true,
-  memberId: options.memberId,
-  category: options.category,
-  ageBand: options.ageBand ?? { fromYears: 0, toYears: 99 },
-  monthlyAmount: options.monthlyAmount,
-  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
-  startMonth: baseMonth,
+  title: options?.title ?? "租屋",
+  type: "rent",
+  memberId: "household",
+  startMonth: options?.startMonth ?? baseMonth,
   endMonth: "",
+  monthlyAmount: options?.monthlyAmount ?? 12000,
+  oneTimeAmount: undefined,
+  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
 });
 
-const createIncome = (
+/**
+ * Creates a travel/vacation event
+ */
+const createTravelEvent = (
   baseMonth: string,
-  options: {
-    title: string;
-    memberId: string;
-    monthlyAmount: number;
-    subtype?: OnboardingIncomeDraft["subtype"];
+  options?: {
+    title?: string;
+    oneTimeAmount?: number;
+    startMonth?: string;
+    memberId?: string | "household";
   }
-): OnboardingIncomeDraft => ({
+): OnboardingTimelineEventDraft => ({
   id: nanoid(),
-  title: options.title,
-  memberId: options.memberId,
-  subtype: options.subtype ?? "salary",
-  monthlyAmount: options.monthlyAmount,
-  startMonth: baseMonth,
+  title: options?.title ?? "旅行",
+  type: "travel",
+  memberId: options?.memberId ?? "household",
+  startMonth: options?.startMonth ?? baseMonth,
   endMonth: "",
-  endAtAgeYears: undefined,
+  monthlyAmount: undefined,
+  oneTimeAmount: options?.oneTimeAmount ?? 50000,
+  annualGrowthPct: undefined,
+});
+
+/**
+ * Creates a medical/health event
+ */
+const createMedicalEvent = (
+  baseMonth: string,
+  options?: {
+    title?: string;
+    oneTimeAmount?: number;
+    startMonth?: string;
+    memberId?: string | "household";
+  }
+): OnboardingTimelineEventDraft => ({
+  id: nanoid(),
+  title: options?.title ?? "醫療支出",
+  type: "custom",
+  memberId: options?.memberId ?? "household",
+  startMonth: options?.startMonth ?? baseMonth,
+  endMonth: "",
+  monthlyAmount: undefined,
+  oneTimeAmount: options?.oneTimeAmount ?? 30000,
+  annualGrowthPct: undefined,
+});
+
+/**
+ * Creates an insurance premium event
+ */
+const createInsuranceEvent = (
+  baseMonth: string,
+  options?: {
+    title?: string;
+    monthlyAmount?: number;
+    startMonth?: string;
+    memberId?: string | "household";
+  }
+): OnboardingTimelineEventDraft => ({
+  id: nanoid(),
+  title: options?.title ?? "保險費",
+  type: "insurance_premium",
+  memberId: options?.memberId ?? "household",
+  startMonth: options?.startMonth ?? baseMonth,
+  endMonth: "",
+  monthlyAmount: options?.monthlyAmount ?? 5000,
+  oneTimeAmount: undefined,
   annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
 });
 
@@ -121,20 +166,20 @@ export const applyPersonaPreset = (
       members: [main],
       settings: settingsDefaults,
       budgetRules: [
-        createBudgetRule(baseMonth, {
-          name: "基本生活開支",
-          memberId: main.id,
-          category: "baseline",
-          monthlyAmount: 8000,
-        }),
+        // createBudgetRule(baseMonth, {
+        //   name: "基本生活開支",
+        //   memberId: main.id,
+        //   category: "baseline",
+        //   monthlyAmount: 8000,
+        // }),
       ],
       positions: emptyPositions,
       incomes: [
-        createIncome(baseMonth, {
-          title: "月薪",
-          memberId: main.id,
-          monthlyAmount: 20000,
-        }),
+        // createIncome(baseMonth, {
+        //   title: "月薪",
+        //   memberId: main.id,
+        //   monthlyAmount: 20000,
+        // }),
       ],
       timelineEvents: [],
     };
@@ -148,32 +193,32 @@ export const applyPersonaPreset = (
       members: [dad, mom, child],
       settings: settingsDefaults,
       budgetRules: [
-        createBudgetRule(baseMonth, {
-          name: "家庭基本開支",
-          memberId: "household",
-          category: "baseline",
-          monthlyAmount: 28000,
-        }),
-        createBudgetRule(baseMonth, {
-          name: "托兒與教育",
-          memberId: child.id,
-          category: "childcare",
-          monthlyAmount: 6000,
-          ageBand: { fromYears: 0, toYears: 12 },
-        }),
+        // createBudgetRule(baseMonth, {
+        //   name: "家庭基本開支",
+        //   memberId: "household",
+        //   category: "baseline",
+        //   monthlyAmount: 28000,
+        // }),
+        // createBudgetRule(baseMonth, {
+        //   name: "托兒與教育",
+        //   memberId: child.id,
+        //   category: "childcare",
+        //   monthlyAmount: 6000,
+        //   ageBand: { fromYears: 0, toYears: 12 },
+        // }),
       ],
       positions: emptyPositions,
       incomes: [
-        createIncome(baseMonth, {
-          title: "爸爸薪金",
-          memberId: dad.id,
-          monthlyAmount: 32000,
-        }),
-        createIncome(baseMonth, {
-          title: "媽媽薪金",
-          memberId: mom.id,
-          monthlyAmount: 26000,
-        }),
+        // createIncome(baseMonth, {
+        //   title: "爸爸薪金",
+        //   memberId: dad.id,
+        //   monthlyAmount: 32000,
+        // }),
+        // createIncome(baseMonth, {
+        //   title: "媽媽薪金",
+        //   memberId: mom.id,
+        //   monthlyAmount: 26000,
+        // }),
       ],
       timelineEvents: [],
     };
@@ -184,33 +229,33 @@ export const applyPersonaPreset = (
     members: [single],
     settings: settingsDefaults,
     budgetRules: [
-      createBudgetRule(baseMonth, {
-        name: "日常開支",
-        memberId: single.id,
-        category: "baseline",
-        monthlyAmount: 18000,
-      }),
+      // createBudgetRule(baseMonth, {
+      //   name: "日常開支",
+      //   memberId: single.id,
+      //   category: "baseline",
+      //   monthlyAmount: 18000,
+      // }),
     ],
     positions: {
       ...emptyPositions,
       investments: [
-        {
-          id: nanoid(),
-          assetClass: "fund",
-          startMonth: baseMonth,
-          initialValue: 5000000,
-          expectedAnnualReturnPct: DEFAULT_ANNUAL_GROWTH_PCT,
-          monthlyContribution: 0,
-        },
+        // {
+        //   id: nanoid(),
+        //   assetClass: "fund",
+        //   startMonth: baseMonth,
+        //   initialValue: 5000000,
+        //   expectedAnnualReturnPct: DEFAULT_ANNUAL_GROWTH_PCT,
+        //   monthlyContribution: 0,
+        // },
       ],
     },
     incomes: [
-      createIncome(baseMonth, {
-        title: "被動收入",
-        memberId: single.id,
-        monthlyAmount: 5000,
-        subtype: "dividend",
-      }),
+      // createIncome(baseMonth, {
+      //   title: "被動收入",
+      //   memberId: single.id,
+      //   monthlyAmount: 5000,
+      //   subtype: "dividend",
+      // }),
     ],
     timelineEvents: [],
   };
@@ -231,3 +276,14 @@ export const mergePersonaDraft = (
   incomes: personaDraft.incomes,
   timelineEvents: personaDraft.timelineEvents,
 });
+
+/**
+ * Common event creators for onboarding
+ */
+export const commonEvents = {
+  createHouseRentalEvent,
+  createTravelEvent,
+  createMedicalEvent,
+  createInsuranceEvent,
+};
+

@@ -6,26 +6,26 @@ type TranslationFn = ((key: string, values?: Record<string, string | number>) =>
 
 export const ONBOARDING_EVENT_TYPES: EventType[] = [
   "custom",
-  "salary",
+  // "salary",
   "rent",
-  "baby",
-  "car",
+  // "baby",
+  // "car",
   "travel",
-  "insurance",
-  "helper",
-  "tax_benefit",
+  // "insurance",
+  // "helper",
+  // "tax_benefit",
 ];
 
 const EVENT_TYPE_LABEL_KEYS: Partial<Record<EventType, string>> = {
-  rent: "eventType.rent",
-  salary: "eventType.salary",
-  baby: "eventType.baby",
-  car: "eventType.car",
-  travel: "eventType.travel",
-  insurance: "eventType.insurance",
-  helper: "eventType.helper",
-  tax_benefit: "eventType.tax_benefit",
-  custom: "eventType.custom",
+  rent: "eventTypes.rent",
+  salary: "eventTypes.salary",
+  baby: "eventTypes.baby",
+  car: "eventTypes.car",
+  travel: "eventTypes.travel",
+  insurance: "eventTypes.insurance",
+  helper: "eventTypes.helper",
+  tax_benefit: "eventTypes.tax_benefit",
+  custom: "eventTypes.custom",
 };
 
 export const getEventTypeLabel = (type: EventType, t: TranslationFn) => {

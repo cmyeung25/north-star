@@ -355,10 +355,10 @@ export const buildDefaultOnboardingDraft = (
   members: [],
   settings: {
     baseMonth,
-    horizonMonths: scenario.assumptions.horizonMonths ?? 360,
-    annualInflationPct: 0,
+    horizonMonths: scenario.assumptions.horizonMonths ?? 60,
+    annualInflationPct: 2,
     viewMode: "nominal",
-    initialCash: scenario.assumptions.initialCash ?? 0,
+    initialCash: scenario.assumptions.initialCash ?? 100000,
   },
   budgetRules: [],
   positions: {

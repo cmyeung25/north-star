@@ -49,6 +49,7 @@ export default function StepBudgetRules({
   onRemoveRule,
   t,
 }: StepBudgetRulesProps) {
+
   const memberOptions = [
     { value: "household", label: t("householdShared") },
     ...members.map((member) => ({ value: member.id, label: member.name })),
@@ -74,7 +75,6 @@ export default function StepBudgetRules({
       return next;
     });
   }, [rules]);
-
   return (
     <Stack gap="xl">
       <Stack gap={4}>

@@ -1526,7 +1526,8 @@
     "eventAmountBasis": "Amount basis",
     "amountBasisMonthly": "Monthly",
     "amountBasisYearly": "Yearly",
-    "eventType": {
+    "eventType": "Event type",
+    "eventTypes": {
       "rent": "Rent",
       "salary": "Salary",
       "buy_home": "Buy home",

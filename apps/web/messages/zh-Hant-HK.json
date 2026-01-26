@@ -1550,7 +1550,8 @@
     "eventAmountBasis": "金額基準",
     "amountBasisMonthly": "每月",
     "amountBasisYearly": "每年",
-    "eventType": {
+    "eventType": "事件類型",
+    "eventTypes": {
       "rent": "租金",
       "salary": "薪資",
       "buy_home": "購屋",

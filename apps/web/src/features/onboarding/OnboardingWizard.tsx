@@ -19,6 +19,7 @@ import {
   useScenarioStore,
   type OnboardingPersona,
   type BudgetRule,
+  type BudgetCategory,
 } from "../../store/scenarioStore";
 import { normalizeOnboardingMonth } from "../../utils/month";
 import { getBaseMonth } from "./utils";
@@ -31,7 +32,7 @@ import {
 } from "../../domain/onboarding/personas";
 import { createHomePositionFromTemplate } from "../../../components/timeline/utils";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../domain/constants";
-import { buildOnboardingDefaults } from "../../domain/onboarding/buildOnboardingDefaults";
+import { buildOnboardingDefaults, getMemberBudgetRuleIds, getCategoryName } from "../../domain/onboarding/buildOnboardingDefaults";
 import StepHouseholdMembers from "./steps/StepHouseholdMembers";
 import StepGlobalSettings from "./steps/StepGlobalSettings";
 import StepBudgetRules from "./steps/StepBudgetRules";
@@ -58,8 +59,6 @@ type StepKey = (typeof steps)[number];
 const templates = [
   { label: "本人", kind: "person", name: "本人" },
   { label: "配偶", kind: "person", name: "配偶" },
-  // { label: "爸爸", kind: "person", name: "爸爸" },
-  // { label: "媽媽", kind: "person", name: "媽媽" },
   { label: "小朋友", kind: "person", name: "小朋友" },
   { label: "寵物", kind: "pet", name: "寵物" },
 ] as const;
@@ -69,7 +68,7 @@ const createMemberDraft = (template?: { name: string; kind: "person" | "pet" }) 
   name: template?.name ?? "",
   kind: template?.kind ?? "person",
   birthMonth: "",
-  ageAtBaseMonth: undefined,
+  ageAtBaseMonth: template?.kind === "pet" ? undefined : 25,
 });
 
 const createBudgetRuleDraft = (baseMonth: string): OnboardingBudgetRuleDraft => ({
@@ -79,7 +78,7 @@ const createBudgetRuleDraft = (baseMonth: string): OnboardingBudgetRuleDraft => 
   memberId: "household",
   category: "baseline",
   ageBand: { fromYears: 0, toYears: 99 },
-  monthlyAmount: 0,
+  monthlyAmount: 8000,
   annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
   startMonth: baseMonth,
   endMonth: "",
@@ -212,9 +211,10 @@ export default function OnboardingWizard() {
     if (!scenario || !onboardingSeedKey) {
       return;
     }
-    if (draft?.members.length ?? 0 < 1) {
-      return;
-    }
+    // console.log(draft, draft?.members.length)
+    // // if (draft?.members.length ?? 0 < 1) {
+    // //   return;
+    // // }
     setDraft((current) => {
       if (!current) {
         return current;
@@ -276,11 +276,74 @@ export default function OnboardingWizard() {
       if (!current) {
         return current;
       }
+      const updatedMembers = current.members.map((member) =>
+        member.id === id ? { ...member, ...patch } : member
+      );
+      const updatedMember = updatedMembers.find((m) => m.id === id);
+      
+      if (!updatedMember) {
+        return { ...current, members: updatedMembers };
+      }
+
+      // Get the old member to compare ages
+      const oldMember = current.members.find((m) => m.id === id);
+      if (!oldMember) {
+        return { ...current, members: updatedMembers };
+      }
+
+      // Check if age-related fields changed (birthMonth or ageAtBaseMonth)
+      const ageFieldsChanged =
+        (patch.birthMonth !== undefined && patch.birthMonth !== oldMember.birthMonth) ||
+        (patch.ageAtBaseMonth !== undefined && patch.ageAtBaseMonth !== oldMember.ageAtBaseMonth);
+
+      if (!ageFieldsChanged) {
+        return { ...current, members: updatedMembers };
+      }
+
+      // Get expected rule IDs for old and new member
+      const oldRuleIds = new Set(getMemberBudgetRuleIds(oldMember, current.settings.baseMonth));
+      const newRuleIds = new Set(getMemberBudgetRuleIds(updatedMember, current.settings.baseMonth));
+
+      // Remove rules that are no longer needed
+      const rulesToRemoveIds = new Set(
+        [...oldRuleIds].filter((id) => !newRuleIds.has(id))
+      );
+
+      // Find rules to add
+      const rulesToAddIds = [...newRuleIds].filter((id) => !oldRuleIds.has(id));
+
+      // Build new budget rules to add
+      const rulesToAdd: OnboardingBudgetRuleDraft[] = rulesToAddIds.map((ruleId) => {
+        // Determine category from rule ID
+        const categoryMatch = ruleId.match(/seed:(.+?):/)?.[1];
+        const category = (categoryMatch ?? "baseline") as BudgetCategory;
+        return {
+          id: ruleId,
+          name: getCategoryName(category, updatedMember.name),
+          enabled: true,
+          memberId: updatedMember.id,
+          category,
+          ageBand:
+            category === "childcare"
+              ? { fromYears: 0, toYears: 12 }
+              : category === "eldercare"
+                ? { fromYears: 65, toYears: 120 }
+                : { fromYears: 0, toYears: 120 },
+          monthlyAmount: 0,
+          annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+          startMonth: current.settings.baseMonth,
+          endMonth: "",
+          applyScope: { scope: "include", scenarioIds: [scenario?.id || ""] },
+        };
+      });
+
       return {
         ...current,
-        members: current.members.map((member) =>
-          member.id === id ? { ...member, ...patch } : member
-        ),
+        members: updatedMembers,
+        budgetRules: [
+          ...current.budgetRules.filter((rule) => !rulesToRemoveIds.has(rule.id)),
+          ...rulesToAdd,
+        ],
       };
     });
   };
@@ -652,11 +715,29 @@ export default function OnboardingWizard() {
           }
           onUpdateMember={handleMemberUpdate}
           onRemoveMember={(id) =>
-            setDraft((current) =>
-              current
-                ? { ...current, members: current.members.filter((member) => member.id !== id) }
-                : current
-            )
+            setDraft((current) => {
+              if (!current) {
+                return current;
+              }
+              const memberToRemove = current.members.find((m) => m.id === id);
+              if (!memberToRemove) {
+                return current;
+              }
+              
+              // Get the expected budget rule IDs for this member
+              const budgetRuleIdsToRemove = new Set(
+                getMemberBudgetRuleIds(memberToRemove, current.settings.baseMonth)
+              );
+              
+              return {
+                ...current,
+                members: current.members.filter((member) => member.id !== id),
+                // Remove associated budget rules
+                budgetRules: current.budgetRules.filter(
+                  (rule) => !budgetRuleIdsToRemove.has(rule.id)
+                ),
+              };
+            })
           }
           t={onboardingText}
         />
