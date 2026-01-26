@@ -41,7 +41,6 @@ import NetCashflowChart from "../../../features/overview/components/NetCashflowC
 import NetWorthChart from "../../../features/overview/components/NetWorthChart";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
-import PlanLabPanel from "../../../features/planLab/PlanLabPanel";
 import type { RiskLevel, TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import {
@@ -67,7 +66,7 @@ import {
 } from "../../../src/store/scenarioStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
-import { addMonths, getMemberAgeYears } from "../../../src/domain/members/age";
+import { getMemberAgeYears } from "../../../src/domain/members/age";
 import { appliesToScenario } from "../../../src/domain/applyScope";
 import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
 import { normalizeMonthStrict } from "../../../src/utils/month";
@@ -640,17 +639,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const planLabFamilyEntryHref = useMemo(() => {
     if (!selectedScenario) {
-      return "/dashboard?goal=family-launch";
+      return "/plan-lab";
     }
-    const params = new URLSearchParams({ goal: "family-launch" });
-    const baseMonthRaw = selectedScenario.assumptions.baseMonth ?? "";
-    const normalizedBase = normalizeMonthStrict(baseMonthRaw);
-    if (normalizedBase.ok) {
-      params.set("weddingMonth", addMonths(normalizedBase.month, 3));
-      params.set("dueMonth", addMonths(normalizedBase.month, 9));
-      params.set("purchaseMonth", addMonths(normalizedBase.month, 12));
-    }
-    return `${buildScenarioUrl("/dashboard", selectedScenario.id)}&${params.toString()}`;
+    return buildScenarioUrl("/plan-lab", selectedScenario.id);
   }, [selectedScenario]);
 
   if (!selectedScenario) {
@@ -1133,19 +1124,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </Group>
             </Stack>
           </Card>
-          <PlanLabPanel
-            scenario={selectedScenario}
-            eventLibrary={eventLibrary}
-            members={members}
-            budgetRules={budgetRules}
-            displayMode={displayMode}
-            deflateSeries={deflateSeries}
-            baselineSeries={{
-              cash: cashSeries,
-              netWorth: netWorthSeries,
-              netCashflow: displayedNetCashflowSeries,
-            }}
-          />
           {!hasEnabledEvents && (
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm" align="flex-start">

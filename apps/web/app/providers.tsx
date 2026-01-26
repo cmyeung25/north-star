@@ -77,6 +77,7 @@ export default function Providers({ children }: { children: ReactNode }) {
 
   const navItems = [
     { label: nav("dashboard"), href: "/dashboard" },
+    { label: nav("planLab"), href: "/plan-lab" },
     { label: nav("money"), href: "/money" },
     { label: nav("people"), href: "/people" },
     { label: nav("settings"), href: "/settings" },
@@ -188,6 +189,14 @@ export default function Providers({ children }: { children: ReactNode }) {
             </Text>
             <Group gap="xs" align="center">
               <ScenarioSwitcher />
+              <Button
+                component={Link}
+                href="/plan-lab"
+                size="xs"
+                variant="light"
+              >
+                {nav("planLab")}
+              </Button>
               <Text size="xs" c="dimmed">
                 {statusLabel}
               </Text>
@@ -242,9 +251,9 @@ export default function Providers({ children }: { children: ReactNode }) {
 
         <AppShell.Main>
           <Container
-            size="lg"
+            size="xl"
             px="md"
-            pt="xl"
+            fluid 
             pb={isDesktop ? undefined : "xl"}
             style={{
               paddingBottom:
