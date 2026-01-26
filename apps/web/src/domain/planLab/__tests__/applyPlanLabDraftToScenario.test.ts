@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Scenario } from "../../../store/scenarioStore";
+import type { EventDefinition } from "../../events/types";
 import { applyPlanLabDraftToScenario } from "../applyPlanLabDraftToScenario";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
@@ -23,90 +24,57 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
 });
 
 describe("applyPlanLabDraftToScenario", () => {
-  it("replaces existing homes with a plan lab home for buy drafts", () => {
-    const scenario = buildScenario({
-      positions: {
-        homes: [
-          {
-            id: "home-1",
-            purchaseMonth: "2020-01",
-            purchasePrice: 5000000,
-            downPayment: 1000000,
-            annualAppreciationPct: 0,
+  it("applies baseline patches to event refs and definitions", () => {
+    const scenario = buildScenario();
+    const definition: EventDefinition = {
+      id: "event-1",
+      title: "Income",
+      type: "salary",
+      kind: "cashflow",
+      rule: {
+        mode: "params",
+        startMonth: "2024-01",
+        endMonth: null,
+        monthlyAmount: 5000,
+        oneTimeAmount: 0,
+        annualGrowthPct: 0,
+      },
+    };
+    const result = applyPlanLabDraftToScenario(
+      scenario,
+      {
+        baselinePatches: {
+          eventPatches: {
+            "event-1": {
+              isDisabled: true,
+              endMonth: "2025-01",
+              patch: { ...definition, title: "Edited Income" },
+            },
           },
-        ],
-      },
-    });
-
-    const result = applyPlanLabDraftToScenario(
-      scenario,
-      {
-        housing: {
-          kind: "buy",
-          purchaseMonth: "2026-06",
-          purchasePrice: 8000000,
-          downPaymentPct: 25,
         },
       },
       { scenarioId: scenario.id }
     );
 
     expect(result.errors).toHaveLength(0);
-    expect(result.eventDefinitions).toHaveLength(0);
-    expect(result.scenario.positions?.homes).toHaveLength(1);
-    expect(result.scenario.positions?.homes?.[0]).toMatchObject({
-      purchaseMonth: "2026-06",
-      purchasePrice: 8000000,
-    });
-    expect(result.warnings).toEqual([
-      {
-        code: "replace-homes",
-        message: "Plan Lab housing will replace existing home positions.",
-      },
-    ]);
-  });
-
-  it("replaces plan lab events and adds rent/baby definitions", () => {
-    const scenario = buildScenario({
-      eventRefs: [{ refId: "planLab:scenario-test:rent", enabled: true }],
-    });
-
-    const result = applyPlanLabDraftToScenario(
-      scenario,
-      {
-        housing: {
-          kind: "rent",
-          startMonth: "2025-02",
-          monthlyRent: 15000,
-        },
-        babyPlan: {
-          targetMonth: "2026-03",
-          monthlyBabyBudget: 3500,
-          durationMonths: 12,
-          oneOffBabyCost: 12000,
-        },
-      },
-      { scenarioId: scenario.id }
-    );
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.eventDefinitions).toHaveLength(3);
-    expect(result.scenario.eventRefs).toEqual([
-      { refId: "planLab:scenario-test:rent", enabled: true },
-      { refId: "planLab:scenario-test:baby", enabled: true },
-      { refId: "planLab:scenario-test:baby-one-off", enabled: true },
-    ]);
+    expect(result.eventDefinitions).toHaveLength(1);
+    expect(result.eventDefinitions[0].title).toBe("Edited Income");
+    expect(result.scenario.eventRefs).toEqual([]);
   });
 
   it("returns errors for invalid months", () => {
-    const scenario = buildScenario();
+    const scenario = buildScenario({
+      eventRefs: [{ refId: "event-1", enabled: true }],
+    });
     const result = applyPlanLabDraftToScenario(
       scenario,
       {
-        housing: {
-          kind: "rent",
-          startMonth: "2025-99",
-          monthlyRent: 12000,
+        baselinePatches: {
+          eventPatches: {
+            "event-1": {
+              endMonth: "2025-99",
+            },
+          },
         },
       },
       { scenarioId: scenario.id }

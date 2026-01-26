@@ -1,41 +1,42 @@
-export type PlanLabHousingBuyDraft = {
-  purchaseMonth?: string;
-  purchasePrice?: number;
-  downPaymentAmount?: number;
-  downPaymentPct?: number;
-  mortgageRatePct?: number;
-  termYears?: number;
-  oneTimeFees?: number;
-  holdingCostMonthly?: number;
-};
+import type { EventDefinition } from "../events/types";
+import type {
+  BudgetRule,
+  CarPositionDraft,
+  CashBucketPositionDraft,
+  HomePositionDraft,
+  InsurancePositionDraft,
+  InvestmentPositionDraft,
+  LoanPositionDraft,
+} from "../../store/scenarioStore";
 
-export type PlanLabHousingRentDraft = {
-  startMonth?: string;
-  monthlyRent?: number;
-  annualRentGrowthPct?: number;
-};
-
-export type PlanLabHousingDraft =
-  | ({ kind: "buy" } & PlanLabHousingBuyDraft)
-  | ({ kind: "rent" } & PlanLabHousingRentDraft);
-
-export type PlanLabBabyPlanDraft = {
-  targetMonth?: string;
-  monthlyBabyBudget?: number;
-  oneOffBabyCost?: number;
-  durationMonths?: number;
-};
-
-export type PlanLabGoalType = "classic" | "family-launch";
-
-export type PlanLabBaselineEdit = {
-  id: string;
-  refType: "event" | "position";
-  refId: string;
-  kind: "rent" | "car_running";
-  action: "keep" | "end" | "replace";
+export type PlanLabEventPatch = {
+  isDisabled?: boolean;
+  patch?: Partial<EventDefinition>;
   endMonth?: string;
-  isEnabled?: boolean;
+};
+
+export type PlanLabRulePatch = {
+  isDisabled?: boolean;
+  patch?: Partial<BudgetRule>;
+  endMonth?: string;
+};
+
+export type PlanLabPositionPatch = {
+  isDisabled?: boolean;
+  patch?: Partial<
+    | HomePositionDraft
+    | CarPositionDraft
+    | InvestmentPositionDraft
+    | InsurancePositionDraft
+    | LoanPositionDraft
+    | CashBucketPositionDraft
+  >;
+};
+
+export type PlanLabBaselinePatches = {
+  eventPatches?: Record<string, PlanLabEventPatch>;
+  rulePatches?: Record<string, PlanLabRulePatch>;
+  positionPatches?: Record<string, PlanLabPositionPatch>;
 };
 
 export type PlanLabExperimentType =
@@ -117,50 +118,8 @@ export type PlanLabScorecardSettings = {
   firstBucketTargetAmount?: number;
 };
 
-export type FamilyLaunchWeddingDraft = {
-  weddingMonth?: string;
-  weddingBudget?: number;
-  honeymoonBudget?: number;
-};
-
-export type FamilyLaunchBabyDraft = {
-  dueMonth?: string;
-  babyMonthlyBudget?: number;
-  babyOneOffBudget?: number;
-  babyDurationMonths?: number;
-};
-
-export type FamilyLaunchHousingDraft = {
-  housingMode?: "keep-rent" | "rent-upgrade" | "buy-home";
-  currentRent?: number;
-  upgradedRent?: number;
-  rentStartMonth?: string;
-  purchaseMonth?: string;
-  homePrice?: number;
-  downPaymentAmount?: number;
-  downPaymentPct?: number;
-  mortgageRatePct?: number;
-  mortgageTermYears?: number;
-  oneOffFees?: number;
-  monthlyHoldingCost?: number;
-  annualAppreciationPct?: number;
-};
-
-export type FamilyLaunchDraft = {
-  wedding?: FamilyLaunchWeddingDraft;
-  baby?: FamilyLaunchBabyDraft;
-  housing?: FamilyLaunchHousingDraft;
-};
-
 export type PlanLabDraft = {
-  goalType?: PlanLabGoalType;
-  baseMonth?: string;
-  targetMonth?: string;
-  initialCash?: number;
-  housing?: PlanLabHousingDraft;
-  babyPlan?: PlanLabBabyPlanDraft;
-  familyLaunch?: FamilyLaunchDraft;
-  baselineEdits?: PlanLabBaselineEdit[];
+  baselinePatches?: PlanLabBaselinePatches;
   experiments?: PlanLabExperiment[];
   scorecardSettings?: PlanLabScorecardSettings;
 };

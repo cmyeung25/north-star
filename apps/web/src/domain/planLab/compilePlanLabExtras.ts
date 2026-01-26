@@ -7,7 +7,6 @@ import type {
   ScenarioPositions,
 } from "../../store/scenarioStore";
 import type {
-  PlanLabBaselineEdit,
   PlanLabDraft,
   PlanLabExperiment,
 } from "./types";
@@ -17,19 +16,15 @@ import {
   toNumber,
   type PlanLabDraftWarning,
 } from "./compileUtils";
-import { buildScenarioEventViews } from "../events/utils";
-import { WarningCode } from "../warnings/types";
 
 type CompilePlanLabExtrasOptions = {
   baselineScenario?: Scenario | null;
-  eventLibrary?: EventDefinition[];
 };
 
 type PlanLabExtrasCompilation = {
   positions: Partial<ScenarioPositions>;
   eventDefinitions: EventDefinition[];
   eventRefs: ScenarioEventRef[];
-  eventRefOverrides: ScenarioEventRef[];
   warnings: PlanLabDraftWarning[];
 };
 
@@ -55,35 +50,6 @@ const buildAnnualSchedule = (params: {
   }
   return schedule;
 };
-
-const compileBaselineEdits = (
-  edits: PlanLabBaselineEdit[],
-  warnings: PlanLabDraftWarning[]
-) =>
-  edits.flatMap<ScenarioEventRef>((edit) => {
-    if (edit.action === "keep" || edit.isEnabled === false) {
-      return [];
-    }
-    if (edit.kind !== "rent" && edit.kind !== "car_running") {
-      return [];
-    }
-    const endMonth = normalizeDraftMonth(
-      `baselineEdits.${edit.id}.endMonth`,
-      edit.endMonth,
-      warnings,
-      { refId: edit.refId, action: edit.action }
-    );
-    if (!endMonth) {
-      return [];
-    }
-    return [
-      {
-        refId: edit.refId,
-        enabled: true,
-        overrides: { endMonth },
-      },
-    ];
-  });
 
 const compileExperimentToDefinition = (
   experiment: PlanLabExperiment,
@@ -314,12 +280,7 @@ export const compilePlanLabExtras = (
   const positions: Partial<ScenarioPositions> = {};
   const eventDefinitions: EventDefinition[] = [];
   const eventRefs: ScenarioEventRef[] = [];
-  const eventRefOverrides: ScenarioEventRef[] = [];
   const baselineScenario = options.baselineScenario;
-
-  const baselineEdits = draft.baselineEdits ?? [];
-  const enabledEdits = baselineEdits.filter((edit) => edit.isEnabled !== false);
-  eventRefOverrides.push(...compileBaselineEdits(enabledEdits, warnings));
 
   const experiments = draft.experiments ?? [];
   const homeBuys: HomePositionDraft[] = [];
@@ -347,43 +308,10 @@ export const compilePlanLabExtras = (
   if (homeBuys.length > 0) {
     positions.homes = homeBuys;
   }
-  if (cars.length > 0) {
-    const baselineCars = baselineScenario?.positions?.cars ?? [];
-    positions.cars = [...baselineCars, ...cars];
-  }
-
-  if (options.baselineScenario && options.eventLibrary) {
-    const eventViews = buildScenarioEventViews(
-      options.baselineScenario,
-      options.eventLibrary
-    );
-    const rentEvents = eventViews.filter(
-      (view) => view.definition.type === "rent" && view.ref.enabled
-    );
-    const hasRentBaseline = rentEvents.some((view) => {
-      const edit = baselineEdits.find((item) => item.refId === view.ref.refId);
-      return !edit || edit.action === "keep" || edit.isEnabled === false;
-    });
-    const hasHomeBuy = experiments.some(
-      (experiment) => experiment.type === "homeBuy" && experiment.isEnabled !== false
-    );
-    if (hasRentBaseline && hasHomeBuy) {
-      warnings.push({
-        code: WarningCode.DoubleCountingHomeEvent,
-        severity: "warning",
-        messageKey: "warnings.doubleCountingHomeRent",
-        defaultMessage:
-          "Rent and home purchase are both active; double counting may occur.",
-        refs: { scenarioId: options.baselineScenario.id },
-      });
-    }
-  }
-
   return {
     positions,
     eventDefinitions,
     eventRefs,
-    eventRefOverrides,
     warnings,
   };
 };

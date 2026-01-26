@@ -1,14 +1,15 @@
+"use client";
+
 import {
-  Accordion,
   Badge,
   Button,
   Card,
-  Divider,
+  Drawer,
   Grid,
   Group,
   NumberInput,
-  Select,
   SegmentedControl,
+  Select,
   SimpleGrid,
   Stack,
   Switch,
@@ -29,14 +30,13 @@ import {
   YAxis,
 } from "recharts";
 import type {
-  FamilyLaunchDraft,
-  PlanLabBaselineEdit,
   PlanLabDraft,
   PlanLabExperiment,
   PlanLabExperimentType,
-  PlanLabGoalType,
+  PlanLabPositionPatch,
+  PlanLabRulePatch,
 } from "../../src/domain/planLab/types";
-import type { EventDefinition } from "../../src/domain/events/types";
+import type { EventDefinition, EventRule, EventRuleOverrides } from "../../src/domain/events/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
 import { useScenarioStore } from "../../src/store/scenarioStore";
 import { applyPlanLabDraftToScenario } from "../../src/domain/planLab/applyPlanLabDraftToScenario";
@@ -47,24 +47,43 @@ import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProje
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
-import { computeFamilyLaunchScorecard } from "../../src/domain/planLab/computeFamilyLaunchScorecard";
 import { computeFirstBucket } from "../../src/domain/planLab/computeFirstBucket";
-import { familyLaunchExperiments } from "../../src/domain/planLab/familyLaunchExperiments";
-import { buildScenarioEventViews } from "../../src/domain/events/utils";
-import { usePlanLabDeepLink } from "./usePlanLabDeepLink";
-import { addMonths } from "../../src/domain/members/age";
+import {
+  computeCashRiskScorecard,
+  computeBufferThresholdFromLedger,
+} from "../../src/domain/planLab/scorecard/cashRisk";
+import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
+import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
+import TimelineEventForm, { type TimelineEventFormResult } from "../../components/timeline/TimelineEventForm";
+import { getEventMeta } from "../../src/events/eventCatalog";
+
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
-const defaultPurchasePrice = 8_000_000;
-const defaultDownPaymentPct = 30;
+type ScenarioItemKind = "event" | "rule" | "position";
 
-type BaselineItem = {
-  refId: string;
-  kind: PlanLabBaselineEdit["kind"];
+type PositionKind = "home" | "car" | "investment" | "insurance" | "loan" | "cash";
+
+type ScenarioEditorItem = {
+  id: string;
+  kind: ScenarioItemKind;
   title: string;
+  category: string;
+  memberId?: string | null;
   startMonth?: string;
   endMonth?: string | null;
+  enabled: boolean;
+  risky?: boolean;
+  eventRefId?: string;
+  eventDefinitionId?: string;
+  ruleId?: string;
+  positionKey?: string;
+  positionKind?: PositionKind;
+  position?: any;
+  budgetRule?: BudgetRule;
+  eventDefinition?: EventDefinition;
+  eventRule?: EventRule;
+  eventOverrides?: EventRuleOverrides;
 };
 
 type PlanLabPanelProps = {
@@ -81,47 +100,7 @@ type PlanLabPanelProps = {
   };
 };
 
-const buildPlanLabScenarioName = (
-  draft: PlanLabDraft,
-  locale: string,
-  currency: string,
-  t: ReturnType<typeof useTranslations>
-) => {
-  if (draft.goalType === "family-launch") {
-    return t.has("planLabScenarioNameFamily")
-      ? t("planLabScenarioNameFamily")
-      : "Plan Lab: Family Launch";
-  }
-  if (draft.housing?.kind === "buy" && draft.housing.purchaseMonth) {
-    const price =
-      typeof draft.housing.purchasePrice === "number"
-        ? formatCurrency(draft.housing.purchasePrice, currency, locale)
-        : "";
-    return t("planLabScenarioNameBuy", {
-      price,
-      month: draft.housing.purchaseMonth,
-    });
-  }
-  if (draft.housing?.kind === "rent" && draft.housing.startMonth) {
-    const rent =
-      typeof draft.housing.monthlyRent === "number"
-        ? formatCurrency(draft.housing.monthlyRent, currency, locale)
-        : "";
-    return t("planLabScenarioNameRent", {
-      rent,
-      month: draft.housing.startMonth,
-    });
-  }
-  if (draft.babyPlan?.targetMonth) {
-    return t("planLabScenarioNameBaby", { month: draft.babyPlan.targetMonth });
-  }
-  return t("planLabScenarioNameOption");
-};
-
-const mergeSeries = (
-  baseline: TimeSeriesPoint[],
-  option: TimeSeriesPoint[]
-) => {
+const mergeSeries = (baseline: TimeSeriesPoint[], option: TimeSeriesPoint[]) => {
   const monthSet = new Set<string>();
   baseline.forEach((entry) => monthSet.add(entry.month));
   option.forEach((entry) => monthSet.add(entry.month));
@@ -151,6 +130,66 @@ const getMonthError = (value: string, message: string) => {
 
 const isStrictMonth = (value: string) => normalizeMonthStrict(value).ok;
 
+const getGroupLabel = (groupBy: string, item: ScenarioEditorItem, members: ScenarioMember[]) => {
+  if (groupBy === "member") {
+    if (!item.memberId) {
+      return "Unassigned";
+    }
+    return members.find((member) => member.id === item.memberId)?.name ?? "Unassigned";
+  }
+  if (groupBy === "timeline") {
+    return item.startMonth ?? "No date";
+  }
+  return item.category;
+};
+
+const buildPatchedDefinition = (
+  definition: EventDefinition,
+  patch?: { patch?: Partial<EventDefinition>; endMonth?: string; isDisabled?: boolean }
+) => {
+  if (!patch?.patch) {
+    return definition;
+  }
+  return {
+    ...definition,
+    ...patch.patch,
+    rule: {
+      ...definition.rule,
+      ...(patch.patch.rule ?? {}),
+    },
+  };
+};
+
+const eventTypeLabel = (definition: EventDefinition) => {
+  const meta = getEventMeta(definition.type);
+  return meta.group;
+};
+
+const buildPositionKey = (kind: PositionKind, id: string | undefined, index: number) =>
+  `${kind}:${id ?? `index-${index}`}`;
+
+const buildPositionTitle = (kind: PositionKind, position: any, index: number) => {
+  if (kind === "home") {
+    return position?.name ?? "Home";
+  }
+  if (kind === "car") {
+    return position?.name ?? `Car ${index + 1}`;
+  }
+  if (kind === "investment") {
+    return position?.name ?? `Investment ${index + 1}`;
+  }
+  if (kind === "insurance") {
+    return position?.name ?? `Insurance ${index + 1}`;
+  }
+  if (kind === "loan") {
+    return position?.name ?? `Loan ${index + 1}`;
+  }
+  if (kind === "cash") {
+    return position?.name ?? `Cash bucket ${index + 1}`;
+  }
+  return `Position ${index + 1}`;
+};
+
 export default function PlanLabPanel({
   scenario,
   eventLibrary,
@@ -167,311 +206,94 @@ export default function PlanLabPanel({
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
-  const deepLink = usePlanLabDeepLink(scenario);
-  const [goalType, setGoalType] = useState<PlanLabGoalType>(deepLink.goalType);
+  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
+
   const [chartType, setChartType] = useState<ChartType>("netWorth");
-  const [housingMode, setHousingMode] = useState<"rent" | "rent-bigger" | "buy">(
-    "rent"
-  );
-  const [rentStartMonth, setRentStartMonth] = useState(
-    scenario.assumptions.baseMonth ?? ""
-  );
-  const [rentMonthly, setRentMonthly] = useState<number | "">(
-    scenario.assumptions.rentMonthly ?? ""
-  );
-  const [purchaseMonth, setPurchaseMonth] = useState(
-    scenario.assumptions.baseMonth ?? ""
-  );
-  const [purchasePrice, setPurchasePrice] = useState<number | "">(
-    defaultPurchasePrice
-  );
-  const [downPaymentPct, setDownPaymentPct] = useState<number | "">(
-    defaultDownPaymentPct
-  );
-  const [downPaymentAmount, setDownPaymentAmount] = useState<number | "">(() => {
-    const price =
-      typeof purchasePrice === "number" ? purchasePrice : defaultPurchasePrice;
-    return Math.round((price * defaultDownPaymentPct) / 100);
+  const [baselinePatches, setBaselinePatches] = useState<PlanLabDraft["baselinePatches"]>({
+    eventPatches: {},
+    rulePatches: {},
+    positionPatches: {},
   });
-  const [mortgageRatePct, setMortgageRatePct] = useState<number | "">(
-    scenario.assumptions.mortgageRatePct ?? 2.5
-  );
-  const [termYears, setTermYears] = useState<number | "">(
-    scenario.assumptions.mortgageTermYears ?? 30
-  );
-  const [babyDueMonth, setBabyDueMonth] = useState("");
-  const [babyMonthlyBudget, setBabyMonthlyBudget] = useState<number | "">("");
-  const [babyOneOffCost, setBabyOneOffCost] = useState<number | "">("");
-  const [buyPanelOpen, setBuyPanelOpen] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [familyWeddingMonth, setFamilyWeddingMonth] = useState(
-    deepLink.familyLaunchDraft.wedding?.weddingMonth ?? ""
-  );
-  const [familyWeddingBudget, setFamilyWeddingBudget] = useState<number | "">(
-    deepLink.familyLaunchDraft.wedding?.weddingBudget ?? ""
-  );
-  const [familyHoneymoonBudget, setFamilyHoneymoonBudget] = useState<number | "">(
-    deepLink.familyLaunchDraft.wedding?.honeymoonBudget ?? ""
-  );
-  const [familyBabyDueMonth, setFamilyBabyDueMonth] = useState(
-    deepLink.familyLaunchDraft.baby?.dueMonth ?? ""
-  );
-  const [familyBabyMonthlyBudget, setFamilyBabyMonthlyBudget] = useState<number | "">(
-    deepLink.familyLaunchDraft.baby?.babyMonthlyBudget ?? ""
-  );
-  const [familyBabyOneOffBudget, setFamilyBabyOneOffBudget] = useState<number | "">(
-    deepLink.familyLaunchDraft.baby?.babyOneOffBudget ?? ""
-  );
-  const [familyBabyDurationMonths, setFamilyBabyDurationMonths] = useState<number | "">(
-    deepLink.familyLaunchDraft.baby?.babyDurationMonths ?? 24
-  );
-  const [familyHousingMode, setFamilyHousingMode] = useState<
-    "keep-rent" | "rent-upgrade" | "buy-home"
-  >(deepLink.familyLaunchDraft.housing?.housingMode ?? "buy-home");
-  const [familyRentStartMonth, setFamilyRentStartMonth] = useState(
-    deepLink.familyLaunchDraft.housing?.rentStartMonth ??
-      scenario.assumptions.baseMonth ??
-      ""
-  );
-  const [familyCurrentRent, setFamilyCurrentRent] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.currentRent ??
-      scenario.assumptions.rentMonthly ??
-      ""
-  );
-  const [familyUpgradedRent, setFamilyUpgradedRent] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.upgradedRent ??
-      (scenario.assumptions.rentMonthly
-        ? Math.round(scenario.assumptions.rentMonthly * 1.3)
-        : "")
-  );
-  const [familyPurchaseMonth, setFamilyPurchaseMonth] = useState(
-    deepLink.familyLaunchDraft.housing?.purchaseMonth ??
-      scenario.assumptions.baseMonth ??
-      ""
-  );
-  const [familyHomePrice, setFamilyHomePrice] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.homePrice ?? defaultPurchasePrice
-  );
-  const [familyDownPaymentPct, setFamilyDownPaymentPct] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.downPaymentPct ?? defaultDownPaymentPct
-  );
-  const [familyDownPaymentAmount, setFamilyDownPaymentAmount] = useState<
-    number | ""
-  >(() => {
-    if (typeof deepLink.familyLaunchDraft.housing?.downPaymentAmount === "number") {
-      return deepLink.familyLaunchDraft.housing.downPaymentAmount;
-    }
-    const price =
-      typeof deepLink.familyLaunchDraft.housing?.homePrice === "number"
-        ? deepLink.familyLaunchDraft.housing.homePrice
-        : defaultPurchasePrice;
-    const pct =
-      typeof deepLink.familyLaunchDraft.housing?.downPaymentPct === "number"
-        ? deepLink.familyLaunchDraft.housing.downPaymentPct
-        : defaultDownPaymentPct;
-    return Math.round((price * pct) / 100);
-  });
-  const [familyMortgageRatePct, setFamilyMortgageRatePct] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.mortgageRatePct ??
-      scenario.assumptions.mortgageRatePct ??
-      2.5
-  );
-  const [familyMortgageTermYears, setFamilyMortgageTermYears] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.mortgageTermYears ??
-      scenario.assumptions.mortgageTermYears ??
-      30
-  );
-  const [familyOneOffFees, setFamilyOneOffFees] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.oneOffFees ?? ""
-  );
-  const [familyHoldingCost, setFamilyHoldingCost] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.monthlyHoldingCost ?? ""
-  );
-  const [familyAppreciationPct, setFamilyAppreciationPct] = useState<number | "">(
-    deepLink.familyLaunchDraft.housing?.annualAppreciationPct ?? ""
-  );
-  const [baselineEdits, setBaselineEdits] = useState<PlanLabBaselineEdit[]>([]);
   const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
   const [newExperimentType, setNewExperimentType] =
     useState<PlanLabExperimentType | null>(null);
   const [firstBucketTargetAmount, setFirstBucketTargetAmount] = useState<number | "">(
     ""
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterKind, setFilterKind] = useState<"all" | "positions" | "events" | "rules">(
+    "all"
+  );
+  const [activeOnly, setActiveOnly] = useState(true);
+  const [showChangedOnly, setShowChangedOnly] = useState(false);
+  const [showRiskyOnly, setShowRiskyOnly] = useState(false);
+  const [groupBy, setGroupBy] = useState<"category" | "member" | "timeline">("category");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
 
   const monthInvalidMessage = t("planLabMonthInvalid");
-  const monthRequiredMessage = t("planLabMonthRequired");
-  const rentStartMonthError = getMonthError(rentStartMonth, monthInvalidMessage);
-  const purchaseMonthError = getMonthError(purchaseMonth, monthInvalidMessage);
-  const babyDueMonthError = getMonthError(babyDueMonth, monthInvalidMessage);
-  const familyWeddingMonthError = getMonthError(
-    familyWeddingMonth,
-    monthInvalidMessage
-  );
-  const familyBabyDueMonthError = getMonthError(
-    familyBabyDueMonth,
-    monthInvalidMessage
-  );
-  const familyRentStartMonthError = getMonthError(
-    familyRentStartMonth,
-    monthInvalidMessage
-  );
-  const familyPurchaseMonthError = getMonthError(
-    familyPurchaseMonth,
-    monthInvalidMessage
-  );
-  const projectionWarningsTitle = t.has("planLabProjectionWarningsTitle")
-    ? t("planLabProjectionWarningsTitle")
-    : "Projection warnings";
-  const getStrictMonthError = (value: string) => {
-    if (!value) {
-      return monthRequiredMessage;
-    }
-    if (!isStrictMonth(value)) {
-      return monthInvalidMessage;
-    }
-    return undefined;
+
+  const eventPatches = baselinePatches?.eventPatches ?? {};
+  const rulePatches = baselinePatches?.rulePatches ?? {};
+  const positionPatches = baselinePatches?.positionPatches ?? {};
+
+  const updateEventPatch = (id: string, patch: Partial<NonNullable<typeof eventPatches>[string]>) => {
+    setBaselinePatches((current) => ({
+      ...current,
+      eventPatches: {
+        ...(current?.eventPatches ?? {}),
+        [id]: {
+          ...(current?.eventPatches?.[id] ?? {}),
+          ...patch,
+        },
+      },
+    }));
   };
 
-  useEffect(() => {
-    if (deepLink.openPanel) {
-      setGoalType("family-launch");
-    }
-  }, [deepLink.openPanel, setGoalType]);
-
-  const familyDraftSnapshot = useMemo<FamilyLaunchDraft>(() => {
-    return {
-      wedding: {
-        weddingMonth: familyWeddingMonth || undefined,
-        weddingBudget:
-          typeof familyWeddingBudget === "number" ? familyWeddingBudget : undefined,
-        honeymoonBudget:
-          typeof familyHoneymoonBudget === "number" ? familyHoneymoonBudget : undefined,
+  const updateRulePatch = (id: string, patch: Partial<PlanLabRulePatch>) => {
+    setBaselinePatches((current) => ({
+      ...current,
+      rulePatches: {
+        ...(current?.rulePatches ?? {}),
+        [id]: {
+          ...(current?.rulePatches?.[id] ?? {}),
+          ...patch,
+        },
       },
-      baby: {
-        dueMonth: familyBabyDueMonth || undefined,
-        babyMonthlyBudget:
-          typeof familyBabyMonthlyBudget === "number"
-            ? familyBabyMonthlyBudget
-            : undefined,
-        babyOneOffBudget:
-          typeof familyBabyOneOffBudget === "number"
-            ? familyBabyOneOffBudget
-            : undefined,
-        babyDurationMonths:
-          typeof familyBabyDurationMonths === "number"
-            ? familyBabyDurationMonths
-            : undefined,
+    }));
+  };
+
+  const updatePositionPatch = (key: string, patch: Partial<PlanLabPositionPatch>) => {
+    setBaselinePatches((current) => ({
+      ...current,
+      positionPatches: {
+        ...(current?.positionPatches ?? {}),
+        [key]: {
+          ...(current?.positionPatches?.[key] ?? {}),
+          ...patch,
+        },
       },
-      housing: {
-        housingMode: familyHousingMode,
-        rentStartMonth: familyRentStartMonth || undefined,
-        currentRent:
-          typeof familyCurrentRent === "number" ? familyCurrentRent : undefined,
-        upgradedRent:
-          typeof familyUpgradedRent === "number" ? familyUpgradedRent : undefined,
-        purchaseMonth: familyPurchaseMonth || undefined,
-        homePrice: typeof familyHomePrice === "number" ? familyHomePrice : undefined,
-        downPaymentAmount:
-          typeof familyDownPaymentAmount === "number"
-            ? familyDownPaymentAmount
-            : undefined,
-        downPaymentPct:
-          typeof familyDownPaymentPct === "number" ? familyDownPaymentPct : undefined,
-        mortgageRatePct:
-          typeof familyMortgageRatePct === "number"
-            ? familyMortgageRatePct
-            : undefined,
-        mortgageTermYears:
-          typeof familyMortgageTermYears === "number"
-            ? familyMortgageTermYears
-            : undefined,
-        oneOffFees: typeof familyOneOffFees === "number" ? familyOneOffFees : undefined,
-        monthlyHoldingCost:
-          typeof familyHoldingCost === "number" ? familyHoldingCost : undefined,
-        annualAppreciationPct:
-          typeof familyAppreciationPct === "number"
-            ? familyAppreciationPct
-            : undefined,
-      },
-    };
-  }, [
-    familyAppreciationPct,
-    familyBabyDueMonth,
-    familyBabyDurationMonths,
-    familyBabyMonthlyBudget,
-    familyBabyOneOffBudget,
-    familyCurrentRent,
-    familyDownPaymentAmount,
-    familyDownPaymentPct,
-    familyHoldingCost,
-    familyHomePrice,
-    familyHoneymoonBudget,
-    familyHousingMode,
-    familyMortgageRatePct,
-    familyMortgageTermYears,
-    familyOneOffFees,
-    familyPurchaseMonth,
-    familyRentStartMonth,
-    familyUpgradedRent,
-    familyWeddingBudget,
-    familyWeddingMonth,
-    familyHoneymoonBudget,
-  ]);
+    }));
+  };
 
-  const baselineItems = useMemo<BaselineItem[]>(() => {
-    const views = buildScenarioEventViews(scenario, eventLibrary);
-    return views
-      .filter(
-        (view) =>
-          view.definition.type === "rent" || view.definition.type === "car"
-      )
-      .map((view) => ({
-        refId: view.ref.refId,
-        kind: view.definition.type === "rent" ? "rent" : "car_running",
-        title: view.definition.title,
-        startMonth: view.rule.startMonth,
-        endMonth: view.rule.endMonth ?? null,
-      }));
-  }, [eventLibrary, scenario]);
-
-  useEffect(() => {
-    setBaselineEdits((current) =>
-      current.filter((edit) =>
-        baselineItems.some((item) => item.refId === edit.refId)
-      )
-    );
-  }, [baselineItems]);
-
-  const baselineEditLookup = useMemo(
-    () => new Map(baselineEdits.map((edit) => [edit.refId, edit])),
-    [baselineEdits]
-  );
-
-  const updateBaselineEdit = (
-    item: BaselineItem,
-    patch: Partial<PlanLabBaselineEdit>
-  ) => {
-    setBaselineEdits((current) => {
-      const existing = current.find((edit) => edit.refId === item.refId);
-      const next: PlanLabBaselineEdit = {
-        id: existing?.id ?? `baseline-${item.refId}`,
-        refType: "event",
-        refId: item.refId,
-        kind: item.kind,
-        action: existing?.action ?? "keep",
-        isEnabled: existing?.isEnabled ?? true,
-        endMonth: existing?.endMonth,
-        ...patch,
-      };
-
-      if (next.action === "keep") {
-        return current.filter((edit) => edit.refId !== item.refId);
+  const removePatch = (kind: ScenarioItemKind, id: string) => {
+    setBaselinePatches((current) => {
+      if (!current) {
+        return current;
       }
-
-      return [
-        ...current.filter((edit) => edit.refId !== item.refId),
-        next,
-      ];
+      if (kind === "event") {
+        const next = { ...(current.eventPatches ?? {}) };
+        delete next[id];
+        return { ...current, eventPatches: next };
+      }
+      if (kind === "rule") {
+        const next = { ...(current.rulePatches ?? {}) };
+        delete next[id];
+        return { ...current, rulePatches: next };
+      }
+      const next = { ...(current.positionPatches ?? {}) };
+      delete next[id];
+      return { ...current, positionPatches: next };
     });
   };
 
@@ -495,8 +317,8 @@ export default function PlanLabPanel({
         id: nanoid(),
         type,
         purchaseMonth: baseMonth,
-        purchasePrice: defaultPurchasePrice,
-        downPaymentPct: defaultDownPaymentPct,
+        purchasePrice: 8_000_000,
+        downPaymentPct: 30,
         isEnabled: true,
       };
     }
@@ -534,10 +356,7 @@ export default function PlanLabPanel({
     if (!newExperimentType) {
       return;
     }
-    setExperiments((current) => [
-      ...current,
-      buildExperimentDefaults(newExperimentType),
-    ]);
+    setExperiments((current) => [...current, buildExperimentDefaults(newExperimentType)]);
     setNewExperimentType(null);
   };
 
@@ -553,304 +372,268 @@ export default function PlanLabPanel({
     setExperiments((current) => current.filter((experiment) => experiment.id !== id));
   };
 
-  const validBaselineEdits = useMemo(
-    () =>
-      baselineEdits.filter(
-        (edit) =>
-          edit.action !== "keep" &&
-          edit.isEnabled !== false &&
-          Boolean(edit.endMonth) &&
-          isStrictMonth(edit.endMonth ?? "")
-      ),
-    [baselineEdits]
-  );
-
-  const validExperiments = useMemo(() => {
-    const isValidMonth = (value?: string) => Boolean(value && isStrictMonth(value));
-    return experiments.filter((experiment) => {
-      if (experiment.isEnabled === false) {
-        return false;
-      }
-      if (experiment.type === "oneOffExpense") {
-        return isValidMonth(experiment.month) && (experiment.amount ?? 0) > 0;
-      }
-      if (experiment.type === "rangeExpense") {
-        return (
-          isValidMonth(experiment.startMonth) &&
-          isValidMonth(experiment.endMonth) &&
-          (experiment.monthlyAmount ?? 0) > 0
+  const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
+    const items: ScenarioEditorItem[] = [];
+    const eventViews = buildScenarioEventViews(scenario, eventLibrary);
+    eventViews.forEach((view) => {
+      const patch = eventPatches[view.definition.id];
+      const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : view.ref.enabled;
+      const category = eventTypeLabel(view.definition);
+      const title = view.definition.title;
+      const rule = view.rule;
+      const risky =
+        view.definition.type === "buy_home" ||
+        ["mortgage", "housing", "home", "rent"].some((keyword) =>
+          view.definition.title.toLowerCase().includes(keyword)
         );
-      }
-      if (experiment.type === "homeBuy") {
-        return isValidMonth(experiment.purchaseMonth);
-      }
-      if (experiment.type === "carPlan") {
-        return (
-          isValidMonth(experiment.purchaseMonth) &&
-          (experiment.purchasePrice ?? 0) > 0
-        );
-      }
-      if (experiment.type === "incomeAdjust") {
-        return isValidMonth(experiment.startMonth) && (experiment.monthlyAmount ?? 0) > 0;
-      }
-      return isValidMonth(experiment.startMonth) && (experiment.annualAmount ?? 0) > 0;
+      items.push({
+        id: `event:${view.definition.id}`,
+        kind: "event",
+        title,
+        category: category || "event",
+        memberId: view.definition.memberId ?? null,
+        startMonth: rule.startMonth,
+        endMonth: patch?.endMonth ?? rule.endMonth ?? null,
+        enabled: isEnabled,
+        risky,
+        eventRefId: view.ref.refId,
+        eventDefinitionId: view.definition.id,
+        eventDefinition: view.definition,
+        eventRule: rule,
+        eventOverrides: view.ref.overrides,
+      });
     });
-  }, [experiments]);
 
-  const { draft, hasInvalidMonths } = useMemo(() => {
-    const invalid =
-      (rentStartMonth &&
-        !normalizeMonthStrict(rentStartMonth).ok) ||
-      (purchaseMonth && !normalizeMonthStrict(purchaseMonth).ok) ||
-      (babyDueMonth && !normalizeMonthStrict(babyDueMonth).ok);
+    budgetRules.forEach((rule) => {
+      const patch = rulePatches[rule.id];
+      const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : rule.enabled;
+      items.push({
+        id: `rule:${rule.id}`,
+        kind: "rule",
+        title: rule.name,
+        category: rule.category,
+        memberId: rule.memberId ?? null,
+        startMonth: patch?.endMonth ? rule.startMonth : rule.startMonth,
+        endMonth: patch?.endMonth ?? rule.endMonth ?? null,
+        enabled: isEnabled,
+        ruleId: rule.id,
+        budgetRule: rule,
+      });
+    });
 
-    const familyInvalid =
-      (familyWeddingMonth && !normalizeMonthStrict(familyWeddingMonth).ok) ||
-      (familyBabyDueMonth && !normalizeMonthStrict(familyBabyDueMonth).ok) ||
-      (familyRentStartMonth &&
-        !normalizeMonthStrict(familyRentStartMonth).ok) ||
-      (familyPurchaseMonth &&
-        !normalizeMonthStrict(familyPurchaseMonth).ok);
-
-    if ((goalType === "classic" && invalid) || (goalType === "family-launch" && familyInvalid)) {
-      return { draft: null, hasInvalidMonths: true };
+    const positions = scenario.positions;
+    if (positions?.home) {
+      const key = "home:primary";
+      const patch = positionPatches[key];
+      const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : true;
+      items.push({
+        id: `position:${key}`,
+        kind: "position",
+        title: positions.home.name ?? "Home",
+        category: "home",
+        enabled: isEnabled,
+        positionKey: key,
+        positionKind: "home",
+        position: positions.home as any,
+        risky: true,
+      });
+    }
+    if (positions?.homes) {
+      positions.homes.forEach((home, index) => {
+        const key = buildPositionKey("home", home.id, index);
+        const patch = positionPatches[key];
+        const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : true;
+        items.push({
+          id: `position:${key}`,
+          kind: "position",
+          title: buildPositionTitle("home", home, index),
+          category: "home",
+          enabled: isEnabled,
+          positionKey: key,
+          positionKind: "home",
+          position: home as any,
+          risky: true,
+        });
+      });
+    }
+    if (positions?.cars) {
+      positions.cars.forEach((car, index) => {
+        const key = buildPositionKey("car", car.id, index);
+        const patch = positionPatches[key];
+        const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : true;
+        items.push({
+          id: `position:${key}`,
+          kind: "position",
+          title: buildPositionTitle("car", car, index),
+          category: "car",
+          enabled: isEnabled,
+          positionKey: key,
+          positionKind: "car",
+          position: car as any,
+        });
+      });
+    }
+    if (positions?.investments) {
+      positions.investments.forEach((investment, index) => {
+        const key = buildPositionKey("investment", investment.id, index);
+        const patch = positionPatches[key];
+        const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : true;
+        items.push({
+          id: `position:${key}`,
+          kind: "position",
+          title: buildPositionTitle("investment", investment, index),
+          category: "investment",
+          enabled: isEnabled,
+          positionKey: key,
+          positionKind: "investment",
+          position: investment as any,
+        });
+      });
+    }
+    if (positions?.insurances) {
+      positions.insurances.forEach((insurance, index) => {
+        const key = buildPositionKey("insurance", insurance.id, index);
+        const patch = positionPatches[key];
+        const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : insurance.enabled;
+        items.push({
+          id: `position:${key}`,
+          kind: "position",
+          title: buildPositionTitle("insurance", insurance, index),
+          category: "insurance",
+          enabled: isEnabled,
+          positionKey: key,
+          positionKind: "insurance",
+          position: insurance as any,
+        });
+      });
+    }
+    if (positions?.loans) {
+      positions.loans.forEach((loan, index) => {
+        const key = buildPositionKey("loan", loan.id, index);
+        const patch = positionPatches[key];
+        const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : true;
+        items.push({
+          id: `position:${key}`,
+          kind: "position",
+          title: buildPositionTitle("loan", loan, index),
+          category: "loan",
+          enabled: isEnabled,
+          positionKey: key,
+          positionKind: "loan",
+          position: loan as any,
+        });
+      });
+    }
+    if (positions?.cashBuckets) {
+      positions.cashBuckets.forEach((bucket, index) => {
+        const key = buildPositionKey("cash", bucket.id, index);
+        const patch = positionPatches[key];
+        const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : true;
+        items.push({
+          id: `position:${key}`,
+          kind: "position",
+          title: buildPositionTitle("cash", bucket, index),
+          category: "cash",
+          enabled: isEnabled,
+          positionKey: key,
+          positionKind: "cash",
+          position: bucket as any,
+        });
+      });
     }
 
-    const planLabDraft: PlanLabDraft = {
-      goalType,
-      baselineEdits: validBaselineEdits,
-      experiments: validExperiments,
-      scorecardSettings: {
-        firstBucketTargetAmount:
-          typeof firstBucketTargetAmount === "number"
-            ? firstBucketTargetAmount
-            : undefined,
-      },
-    };
-
-    if (goalType === "classic") {
-      if (housingMode === "rent" || housingMode === "rent-bigger") {
-        const normalized = rentStartMonth
-          ? normalizeMonthStrict(rentStartMonth)
-          : null;
-        planLabDraft.housing = {
-          kind: "rent",
-          startMonth: normalized?.ok ? normalized.month : undefined,
-          monthlyRent:
-            typeof rentMonthly === "number" ? rentMonthly : undefined,
-          annualRentGrowthPct: scenario.assumptions.rentAnnualGrowthPct ?? undefined,
-        };
-      }
-
-      if (housingMode === "buy") {
-        const normalized = purchaseMonth
-          ? normalizeMonthStrict(purchaseMonth)
-          : null;
-        planLabDraft.housing = {
-          kind: "buy",
-          purchaseMonth: normalized?.ok ? normalized.month : undefined,
-          purchasePrice:
-            typeof purchasePrice === "number" ? purchasePrice : undefined,
-          downPaymentAmount:
-            typeof downPaymentAmount === "number" ? downPaymentAmount : undefined,
-          downPaymentPct:
-            typeof downPaymentPct === "number" ? downPaymentPct : undefined,
-          mortgageRatePct:
-            typeof mortgageRatePct === "number" ? mortgageRatePct : undefined,
-          termYears: typeof termYears === "number" ? termYears : undefined,
-        };
-      }
-
-      if (
-        babyDueMonth ||
-        typeof babyMonthlyBudget === "number" ||
-        typeof babyOneOffCost === "number"
-      ) {
-        const normalized = babyDueMonth
-          ? normalizeMonthStrict(babyDueMonth)
-          : null;
-        planLabDraft.babyPlan = {
-          targetMonth: normalized?.ok ? normalized.month : undefined,
-          monthlyBabyBudget:
-            typeof babyMonthlyBudget === "number" ? babyMonthlyBudget : undefined,
-          oneOffBabyCost:
-            typeof babyOneOffCost === "number" ? babyOneOffCost : undefined,
-        };
-      }
-    }
-
-    if (goalType === "family-launch") {
-      const weddingMonth = familyWeddingMonth
-        ? normalizeMonthStrict(familyWeddingMonth)
-        : null;
-      const dueMonth = familyBabyDueMonth
-        ? normalizeMonthStrict(familyBabyDueMonth)
-        : null;
-      const rentStart = familyRentStartMonth
-        ? normalizeMonthStrict(familyRentStartMonth)
-        : null;
-      const purchase = familyPurchaseMonth
-        ? normalizeMonthStrict(familyPurchaseMonth)
-        : null;
-
-      const familyDraft: FamilyLaunchDraft = {
-        wedding: {
-          weddingMonth: weddingMonth?.ok ? weddingMonth.month : undefined,
-          weddingBudget:
-            typeof familyWeddingBudget === "number" ? familyWeddingBudget : undefined,
-          honeymoonBudget:
-            typeof familyHoneymoonBudget === "number"
-              ? familyHoneymoonBudget
-              : undefined,
-        },
-        baby: {
-          dueMonth: dueMonth?.ok ? dueMonth.month : undefined,
-          babyMonthlyBudget:
-            typeof familyBabyMonthlyBudget === "number"
-              ? familyBabyMonthlyBudget
-              : undefined,
-          babyOneOffBudget:
-            typeof familyBabyOneOffBudget === "number"
-              ? familyBabyOneOffBudget
-              : undefined,
-          babyDurationMonths:
-            typeof familyBabyDurationMonths === "number"
-              ? familyBabyDurationMonths
-              : undefined,
-        },
-        housing: {
-          housingMode: familyHousingMode,
-          currentRent:
-            typeof familyCurrentRent === "number" ? familyCurrentRent : undefined,
-          upgradedRent:
-            typeof familyUpgradedRent === "number" ? familyUpgradedRent : undefined,
-          rentStartMonth: rentStart?.ok ? rentStart.month : undefined,
-          purchaseMonth: purchase?.ok ? purchase.month : undefined,
-          homePrice: typeof familyHomePrice === "number" ? familyHomePrice : undefined,
-          downPaymentAmount:
-            typeof familyDownPaymentAmount === "number"
-              ? familyDownPaymentAmount
-              : undefined,
-          downPaymentPct:
-            typeof familyDownPaymentPct === "number"
-              ? familyDownPaymentPct
-              : undefined,
-          mortgageRatePct:
-            typeof familyMortgageRatePct === "number"
-              ? familyMortgageRatePct
-              : undefined,
-          mortgageTermYears:
-            typeof familyMortgageTermYears === "number"
-              ? familyMortgageTermYears
-              : undefined,
-          oneOffFees:
-            typeof familyOneOffFees === "number" ? familyOneOffFees : undefined,
-          monthlyHoldingCost:
-            typeof familyHoldingCost === "number" ? familyHoldingCost : undefined,
-          annualAppreciationPct:
-            typeof familyAppreciationPct === "number"
-              ? familyAppreciationPct
-              : undefined,
-        },
-      };
-
-      planLabDraft.familyLaunch = familyDraft;
-    }
-
-    return { draft: planLabDraft, hasInvalidMonths: false };
+    return items;
   }, [
-    familyAppreciationPct,
-    familyBabyDueMonth,
-    familyBabyDurationMonths,
-    familyBabyMonthlyBudget,
-    familyBabyOneOffBudget,
-    familyCurrentRent,
-    familyDownPaymentAmount,
-    familyDownPaymentPct,
-    familyHoldingCost,
-    familyHomePrice,
-    familyHoneymoonBudget,
-    familyHousingMode,
-    familyMortgageRatePct,
-    familyMortgageTermYears,
-    familyOneOffFees,
-    familyPurchaseMonth,
-    familyRentStartMonth,
-    familyUpgradedRent,
-    familyWeddingBudget,
-    familyWeddingMonth,
-    babyDueMonth,
-    babyMonthlyBudget,
-    babyOneOffCost,
-    downPaymentAmount,
-    downPaymentPct,
-    housingMode,
-    mortgageRatePct,
-    purchaseMonth,
-    purchasePrice,
-    rentMonthly,
-    rentStartMonth,
-    goalType,
-    scenario.assumptions.rentAnnualGrowthPct,
-    termYears,
-    validBaselineEdits,
-    validExperiments,
-    firstBucketTargetAmount,
+    budgetRules,
+    eventLibrary,
+    eventPatches,
+    positionPatches,
+    rulePatches,
+    scenario,
   ]);
 
-  const applyFamilyDraft = (nextDraft: FamilyLaunchDraft) => {
-    setFamilyWeddingMonth(nextDraft.wedding?.weddingMonth ?? "");
-    setFamilyWeddingBudget(nextDraft.wedding?.weddingBudget ?? "");
-    setFamilyHoneymoonBudget(nextDraft.wedding?.honeymoonBudget ?? "");
-    setFamilyBabyDueMonth(nextDraft.baby?.dueMonth ?? "");
-    setFamilyBabyMonthlyBudget(nextDraft.baby?.babyMonthlyBudget ?? "");
-    setFamilyBabyOneOffBudget(nextDraft.baby?.babyOneOffBudget ?? "");
-    setFamilyBabyDurationMonths(nextDraft.baby?.babyDurationMonths ?? 24);
-    setFamilyHousingMode(nextDraft.housing?.housingMode ?? "buy-home");
-    setFamilyRentStartMonth(
-      nextDraft.housing?.rentStartMonth ?? scenario.assumptions.baseMonth ?? ""
-    );
-    setFamilyCurrentRent(
-      nextDraft.housing?.currentRent ?? scenario.assumptions.rentMonthly ?? ""
-    );
-    setFamilyUpgradedRent(
-      nextDraft.housing?.upgradedRent ??
-        (scenario.assumptions.rentMonthly
-          ? Math.round(scenario.assumptions.rentMonthly * 1.3)
-          : "")
-    );
-    const homePrice = nextDraft.housing?.homePrice ?? defaultPurchasePrice;
-    setFamilyHomePrice(homePrice);
-    setFamilyPurchaseMonth(
-      nextDraft.housing?.purchaseMonth ?? scenario.assumptions.baseMonth ?? ""
-    );
-    const nextDownPaymentPct =
-      nextDraft.housing?.downPaymentPct ?? defaultDownPaymentPct;
-    setFamilyDownPaymentPct(nextDownPaymentPct);
-    if (nextDraft.housing?.downPaymentAmount !== undefined) {
-      setFamilyDownPaymentAmount(nextDraft.housing.downPaymentAmount);
-    } else {
-      setFamilyDownPaymentAmount(Math.round((homePrice * nextDownPaymentPct) / 100));
-    }
-    setFamilyMortgageRatePct(
-      nextDraft.housing?.mortgageRatePct ??
-        scenario.assumptions.mortgageRatePct ??
-        2.5
-    );
-    setFamilyMortgageTermYears(
-      nextDraft.housing?.mortgageTermYears ??
-        scenario.assumptions.mortgageTermYears ??
-        30
-    );
-    setFamilyOneOffFees(nextDraft.housing?.oneOffFees ?? "");
-    setFamilyHoldingCost(nextDraft.housing?.monthlyHoldingCost ?? "");
-    setFamilyAppreciationPct(nextDraft.housing?.annualAppreciationPct ?? "");
-  };
+  const filteredItems = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return scenarioItems.filter((item) => {
+      if (filterKind === "events" && item.kind !== "event") {
+        return false;
+      }
+      if (filterKind === "rules" && item.kind !== "rule") {
+        return false;
+      }
+      if (filterKind === "positions" && item.kind !== "position") {
+        return false;
+      }
+      if (activeOnly && !item.enabled) {
+        return false;
+      }
+      if (showChangedOnly) {
+        if (item.kind === "event" && item.eventDefinitionId) {
+          const patch = eventPatches[item.eventDefinitionId];
+          if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
+            return false;
+          }
+        }
+        if (item.kind === "rule" && item.ruleId) {
+          const patch = rulePatches[item.ruleId];
+          if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
+            return false;
+          }
+        }
+        if (item.kind === "position" && item.positionKey) {
+          const patch = positionPatches[item.positionKey];
+          if (!patch || (!patch.isDisabled && !patch.patch)) {
+            return false;
+          }
+        }
+      }
+      if (showRiskyOnly && !item.risky) {
+        return false;
+      }
+      if (query && !item.title.toLowerCase().includes(query)) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    activeOnly,
+    eventPatches,
+    filterKind,
+    positionPatches,
+    rulePatches,
+    scenarioItems,
+    searchQuery,
+    showChangedOnly,
+    showRiskyOnly,
+  ]);
 
-  const planLabEnabled = Boolean(draft) && !hasInvalidMonths;
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, ScenarioEditorItem[]>();
+    filteredItems.forEach((item) => {
+      const groupKey = getGroupLabel(groupBy, item, members);
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(item);
+    });
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredItems, groupBy, members]);
+
+  const planLabDraft: PlanLabDraft = useMemo(
+    () => ({
+      baselinePatches,
+      experiments,
+      scorecardSettings: {
+        firstBucketTargetAmount:
+          typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : undefined,
+      },
+    }),
+    [baselinePatches, experiments, firstBucketTargetAmount]
+  );
+
   const planLabProjection = usePlanLabProjectionWithLedger(
-    planLabEnabled ? draft : null,
-    planLabEnabled ? scenario : null,
+    planLabDraft,
+    scenario,
     eventLibrary,
     { members, budgetRules }
   );
@@ -913,31 +696,6 @@ export default function PlanLabPanel({
       ? baselineBucketIndex - optionBucketIndex
       : null;
 
-  const familyScorecard = useMemo(() => {
-    if (goalType !== "family-launch") {
-      return null;
-    }
-    return computeFamilyLaunchScorecard({
-      projection: planLabProjection.projection,
-      ledgerByMonth: planLabProjection.ledgerByMonth,
-      draft: draft?.familyLaunch ?? familyDraftSnapshot,
-    });
-  }, [
-    draft?.familyLaunch,
-    familyDraftSnapshot,
-    goalType,
-    planLabProjection.ledgerByMonth,
-    planLabProjection.projection,
-  ]);
-
-  const applicableExperiments = useMemo(
-    () =>
-      familyLaunchExperiments.filter((experiment) =>
-        experiment.applies(familyDraftSnapshot)
-      ),
-    [familyDraftSnapshot]
-  );
-
   const chartData = useMemo(() => {
     const baseline =
       chartType === "cash"
@@ -954,130 +712,21 @@ export default function PlanLabPanel({
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
 
-  const hasExistingHomes = Boolean(
-    (scenario.positions?.homes && scenario.positions.homes.length > 0) ||
-      scenario.positions?.home
-  );
-  const shouldWarnHomeReplace =
-    (goalType === "classic" && housingMode === "buy") ||
-    (goalType === "family-launch" && familyHousingMode === "buy-home");
-  const saveWarnings = [
-    ...(hasInvalidMonths ? [t("planLabSaveInvalidMonths")] : []),
-    ...(shouldWarnHomeReplace && hasExistingHomes
-      ? [t("planLabHomeReplaceWarning")]
-      : []),
-  ];
-  const scorecardTone = familyScorecard?.status ?? "yellow";
-  const scorecardBadgeColor =
-    scorecardTone === "green" ? "green" : scorecardTone === "red" ? "red" : "yellow";
-  const scorecardStatusLabel =
-    scorecardTone === "green"
-      ? t.has("planLabFamilyScorecardStatusGreen")
-        ? t("planLabFamilyScorecardStatusGreen")
-        : "Green"
-      : scorecardTone === "red"
-        ? t.has("planLabFamilyScorecardStatusRed")
-          ? t("planLabFamilyScorecardStatusRed")
-          : "Red"
-        : t.has("planLabFamilyScorecardStatusYellow")
-          ? t("planLabFamilyScorecardStatusYellow")
-          : "Yellow";
-  const scorecardHeadline =
-    scorecardTone === "red"
-      ? t.has("planLabFamilyScorecardConclusionRed")
-        ? t("planLabFamilyScorecardConclusionRed", {
-            month: familyScorecard?.minCash.month ?? "",
-          })
-        : "Cash dips below zero near a key milestone."
-      : scorecardTone === "yellow"
-        ? t.has("planLabFamilyScorecardConclusionYellow")
-          ? t("planLabFamilyScorecardConclusionYellow", {
-              month: familyScorecard?.minCash.month ?? "",
-            })
-          : "Cash buffer is thin in key windows."
-        : t.has("planLabFamilyScorecardConclusionGreen")
-          ? t("planLabFamilyScorecardConclusionGreen")
-          : "Plan looks resilient across key windows.";
-  const missingInputLabels = (familyScorecard?.missingInputs ?? []).map((key) => {
-    if (key === "weddingMonth") {
-      return t.has("planLabFamilyWeddingMonth")
-        ? t("planLabFamilyWeddingMonth")
-        : "Wedding month";
+  // Compute cash risk scorecard metrics
+  const cashRiskScorecard = useMemo(() => {
+    if (!optionSeries.cash || optionSeries.cash.length === 0) {
+      return null;
     }
-    if (key === "dueMonth") {
-      return t.has("planLabFamilyBabyDueMonth")
-        ? t("planLabFamilyBabyDueMonth")
-        : "Due month";
-    }
-    if (key === "purchaseMonth") {
-      return t.has("planLabFamilyPurchaseMonth")
-        ? t("planLabFamilyPurchaseMonth")
-        : "Purchase month";
-    }
-    return key;
-  });
-
-  const shiftMonth = (value: string, delta: number) => {
-    if (!value) {
-      return value;
-    }
-    const normalized = normalizeMonthStrict(value);
-    if (!normalized.ok) {
-      return value;
-    }
-    return addMonths(normalized.month, delta);
-  };
-
-  const summaryItems = useMemo(() => {
-    if (goalType === "family-launch") {
-      return [
-        familyWeddingMonth
-          ? t("planLabSummaryWedding", { month: familyWeddingMonth })
-          : null,
-        familyBabyDueMonth
-          ? t("planLabSummaryBaby", { month: familyBabyDueMonth })
-          : null,
-        familyHousingMode === "buy-home" && familyPurchaseMonth
-          ? t("planLabSummaryBuyHome", { month: familyPurchaseMonth })
-          : null,
-        familyHousingMode === "rent-upgrade" && familyRentStartMonth
-          ? t("planLabSummaryRentUpgrade", { month: familyRentStartMonth })
-          : null,
-        familyHousingMode === "keep-rent" && familyRentStartMonth
-          ? t("planLabSummaryRentStart", { month: familyRentStartMonth })
-          : null,
-      ].filter(Boolean) as string[];
-    }
-
-    return [
-      housingMode === "buy" && purchaseMonth
-        ? t("planLabSummaryPurchase", { month: purchaseMonth })
-        : null,
-      (housingMode === "rent" || housingMode === "rent-bigger") && rentStartMonth
-        ? t("planLabSummaryRentStart", { month: rentStartMonth })
-        : null,
-      babyDueMonth
-        ? t("planLabSummaryBaby", { month: babyDueMonth })
-        : null,
-    ].filter(Boolean) as string[];
-  }, [
-    babyDueMonth,
-    familyBabyDueMonth,
-    familyHousingMode,
-    familyPurchaseMonth,
-    familyRentStartMonth,
-    familyWeddingMonth,
-    goalType,
-    housingMode,
-    purchaseMonth,
-    rentStartMonth,
-    t,
-  ]);
-
-  const baselineItemLookup = useMemo(
-    () => new Map(baselineItems.map((item) => [item.refId, item])),
-    [baselineItems]
-  );
+    // Compute buffer threshold from ledger items (3-month expense buffer)
+    const bufferThreshold = computeBufferThresholdFromLedger(
+      planLabProjection.ledger,
+      planLabProjection.months
+    );
+    return computeCashRiskScorecard({
+      cashSeries: optionSeries.cash,
+      bufferThreshold,
+    });
+  }, [optionSeries.cash, planLabProjection.ledger, planLabProjection.months]);
 
   const experimentTypeOptions = useMemo(
     () => [
@@ -1130,35 +779,80 @@ export default function PlanLabPanel({
       onRemove: () => void;
     }> = [];
 
-    baselineEdits
-      .filter((edit) => edit.action !== "keep")
-      .forEach((edit) => {
-        const item = baselineItemLookup.get(edit.refId);
-        const title = item?.title ?? edit.kind;
-        const endMonth = edit.endMonth ?? "";
-        const label =
-          edit.action === "replace"
-            ? t("planLabAppliedBaselineReplace", {
-                name: title,
-                month: endMonth,
-              })
-            : t("planLabAppliedBaselineEnd", { name: title, month: endMonth });
-        controls.push({
-          id: `baseline-${edit.refId}`,
-          label,
-          isEnabled: edit.isEnabled !== false,
-          onToggle: () =>
-            updateBaselineEdit(item ?? { refId: edit.refId, kind: edit.kind, title }, {
-              isEnabled: edit.isEnabled === false,
-            }),
-          onRemove: () =>
-            updateBaselineEdit(item ?? { refId: edit.refId, kind: edit.kind, title }, {
-              action: "keep",
-              endMonth: undefined,
-              isEnabled: true,
-            }),
-        });
+    Object.entries(eventPatches).forEach(([refId, patch]) => {
+      const item = scenarioItems.find((entry) => entry.eventDefinitionId === refId);
+      const title = item?.title ?? refId;
+      const hasChange = patch.isDisabled || patch.endMonth || patch.patch;
+      if (!hasChange) {
+        return;
+      }
+      const labelParts = [];
+      if (patch.isDisabled) {
+        labelParts.push(`Disabled ${title}`);
+      }
+      if (patch.patch) {
+        labelParts.push(`Edited ${title}`);
+      }
+      if (patch.endMonth) {
+        labelParts.push(`Ends ${title} at ${patch.endMonth}`);
+      }
+      controls.push({
+        id: `event-${refId}`,
+        label: labelParts.join(" · ") || `Updated ${title}`,
+        isEnabled: !patch.isDisabled,
+        onToggle: () => updateEventPatch(refId, { isDisabled: !patch.isDisabled }),
+        onRemove: () => removePatch("event", refId),
       });
+    });
+
+    Object.entries(rulePatches).forEach(([ruleId, patch]) => {
+      const item = scenarioItems.find((entry) => entry.ruleId === ruleId);
+      const title = item?.title ?? ruleId;
+      const hasChange = patch.isDisabled || patch.endMonth || patch.patch;
+      if (!hasChange) {
+        return;
+      }
+      const labelParts = [];
+      if (patch.isDisabled) {
+        labelParts.push(`Disabled ${title}`);
+      }
+      if (patch.patch) {
+        labelParts.push(`Edited ${title}`);
+      }
+      if (patch.endMonth) {
+        labelParts.push(`Ends ${title} at ${patch.endMonth}`);
+      }
+      controls.push({
+        id: `rule-${ruleId}`,
+        label: labelParts.join(" · ") || `Updated ${title}`,
+        isEnabled: !patch.isDisabled,
+        onToggle: () => updateRulePatch(ruleId, { isDisabled: !patch.isDisabled }),
+        onRemove: () => removePatch("rule", ruleId),
+      });
+    });
+
+    Object.entries(positionPatches).forEach(([key, patch]) => {
+      const item = scenarioItems.find((entry) => entry.positionKey === key);
+      const title = item?.title ?? key;
+      const hasChange = patch.isDisabled || patch.patch;
+      if (!hasChange) {
+        return;
+      }
+      const labelParts = [];
+      if (patch.isDisabled) {
+        labelParts.push(`Disabled ${title}`);
+      }
+      if (patch.patch) {
+        labelParts.push(`Edited ${title}`);
+      }
+      controls.push({
+        id: `position-${key}`,
+        label: labelParts.join(" · ") || `Updated ${title}`,
+        isEnabled: !patch.isDisabled,
+        onToggle: () => updatePositionPatch(key, { isDisabled: !patch.isDisabled }),
+        onRemove: () => removePatch("position", key),
+      });
+    });
 
     experiments.forEach((experiment) => {
       const currency = scenario.baseCurrency;
@@ -1208,121 +902,41 @@ export default function PlanLabPanel({
 
     return controls;
   }, [
-    baselineEdits,
-    baselineItemLookup,
+    eventPatches,
     experiments,
     locale,
+    positionPatches,
     removeExperiment,
+    rulePatches,
     scenario.baseCurrency,
+    scenarioItems,
     t,
-    updateBaselineEdit,
-    updateExperiment,
   ]);
 
-  const handleDisableAllControls = () => {
-    setBaselineEdits((current) =>
-      current.map((edit) => ({ ...edit, isEnabled: false }))
-    );
-    setExperiments((current) =>
-      current.map((experiment) => ({ ...experiment, isEnabled: false }))
-    );
-  };
-
   const handleResetAllControls = () => {
-    setBaselineEdits([]);
+    setBaselinePatches({ eventPatches: {}, rulePatches: {}, positionPatches: {} });
     setExperiments([]);
   };
 
-  const handleRevertBaselineEdits = () => {
-    setBaselineEdits([]);
+  const handleResetBaseline = () => {
+    setBaselinePatches({ eventPatches: {}, rulePatches: {}, positionPatches: {} });
   };
 
-  const recommendedFixes = useMemo(() => {
-    if (goalType === "family-launch") {
-      return applicableExperiments.slice(0, 4).map((experiment) => ({
-        id: experiment.id,
-        label: t.has(experiment.labelKey)
-          ? t(experiment.labelKey)
-          : experiment.defaultLabel,
-        onApply: () =>
-          applyFamilyDraft(experiment.apply(familyDraftSnapshot)),
-      }));
+  const getStrictMonthError = (value: string) => {
+    if (!value) {
+      return t("planLabMonthRequired");
     }
-
-    const fixes: Array<{ id: string; label: string; onApply: () => void }> = [];
-    if (purchaseMonth) {
-      fixes.push({
-        id: "purchase-plus-6",
-        label: t("planLabRecommendedPurchasePlus6"),
-        onApply: () => {
-          const nextMonth = shiftMonth(purchaseMonth, 6);
-          setPurchaseMonth(nextMonth);
-        },
-      });
+    if (!isStrictMonth(value)) {
+      return monthInvalidMessage;
     }
-    if (housingMode === "buy") {
-      fixes.push({
-        id: "down-payment-plus-5",
-        label: t("planLabRecommendedDownPaymentPlus5"),
-        onApply: () => {
-          const pct =
-            typeof downPaymentPct === "number" ? downPaymentPct + 5 : defaultDownPaymentPct;
-          setDownPaymentPct(pct);
-          if (typeof purchasePrice === "number") {
-            setDownPaymentAmount(Math.round((purchasePrice * pct) / 100));
-          }
-        },
-      });
-    }
-    if (babyDueMonth) {
-      fixes.push({
-        id: "baby-plus-6",
-        label: t("planLabRecommendedBabyPlus6"),
-        onApply: () => {
-          const nextMonth = shiftMonth(babyDueMonth, 6);
-          setBabyDueMonth(nextMonth);
-        },
-      });
-    }
-    if (housingMode === "rent" || housingMode === "rent-bigger") {
-      fixes.push({
-        id: "rent-plus-1000",
-        label: t("planLabRecommendedRentPlus1000"),
-        onApply: () => {
-          if (typeof rentMonthly === "number") {
-            setRentMonthly(rentMonthly + 1000);
-          } else {
-            setRentMonthly(1000);
-          }
-        },
-      });
-    }
-    return fixes.slice(0, 4);
-  }, [
-    applicableExperiments,
-    babyDueMonth,
-    downPaymentPct,
-    familyDraftSnapshot,
-    goalType,
-    housingMode,
-    purchaseMonth,
-    purchasePrice,
-    rentMonthly,
-    t,
-  ]);
+    return undefined;
+  };
 
   const handleSave = () => {
     setSaveError(null);
-    if (!draft) {
-      setSaveError(t("planLabSaveMissingDraft"));
-      return;
-    }
-    if (hasInvalidMonths) {
-      setSaveError(t("planLabSaveInvalidMonths"));
-      return;
-    }
-    const validation = applyPlanLabDraftToScenario(scenario, draft, {
+    const validation = applyPlanLabDraftToScenario(scenario, planLabDraft, {
       scenarioId: scenario.id,
+      budgetRules,
     });
     if (validation.errors.length > 0) {
       setSaveError(t("planLabSaveInvalidMonths"));
@@ -1333,8 +947,9 @@ export default function PlanLabPanel({
       setSaveError(t("planLabSaveFailed"));
       return;
     }
-    const result = applyPlanLabDraftToScenario(duplicated, draft, {
+    const result = applyPlanLabDraftToScenario(duplicated, planLabDraft, {
       scenarioId: duplicated.id,
+      budgetRules,
     });
     if (result.errors.length > 0) {
       setSaveError(t("planLabSaveInvalidMonths"));
@@ -1343,13 +958,164 @@ export default function PlanLabPanel({
     result.eventDefinitions.forEach((definition) => {
       upsertEventDefinition(definition);
     });
-    const nextScenario = {
-      ...result.scenario,
-      name: buildPlanLabScenarioName(draft, locale, scenario.baseCurrency, t),
+    result.budgetRules?.forEach((rule) => {
+      updateBudgetRule(rule.id, rule);
+    });
+    replaceScenario(result.scenario);
+    setActiveScenario(result.scenario.id);
+    router.push(`/${locale}${buildScenarioUrl("/dashboard", result.scenario.id)}`);
+  };
+
+  const validationMonthFields = useMemo(() => {
+    const errors: string[] = [];
+    Object.entries(eventPatches).forEach(([refId, patch]) => {
+      if (patch.endMonth && !isStrictMonth(patch.endMonth)) {
+        errors.push(refId);
+      }
+    });
+    Object.entries(rulePatches).forEach(([ruleId, patch]) => {
+      if (patch.endMonth && !isStrictMonth(patch.endMonth)) {
+        errors.push(ruleId);
+      }
+      if (patch.patch?.startMonth && !isStrictMonth(patch.patch.startMonth)) {
+        errors.push(ruleId);
+      }
+      if (patch.patch?.endMonth && !isStrictMonth(patch.patch.endMonth)) {
+        errors.push(ruleId);
+      }
+    });
+    return errors;
+  }, [eventPatches, rulePatches]);
+
+  const saveWarnings = [
+    ...(validationMonthFields.length > 0 ? [t("planLabSaveInvalidMonths")] : []),
+  ];
+
+  const projectionWarningsTitle = t.has("planLabProjectionWarningsTitle")
+    ? t("planLabProjectionWarningsTitle")
+    : "Projection warnings";
+
+  const editingEventData = useMemo(() => {
+    if (!editingItem || editingItem.kind !== "event" || !editingItem.eventDefinition) {
+      return null;
+    }
+    const patch = eventPatches[editingItem.eventDefinition.id];
+    const patchedDefinition = buildPatchedDefinition(editingItem.eventDefinition, patch);
+    const overrides = {
+      ...(editingItem.eventOverrides ?? {}),
+      ...(patch?.endMonth ? { endMonth: patch.endMonth } : {}),
     };
-    replaceScenario(nextScenario);
-    setActiveScenario(nextScenario.id);
-    router.push(`/${locale}${buildScenarioUrl("/dashboard", nextScenario.id)}`);
+    const patchedRef = {
+      refId: editingItem.eventRefId ?? editingItem.eventDefinition.id,
+      enabled: patch?.isDisabled !== undefined ? !patch.isDisabled : editingItem.enabled,
+      overrides,
+    };
+    return buildTimelineEventFromDefinition(patchedDefinition, patchedRef, {
+      baseCurrency: scenario.baseCurrency,
+      fallbackMonth: scenario.assumptions.baseMonth,
+    });
+  }, [editingItem, eventPatches, scenario.baseCurrency, scenario.assumptions.baseMonth]);
+
+  const [ruleDraft, setRuleDraft] = useState<BudgetRule | null>(null);
+  const [ruleBasis, setRuleBasis] = useState<"age" | "month">("age");
+  const [ruleStartMonth, setRuleStartMonth] = useState("");
+  const [ruleEndMonth, setRuleEndMonth] = useState("");
+
+  useEffect(() => {
+    if (!editingItem || editingItem.kind !== "rule" || !editingItem.budgetRule) {
+      setRuleDraft(null);
+      return;
+    }
+    const baseRule = editingItem.budgetRule;
+    const patch = rulePatches[baseRule.id];
+    const patchedRule = {
+      ...baseRule,
+      ...(patch?.patch ?? {}),
+      startMonth: patch?.patch?.startMonth ?? baseRule.startMonth,
+      endMonth: patch?.endMonth ?? patch?.patch?.endMonth ?? baseRule.endMonth,
+      enabled: patch?.isDisabled !== undefined ? !patch.isDisabled : baseRule.enabled,
+    };
+    setRuleDraft(patchedRule);
+    const usesMonth = Boolean(patchedRule.startMonth || patchedRule.endMonth);
+    setRuleBasis(usesMonth ? "month" : "age");
+    setRuleStartMonth(patchedRule.startMonth ?? "");
+    setRuleEndMonth(patchedRule.endMonth ?? "");
+  }, [editingItem, rulePatches]);
+
+  const [positionDraft, setPositionDraft] = useState<any>(null);
+  const [positionErrors, setPositionErrors] = useState<Record<string, string | undefined>>({});
+
+  useEffect(() => {
+    if (!editingItem || editingItem.kind !== "position" || !editingItem.position) {
+      setPositionDraft(null);
+      setPositionErrors({});
+      return;
+    }
+    const patch = editingItem.positionKey ? positionPatches[editingItem.positionKey] : null;
+    setPositionDraft({
+      ...editingItem.position,
+      ...(patch?.patch ?? {}),
+    });
+    setPositionErrors({});
+  }, [editingItem, positionPatches]);
+
+  const handleRuleSave = () => {
+    if (!ruleDraft) {
+      return;
+    }
+    if (ruleBasis === "month") {
+      const startError = ruleStartMonth ? getMonthError(ruleStartMonth, monthInvalidMessage) : undefined;
+      const endError = ruleEndMonth ? getMonthError(ruleEndMonth, monthInvalidMessage) : undefined;
+      if (startError || endError) {
+        return;
+      }
+    }
+    const patch: PlanLabRulePatch = {
+      patch: {
+        name: ruleDraft.name,
+        memberId: ruleDraft.memberId,
+        category: ruleDraft.category,
+        monthlyAmount: ruleDraft.monthlyAmount,
+        annualGrowthPct: ruleDraft.annualGrowthPct,
+        ageBand: ruleDraft.ageBand,
+        startMonth: ruleBasis === "month" ? ruleStartMonth || undefined : undefined,
+        endMonth: ruleBasis === "month" ? ruleEndMonth || undefined : undefined,
+      },
+    };
+    updateRulePatch(ruleDraft.id, patch);
+    setEditingItem(null);
+  };
+
+  const handlePositionSave = () => {
+    if (!positionDraft || !editingItem?.positionKey) {
+      return;
+    }
+    if (positionErrors && Object.values(positionErrors).some(Boolean)) {
+      return;
+    }
+    updatePositionPatch(editingItem.positionKey, { patch: positionDraft });
+    setEditingItem(null);
+  };
+
+  const handleEventSave = (result: TimelineEventFormResult) => {
+    if (!editingItem?.eventDefinitionId) {
+      return;
+    }
+    const definition = buildDefinitionFromTimelineEvent(result.event);
+    const nextDefinition: EventDefinition = {
+      ...definition,
+      rule: {
+        ...definition.rule,
+        mode: result.ruleMode ?? "params",
+        schedule: result.ruleMode === "schedule" ? result.schedule : undefined,
+        salarySteps: result.salarySteps,
+      },
+    };
+    updateEventPatch(editingItem.eventDefinitionId, {
+      patch: nextDefinition,
+      endMonth: undefined,
+    });
+    setEditingItem(null);
   };
 
   return (
@@ -1367,13 +1133,7 @@ export default function PlanLabPanel({
               {t("planLabSubtitle")}
             </Text>
           </Stack>
-          <Button
-            size="sm"
-            variant="light"
-            disabled={!planLabEnabled}
-            title={planLabEnabled ? t("planLabSaveEnabled") : t("planLabSaveDisabled")}
-            onClick={handleSave}
-          >
+          <Button size="sm" variant="light" onClick={handleSave}>
             {t("planLabSave")}
           </Button>
         </Group>
@@ -1384,1045 +1144,587 @@ export default function PlanLabPanel({
       </Card>
 
       <Grid gutter="lg">
-        <Grid.Col span={{ base: 12, md: 6 }} order={{ base: 1, md: 2 }}>
+        <Grid.Col span={{ base: 12, md: 7 }}>
           <Stack gap="lg">
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
-                <Text fw={600}>{t("planLabSummaryTitle")}</Text>
-                <Text size="sm" c="dimmed">
-                  {t("planLabSummaryBaseline", { name: scenario.name })}
-                </Text>
-                {summaryItems.length > 0 ? (
-                  <Text size="sm">{summaryItems.join(" · ")}</Text>
-                ) : (
-                  <Text size="sm" c="dimmed">
-                    {t("planLabSummaryEmpty")}
-                  </Text>
-                )}
-                <Divider />
-                <Stack gap="xs">
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <Text fw={600}>{t("planLabRecommendedTitle")}</Text>
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <Text fw={600}>{t("planLabScenarioEditor")}</Text>
+                  <Group gap="xs">
+                    <Switch
+                      size="sm"
+                      label="Active only"
+                      checked={activeOnly}
+                      onChange={(event) => setActiveOnly(event.currentTarget.checked)}
+                    />
+                    <Switch
+                      size="sm"
+                      label="Has changes"
+                      checked={showChangedOnly}
+                      onChange={(event) => setShowChangedOnly(event.currentTarget.checked)}
+                    />
+                    <Switch
+                      size="sm"
+                      label="Risky"
+                      checked={showRiskyOnly}
+                      onChange={(event) => setShowRiskyOnly(event.currentTarget.checked)}
+                    />
                   </Group>
-                  {recommendedFixes.length === 0 ? (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabRecommendedEmpty")}
-                    </Text>
-                  ) : (
-                    <Group gap="xs" wrap="wrap">
-                      {recommendedFixes.map((fix) => (
-                        <Button
-                          key={fix.id}
-                          size="xs"
-                          variant="light"
-                          onClick={fix.onApply}
-                        >
-                          {fix.label}
-                        </Button>
+                </Group>
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                  <TextInput
+                    label="Search"
+                    placeholder="Search items"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                  />
+                  <SegmentedControl
+                    data={[
+                      { value: "all", label: "All" },
+                      { value: "positions", label: "Positions" },
+                      { value: "events", label: "Events" },
+                      { value: "rules", label: "Rules" },
+                    ]}
+                    value={filterKind}
+                    onChange={(value) => setFilterKind(value as typeof filterKind)}
+                  />
+                  <SegmentedControl
+                    data={[
+                      { value: "category", label: "Category" },
+                      { value: "member", label: "Member" },
+                      { value: "timeline", label: "Timeline" },
+                    ]}
+                    value={groupBy}
+                    onChange={(value) => setGroupBy(value as typeof groupBy)}
+                  />
+                </SimpleGrid>
+                {groupedItems.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    No items match the filters.
+                  </Text>
+                ) : (
+                  groupedItems.map(([group, items]) => (
+                    <Stack key={group} gap="xs">
+                      <Text size="sm" fw={600} c="dimmed">
+                        {group}
+                      </Text>
+                      {items.map((item) => (
+                        <Card key={item.id} withBorder radius="md" padding="sm">
+                          <Group justify="space-between" align="center" wrap="wrap">
+                            <Stack gap={2}>
+                              <Text fw={600} size="sm">
+                                {item.title}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {item.startMonth ?? "—"}
+                                {item.endMonth ? ` → ${item.endMonth}` : ""}
+                              </Text>
+                            </Stack>
+                            <Group gap="xs">
+                              <Switch
+                                size="sm"
+                                checked={item.enabled}
+                                onChange={() => {
+                                  if (item.kind === "event" && item.eventDefinitionId) {
+                                    updateEventPatch(item.eventDefinitionId, {
+                                      isDisabled: item.enabled,
+                                    });
+                                  }
+                                  if (item.kind === "rule" && item.ruleId) {
+                                    updateRulePatch(item.ruleId, {
+                                      isDisabled: item.enabled,
+                                    });
+                                  }
+                                  if (item.kind === "position" && item.positionKey) {
+                                    updatePositionPatch(item.positionKey, {
+                                      isDisabled: item.enabled,
+                                    });
+                                  }
+                                }}
+                              />
+                              {(item.kind === "event" || item.kind === "rule") && (
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  onClick={() => setEditingItem(item)}
+                                >
+                                  End
+                                </Button>
+                              )}
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                onClick={() => setEditingItem(item)}
+                              >
+                                Edit
+                              </Button>
+                            </Group>
+                          </Group>
+                        </Card>
                       ))}
-                    </Group>
-                  )}
-                </Stack>
+                    </Stack>
+                  ))
+                )}
               </Stack>
             </Card>
 
             <Card withBorder radius="md" padding="md">
               <Stack gap="lg">
-                <Text fw={600}>{t("planLabControlsTitle")}</Text>
-                <Stack gap="sm">
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <Text fw={600}>{t("planLabAppliedControlsTitle")}</Text>
-                    <Group gap="xs">
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={handleDisableAllControls}
-                      >
-                        {t("planLabAppliedDisableAll")}
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={handleResetAllControls}
-                      >
-                        {t("planLabAppliedResetAll")}
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={handleRevertBaselineEdits}
-                      >
-                        {t("planLabAppliedRevertBaseline")}
-                      </Button>
-                    </Group>
-                  </Group>
-                  {appliedControls.length === 0 ? (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabAppliedControlsEmpty")}
-                    </Text>
-                  ) : (
-                    <Stack gap="xs">
-                      {appliedControls.map((control) => (
-                        <Group key={control.id} justify="space-between" align="center">
-                          <Text size="sm">{control.label}</Text>
-                          <Group gap="xs">
-                            <Switch
-                              size="sm"
-                              checked={control.isEnabled}
-                              onChange={control.onToggle}
-                            />
-                            <Button
-                              size="xs"
-                              variant="subtle"
-                              onClick={control.onRemove}
-                            >
-                              {t("planLabAppliedRemove")}
-                            </Button>
-                          </Group>
-                        </Group>
-                      ))}
-                    </Stack>
-                  )}
-                </Stack>
-
-                <Divider />
-
-                <Stack gap="sm">
-                  <Text fw={600}>{t("planLabBaselineTitle")}</Text>
-                  {baselineItems.length === 0 ? (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabBaselineEmpty")}
-                    </Text>
-                  ) : (
-                    <Stack gap="md">
-                      {baselineItems.map((item) => {
-                        const edit = baselineEditLookup.get(item.refId);
-                        const action = edit?.action ?? "keep";
-                        const endMonth = edit?.endMonth ?? "";
-                        const endMonthError =
-                          action === "keep" ? undefined : getStrictMonthError(endMonth);
-                        const rangeLabel = t("planLabBaselineRange", {
-                          start: item.startMonth ?? "—",
-                          end: item.endMonth ?? t("planLabBaselineOngoing"),
-                        });
-                        return (
-                          <Stack key={item.refId} gap="xs">
+                <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
+                <Group align="flex-end" wrap="wrap">
+                  <Select
+                    label={t("planLabExperimentsAddLabel")}
+                    placeholder={t("planLabExperimentsSelectPlaceholder")}
+                    data={experimentTypeOptions}
+                    value={newExperimentType}
+                    onChange={(value) =>
+                      setNewExperimentType(value as PlanLabExperimentType | null)
+                    }
+                    clearable
+                  />
+                  <Button
+                    size="sm"
+                    variant="light"
+                    onClick={addExperiment}
+                    disabled={!newExperimentType}
+                  >
+                    {t("planLabExperimentsAddAction")}
+                  </Button>
+                </Group>
+                {experiments.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    {t("planLabExperimentsEmpty")}
+                  </Text>
+                ) : (
+                  <Stack gap="md">
+                    {experiments.map((experiment) => {
+                      const monthError =
+                        experiment.type === "oneOffExpense"
+                          ? getStrictMonthError(experiment.month ?? "")
+                          : experiment.type === "rangeExpense"
+                            ? getStrictMonthError(experiment.startMonth ?? "")
+                            : experiment.type === "incomeAdjust"
+                              ? getStrictMonthError(experiment.startMonth ?? "")
+                              : experiment.type === "travelAnnual"
+                                ? getStrictMonthError(experiment.startMonth ?? "")
+                                : experiment.type === "homeBuy"
+                                  ? getStrictMonthError(experiment.purchaseMonth ?? "")
+                                  : getStrictMonthError(experiment.purchaseMonth ?? "");
+                      const endMonthError =
+                        experiment.type === "rangeExpense"
+                          ? getStrictMonthError(experiment.endMonth ?? "")
+                          : undefined;
+                      return (
+                        <Card key={experiment.id} withBorder radius="md" padding="sm">
+                          <Stack gap="sm">
                             <Group justify="space-between" align="center" wrap="wrap">
                               <Text fw={600} size="sm">
-                                {item.title}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {rangeLabel}
-                              </Text>
-                            </Group>
-                            <SegmentedControl
-                              size="xs"
-                              data={[
-                                { value: "keep", label: t("planLabBaselineKeep") },
-                                { value: "end", label: t("planLabBaselineEnd") },
-                                { value: "replace", label: t("planLabBaselineReplace") },
-                              ]}
-                              value={action}
-                              onChange={(value) =>
-                                updateBaselineEdit(item, {
-                                  action: value as PlanLabBaselineEdit["action"],
-                                })
-                              }
-                            />
-                            {action !== "keep" && (
-                              <TextInput
-                                label={t("planLabBaselineEndMonth")}
-                                placeholder="YYYY-MM"
-                                value={endMonth}
-                                onChange={(event) =>
-                                  updateBaselineEdit(item, {
-                                    endMonth: event.currentTarget.value,
-                                  })
+                                {
+                                  experimentTypeOptions.find(
+                                    (option) => option.value === experiment.type
+                                  )?.label
                                 }
-                                error={endMonthError}
-                              />
-                            )}
-                          </Stack>
-                        );
-                      })}
-                    </Stack>
-                  )}
-                </Stack>
-
-                <Divider />
-
-                <Stack gap="sm">
-                  <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
-                  <Group align="flex-end" wrap="wrap">
-                    <Select
-                      label={t("planLabExperimentsAddLabel")}
-                      placeholder={t("planLabExperimentsSelectPlaceholder")}
-                      data={experimentTypeOptions}
-                      value={newExperimentType}
-                      onChange={(value) =>
-                        setNewExperimentType(value as PlanLabExperimentType | null)
-                      }
-                      clearable
-                    />
-                    <Button
-                      size="sm"
-                      variant="light"
-                      onClick={addExperiment}
-                      disabled={!newExperimentType}
-                    >
-                      {t("planLabExperimentsAddAction")}
-                    </Button>
-                  </Group>
-                  {experiments.length === 0 ? (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabExperimentsEmpty")}
-                    </Text>
-                  ) : (
-                    <Stack gap="md">
-                      {experiments.map((experiment) => {
-                        const monthError =
-                          experiment.type === "oneOffExpense"
-                            ? getStrictMonthError(experiment.month ?? "")
-                            : experiment.type === "rangeExpense"
-                              ? getStrictMonthError(experiment.startMonth ?? "")
-                              : experiment.type === "incomeAdjust"
-                                ? getStrictMonthError(experiment.startMonth ?? "")
-                                : experiment.type === "travelAnnual"
-                                  ? getStrictMonthError(experiment.startMonth ?? "")
-                                  : experiment.type === "homeBuy"
-                                    ? getStrictMonthError(experiment.purchaseMonth ?? "")
-                                    : getStrictMonthError(experiment.purchaseMonth ?? "");
-                        const endMonthError =
-                          experiment.type === "rangeExpense"
-                            ? getStrictMonthError(experiment.endMonth ?? "")
-                            : undefined;
-                        return (
-                          <Card key={experiment.id} withBorder radius="md" padding="sm">
-                            <Stack gap="sm">
-                              <Group justify="space-between" align="center" wrap="wrap">
-                                <Text fw={600} size="sm">
-                                  {
-                                    experimentTypeOptions.find(
-                                      (option) => option.value === experiment.type
-                                    )?.label
+                              </Text>
+                              <Group gap="xs">
+                                <Switch
+                                  size="sm"
+                                  checked={experiment.isEnabled !== false}
+                                  onChange={() =>
+                                    updateExperiment(experiment.id, {
+                                      isEnabled: experiment.isEnabled === false,
+                                    })
                                   }
-                                </Text>
-                                <Group gap="xs">
-                                  <Switch
-                                    size="sm"
-                                    checked={experiment.isEnabled !== false}
-                                    onChange={() =>
-                                      updateExperiment(experiment.id, {
-                                        isEnabled: experiment.isEnabled === false,
-                                      })
-                                    }
-                                  />
-                                  <Button
-                                    size="xs"
-                                    variant="subtle"
-                                    onClick={() => removeExperiment(experiment.id)}
-                                  >
-                                    {t("planLabAppliedRemove")}
-                                  </Button>
-                                </Group>
+                                />
+                                <Button
+                                  size="xs"
+                                  variant="subtle"
+                                  onClick={() => removeExperiment(experiment.id)}
+                                >
+                                  {t("planLabAppliedRemove")}
+                                </Button>
                               </Group>
+                            </Group>
 
-                              {experiment.type === "oneOffExpense" && (
-                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                                  <TextInput
-                                    label={t("planLabExperimentMonth")}
-                                    placeholder="YYYY-MM"
-                                    value={experiment.month ?? ""}
-                                    onChange={(event) =>
-                                      updateExperiment(experiment.id, {
-                                        month: event.currentTarget.value,
-                                      })
-                                    }
-                                    error={monthError}
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentAmount")}
-                                    value={experiment.amount ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        amount: typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                </SimpleGrid>
-                              )}
-
-                              {experiment.type === "rangeExpense" && (
-                                <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
-                                  <TextInput
-                                    label={t("planLabExperimentStartMonth")}
-                                    placeholder="YYYY-MM"
-                                    value={experiment.startMonth ?? ""}
-                                    onChange={(event) =>
-                                      updateExperiment(experiment.id, {
-                                        startMonth: event.currentTarget.value,
-                                      })
-                                    }
-                                    error={monthError}
-                                  />
-                                  <TextInput
-                                    label={t("planLabExperimentEndMonth")}
-                                    placeholder="YYYY-MM"
-                                    value={experiment.endMonth ?? ""}
-                                    onChange={(event) =>
-                                      updateExperiment(experiment.id, {
-                                        endMonth: event.currentTarget.value,
-                                      })
-                                    }
-                                    error={endMonthError}
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentMonthlyAmount")}
-                                    value={experiment.monthlyAmount ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        monthlyAmount:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                </SimpleGrid>
-                              )}
-
-                              {experiment.type === "homeBuy" && (
-                                <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
-                                  <TextInput
-                                    label={t("planLabExperimentPurchaseMonth")}
-                                    placeholder="YYYY-MM"
-                                    value={experiment.purchaseMonth ?? ""}
-                                    onChange={(event) =>
-                                      updateExperiment(experiment.id, {
-                                        purchaseMonth: event.currentTarget.value,
-                                      })
-                                    }
-                                    error={monthError}
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentPurchasePrice")}
-                                    value={experiment.purchasePrice ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        purchasePrice:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentDownPaymentAmount")}
-                                    value={experiment.downPaymentAmount ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        downPaymentAmount:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentDownPaymentPct")}
-                                    value={experiment.downPaymentPct ?? ""}
-                                    min={0}
-                                    max={100}
-                                    decimalScale={2}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        downPaymentPct:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentMortgageRate")}
-                                    value={experiment.mortgageRatePct ?? ""}
-                                    min={0}
-                                    decimalScale={2}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        mortgageRatePct:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentMortgageTerm")}
-                                    value={experiment.termYears ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        termYears:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentOneOffFees")}
-                                    value={experiment.oneTimeFees ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        oneTimeFees:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentHoldingCost")}
-                                    value={experiment.holdingCostMonthly ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        holdingCostMonthly:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentAppreciation")}
-                                    value={experiment.annualAppreciationPct ?? ""}
-                                    min={0}
-                                    decimalScale={2}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        annualAppreciationPct:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                </SimpleGrid>
-                              )}
-
-                              {experiment.type === "carPlan" && (
-                                <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
-                                  <TextInput
-                                    label={t("planLabExperimentPurchaseMonth")}
-                                    placeholder="YYYY-MM"
-                                    value={experiment.purchaseMonth ?? ""}
-                                    onChange={(event) =>
-                                      updateExperiment(experiment.id, {
-                                        purchaseMonth: event.currentTarget.value,
-                                      })
-                                    }
-                                    error={monthError}
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentCarPrice")}
-                                    value={experiment.purchasePrice ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        purchasePrice:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentCarDownPayment")}
-                                    value={experiment.downPayment ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        downPayment:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentCarDepreciation")}
-                                    value={experiment.annualDepreciationRatePct ?? ""}
-                                    min={0}
-                                    decimalScale={2}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        annualDepreciationRatePct:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentCarHoldingCost")}
-                                    value={experiment.holdingCostMonthly ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        holdingCostMonthly:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentCarHoldingGrowth")}
-                                    value={experiment.holdingCostAnnualGrowthPct ?? ""}
-                                    min={0}
-                                    decimalScale={2}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        holdingCostAnnualGrowthPct:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                </SimpleGrid>
-                              )}
-
-                              {experiment.type === "incomeAdjust" && (
-                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                                  <TextInput
-                                    label={t("planLabExperimentStartMonth")}
-                                    placeholder="YYYY-MM"
-                                    value={experiment.startMonth ?? ""}
-                                    onChange={(event) =>
-                                      updateExperiment(experiment.id, {
-                                        startMonth: event.currentTarget.value,
-                                      })
-                                    }
-                                    error={monthError}
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentMonthlyAmount")}
-                                    value={experiment.monthlyAmount ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        monthlyAmount:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                </SimpleGrid>
-                              )}
-
-                              {experiment.type === "travelAnnual" && (
-                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                                  <TextInput
-                                    label={t("planLabExperimentStartMonth")}
-                                    placeholder="YYYY-MM"
-                                    value={experiment.startMonth ?? ""}
-                                    onChange={(event) =>
-                                      updateExperiment(experiment.id, {
-                                        startMonth: event.currentTarget.value,
-                                      })
-                                    }
-                                    error={monthError}
-                                  />
-                                  <NumberInput
-                                    label={t("planLabExperimentAnnualAmount")}
-                                    value={experiment.annualAmount ?? ""}
-                                    min={0}
-                                    onChange={(value) =>
-                                      updateExperiment(experiment.id, {
-                                        annualAmount:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                </SimpleGrid>
-                              )}
-                            </Stack>
-                          </Card>
-                        );
-                      })}
-                    </Stack>
-                  )}
-                </Stack>
-
-                {/* <Stack gap="xs">
-                  <Text fw={600}>{t("planLabGoalTitle")}</Text>
-                  <SegmentedControl
-                    data={[
-                      { value: "family-launch", label: t("planLabGoalFamily") },
-                      { value: "classic", label: t("planLabGoalClassic") },
-                    ]}
-                    value={goalType}
-                    onChange={(value) => setGoalType(value as PlanLabGoalType)}
-                  />
-                </Stack> */}
-
-                {goalType === "family-launch" ? (
-                  <Accordion multiple defaultValue={["wedding"]}>
-                    <Accordion.Item value="wedding">
-                      <Accordion.Control>{t("planLabFamilyWeddingTitle")}</Accordion.Control>
-                      <Accordion.Panel>
-                        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                          <TextInput
-                            label={t("planLabFamilyWeddingMonth")}
-                            placeholder="YYYY-MM"
-                            value={familyWeddingMonth}
-                            onChange={(event) =>
-                              setFamilyWeddingMonth(event.currentTarget.value)
-                            }
-                            error={familyWeddingMonthError}
-                          />
-                          <NumberInput
-                            label={t("planLabFamilyWeddingBudget")}
-                            value={familyWeddingBudget}
-                            min={0}
-                            onChange={(value) =>
-                              setFamilyWeddingBudget(
-                                typeof value === "number" ? value : ""
-                              )
-                            }
-                          />
-                          <NumberInput
-                            label={t("planLabFamilyHoneymoonBudget")}
-                            value={familyHoneymoonBudget}
-                            min={0}
-                            onChange={(value) =>
-                              setFamilyHoneymoonBudget(
-                                typeof value === "number" ? value : ""
-                              )
-                            }
-                          />
-                        </SimpleGrid>
-                      </Accordion.Panel>
-                    </Accordion.Item>
-                    <Accordion.Item value="baby">
-                      <Accordion.Control>{t("planLabFamilyBabyTitle")}</Accordion.Control>
-                      <Accordion.Panel>
-                        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                          <TextInput
-                            label={t("planLabFamilyBabyDueMonth")}
-                            placeholder="YYYY-MM"
-                            value={familyBabyDueMonth}
-                            onChange={(event) =>
-                              setFamilyBabyDueMonth(event.currentTarget.value)
-                            }
-                            error={familyBabyDueMonthError}
-                          />
-                          <NumberInput
-                            label={t("planLabFamilyBabyMonthlyBudget")}
-                            value={familyBabyMonthlyBudget}
-                            min={0}
-                            onChange={(value) =>
-                              setFamilyBabyMonthlyBudget(
-                                typeof value === "number" ? value : ""
-                              )
-                            }
-                          />
-                          <NumberInput
-                            label={t("planLabFamilyBabyOneOffBudget")}
-                            value={familyBabyOneOffBudget}
-                            min={0}
-                            onChange={(value) =>
-                              setFamilyBabyOneOffBudget(
-                                typeof value === "number" ? value : ""
-                              )
-                            }
-                          />
-                          <NumberInput
-                            label={t("planLabFamilyBabyDuration")}
-                            value={familyBabyDurationMonths}
-                            min={0}
-                            onChange={(value) =>
-                              setFamilyBabyDurationMonths(
-                                typeof value === "number" ? value : ""
-                              )
-                            }
-                          />
-                        </SimpleGrid>
-                      </Accordion.Panel>
-                    </Accordion.Item>
-                    <Accordion.Item value="housing">
-                      <Accordion.Control>{t("planLabFamilyHousingTitle")}</Accordion.Control>
-                      <Accordion.Panel>
-                        <Stack gap="sm">
-                          <SegmentedControl
-                            data={[
-                              { value: "keep-rent", label: t("planLabFamilyHousingKeepRent") },
-                              {
-                                value: "rent-upgrade",
-                                label: t("planLabFamilyHousingRentUpgrade"),
-                              },
-                              { value: "buy-home", label: t("planLabFamilyHousingBuy") },
-                            ]}
-                            value={familyHousingMode}
-                            onChange={(value) => {
-                              const nextMode = value as
-                                | "keep-rent"
-                                | "rent-upgrade"
-                                | "buy-home";
-                              setFamilyHousingMode(nextMode);
-                            }}
-                          />
-                          {familyHousingMode === "keep-rent" && (
-                            <Text size="sm" c="dimmed">
-                              {t("planLabFamilyHousingKeepRentHint")}
-                            </Text>
-                          )}
-                          {familyHousingMode === "rent-upgrade" && (
-                            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                              <TextInput
-                                label={t("planLabFamilyRentStartMonth")}
-                                placeholder="YYYY-MM"
-                                value={familyRentStartMonth}
-                                onChange={(event) =>
-                                  setFamilyRentStartMonth(event.currentTarget.value)
-                                }
-                                error={familyRentStartMonthError}
-                              />
-                              <NumberInput
-                                label={t("planLabFamilyCurrentRent")}
-                                value={familyCurrentRent}
-                                min={0}
-                                onChange={(value) =>
-                                  setFamilyCurrentRent(
-                                    typeof value === "number" ? value : ""
-                                  )
-                                }
-                              />
-                              <NumberInput
-                                label={t("planLabFamilyUpgradedRent")}
-                                value={familyUpgradedRent}
-                                min={0}
-                                onChange={(value) =>
-                                  setFamilyUpgradedRent(
-                                    typeof value === "number" ? value : ""
-                                  )
-                                }
-                              />
-                            </SimpleGrid>
-                          )}
-                          {familyHousingMode === "buy-home" && (
-                            <Stack gap="sm">
+                            {experiment.type === "oneOffExpense" && (
                               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
                                 <TextInput
-                                  label={t("planLabFamilyPurchaseMonth")}
+                                  label={t("planLabExperimentMonth")}
                                   placeholder="YYYY-MM"
-                                  value={familyPurchaseMonth}
+                                  value={experiment.month ?? ""}
                                   onChange={(event) =>
-                                    setFamilyPurchaseMonth(event.currentTarget.value)
+                                    updateExperiment(experiment.id, {
+                                      month: event.currentTarget.value,
+                                    })
                                   }
-                                  error={familyPurchaseMonthError}
+                                  error={monthError}
                                 />
                                 <NumberInput
-                                  label={t("planLabFamilyHomePrice")}
-                                  value={familyHomePrice}
+                                  label={t("planLabExperimentAmount")}
+                                  value={experiment.amount ?? ""}
                                   min={0}
                                   onChange={(value) =>
-                                    setFamilyHomePrice(
-                                      typeof value === "number" ? value : ""
-                                    )
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabFamilyDownPaymentAmount")}
-                                  value={familyDownPaymentAmount}
-                                  min={0}
-                                  onChange={(value) => {
-                                    const amount =
-                                      typeof value === "number" ? value : "";
-                                    setFamilyDownPaymentAmount(amount);
-                                    if (
-                                      typeof amount === "number" &&
-                                      typeof familyHomePrice === "number"
-                                    ) {
-                                      setFamilyDownPaymentPct(
-                                        familyHomePrice > 0
-                                          ? Number(
-                                              ((amount / familyHomePrice) * 100).toFixed(2)
-                                            )
-                                          : 0
-                                      );
-                                    }
-                                  }}
-                                />
-                                <NumberInput
-                                  label={t("planLabFamilyDownPaymentPct")}
-                                  value={familyDownPaymentPct}
-                                  min={0}
-                                  max={100}
-                                  decimalScale={2}
-                                  onChange={(value) => {
-                                    const pct =
-                                      typeof value === "number" ? value : "";
-                                    setFamilyDownPaymentPct(pct);
-                                    if (
-                                      typeof pct === "number" &&
-                                      typeof familyHomePrice === "number"
-                                    ) {
-                                      setFamilyDownPaymentAmount(
-                                        Math.round((familyHomePrice * pct) / 100)
-                                      );
-                                    }
-                                  }}
-                                />
-                                <NumberInput
-                                  label={t("planLabFamilyMortgageRate")}
-                                  value={familyMortgageRatePct}
-                                  min={0}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    setFamilyMortgageRatePct(
-                                      typeof value === "number" ? value : ""
-                                    )
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabFamilyMortgageTerm")}
-                                  value={familyMortgageTermYears}
-                                  min={0}
-                                  onChange={(value) =>
-                                    setFamilyMortgageTermYears(
-                                      typeof value === "number" ? value : ""
-                                    )
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabFamilyOneOffFees")}
-                                  value={familyOneOffFees}
-                                  min={0}
-                                  onChange={(value) =>
-                                    setFamilyOneOffFees(
-                                      typeof value === "number" ? value : ""
-                                    )
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabFamilyHoldingCost")}
-                                  value={familyHoldingCost}
-                                  min={0}
-                                  onChange={(value) =>
-                                    setFamilyHoldingCost(
-                                      typeof value === "number" ? value : ""
-                                    )
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabFamilyAppreciation")}
-                                  value={familyAppreciationPct}
-                                  min={0}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    setFamilyAppreciationPct(
-                                      typeof value === "number" ? value : ""
-                                    )
+                                    updateExperiment(experiment.id, {
+                                      amount: typeof value === "number" ? value : undefined,
+                                    })
                                   }
                                 />
                               </SimpleGrid>
-                            </Stack>
-                          )}
-                        </Stack>
-                      </Accordion.Panel>
-                    </Accordion.Item>
-                  </Accordion>
-                ) : (
-                  <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-                    <Stack gap="sm">
-                      <Text fw={600}>{t("planLabHousingTitle")}</Text>
-                      <SegmentedControl
-                        data={[
-                          { value: "rent", label: t("planLabHousingRent") },
-                          { value: "rent-bigger", label: t("planLabHousingRentBigger") },
-                          { value: "buy", label: t("planLabHousingBuy") },
-                        ]}
-                        value={housingMode}
-                        onChange={(value) => {
-                          const nextMode = value as "rent" | "rent-bigger" | "buy";
-                          setHousingMode(nextMode);
-                          if (nextMode === "rent") {
-                            setRentMonthly(scenario.assumptions.rentMonthly ?? "");
-                          }
-                          if (nextMode === "rent-bigger") {
-                            const baseline = scenario.assumptions.rentMonthly ?? 0;
-                            setRentMonthly(Math.round(baseline * 1.3));
-                          }
-                        }}
-                      />
-                      {(housingMode === "rent" || housingMode === "rent-bigger") && (
-                        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                          <TextInput
-                            label={t("planLabRentStartMonth")}
-                            placeholder="YYYY-MM"
-                            value={rentStartMonth}
-                            onChange={(event) =>
-                              setRentStartMonth(event.currentTarget.value)
-                            }
-                            error={rentStartMonthError}
-                          />
-                          <NumberInput
-                            label={t("planLabRentMonthly")}
-                            value={rentMonthly}
-                            min={0}
-                            onChange={(value) =>
-                              setRentMonthly(typeof value === "number" ? value : "")
-                            }
-                          />
-                        </SimpleGrid>
-                      )}
-                      {housingMode === "buy" && (
-                        <Stack gap="sm">
-                          <Button
-                            size="xs"
-                            variant={buyPanelOpen ? "filled" : "light"}
-                            onClick={() => setBuyPanelOpen((current) => !current)}
-                          >
-                            {buyPanelOpen
-                              ? t("planLabBuyHideDetails")
-                              : t("planLabBuyShowDetails")}
-                          </Button>
-                          {buyPanelOpen && (
-                            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                              <TextInput
-                                label={t("planLabPurchaseMonth")}
-                                placeholder="YYYY-MM"
-                                value={purchaseMonth}
-                                onChange={(event) =>
-                                  setPurchaseMonth(event.currentTarget.value)
-                                }
-                                error={purchaseMonthError}
-                              />
-                              <NumberInput
-                                label={t("planLabPurchasePrice")}
-                                value={purchasePrice}
-                                min={0}
-                                onChange={(value) =>
-                                  setPurchasePrice(typeof value === "number" ? value : "")
-                                }
-                              />
-                              <NumberInput
-                                label={t("planLabDownPaymentAmount")}
-                                value={downPaymentAmount}
-                                min={0}
-                                onChange={(value) => {
-                                  const amount = typeof value === "number" ? value : "";
-                                  setDownPaymentAmount(amount);
-                                  if (
-                                    typeof amount === "number" &&
-                                    typeof purchasePrice === "number"
-                                  ) {
-                                    setDownPaymentPct(
-                                      purchasePrice > 0
-                                        ? Number(
-                                            ((amount / purchasePrice) * 100).toFixed(2)
-                                          )
-                                        : 0
-                                    );
-                                  }
-                                }}
-                              />
-                              <NumberInput
-                                label={t("planLabDownPaymentPct")}
-                                value={downPaymentPct}
-                                min={0}
-                                max={100}
-                                decimalScale={2}
-                                onChange={(value) => {
-                                  const pct = typeof value === "number" ? value : "";
-                                  setDownPaymentPct(pct);
-                                  if (
-                                    typeof pct === "number" &&
-                                    typeof purchasePrice === "number"
-                                  ) {
-                                    setDownPaymentAmount(
-                                      Math.round((purchasePrice * pct) / 100)
-                                    );
-                                  }
-                                }}
-                              />
-                              <NumberInput
-                                label={t("planLabMortgageRate")}
-                                value={mortgageRatePct}
-                                min={0}
-                                decimalScale={2}
-                                onChange={(value) =>
-                                  setMortgageRatePct(typeof value === "number" ? value : "")
-                                }
-                              />
-                              <NumberInput
-                                label={t("planLabMortgageTerm")}
-                                value={termYears}
-                                min={0}
-                                onChange={(value) =>
-                                  setTermYears(typeof value === "number" ? value : "")
-                                }
-                              />
-                            </SimpleGrid>
-                          )}
-                        </Stack>
-                      )}
-                    </Stack>
+                            )}
 
-                    <Stack gap="sm">
-                      <Text fw={600}>{t("planLabBabyTitle")}</Text>
-                      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                        <TextInput
-                          label={t("planLabBabyDueMonth")}
-                          placeholder="YYYY-MM"
-                          value={babyDueMonth}
-                          onChange={(event) => setBabyDueMonth(event.currentTarget.value)}
-                          error={babyDueMonthError}
-                        />
-                        <NumberInput
-                          label={t("planLabBabyMonthlyBudget")}
-                          value={babyMonthlyBudget}
-                          min={0}
-                          onChange={(value) =>
-                            setBabyMonthlyBudget(
-                              typeof value === "number" ? value : ""
-                            )
-                          }
-                        />
-                        <NumberInput
-                          label={t("planLabBabyOneOffCost")}
-                          value={babyOneOffCost}
-                          min={0}
-                          onChange={(value) =>
-                            setBabyOneOffCost(typeof value === "number" ? value : "")
-                          }
-                        />
-                      </SimpleGrid>
-                    </Stack>
-                  </SimpleGrid>
+                            {experiment.type === "rangeExpense" && (
+                              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                                <TextInput
+                                  label={t("planLabExperimentStartMonth")}
+                                  placeholder="YYYY-MM"
+                                  value={experiment.startMonth ?? ""}
+                                  onChange={(event) =>
+                                    updateExperiment(experiment.id, {
+                                      startMonth: event.currentTarget.value,
+                                    })
+                                  }
+                                  error={monthError}
+                                />
+                                <TextInput
+                                  label={t("planLabExperimentEndMonth")}
+                                  placeholder="YYYY-MM"
+                                  value={experiment.endMonth ?? ""}
+                                  onChange={(event) =>
+                                    updateExperiment(experiment.id, {
+                                      endMonth: event.currentTarget.value,
+                                    })
+                                  }
+                                  error={endMonthError}
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentMonthlyAmount")}
+                                  value={experiment.monthlyAmount ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      monthlyAmount:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                              </SimpleGrid>
+                            )}
+
+                            {experiment.type === "homeBuy" && (
+                              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                                <TextInput
+                                  label={t("planLabExperimentPurchaseMonth")}
+                                  placeholder="YYYY-MM"
+                                  value={experiment.purchaseMonth ?? ""}
+                                  onChange={(event) =>
+                                    updateExperiment(experiment.id, {
+                                      purchaseMonth: event.currentTarget.value,
+                                    })
+                                  }
+                                  error={monthError}
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentPurchasePrice")}
+                                  value={experiment.purchasePrice ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      purchasePrice:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentDownPaymentAmount")}
+                                  value={experiment.downPaymentAmount ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      downPaymentAmount:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentDownPaymentPct")}
+                                  value={experiment.downPaymentPct ?? ""}
+                                  min={0}
+                                  max={100}
+                                  decimalScale={2}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      downPaymentPct:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentMortgageRate")}
+                                  value={experiment.mortgageRatePct ?? ""}
+                                  min={0}
+                                  decimalScale={2}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      mortgageRatePct:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentMortgageTerm")}
+                                  value={experiment.termYears ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      termYears:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentOneOffFees")}
+                                  value={experiment.oneTimeFees ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      oneTimeFees:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentHoldingCost")}
+                                  value={experiment.holdingCostMonthly ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      holdingCostMonthly:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentAppreciation")}
+                                  value={experiment.annualAppreciationPct ?? ""}
+                                  min={0}
+                                  decimalScale={2}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      annualAppreciationPct:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                              </SimpleGrid>
+                            )}
+
+                            {experiment.type === "carPlan" && (
+                              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                                <TextInput
+                                  label={t("planLabExperimentPurchaseMonth")}
+                                  placeholder="YYYY-MM"
+                                  value={experiment.purchaseMonth ?? ""}
+                                  onChange={(event) =>
+                                    updateExperiment(experiment.id, {
+                                      purchaseMonth: event.currentTarget.value,
+                                    })
+                                  }
+                                  error={monthError}
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentCarPrice")}
+                                  value={experiment.purchasePrice ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      purchasePrice:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentCarDownPayment")}
+                                  value={experiment.downPayment ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      downPayment:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentCarDepreciation")}
+                                  value={experiment.annualDepreciationRatePct ?? ""}
+                                  min={0}
+                                  decimalScale={2}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      annualDepreciationRatePct:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentCarHoldingCost")}
+                                  value={experiment.holdingCostMonthly ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      holdingCostMonthly:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentCarHoldingGrowth")}
+                                  value={experiment.holdingCostAnnualGrowthPct ?? ""}
+                                  min={0}
+                                  decimalScale={2}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      holdingCostAnnualGrowthPct:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                              </SimpleGrid>
+                            )}
+
+                            {experiment.type === "incomeAdjust" && (
+                              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                <TextInput
+                                  label={t("planLabExperimentStartMonth")}
+                                  placeholder="YYYY-MM"
+                                  value={experiment.startMonth ?? ""}
+                                  onChange={(event) =>
+                                    updateExperiment(experiment.id, {
+                                      startMonth: event.currentTarget.value,
+                                    })
+                                  }
+                                  error={monthError}
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentMonthlyAmount")}
+                                  value={experiment.monthlyAmount ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      monthlyAmount:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                              </SimpleGrid>
+                            )}
+
+                            {experiment.type === "travelAnnual" && (
+                              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                <TextInput
+                                  label={t("planLabExperimentStartMonth")}
+                                  placeholder="YYYY-MM"
+                                  value={experiment.startMonth ?? ""}
+                                  onChange={(event) =>
+                                    updateExperiment(experiment.id, {
+                                      startMonth: event.currentTarget.value,
+                                    })
+                                  }
+                                  error={monthError}
+                                />
+                                <NumberInput
+                                  label={t("planLabExperimentAnnualAmount")}
+                                  value={experiment.annualAmount ?? ""}
+                                  min={0}
+                                  onChange={(value) =>
+                                    updateExperiment(experiment.id, {
+                                      annualAmount:
+                                        typeof value === "number" ? value : undefined,
+                                    })
+                                  }
+                                />
+                              </SimpleGrid>
+                            )}
+                          </Stack>
+                        </Card>
+                      );
+                    })}
+                  </Stack>
                 )}
+              </Stack>
+            </Card>
 
-                <Divider />
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm">
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <Text fw={600}>Applied Controls</Text>
+                  <Group gap="xs">
+                    <Button size="xs" variant="light" onClick={handleResetBaseline}>
+                      Reset baseline edits
+                    </Button>
+                    <Button size="xs" variant="light" onClick={handleResetAllControls}>
+                      Reset all
+                    </Button>
+                  </Group>
+                </Group>
+                {appliedControls.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    {t("planLabAppliedControlsEmpty")}
+                  </Text>
+                ) : (
+                  <Stack gap="xs">
+                    {appliedControls.map((control) => (
+                      <Group key={control.id} justify="space-between" align="center">
+                        <Text size="sm">{control.label}</Text>
+                        <Group gap="xs">
+                          <Switch
+                            size="sm"
+                            checked={control.isEnabled}
+                            onChange={control.onToggle}
+                          />
+                          <Button size="xs" variant="subtle" onClick={control.onRemove}>
+                            {t("planLabAppliedRemove")}
+                          </Button>
+                        </Group>
+                      </Group>
+                    ))}
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
 
-                <Stack gap="xs">
-                  <WarningsPanel
-                    warnings={planLabProjection.projectionWarnings}
-                    title={projectionWarningsTitle}
-                    defaultOpen={false}
-                  />
-                  <Text fw={600}>{t("planLabWarningsTitle")}</Text>
-                  {saveWarnings.length === 0 && !saveError && (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabWarningsPlaceholder")}
-                    </Text>
-                  )}
-                  {saveWarnings.map((warning) => (
-                    <Text key={warning} size="sm" c="orange">
-                      {warning}
-                    </Text>
-                  ))}
-                  {saveError && (
-                    <Text size="sm" c="red">
-                      {saveError}
-                    </Text>
-                  )}
-                </Stack>
-                <Text size="xs" c="dimmed">
-                  {t("planLabSaveHint")}
-                </Text>
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="xs">
+                <WarningsPanel
+                  warnings={planLabProjection.projectionWarnings}
+                  title={projectionWarningsTitle}
+                  defaultOpen={false}
+                />
+                <Text fw={600}>{t("planLabWarningsTitle")}</Text>
+                {saveWarnings.length === 0 && !saveError && (
+                  <Text size="sm" c="dimmed">
+                    {t("planLabWarningsPlaceholder")}
+                  </Text>
+                )}
+                {saveWarnings.map((warning) => (
+                  <Text key={warning} size="sm" c="orange">
+                    {warning}
+                  </Text>
+                ))}
+                {saveError && (
+                  <Text size="sm" c="red">
+                    {saveError}
+                  </Text>
+                )}
               </Stack>
             </Card>
           </Stack>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 6 }} order={{ base: 1, md: 2 }}>
+        <Grid.Col span={{ base: 12, md: 5 }}>
           <div style={{ position: "sticky", top: 88 }}>
             <Stack gap="lg">
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <Text fw={600}>{t("planLabScorecardTitle")}</Text>
-                  </Group>
+                  <Text fw={600}>{t("planLabScorecardTitle")}</Text>
                   <Stack gap="xs">
                     <Text fw={600}>{t("planLabScorecardFirstBucketTitle")}</Text>
                     <NumberInput
@@ -2430,9 +1732,7 @@ export default function PlanLabPanel({
                       value={firstBucketTargetAmount}
                       min={0}
                       onChange={(value) =>
-                        setFirstBucketTargetAmount(
-                          typeof value === "number" ? value : ""
-                        )
+                        setFirstBucketTargetAmount(typeof value === "number" ? value : "")
                       }
                     />
                     {firstBucketTargetValue === null ? (
@@ -2521,161 +1821,16 @@ export default function PlanLabPanel({
                       </SimpleGrid>
                     )}
                   </Stack>
-
-                  <Divider />
-
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <Text fw={600}>{t("planLabFamilyScorecardTitle")}</Text>
-                    {goalType === "family-launch" && (
-                      <Badge color={scorecardBadgeColor} variant="light">
-                        {scorecardStatusLabel}
-                      </Badge>
-                    )}
-                  </Group>
-                  {goalType !== "family-launch" && (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabScorecardFamilyOnly")}
-                    </Text>
-                  )}
-                  {goalType === "family-launch" && !planLabEnabled && (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabFamilyScorecardDisabled")}
-                    </Text>
-                  )}
-                  {goalType === "family-launch" && planLabEnabled && (
-                    <>
-                      <Text size="sm" c="dimmed">
-                        {scorecardHeadline}
-                      </Text>
-                      {missingInputLabels.length > 0 && (
-                        <Text size="sm" c="dimmed">
-                          {t("planLabFamilyScorecardMissing", {
-                            items: missingInputLabels.join("、"),
-                          })}
-                        </Text>
-                      )}
-                      {familyScorecard && (
-                        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                          <Card withBorder radius="md" padding="sm">
-                            <Stack gap={4}>
-                              <Text size="sm" fw={600}>
-                                {t("planLabFamilyScorecardMinCash")}
-                              </Text>
-                              <Text size="sm">
-                                {formatCurrency(
-                                  familyScorecard.minCash.value,
-                                  scenario.baseCurrency,
-                                  locale
-                                )}
-                              </Text>
-                              {familyScorecard.minCash.month && (
-                                <Text size="xs" c="dimmed">
-                                  {t("monthLabel", {
-                                    month: familyScorecard.minCash.month,
-                                  })}
-                                </Text>
-                              )}
-                            </Stack>
-                          </Card>
-                          <Card withBorder radius="md" padding="sm">
-                            <Stack gap={4}>
-                              <Text size="sm" fw={600}>
-                                {t("planLabFamilyScorecardWindowMin")}
-                              </Text>
-                              <Text size="sm">
-                                {formatCurrency(
-                                  familyScorecard.windowMinCash.value,
-                                  scenario.baseCurrency,
-                                  locale
-                                )}
-                              </Text>
-                              {familyScorecard.windowMinCash.details.length > 0 && (
-                                <Text size="xs" c="dimmed">
-                                  {familyScorecard.windowMinCash.details
-                                    .map((detail) => {
-                                      const label =
-                                        detail.label === "purchase"
-                                          ? t("planLabFamilyScorecardWindowPurchase")
-                                          : detail.label === "baby"
-                                            ? t("planLabFamilyScorecardWindowBaby")
-                                            : t("planLabFamilyScorecardWindowWedding");
-                                      return `${label}: ${formatCurrency(
-                                        detail.value,
-                                        scenario.baseCurrency,
-                                        locale
-                                      )}`;
-                                    })
-                                    .join(" · ")}
-                                </Text>
-                              )}
-                            </Stack>
-                          </Card>
-                          <Card withBorder radius="md" padding="sm">
-                            <Stack gap={4}>
-                              <Text size="sm" fw={600}>
-                                {t("planLabFamilyScorecardRiskMonths")}
-                              </Text>
-                              {familyScorecard.topRiskMonths.length === 0 && (
-                                <Text size="sm" c="dimmed">
-                                  {t("planLabFamilyScorecardNoRisk")}
-                                </Text>
-                              )}
-                              {familyScorecard.topRiskMonths.map((entry) => (
-                                <Text key={entry.month} size="sm">
-                                  {entry.month}:{" "}
-                                  {formatCurrency(
-                                    entry.value,
-                                    scenario.baseCurrency,
-                                    locale
-                                  )}
-                                  {entry.flags.length > 0 && (
-                                    <Text component="span" size="sm" c="dimmed">
-                                      {" "}
-                                      (
-                                      {entry.flags
-                                        .map((flag) =>
-                                          flag === "purchase"
-                                            ? t("planLabFamilyRiskTagPurchase")
-                                            : flag === "baby"
-                                              ? t("planLabFamilyRiskTagBaby")
-                                              : t("planLabFamilyRiskTagWedding")
-                                        )
-                                        .join(" / ")}
-                                      )
-                                    </Text>
-                                  )}
-                                </Text>
-                              ))}
-                            </Stack>
-                          </Card>
-                          <Card withBorder radius="md" padding="sm">
-                            <Stack gap={4}>
-                              <Text size="sm" fw={600}>
-                                {t("planLabFamilyScorecardBuffer")}
-                              </Text>
-                              {familyScorecard.buffer.recommended ? (
-                                <Text size="sm">
-                                  {t("planLabFamilyScorecardBufferNeed", {
-                                    amount: formatCurrency(
-                                      familyScorecard.buffer.recommended,
-                                      scenario.baseCurrency,
-                                      locale
-                                    ),
-                                  })}
-                                </Text>
-                              ) : (
-                                <Text size="sm" c="dimmed">
-                                  {t("planLabFamilyScorecardBufferOk")}
-                                </Text>
-                              )}
-                            </Stack>
-                          </Card>
-                        </SimpleGrid>
-                      )}
-                    </>
-                  )}
                 </Stack>
               </Card>
+
+              {cashRiskScorecard && (
+                <PlanLabCashRiskScorecard
+                  result={cashRiskScorecard}
+                  baseCurrency={scenario.baseCurrency}
+                  locale={locale}
+                />
+              )}
 
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
@@ -2692,11 +1847,6 @@ export default function PlanLabPanel({
                       onChange={(value) => setChartType(value as ChartType)}
                     />
                   </Group>
-                  {!planLabEnabled && (
-                    <Text size="sm" c="dimmed">
-                      {t("planLabPreviewDisabled")}
-                    </Text>
-                  )}
                   <div style={{ width: "100%", height: 260 }}>
                     <ResponsiveContainer>
                       <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
@@ -2739,7 +1889,468 @@ export default function PlanLabPanel({
           </div>
         </Grid.Col>
       </Grid>
+
+      <Drawer
+        opened={Boolean(editingItem)}
+        onClose={() => setEditingItem(null)}
+        position="right"
+        size="lg"
+        title={editingItem ? `Edit ${editingItem.title}` : "Edit"}
+      >
+        {editingItem?.kind === "event" && editingEventData && (
+          <TimelineEventForm
+            event={editingEventData}
+            baseCurrency={scenario.baseCurrency}
+            members={members}
+            assumptions={{
+              baseMonth: scenario.assumptions.baseMonth,
+              horizonMonths: scenario.assumptions.horizonMonths,
+            }}
+            ruleMode={editingItem.eventRule?.mode ?? "params"}
+            schedule={editingItem.eventRule?.schedule}
+            salarySteps={editingItem.eventRule?.salarySteps}
+            onCancel={() => setEditingItem(null)}
+            onSave={handleEventSave}
+            submitLabel="Apply"
+          />
+        )}
+
+        {editingItem?.kind === "rule" && ruleDraft && (
+          <Stack gap="sm">
+            <TextInput
+              label="Name"
+              value={ruleDraft.name}
+              onChange={(event) =>
+                setRuleDraft((current) =>
+                  current ? { ...current, name: event.currentTarget.value } : current
+                )
+              }
+            />
+            <Select
+              label="Member"
+              data={[{ value: "", label: "All" }, ...members.map((member) => ({ value: member.id, label: member.name }))]}
+              value={ruleDraft.memberId ?? ""}
+              onChange={(value) =>
+                setRuleDraft((current) =>
+                  current ? { ...current, memberId: value || undefined } : current
+                )
+              }
+            />
+            <Select
+              label="Category"
+              data={[
+                { value: "health", label: "Health" },
+                { value: "baseline", label: "Baseline" },
+                { value: "childcare", label: "Childcare" },
+                { value: "education", label: "Education" },
+                { value: "eldercare", label: "Eldercare" },
+                { value: "petcare", label: "Petcare" },
+              ]}
+              value={ruleDraft.category}
+              onChange={(value) =>
+                setRuleDraft((current) =>
+                  current ? { ...current, category: value as BudgetRule["category"] } : current
+                )
+              }
+            />
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+              <NumberInput
+                label="Monthly amount"
+                value={ruleDraft.monthlyAmount}
+                min={0}
+                onChange={(value) =>
+                  setRuleDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          monthlyAmount: typeof value === "number" ? value : current.monthlyAmount,
+                        }
+                      : current
+                  )
+                }
+              />
+              <NumberInput
+                label="Annual growth %"
+                value={ruleDraft.annualGrowthPct ?? ""}
+                min={0}
+                decimalScale={2}
+                onChange={(value) =>
+                  setRuleDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          annualGrowthPct: typeof value === "number" ? value : undefined,
+                        }
+                      : current
+                  )
+                }
+              />
+            </SimpleGrid>
+            <SegmentedControl
+              data={[
+                { value: "age", label: "Age band" },
+                { value: "month", label: "Month range" },
+              ]}
+              value={ruleBasis}
+              onChange={(value) => setRuleBasis(value as "age" | "month")}
+            />
+            {ruleBasis === "age" ? (
+              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                <NumberInput
+                  label="Age from"
+                  value={ruleDraft.ageBand.fromYears}
+                  min={0}
+                  onChange={(value) =>
+                    setRuleDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            ageBand: {
+                              ...current.ageBand,
+                              fromYears: typeof value === "number" ? value : current.ageBand.fromYears,
+                            },
+                          }
+                        : current
+                    )
+                  }
+                />
+                <NumberInput
+                  label="Age to"
+                  value={ruleDraft.ageBand.toYears}
+                  min={0}
+                  onChange={(value) =>
+                    setRuleDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            ageBand: {
+                              ...current.ageBand,
+                              toYears: typeof value === "number" ? value : current.ageBand.toYears,
+                            },
+                          }
+                        : current
+                    )
+                  }
+                />
+              </SimpleGrid>
+            ) : (
+              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                <TextInput
+                  label="Start month"
+                  placeholder="YYYY-MM"
+                  value={ruleStartMonth}
+                  onChange={(event) => setRuleStartMonth(event.currentTarget.value)}
+                  error={ruleStartMonth ? getMonthError(ruleStartMonth, monthInvalidMessage) : undefined}
+                />
+                <TextInput
+                  label="End month"
+                  placeholder="YYYY-MM"
+                  value={ruleEndMonth}
+                  onChange={(event) => setRuleEndMonth(event.currentTarget.value)}
+                  error={ruleEndMonth ? getMonthError(ruleEndMonth, monthInvalidMessage) : undefined}
+                />
+              </SimpleGrid>
+            )}
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setEditingItem(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleRuleSave}>Apply</Button>
+            </Group>
+          </Stack>
+        )}
+
+        {editingItem?.kind === "position" && positionDraft && (
+          <Stack gap="sm">
+            {editingItem.positionKind === "home" && (
+              <>
+                <TextInput
+                  label="Purchase month"
+                  value={positionDraft.purchaseMonth ?? ""}
+                  disabled
+                />
+                <NumberInput
+                  label="Purchase price"
+                  value={positionDraft.purchasePrice ?? ""}
+                  disabled
+                />
+                <NumberInput
+                  label="Monthly holding cost"
+                  value={positionDraft.holdingCostMonthly ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      holdingCostMonthly: typeof value === "number" ? value : current.holdingCostMonthly,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Annual appreciation %"
+                  value={positionDraft.annualAppreciationPct ?? ""}
+                  min={0}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      annualAppreciationPct:
+                        typeof value === "number" ? value : current.annualAppreciationPct,
+                    }))
+                  }
+                />
+              </>
+            )}
+            {editingItem.positionKind === "car" && (
+              <>
+                <TextInput label="Purchase month" value={positionDraft.purchaseMonth ?? ""} disabled />
+                <NumberInput
+                  label="Holding cost monthly"
+                  value={positionDraft.holdingCostMonthly ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      holdingCostMonthly: typeof value === "number" ? value : current.holdingCostMonthly,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Holding cost growth %"
+                  value={positionDraft.holdingCostAnnualGrowthPct ?? ""}
+                  min={0}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      holdingCostAnnualGrowthPct:
+                        typeof value === "number" ? value : current.holdingCostAnnualGrowthPct,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Annual depreciation %"
+                  value={positionDraft.annualDepreciationRatePct ?? ""}
+                  min={0}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      annualDepreciationRatePct:
+                        typeof value === "number" ? value : current.annualDepreciationRatePct,
+                    }))
+                  }
+                />
+              </>
+            )}
+            {editingItem.positionKind === "investment" && (
+              <>
+                <TextInput
+                  label="Start month"
+                  value={positionDraft.startMonth ?? ""}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
+                    setPositionErrors((current) => ({
+                      ...current,
+                      startMonth: getMonthError(nextValue, monthInvalidMessage),
+                    }));
+                  }}
+                  error={positionErrors.startMonth}
+                />
+                <NumberInput
+                  label="Initial value"
+                  value={positionDraft.initialValue ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      initialValue: typeof value === "number" ? value : current.initialValue,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Monthly contribution"
+                  value={positionDraft.monthlyContribution ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      monthlyContribution:
+                        typeof value === "number" ? value : current.monthlyContribution,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Monthly withdrawal"
+                  value={positionDraft.monthlyWithdrawal ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      monthlyWithdrawal:
+                        typeof value === "number" ? value : current.monthlyWithdrawal,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Expected annual return %"
+                  value={positionDraft.expectedAnnualReturnPct ?? ""}
+                  min={0}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      expectedAnnualReturnPct:
+                        typeof value === "number" ? value : current.expectedAnnualReturnPct,
+                    }))
+                  }
+                />
+              </>
+            )}
+            {editingItem.positionKind === "insurance" && (
+              <>
+                <TextInput
+                  label="Start month"
+                  value={positionDraft.startMonth ?? ""}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
+                    setPositionErrors((current) => ({
+                      ...current,
+                      startMonth: getMonthError(nextValue, monthInvalidMessage),
+                    }));
+                  }}
+                  error={positionErrors.startMonth}
+                />
+                <TextInput
+                  label="End month"
+                  value={positionDraft.endMonth ?? ""}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setPositionDraft((current: any) => ({ ...current, endMonth: nextValue }));
+                    setPositionErrors((current) => ({
+                      ...current,
+                      endMonth: getMonthError(nextValue, monthInvalidMessage),
+                    }));
+                  }}
+                  error={positionErrors.endMonth}
+                />
+                <NumberInput
+                  label="Premium monthly"
+                  value={positionDraft.premiumMonthly ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      premiumMonthly:
+                        typeof value === "number" ? value : current.premiumMonthly,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Premium growth %"
+                  value={positionDraft.premiumAnnualGrowthPct ?? ""}
+                  min={0}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      premiumAnnualGrowthPct:
+                        typeof value === "number" ? value : current.premiumAnnualGrowthPct,
+                    }))
+                  }
+                />
+              </>
+            )}
+            {editingItem.positionKind === "loan" && (
+              <>
+                <TextInput
+                  label="Start month"
+                  value={positionDraft.startMonth ?? ""}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
+                    setPositionErrors((current) => ({
+                      ...current,
+                      startMonth: getMonthError(nextValue, monthInvalidMessage),
+                    }));
+                  }}
+                  error={positionErrors.startMonth}
+                />
+                <NumberInput
+                  label="Principal"
+                  value={positionDraft.principal ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      principal: typeof value === "number" ? value : current.principal,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Annual interest rate %"
+                  value={positionDraft.annualInterestRatePct ?? ""}
+                  min={0}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      annualInterestRatePct:
+                        typeof value === "number" ? value : current.annualInterestRatePct,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label="Term years"
+                  value={positionDraft.termYears ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      termYears: typeof value === "number" ? value : current.termYears,
+                    }))
+                  }
+                />
+              </>
+            )}
+            {editingItem.positionKind === "cash" && (
+              <>
+                <TextInput
+                  label="As of month"
+                  value={positionDraft.asOfMonth ?? ""}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setPositionDraft((current: any) => ({ ...current, asOfMonth: nextValue }));
+                    setPositionErrors((current) => ({
+                      ...current,
+                      asOfMonth: getMonthError(nextValue, monthInvalidMessage),
+                    }));
+                  }}
+                  error={positionErrors.asOfMonth}
+                />
+                <NumberInput
+                  label="Balance"
+                  value={positionDraft.balance ?? ""}
+                  min={0}
+                  onChange={(value) =>
+                    setPositionDraft((current: any) => ({
+                      ...current,
+                      balance: typeof value === "number" ? value : current.balance,
+                    }))
+                  }
+                />
+              </>
+            )}
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setEditingItem(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handlePositionSave}>Apply</Button>
+            </Group>
+          </Stack>
+        )}
+      </Drawer>
     </Stack>
   );
-
 }

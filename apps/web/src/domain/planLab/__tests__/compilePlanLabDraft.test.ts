@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Scenario } from "../../../store/scenarioStore";
 import { compilePlanLabDraft } from "../compilePlanLabDraft";
+import type { EventDefinition } from "../../events/types";
 
 const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
   id: "scenario-test",
@@ -23,55 +24,43 @@ const buildScenario = (overrides: Partial<Scenario> = {}): Scenario => ({
 });
 
 describe("compilePlanLabDraft", () => {
-  it("warns and skips invalid months", () => {
-    const result = compilePlanLabDraft({
-      housing: {
-        kind: "rent",
-        startMonth: "2024-13",
-        monthlyRent: 12000,
-      },
-      babyPlan: {
-        targetMonth: "2025-99",
-        monthlyBabyBudget: 3000,
-        durationMonths: 6,
-      },
-    });
-
-    expect(result.warnings).toHaveLength(2);
-    expect(result.eventDefinitions).toHaveLength(0);
-    expect(result.eventRefs).toHaveLength(0);
-  });
-
-  it("injects buy draft as a home position without events", () => {
+  it("applies event end-month and disable patches", () => {
     const scenario = buildScenario({
-      assumptions: {
-        horizonMonths: 240,
-        initialCash: 0,
-        baseMonth: null,
-        mortgageRatePct: 3.5,
-        mortgageTermYears: 25,
-      },
+      eventRefs: [{ refId: "event-1", enabled: true }],
     });
-    const result = compilePlanLabDraft(
+    const eventLibrary: EventDefinition[] = [
       {
-        housing: {
-          kind: "buy",
-          purchaseMonth: "2026-06",
-          purchasePrice: 8000000,
-          downPaymentPct: 25,
-          oneTimeFees: 50000,
+        id: "event-1",
+        title: "Salary",
+        type: "salary",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2024-01",
+          endMonth: null,
+          monthlyAmount: 1000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
         },
       },
-      { baselineScenario: scenario }
+    ];
+
+    const result = compilePlanLabDraft(
+      {
+        baselinePatches: {
+          eventPatches: {
+            "event-1": { endMonth: "2025-06", isDisabled: true },
+          },
+        },
+      },
+      { baselineScenario: scenario, eventLibrary }
     );
 
-    expect(result.eventDefinitions).toHaveLength(0);
-    expect(result.eventRefs).toHaveLength(0);
-    expect(result.positions.homes).toHaveLength(1);
-    expect(result.positions.homes?.[0]).toMatchObject({
-      id: "plan-lab-home",
-      purchaseMonth: "2026-06",
-      purchasePrice: 8000000,
+    expect(result.eventRefOverrides).toHaveLength(1);
+    expect(result.eventRefOverrides[0]).toMatchObject({
+      refId: "event-1",
+      enabled: false,
+      overrides: { endMonth: "2025-06" },
     });
   });
 });

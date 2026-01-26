@@ -259,6 +259,7 @@ export const usePlanLabProjectionWithLedger = (
     const planLabCompilation = compilePlanLabDraft(draft, {
       baselineScenario: scenario ?? null,
       eventLibrary,
+      budgetRules: options.budgetRules ?? [],
     });
 
     const eventRefsWithOverrides = applyEventRefOverrides(
@@ -299,7 +300,7 @@ export const usePlanLabProjectionWithLedger = (
       {
         strict: false,
         members: options.members ?? [],
-        budgetRules: options.budgetRules ?? [],
+        budgetRules: planLabCompilation.budgetRules ?? options.budgetRules ?? [],
       }
     );
 
@@ -323,7 +324,9 @@ export const usePlanLabProjectionWithLedger = (
       combinedEventLibrary,
       members
     );
-    const budgetRules = normalizeBudgetRulesForLedger(options.budgetRules ?? []);
+    const budgetRules = normalizeBudgetRulesForLedger(
+      planLabCompilation.budgetRules ?? options.budgetRules ?? []
+    );
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];
