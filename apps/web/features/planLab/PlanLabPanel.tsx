@@ -1011,8 +1011,8 @@ export default function PlanLabPanel({
 
             <Card withBorder radius="md" padding="md">
               <Stack gap="lg">
+                <Text fw={600}>{t("planLabControlsTitle")}</Text>
                 {/* <Stack gap="xs">
-                  <Text fw={600}>{t("planLabControlsTitle")}</Text>
                   <Text fw={600}>{t("planLabGoalTitle")}</Text>
                   <SegmentedControl
                     data={[
