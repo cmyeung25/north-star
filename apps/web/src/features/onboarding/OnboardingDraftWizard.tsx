@@ -38,6 +38,7 @@ import {
 } from "../../domain/onboardingDraft/types";
 import { getCurrentMonth } from "./utils";
 import { normalizeMonthStrict } from "../../utils/month";
+import { addMonths } from "../../domain/members/age";
 import {
   getActiveScenario,
   useScenarioStore,
@@ -248,6 +249,31 @@ export default function OnboardingDraftWizard() {
 
   const scenarioId = scenario?.id ?? "";
   const currency = scenario?.baseCurrency;
+  const planLabFamilyLink = useMemo(() => {
+    const baseParams = new URLSearchParams();
+    baseParams.set("goal", "family-launch");
+    const weddingMonth = addMonths(resolvedBaseMonth, 3);
+    const dueMonthInput = babyDueMonth
+      ? normalizeMonthStrict(babyDueMonth)
+      : null;
+    const dueMonth =
+      dueMonthInput?.ok ? dueMonthInput.month : addMonths(resolvedBaseMonth, 9);
+    const purchaseMonthInput = purchaseMonth
+      ? normalizeMonthStrict(purchaseMonth)
+      : null;
+    const purchaseMonthValue =
+      purchaseMonthInput?.ok
+        ? purchaseMonthInput.month
+        : addMonths(resolvedBaseMonth, 12);
+    baseParams.set("weddingMonth", weddingMonth);
+    baseParams.set("dueMonth", dueMonth);
+    baseParams.set("purchaseMonth", purchaseMonthValue);
+    const basePath = scenarioId
+      ? buildScenarioUrl("/dashboard", scenarioId)
+      : "/dashboard";
+    const separator = basePath.includes("?") ? "&" : "?";
+    return `${basePath}${separator}${baseParams.toString()}`;
+  }, [babyDueMonth, purchaseMonth, resolvedBaseMonth, scenarioId]);
 
   const handleNext = () => {
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -685,6 +711,13 @@ export default function OnboardingDraftWizard() {
                   variant="light"
                 >
                   {t("nextPlanLab")}
+                </Button>
+                <Button
+                  component={Link}
+                  href={planLabFamilyLink}
+                  variant="light"
+                >
+                  {t("nextPlanLabFamily")}
                 </Button>
               </Group>
             </Stack>

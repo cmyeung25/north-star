@@ -67,7 +67,7 @@ import {
 } from "../../../src/store/scenarioStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
-import { getMemberAgeYears } from "../../../src/domain/members/age";
+import { addMonths, getMemberAgeYears } from "../../../src/domain/members/age";
 import { appliesToScenario } from "../../../src/domain/applyScope";
 import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
 import { normalizeMonthStrict } from "../../../src/utils/month";
@@ -638,6 +638,21 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     setBreakdownMonth(next ?? null);
   }, [breakdownMonth, months, setBreakdownMonth]);
 
+  const planLabFamilyEntryHref = useMemo(() => {
+    if (!selectedScenario) {
+      return "/dashboard?goal=family-launch";
+    }
+    const params = new URLSearchParams({ goal: "family-launch" });
+    const baseMonthRaw = selectedScenario.assumptions.baseMonth ?? "";
+    const normalizedBase = normalizeMonthStrict(baseMonthRaw);
+    if (normalizedBase.ok) {
+      params.set("weddingMonth", addMonths(normalizedBase.month, 3));
+      params.set("dueMonth", addMonths(normalizedBase.month, 9));
+      params.set("purchaseMonth", addMonths(normalizedBase.month, 12));
+    }
+    return `${buildScenarioUrl("/dashboard", selectedScenario.id)}&${params.toString()}`;
+  }, [selectedScenario]);
+
   if (!selectedScenario) {
     return null;
   }
@@ -1103,6 +1118,21 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
       {!showCompare && (
         <>
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="sm">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <div>
+                  <Title order={5}>{t("planLabFamilyEntryTitle")}</Title>
+                  <Text size="sm" c="dimmed">
+                    {t("planLabFamilyEntryHint")}
+                  </Text>
+                </div>
+                <Button component={Link} href={planLabFamilyEntryHref}>
+                  {t("planLabFamilyEntryCta")}
+                </Button>
+              </Group>
+            </Stack>
+          </Card>
           <PlanLabPanel
             scenario={selectedScenario}
             eventLibrary={eventLibrary}

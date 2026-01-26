@@ -6,11 +6,14 @@ import type {
   ScenarioAssumptions,
   ScenarioPositions,
 } from "../../store/scenarioStore";
-import { normalizeMonthStrict } from "../../utils/month";
 import type { PlanLabDraft } from "./types";
-import { WarningCode, type CompilerWarning } from "../warnings/types";
-
-export type PlanLabDraftWarning = CompilerWarning;
+import { compileFamilyLaunchDraft } from "./compileFamilyLaunchDraft";
+import {
+  clampNonNegative,
+  normalizeDraftMonth,
+  toNumber,
+  type PlanLabDraftWarning,
+} from "./compileUtils";
 
 export type PlanLabDraftCompilation = {
   assumptions: Partial<ScenarioAssumptions>;
@@ -22,37 +25,6 @@ export type PlanLabDraftCompilation = {
 
 type CompilePlanLabDraftOptions = {
   baselineScenario?: Scenario | null;
-};
-
-const toNumber = (value: number | null | undefined, fallback = 0) => {
-  const normalized = Number(value ?? fallback);
-  return Number.isFinite(normalized) ? normalized : fallback;
-};
-
-const clampNonNegative = (value: number) => Math.max(0, value);
-
-const normalizeDraftMonth = (
-  label: string,
-  value: string | null | undefined,
-  warnings: PlanLabDraftWarning[],
-  meta?: Record<string, unknown>
-): string | null => {
-  if (!value) {
-    return null;
-  }
-  const normalized = normalizeMonthStrict(value);
-  if (!normalized.ok) {
-    warnings.push({
-      code: WarningCode.MonthInvalid,
-      severity: "warning",
-      messageKey: "warnings.monthInvalid",
-      defaultMessage: `${label} has invalid month ${value}.`,
-      refs: { month: value },
-      debug: { ...meta, rawValue: value, reason: normalized.reason },
-    });
-    return null;
-  }
-  return normalized.month;
 };
 
 export const compilePlanLabDraft = (
@@ -67,6 +39,10 @@ export const compilePlanLabDraft = (
       eventRefs: [],
       warnings: [],
     };
+  }
+
+  if (draft.goalType === "family-launch") {
+    return compileFamilyLaunchDraft(draft, options);
   }
 
   const warnings: PlanLabDraftWarning[] = [];
