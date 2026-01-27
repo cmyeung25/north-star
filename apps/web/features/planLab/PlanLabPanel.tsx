@@ -1,13 +1,18 @@
 "use client";
 
 import {
+  Accordion,
+  ActionIcon,
   Badge,
   Button,
   Card,
   Drawer,
   Grid,
   Group,
+  Menu,
   NumberInput,
+  Paper,
+  ScrollArea,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -16,8 +21,9 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip as MantineTooltip,
 } from "@mantine/core";
-import { useEffect, useMemo, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
@@ -25,7 +31,7 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -40,7 +46,7 @@ import type { EventDefinition, EventRule, EventRuleOverrides } from "../../src/d
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
 import { useScenarioStore } from "../../src/store/scenarioStore";
 import { applyPlanLabDraftToScenario } from "../../src/domain/planLab/applyPlanLabDraftToScenario";
-import { normalizeMonthInput, normalizeMonthStrict } from "../../src/utils/month";
+import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
@@ -56,13 +62,24 @@ import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorec
 import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import TimelineEventForm, { type TimelineEventFormResult } from "../../components/timeline/TimelineEventForm";
 import { getEventMeta } from "../../src/events/eventCatalog";
+import SmartInvestForm from "../../components/SmartInvestForm";
+import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
+import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
+import { applySmartInvestPatch } from "../../src/domain/planLab/smartInvestAdjust";
 
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
 type ScenarioItemKind = "event" | "rule" | "position";
 
-type PositionKind = "home" | "car" | "investment" | "insurance" | "loan" | "cash";
+type PositionKind =
+  | "home"
+  | "car"
+  | "investment"
+  | "insurance"
+  | "loan"
+  | "cash"
+  | "smartInvest";
 
 type ScenarioEditorItem = {
   id: string;
@@ -70,10 +87,12 @@ type ScenarioEditorItem = {
   title: string;
   category: string;
   memberId?: string | null;
+  memberName?: string | null;
   startMonth?: string;
   endMonth?: string | null;
   enabled: boolean;
   risky?: boolean;
+  amount?: number | null;
   eventRefId?: string;
   eventDefinitionId?: string;
   ruleId?: string;
@@ -128,20 +147,7 @@ const getMonthError = (value: string, message: string) => {
   return undefined;
 };
 
-const isStrictMonth = (value: string) => normalizeMonthStrict(value).ok;
-
-const getGroupLabel = (groupBy: string, item: ScenarioEditorItem, members: ScenarioMember[]) => {
-  if (groupBy === "member") {
-    if (!item.memberId) {
-      return "Unassigned";
-    }
-    return members.find((member) => member.id === item.memberId)?.name ?? "Unassigned";
-  }
-  if (groupBy === "timeline") {
-    return item.startMonth ?? "No date";
-  }
-  return item.category;
-};
+const isStrictMonth = (value: string) => parseMonthStrict(value).ok;
 
 const buildPatchedDefinition = (
   definition: EventDefinition,
@@ -168,27 +174,154 @@ const eventTypeLabel = (definition: EventDefinition) => {
 const buildPositionKey = (kind: PositionKind, id: string | undefined, index: number) =>
   `${kind}:${id ?? `index-${index}`}`;
 
-const buildPositionTitle = (kind: PositionKind, position: any, index: number) => {
+const buildPositionTitle = (kind: PositionKind, position: any, index: number, labels: {
+  home: string;
+  car: string;
+  investment: string;
+  insurance: string;
+  loan: string;
+  cash: string;
+  position: string;
+}) => {
   if (kind === "home") {
-    return position?.name ?? "Home";
+    return position?.name ?? labels.home;
   }
   if (kind === "car") {
-    return position?.name ?? `Car ${index + 1}`;
+    return position?.name ?? labels.car.replace("{index}", String(index + 1));
   }
   if (kind === "investment") {
-    return position?.name ?? `Investment ${index + 1}`;
+    return position?.name ?? labels.investment.replace("{index}", String(index + 1));
   }
   if (kind === "insurance") {
-    return position?.name ?? `Insurance ${index + 1}`;
+    return position?.name ?? labels.insurance.replace("{index}", String(index + 1));
   }
   if (kind === "loan") {
-    return position?.name ?? `Loan ${index + 1}`;
+    return position?.name ?? labels.loan.replace("{index}", String(index + 1));
   }
   if (kind === "cash") {
-    return position?.name ?? `Cash bucket ${index + 1}`;
+    return position?.name ?? labels.cash.replace("{index}", String(index + 1));
   }
-  return `Position ${index + 1}`;
+  return labels.position.replace("{index}", String(index + 1));
 };
+
+type PlanLabRowBadge = {
+  label: string;
+  color?: string;
+};
+
+type PlanLabRowMenuItem = {
+  label: string;
+  icon?: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+};
+
+type PlanLabAccordionRowProps = {
+  id: string;
+  title: string;
+  badges: PlanLabRowBadge[];
+  summary?: string;
+  enabled?: boolean;
+  onToggle?: () => void;
+  onEdit?: () => void;
+  menuItems?: PlanLabRowMenuItem[];
+  panel?: ReactNode;
+};
+
+const PlanLabAccordionRow = memo(function PlanLabAccordionRow({
+  id,
+  title,
+  badges,
+  summary,
+  enabled,
+  onToggle,
+  onEdit,
+  menuItems,
+  panel,
+}: PlanLabAccordionRowProps) {
+  return (
+    <Accordion.Item value={id}>
+      <Accordion.Control>
+        <Group justify="space-between" align="center" wrap="nowrap" w="100%">
+          <Stack gap={4} miw={0}>
+            <Text fw={600} size="sm" lineClamp={1}>
+              {title}
+            </Text>
+            <Group gap={4} wrap="wrap">
+              {badges.map((badge) => (
+                <Badge
+                  key={`${id}-${badge.label}`}
+                  size="xs"
+                  variant="light"
+                  color={badge.color}
+                >
+                  {badge.label}
+                </Badge>
+              ))}
+            </Group>
+          </Stack>
+          <Text size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
+            {summary ?? "—"}
+          </Text>
+          <Group gap="xs" wrap="nowrap">
+            {onToggle && (
+              <Switch
+                size="sm"
+                checked={Boolean(enabled)}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) => {
+                  event.stopPropagation();
+                  onToggle();
+                }}
+              />
+            )}
+            {onEdit && (
+              <ActionIcon
+                size="sm"
+                variant="light"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Text size="sm">✎</Text>
+              </ActionIcon>
+            )}
+            {menuItems && menuItems.length > 0 && (
+              <Menu withinPortal position="bottom-end">
+                <Menu.Target>
+                  <ActionIcon
+                    size="sm"
+                    variant="light"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <Text size="sm">⋯</Text>
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {menuItems.map((item) => (
+                    <Menu.Item
+                      key={`${id}-${item.label}`}
+                      leftSection={item.icon}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        item.onClick();
+                      }}
+                      disabled={item.disabled}
+                    >
+                      {item.label}
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
+            )}
+          </Group>
+        </Group>
+      </Accordion.Control>
+      {panel && <Accordion.Panel>{panel}</Accordion.Panel>}
+    </Accordion.Item>
+  );
+});
 
 export default function PlanLabPanel({
   scenario,
@@ -208,15 +341,40 @@ export default function PlanLabPanel({
   const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
   const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
 
+  const translate = useCallback(
+    (
+    key: string,
+    fallback: string,
+    values?: Record<string, string | number>
+    ) => (t.has(key) ? t(key, values) : fallback),
+    [t]
+  );
+
+  const smartInvestLabel = translate(
+    "planLabSmartInvestLabel",
+    "智能投資（Smart Invest）"
+  );
+  const smartInvestTooltip = translate(
+    "planLabSmartInvestTooltip",
+    "自動依照設定投入與提取資金，維持目標資產配置。"
+  );
+
   const [chartType, setChartType] = useState<ChartType>("netWorth");
   const [baselinePatches, setBaselinePatches] = useState<PlanLabDraft["baselinePatches"]>({
     eventPatches: {},
     rulePatches: {},
     positionPatches: {},
+    smartInvestPatch: undefined,
   });
   const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
-  const [newExperimentType, setNewExperimentType] =
-    useState<PlanLabExperimentType | null>(null);
+  const [experimentDrawerOpen, setExperimentDrawerOpen] = useState(false);
+  const [experimentDraft, setExperimentDraft] = useState<PlanLabExperiment | null>(null);
+  const [experimentDraftErrors, setExperimentDraftErrors] = useState<
+    Record<string, string | undefined>
+  >({});
+  const [experimentDrawerMode, setExperimentDrawerMode] = useState<"add" | "edit">(
+    "add"
+  );
   const [firstBucketTargetAmount, setFirstBucketTargetAmount] = useState<number | "">(
     ""
   );
@@ -230,12 +388,130 @@ export default function PlanLabPanel({
   const [groupBy, setGroupBy] = useState<"category" | "member" | "timeline">("category");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
+  const [editingFocus, setEditingFocus] = useState<"validity" | null>(null);
 
   const monthInvalidMessage = t("planLabMonthInvalid");
 
   const eventPatches = baselinePatches?.eventPatches ?? {};
   const rulePatches = baselinePatches?.rulePatches ?? {};
   const positionPatches = baselinePatches?.positionPatches ?? {};
+  const smartInvestPatch = baselinePatches?.smartInvestPatch;
+  const defaultSmartInvestPolicy = useMemo(
+    () => buildDefaultSmartInvestPolicy("Smart Invest"),
+    []
+  );
+  const baselineSmartInvestPolicy = scenario.assumptions.smartInvest;
+
+  const positionTitleLabels = useMemo(
+    () => ({
+      home: translate("planLabPositionHomeFallback", "住宅"),
+      car: translate("planLabPositionCarFallback", "車輛 {index}"),
+      investment: translate("planLabPositionInvestmentFallback", "投資 {index}"),
+      insurance: translate("planLabPositionInsuranceFallback", "保險 {index}"),
+      loan: translate("planLabPositionLoanFallback", "貸款 {index}"),
+      cash: translate("planLabPositionCashFallback", "現金桶 {index}"),
+      position: translate("planLabPositionFallback", "資產 {index}"),
+    }),
+    [translate]
+  );
+
+  const categoryLabels = useMemo<Record<string, string>>(
+    () => ({
+      home: translate("planLabCategoryHome", "住宅"),
+      car: translate("planLabCategoryCar", "車輛"),
+      investment: translate("planLabCategoryInvestment", "投資"),
+      insurance: translate("planLabCategoryInsurance", "保險"),
+      loan: translate("planLabCategoryLoan", "貸款"),
+      cash: translate("planLabCategoryCash", "現金"),
+      event: translate("planLabCategoryEventFallback", "事件"),
+      health: translate("planLabRuleCategoryHealth", "健康"),
+      baseline: translate("planLabRuleCategoryBaseline", "基準"),
+      childcare: translate("planLabRuleCategoryChildcare", "育兒"),
+      education: translate("planLabRuleCategoryEducation", "教育"),
+      eldercare: translate("planLabRuleCategoryEldercare", "長者照顧"),
+      petcare: translate("planLabRuleCategoryPetcare", "寵物照顧"),
+    }),
+    [translate]
+  );
+
+  const getGroupLabel = (groupKey: string, item: ScenarioEditorItem) => {
+    if (groupKey === "member") {
+      if (!item.memberId) {
+        return translate("planLabGroupUnassigned", "未指定");
+      }
+      return (
+        members.find((member) => member.id === item.memberId)?.name ??
+        translate("planLabGroupUnassigned", "未指定")
+      );
+    }
+    if (groupKey === "timeline") {
+      return item.startMonth ?? translate("planLabGroupNoDate", "未設定月份");
+    }
+    return categoryLabels[item.category] ?? item.category;
+  };
+
+  const formatSmartInvestReserveLabel = useCallback(
+    (reserve: SmartInvestPolicy["reserve"]) => {
+      if (reserve.mode === "fixed") {
+        const amount = formatCurrency(
+          reserve.amount ?? 0,
+          scenario.baseCurrency,
+          locale
+        );
+        return translate(
+          "planLabSmartInvestReserveFixed",
+          `保留 ${amount}`,
+          { amount }
+        );
+      }
+      const months = reserve.months ?? 0;
+      return translate(
+        "planLabSmartInvestReserveMonths",
+        `保留 ${months} 個月`,
+        { months }
+      );
+    },
+    [locale, scenario.baseCurrency, translate]
+  );
+
+  const formatSmartInvestContributionLabel = useCallback(
+    (contribution: SmartInvestPolicy["contribution"]) => {
+      if (contribution.mode === "percentOfIncome") {
+        const pct = contribution.pct ?? 0;
+        return translate(
+          "planLabSmartInvestContributionIncome",
+          `供款 佔收入 ${pct}%`,
+          { pct }
+        );
+      }
+      if (contribution.mode === "percentOfSurplus") {
+        const pct = contribution.pct ?? 0;
+        return translate(
+          "planLabSmartInvestContributionSurplus",
+          `供款 佔結餘 ${pct}%`,
+          { pct }
+        );
+      }
+      if (contribution.mode === "excessCash") {
+        const pct = contribution.investPct ?? 100;
+        const threshold = formatCurrency(
+          contribution.thresholdAmount ?? 0,
+          scenario.baseCurrency,
+          locale
+        );
+        return translate(
+          "planLabSmartInvestContributionExcess",
+          `供款 ${pct}%（超過 ${threshold} 的現金）`,
+          { pct, threshold }
+        );
+      }
+      return translate(
+        "planLabSmartInvestContributionRebalance",
+        "供款再平衡"
+      );
+    },
+    [locale, scenario.baseCurrency, translate]
+  );
 
   const updateEventPatch = (id: string, patch: Partial<NonNullable<typeof eventPatches>[string]>) => {
     setBaselinePatches((current) => ({
@@ -276,6 +552,18 @@ export default function PlanLabPanel({
     }));
   };
 
+  const updateSmartInvestPatch = (
+    patch: Partial<NonNullable<PlanLabDraft["baselinePatches"]>["smartInvestPatch"]>
+  ) => {
+    setBaselinePatches((current) => ({
+      ...current,
+      smartInvestPatch: {
+        ...(current?.smartInvestPatch ?? {}),
+        ...patch,
+      },
+    }));
+  };
+
   const removePatch = (kind: ScenarioItemKind, id: string) => {
     setBaselinePatches((current) => {
       if (!current) {
@@ -291,11 +579,22 @@ export default function PlanLabPanel({
         delete next[id];
         return { ...current, rulePatches: next };
       }
+      if (kind === "position" && id === "smartInvest") {
+        return { ...current, smartInvestPatch: undefined };
+      }
       const next = { ...(current.positionPatches ?? {}) };
       delete next[id];
       return { ...current, positionPatches: next };
     });
   };
+
+  const openEditingItem = useCallback(
+    (item: ScenarioEditorItem, focus: "validity" | null = null) => {
+      setEditingItem(item);
+      setEditingFocus(focus);
+    },
+    []
+  );
 
   const buildExperimentDefaults = (type: PlanLabExperimentType): PlanLabExperiment => {
     const baseMonth = scenario.assumptions.baseMonth ?? "";
@@ -343,6 +642,25 @@ export default function PlanLabPanel({
         isEnabled: true,
       };
     }
+    if (type === "smartInvestAdjust") {
+      const basePolicy = baselineSmartInvestPolicy ?? defaultSmartInvestPolicy;
+      if (basePolicy.reserve.mode === "fixed") {
+        return {
+          id: nanoid(),
+          type,
+          reserveMode: "fixed",
+          reserveAmount: Math.max(0, basePolicy.reserve.amount + 10000),
+          isEnabled: true,
+        };
+      }
+      return {
+        id: nanoid(),
+        type,
+        reserveMode: "monthsOfOutflow",
+        reserveMonths: Math.max(0, basePolicy.reserve.months + 1),
+        isEnabled: true,
+      };
+    }
     return {
       id: nanoid(),
       type: "travelAnnual",
@@ -350,14 +668,6 @@ export default function PlanLabPanel({
       annualAmount: 20000,
       isEnabled: true,
     };
-  };
-
-  const addExperiment = () => {
-    if (!newExperimentType) {
-      return;
-    }
-    setExperiments((current) => [...current, buildExperimentDefaults(newExperimentType)]);
-    setNewExperimentType(null);
   };
 
   const updateExperiment = (id: string, patch: Partial<PlanLabExperiment>) => {
@@ -372,6 +682,82 @@ export default function PlanLabPanel({
     setExperiments((current) => current.filter((experiment) => experiment.id !== id));
   };
 
+  const duplicateExperiment = (experiment: PlanLabExperiment) => {
+    setExperiments((current) => [...current, { ...experiment, id: nanoid() }]);
+  };
+
+  const openAddExperimentDrawer = () => {
+    setExperimentDrawerMode("add");
+    setExperimentDraft(null);
+    setExperimentDraftErrors({});
+    setExperimentDrawerOpen(true);
+  };
+
+  const openEditExperimentDrawer = (experiment: PlanLabExperiment) => {
+    setExperimentDrawerMode("edit");
+    setExperimentDraft({ ...experiment });
+    setExperimentDraftErrors({});
+    setExperimentDrawerOpen(true);
+  };
+
+  const updateExperimentDraft = (patch: Partial<PlanLabExperiment>) => {
+    setExperimentDraft((current) => (current ? { ...current, ...patch } : current));
+  };
+
+  const validateExperimentDraft = (draft: PlanLabExperiment) => {
+    const errors: Record<string, string | undefined> = {};
+    const setMonthError = (field: string, value?: string | null) => {
+      if (!value) {
+        errors[field] = t("planLabMonthRequired");
+        return;
+      }
+      if (!parseMonthStrict(value).ok) {
+        errors[field] = monthInvalidMessage;
+      }
+    };
+
+    if (draft.type === "oneOffExpense") {
+      setMonthError("month", draft.month);
+    }
+    if (draft.type === "rangeExpense") {
+      setMonthError("startMonth", draft.startMonth);
+      setMonthError("endMonth", draft.endMonth);
+    }
+    if (draft.type === "homeBuy") {
+      setMonthError("purchaseMonth", draft.purchaseMonth);
+    }
+    if (draft.type === "carPlan") {
+      setMonthError("purchaseMonth", draft.purchaseMonth);
+    }
+    if (draft.type === "incomeAdjust") {
+      setMonthError("startMonth", draft.startMonth);
+    }
+    if (draft.type === "travelAnnual") {
+      setMonthError("startMonth", draft.startMonth);
+    }
+    if (draft.type === "smartInvestAdjust") {
+      // no month fields
+    }
+    return errors;
+  };
+
+  const applyExperimentDraft = () => {
+    if (!experimentDraft) {
+      return;
+    }
+    const errors = validateExperimentDraft(experimentDraft);
+    setExperimentDraftErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+    if (experimentDrawerMode === "add") {
+      setExperiments((current) => [...current, experimentDraft]);
+    } else {
+      updateExperiment(experimentDraft.id, experimentDraft);
+    }
+    setExperimentDrawerOpen(false);
+  };
+
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
     const items: ScenarioEditorItem[] = [];
     const eventViews = buildScenarioEventViews(scenario, eventLibrary);
@@ -381,6 +767,9 @@ export default function PlanLabPanel({
       const category = eventTypeLabel(view.definition);
       const title = view.definition.title;
       const rule = view.rule;
+      const memberName = view.definition.memberId
+        ? members.find((member) => member.id === view.definition.memberId)?.name ?? null
+        : null;
       const risky =
         view.definition.type === "buy_home" ||
         ["mortgage", "housing", "home", "rent"].some((keyword) =>
@@ -392,6 +781,7 @@ export default function PlanLabPanel({
         title,
         category: category || "event",
         memberId: view.definition.memberId ?? null,
+        memberName,
         startMonth: rule.startMonth,
         endMonth: patch?.endMonth ?? rule.endMonth ?? null,
         enabled: isEnabled,
@@ -407,21 +797,43 @@ export default function PlanLabPanel({
     budgetRules.forEach((rule) => {
       const patch = rulePatches[rule.id];
       const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : rule.enabled;
+      const memberName = rule.memberId
+        ? members.find((member) => member.id === rule.memberId)?.name ?? null
+        : null;
       items.push({
         id: `rule:${rule.id}`,
         kind: "rule",
         title: rule.name,
         category: rule.category,
         memberId: rule.memberId ?? null,
+        memberName,
         startMonth: patch?.endMonth ? rule.startMonth : rule.startMonth,
         endMonth: patch?.endMonth ?? rule.endMonth ?? null,
         enabled: isEnabled,
+        amount: patch?.patch?.monthlyAmount ?? rule.monthlyAmount ?? null,
         ruleId: rule.id,
         budgetRule: rule,
       });
     });
 
     const positions = scenario.positions;
+    if (baselineSmartInvestPolicy) {
+      const key = "smartInvest";
+      const patchedPolicy = applySmartInvestPatch(
+        baselineSmartInvestPolicy,
+        smartInvestPatch
+      );
+      items.push({
+        id: `position:${key}`,
+        kind: "position",
+        title: smartInvestLabel,
+        category: "investment",
+        enabled: patchedPolicy.enabled,
+        positionKey: key,
+        positionKind: "smartInvest",
+        position: patchedPolicy,
+      });
+    }
     if (positions?.home) {
       const key = "home:primary";
       const patch = positionPatches[key];
@@ -429,7 +841,7 @@ export default function PlanLabPanel({
       items.push({
         id: `position:${key}`,
         kind: "position",
-        title: positions.home.name ?? "Home",
+        title: positions.home.name ?? positionTitleLabels.home,
         category: "home",
         enabled: isEnabled,
         positionKey: key,
@@ -446,7 +858,7 @@ export default function PlanLabPanel({
         items.push({
           id: `position:${key}`,
           kind: "position",
-          title: buildPositionTitle("home", home, index),
+          title: buildPositionTitle("home", home, index, positionTitleLabels),
           category: "home",
           enabled: isEnabled,
           positionKey: key,
@@ -464,7 +876,7 @@ export default function PlanLabPanel({
         items.push({
           id: `position:${key}`,
           kind: "position",
-          title: buildPositionTitle("car", car, index),
+          title: buildPositionTitle("car", car, index, positionTitleLabels),
           category: "car",
           enabled: isEnabled,
           positionKey: key,
@@ -481,7 +893,7 @@ export default function PlanLabPanel({
         items.push({
           id: `position:${key}`,
           kind: "position",
-          title: buildPositionTitle("investment", investment, index),
+          title: buildPositionTitle("investment", investment, index, positionTitleLabels),
           category: "investment",
           enabled: isEnabled,
           positionKey: key,
@@ -498,7 +910,7 @@ export default function PlanLabPanel({
         items.push({
           id: `position:${key}`,
           kind: "position",
-          title: buildPositionTitle("insurance", insurance, index),
+          title: buildPositionTitle("insurance", insurance, index, positionTitleLabels),
           category: "insurance",
           enabled: isEnabled,
           positionKey: key,
@@ -515,7 +927,7 @@ export default function PlanLabPanel({
         items.push({
           id: `position:${key}`,
           kind: "position",
-          title: buildPositionTitle("loan", loan, index),
+          title: buildPositionTitle("loan", loan, index, positionTitleLabels),
           category: "loan",
           enabled: isEnabled,
           positionKey: key,
@@ -532,7 +944,7 @@ export default function PlanLabPanel({
         items.push({
           id: `position:${key}`,
           kind: "position",
-          title: buildPositionTitle("cash", bucket, index),
+          title: buildPositionTitle("cash", bucket, index, positionTitleLabels),
           category: "cash",
           enabled: isEnabled,
           positionKey: key,
@@ -549,8 +961,92 @@ export default function PlanLabPanel({
     eventPatches,
     positionPatches,
     rulePatches,
+    smartInvestPatch,
+    baselineSmartInvestPolicy,
+    smartInvestLabel,
+    positionTitleLabels,
     scenario,
+    members,
   ]);
+
+  const getScenarioItemBadges = useCallback(
+    (item: ScenarioEditorItem): PlanLabRowBadge[] => {
+      const badges: PlanLabRowBadge[] = [];
+      const categoryLabel = categoryLabels[item.category] ?? item.category;
+      if (categoryLabel) {
+        badges.push({ label: categoryLabel });
+      }
+      if (item.memberName) {
+        badges.push({ label: item.memberName, color: "gray" });
+      }
+      if (!item.enabled) {
+        badges.push({ label: translate("planLabBadgeDisabled", "已停用"), color: "red" });
+      }
+      if (item.endMonth) {
+        badges.push({ label: translate("planLabBadgeEnded", "已結束"), color: "yellow" });
+      }
+      return badges;
+    },
+    [categoryLabels, translate]
+  );
+
+  const getScenarioItemSummary = useCallback(
+    (item: ScenarioEditorItem) => {
+      const parts: string[] = [];
+      if (typeof item.amount === "number") {
+        parts.push(formatCurrency(item.amount, scenario.baseCurrency, locale));
+      }
+      if (item.startMonth || item.endMonth) {
+        const start = item.startMonth ?? "—";
+        const end = item.endMonth ? ` → ${item.endMonth}` : "";
+        parts.push(`${start}${end}`);
+      }
+      return parts.join(" · ");
+    },
+    [locale, scenario.baseCurrency]
+  );
+
+  const getExperimentSummary = useCallback(
+    (experiment: PlanLabExperiment) => {
+      const currency = scenario.baseCurrency;
+      if (experiment.type === "oneOffExpense") {
+        return `${formatCurrency(experiment.amount ?? 0, currency, locale)} · ${
+          experiment.month ?? ""
+        }`;
+      }
+      if (experiment.type === "rangeExpense") {
+        return `${formatCurrency(
+          experiment.monthlyAmount ?? 0,
+          currency,
+          locale
+        )}／月 · ${experiment.startMonth ?? ""} → ${experiment.endMonth ?? ""}`;
+      }
+      if (experiment.type === "homeBuy") {
+        return `${formatCurrency(experiment.purchasePrice ?? 0, currency, locale)} · ${
+          experiment.purchaseMonth ?? ""
+        }`;
+      }
+      if (experiment.type === "carPlan") {
+        return `${formatCurrency(experiment.purchasePrice ?? 0, currency, locale)} · ${
+          experiment.purchaseMonth ?? ""
+        }`;
+      }
+      if (experiment.type === "incomeAdjust") {
+        return `${formatCurrency(
+          experiment.monthlyAmount ?? 0,
+          currency,
+          locale
+        )}／月 · ${experiment.startMonth ?? ""}`;
+      }
+      if (experiment.type === "travelAnnual") {
+        return `${formatCurrency(experiment.annualAmount ?? 0, currency, locale)} · ${
+          experiment.startMonth ?? ""
+        }`;
+      }
+      return translate("planLabExperimentSmartInvestSummary", "智能投資調整");
+    },
+    [locale, scenario.baseCurrency, translate]
+  );
 
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -581,9 +1077,15 @@ export default function PlanLabPanel({
           }
         }
         if (item.kind === "position" && item.positionKey) {
-          const patch = positionPatches[item.positionKey];
-          if (!patch || (!patch.isDisabled && !patch.patch)) {
-            return false;
+          if (item.positionKind === "smartInvest") {
+            if (!smartInvestPatch || (!smartInvestPatch.isDisabled && !smartInvestPatch.patch)) {
+              return false;
+            }
+          } else {
+            const patch = positionPatches[item.positionKey];
+            if (!patch || (!patch.isDisabled && !patch.patch)) {
+              return false;
+            }
           }
         }
       }
@@ -605,19 +1107,20 @@ export default function PlanLabPanel({
     searchQuery,
     showChangedOnly,
     showRiskyOnly,
+    smartInvestPatch,
   ]);
 
   const groupedItems = useMemo(() => {
     const groups = new Map<string, ScenarioEditorItem[]>();
     filteredItems.forEach((item) => {
-      const groupKey = getGroupLabel(groupBy, item, members);
+      const groupKey = getGroupLabel(groupBy, item);
       if (!groups.has(groupKey)) {
         groups.set(groupKey, []);
       }
       groups.get(groupKey)!.push(item);
     });
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredItems, groupBy, members]);
+  }, [filteredItems, groupBy, members, categoryLabels]);
 
   const planLabDraft: PlanLabDraft = useMemo(
     () => ({
@@ -732,48 +1235,77 @@ export default function PlanLabPanel({
     () => [
       {
         value: "oneOffExpense",
-        label: t.has("planLabExperimentOneOff")
-          ? t("planLabExperimentOneOff")
-          : "One-off expense",
+        label: translate("planLabExperimentOneOff", "一次性支出"),
       },
       {
         value: "rangeExpense",
-        label: t.has("planLabExperimentRange")
-          ? t("planLabExperimentRange")
-          : "Range expense",
+        label: translate("planLabExperimentRange", "期間支出"),
       },
       {
         value: "homeBuy",
-        label: t.has("planLabExperimentHomeBuy")
-          ? t("planLabExperimentHomeBuy")
-          : "Home buy",
+        label: translate("planLabExperimentHomeBuy", "置業"),
       },
       {
         value: "carPlan",
-        label: t.has("planLabExperimentCarPlan")
-          ? t("planLabExperimentCarPlan")
-          : "Car plan",
+        label: translate("planLabExperimentCarPlan", "汽車方案"),
       },
       {
         value: "incomeAdjust",
-        label: t.has("planLabExperimentIncomeAdjust")
-          ? t("planLabExperimentIncomeAdjust")
-          : "Income adjust",
+        label: translate("planLabExperimentIncomeAdjust", "收入調整"),
       },
       {
         value: "travelAnnual",
-        label: t.has("planLabExperimentTravelAnnual")
-          ? t("planLabExperimentTravelAnnual")
-          : "Annual travel",
+        label: translate("planLabExperimentTravelAnnual", "年度旅遊"),
+      },
+      {
+        value: "smartInvestAdjust",
+        label: translate("planLabExperimentSmartInvestAdjust", "智能投資調整"),
       },
     ],
-    [t]
+    [translate]
+  );
+
+  const experimentTypeCards = useMemo(
+    () => [
+      {
+        type: "oneOffExpense" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardWedding", "婚禮"),
+      },
+      {
+        type: "rangeExpense" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardBaby", "育兒"),
+      },
+      {
+        type: "travelAnnual" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardTravel", "旅遊"),
+      },
+      {
+        type: "homeBuy" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardHome", "置業"),
+      },
+      {
+        type: "incomeAdjust" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardIncome", "收入"),
+      },
+      {
+        type: "carPlan" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardCar", "汽車"),
+      },
+      {
+        type: "smartInvestAdjust" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardInvest", "投資"),
+      },
+    ],
+    [translate]
   );
 
   const appliedControls = useMemo(() => {
     const controls: Array<{
       id: string;
+      titleLine: string;
+      deltaLine?: string;
       label: string;
+      tooltip?: string;
       isEnabled: boolean;
       onToggle: () => void;
       onRemove: () => void;
@@ -786,19 +1318,29 @@ export default function PlanLabPanel({
       if (!hasChange) {
         return;
       }
-      const labelParts = [];
+      const deltaParts = [];
       if (patch.isDisabled) {
-        labelParts.push(`Disabled ${title}`);
+        deltaParts.push(translate("planLabAppliedDisabledShort", "已停用"));
       }
       if (patch.patch) {
-        labelParts.push(`Edited ${title}`);
+        deltaParts.push(translate("planLabAppliedEditedShort", "已修改"));
       }
       if (patch.endMonth) {
-        labelParts.push(`Ends ${title} at ${patch.endMonth}`);
+        deltaParts.push(
+          translate(
+            "planLabAppliedEndsAt",
+            `結束於 ${patch.endMonth}`,
+            { month: patch.endMonth }
+          )
+        );
       }
+      const deltaLine =
+        deltaParts.join(" · ") || translate("planLabAppliedUpdated", "已更新");
       controls.push({
         id: `event-${refId}`,
-        label: labelParts.join(" · ") || `Updated ${title}`,
+        titleLine: title,
+        deltaLine,
+        label: [title, deltaLine].filter(Boolean).join(" "),
         isEnabled: !patch.isDisabled,
         onToggle: () => updateEventPatch(refId, { isDisabled: !patch.isDisabled }),
         onRemove: () => removePatch("event", refId),
@@ -812,19 +1354,29 @@ export default function PlanLabPanel({
       if (!hasChange) {
         return;
       }
-      const labelParts = [];
+      const deltaParts = [];
       if (patch.isDisabled) {
-        labelParts.push(`Disabled ${title}`);
+        deltaParts.push(translate("planLabAppliedDisabledShort", "已停用"));
       }
       if (patch.patch) {
-        labelParts.push(`Edited ${title}`);
+        deltaParts.push(translate("planLabAppliedEditedShort", "已修改"));
       }
       if (patch.endMonth) {
-        labelParts.push(`Ends ${title} at ${patch.endMonth}`);
+        deltaParts.push(
+          translate(
+            "planLabAppliedEndsAt",
+            `結束於 ${patch.endMonth}`,
+            { month: patch.endMonth }
+          )
+        );
       }
+      const deltaLine =
+        deltaParts.join(" · ") || translate("planLabAppliedUpdated", "已更新");
       controls.push({
         id: `rule-${ruleId}`,
-        label: labelParts.join(" · ") || `Updated ${title}`,
+        titleLine: title,
+        deltaLine,
+        label: [title, deltaLine].filter(Boolean).join(" "),
         isEnabled: !patch.isDisabled,
         onToggle: () => updateRulePatch(ruleId, { isDisabled: !patch.isDisabled }),
         onRemove: () => removePatch("rule", ruleId),
@@ -838,59 +1390,241 @@ export default function PlanLabPanel({
       if (!hasChange) {
         return;
       }
-      const labelParts = [];
+      const deltaParts = [];
       if (patch.isDisabled) {
-        labelParts.push(`Disabled ${title}`);
+        deltaParts.push(translate("planLabAppliedDisabledShort", "已停用"));
       }
       if (patch.patch) {
-        labelParts.push(`Edited ${title}`);
+        deltaParts.push(translate("planLabAppliedEditedShort", "已修改"));
       }
+      const deltaLine =
+        deltaParts.join(" · ") || translate("planLabAppliedUpdated", "已更新");
       controls.push({
         id: `position-${key}`,
-        label: labelParts.join(" · ") || `Updated ${title}`,
+        titleLine: title,
+        deltaLine,
+        label: [title, deltaLine].filter(Boolean).join(" "),
         isEnabled: !patch.isDisabled,
         onToggle: () => updatePositionPatch(key, { isDisabled: !patch.isDisabled }),
         onRemove: () => removePatch("position", key),
       });
     });
 
+    if (baselineSmartInvestPolicy && smartInvestPatch) {
+      const patchedPolicy = applySmartInvestPatch(
+        baselineSmartInvestPolicy,
+        smartInvestPatch
+      );
+      const deltaParts: string[] = [];
+      if (baselineSmartInvestPolicy.enabled !== patchedPolicy.enabled) {
+        deltaParts.push(
+          patchedPolicy.enabled
+            ? translate("planLabSmartInvestEnabled", "已啟用")
+            : translate("planLabSmartInvestDisabled", "已停用")
+        );
+      }
+      if (
+        baselineSmartInvestPolicy.reserve.mode !== patchedPolicy.reserve.mode ||
+        (patchedPolicy.reserve.mode === "fixed" &&
+          baselineSmartInvestPolicy.reserve.mode === "fixed" &&
+          baselineSmartInvestPolicy.reserve.amount !== patchedPolicy.reserve.amount) ||
+        (patchedPolicy.reserve.mode === "monthsOfOutflow" &&
+          baselineSmartInvestPolicy.reserve.mode === "monthsOfOutflow" &&
+          baselineSmartInvestPolicy.reserve.months !== patchedPolicy.reserve.months)
+      ) {
+        deltaParts.push(formatSmartInvestReserveLabel(patchedPolicy.reserve));
+      }
+      if (
+        baselineSmartInvestPolicy.contribution.mode !==
+          patchedPolicy.contribution.mode ||
+        (patchedPolicy.contribution.mode === "percentOfIncome" &&
+          baselineSmartInvestPolicy.contribution.mode === "percentOfIncome" &&
+          baselineSmartInvestPolicy.contribution.pct !== patchedPolicy.contribution.pct) ||
+        (patchedPolicy.contribution.mode === "percentOfSurplus" &&
+          baselineSmartInvestPolicy.contribution.mode === "percentOfSurplus" &&
+          baselineSmartInvestPolicy.contribution.pct !== patchedPolicy.contribution.pct) ||
+        (patchedPolicy.contribution.mode === "excessCash" &&
+          baselineSmartInvestPolicy.contribution.mode === "excessCash" &&
+          (baselineSmartInvestPolicy.contribution.investPct !==
+            patchedPolicy.contribution.investPct ||
+            baselineSmartInvestPolicy.contribution.thresholdAmount !==
+              patchedPolicy.contribution.thresholdAmount))
+      ) {
+        deltaParts.push(
+          formatSmartInvestContributionLabel(patchedPolicy.contribution)
+        );
+      }
+      if (
+        JSON.stringify(baselineSmartInvestPolicy.allocation) !==
+        JSON.stringify(patchedPolicy.allocation)
+      ) {
+        deltaParts.push(translate("planLabSmartInvestAllocationUpdated", "配置已更新"));
+      }
+      if (
+        baselineSmartInvestPolicy.withdrawal.enabled !== patchedPolicy.withdrawal.enabled
+      ) {
+        deltaParts.push(
+          patchedPolicy.withdrawal.enabled
+            ? translate("planLabSmartInvestWithdrawalsEnabled", "已啟用提取")
+            : translate("planLabSmartInvestWithdrawalsDisabled", "已停用提取")
+        );
+      }
+      const deltaLine =
+        deltaParts.join(" · ") ||
+        translate("planLabAppliedUpdated", "已更新");
+      controls.push({
+        id: "smartInvest-baseline",
+        titleLine: smartInvestLabel,
+        deltaLine,
+        label: [smartInvestLabel, deltaLine].filter(Boolean).join(" "),
+        tooltip: smartInvestTooltip,
+        isEnabled: patchedPolicy.enabled,
+        onToggle: () =>
+          updateSmartInvestPatch({ isDisabled: patchedPolicy.enabled }),
+        onRemove: () => removePatch("position", "smartInvest"),
+      });
+    }
+
     experiments.forEach((experiment) => {
       const currency = scenario.baseCurrency;
-      let label = "";
+      let deltaLine = "";
+      const titleLine =
+        experimentTypeOptions.find((option) => option.value === experiment.type)?.label ??
+        translate("planLabExperimentFallback", "實驗");
       if (experiment.type === "oneOffExpense") {
-        label = t("planLabAppliedExperimentOneOff", {
+        deltaLine = translate(
+          "planLabAppliedExperimentOneOff",
+          `一次性支出 ${formatCurrency(experiment.amount ?? 0, currency, locale)} · ${
+            experiment.month ?? ""
+          }`,
+          {
           month: experiment.month ?? "",
           amount: formatCurrency(experiment.amount ?? 0, currency, locale),
-        });
+          }
+        );
       } else if (experiment.type === "rangeExpense") {
-        label = t("planLabAppliedExperimentRange", {
+        deltaLine = translate(
+          "planLabAppliedExperimentRange",
+          `期間支出 ${formatCurrency(
+            experiment.monthlyAmount ?? 0,
+            currency,
+            locale
+          )}／月 · ${experiment.startMonth ?? ""} → ${experiment.endMonth ?? ""}`,
+          {
           start: experiment.startMonth ?? "",
           end: experiment.endMonth ?? "",
           amount: formatCurrency(experiment.monthlyAmount ?? 0, currency, locale),
-        });
+          }
+        );
       } else if (experiment.type === "homeBuy") {
-        label = t("planLabAppliedExperimentHomeBuy", {
+        deltaLine = translate(
+          "planLabAppliedExperimentHomeBuy",
+          `置業 · ${experiment.purchaseMonth ?? ""}`,
+          {
           month: experiment.purchaseMonth ?? "",
-        });
+          }
+        );
       } else if (experiment.type === "carPlan") {
-        label = t("planLabAppliedExperimentCarPlan", {
+        deltaLine = translate(
+          "planLabAppliedExperimentCarPlan",
+          `汽車方案 · ${experiment.purchaseMonth ?? ""}`,
+          {
           month: experiment.purchaseMonth ?? "",
-        });
+          }
+        );
       } else if (experiment.type === "incomeAdjust") {
-        label = t("planLabAppliedExperimentIncome", {
+        deltaLine = translate(
+          "planLabAppliedExperimentIncome",
+          `收入調整 ${formatCurrency(
+            experiment.monthlyAmount ?? 0,
+            currency,
+            locale
+          )}／月 · ${experiment.startMonth ?? ""}`,
+          {
           month: experiment.startMonth ?? "",
           amount: formatCurrency(experiment.monthlyAmount ?? 0, currency, locale),
-        });
-      } else {
-        label = t("planLabAppliedExperimentTravel", {
+          }
+        );
+      } else if (experiment.type === "travelAnnual") {
+        deltaLine = translate(
+          "planLabAppliedExperimentTravel",
+          `年度旅遊 ${formatCurrency(
+            experiment.annualAmount ?? 0,
+            currency,
+            locale
+          )} · ${experiment.startMonth ?? ""}`,
+          {
           month: experiment.startMonth ?? "",
           amount: formatCurrency(experiment.annualAmount ?? 0, currency, locale),
-        });
+          }
+        );
+      } else {
+        const deltaParts: string[] = [];
+        if (experiment.reserveMode) {
+          deltaParts.push(
+            experiment.reserveMode === "fixed"
+              ? formatSmartInvestReserveLabel({
+                  mode: "fixed",
+                  amount: experiment.reserveAmount ?? 0,
+                })
+              : formatSmartInvestReserveLabel({
+                  mode: "monthsOfOutflow",
+                  months: experiment.reserveMonths ?? 0,
+                })
+          );
+        }
+        if (experiment.contributionMode) {
+          if (experiment.contributionMode === "percentOfIncome") {
+            deltaParts.push(
+              formatSmartInvestContributionLabel({
+                mode: "percentOfIncome",
+                pct: experiment.contributionPct ?? 0,
+              })
+            );
+          } else if (experiment.contributionMode === "percentOfSurplus") {
+            deltaParts.push(
+              formatSmartInvestContributionLabel({
+                mode: "percentOfSurplus",
+                pct: experiment.contributionPct ?? 0,
+              })
+            );
+          } else if (experiment.contributionMode === "excessCash") {
+            deltaParts.push(
+              formatSmartInvestContributionLabel({
+                mode: "excessCash",
+                investPct: experiment.contributionInvestPct ?? 100,
+                thresholdAmount: experiment.contributionThresholdAmount ?? 0,
+              })
+            );
+          } else {
+            deltaParts.push(
+              translate("planLabSmartInvestContributionRebalance", "供款再平衡")
+            );
+          }
+        }
+        if (experiment.allocation) {
+          deltaParts.push(
+            translate("planLabSmartInvestAllocationOverride", "配置覆寫")
+          );
+        }
+        if (experiment.withdrawalEnabled !== undefined) {
+          deltaParts.push(
+            experiment.withdrawalEnabled
+              ? translate("planLabSmartInvestWithdrawalsEnabled", "已啟用提取")
+              : translate("planLabSmartInvestWithdrawalsDisabled", "已停用提取")
+          );
+        }
+        deltaLine =
+          deltaParts.length > 0
+            ? deltaParts.join(" · ")
+            : translate("planLabAppliedUpdated", "已更新");
       }
 
       controls.push({
         id: `experiment-${experiment.id}`,
-        label,
+        titleLine,
+        deltaLine,
+        label: [titleLine, deltaLine].filter(Boolean).join(" "),
         isEnabled: experiment.isEnabled !== false,
         onToggle: () =>
           updateExperiment(experiment.id, {
@@ -902,6 +1636,7 @@ export default function PlanLabPanel({
 
     return controls;
   }, [
+    baselineSmartInvestPolicy,
     eventPatches,
     experiments,
     locale,
@@ -910,26 +1645,33 @@ export default function PlanLabPanel({
     rulePatches,
     scenario.baseCurrency,
     scenarioItems,
-    t,
+    smartInvestPatch,
+    translate,
+    updateSmartInvestPatch,
+    formatSmartInvestReserveLabel,
+    formatSmartInvestContributionLabel,
+    smartInvestLabel,
+    smartInvestTooltip,
+    experimentTypeOptions,
   ]);
 
   const handleResetAllControls = () => {
-    setBaselinePatches({ eventPatches: {}, rulePatches: {}, positionPatches: {} });
+    setBaselinePatches({
+      eventPatches: {},
+      rulePatches: {},
+      positionPatches: {},
+      smartInvestPatch: undefined,
+    });
     setExperiments([]);
   };
 
   const handleResetBaseline = () => {
-    setBaselinePatches({ eventPatches: {}, rulePatches: {}, positionPatches: {} });
-  };
-
-  const getStrictMonthError = (value: string) => {
-    if (!value) {
-      return t("planLabMonthRequired");
-    }
-    if (!isStrictMonth(value)) {
-      return monthInvalidMessage;
-    }
-    return undefined;
+    setBaselinePatches({
+      eventPatches: {},
+      rulePatches: {},
+      positionPatches: {},
+      smartInvestPatch: undefined,
+    });
   };
 
   const handleSave = () => {
@@ -991,9 +1733,10 @@ export default function PlanLabPanel({
     ...(validationMonthFields.length > 0 ? [t("planLabSaveInvalidMonths")] : []),
   ];
 
-  const projectionWarningsTitle = t.has("planLabProjectionWarningsTitle")
-    ? t("planLabProjectionWarningsTitle")
-    : "Projection warnings";
+  const projectionWarningsTitle = translate(
+    "planLabProjectionWarningsTitle",
+    "預測警示"
+  );
 
   const editingEventData = useMemo(() => {
     if (!editingItem || editingItem.kind !== "event" || !editingItem.eventDefinition) {
@@ -1016,10 +1759,33 @@ export default function PlanLabPanel({
     });
   }, [editingItem, eventPatches, scenario.baseCurrency, scenario.assumptions.baseMonth]);
 
+  useEffect(() => {
+    if (!editingItem || editingItem.kind !== "event" || !editingItem.eventDefinitionId) {
+      setEventEndMonth("");
+      setEventEndMonthError(undefined);
+      return;
+    }
+    const patch = eventPatches[editingItem.eventDefinitionId];
+    setEventEndMonth(patch?.endMonth ?? editingItem.eventRule?.endMonth ?? "");
+    setEventEndMonthError(undefined);
+  }, [editingItem, eventPatches]);
+
   const [ruleDraft, setRuleDraft] = useState<BudgetRule | null>(null);
   const [ruleBasis, setRuleBasis] = useState<"age" | "month">("age");
   const [ruleStartMonth, setRuleStartMonth] = useState("");
   const [ruleEndMonth, setRuleEndMonth] = useState("");
+  const [ruleMonthErrors, setRuleMonthErrors] = useState<{
+    startMonth?: string;
+    endMonth?: string;
+  }>({});
+  const [smartInvestDraft, setSmartInvestDraft] = useState<SmartInvestPolicy | null>(
+    null
+  );
+  const [eventEndMonth, setEventEndMonth] = useState("");
+  const [eventEndMonthError, setEventEndMonthError] = useState<string | undefined>(
+    undefined
+  );
+  const validitySectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!editingItem || editingItem.kind !== "rule" || !editingItem.budgetRule) {
@@ -1040,6 +1806,7 @@ export default function PlanLabPanel({
     setRuleBasis(usesMonth ? "month" : "age");
     setRuleStartMonth(patchedRule.startMonth ?? "");
     setRuleEndMonth(patchedRule.endMonth ?? "");
+    setRuleMonthErrors({});
   }, [editingItem, rulePatches]);
 
   const [positionDraft, setPositionDraft] = useState<any>(null);
@@ -1047,6 +1814,11 @@ export default function PlanLabPanel({
 
   useEffect(() => {
     if (!editingItem || editingItem.kind !== "position" || !editingItem.position) {
+      setPositionDraft(null);
+      setPositionErrors({});
+      return;
+    }
+    if (editingItem.positionKind === "smartInvest") {
       setPositionDraft(null);
       setPositionErrors({});
       return;
@@ -1059,14 +1831,44 @@ export default function PlanLabPanel({
     setPositionErrors({});
   }, [editingItem, positionPatches]);
 
+  useEffect(() => {
+    if (
+      !editingItem ||
+      editingItem.kind !== "position" ||
+      editingItem.positionKind !== "smartInvest" ||
+      !editingItem.position
+    ) {
+      setSmartInvestDraft(null);
+      return;
+    }
+    setSmartInvestDraft(editingItem.position as SmartInvestPolicy);
+  }, [editingItem]);
+
+  useEffect(() => {
+    if (!editingItem || !editingFocus) {
+      return;
+    }
+    if (editingFocus === "validity") {
+      requestAnimationFrame(() => {
+        validitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [editingFocus, editingItem]);
+
   const handleRuleSave = () => {
     if (!ruleDraft) {
       return;
     }
     if (ruleBasis === "month") {
-      const startError = ruleStartMonth ? getMonthError(ruleStartMonth, monthInvalidMessage) : undefined;
-      const endError = ruleEndMonth ? getMonthError(ruleEndMonth, monthInvalidMessage) : undefined;
-      if (startError || endError) {
+      const nextErrors: { startMonth?: string; endMonth?: string } = {};
+      if (ruleStartMonth && !parseMonthStrict(ruleStartMonth).ok) {
+        nextErrors.startMonth = monthInvalidMessage;
+      }
+      if (ruleEndMonth && !parseMonthStrict(ruleEndMonth).ok) {
+        nextErrors.endMonth = monthInvalidMessage;
+      }
+      setRuleMonthErrors(nextErrors);
+      if (Object.values(nextErrors).some(Boolean)) {
         return;
       }
     }
@@ -1090,15 +1892,38 @@ export default function PlanLabPanel({
     if (!positionDraft || !editingItem?.positionKey) {
       return;
     }
-    if (positionErrors && Object.values(positionErrors).some(Boolean)) {
+    const nextErrors = { ...positionErrors };
+    ["startMonth", "endMonth", "asOfMonth"].forEach((field) => {
+      const value = positionDraft?.[field];
+      if (value && !parseMonthStrict(String(value)).ok) {
+        nextErrors[field] = monthInvalidMessage;
+      }
+    });
+    setPositionErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) {
       return;
     }
     updatePositionPatch(editingItem.positionKey, { patch: positionDraft });
     setEditingItem(null);
   };
 
+  const handleSmartInvestSave = () => {
+    if (!smartInvestDraft) {
+      return;
+    }
+    updateSmartInvestPatch({
+      patch: smartInvestDraft,
+      isDisabled: !smartInvestDraft.enabled,
+    });
+    setEditingItem(null);
+  };
+
   const handleEventSave = (result: TimelineEventFormResult) => {
     if (!editingItem?.eventDefinitionId) {
+      return;
+    }
+    if (eventEndMonth && !parseMonthStrict(eventEndMonth).ok) {
+      setEventEndMonthError(monthInvalidMessage);
       return;
     }
     const definition = buildDefinitionFromTimelineEvent(result.event);
@@ -1113,7 +1938,7 @@ export default function PlanLabPanel({
     };
     updateEventPatch(editingItem.eventDefinitionId, {
       patch: nextDefinition,
-      endMonth: undefined,
+      endMonth: eventEndMonth || undefined,
     });
     setEditingItem(null);
   };
@@ -1145,151 +1970,185 @@ export default function PlanLabPanel({
 
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 7 }}>
-          <Stack gap="lg">
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
+          <Stack gap="xs">
+            <Paper withBorder radius="lg" p="md">
+              <Stack gap="xs">
                 <Group justify="space-between" align="center" wrap="wrap">
-                  <Text fw={600}>{t("planLabScenarioEditor")}</Text>
-                  <Group gap="xs">
-                    <Switch
-                      size="sm"
-                      label="Active only"
-                      checked={activeOnly}
-                      onChange={(event) => setActiveOnly(event.currentTarget.checked)}
-                    />
-                    <Switch
-                      size="sm"
-                      label="Has changes"
-                      checked={showChangedOnly}
-                      onChange={(event) => setShowChangedOnly(event.currentTarget.checked)}
-                    />
-                    <Switch
-                      size="sm"
-                      label="Risky"
-                      checked={showRiskyOnly}
-                      onChange={(event) => setShowRiskyOnly(event.currentTarget.checked)}
-                    />
-                  </Group>
+                  <MantineTooltip
+                    label={translate(
+                      "planLabScenarioEditorTooltip",
+                      "調整基準情境的事件、規則與資產，這些改動只在此沙盒生效。"
+                    )}
+                    withArrow
+                  >
+                    <Text fw={600}>
+                      {translate("planLabScenarioEditor", "情境編輯器")}
+                    </Text>
+                  </MantineTooltip>
                 </Group>
-                  <TextInput
-                    label="Search"
-                    placeholder="Search items"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                  />
-                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-
+                <Stack gap="xs">
+                  <Group align="flex-end" wrap="wrap">
+                    <TextInput
+                      size="sm"
+                      label={translate("planLabSearchLabel", "搜尋")}
+                      placeholder={translate("planLabSearchPlaceholder", "搜尋項目")}
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                      style={{ flex: 1, minWidth: 220 }}
+                    />
+                    <Group gap="xs" wrap="wrap">
+                      <MantineTooltip
+                        label={translate(
+                          "planLabFilterActiveTooltip",
+                          "只顯示已啟用的項目。"
+                        )}
+                        withArrow
+                      >
+                        <Switch
+                          size="sm"
+                          label={translate("planLabFilterActiveLabel", "只顯示啟用")}
+                          checked={activeOnly}
+                          onChange={(event) => setActiveOnly(event.currentTarget.checked)}
+                        />
+                      </MantineTooltip>
+                      <MantineTooltip
+                        label={translate(
+                          "planLabFilterChangedTooltip",
+                          "只顯示已修改或停用的項目。"
+                        )}
+                        withArrow
+                      >
+                        <Switch
+                          size="sm"
+                          label={translate("planLabFilterChangedLabel", "只顯示已變更")}
+                          checked={showChangedOnly}
+                          onChange={(event) => setShowChangedOnly(event.currentTarget.checked)}
+                        />
+                      </MantineTooltip>
+                      <MantineTooltip
+                        label={translate(
+                          "planLabFilterRiskyTooltip",
+                          "只顯示可能影響風險的項目（如房屋）。"
+                        )}
+                        withArrow
+                      >
+                        <Switch
+                          size="sm"
+                          label={translate("planLabFilterRiskyLabel", "只顯示高風險")}
+                          checked={showRiskyOnly}
+                          onChange={(event) => setShowRiskyOnly(event.currentTarget.checked)}
+                        />
+                      </MantineTooltip>
+                    </Group>
+                  </Group>
                   <SegmentedControl
+                    size="sm"
                     data={[
-                      { value: "all", label: "All" },
-                      { value: "positions", label: "Positions" },
-                      { value: "events", label: "Events" },
-                      { value: "rules", label: "Rules" },
+                      { value: "all", label: translate("planLabFilterAllLabel", "全部") },
+                      {
+                        value: "positions",
+                        label: translate("planLabFilterPositionsLabel", "資產"),
+                      },
+                      { value: "events", label: translate("planLabFilterEventsLabel", "事件") },
+                      { value: "rules", label: translate("planLabFilterRulesLabel", "規則") },
                     ]}
                     value={filterKind}
                     onChange={(value) => setFilterKind(value as typeof filterKind)}
                   />
                   <SegmentedControl
+                    size="sm"
                     data={[
-                      { value: "category", label: "Category" },
-                      { value: "member", label: "Member" },
-                      { value: "timeline", label: "Timeline" },
+                      { value: "category", label: translate("planLabGroupCategoryLabel", "分類") },
+                      { value: "member", label: translate("planLabGroupMemberLabel", "成員") },
+                      { value: "timeline", label: translate("planLabGroupTimelineLabel", "時間") },
                     ]}
                     value={groupBy}
                     onChange={(value) => setGroupBy(value as typeof groupBy)}
                   />
-                </SimpleGrid>
+                </Stack>
                 {groupedItems.length === 0 ? (
                   <Text size="sm" c="dimmed">
-                    No items match the filters.
+                    {translate("planLabFilterEmpty", "沒有符合條件的項目。")}
                   </Text>
                 ) : (
-                  groupedItems.map(([group, items]) => (
-                    <Stack key={group} gap="xs">
-                      <Text size="sm" fw={600} c="dimmed">
-                        {group}
-                      </Text>
-                      {items.map((item) => (
-                        <Card key={item.id} withBorder radius="md" padding="sm">
-                          <Group justify="space-between" align="center" wrap="wrap">
-                            <Stack gap={2}>
-                              <Text fw={600} size="sm">
-                                {item.title}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {item.startMonth ?? "—"}
-                                {item.endMonth ? ` → ${item.endMonth}` : ""}
-                              </Text>
-                            </Stack>
-                            <Group gap="xs">
-                              <Switch
-                                size="sm"
-                                checked={item.enabled}
-                                onChange={() => {
-                                  if (item.kind === "event" && item.eventDefinitionId) {
-                                    updateEventPatch(item.eventDefinitionId, {
-                                      isDisabled: item.enabled,
-                                    });
+                  <ScrollArea.Autosize mah={420} offsetScrollbars>
+                    <Stack gap="xs">
+                      {groupedItems.map(([group, items]) => (
+                        <Stack key={group} gap="xs">
+                          <Text size="xs" fw={600} c="dimmed">
+                            {group}
+                          </Text>
+                          <Accordion variant="separated" radius="md" multiple>
+                            {items.map((item) => {
+                              const menuItems: PlanLabRowMenuItem[] = [];
+                              if (item.kind === "event" || item.kind === "rule") {
+                                menuItems.push({
+                                  label: translate("planLabActionEnd", "設定結束月份"),
+                                  onClick: () => openEditingItem(item, "validity"),
+                                });
+                              }
+                              return (
+                                <PlanLabAccordionRow
+                                  key={item.id}
+                                  id={item.id}
+                                  title={item.title}
+                                  badges={getScenarioItemBadges(item)}
+                                  summary={getScenarioItemSummary(item)}
+                                  enabled={item.enabled}
+                                  onToggle={() => {
+                                    if (item.kind === "event" && item.eventDefinitionId) {
+                                      updateEventPatch(item.eventDefinitionId, {
+                                        isDisabled: item.enabled,
+                                      });
+                                    }
+                                    if (item.kind === "rule" && item.ruleId) {
+                                      updateRulePatch(item.ruleId, {
+                                        isDisabled: item.enabled,
+                                      });
+                                    }
+                                    if (item.kind === "position" && item.positionKey) {
+                                      if (item.positionKind === "smartInvest") {
+                                        updateSmartInvestPatch({ isDisabled: item.enabled });
+                                      } else {
+                                        updatePositionPatch(item.positionKey, {
+                                          isDisabled: item.enabled,
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  onEdit={() => openEditingItem(item)}
+                                  menuItems={menuItems}
+                                  panel={
+                                    <Text size="xs" c="dimmed">
+                                      {getScenarioItemSummary(item) || "—"}
+                                    </Text>
                                   }
-                                  if (item.kind === "rule" && item.ruleId) {
-                                    updateRulePatch(item.ruleId, {
-                                      isDisabled: item.enabled,
-                                    });
-                                  }
-                                  if (item.kind === "position" && item.positionKey) {
-                                    updatePositionPatch(item.positionKey, {
-                                      isDisabled: item.enabled,
-                                    });
-                                  }
-                                }}
-                              />
-                              {(item.kind === "event" || item.kind === "rule") && (
-                                <Button
-                                  size="xs"
-                                  variant="light"
-                                  onClick={() => setEditingItem(item)}
-                                >
-                                  End
-                                </Button>
-                              )}
-                              <Button
-                                size="xs"
-                                variant="subtle"
-                                onClick={() => setEditingItem(item)}
-                              >
-                                Edit
-                              </Button>
-                            </Group>
-                          </Group>
-                        </Card>
+                                />
+                              );
+                            })}
+                          </Accordion>
+                        </Stack>
                       ))}
                     </Stack>
-                  ))
+                  </ScrollArea.Autosize>
                 )}
               </Stack>
-            </Card>
+            </Paper>
 
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="lg">
-                <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
-                <Group align="flex-end" wrap="wrap">
-                  <Select
-                    label={t("planLabExperimentsAddLabel")}
-                    placeholder={t("planLabExperimentsSelectPlaceholder")}
-                    data={experimentTypeOptions}
-                    value={newExperimentType}
-                    onChange={(value) =>
-                      setNewExperimentType(value as PlanLabExperimentType | null)
-                    }
-                    clearable
-                  />
-                  <Button
-                    size="sm"
-                    variant="light"
-                    onClick={addExperiment}
-                    disabled={!newExperimentType}
+            <Paper withBorder radius="lg" p="md">
+              <Stack gap="xs">
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <MantineTooltip
+                    label={translate(
+                      "planLabExperimentsTooltip",
+                      "新增假設來觀察財務走勢變化。"
+                    )}
+                    withArrow
                   >
-                    {t("planLabExperimentsAddAction")}
+                    <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
+                  </MantineTooltip>
+                  <Button size="sm" onClick={openAddExperimentDrawer}>
+                    {translate("planLabExperimentsAddAction", "新增實驗")}
                   </Button>
                 </Group>
                 {experiments.length === 0 ? (
@@ -1297,372 +2156,87 @@ export default function PlanLabPanel({
                     {t("planLabExperimentsEmpty")}
                   </Text>
                 ) : (
-                  <Stack gap="md">
-                    {experiments.map((experiment) => {
-                      const monthError =
-                        experiment.type === "oneOffExpense"
-                          ? getStrictMonthError(experiment.month ?? "")
-                          : experiment.type === "rangeExpense"
-                            ? getStrictMonthError(experiment.startMonth ?? "")
-                            : experiment.type === "incomeAdjust"
-                              ? getStrictMonthError(experiment.startMonth ?? "")
-                              : experiment.type === "travelAnnual"
-                                ? getStrictMonthError(experiment.startMonth ?? "")
-                                : experiment.type === "homeBuy"
-                                  ? getStrictMonthError(experiment.purchaseMonth ?? "")
-                                  : getStrictMonthError(experiment.purchaseMonth ?? "");
-                      const endMonthError =
-                        experiment.type === "rangeExpense"
-                          ? getStrictMonthError(experiment.endMonth ?? "")
-                          : undefined;
-                      return (
-                        <Card key={experiment.id} withBorder radius="md" padding="sm">
-                          <Stack gap="sm">
-                            <Group justify="space-between" align="center" wrap="wrap">
-                              <Text fw={600} size="sm">
-                                {
-                                  experimentTypeOptions.find(
-                                    (option) => option.value === experiment.type
-                                  )?.label
-                                }
+                  <ScrollArea.Autosize mah={320} offsetScrollbars>
+                    <Accordion variant="separated" radius="md" multiple>
+                      {experiments.map((experiment) => {
+                        const label =
+                          experimentTypeOptions.find(
+                            (option) => option.value === experiment.type
+                          )?.label ?? translate("planLabExperimentFallback", "實驗");
+                        const badges: PlanLabRowBadge[] = [
+                          { label: translate("planLabBadgeExperiment", "實驗"), color: "blue" },
+                        ];
+                        if (experiment.isEnabled === false) {
+                          badges.push({
+                            label: translate("planLabBadgeDisabled", "已停用"),
+                            color: "red",
+                          });
+                        }
+                        const menuItems: PlanLabRowMenuItem[] = [
+                          {
+                            label: translate("planLabActionDuplicate", "複製"),
+                            onClick: () => duplicateExperiment(experiment),
+                          },
+                          {
+                            label: translate("planLabAppliedRemove", "移除"),
+                            onClick: () => removeExperiment(experiment.id),
+                          },
+                        ];
+                        return (
+                          <PlanLabAccordionRow
+                            key={experiment.id}
+                            id={`experiment-${experiment.id}`}
+                            title={label}
+                            badges={badges}
+                            summary={getExperimentSummary(experiment)}
+                            enabled={experiment.isEnabled !== false}
+                            onToggle={() =>
+                              updateExperiment(experiment.id, {
+                                isEnabled: experiment.isEnabled === false,
+                              })
+                            }
+                            onEdit={() => openEditExperimentDrawer(experiment)}
+                            menuItems={menuItems}
+                            panel={
+                              <Text size="xs" c="dimmed">
+                                {getExperimentSummary(experiment)}
                               </Text>
-                              <Group gap="xs">
-                                <Switch
-                                  size="sm"
-                                  checked={experiment.isEnabled !== false}
-                                  onChange={() =>
-                                    updateExperiment(experiment.id, {
-                                      isEnabled: experiment.isEnabled === false,
-                                    })
-                                  }
-                                />
-                                <Button
-                                  size="xs"
-                                  variant="subtle"
-                                  onClick={() => removeExperiment(experiment.id)}
-                                >
-                                  {t("planLabAppliedRemove")}
-                                </Button>
-                              </Group>
-                            </Group>
-
-                            {experiment.type === "oneOffExpense" && (
-                              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                                <TextInput
-                                  label={t("planLabExperimentMonth")}
-                                  placeholder="YYYY-MM"
-                                  value={experiment.month ?? ""}
-                                  onChange={(event) =>
-                                    updateExperiment(experiment.id, {
-                                      month: event.currentTarget.value,
-                                    })
-                                  }
-                                  error={monthError}
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentAmount")}
-                                  value={experiment.amount ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      amount: typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                              </SimpleGrid>
-                            )}
-
-                            {experiment.type === "rangeExpense" && (
-                              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
-                                <TextInput
-                                  label={t("planLabExperimentStartMonth")}
-                                  placeholder="YYYY-MM"
-                                  value={experiment.startMonth ?? ""}
-                                  onChange={(event) =>
-                                    updateExperiment(experiment.id, {
-                                      startMonth: event.currentTarget.value,
-                                    })
-                                  }
-                                  error={monthError}
-                                />
-                                <TextInput
-                                  label={t("planLabExperimentEndMonth")}
-                                  placeholder="YYYY-MM"
-                                  value={experiment.endMonth ?? ""}
-                                  onChange={(event) =>
-                                    updateExperiment(experiment.id, {
-                                      endMonth: event.currentTarget.value,
-                                    })
-                                  }
-                                  error={endMonthError}
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentMonthlyAmount")}
-                                  value={experiment.monthlyAmount ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      monthlyAmount:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                              </SimpleGrid>
-                            )}
-
-                            {experiment.type === "homeBuy" && (
-                              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
-                                <TextInput
-                                  label={t("planLabExperimentPurchaseMonth")}
-                                  placeholder="YYYY-MM"
-                                  value={experiment.purchaseMonth ?? ""}
-                                  onChange={(event) =>
-                                    updateExperiment(experiment.id, {
-                                      purchaseMonth: event.currentTarget.value,
-                                    })
-                                  }
-                                  error={monthError}
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentPurchasePrice")}
-                                  value={experiment.purchasePrice ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      purchasePrice:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentDownPaymentAmount")}
-                                  value={experiment.downPaymentAmount ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      downPaymentAmount:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentDownPaymentPct")}
-                                  value={experiment.downPaymentPct ?? ""}
-                                  min={0}
-                                  max={100}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      downPaymentPct:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentMortgageRate")}
-                                  value={experiment.mortgageRatePct ?? ""}
-                                  min={0}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      mortgageRatePct:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentMortgageTerm")}
-                                  value={experiment.termYears ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      termYears:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentOneOffFees")}
-                                  value={experiment.oneTimeFees ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      oneTimeFees:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentHoldingCost")}
-                                  value={experiment.holdingCostMonthly ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      holdingCostMonthly:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentAppreciation")}
-                                  value={experiment.annualAppreciationPct ?? ""}
-                                  min={0}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      annualAppreciationPct:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                              </SimpleGrid>
-                            )}
-
-                            {experiment.type === "carPlan" && (
-                              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
-                                <TextInput
-                                  label={t("planLabExperimentPurchaseMonth")}
-                                  placeholder="YYYY-MM"
-                                  value={experiment.purchaseMonth ?? ""}
-                                  onChange={(event) =>
-                                    updateExperiment(experiment.id, {
-                                      purchaseMonth: event.currentTarget.value,
-                                    })
-                                  }
-                                  error={monthError}
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentCarPrice")}
-                                  value={experiment.purchasePrice ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      purchasePrice:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentCarDownPayment")}
-                                  value={experiment.downPayment ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      downPayment:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentCarDepreciation")}
-                                  value={experiment.annualDepreciationRatePct ?? ""}
-                                  min={0}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      annualDepreciationRatePct:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentCarHoldingCost")}
-                                  value={experiment.holdingCostMonthly ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      holdingCostMonthly:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentCarHoldingGrowth")}
-                                  value={experiment.holdingCostAnnualGrowthPct ?? ""}
-                                  min={0}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      holdingCostAnnualGrowthPct:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                              </SimpleGrid>
-                            )}
-
-                            {experiment.type === "incomeAdjust" && (
-                              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                                <TextInput
-                                  label={t("planLabExperimentStartMonth")}
-                                  placeholder="YYYY-MM"
-                                  value={experiment.startMonth ?? ""}
-                                  onChange={(event) =>
-                                    updateExperiment(experiment.id, {
-                                      startMonth: event.currentTarget.value,
-                                    })
-                                  }
-                                  error={monthError}
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentMonthlyAmount")}
-                                  value={experiment.monthlyAmount ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      monthlyAmount:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                              </SimpleGrid>
-                            )}
-
-                            {experiment.type === "travelAnnual" && (
-                              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                                <TextInput
-                                  label={t("planLabExperimentStartMonth")}
-                                  placeholder="YYYY-MM"
-                                  value={experiment.startMonth ?? ""}
-                                  onChange={(event) =>
-                                    updateExperiment(experiment.id, {
-                                      startMonth: event.currentTarget.value,
-                                    })
-                                  }
-                                  error={monthError}
-                                />
-                                <NumberInput
-                                  label={t("planLabExperimentAnnualAmount")}
-                                  value={experiment.annualAmount ?? ""}
-                                  min={0}
-                                  onChange={(value) =>
-                                    updateExperiment(experiment.id, {
-                                      annualAmount:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                              </SimpleGrid>
-                            )}
-                          </Stack>
-                        </Card>
-                      );
-                    })}
-                  </Stack>
+                            }
+                          />
+                        );
+                      })}
+                    </Accordion>
+                  </ScrollArea.Autosize>
                 )}
               </Stack>
-            </Card>
+            </Paper>
 
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
+            <Paper withBorder radius="lg" p="md">
+              <Stack gap="xs">
                 <Group justify="space-between" align="center" wrap="wrap">
-                  <Text fw={600}>Applied Controls</Text>
-                  <Group gap="xs">
+                  <MantineTooltip
+                    label={translate(
+                      "planLabAppliedControlsTooltip",
+                      "快速檢視目前啟用的改動，並可逐一關閉。"
+                    )}
+                    withArrow
+                  >
+                    <Text fw={600}>
+                      {t("planLabAppliedControlsTitle")} ({appliedControls.length})
+                    </Text>
+                  </MantineTooltip>
+                  <Group gap="xs" wrap="wrap">
+                    <Switch
+                      size="xs"
+                      label={translate("planLabFilterChangedLabel", "只看已修改")}
+                      checked={showChangedOnly}
+                      onChange={(event) => setShowChangedOnly(event.currentTarget.checked)}
+                    />
                     <Button size="xs" variant="light" onClick={handleResetBaseline}>
-                      Reset baseline edits
+                      {translate("planLabAppliedRevertBaseline", "還原基準調整")}
                     </Button>
                     <Button size="xs" variant="light" onClick={handleResetAllControls}>
-                      Reset all
+                      {translate("planLabAppliedResetAll", "全部重設")}
                     </Button>
                   </Group>
                 </Group>
@@ -1671,26 +2245,46 @@ export default function PlanLabPanel({
                     {t("planLabAppliedControlsEmpty")}
                   </Text>
                 ) : (
-                  <Stack gap="xs">
-                    {appliedControls.map((control) => (
-                      <Group key={control.id} justify="space-between" align="center">
-                        <Text size="sm">{control.label}</Text>
-                        <Group gap="xs">
-                          <Switch
+                  <ScrollArea.Autosize mah={180} offsetScrollbars>
+                    <Group gap="xs" wrap="wrap">
+                      {appliedControls.map((control) => {
+                        const chip = (
+                          <Badge
+                            key={control.id}
                             size="sm"
-                            checked={control.isEnabled}
-                            onChange={control.onToggle}
-                          />
-                          <Button size="xs" variant="subtle" onClick={control.onRemove}>
-                            {t("planLabAppliedRemove")}
-                          </Button>
-                        </Group>
-                      </Group>
-                    ))}
-                  </Stack>
+                            radius="xl"
+                            variant="light"
+                            color={control.isEnabled ? "blue" : "gray"}
+                            rightSection={
+                              <ActionIcon
+                                size="xs"
+                                variant="subtle"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  control.onRemove();
+                                }}
+                              >
+                                <Text size="xs">×</Text>
+                              </ActionIcon>
+                            }
+                          >
+                            {control.label}
+                          </Badge>
+                        );
+                        if (control.tooltip) {
+                          return (
+                            <MantineTooltip key={control.id} label={control.tooltip} withArrow>
+                              {chip}
+                            </MantineTooltip>
+                          );
+                        }
+                        return chip;
+                      })}
+                    </Group>
+                  </ScrollArea.Autosize>
                 )}
               </Stack>
-            </Card>
+            </Paper>
 
             <Card withBorder radius="md" padding="md">
               <Stack gap="xs">
@@ -1859,7 +2453,7 @@ export default function PlanLabPanel({
                             formatCurrency(Number(value), undefined, locale)
                           }
                         />
-                        <Tooltip
+                        <RechartsTooltip
                           formatter={(value) =>
                             formatCurrency(Number(value), undefined, locale)
                           }
@@ -1892,34 +2486,338 @@ export default function PlanLabPanel({
       </Grid>
 
       <Drawer
+        opened={experimentDrawerOpen}
+        onClose={() => setExperimentDrawerOpen(false)}
+        position="right"
+        size="md"
+        title={
+          experimentDrawerMode === "add"
+            ? translate("planLabExperimentDrawerAddTitle", "新增實驗")
+            : translate("planLabExperimentDrawerEditTitle", "編輯實驗")
+        }
+      >
+        <Stack gap="md">
+          {experimentDrawerMode === "add" && (
+            <Stack gap="sm">
+              <Text fw={600}>
+                {translate("planLabExperimentTypeSelect", "選擇實驗類型")}
+              </Text>
+              <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="sm">
+                {experimentTypeCards.map((card) => {
+                  const isActive = experimentDraft?.type === card.type;
+                  return (
+                    <Paper
+                      key={card.type}
+                      withBorder
+                      radius="md"
+                      p="sm"
+                      onClick={() => {
+                        setExperimentDraft(buildExperimentDefaults(card.type));
+                        setExperimentDraftErrors({});
+                      }}
+                      style={{
+                        cursor: "pointer",
+                        borderColor: isActive ? "var(--mantine-color-blue-6)" : undefined,
+                        backgroundColor: isActive
+                          ? "var(--mantine-color-blue-light)"
+                          : undefined,
+                      }}
+                    >
+                      <Text fw={600} size="sm">
+                        {card.label}
+                      </Text>
+                    </Paper>
+                  );
+                })}
+              </SimpleGrid>
+            </Stack>
+          )}
+
+          {!experimentDraft && (
+            <Text size="sm" c="dimmed">
+              {translate("planLabExperimentTypeHint", "請先選擇實驗類型。")}
+            </Text>
+          )}
+
+          {experimentDraft && (
+            <Stack gap="sm">
+              <Text fw={600}>{translate("planLabDrawerSectionBasic", "基本")}</Text>
+              {experimentDraft.type === "oneOffExpense" && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  <TextInput
+                    size="sm"
+                    label={t("planLabExperimentMonth")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={experimentDraft.month ?? ""}
+                    onChange={(event) => {
+                      updateExperimentDraft({ month: event.currentTarget.value });
+                      setExperimentDraftErrors((current) => ({ ...current, month: undefined }));
+                    }}
+                    error={experimentDraftErrors.month}
+                  />
+                  <NumberInput
+                    size="sm"
+                    label={t("planLabExperimentAmount")}
+                    value={experimentDraft.amount ?? ""}
+                    min={0}
+                    onChange={(value) =>
+                      updateExperimentDraft({
+                        amount: typeof value === "number" ? value : undefined,
+                      })
+                    }
+                  />
+                </SimpleGrid>
+              )}
+
+              {experimentDraft.type === "rangeExpense" && (
+                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                  <TextInput
+                    size="sm"
+                    label={t("planLabExperimentStartMonth")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={experimentDraft.startMonth ?? ""}
+                    onChange={(event) => {
+                      updateExperimentDraft({ startMonth: event.currentTarget.value });
+                      setExperimentDraftErrors((current) => ({
+                        ...current,
+                        startMonth: undefined,
+                      }));
+                    }}
+                    error={experimentDraftErrors.startMonth}
+                  />
+                  <TextInput
+                    size="sm"
+                    label={t("planLabExperimentEndMonth")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={experimentDraft.endMonth ?? ""}
+                    onChange={(event) => {
+                      updateExperimentDraft({ endMonth: event.currentTarget.value });
+                      setExperimentDraftErrors((current) => ({ ...current, endMonth: undefined }));
+                    }}
+                    error={experimentDraftErrors.endMonth}
+                  />
+                  <NumberInput
+                    size="sm"
+                    label={t("planLabExperimentMonthlyAmount")}
+                    value={experimentDraft.monthlyAmount ?? ""}
+                    min={0}
+                    onChange={(value) =>
+                      updateExperimentDraft({
+                        monthlyAmount: typeof value === "number" ? value : undefined,
+                      })
+                    }
+                  />
+                </SimpleGrid>
+              )}
+
+              {experimentDraft.type === "homeBuy" && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  <TextInput
+                    size="sm"
+                    label={t("planLabExperimentPurchaseMonth")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={experimentDraft.purchaseMonth ?? ""}
+                    onChange={(event) => {
+                      updateExperimentDraft({ purchaseMonth: event.currentTarget.value });
+                      setExperimentDraftErrors((current) => ({
+                        ...current,
+                        purchaseMonth: undefined,
+                      }));
+                    }}
+                    error={experimentDraftErrors.purchaseMonth}
+                  />
+                  <NumberInput
+                    size="sm"
+                    label={t("planLabExperimentPurchasePrice")}
+                    value={experimentDraft.purchasePrice ?? ""}
+                    min={0}
+                    onChange={(value) =>
+                      updateExperimentDraft({
+                        purchasePrice: typeof value === "number" ? value : undefined,
+                      })
+                    }
+                  />
+                </SimpleGrid>
+              )}
+
+              {experimentDraft.type === "carPlan" && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  <TextInput
+                    size="sm"
+                    label={t("planLabExperimentPurchaseMonth")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={experimentDraft.purchaseMonth ?? ""}
+                    onChange={(event) => {
+                      updateExperimentDraft({ purchaseMonth: event.currentTarget.value });
+                      setExperimentDraftErrors((current) => ({
+                        ...current,
+                        purchaseMonth: undefined,
+                      }));
+                    }}
+                    error={experimentDraftErrors.purchaseMonth}
+                  />
+                  <NumberInput
+                    size="sm"
+                    label={t("planLabExperimentCarPrice")}
+                    value={experimentDraft.purchasePrice ?? ""}
+                    min={0}
+                    onChange={(value) =>
+                      updateExperimentDraft({
+                        purchasePrice: typeof value === "number" ? value : undefined,
+                      })
+                    }
+                  />
+                </SimpleGrid>
+              )}
+
+              {experimentDraft.type === "incomeAdjust" && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  <TextInput
+                    size="sm"
+                    label={t("planLabExperimentStartMonth")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={experimentDraft.startMonth ?? ""}
+                    onChange={(event) => {
+                      updateExperimentDraft({ startMonth: event.currentTarget.value });
+                      setExperimentDraftErrors((current) => ({
+                        ...current,
+                        startMonth: undefined,
+                      }));
+                    }}
+                    error={experimentDraftErrors.startMonth}
+                  />
+                  <NumberInput
+                    size="sm"
+                    label={t("planLabExperimentMonthlyAmount")}
+                    value={experimentDraft.monthlyAmount ?? ""}
+                    min={0}
+                    onChange={(value) =>
+                      updateExperimentDraft({
+                        monthlyAmount: typeof value === "number" ? value : undefined,
+                      })
+                    }
+                  />
+                </SimpleGrid>
+              )}
+
+              {experimentDraft.type === "travelAnnual" && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  <TextInput
+                    size="sm"
+                    label={t("planLabExperimentStartMonth")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={experimentDraft.startMonth ?? ""}
+                    onChange={(event) => {
+                      updateExperimentDraft({ startMonth: event.currentTarget.value });
+                      setExperimentDraftErrors((current) => ({
+                        ...current,
+                        startMonth: undefined,
+                      }));
+                    }}
+                    error={experimentDraftErrors.startMonth}
+                  />
+                  <NumberInput
+                    size="sm"
+                    label={t("planLabExperimentAnnualAmount")}
+                    value={experimentDraft.annualAmount ?? ""}
+                    min={0}
+                    onChange={(value) =>
+                      updateExperimentDraft({
+                        annualAmount: typeof value === "number" ? value : undefined,
+                      })
+                    }
+                  />
+                </SimpleGrid>
+              )}
+
+              {experimentDraft.type === "smartInvestAdjust" && (
+                <Text size="sm" c="dimmed">
+                  {translate(
+                    "planLabExperimentSmartInvestHint",
+                    "智能投資調整請先建立實驗，再於詳情中調整。"
+                  )}
+                </Text>
+              )}
+            </Stack>
+          )}
+
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setExperimentDrawerOpen(false)}>
+              {translate("planLabActionCancel", "取消")}
+            </Button>
+            <Button onClick={applyExperimentDraft} disabled={!experimentDraft}>
+              {translate("planLabActionApply", "套用")}
+            </Button>
+          </Group>
+        </Stack>
+      </Drawer>
+
+      <Drawer
         opened={Boolean(editingItem)}
-        onClose={() => setEditingItem(null)}
+        onClose={() => {
+          setEditingItem(null);
+          setEditingFocus(null);
+          setRuleMonthErrors({});
+          setEventEndMonthError(undefined);
+        }}
         position="right"
         size="lg"
-        title={editingItem ? `Edit ${editingItem.title}` : "Edit"}
+        title={
+          editingItem
+            ? translate(
+                "planLabDrawerEditTitle",
+                `編輯 ${editingItem.title}`,
+                { title: editingItem.title }
+              )
+            : translate("planLabDrawerEditTitleFallback", "編輯")
+        }
       >
         {editingItem?.kind === "event" && editingEventData && (
-          <TimelineEventForm
-            event={editingEventData}
-            baseCurrency={scenario.baseCurrency}
-            members={members}
-            assumptions={{
-              baseMonth: scenario.assumptions.baseMonth,
-              horizonMonths: scenario.assumptions.horizonMonths,
-            }}
-            ruleMode={editingItem.eventRule?.mode ?? "params"}
-            schedule={editingItem.eventRule?.schedule}
-            salarySteps={editingItem.eventRule?.salarySteps}
-            onCancel={() => setEditingItem(null)}
-            onSave={handleEventSave}
-            submitLabel="Apply"
-          />
+          <Stack gap="sm">
+            <Stack gap="xs" ref={validitySectionRef}>
+              <Text fw={600} size="sm">
+                {translate("planLabDrawerSectionValidity", "有效期限")}
+              </Text>
+              <TextInput
+                size="sm"
+                label={translate("planLabEventEndMonthLabel", "結束月份")}
+                placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                value={eventEndMonth}
+                onChange={(event) => {
+                  setEventEndMonth(event.currentTarget.value);
+                  setEventEndMonthError(undefined);
+                }}
+                error={
+                  eventEndMonthError ??
+                  (eventEndMonth ? getMonthError(eventEndMonth, monthInvalidMessage) : undefined)
+                }
+              />
+            </Stack>
+            <TimelineEventForm
+              event={editingEventData}
+              baseCurrency={scenario.baseCurrency}
+              members={members}
+              assumptions={{
+                baseMonth: scenario.assumptions.baseMonth,
+                horizonMonths: scenario.assumptions.horizonMonths,
+              }}
+              ruleMode={editingItem.eventRule?.mode ?? "params"}
+              schedule={editingItem.eventRule?.schedule}
+              salarySteps={editingItem.eventRule?.salarySteps}
+              onCancel={() => setEditingItem(null)}
+              onSave={handleEventSave}
+              submitLabel={translate("planLabActionApply", "套用")}
+            />
+          </Stack>
         )}
 
         {editingItem?.kind === "rule" && ruleDraft && (
           <Stack gap="sm">
+            <Text fw={600} size="sm">
+              {translate("planLabDrawerSectionBasic", "基本")}
+            </Text>
             <TextInput
-              label="Name"
+              label={translate("planLabRuleNameLabel", "名稱")}
               value={ruleDraft.name}
               onChange={(event) =>
                 setRuleDraft((current) =>
@@ -1928,8 +2826,14 @@ export default function PlanLabPanel({
               }
             />
             <Select
-              label="Member"
-              data={[{ value: "", label: "All" }, ...members.map((member) => ({ value: member.id, label: member.name }))]}
+              label={translate("planLabRuleMemberLabel", "成員")}
+              data={[
+                {
+                  value: "",
+                  label: translate("planLabRuleMemberAllOption", "全部"),
+                },
+                ...members.map((member) => ({ value: member.id, label: member.name })),
+              ]}
               value={ruleDraft.memberId ?? ""}
               onChange={(value) =>
                 setRuleDraft((current) =>
@@ -1938,14 +2842,32 @@ export default function PlanLabPanel({
               }
             />
             <Select
-              label="Category"
+              label={translate("planLabRuleCategoryLabel", "分類")}
               data={[
-                { value: "health", label: "Health" },
-                { value: "baseline", label: "Baseline" },
-                { value: "childcare", label: "Childcare" },
-                { value: "education", label: "Education" },
-                { value: "eldercare", label: "Eldercare" },
-                { value: "petcare", label: "Petcare" },
+                {
+                  value: "health",
+                  label: translate("planLabRuleCategoryHealth", "健康"),
+                },
+                {
+                  value: "baseline",
+                  label: translate("planLabRuleCategoryBaseline", "基準"),
+                },
+                {
+                  value: "childcare",
+                  label: translate("planLabRuleCategoryChildcare", "育兒"),
+                },
+                {
+                  value: "education",
+                  label: translate("planLabRuleCategoryEducation", "教育"),
+                },
+                {
+                  value: "eldercare",
+                  label: translate("planLabRuleCategoryEldercare", "長者照顧"),
+                },
+                {
+                  value: "petcare",
+                  label: translate("planLabRuleCategoryPetcare", "寵物照顧"),
+                },
               ]}
               value={ruleDraft.category}
               onChange={(value) =>
@@ -1954,9 +2876,12 @@ export default function PlanLabPanel({
                 )
               }
             />
+            <Text fw={600} size="sm">
+              {translate("planLabDrawerSectionAmount", "金額與頻率")}
+            </Text>
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
               <NumberInput
-                label="Monthly amount"
+                label={translate("planLabRuleMonthlyAmountLabel", "每月金額")}
                 value={ruleDraft.monthlyAmount}
                 min={0}
                 onChange={(value) =>
@@ -1971,7 +2896,7 @@ export default function PlanLabPanel({
                 }
               />
               <NumberInput
-                label="Annual growth %"
+                label={translate("planLabRuleAnnualGrowthLabel", "年增長率 %")}
                 value={ruleDraft.annualGrowthPct ?? ""}
                 min={0}
                 decimalScale={2}
@@ -1987,96 +2912,139 @@ export default function PlanLabPanel({
                 }
               />
             </SimpleGrid>
-            <SegmentedControl
-              data={[
-                { value: "age", label: "Age band" },
-                { value: "month", label: "Month range" },
-              ]}
-              value={ruleBasis}
-              onChange={(value) => setRuleBasis(value as "age" | "month")}
-            />
-            {ruleBasis === "age" ? (
-              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                <NumberInput
-                  label="Age from"
-                  value={ruleDraft.ageBand.fromYears}
-                  min={0}
-                  onChange={(value) =>
-                    setRuleDraft((current) =>
-                      current
-                        ? {
-                            ...current,
-                            ageBand: {
-                              ...current.ageBand,
-                              fromYears: typeof value === "number" ? value : current.ageBand.fromYears,
-                            },
-                          }
-                        : current
-                    )
-                  }
-                />
-                <NumberInput
-                  label="Age to"
-                  value={ruleDraft.ageBand.toYears}
-                  min={0}
-                  onChange={(value) =>
-                    setRuleDraft((current) =>
-                      current
-                        ? {
-                            ...current,
-                            ageBand: {
-                              ...current.ageBand,
-                              toYears: typeof value === "number" ? value : current.ageBand.toYears,
-                            },
-                          }
-                        : current
-                    )
-                  }
-                />
-              </SimpleGrid>
-            ) : (
-              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                <TextInput
-                  label="Start month"
-                  placeholder="YYYY-MM"
-                  value={ruleStartMonth}
-                  onChange={(event) => setRuleStartMonth(event.currentTarget.value)}
-                  error={ruleStartMonth ? getMonthError(ruleStartMonth, monthInvalidMessage) : undefined}
-                />
-                <TextInput
-                  label="End month"
-                  placeholder="YYYY-MM"
-                  value={ruleEndMonth}
-                  onChange={(event) => setRuleEndMonth(event.currentTarget.value)}
-                  error={ruleEndMonth ? getMonthError(ruleEndMonth, monthInvalidMessage) : undefined}
-                />
-              </SimpleGrid>
-            )}
+            <Stack gap="xs" ref={validitySectionRef}>
+              <Text fw={600} size="sm">
+                {translate("planLabDrawerSectionValidity", "有效期限")}
+              </Text>
+              <SegmentedControl
+                data={[
+                  { value: "age", label: translate("planLabRuleAgeBandLabel", "年齡區間") },
+                  { value: "month", label: translate("planLabRuleMonthRangeLabel", "月份範圍") },
+                ]}
+                value={ruleBasis}
+                onChange={(value) => {
+                  setRuleBasis(value as "age" | "month");
+                  setRuleMonthErrors({});
+                }}
+              />
+              {ruleBasis === "age" ? (
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                  <NumberInput
+                    label={translate("planLabRuleAgeFromLabel", "起始年齡")}
+                    value={ruleDraft.ageBand.fromYears}
+                    min={0}
+                    onChange={(value) =>
+                      setRuleDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              ageBand: {
+                                ...current.ageBand,
+                                fromYears:
+                                  typeof value === "number" ? value : current.ageBand.fromYears,
+                              },
+                            }
+                          : current
+                      )
+                    }
+                  />
+                  <NumberInput
+                    label={translate("planLabRuleAgeToLabel", "結束年齡")}
+                    value={ruleDraft.ageBand.toYears}
+                    min={0}
+                    onChange={(value) =>
+                      setRuleDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              ageBand: {
+                                ...current.ageBand,
+                                toYears:
+                                  typeof value === "number" ? value : current.ageBand.toYears,
+                              },
+                            }
+                          : current
+                      )
+                    }
+                  />
+                </SimpleGrid>
+              ) : (
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                  <TextInput
+                    label={translate("planLabRuleStartMonthLabel", "開始月份")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={ruleStartMonth}
+                    onChange={(event) => {
+                      setRuleStartMonth(event.currentTarget.value);
+                      setRuleMonthErrors((current) => ({ ...current, startMonth: undefined }));
+                    }}
+                    error={
+                      ruleMonthErrors.startMonth ??
+                      (ruleStartMonth ? getMonthError(ruleStartMonth, monthInvalidMessage) : undefined)
+                    }
+                  />
+                  <TextInput
+                    label={translate("planLabRuleEndMonthLabel", "結束月份")}
+                    placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                    value={ruleEndMonth}
+                    onChange={(event) => {
+                      setRuleEndMonth(event.currentTarget.value);
+                      setRuleMonthErrors((current) => ({ ...current, endMonth: undefined }));
+                    }}
+                    error={
+                      ruleMonthErrors.endMonth ??
+                      (ruleEndMonth ? getMonthError(ruleEndMonth, monthInvalidMessage) : undefined)
+                    }
+                  />
+                </SimpleGrid>
+              )}
+            </Stack>
             <Group justify="flex-end">
               <Button variant="default" onClick={() => setEditingItem(null)}>
-                Cancel
+                {translate("planLabActionCancel", "取消")}
               </Button>
-              <Button onClick={handleRuleSave}>Apply</Button>
+              <Button onClick={handleRuleSave}>
+                {translate("planLabActionApply", "套用")}
+              </Button>
             </Group>
           </Stack>
         )}
+
+        {editingItem?.kind === "position" &&
+          editingItem.positionKind === "smartInvest" &&
+          smartInvestDraft && (
+            <Stack gap="sm">
+              <SmartInvestForm
+                policy={smartInvestDraft}
+                onChange={setSmartInvestDraft}
+              />
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setEditingItem(null)}>
+                  {translate("planLabActionCancel", "取消")}
+                </Button>
+                <Button onClick={handleSmartInvestSave}>
+                  {translate("planLabActionApply", "套用")}
+                </Button>
+              </Group>
+            </Stack>
+          )}
 
         {editingItem?.kind === "position" && positionDraft && (
           <Stack gap="sm">
             {editingItem.positionKind === "home" && (
               <>
                 <TextInput
-                  label="Purchase month"
+                  label={translate("planLabPositionPurchaseMonthLabel", "購買月份")}
                   value={positionDraft.purchaseMonth ?? ""}
                   disabled
                 />
                 <NumberInput
-                  label="Purchase price"
+                  label={translate("planLabPositionPurchasePriceLabel", "購買價格")}
                   value={positionDraft.purchasePrice ?? ""}
                   disabled
                 />
                 <NumberInput
-                  label="Monthly holding cost"
+                  label={translate("planLabPositionHoldingCostLabel", "每月持有成本")}
                   value={positionDraft.holdingCostMonthly ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2087,7 +3055,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Annual appreciation %"
+                  label={translate("planLabPositionAppreciationLabel", "年升值率 %")}
                   value={positionDraft.annualAppreciationPct ?? ""}
                   min={0}
                   decimalScale={2}
@@ -2103,9 +3071,13 @@ export default function PlanLabPanel({
             )}
             {editingItem.positionKind === "car" && (
               <>
-                <TextInput label="Purchase month" value={positionDraft.purchaseMonth ?? ""} disabled />
+                <TextInput
+                  label={translate("planLabPositionPurchaseMonthLabel", "購買月份")}
+                  value={positionDraft.purchaseMonth ?? ""}
+                  disabled
+                />
                 <NumberInput
-                  label="Holding cost monthly"
+                  label={translate("planLabPositionCarHoldingCostLabel", "每月持有成本")}
                   value={positionDraft.holdingCostMonthly ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2116,7 +3088,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Holding cost growth %"
+                  label={translate("planLabPositionCarHoldingGrowthLabel", "持有成本增長 %")}
                   value={positionDraft.holdingCostAnnualGrowthPct ?? ""}
                   min={0}
                   decimalScale={2}
@@ -2129,7 +3101,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Annual depreciation %"
+                  label={translate("planLabPositionCarDepreciationLabel", "年折舊率 %")}
                   value={positionDraft.annualDepreciationRatePct ?? ""}
                   min={0}
                   decimalScale={2}
@@ -2145,21 +3117,29 @@ export default function PlanLabPanel({
             )}
             {editingItem.positionKind === "investment" && (
               <>
-                <TextInput
-                  label="Start month"
-                  value={positionDraft.startMonth ?? ""}
-                  onChange={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
-                    setPositionErrors((current) => ({
-                      ...current,
-                      startMonth: getMonthError(nextValue, monthInvalidMessage),
-                    }));
-                  }}
-                  error={positionErrors.startMonth}
-                />
+                <Stack gap="xs" ref={validitySectionRef}>
+                  <Text fw={600} size="sm">
+                    {translate("planLabDrawerSectionValidity", "有效期限")}
+                  </Text>
+                  <TextInput
+                    label={translate("planLabPositionStartMonthLabel", "開始月份")}
+                    value={positionDraft.startMonth ?? ""}
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
+                      setPositionErrors((current) => ({
+                        ...current,
+                        startMonth: getMonthError(nextValue, monthInvalidMessage),
+                      }));
+                    }}
+                    error={positionErrors.startMonth}
+                  />
+                </Stack>
+                <Text fw={600} size="sm">
+                  {translate("planLabDrawerSectionAmount", "金額與頻率")}
+                </Text>
                 <NumberInput
-                  label="Initial value"
+                  label={translate("planLabPositionInitialValueLabel", "初始金額")}
                   value={positionDraft.initialValue ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2170,7 +3150,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Monthly contribution"
+                  label={translate("planLabPositionMonthlyContributionLabel", "每月供款")}
                   value={positionDraft.monthlyContribution ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2182,7 +3162,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Monthly withdrawal"
+                  label={translate("planLabPositionMonthlyWithdrawalLabel", "每月提取")}
                   value={positionDraft.monthlyWithdrawal ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2194,7 +3174,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Expected annual return %"
+                  label={translate("planLabPositionReturnLabel", "預期年回報率 %")}
                   value={positionDraft.expectedAnnualReturnPct ?? ""}
                   min={0}
                   decimalScale={2}
@@ -2210,34 +3190,42 @@ export default function PlanLabPanel({
             )}
             {editingItem.positionKind === "insurance" && (
               <>
-                <TextInput
-                  label="Start month"
-                  value={positionDraft.startMonth ?? ""}
-                  onChange={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
-                    setPositionErrors((current) => ({
-                      ...current,
-                      startMonth: getMonthError(nextValue, monthInvalidMessage),
-                    }));
-                  }}
-                  error={positionErrors.startMonth}
-                />
-                <TextInput
-                  label="End month"
-                  value={positionDraft.endMonth ?? ""}
-                  onChange={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setPositionDraft((current: any) => ({ ...current, endMonth: nextValue }));
-                    setPositionErrors((current) => ({
-                      ...current,
-                      endMonth: getMonthError(nextValue, monthInvalidMessage),
-                    }));
-                  }}
-                  error={positionErrors.endMonth}
-                />
+                <Stack gap="xs" ref={validitySectionRef}>
+                  <Text fw={600} size="sm">
+                    {translate("planLabDrawerSectionValidity", "有效期限")}
+                  </Text>
+                  <TextInput
+                    label={translate("planLabPositionStartMonthLabel", "開始月份")}
+                    value={positionDraft.startMonth ?? ""}
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
+                      setPositionErrors((current) => ({
+                        ...current,
+                        startMonth: getMonthError(nextValue, monthInvalidMessage),
+                      }));
+                    }}
+                    error={positionErrors.startMonth}
+                  />
+                  <TextInput
+                    label={translate("planLabPositionEndMonthLabel", "結束月份")}
+                    value={positionDraft.endMonth ?? ""}
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setPositionDraft((current: any) => ({ ...current, endMonth: nextValue }));
+                      setPositionErrors((current) => ({
+                        ...current,
+                        endMonth: getMonthError(nextValue, monthInvalidMessage),
+                      }));
+                    }}
+                    error={positionErrors.endMonth}
+                  />
+                </Stack>
+                <Text fw={600} size="sm">
+                  {translate("planLabDrawerSectionAmount", "金額與頻率")}
+                </Text>
                 <NumberInput
-                  label="Premium monthly"
+                  label={translate("planLabPositionPremiumMonthlyLabel", "每月保費")}
                   value={positionDraft.premiumMonthly ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2249,7 +3237,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Premium growth %"
+                  label={translate("planLabPositionPremiumGrowthLabel", "保費增長 %")}
                   value={positionDraft.premiumAnnualGrowthPct ?? ""}
                   min={0}
                   decimalScale={2}
@@ -2265,21 +3253,29 @@ export default function PlanLabPanel({
             )}
             {editingItem.positionKind === "loan" && (
               <>
-                <TextInput
-                  label="Start month"
-                  value={positionDraft.startMonth ?? ""}
-                  onChange={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
-                    setPositionErrors((current) => ({
-                      ...current,
-                      startMonth: getMonthError(nextValue, monthInvalidMessage),
-                    }));
-                  }}
-                  error={positionErrors.startMonth}
-                />
+                <Stack gap="xs" ref={validitySectionRef}>
+                  <Text fw={600} size="sm">
+                    {translate("planLabDrawerSectionValidity", "有效期限")}
+                  </Text>
+                  <TextInput
+                    label={translate("planLabPositionStartMonthLabel", "開始月份")}
+                    value={positionDraft.startMonth ?? ""}
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setPositionDraft((current: any) => ({ ...current, startMonth: nextValue }));
+                      setPositionErrors((current) => ({
+                        ...current,
+                        startMonth: getMonthError(nextValue, monthInvalidMessage),
+                      }));
+                    }}
+                    error={positionErrors.startMonth}
+                  />
+                </Stack>
+                <Text fw={600} size="sm">
+                  {translate("planLabDrawerSectionAmount", "金額與頻率")}
+                </Text>
                 <NumberInput
-                  label="Principal"
+                  label={translate("planLabPositionPrincipalLabel", "本金")}
                   value={positionDraft.principal ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2290,7 +3286,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Annual interest rate %"
+                  label={translate("planLabPositionInterestRateLabel", "年利率 %")}
                   value={positionDraft.annualInterestRatePct ?? ""}
                   min={0}
                   decimalScale={2}
@@ -2303,7 +3299,7 @@ export default function PlanLabPanel({
                   }
                 />
                 <NumberInput
-                  label="Term years"
+                  label={translate("planLabPositionTermYearsLabel", "年期（年）")}
                   value={positionDraft.termYears ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2317,21 +3313,29 @@ export default function PlanLabPanel({
             )}
             {editingItem.positionKind === "cash" && (
               <>
-                <TextInput
-                  label="As of month"
-                  value={positionDraft.asOfMonth ?? ""}
-                  onChange={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setPositionDraft((current: any) => ({ ...current, asOfMonth: nextValue }));
-                    setPositionErrors((current) => ({
-                      ...current,
-                      asOfMonth: getMonthError(nextValue, monthInvalidMessage),
-                    }));
-                  }}
-                  error={positionErrors.asOfMonth}
-                />
+                <Stack gap="xs" ref={validitySectionRef}>
+                  <Text fw={600} size="sm">
+                    {translate("planLabDrawerSectionValidity", "有效期限")}
+                  </Text>
+                  <TextInput
+                    label={translate("planLabPositionAsOfMonthLabel", "月份")}
+                    value={positionDraft.asOfMonth ?? ""}
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setPositionDraft((current: any) => ({ ...current, asOfMonth: nextValue }));
+                      setPositionErrors((current) => ({
+                        ...current,
+                        asOfMonth: getMonthError(nextValue, monthInvalidMessage),
+                      }));
+                    }}
+                    error={positionErrors.asOfMonth}
+                  />
+                </Stack>
+                <Text fw={600} size="sm">
+                  {translate("planLabDrawerSectionAmount", "金額與頻率")}
+                </Text>
                 <NumberInput
-                  label="Balance"
+                  label={translate("planLabPositionBalanceLabel", "餘額")}
                   value={positionDraft.balance ?? ""}
                   min={0}
                   onChange={(value) =>
@@ -2345,9 +3349,11 @@ export default function PlanLabPanel({
             )}
             <Group justify="flex-end">
               <Button variant="default" onClick={() => setEditingItem(null)}>
-                Cancel
+                {translate("planLabActionCancel", "取消")}
               </Button>
-              <Button onClick={handlePositionSave}>Apply</Button>
+              <Button onClick={handlePositionSave}>
+                {translate("planLabActionApply", "套用")}
+              </Button>
             </Group>
           </Stack>
         )}
