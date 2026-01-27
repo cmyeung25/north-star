@@ -29,6 +29,8 @@ export const normalizeMonthStrict = (
   };
 };
 
+export const parseMonthStrict = normalizeMonthStrict;
+
 export const isMonthComplete = (input: string): boolean =>
   /^\d{4}-\d{2}$/.test(input.trim());
 
