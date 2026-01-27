@@ -56,13 +56,24 @@ import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorec
 import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import TimelineEventForm, { type TimelineEventFormResult } from "../../components/timeline/TimelineEventForm";
 import { getEventMeta } from "../../src/events/eventCatalog";
+import SmartInvestForm from "../../components/SmartInvestForm";
+import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
+import type { SmartInvestAllocation, SmartInvestPolicy } from "../../src/domain/smartInvest/types";
+import { applySmartInvestPatch } from "../../src/domain/planLab/smartInvestAdjust";
 
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
 type ScenarioItemKind = "event" | "rule" | "position";
 
-type PositionKind = "home" | "car" | "investment" | "insurance" | "loan" | "cash";
+type PositionKind =
+  | "home"
+  | "car"
+  | "investment"
+  | "insurance"
+  | "loan"
+  | "cash"
+  | "smartInvest";
 
 type ScenarioEditorItem = {
   id: string;
@@ -190,6 +201,38 @@ const buildPositionTitle = (kind: PositionKind, position: any, index: number) =>
   return `Position ${index + 1}`;
 };
 
+const formatSmartInvestReserve = (
+  reserve: SmartInvestPolicy["reserve"],
+  currency: string,
+  locale: string
+) => {
+  if (reserve.mode === "fixed") {
+    return `Reserve ${formatCurrency(reserve.amount ?? 0, currency, locale)}`;
+  }
+  return `Reserve ${reserve.months ?? 0} months`;
+};
+
+const formatSmartInvestContribution = (
+  contribution: SmartInvestPolicy["contribution"],
+  currency: string,
+  locale: string
+) => {
+  if (contribution.mode === "percentOfIncome") {
+    return `Contribution ${contribution.pct ?? 0}% of income`;
+  }
+  if (contribution.mode === "percentOfSurplus") {
+    return `Contribution ${contribution.pct ?? 0}% of surplus`;
+  }
+  if (contribution.mode === "excessCash") {
+    return `Contribution ${contribution.investPct ?? 100}% of excess cash over ${formatCurrency(
+      contribution.thresholdAmount ?? 0,
+      currency,
+      locale
+    )}`;
+  }
+  return "Contribution rebalance";
+};
+
 export default function PlanLabPanel({
   scenario,
   eventLibrary,
@@ -213,6 +256,7 @@ export default function PlanLabPanel({
     eventPatches: {},
     rulePatches: {},
     positionPatches: {},
+    smartInvestPatch: undefined,
   });
   const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
   const [newExperimentType, setNewExperimentType] =
@@ -236,6 +280,12 @@ export default function PlanLabPanel({
   const eventPatches = baselinePatches?.eventPatches ?? {};
   const rulePatches = baselinePatches?.rulePatches ?? {};
   const positionPatches = baselinePatches?.positionPatches ?? {};
+  const smartInvestPatch = baselinePatches?.smartInvestPatch;
+  const defaultSmartInvestPolicy = useMemo(
+    () => buildDefaultSmartInvestPolicy("Smart Invest"),
+    []
+  );
+  const baselineSmartInvestPolicy = scenario.assumptions.smartInvest;
 
   const updateEventPatch = (id: string, patch: Partial<NonNullable<typeof eventPatches>[string]>) => {
     setBaselinePatches((current) => ({
@@ -276,6 +326,18 @@ export default function PlanLabPanel({
     }));
   };
 
+  const updateSmartInvestPatch = (
+    patch: Partial<NonNullable<PlanLabDraft["baselinePatches"]>["smartInvestPatch"]>
+  ) => {
+    setBaselinePatches((current) => ({
+      ...current,
+      smartInvestPatch: {
+        ...(current?.smartInvestPatch ?? {}),
+        ...patch,
+      },
+    }));
+  };
+
   const removePatch = (kind: ScenarioItemKind, id: string) => {
     setBaselinePatches((current) => {
       if (!current) {
@@ -290,6 +352,9 @@ export default function PlanLabPanel({
         const next = { ...(current.rulePatches ?? {}) };
         delete next[id];
         return { ...current, rulePatches: next };
+      }
+      if (kind === "position" && id === "smartInvest") {
+        return { ...current, smartInvestPatch: undefined };
       }
       const next = { ...(current.positionPatches ?? {}) };
       delete next[id];
@@ -340,6 +405,25 @@ export default function PlanLabPanel({
         type,
         startMonth: baseMonth,
         monthlyAmount: 5000,
+        isEnabled: true,
+      };
+    }
+    if (type === "smartInvestAdjust") {
+      const basePolicy = baselineSmartInvestPolicy ?? defaultSmartInvestPolicy;
+      if (basePolicy.reserve.mode === "fixed") {
+        return {
+          id: nanoid(),
+          type,
+          reserveMode: "fixed",
+          reserveAmount: Math.max(0, basePolicy.reserve.amount + 10000),
+          isEnabled: true,
+        };
+      }
+      return {
+        id: nanoid(),
+        type,
+        reserveMode: "monthsOfOutflow",
+        reserveMonths: Math.max(0, basePolicy.reserve.months + 1),
         isEnabled: true,
       };
     }
@@ -422,6 +506,23 @@ export default function PlanLabPanel({
     });
 
     const positions = scenario.positions;
+    if (baselineSmartInvestPolicy) {
+      const key = "smartInvest";
+      const patchedPolicy = applySmartInvestPatch(
+        baselineSmartInvestPolicy,
+        smartInvestPatch
+      );
+      items.push({
+        id: `position:${key}`,
+        kind: "position",
+        title: "Smart Invest",
+        category: "investment",
+        enabled: patchedPolicy.enabled,
+        positionKey: key,
+        positionKind: "smartInvest",
+        position: patchedPolicy,
+      });
+    }
     if (positions?.home) {
       const key = "home:primary";
       const patch = positionPatches[key];
@@ -549,6 +650,8 @@ export default function PlanLabPanel({
     eventPatches,
     positionPatches,
     rulePatches,
+    smartInvestPatch,
+    baselineSmartInvestPolicy,
     scenario,
   ]);
 
@@ -581,9 +684,15 @@ export default function PlanLabPanel({
           }
         }
         if (item.kind === "position" && item.positionKey) {
-          const patch = positionPatches[item.positionKey];
-          if (!patch || (!patch.isDisabled && !patch.patch)) {
-            return false;
+          if (item.positionKind === "smartInvest") {
+            if (!smartInvestPatch || (!smartInvestPatch.isDisabled && !smartInvestPatch.patch)) {
+              return false;
+            }
+          } else {
+            const patch = positionPatches[item.positionKey];
+            if (!patch || (!patch.isDisabled && !patch.patch)) {
+              return false;
+            }
           }
         }
       }
@@ -605,6 +714,7 @@ export default function PlanLabPanel({
     searchQuery,
     showChangedOnly,
     showRiskyOnly,
+    smartInvestPatch,
   ]);
 
   const groupedItems = useMemo(() => {
@@ -766,6 +876,10 @@ export default function PlanLabPanel({
           ? t("planLabExperimentTravelAnnual")
           : "Annual travel",
       },
+      {
+        value: "smartInvestAdjust",
+        label: "Smart Invest adjust",
+      },
     ],
     [t]
   );
@@ -854,6 +968,87 @@ export default function PlanLabPanel({
       });
     });
 
+    if (baselineSmartInvestPolicy && smartInvestPatch) {
+      const patchedPolicy = applySmartInvestPatch(
+        baselineSmartInvestPolicy,
+        smartInvestPatch
+      );
+      const labelParts: string[] = [];
+      if (baselineSmartInvestPolicy.enabled !== patchedPolicy.enabled) {
+        labelParts.push(
+          patchedPolicy.enabled ? "Smart Invest enabled" : "Smart Invest disabled"
+        );
+      }
+      if (
+        baselineSmartInvestPolicy.reserve.mode !== patchedPolicy.reserve.mode ||
+        (patchedPolicy.reserve.mode === "fixed" &&
+          baselineSmartInvestPolicy.reserve.mode === "fixed" &&
+          baselineSmartInvestPolicy.reserve.amount !== patchedPolicy.reserve.amount) ||
+        (patchedPolicy.reserve.mode === "monthsOfOutflow" &&
+          baselineSmartInvestPolicy.reserve.mode === "monthsOfOutflow" &&
+          baselineSmartInvestPolicy.reserve.months !== patchedPolicy.reserve.months)
+      ) {
+        labelParts.push(
+          formatSmartInvestReserve(
+            patchedPolicy.reserve,
+            scenario.baseCurrency,
+            locale
+          )
+        );
+      }
+      if (
+        baselineSmartInvestPolicy.contribution.mode !==
+          patchedPolicy.contribution.mode ||
+        (patchedPolicy.contribution.mode === "percentOfIncome" &&
+          baselineSmartInvestPolicy.contribution.mode === "percentOfIncome" &&
+          baselineSmartInvestPolicy.contribution.pct !== patchedPolicy.contribution.pct) ||
+        (patchedPolicy.contribution.mode === "percentOfSurplus" &&
+          baselineSmartInvestPolicy.contribution.mode === "percentOfSurplus" &&
+          baselineSmartInvestPolicy.contribution.pct !== patchedPolicy.contribution.pct) ||
+        (patchedPolicy.contribution.mode === "excessCash" &&
+          baselineSmartInvestPolicy.contribution.mode === "excessCash" &&
+          (baselineSmartInvestPolicy.contribution.investPct !==
+            patchedPolicy.contribution.investPct ||
+            baselineSmartInvestPolicy.contribution.thresholdAmount !==
+              patchedPolicy.contribution.thresholdAmount))
+      ) {
+        labelParts.push(
+          formatSmartInvestContribution(
+            patchedPolicy.contribution,
+            scenario.baseCurrency,
+            locale
+          )
+        );
+      }
+      if (
+        JSON.stringify(baselineSmartInvestPolicy.allocation) !==
+        JSON.stringify(patchedPolicy.allocation)
+      ) {
+        labelParts.push("Allocation updated");
+      }
+      if (
+        baselineSmartInvestPolicy.withdrawal.enabled !== patchedPolicy.withdrawal.enabled
+      ) {
+        labelParts.push(
+          patchedPolicy.withdrawal.enabled
+            ? "Withdrawals enabled"
+            : "Withdrawals disabled"
+        );
+      }
+      const label =
+        labelParts.length > 0
+          ? `Smart Invest: ${labelParts.join(" · ")}`
+          : "Smart Invest updated";
+      controls.push({
+        id: "smartInvest-baseline",
+        label,
+        isEnabled: patchedPolicy.enabled,
+        onToggle: () =>
+          updateSmartInvestPatch({ isDisabled: patchedPolicy.enabled }),
+        onRemove: () => removePatch("position", "smartInvest"),
+      });
+    }
+
     experiments.forEach((experiment) => {
       const currency = scenario.baseCurrency;
       let label = "";
@@ -881,11 +1076,53 @@ export default function PlanLabPanel({
           month: experiment.startMonth ?? "",
           amount: formatCurrency(experiment.monthlyAmount ?? 0, currency, locale),
         });
-      } else {
+      } else if (experiment.type === "travelAnnual") {
         label = t("planLabAppliedExperimentTravel", {
           month: experiment.startMonth ?? "",
           amount: formatCurrency(experiment.annualAmount ?? 0, currency, locale),
         });
+      } else {
+        const labelParts: string[] = [];
+        if (experiment.reserveMode) {
+          labelParts.push(
+            experiment.reserveMode === "fixed"
+              ? `Reserve ${formatCurrency(
+                  experiment.reserveAmount ?? 0,
+                  currency,
+                  locale
+                )}`
+              : `Reserve ${experiment.reserveMonths ?? 0} months`
+          );
+        }
+        if (experiment.contributionMode) {
+          if (experiment.contributionMode === "percentOfIncome") {
+            labelParts.push(
+              `Contribution ${experiment.contributionPct ?? 0}% of income`
+            );
+          } else if (experiment.contributionMode === "percentOfSurplus") {
+            labelParts.push(
+              `Contribution ${experiment.contributionPct ?? 0}% of surplus`
+            );
+          } else if (experiment.contributionMode === "excessCash") {
+            labelParts.push(
+              `Contribution ${experiment.contributionInvestPct ?? 100}% of excess cash`
+            );
+          } else {
+            labelParts.push("Contribution rebalance");
+          }
+        }
+        if (experiment.allocation) {
+          labelParts.push("Allocation override");
+        }
+        if (experiment.withdrawalEnabled !== undefined) {
+          labelParts.push(
+            experiment.withdrawalEnabled ? "Withdrawals enabled" : "Withdrawals disabled"
+          );
+        }
+        label =
+          labelParts.length > 0
+            ? `Smart Invest: ${labelParts.join(" · ")}`
+            : "Smart Invest adjustment";
       }
 
       controls.push({
@@ -902,6 +1139,7 @@ export default function PlanLabPanel({
 
     return controls;
   }, [
+    baselineSmartInvestPolicy,
     eventPatches,
     experiments,
     locale,
@@ -910,16 +1148,28 @@ export default function PlanLabPanel({
     rulePatches,
     scenario.baseCurrency,
     scenarioItems,
+    smartInvestPatch,
     t,
+    updateSmartInvestPatch,
   ]);
 
   const handleResetAllControls = () => {
-    setBaselinePatches({ eventPatches: {}, rulePatches: {}, positionPatches: {} });
+    setBaselinePatches({
+      eventPatches: {},
+      rulePatches: {},
+      positionPatches: {},
+      smartInvestPatch: undefined,
+    });
     setExperiments([]);
   };
 
   const handleResetBaseline = () => {
-    setBaselinePatches({ eventPatches: {}, rulePatches: {}, positionPatches: {} });
+    setBaselinePatches({
+      eventPatches: {},
+      rulePatches: {},
+      positionPatches: {},
+      smartInvestPatch: undefined,
+    });
   };
 
   const getStrictMonthError = (value: string) => {
@@ -1020,6 +1270,9 @@ export default function PlanLabPanel({
   const [ruleBasis, setRuleBasis] = useState<"age" | "month">("age");
   const [ruleStartMonth, setRuleStartMonth] = useState("");
   const [ruleEndMonth, setRuleEndMonth] = useState("");
+  const [smartInvestDraft, setSmartInvestDraft] = useState<SmartInvestPolicy | null>(
+    null
+  );
 
   useEffect(() => {
     if (!editingItem || editingItem.kind !== "rule" || !editingItem.budgetRule) {
@@ -1051,6 +1304,11 @@ export default function PlanLabPanel({
       setPositionErrors({});
       return;
     }
+    if (editingItem.positionKind === "smartInvest") {
+      setPositionDraft(null);
+      setPositionErrors({});
+      return;
+    }
     const patch = editingItem.positionKey ? positionPatches[editingItem.positionKey] : null;
     setPositionDraft({
       ...editingItem.position,
@@ -1058,6 +1316,19 @@ export default function PlanLabPanel({
     });
     setPositionErrors({});
   }, [editingItem, positionPatches]);
+
+  useEffect(() => {
+    if (
+      !editingItem ||
+      editingItem.kind !== "position" ||
+      editingItem.positionKind !== "smartInvest" ||
+      !editingItem.position
+    ) {
+      setSmartInvestDraft(null);
+      return;
+    }
+    setSmartInvestDraft(editingItem.position as SmartInvestPolicy);
+  }, [editingItem]);
 
   const handleRuleSave = () => {
     if (!ruleDraft) {
@@ -1094,6 +1365,17 @@ export default function PlanLabPanel({
       return;
     }
     updatePositionPatch(editingItem.positionKey, { patch: positionDraft });
+    setEditingItem(null);
+  };
+
+  const handleSmartInvestSave = () => {
+    if (!smartInvestDraft) {
+      return;
+    }
+    updateSmartInvestPatch({
+      patch: smartInvestDraft,
+      isDisabled: !smartInvestDraft.enabled,
+    });
     setEditingItem(null);
   };
 
@@ -1237,9 +1519,13 @@ export default function PlanLabPanel({
                                     });
                                   }
                                   if (item.kind === "position" && item.positionKey) {
-                                    updatePositionPatch(item.positionKey, {
-                                      isDisabled: item.enabled,
-                                    });
+                                    if (item.positionKind === "smartInvest") {
+                                      updateSmartInvestPatch({ isDisabled: item.enabled });
+                                    } else {
+                                      updatePositionPatch(item.positionKey, {
+                                        isDisabled: item.enabled,
+                                      });
+                                    }
                                   }
                                 }}
                               />
@@ -1299,18 +1585,27 @@ export default function PlanLabPanel({
                 ) : (
                   <Stack gap="md">
                     {experiments.map((experiment) => {
-                      const monthError =
-                        experiment.type === "oneOffExpense"
-                          ? getStrictMonthError(experiment.month ?? "")
-                          : experiment.type === "rangeExpense"
-                            ? getStrictMonthError(experiment.startMonth ?? "")
-                            : experiment.type === "incomeAdjust"
-                              ? getStrictMonthError(experiment.startMonth ?? "")
-                              : experiment.type === "travelAnnual"
-                                ? getStrictMonthError(experiment.startMonth ?? "")
-                                : experiment.type === "homeBuy"
-                                  ? getStrictMonthError(experiment.purchaseMonth ?? "")
-                                  : getStrictMonthError(experiment.purchaseMonth ?? "");
+                      const monthError = (() => {
+                        if (experiment.type === "oneOffExpense") {
+                          return getStrictMonthError(experiment.month ?? "");
+                        }
+                        if (experiment.type === "rangeExpense") {
+                          return getStrictMonthError(experiment.startMonth ?? "");
+                        }
+                        if (experiment.type === "incomeAdjust") {
+                          return getStrictMonthError(experiment.startMonth ?? "");
+                        }
+                        if (experiment.type === "travelAnnual") {
+                          return getStrictMonthError(experiment.startMonth ?? "");
+                        }
+                        if (experiment.type === "homeBuy") {
+                          return getStrictMonthError(experiment.purchaseMonth ?? "");
+                        }
+                        if (experiment.type === "carPlan") {
+                          return getStrictMonthError(experiment.purchaseMonth ?? "");
+                        }
+                        return undefined;
+                      })();
                       const endMonthError =
                         experiment.type === "rangeExpense"
                           ? getStrictMonthError(experiment.endMonth ?? "")
@@ -1643,6 +1938,380 @@ export default function PlanLabPanel({
                                   }
                                 />
                               </SimpleGrid>
+                            )}
+
+                            {experiment.type === "smartInvestAdjust" && (
+                              <Stack gap="sm">
+                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                  <Select
+                                    label="Reserve mode"
+                                    placeholder="No override"
+                                    data={[
+                                      { value: "fixed", label: "Fixed amount" },
+                                      {
+                                        value: "monthsOfOutflow",
+                                        label: "Months of outflow",
+                                      },
+                                    ]}
+                                    value={experiment.reserveMode ?? null}
+                                    clearable
+                                    onChange={(value) => {
+                                      if (!value) {
+                                        updateExperiment(experiment.id, {
+                                          reserveMode: undefined,
+                                          reserveAmount: undefined,
+                                          reserveMonths: undefined,
+                                        });
+                                        return;
+                                      }
+                                      if (value === "fixed") {
+                                        const baseAmount =
+                                          baselineSmartInvestPolicy?.reserve.mode === "fixed"
+                                            ? baselineSmartInvestPolicy.reserve.amount
+                                            : 0;
+                                        updateExperiment(experiment.id, {
+                                          reserveMode: "fixed",
+                                          reserveAmount:
+                                            experiment.reserveAmount ?? baseAmount ?? 0,
+                                          reserveMonths: undefined,
+                                        });
+                                      } else {
+                                        const baseMonths =
+                                          baselineSmartInvestPolicy?.reserve.mode ===
+                                          "monthsOfOutflow"
+                                            ? baselineSmartInvestPolicy.reserve.months
+                                            : 0;
+                                        updateExperiment(experiment.id, {
+                                          reserveMode: "monthsOfOutflow",
+                                          reserveMonths:
+                                            experiment.reserveMonths ?? baseMonths ?? 0,
+                                          reserveAmount: undefined,
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  {experiment.reserveMode === "fixed" && (
+                                    <NumberInput
+                                      label="Reserve amount"
+                                      value={experiment.reserveAmount ?? ""}
+                                      min={0}
+                                      onChange={(value) =>
+                                        updateExperiment(experiment.id, {
+                                          reserveAmount:
+                                            typeof value === "number" ? value : undefined,
+                                        })
+                                      }
+                                    />
+                                  )}
+                                  {experiment.reserveMode === "monthsOfOutflow" && (
+                                    <NumberInput
+                                      label="Reserve months"
+                                      value={experiment.reserveMonths ?? ""}
+                                      min={0}
+                                      onChange={(value) =>
+                                        updateExperiment(experiment.id, {
+                                          reserveMonths:
+                                            typeof value === "number" ? value : undefined,
+                                        })
+                                      }
+                                    />
+                                  )}
+                                </SimpleGrid>
+                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                  <Select
+                                    label="Contribution mode"
+                                    placeholder="No override"
+                                    data={[
+                                      { value: "percentOfIncome", label: "Percent of income" },
+                                      { value: "percentOfSurplus", label: "Percent of surplus" },
+                                      { value: "excessCash", label: "Excess cash" },
+                                      { value: "rebalance", label: "Rebalance" },
+                                    ]}
+                                    value={experiment.contributionMode ?? null}
+                                    clearable
+                                    onChange={(value) => {
+                                      if (!value) {
+                                        updateExperiment(experiment.id, {
+                                          contributionMode: undefined,
+                                          contributionPct: undefined,
+                                          contributionInvestPct: undefined,
+                                          contributionThresholdAmount: undefined,
+                                        });
+                                        return;
+                                      }
+                                      if (
+                                        value === "percentOfIncome" ||
+                                        value === "percentOfSurplus"
+                                      ) {
+                                        const basePct =
+                                          baselineSmartInvestPolicy?.contribution.mode === value
+                                            ? baselineSmartInvestPolicy.contribution.pct
+                                            : 0;
+                                        updateExperiment(experiment.id, {
+                                          contributionMode: value,
+                                          contributionPct:
+                                            experiment.contributionPct ?? basePct ?? 0,
+                                          contributionInvestPct: undefined,
+                                          contributionThresholdAmount: undefined,
+                                        });
+                                      } else if (value === "excessCash") {
+                                        const baseContribution =
+                                          baselineSmartInvestPolicy?.contribution.mode ===
+                                          "excessCash"
+                                            ? baselineSmartInvestPolicy.contribution
+                                            : null;
+                                        updateExperiment(experiment.id, {
+                                          contributionMode: "excessCash",
+                                          contributionInvestPct:
+                                            experiment.contributionInvestPct ??
+                                            baseContribution?.investPct ??
+                                            100,
+                                          contributionThresholdAmount:
+                                            experiment.contributionThresholdAmount ??
+                                            baseContribution?.thresholdAmount ??
+                                            0,
+                                          contributionPct: undefined,
+                                        });
+                                      } else {
+                                        updateExperiment(experiment.id, {
+                                          contributionMode: "rebalance",
+                                          contributionPct: undefined,
+                                          contributionInvestPct: undefined,
+                                          contributionThresholdAmount: undefined,
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  {(experiment.contributionMode === "percentOfIncome" ||
+                                    experiment.contributionMode === "percentOfSurplus") && (
+                                    <NumberInput
+                                      label="Contribution %"
+                                      value={experiment.contributionPct ?? ""}
+                                      min={0}
+                                      max={100}
+                                      decimalScale={2}
+                                      onChange={(value) =>
+                                        updateExperiment(experiment.id, {
+                                          contributionPct:
+                                            typeof value === "number" ? value : undefined,
+                                        })
+                                      }
+                                    />
+                                  )}
+                                  {experiment.contributionMode === "excessCash" && (
+                                    <>
+                                      <NumberInput
+                                        label="Invest %"
+                                        value={experiment.contributionInvestPct ?? ""}
+                                        min={0}
+                                        max={100}
+                                        decimalScale={2}
+                                        onChange={(value) =>
+                                          updateExperiment(experiment.id, {
+                                            contributionInvestPct:
+                                              typeof value === "number" ? value : undefined,
+                                          })
+                                        }
+                                      />
+                                      <NumberInput
+                                        label="Threshold amount"
+                                        value={experiment.contributionThresholdAmount ?? ""}
+                                        min={0}
+                                        onChange={(value) =>
+                                          updateExperiment(experiment.id, {
+                                            contributionThresholdAmount:
+                                              typeof value === "number" ? value : undefined,
+                                          })
+                                        }
+                                      />
+                                    </>
+                                  )}
+                                </SimpleGrid>
+                                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                                  <Select
+                                    label="Withdrawal enabled"
+                                    placeholder="No override"
+                                    data={[
+                                      { value: "enabled", label: "Enabled" },
+                                      { value: "disabled", label: "Disabled" },
+                                    ]}
+                                    value={
+                                      experiment.withdrawalEnabled === undefined
+                                        ? null
+                                        : experiment.withdrawalEnabled
+                                          ? "enabled"
+                                          : "disabled"
+                                    }
+                                    clearable
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        withdrawalEnabled:
+                                          value === "enabled"
+                                            ? true
+                                            : value === "disabled"
+                                              ? false
+                                              : undefined,
+                                      })
+                                    }
+                                  />
+                                  <Select
+                                    label="Withdrawal strategy"
+                                    placeholder="No override"
+                                    data={[
+                                      {
+                                        value: "sellToMaintainReserve",
+                                        label: "Sell to maintain reserve",
+                                      },
+                                    ]}
+                                    value={experiment.withdrawalMode ?? null}
+                                    clearable
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        withdrawalMode:
+                                          value === "sellToMaintainReserve"
+                                            ? "sellToMaintainReserve"
+                                            : undefined,
+                                      })
+                                    }
+                                  />
+                                  <Select
+                                    label="Withdrawal sell order"
+                                    placeholder="No override"
+                                    data={[{ value: "proRata", label: "Pro rata" }]}
+                                    value={experiment.withdrawalSellOrder ?? null}
+                                    clearable
+                                    onChange={(value) =>
+                                      updateExperiment(experiment.id, {
+                                        withdrawalSellOrder:
+                                          value === "proRata" ? "proRata" : undefined,
+                                      })
+                                    }
+                                  />
+                                </SimpleGrid>
+                                <Stack gap="xs">
+                                  <Switch
+                                    label="Override allocation"
+                                    checked={Boolean(experiment.allocation?.length)}
+                                    onChange={(event) => {
+                                      if (!event.currentTarget.checked) {
+                                        updateExperiment(experiment.id, {
+                                          allocation: undefined,
+                                        });
+                                        return;
+                                      }
+                                      const baseAllocation =
+                                        baselineSmartInvestPolicy?.allocation ??
+                                        defaultSmartInvestPolicy.allocation;
+                                      updateExperiment(experiment.id, {
+                                        allocation: baseAllocation.map((entry) => ({
+                                          ...entry,
+                                        })),
+                                      });
+                                    }}
+                                  />
+                                  {experiment.allocation && (
+                                    <Stack gap="sm">
+                                      {experiment.allocation.map((allocation) => (
+                                        <Card
+                                          key={allocation.id}
+                                          withBorder
+                                          radius="sm"
+                                          padding="sm"
+                                        >
+                                          <Stack gap="xs">
+                                            <Group grow>
+                                              <TextInput
+                                                label="Allocation name"
+                                                value={allocation.name}
+                                                onChange={(event) =>
+                                                  updateExperiment(experiment.id, {
+                                                    allocation: experiment.allocation?.map(
+                                                      (entry) =>
+                                                        entry.id === allocation.id
+                                                          ? {
+                                                              ...entry,
+                                                              name: event.currentTarget.value,
+                                                            }
+                                                          : entry
+                                                    ),
+                                                  })
+                                                }
+                                              />
+                                              <NumberInput
+                                                label="Target %"
+                                                value={allocation.targetPct ?? ""}
+                                                min={0}
+                                                max={100}
+                                                decimalScale={2}
+                                                onChange={(value) =>
+                                                  updateExperiment(experiment.id, {
+                                                    allocation: experiment.allocation?.map(
+                                                      (entry) =>
+                                                        entry.id === allocation.id
+                                                          ? {
+                                                              ...entry,
+                                                              targetPct:
+                                                                typeof value === "number"
+                                                                  ? value
+                                                                  : entry.targetPct,
+                                                            }
+                                                          : entry
+                                                    ),
+                                                  })
+                                                }
+                                              />
+                                              <NumberInput
+                                                label="Assumed return %"
+                                                value={allocation.assumedAnnualReturnPct ?? ""}
+                                                min={-100}
+                                                max={100}
+                                                decimalScale={2}
+                                                onChange={(value) =>
+                                                  updateExperiment(experiment.id, {
+                                                    allocation: experiment.allocation?.map(
+                                                      (entry) =>
+                                                        entry.id === allocation.id
+                                                          ? {
+                                                              ...entry,
+                                                              assumedAnnualReturnPct:
+                                                                typeof value === "number"
+                                                                  ? value
+                                                                  : entry.assumedAnnualReturnPct,
+                                                            }
+                                                          : entry
+                                                    ),
+                                                  })
+                                                }
+                                              />
+                                            </Group>
+                                          </Stack>
+                                        </Card>
+                                      ))}
+                                      <Group justify="flex-end">
+                                        <Button
+                                          size="xs"
+                                          variant="light"
+                                          onClick={() =>
+                                            updateExperiment(experiment.id, {
+                                              allocation: [
+                                                ...(experiment.allocation ?? []),
+                                                {
+                                                  id: nanoid(6),
+                                                  name: "New allocation",
+                                                  targetPct: 0,
+                                                  assumedAnnualReturnPct: 0,
+                                                } as SmartInvestAllocation,
+                                              ],
+                                            })
+                                          }
+                                        >
+                                          Add allocation
+                                        </Button>
+                                      </Group>
+                                    </Stack>
+                                  )}
+                                </Stack>
+                              </Stack>
                             )}
                           </Stack>
                         </Card>
@@ -2060,6 +2729,23 @@ export default function PlanLabPanel({
             </Group>
           </Stack>
         )}
+
+        {editingItem?.kind === "position" &&
+          editingItem.positionKind === "smartInvest" &&
+          smartInvestDraft && (
+            <Stack gap="sm">
+              <SmartInvestForm
+                policy={smartInvestDraft}
+                onChange={setSmartInvestDraft}
+              />
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setEditingItem(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSmartInvestSave}>Apply</Button>
+              </Group>
+            </Stack>
+          )}
 
         {editingItem?.kind === "position" && positionDraft && (
           <Stack gap="sm">

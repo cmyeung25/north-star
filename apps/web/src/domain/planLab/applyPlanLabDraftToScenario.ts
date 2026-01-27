@@ -3,6 +3,7 @@ import type { BudgetRule, Scenario, ScenarioPositions } from "../../store/scenar
 import { normalizeMonthStrict } from "../../utils/month";
 import type { PlanLabDraft } from "./types";
 import { compilePlanLabExtras } from "./compilePlanLabExtras";
+import { buildSmartInvestPolicyFromDraft } from "./smartInvestAdjust";
 
 export type PlanLabScenarioApplyWarning = {
   code: "replace-homes";
@@ -56,12 +57,22 @@ export const applyPlanLabDraftToScenario = (
   let nextPositions: ScenarioPositions | undefined = baseScenario.positions
     ? { ...baseScenario.positions }
     : undefined;
+  const nextAssumptions = { ...baseScenario.assumptions };
   let nextEventRefs = baseScenario.eventRefs ?? [];
   const baselinePatches = draft.baselinePatches ?? {};
   const eventPatches = baselinePatches.eventPatches ?? {};
   const rulePatches = baselinePatches.rulePatches ?? {};
   const positionPatches = baselinePatches.positionPatches ?? {};
+  const smartInvestPatch = baselinePatches.smartInvestPatch;
   const experiments = draft.experiments ?? [];
+  const smartInvestPolicy = buildSmartInvestPolicyFromDraft({
+    baselinePolicy: baseScenario.assumptions.smartInvest,
+    baselinePatch: smartInvestPatch,
+    experiments,
+  });
+  if (smartInvestPolicy) {
+    nextAssumptions.smartInvest = smartInvestPolicy;
+  }
 
   nextEventRefs = nextEventRefs.map((ref) => {
     const patch = eventPatches[ref.refId];
@@ -343,6 +354,7 @@ export const applyPlanLabDraftToScenario = (
     scenario: {
       ...baseScenario,
       positions: nextPositions,
+      assumptions: nextAssumptions,
       eventRefs: nextEventRefs,
       updatedAt: Date.now(),
     },

@@ -1,14 +1,11 @@
 import { useMemo } from "react";
 import type { ProjectionResult } from "@north-star/engine";
-import { computeProjection } from "@north-star/engine";
-import { mapScenarioToEngineInput, type AdapterWarning } from "./adapter";
+import { type AdapterWarning } from "./adapter";
 import {
   buildNetWorthBreakdownByMonth,
   type NetWorthBreakdown,
 } from "../domain/netWorth/buildNetWorthBreakdown";
-import {
-  buildSmartInvestProjectionBreakdown,
-} from "../domain/smartInvest/projection";
+import { buildSmartInvestProjectionBreakdown } from "../domain/smartInvest/projection";
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { getEventSign } from "../events/eventCatalog";
@@ -22,10 +19,9 @@ import {
 import { compilePlanLabDraft } from "../domain/planLab/compilePlanLabDraft";
 import type { PlanLabDraft } from "../domain/planLab/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
-import {
-  normalizeMonthStrict,
-} from "../utils/month";
+import { normalizeMonthStrict } from "../utils/month";
 import { monthIndex } from "@north-star/engine";
+import { computeProjectionWithSmartInvest } from "./useProjectionWithLedger";
 
 type ProjectionWithLedger = {
   projection: ProjectionResult | null;
@@ -294,17 +290,17 @@ export const usePlanLabProjectionWithLedger = (
       return emptyProjectionWithLedger;
     }
 
-    const { input, warnings } = mapScenarioToEngineInput(
-      baselineScenario,
-      combinedEventLibrary,
-      {
-        strict: false,
-        members: options.members ?? [],
-        budgetRules: planLabCompilation.budgetRules ?? options.budgetRules ?? [],
-      }
-    );
-
-    const computedProjection = computeProjection(input);
+    const {
+      input,
+      projection: computedProjection,
+      warnings,
+      smartInvestWithdrawalSchedule,
+      smartInvestRebalanceSchedule,
+      smartInvestTransferSeries,
+    } = computeProjectionWithSmartInvest(baselineScenario, combinedEventLibrary, {
+      members: options.members ?? [],
+      budgetRules: planLabCompilation.budgetRules ?? options.budgetRules ?? [],
+    });
 
     const scenarioForLedger = {
       ...baselineScenario,
@@ -330,26 +326,91 @@ export const usePlanLabProjectionWithLedger = (
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];
-    const smartInvestLedger = computedProjection
-      ? buildSmartInvestProjectionBreakdown(
-          computedProjection,
-          scenarioForLedger.assumptions.smartInvest?.allocation
-        ).cashflowEntries.map((entry) => {
-          const kind: CashflowItem["kind"] =
-            entry.label === "withdrawal" ? "withdrawal" : "contribution";
-          return {
-            month: entry.month,
-            amount: entry.amount,
-            source: "smartInvest" as const,
-            sourceId: entry.sourceId,
-            label: entry.label,
-            category: "smartInvest",
-            bucketId: entry.bucketId,
-            bucketName: entry.bucketName,
-            kind,
-          };
-        })
-      : [];
+    const smartInvestLedger =
+      computedProjection &&
+      scenarioForLedger.assumptions.smartInvest?.contribution.mode === "rebalance"
+        ? (() => {
+            const allocationNameLookup = new Map(
+              scenarioForLedger.assumptions.smartInvest?.allocation?.map(
+                (allocation) => [allocation.id, allocation.name]
+              ) ?? []
+            );
+            const entries: CashflowItem[] = [];
+            if (smartInvestRebalanceSchedule) {
+              Object.entries(
+                smartInvestRebalanceSchedule.contributionsByBucketId
+              ).forEach(([bucketId, schedule]) => {
+                schedule.forEach((entry) => {
+                  entries.push({
+                    month: entry.month,
+                    amount: -entry.amount,
+                    source: "smartInvest",
+                    sourceId: `smartInvest:${bucketId}:rebalance`,
+                    label: "rebalance",
+                    category: "smartInvest",
+                    bucketId,
+                    bucketName: allocationNameLookup.get(bucketId) ?? bucketId,
+                    kind: "rebalance",
+                  });
+                });
+              });
+              Object.entries(
+                smartInvestRebalanceSchedule.withdrawalsByBucketId
+              ).forEach(([bucketId, schedule]) => {
+                schedule.forEach((entry) => {
+                  entries.push({
+                    month: entry.month,
+                    amount: entry.amount,
+                    source: "smartInvest",
+                    sourceId: `smartInvest:${bucketId}:rebalance`,
+                    label: "rebalance",
+                    category: "smartInvest",
+                    bucketId,
+                    bucketName: allocationNameLookup.get(bucketId) ?? bucketId,
+                    kind: "rebalance",
+                  });
+                });
+              });
+            }
+            Object.entries(smartInvestWithdrawalSchedule).forEach(
+              ([bucketId, schedule]) => {
+                schedule.forEach((entry) => {
+                  entries.push({
+                    month: entry.month,
+                    amount: entry.amount,
+                    source: "smartInvest",
+                    sourceId: `smartInvest:${bucketId}:withdrawal`,
+                    label: "withdrawal",
+                    category: "smartInvest",
+                    bucketId,
+                    bucketName: allocationNameLookup.get(bucketId) ?? bucketId,
+                    kind: "withdrawal",
+                  });
+                });
+              }
+            );
+            return entries;
+          })()
+        : computedProjection
+          ? buildSmartInvestProjectionBreakdown(
+              computedProjection,
+              scenarioForLedger.assumptions.smartInvest?.allocation
+            ).cashflowEntries.map((entry) => {
+              const kind: CashflowItem["kind"] =
+                entry.label === "withdrawal" ? "withdrawal" : "contribution";
+              return {
+                month: entry.month,
+                amount: entry.amount,
+                source: "smartInvest" as const,
+                sourceId: entry.sourceId,
+                label: entry.label,
+                category: "smartInvest",
+                bucketId: entry.bucketId,
+                bucketName: entry.bucketName,
+                kind,
+              };
+            })
+          : [];
     const ledger = filterLedgerToHorizon(
       [...eventLedger, ...budgetLedger, ...smartInvestLedger],
       input.baseMonth,
@@ -383,6 +444,6 @@ export const usePlanLabProjectionWithLedger = (
       projectionNetCashflowMode: netCashflowLookup.mode,
       netWorthBreakdownByMonth,
       projectionWarnings: [...warnings, ...planLabCompilation.warnings],
-      smartInvestTransferSeries: [],
+      smartInvestTransferSeries,
     };
   }, [draft, eventLibrary, options.budgetRules, options.members, scenario]);

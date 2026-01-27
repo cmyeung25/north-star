@@ -8,6 +8,7 @@ import type {
   InvestmentPositionDraft,
   LoanPositionDraft,
 } from "../../store/scenarioStore";
+import type { SmartInvestAllocation, SmartInvestPolicy } from "../smartInvest/types";
 
 export type PlanLabEventPatch = {
   isDisabled?: boolean;
@@ -33,10 +34,16 @@ export type PlanLabPositionPatch = {
   >;
 };
 
+export type PlanLabSmartInvestPatch = {
+  isDisabled?: boolean;
+  patch?: Partial<SmartInvestPolicy>;
+};
+
 export type PlanLabBaselinePatches = {
   eventPatches?: Record<string, PlanLabEventPatch>;
   rulePatches?: Record<string, PlanLabRulePatch>;
   positionPatches?: Record<string, PlanLabPositionPatch>;
+  smartInvestPatch?: PlanLabSmartInvestPatch;
 };
 
 export type PlanLabExperimentType =
@@ -45,7 +52,8 @@ export type PlanLabExperimentType =
   | "homeBuy"
   | "carPlan"
   | "incomeAdjust"
-  | "travelAnnual";
+  | "travelAnnual"
+  | "smartInvestAdjust";
 
 export type PlanLabExperimentBase = {
   id: string;
@@ -106,13 +114,29 @@ export type PlanLabTravelAnnualExperiment = PlanLabExperimentBase & {
   annualAmount?: number;
 };
 
+export type PlanLabSmartInvestAdjustExperiment = PlanLabExperimentBase & {
+  type: "smartInvestAdjust";
+  reserveMode?: SmartInvestPolicy["reserve"]["mode"];
+  reserveAmount?: number;
+  reserveMonths?: number;
+  contributionMode?: SmartInvestPolicy["contribution"]["mode"];
+  contributionPct?: number;
+  contributionInvestPct?: number;
+  contributionThresholdAmount?: number;
+  allocation?: SmartInvestAllocation[];
+  withdrawalEnabled?: boolean;
+  withdrawalMode?: SmartInvestPolicy["withdrawal"]["mode"];
+  withdrawalSellOrder?: SmartInvestPolicy["withdrawal"]["sellOrder"];
+};
+
 export type PlanLabExperiment =
   | PlanLabOneOffExpenseExperiment
   | PlanLabRangeExpenseExperiment
   | PlanLabHomeBuyExperiment
   | PlanLabCarPlanExperiment
   | PlanLabIncomeAdjustExperiment
-  | PlanLabTravelAnnualExperiment;
+  | PlanLabTravelAnnualExperiment
+  | PlanLabSmartInvestAdjustExperiment;
 
 export type PlanLabScorecardSettings = {
   firstBucketTargetAmount?: number;
