@@ -18,6 +18,7 @@ import {
 } from "./compileUtils";
 import { buildScenarioEventViews } from "../events/utils";
 import { WarningCode } from "../warnings/types";
+import { buildSmartInvestPolicyFromDraft } from "./smartInvestAdjust";
 
 export type PlanLabDraftCompilation = {
   assumptions: Partial<ScenarioAssumptions>;
@@ -207,6 +208,8 @@ export const compilePlanLabDraft = (
   const eventPatches = baselinePatches.eventPatches ?? {};
   const rulePatches = baselinePatches.rulePatches ?? {};
   const positionPatches = baselinePatches.positionPatches ?? {};
+  const smartInvestPatch = baselinePatches.smartInvestPatch;
+  const experiments = draft.experiments ?? [];
 
   if (baselineScenario) {
     const eventViews = buildScenarioEventViews(baselineScenario, eventLibrary);
@@ -240,6 +243,14 @@ export const compilePlanLabDraft = (
   const patchedBudgetRules = nextBudgetRules.filter((rule) => rule.enabled !== false);
 
   const nextPositions: Partial<ScenarioPositions> = {};
+  const smartInvestPolicy = buildSmartInvestPolicyFromDraft({
+    baselinePolicy: baselineScenario?.assumptions.smartInvest,
+    baselinePatch: smartInvestPatch,
+    experiments,
+  });
+  if (smartInvestPolicy) {
+    assumptions.smartInvest = smartInvestPolicy;
+  }
   if (baselineScenario?.positions) {
     const positionsSource = baselineScenario.positions;
     if (positionsSource.home) {
