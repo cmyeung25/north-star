@@ -171,7 +171,7 @@ export const downloadCloudStateToLocal = async (uid: string) => {
     globalHorizonMonths:
       meta.globalHorizonMonths ??
       scenarios[0]?.assumptions.horizonMonths ??
-      240,
+      60,
     appSettings: meta.appSettings ?? undefined,
     members: meta.members ?? [],
     budgetRules: meta.budgetRules ?? [],

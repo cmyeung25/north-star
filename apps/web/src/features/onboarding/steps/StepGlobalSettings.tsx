@@ -1,4 +1,4 @@
-import { Group, NumberInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Card, Grid, Group, NumberInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import type { OnboardingSettingsDraft } from "../../../domain/onboarding/applyDraft";
 
 interface StepGlobalSettingsProps {
@@ -14,6 +14,8 @@ export default function StepGlobalSettings({
   onChange,
   t,
 }: StepGlobalSettingsProps) {
+  var horizonYears = Math.round(settings.horizonMonths / 12 * 10)  / 10;
+
   return (
     <Stack gap="xl">
       <Stack gap={4}>
@@ -22,53 +24,66 @@ export default function StepGlobalSettings({
           {t("settingsDescription")}
         </Text>
       </Stack>
+      <Grid justify="center" align="flex-start">
+        <Grid.Col span={6}>
+          <Card withBorder radius="md" padding="md">
+            <Group align="flex-start" grow mb="md">
+              <NumberInput
+                display="inlineblock"
+                label={t("initialCash")}
+                description={t("initialCashHint")}
+                min={0}
+                value={settings.initialCash}
+                onChange={(value) => onChange({ initialCash: Number(value) })}
+              />
+            </Group>
+            <Group align="flex-start" grow mb="md">
+              <TextInput
+                label={t("baseMonth")}
+                placeholder="YYYY-MM"
+                value={settings.baseMonth}
+                onChange={(event) => onChange({ baseMonth: event.currentTarget.value })}
+                error={errors.baseMonth}
+              />
+            </Group>
+            <Group align="flex-start" grow mb="md">
+              <NumberInput
+                label={t("horizonMonths")}
+                description={horizonYears + t("horizonMonthsHint")}
+                min={12}
+                value={settings.horizonMonths}
+                onChange={(value) => onChange({ horizonMonths: Number(value) })}
+                error={errors.horizonMonths}
+              />
+            </Group>
+            <Group align="flex-start" grow mb="md">
+              <NumberInput
+                label={t("annualInflation")}
+                min={-5}
+                max={20}
+                step={0.1}
+                value={settings.annualInflationPct}
+                onChange={(value) => onChange({ annualInflationPct: Number(value) })}
+                error={errors.annualInflationPct}
+              />
+            </Group>
+            <Group align="flex-start" grow mb="md">
+              <Select
+                label={t("viewMode")}
+                data={[
+                  { value: "nominal", label: t("viewModeNominal") },
+                  { value: "real", label: t("viewModeReal") },
+                ]}
+                value={settings.viewMode}
+                onChange={(value) =>
+                  onChange({ viewMode: (value ?? "nominal") as "nominal" | "real" })
+                }
+              />
+            </Group>
+          </Card>
+        </Grid.Col>
 
-      <Group grow align="flex-start">
-        <TextInput
-          label={t("baseMonth")}
-          placeholder="YYYY-MM"
-          value={settings.baseMonth}
-          onChange={(event) => onChange({ baseMonth: event.currentTarget.value })}
-          error={errors.baseMonth}
-        />
-        <NumberInput
-          label={t("initialCash")}
-          description={t("initialCashHint")}
-          min={0}
-          value={settings.initialCash}
-          onChange={(value) => onChange({ initialCash: Number(value) })}
-        />
-        <NumberInput
-          label={t("horizonMonths")}
-          min={12}
-          value={settings.horizonMonths}
-          onChange={(value) => onChange({ horizonMonths: Number(value) })}
-          error={errors.horizonMonths}
-        />
-      </Group>
-
-      <Group grow align="flex-start">
-        <NumberInput
-          label={t("annualInflation")}
-          min={-5}
-          max={20}
-          step={0.1}
-          value={settings.annualInflationPct}
-          onChange={(value) => onChange({ annualInflationPct: Number(value) })}
-          error={errors.annualInflationPct}
-        />
-        <Select
-          label={t("viewMode")}
-          data={[
-            { value: "nominal", label: t("viewModeNominal") },
-            { value: "real", label: t("viewModeReal") },
-          ]}
-          value={settings.viewMode}
-          onChange={(value) =>
-            onChange({ viewMode: (value ?? "nominal") as "nominal" | "real" })
-          }
-        />
-      </Group>
+      </Grid>
     </Stack>
   );
 }

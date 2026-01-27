@@ -498,7 +498,7 @@ const defaultKpis: ScenarioKpis = {
 };
 
 const defaultAssumptions: ScenarioAssumptions = {
-  horizonMonths: 240,
+  horizonMonths: 60,
   initialCash: 0,
   baseMonth: null,
   includeBudgetRulesInProjection: true,

@@ -1444,6 +1444,7 @@
     "settingsDescription": "Set the base month, horizon, inflation, and view mode.",
     "baseMonth": "Base month",
     "horizonMonths": "Horizon (months)",
+    "horizonMonthsHint": "Years",
     "annualInflation": "Annual inflation (%)",
     "viewMode": "View mode",
     "viewModeNominal": "Nominal",

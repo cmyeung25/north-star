@@ -4,6 +4,7 @@ import {
   Group,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -88,7 +89,7 @@ export default function StepBudgetRules({
         {t("addBudgetRule")}
       </Button>
 
-      <Stack gap="md">
+      <SimpleGrid cols={{ base: 1, sm: 2 , lg: 3, xl:4}} spacing="md">
         {rules.map((rule) => (
           <Card key={rule.id} withBorder radius="md" padding="md">
             <Stack gap="sm">
@@ -275,7 +276,7 @@ export default function StepBudgetRules({
             </Stack>
           </Card>
         ))}
-      </Stack>
+      </SimpleGrid>
 
     </Stack>
   );

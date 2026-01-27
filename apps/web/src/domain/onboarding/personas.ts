@@ -155,7 +155,7 @@ export const applyPersonaPreset = (
 ): PersonaPresetDraft => {
   const settingsDefaults: Partial<OnboardingSettingsDraft> = {
     baseMonth,
-    horizonMonths: 360,
+    horizonMonths: 60,
     annualInflationPct: 2,
     viewMode: "nominal",
   };

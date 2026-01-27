@@ -14,7 +14,7 @@ import {
 } from "../store/scenarioStore";
 
 const ONBOARDING_VERSION = 1;
-const DEFAULT_HORIZON_MONTHS = 240;
+const DEFAULT_HORIZON_MONTHS = 60;
 const DEFAULT_INFLATION_RATE = 2;
 const DEFAULT_SALARY_GROWTH_RATE = 3;
 const DEFAULT_RENT_GROWTH_RATE = 3;

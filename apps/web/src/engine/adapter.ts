@@ -469,7 +469,7 @@ export const mapScenarioToEngineInput = (
     warnInvalidMonth("baseMonth", candidate, undefined, normalized.reason);
   }
   const horizonMonths =
-    options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 240;
+    options.horizonMonths ?? scenario.assumptions.horizonMonths ?? 60;
   const initialCash =
     options.initialCash ?? scenario.assumptions.initialCash ?? 0;
   const investmentReturnAssumptions =

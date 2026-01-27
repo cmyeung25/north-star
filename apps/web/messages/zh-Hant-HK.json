@@ -1468,6 +1468,7 @@
     "settingsDescription": "設定起始月份、預測年限、通膨與顯示模式。",
     "baseMonth": "起始月份",
     "horizonMonths": "預測月數",
+    "horizonMonthsHint": "年",
     "annualInflation": "年通膨 (%)",
     "viewMode": "顯示模式",
     "viewModeNominal": "名目",

@@ -27,7 +27,7 @@ export default function StepPersonaPreset({
           {t("personaDescription")}
         </Text>
       </Stack>
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, sm: 3 , lg: 4, xl:6}} spacing="md">
         {presets.map((preset) => {
           const isSelected = preset.id === selectedId;
           return (

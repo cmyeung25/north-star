@@ -4,6 +4,7 @@ import {
   Group,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -68,7 +69,8 @@ export default function StepHouseholdMembers({
         </Text>
       )}
 
-      <Stack gap="md">
+      <SimpleGrid cols={{ base: 1, sm: 2 , lg: 3, xl:4}} spacing="md">
+        
         {members.map((member, index) => {
           const basis = member.birthMonth?.trim()
             ? "month"
@@ -78,89 +80,89 @@ export default function StepHouseholdMembers({
 
           return (
             <Card key={member.id} withBorder radius="md" padding="md">
-            <Stack gap="sm">
-              <Group justify="space-between" align="center">
-                <Text fw={600}>
-                  {t("memberCardTitle")} {index + 1}
-                </Text>
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  color="red"
-                  onClick={() => onRemoveMember(member.id)}
-                >
-                  {t("remove")}
-                </Button>
-              </Group>
-              <Group grow align="flex-start">
-                <TextInput
-                  label={t("memberName")}
-                  value={member.name}
-                  onChange={(event) =>
-                    onUpdateMember(member.id, { name: event.currentTarget.value })
-                  }
-                  error={errors[`member.${member.id}.name`]}
-                />
-                <Select
-                  label={t("memberKind")}
-                  data={kindOptions.map((option) => ({
-                    ...option,
-                    label: t(option.value === "person" ? "kindPerson" : "kindPet"),
-                  }))}
-                  value={member.kind}
-                  onChange={(value) =>
-                    onUpdateMember(member.id, { kind: (value ?? "person") as "person" | "pet" })
-                  }
-                />
-              </Group>
-              <DateOrAgeBasisPicker
-                value={basis}
-                onChange={(value) => {
-                  if (value === "month") {
-                    onUpdateMember(member.id, { ageAtBaseMonth: undefined });
-                  } else {
-                    onUpdateMember(member.id, {
-                      birthMonth: "",
-                      ageAtBaseMonth: member.ageAtBaseMonth ?? 0,
-                    });
-                  }
-                }}
-                monthLabel={t("basisMonth")}
-                ageLabel={t("basisAge")}
-              />
-              <Group grow align="flex-start">
-                {basis === "month" ? (
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600}>
+                    {member.name || t("memberCardTitle") + ` ${index + 1}`}
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    onClick={() => onRemoveMember(member.id)}
+                  >
+                    {t("remove")}
+                  </Button>
+                </Group>
+                <Group grow align="flex-start">
                   <TextInput
-                    label={t("birthMonth")}
-                    placeholder="YYYY-MM"
-                    value={member.birthMonth ?? ""}
+                    label={t("memberName")}
+                    value={member.name}
                     onChange={(event) =>
-                      onUpdateMember(member.id, { birthMonth: event.currentTarget.value })
+                      onUpdateMember(member.id, { name: event.currentTarget.value })
                     }
-                    error={errors[`member.${member.id}.birthMonth`]}
+                    error={errors[`member.${member.id}.name`]}
                   />
-                ) : (
-                  <NumberInput
-                    label={t("ageAtBaseMonth")}
-                    min={0}
-                    value={member.ageAtBaseMonth ?? ""}
+                  <Select
+                    label={t("memberKind")}
+                    data={kindOptions.map((option) => ({
+                      ...option,
+                      label: t(option.value === "person" ? "kindPerson" : "kindPet"),
+                    }))}
+                    value={member.kind}
                     onChange={(value) =>
-                      onUpdateMember(member.id, {
-                        ageAtBaseMonth: typeof value === "number" ? value : undefined,
-                      })
+                      onUpdateMember(member.id, { kind: (value ?? "person") as "person" | "pet" })
                     }
-                    error={errors[`member.${member.id}.ageAtBaseMonth`]}
                   />
-                )}
-              </Group>
-              <Text size="xs" c="dimmed">
-                {t("birthMonthHint")}
-              </Text>
-            </Stack>
-          </Card>
-        );
+                </Group>
+                <DateOrAgeBasisPicker
+                  value={basis}
+                  onChange={(value) => {
+                    if (value === "month") {
+                      onUpdateMember(member.id, { ageAtBaseMonth: undefined });
+                    } else {
+                      onUpdateMember(member.id, {
+                        birthMonth: "",
+                        ageAtBaseMonth: member.ageAtBaseMonth ?? 0,
+                      });
+                    }
+                  }}
+                  monthLabel={t("basisMonth")}
+                  ageLabel={t("basisAge")}
+                />
+                <Group grow align="flex-start">
+                  {basis === "month" ? (
+                    <TextInput
+                      label={t("birthMonth")}
+                      placeholder="YYYY-MM"
+                      value={member.birthMonth ?? ""}
+                      onChange={(event) =>
+                        onUpdateMember(member.id, { birthMonth: event.currentTarget.value })
+                      }
+                      error={errors[`member.${member.id}.birthMonth`]}
+                    />
+                  ) : (
+                    <NumberInput
+                      label={t("ageAtBaseMonth")}
+                      min={0}
+                      value={member.ageAtBaseMonth ?? ""}
+                      onChange={(value) =>
+                        onUpdateMember(member.id, {
+                          ageAtBaseMonth: typeof value === "number" ? value : undefined,
+                        })
+                      }
+                      error={errors[`member.${member.id}.ageAtBaseMonth`]}
+                    />
+                  )}
+                </Group>
+                <Text size="xs" c="dimmed">
+                  {t("birthMonthHint")}
+                </Text>
+              </Stack>
+            </Card>
+          );
         })}
-      </Stack>
+      </SimpleGrid>
     </Stack>
   );
 }
