@@ -19,6 +19,7 @@ import type { BudgetCategory } from "../../../store/scenarioStore";
 import DateOrAgeBasisPicker, {
   type DateOrAgeBasis,
 } from "../../../../components/DateOrAgeBasisPicker";
+import MonthField from "../../../../components/MonthField";
 
 interface StepBudgetRulesProps {
   rules: OnboardingBudgetRuleDraft[];
@@ -199,26 +200,20 @@ export default function StepBudgetRules({
                     <Group grow align="flex-start">
                       {disableAge || basis === "month" ? (
                         <>
-                          <TextInput
+                          <MonthField
                             label={t("startMonth")}
                             placeholder="YYYY-MM"
                             value={rule.startMonth ?? ""}
-                            onChange={(event) =>
-                              onUpdateRule(rule.id, {
-                                startMonth: event.currentTarget.value,
-                              })
+                            onChange={(value) =>
+                              onUpdateRule(rule.id, { startMonth: value })
                             }
                             error={errors[`rule.${rule.id}.startMonth`]}
                           />
-                          <TextInput
+                          <MonthField
                             label={t("endMonth")}
                             placeholder="YYYY-MM"
                             value={rule.endMonth ?? ""}
-                            onChange={(event) =>
-                              onUpdateRule(rule.id, {
-                                endMonth: event.currentTarget.value,
-                              })
-                            }
+                            onChange={(value) => onUpdateRule(rule.id, { endMonth: value })}
                             error={errors[`rule.${rule.id}.endMonth`]}
                           />
                         </>

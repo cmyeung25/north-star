@@ -142,6 +142,7 @@ export type RentalDetails = {
 
 export type HomePosition = {
   name?: string;
+  ownerMemberId?: string;
   usage?: HomeUsage;
   mode?: HomeMode;
   purchasePrice?: number;
@@ -156,6 +157,7 @@ export type HomePosition = {
   sellMonth?: string;
   sellPriceOverride?: number;
   sellFeesOneTime?: number;
+  notes?: string;
   existing?: ExistingHomeDetails;
   rental?: RentalDetails;
 };
@@ -166,9 +168,12 @@ export type HomePositionDraft = HomePosition & {
 
 export type InvestmentPosition = {
   id?: string;
+  name?: string;
+  ownerMemberId?: string;
   assetClass?: InvestmentAssetClass;
   startMonth: string;
   initialValue: number;
+  notes?: string;
   expectedAnnualReturnPct?: number;
   monthlyContribution?: number;
   monthlyWithdrawal?: number;
@@ -178,6 +183,7 @@ export type InvestmentPosition = {
 export type InsurancePosition = {
   id?: string;
   name: string;
+  ownerMemberId?: string;
   enabled: boolean;
   kind: InsuranceKind;
   startMonth: string;
@@ -186,10 +192,13 @@ export type InsurancePosition = {
   premiumAnnualGrowthPct?: number;
   initialCashValue?: number;
   expectedAnnualReturnPct?: number;
+  notes?: string;
 };
 
 export type LoanPosition = {
   id?: string;
+  name?: string;
+  ownerMemberId?: string;
   startMonth: string;
   principal: number;
   annualInterestRatePct: number;
@@ -197,6 +206,7 @@ export type LoanPosition = {
   monthlyPayment?: number;
   paymentMethod?: "amortization" | "manual";
   feesOneTime?: number;
+  notes?: string;
 };
 
 export type CarLoanDetails = {
@@ -208,6 +218,8 @@ export type CarLoanDetails = {
 
 export type CarPosition = {
   id?: string;
+  name?: string;
+  ownerMemberId?: string;
   purchaseMonth: string;
   purchasePrice: number;
   downPayment: number;
@@ -218,6 +230,7 @@ export type CarPosition = {
   sellMonth?: string;
   sellPriceOverride?: number;
   sellFeesOneTime?: number;
+  notes?: string;
 };
 
 export type CashBucketPosition = {
@@ -335,6 +348,7 @@ type ScenarioStoreState = {
   createBudgetRule: (rule: BudgetRule) => void;
   updateBudgetRule: (ruleId: string, patch: Partial<BudgetRule>) => void;
   removeBudgetRule: (ruleId: string) => void;
+  setScenarioPositions: (id: string, positions: ScenarioPositions) => void;
   addHomePosition: (id: string, home: HomePositionDraft) => void;
   updateHomePosition: (id: string, home: HomePositionDraft) => void;
   removeHomePosition: (id: string, homeId: string) => void;
@@ -1431,6 +1445,37 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   removeBudgetRule: (ruleId) => {
     set((state) => ({
       budgetRules: state.budgetRules.filter((rule) => rule.id !== ruleId),
+    }));
+  },
+  setScenarioPositions: (id, positions) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+
+        const nextPositions = normalizeScenarioPositions(
+          positions,
+          scenario.assumptions.baseMonth
+        );
+        const nextHomes = nextPositions?.homes ?? [];
+        const eventLibraryMap = buildEventLibraryMap(get().eventLibrary);
+        const nextEventRefs =
+          nextHomes.length === 0
+            ? (scenario.eventRefs ?? []).filter((ref) => {
+                const definition = eventLibraryMap.get(ref.refId);
+                return definition?.type !== "buy_home";
+              })
+            : scenario.eventRefs;
+
+        return {
+          ...scenario,
+          eventRefs: nextEventRefs,
+          positions: nextPositions,
+          updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
+        };
+      }),
     }));
   },
   addHomePosition: (id, home) => {

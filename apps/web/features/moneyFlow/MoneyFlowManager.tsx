@@ -203,6 +203,7 @@ export default function MoneyFlowManager({
       };
     }
   );
+  const isReadOnly = draft.source === "derived" || draft.source === "eventGenerated";
 
   const filteredItems = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -448,7 +449,7 @@ export default function MoneyFlowManager({
               { value: "income", label: t("flowFilterIncome") },
               { value: "expense", label: t("flowFilterExpense") },
             ]}
-            disabled={draft.sourceType === "budgetRule"}
+            disabled={isReadOnly}
             />
             <Select
               label={t("flowFormCadenceLabel")}
@@ -479,7 +480,7 @@ export default function MoneyFlowManager({
                 { value: "recurring", label: t("flowFilterRecurring") },
                 { value: "oneOff", label: t("flowFilterOneOff") },
               ]}
-              disabled={draft.sourceType === "budgetRule"}
+              disabled={isReadOnly}
             />
           </Group>
 
@@ -489,6 +490,7 @@ export default function MoneyFlowManager({
             onChange={(value) => setDraft((current) => ({ ...current, category: value ?? "" }))}
             data={resolveCategoryOptions(draft.sourceType, draft.kind)}
             error={errors.category}
+            disabled={isReadOnly}
           />
 
           <NumberInput
@@ -502,6 +504,7 @@ export default function MoneyFlowManager({
             }
             min={0}
             error={errors.amount}
+            disabled={isReadOnly}
           />
 
           <Select
@@ -512,6 +515,7 @@ export default function MoneyFlowManager({
               { value: "", label: t("flowMemberHousehold") },
               ...members.map((member) => ({ value: member.id, label: member.name })),
             ]}
+            disabled={isReadOnly}
           />
 
           {draft.cadence === "recurring" ? (
@@ -521,12 +525,14 @@ export default function MoneyFlowManager({
                 value={draft.startMonth}
                 onChange={(value) => setDraft((current) => ({ ...current, startMonth: value }))}
                 error={errors.startMonth}
+                disabled={isReadOnly}
               />
               <MonthField
                 label={t("flowFormEndMonthLabel")}
                 value={draft.endMonth}
                 onChange={(value) => setDraft((current) => ({ ...current, endMonth: value }))}
                 error={errors.endMonth}
+                disabled={isReadOnly}
               />
             </Group>
           ) : (
@@ -535,6 +541,7 @@ export default function MoneyFlowManager({
               value={draft.month}
               onChange={(value) => setDraft((current) => ({ ...current, month: value }))}
               error={errors.month}
+              disabled={isReadOnly}
             />
           )}
 
@@ -544,6 +551,7 @@ export default function MoneyFlowManager({
             onChange={(event) =>
               setDraft((current) => ({ ...current, notes: event.currentTarget.value }))
             }
+            disabled={isReadOnly}
           />
 
           <Divider />

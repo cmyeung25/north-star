@@ -9,7 +9,6 @@ import {
   Modal,
   SegmentedControl,
   Select,
-  SimpleGrid,
   Stack,
   Switch,
   Tabs,
@@ -61,7 +60,6 @@ import {
   formatHomeSummary,
   formatInsuranceSummary,
   formatInvestmentSummary,
-  formatLoanSummary,
   listEventTypesForGroup,
 } from "../../../components/timeline/utils";
 import {
@@ -84,6 +82,8 @@ import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModal
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import MoneyFlowManager from "../../../features/moneyFlow/MoneyFlowManager";
+import AssetManager from "../../../features/assets/AssetManager";
+import LiabilityManager from "../../../features/liabilities/LiabilityManager";
 import type {
   BudgetCategory,
   CarPositionDraft,
@@ -101,6 +101,13 @@ import {
   removeMoneyItem,
   upsertMoneyItem,
 } from "../../../features/moneyFlow/moneyFlowAdapter";
+import { applyAssetItemChange, toAssetItems } from "../../../features/assets/assetAdapter";
+import {
+  applyLiabilityItemChange,
+  toLiabilityItems,
+} from "../../../features/liabilities/liabilityAdapter";
+import type { AssetItem } from "../../../features/assets/types";
+import type { LiabilityItem } from "../../../features/liabilities/types";
 
 type CashflowModalState = {
   opened: boolean;
@@ -181,6 +188,7 @@ export default function MoneyClient({
   const removeScenarioEventRef = useScenarioStore((state) => state.removeScenarioEventRef);
   const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
   const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
+  const setScenarioPositions = useScenarioStore((state) => state.setScenarioPositions);
   const addHomePosition = useScenarioStore((state) => state.addHomePosition);
   const updateHomePosition = useScenarioStore((state) => state.updateHomePosition);
   const removeHomePosition = useScenarioStore((state) => state.removeHomePosition);
@@ -676,6 +684,14 @@ export default function MoneyClient({
     () => (category: string) => moneyCategoryLabelMap.get(category) ?? category,
     [moneyCategoryLabelMap]
   );
+  const assetItems = useMemo(
+    () => (scenario ? toAssetItems(scenario) : []),
+    [scenario]
+  );
+  const liabilityItems = useMemo(
+    () => (scenario ? toLiabilityItems(scenario) : []),
+    [scenario]
+  );
   const handleUpsertMoneyItem = (item: Parameters<typeof upsertMoneyItem>[0]["item"]) => {
     if (!scenario || !scenarioIdValue) {
       return;
@@ -707,6 +723,57 @@ export default function MoneyClient({
         removeBudgetRule,
       },
     });
+  };
+  const handleUpsertAssetItem = (item: Parameters<typeof applyAssetItemChange>[1]["item"]) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyAssetItemChange(scenario, { type: "upsert", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+  };
+  const handleRemoveAssetItem = (item: AssetItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyAssetItemChange(scenario, { type: "remove", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+  };
+  const handleUpsertLiabilityItem = (
+    item: Parameters<typeof applyLiabilityItemChange>[1]["item"]
+  ) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyLiabilityItemChange(scenario, { type: "upsert", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+  };
+  const handleRemoveLiabilityItem = (item: LiabilityItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyLiabilityItemChange(scenario, { type: "remove", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+  };
+  const handleViewAssetItem = (item: AssetItem) => {
+    switch (item.assetType) {
+      case "property":
+        setAssetDetails({ type: "home", id: item.id });
+        break;
+      case "investment":
+        setAssetDetails({ type: "investment", id: item.id });
+        break;
+      case "insurance":
+        setAssetDetails({ type: "insurance", id: item.id });
+        break;
+      case "car":
+        setAssetDetails({ type: "car", id: item.id });
+        break;
+      default:
+        break;
+    }
+  };
+  const handleViewLiabilityItem = (item: LiabilityItem) => {
+    setAssetDetails({ type: "loan", id: item.id });
   };
   const inputsItems = useMemo(() => {
     if (inputsFilter === "rules") {
@@ -1571,139 +1638,15 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("assetsDescription")}
             </Text>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{homesText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingHome(createHomePositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {homesText("addHome")}
-                </Button>
-              </Group>
-              {homes.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {homesText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {homes.map((home) => (
-                    <Card key={home.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{homesText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatHomeSummary(homesText, home, scenario?.baseCurrency ?? "USD", locale)}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setAssetDetails({ type: "home", id: home.id })}
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingHomeId(home.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: home.id,
-                                label: homesText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{investmentsText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingInvestment(createInvestmentPositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {investmentsText("addInvestment")}
-                </Button>
-              </Group>
-              {investments.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {investmentsText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {investments.map((investment) => (
-                    <Card key={investment.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{investmentsText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatInvestmentSummary(
-                            investmentsText,
-                            investment,
-                            scenario?.baseCurrency ?? "USD",
-                            locale
-                          )}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() =>
-                              setAssetDetails({ type: "investment", id: investment.id })
-                            }
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingInvestmentId(investment.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: investment.id ?? "",
-                                label: investmentsText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
+            <AssetManager
+              items={assetItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              members={members}
+              onUpsert={handleUpsertAssetItem}
+              onDelete={handleRemoveAssetItem}
+              onView={handleViewAssetItem}
+            />
             <Stack gap="sm">
               <Group justify="space-between" align="center" wrap="wrap">
                 <Text fw={600}>{timelineText("smartInvestTitle")}</Text>
@@ -1743,139 +1686,6 @@ export default function MoneyClient({
                 </Stack>
               </Card>
             </Stack>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{insurancesText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingInsurance(createInsurancePositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {insurancesText("addInsurance")}
-                </Button>
-              </Group>
-              {insurances.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {insurancesText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {insurances.map((insurance) => (
-                    <Card key={insurance.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{insurancesText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatInsuranceSummary(
-                            insurancesText,
-                            insurance,
-                            scenario?.baseCurrency ?? "USD",
-                            locale
-                          )}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() =>
-                              setAssetDetails({ type: "insurance", id: insurance.id })
-                            }
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingInsuranceId(insurance.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: insurance.id ?? "",
-                                label: insurancesText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{carsText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingCar(createCarPositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {carsText("addCar")}
-                </Button>
-              </Group>
-              {cars.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {carsText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {cars.map((car) => (
-                    <Card key={car.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{carsText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatCarSummary(carsText, car, scenario?.baseCurrency ?? "USD", locale)}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setAssetDetails({ type: "car", id: car.id })}
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingCarId(car.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: car.id ?? "",
-                                label: carsText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
           </Stack>
         </Tabs.Panel>
 
@@ -1884,65 +1694,14 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("liabilitiesDescription")}
             </Text>
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text fw={600}>{loansText("title")}</Text>
-              <Button
-                size="xs"
-                variant="light"
-                onClick={() => setCreatingLoan(createLoanPositionFromTemplate({ baseMonth }))}
-                disabled={!scenarioIdValue}
-              >
-                {loansText("addLoan")}
-              </Button>
-            </Group>
-            {loans.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                {loansText("empty")}
-              </Text>
-            ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                {loans.map((loan) => (
-                  <Card key={loan.id} withBorder radius="md" padding="sm">
-                    <Stack gap={4}>
-                      <Text fw={600}>{loansText("title")}</Text>
-                      <Text size="sm" c="dimmed">
-                        {formatLoanSummary(loansText, loan, scenario?.baseCurrency ?? "USD", locale)}
-                      </Text>
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setAssetDetails({ type: "loan", id: loan.id })}
-                        >
-                          {common("actionDetails")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setEditingLoanId(loan.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          color="red"
-                          onClick={() => {
-                            setDeleteConfirmation({
-                              type: "loan",
-                              id: loan.id ?? "",
-                              label: loansText("title"),
-                            });
-                          }}
-                        >
-                          {common("actionDelete")}
-                        </Button>
-                      </Group>
-                    </Stack>
-                  </Card>
-                ))}
-              </SimpleGrid>
-            )}
+            <LiabilityManager
+              items={liabilityItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              onUpsert={handleUpsertLiabilityItem}
+              onDelete={handleRemoveLiabilityItem}
+              onView={handleViewLiabilityItem}
+            />
           </Stack>
         </Tabs.Panel>
 
