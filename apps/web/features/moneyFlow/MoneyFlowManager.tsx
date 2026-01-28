@@ -146,12 +146,23 @@ export default function MoneyFlowManager({
     notes: currentDraft.notes || undefined,
   });
 
-  const { draft, setDraft, errors, validate, reset } = useEntityDraft(
-    buildDraft(editingItem, {
+  const initialDraft = useMemo(
+    () =>
+      buildDraft(editingItem, {
+        baseCurrency,
+        defaultKind: defaultNewItem?.kind ?? "income",
+        defaultCadence: defaultNewItem?.cadence ?? "recurring",
+      }),
+    [
+      editingItem,
       baseCurrency,
-      defaultKind: defaultNewItem?.kind ?? "income",
-      defaultCadence: defaultNewItem?.cadence ?? "recurring",
-    }),
+      defaultNewItem?.kind,
+      defaultNewItem?.cadence,
+    ]
+  );
+
+  const { draft, setDraft, errors, validate, reset } = useEntityDraft(
+    initialDraft,
     (currentDraft) => {
       const nextErrors: Record<string, string> = {};
       const amountValue = Number(currentDraft.amount);
