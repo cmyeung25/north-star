@@ -62,6 +62,7 @@ import {
   formatInsuranceSummary,
   formatInvestmentSummary,
   formatLoanSummary,
+  listEventTypesForGroup,
 } from "../../../components/timeline/utils";
 import {
   getScenarioById,
@@ -82,16 +83,24 @@ import { compileSellLifecycle } from "../../../src/domain/positions/compileSellL
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
+import MoneyFlowManager from "../../../features/moneyFlow/MoneyFlowManager";
 import type {
+  BudgetCategory,
   CarPositionDraft,
   HomePositionDraft,
   InsurancePositionDraft,
   InvestmentPositionDraft,
   LoanPositionDraft,
 } from "../../../src/store/scenarioStore";
-import type { EventGroup } from "@north-star/engine";
 import { useUiStore } from "../../../src/store/uiStore";
 import { ONBOARDING_PLACEHOLDER_TAG } from "../../../src/domain/onboarding/mapOnboardingDraftToStoreItems";
+import {
+  buildMoneyCategoryLabelMap,
+  buildMoneyCategoryOptions,
+  buildMoneyItems,
+  removeMoneyItem,
+  upsertMoneyItem,
+} from "../../../features/moneyFlow/moneyFlowAdapter";
 
 type CashflowModalState = {
   opened: boolean;
@@ -170,6 +179,8 @@ export default function MoneyClient({
   const updateEventDefinition = useScenarioStore((state) => state.updateEventDefinition);
   const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
   const removeScenarioEventRef = useScenarioStore((state) => state.removeScenarioEventRef);
+  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
+  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
   const addHomePosition = useScenarioStore((state) => state.addHomePosition);
   const updateHomePosition = useScenarioStore((state) => state.updateHomePosition);
   const removeHomePosition = useScenarioStore((state) => state.removeHomePosition);
@@ -252,8 +263,6 @@ export default function MoneyClient({
     }, {});
   }, [projection]);
   const [addFlowOpen, setAddFlowOpen] = useState(false);
-  const [addEventGroup, setAddEventGroup] = useState<EventGroup | null>(null);
-  const [addEventDrawerOpen, setAddEventDrawerOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
   const [creatingHome, setCreatingHome] = useState<HomePositionDraft | null>(null);
   const [creatingCar, setCreatingCar] = useState<CarPositionDraft | null>(null);
@@ -378,11 +387,6 @@ export default function MoneyClient({
     setBreakdownMonthRange,
   ]);
 
-  const openEventDrawer = (group?: EventGroup) => {
-    setAddEventGroup(group ?? null);
-    setAddEventDrawerOpen(true);
-  };
-
   const memberLookup = useMemo(
     () => new Map(members.map((member) => [member.id, member.name])),
     [members]
@@ -404,12 +408,56 @@ export default function MoneyClient({
       return { view, event };
     });
   }, [eventLibrary, scenario]);
-
-  const incomeEvents = eventRows.filter(
-    (row) => getEventGroup(row.event.type) === "income"
+  const budgetCategoryLabels = useMemo(
+    () => ({
+      health: budgetText("categoryHealth"),
+      baseline: budgetText("categoryBaseline"),
+      childcare: budgetText("categoryChildcare"),
+      education: budgetText("categoryEducation"),
+      eldercare: budgetText("categoryEldercare"),
+      petcare: budgetText("categoryPetcare"),
+    }),
+    [budgetText]
   );
-  const expenseEvents = eventRows.filter(
-    (row) => getEventGroup(row.event.type) === "expense"
+  const incomeEventTypes = useMemo(() => listEventTypesForGroup("income"), []);
+  const expenseEventTypes = useMemo(() => listEventTypesForGroup("expense"), []);
+  const moneyCategoryLabelMap = useMemo(
+    () =>
+      buildMoneyCategoryLabelMap(
+        [...incomeEventTypes, ...expenseEventTypes],
+        Object.keys(budgetCategoryLabels) as BudgetCategory[],
+        {
+          getEventLabel: (type) => getEventTypeDisplay(timelineText, type),
+          getBudgetLabel: (category) =>
+            budgetCategoryLabels[category as BudgetCategory] ?? category,
+        }
+      ),
+    [budgetCategoryLabels, expenseEventTypes, incomeEventTypes, timelineText]
+  );
+  const moneyCategoryOptions = useMemo(
+    () =>
+      buildMoneyCategoryOptions({
+        incomeEventTypes,
+        expenseEventTypes,
+        budgetCategories: Object.keys(budgetCategoryLabels) as BudgetCategory[],
+        labels: {
+          getEventLabel: (type) => getEventTypeDisplay(timelineText, type),
+          getBudgetLabel: (category) =>
+            budgetCategoryLabels[category as BudgetCategory] ?? category,
+        },
+      }),
+    [budgetCategoryLabels, expenseEventTypes, incomeEventTypes, timelineText]
+  );
+  const moneyItems = useMemo(
+    () =>
+      scenario
+        ? buildMoneyItems({
+            scenario,
+            eventLibrary,
+            budgetRules,
+          })
+        : [],
+    [budgetRules, eventLibrary, scenario]
   );
 
   const parentGroupOptions = useMemo(
@@ -446,9 +494,6 @@ export default function MoneyClient({
     ? buildScenarioUrl("/money", scenarioIdValue)
     : "/money";
   const timelineTabHref = `${timelineHref}${timelineHref.includes("?") ? "&" : "?"}tab=timeline`;
-  const budgetHref = scenarioIdValue
-    ? `/people?scenarioId=${scenarioIdValue}&tab=budget`
-    : "/people?tab=budget";
 
   const positions = scenario?.positions;
   const homes = useMemo(() => positions?.homes ?? [], [positions?.homes]);
@@ -481,21 +526,12 @@ export default function MoneyClient({
     [projection, smartInvestPolicy.allocation]
   );
   const inputRuleItems = useMemo(() => {
-    const categoryLabels: Record<string, string> = {
-      health: budgetText("categoryHealth"),
-      baseline: budgetText("categoryBaseline"),
-      childcare: budgetText("categoryChildcare"),
-      education: budgetText("categoryEducation"),
-      eldercare: budgetText("categoryEldercare"),
-      petcare: budgetText("categoryPetcare"),
-    };
-
     return budgetRules.map((rule) => ({
         id: rule.id,
         kind: "rule" as const,
         label: rule.name,
         description: t("inputsRuleMeta", {
-          category: categoryLabels[rule.category] ?? rule.category,
+          category: budgetCategoryLabels[rule.category] ?? rule.category,
           amount: formatCurrency(rule.monthlyAmount, scenario?.baseCurrency ?? "USD", locale),
         }),
         onEdit: () => {
@@ -511,7 +547,7 @@ export default function MoneyClient({
       }));
   }, [
     budgetRules,
-    budgetText,
+    budgetCategoryLabels,
     locale,
     removeBudgetRule,
     router,
@@ -635,6 +671,43 @@ export default function MoneyClient({
       timelineText,
     ]
   );
+
+  const resolveMoneyCategoryLabel = useMemo(
+    () => (category: string) => moneyCategoryLabelMap.get(category) ?? category,
+    [moneyCategoryLabelMap]
+  );
+  const handleUpsertMoneyItem = (item: Parameters<typeof upsertMoneyItem>[0]["item"]) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    upsertMoneyItem({
+      item,
+      scenarioId: scenarioIdValue,
+      baseCurrency: scenario.baseCurrency,
+      eventLibrary,
+      budgetRules,
+      actions: {
+        createBudgetRule,
+        updateBudgetRule,
+        addEventToScenarios,
+        updateEventDefinition,
+      },
+      resolveCategoryLabel: resolveMoneyCategoryLabel,
+    });
+  };
+  const handleRemoveMoneyItem = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    removeMoneyItem({
+      item,
+      scenarioId: scenarioIdValue,
+      actions: {
+        removeScenarioEventRef,
+        removeBudgetRule,
+      },
+    });
+  };
   const inputsItems = useMemo(() => {
     if (inputsFilter === "rules") {
       return inputRuleItems;
@@ -666,8 +739,7 @@ export default function MoneyClient({
     }
     const action = initialAdd as MoneyAddAction;
     if (action === "event") {
-      setAddEventGroup(null);
-      setAddEventDrawerOpen(true);
+      setActiveTab("income");
       hasHandledInitialAdd.current = true;
       return;
     }
@@ -1456,20 +1528,18 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("incomeDescription")}
             </Text>
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text size="sm" c="dimmed">
-                {t("incomeListLabel")}
-              </Text>
-              <Button
-                size="xs"
-                variant="light"
-                onClick={() => openEventDrawer("income")}
-                disabled={!scenarioIdValue}
-              >
-                {t("addIncomeEvent")}
-              </Button>
-            </Group>
-            {renderEventList(incomeEvents, { showEditButton: true })}
+            <MoneyFlowManager
+              items={moneyItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              members={members}
+              categoryLabels={moneyCategoryLabelMap}
+              categoryOptions={moneyCategoryOptions}
+              defaultFilters={{ kind: "income" }}
+              defaultNewItem={{ kind: "income", cadence: "recurring" }}
+              onUpsert={handleUpsertMoneyItem}
+              onDelete={handleRemoveMoneyItem}
+            />
           </Stack>
         </Tabs.Panel>
 
@@ -1478,28 +1548,21 @@ export default function MoneyClient({
             <Card withBorder radius="md" padding="md">
               <Text size="sm">{t("expenseGuidance")}</Text>
             </Card>
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text size="sm" c="dimmed">
-                {t("expensesDescription")}
-              </Text>
-              <Group gap="xs">
-                <Button component={Link} href={budgetHref} size="xs" variant="light">
-                  {t("expensesBudgetCta")}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() => openEventDrawer("expense")}
-                  disabled={!scenarioIdValue}
-                >
-                  {t("addExpenseEvent")}
-                </Button>
-              </Group>
-            </Group>
-            {renderEventList(expenseEvents, {
-              showOverlapHint: true,
-              showEditButton: true,
-            })}
+            <Text size="sm" c="dimmed">
+              {t("expensesDescription")}
+            </Text>
+            <MoneyFlowManager
+              items={moneyItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              members={members}
+              categoryLabels={moneyCategoryLabelMap}
+              categoryOptions={moneyCategoryOptions}
+              defaultFilters={{ kind: "expense" }}
+              defaultNewItem={{ kind: "expense", cadence: "recurring" }}
+              onUpsert={handleUpsertMoneyItem}
+              onDelete={handleRemoveMoneyItem}
+            />
           </Stack>
         </Tabs.Panel>
 
@@ -2154,36 +2217,6 @@ export default function MoneyClient({
 
       {scenario && scenarioIdValue && (
         <>
-          <TimelineEventDrawer
-            mode="create"
-            opened={addEventDrawerOpen}
-            onClose={() => {
-              setAddEventDrawerOpen(false);
-              setAddEventGroup(null);
-            }}
-            baseCurrency={scenario.baseCurrency}
-            baseMonth={baseMonth}
-            assumptions={{
-              baseMonth,
-              horizonMonths: scenario.assumptions.horizonMonths ?? 0,
-            }}
-            members={members}
-            scenarioOptions={scenarios.map((entry) => ({
-              value: entry.id,
-              label: entry.name,
-            }))}
-            defaultScenarioId={scenarioIdValue}
-            defaultMonth={baseMonth}
-            defaultGroup={addEventGroup ?? undefined}
-            parentGroupOptions={parentGroupOptions}
-            onAddDefinition={(definition, scenarioIds) =>
-              addEventToScenarios(definition, scenarioIds)
-            }
-            onAddHomePosition={() =>
-              setCreatingHome(createHomePositionFromTemplate({ baseMonth }))
-            }
-          />
-
           <TimelineEventDrawer
             mode="edit"
             opened={Boolean(editingEvent)}
