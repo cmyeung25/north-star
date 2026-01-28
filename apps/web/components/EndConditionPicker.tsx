@@ -1,6 +1,7 @@
 "use client";
 
-import { Group, NumberInput, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, SegmentedControl, Stack, Text } from "@mantine/core";
+import MonthField from "./MonthField";
 
 export type EndConditionMode = "month" | "age";
 
@@ -60,13 +61,13 @@ export default function EndConditionPicker({
         ]}
       />
       <Group grow align="flex-start">
-        <TextInput
+        <MonthField
           label={monthLabel}
           placeholder={monthPlaceholder}
           value={mode === "month" ? monthValue : ""}
           error={mode === "month" ? monthError : undefined}
           disabled={mode !== "month"}
-          onChange={(event) => onMonthChange(event.currentTarget.value)}
+          onChange={(value) => onMonthChange(value)}
           onBlur={onMonthBlur}
         />
         <NumberInput

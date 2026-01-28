@@ -22,6 +22,7 @@ import {
   ONBOARDING_EVENT_TYPES,
   getEventTypeLabel,
 } from "../../../domain/events/eventTypeLabels";
+import MonthField from "../../../../components/MonthField";
 
 interface StepTimelineEventsProps {
   events: OnboardingTimelineEventDraft[];
@@ -152,21 +153,21 @@ export default function StepTimelineEvents({
                     onChange={(value) => onUpdateEvent(event.id, { memberId: value })}
                     error={errors[`event.${event.id}.memberId`]}
                   />
-                  <TextInput
+                  <MonthField
                     label={t("startMonth")}
                     placeholder="YYYY-MM"
                     value={event.startMonth ?? ""}
-                    onChange={(e) =>
-                      onUpdateEvent(event.id, { startMonth: e.currentTarget.value })
+                    onChange={(value) =>
+                      onUpdateEvent(event.id, { startMonth: value })
                     }
                     error={errors[`event.${event.id}.startMonth`]}
                   />
-                  <TextInput
+                  <MonthField
                     label={t("endMonth")}
                     placeholder="YYYY-MM"
                     value={event.endMonth ?? ""}
-                    onChange={(e) =>
-                      onUpdateEvent(event.id, { endMonth: e.currentTarget.value })
+                    onChange={(value) =>
+                      onUpdateEvent(event.id, { endMonth: value })
                     }
                     error={errors[`event.${event.id}.endMonth`]}
                   />

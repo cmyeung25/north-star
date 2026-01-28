@@ -13,6 +13,7 @@ import {
 import type { OnboardingMemberDraft } from "../../../domain/onboarding/applyDraft";
 import type { OnboardingMemberTemplate } from "../types";
 import DateOrAgeBasisPicker from "../../../../components/DateOrAgeBasisPicker";
+import MonthField from "../../../../components/MonthField";
 
 interface StepHouseholdMembersProps {
   members: OnboardingMemberDraft[];
@@ -132,12 +133,12 @@ export default function StepHouseholdMembers({
                 />
                 <Group grow align="flex-start">
                   {basis === "month" ? (
-                    <TextInput
+                    <MonthField
                       label={t("birthMonth")}
                       placeholder="YYYY-MM"
                       value={member.birthMonth ?? ""}
-                      onChange={(event) =>
-                        onUpdateMember(member.id, { birthMonth: event.currentTarget.value })
+                      onChange={(value) =>
+                        onUpdateMember(member.id, { birthMonth: value })
                       }
                       error={errors[`member.${member.id}.birthMonth`]}
                     />
