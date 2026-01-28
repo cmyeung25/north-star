@@ -19,11 +19,8 @@ import { nanoid } from "nanoid";
 import { buildMonthRange, type EventField, type EventFieldKey } from "@north-star/engine";
 import { useTranslations } from "next-intl";
 import { normalizeEvent } from "../../src/features/timeline/schema";
-import {
-  isValidMonthStr,
-  normalizeMonthInput,
-  normalizeMonthStrict,
-} from "../../src/utils/month";
+import { normalizeMonthStrict } from "../../src/utils/month";
+import { isValidMonthKey, normalizeMonthInput } from "../../src/utils/monthKey";
 import type { TimelineEvent } from "./types";
 import type { ScenarioAssumptions, ScenarioMember } from "../../src/store/scenarioStore";
 import { monthAtAge } from "../../src/domain/members/age";
@@ -42,6 +39,8 @@ import type {
 import CashflowPreviewChart from "./CashflowPreviewChart";
 import EndConditionPicker, { type EndConditionMode } from "../EndConditionPicker";
 import DateOrAgeBasisPicker from "../DateOrAgeBasisPicker";
+import MonthField from "../MonthField";
+import PreviewErrorBoundary from "../PreviewErrorBoundary";
 
 export type TimelineEventFormResult = {
   event: TimelineEvent;
@@ -536,7 +535,7 @@ export default function TimelineEventForm({
     if (!formValues || !hasActiveSalarySteps) {
       return [];
     }
-    if (!assumptions.baseMonth || !isValidMonthStr(assumptions.baseMonth)) {
+    if (!assumptions.baseMonth || !isValidMonthKey(assumptions.baseMonth)) {
       return [];
     }
 
@@ -567,10 +566,10 @@ export default function TimelineEventForm({
   ]);
 
   const baseMonth = assumptions.baseMonth ?? null;
-  const fallbackMonth = isValidMonthStr(formValues?.startMonth ?? "")
+  const fallbackMonth = isValidMonthKey(formValues?.startMonth ?? "")
     ? formValues?.startMonth ?? null
     : null;
-  const previewBaseMonth = isValidMonthStr(baseMonth ?? "") ? baseMonth : fallbackMonth;
+  const previewBaseMonth = isValidMonthKey(baseMonth ?? "") ? baseMonth : fallbackMonth;
   const horizonMonths = assumptions.horizonMonths ?? 0;
   const horizonMonthsList = useMemo(
     () =>
@@ -595,7 +594,7 @@ export default function TimelineEventForm({
     if (!formValues) {
       return [];
     }
-    if (!assumptions.baseMonth || !isValidMonthStr(assumptions.baseMonth)) {
+    if (!assumptions.baseMonth || !isValidMonthKey(assumptions.baseMonth)) {
       return [];
     }
 
@@ -700,15 +699,14 @@ export default function TimelineEventForm({
         />
       )}
       {shouldShowField("startMonth") && (
-        <TextInput
+        <MonthField
           label={t("eventFormStartMonth")}
           placeholder={common("yearMonthPlaceholder")}
           value={startMonthInput}
           error={errors.startMonth}
-          onChange={(eventChange) => {
-            const nextValue = eventChange.target.value;
-            setStartMonthInput(nextValue);
-            const normalized = normalizeMonthInput(nextValue);
+          onChange={(value) => {
+            setStartMonthInput(value);
+            const normalized = normalizeMonthInput(value);
             if (normalized.status === "valid" && normalized.month) {
               updateField("startMonth", normalized.month as TimelineEvent["startMonth"]);
             } else if (normalized.status === "empty") {
@@ -720,9 +718,7 @@ export default function TimelineEventForm({
               setErrors((current) => ({ ...current, startMonth: undefined }));
             }
           }}
-          onBlur={(eventChange) =>
-            handleNormalizeMonth("startMonth", eventChange.target.value)
-          }
+          onBlur={() => handleNormalizeMonth("startMonth", startMonthInput)}
         />
       )}
       {shouldShowField("endMonth") &&
@@ -767,15 +763,14 @@ export default function TimelineEventForm({
             computedMonthValue={computedEndMonth}
           />
         ) : (
-          <TextInput
+          <MonthField
             label={t("eventFormEndMonth")}
             placeholder={common("yearMonthOptionalPlaceholder")}
             value={endMonthInput}
             error={errors.endMonth}
-            onChange={(eventChange) => {
-              const nextValue = eventChange.target.value;
-              setEndMonthInput(nextValue);
-              const normalized = normalizeMonthInput(nextValue);
+            onChange={(value) => {
+              setEndMonthInput(value);
+              const normalized = normalizeMonthInput(value);
               if (normalized.status === "valid" && normalized.month) {
                 updateField("endMonth", normalized.month as TimelineEvent["endMonth"]);
               } else if (normalized.status === "empty") {
@@ -787,9 +782,7 @@ export default function TimelineEventForm({
                 setErrors((current) => ({ ...current, endMonth: undefined }));
               }
             }}
-            onBlur={(eventChange) =>
-              handleNormalizeMonth("endMonth", eventChange.target.value)
-            }
+            onBlur={() => handleNormalizeMonth("endMonth", endMonthInput)}
           />
         ))}
       {shouldShowField("monthlyAmount") && (
@@ -929,17 +922,16 @@ export default function TimelineEventForm({
                       />
                       <Group grow>
                         {step.basis === "month" ? (
-                          <TextInput
+                          <MonthField
                             label={t("salaryStepStartMonth")}
                             placeholder={common("yearMonthPlaceholder")}
                             value={step.startMonth ?? ""}
                             error={salaryStepErrors[step.id]?.startMonth}
-                            onChange={(eventChange) => {
-                              const nextValue = eventChange.target.value;
+                            onChange={(value) => {
                               setSalarySteps((current) =>
                                 current.map((entry) =>
                                   entry.id === step.id
-                                    ? { ...entry, startMonth: nextValue }
+                                    ? { ...entry, startMonth: value }
                                     : entry
                                 )
                               );
@@ -1035,19 +1027,35 @@ export default function TimelineEventForm({
               <Text size="xs" c="dimmed">
                 {t("cashflowEditHint")}
               </Text>
-              <CashflowPreviewChart
-                series={editableSeries}
-                currency={formValues.currency ?? baseCurrency}
-                disabled={!formValues.enabled}
-                onSelectMonth={({ month, amount }) => handleEditMonth(month, amount)}
-              />
+              <PreviewErrorBoundary
+                fallback={
+                  <Text size="sm" c="red">
+                    {t("cashflowPreviewError")}
+                  </Text>
+                }
+              >
+                <CashflowPreviewChart
+                  series={editableSeries}
+                  currency={formValues.currency ?? baseCurrency}
+                  disabled={!formValues.enabled}
+                  onSelectMonth={({ month, amount }) => handleEditMonth(month, amount)}
+                />
+              </PreviewErrorBoundary>
             </Stack>
           ) : (
-            <CashflowPreviewChart
-              series={previewSeries}
-              currency={formValues.currency ?? baseCurrency}
-              disabled={!formValues.enabled}
-            />
+            <PreviewErrorBoundary
+              fallback={
+                <Text size="sm" c="red">
+                  {t("cashflowPreviewError")}
+                </Text>
+              }
+            >
+              <CashflowPreviewChart
+                series={previewSeries}
+                currency={formValues.currency ?? baseCurrency}
+                disabled={!formValues.enabled}
+              />
+            </PreviewErrorBoundary>
           )}
         </Stack>
       )}

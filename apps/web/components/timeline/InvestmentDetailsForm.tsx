@@ -7,12 +7,12 @@ import {
   NumberInput,
   Select,
   Stack,
-  TextInput,
   Title,
 } from "@mantine/core";
-import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeMonthStrict } from "../../src/utils/month";
+import MonthField from "../MonthField";
+import { useEntityDraft } from "../../src/hooks/useEntityDraft";
+import { normalizeMonthInput } from "../../src/utils/monthKey";
 import type { InvestmentPositionDraft } from "../../src/store/scenarioStore";
 import {
   InvestmentPositionSchema,
@@ -33,50 +33,65 @@ export default function InvestmentDetailsForm({
   const t = useTranslations("investments");
   const common = useTranslations("common");
   const validation = useTranslations("validation");
-  const [formValues, setFormValues] = useState<InvestmentPositionDraft>(investment);
-  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+  const { draft: formValues, setDraft, errors, validate } = useEntityDraft(
+    investment,
+    (draft) => {
+      const nextErrors: Partial<Record<string, string>> = {};
+      const normalizedStart = normalizeMonthInput(draft.startMonth ?? "");
+      if (normalizedStart.status !== "valid") {
+        nextErrors.startMonth = validation("useYearMonth");
+      }
 
-  useEffect(() => {
-    setFormValues(investment);
-    setErrors({});
-  }, [investment]);
+      const parsed = InvestmentPositionSchema.safeParse({
+        ...draft,
+        startMonth: normalizedStart.month ?? draft.startMonth,
+      });
+      if (!parsed.success) {
+        return {
+          isValid: false,
+          errors: { ...nextErrors, ...getInvestmentPositionErrors(parsed.error, validation) },
+        };
+      }
+
+      if (Object.keys(nextErrors).length > 0) {
+        return { isValid: false, errors: nextErrors };
+      }
+
+      return {
+        isValid: true,
+        errors: {},
+        value: { ...parsed.data, id: draft.id },
+      };
+    }
+  );
 
   const updateField = <K extends keyof InvestmentPositionDraft>(
     key: K,
     value: InvestmentPositionDraft[K]
   ) => {
-    setFormValues((current) => ({ ...current, [key]: value }));
+    setDraft((current) => ({ ...current, [key]: value }));
   };
 
   const toPositiveNumber = (value: number | string | null | undefined) =>
     Math.max(0, Number(value ?? 0));
 
   const handleSave = () => {
-    const normalizedMonth = normalizeMonthStrict(formValues.startMonth);
-
-    const nextValues = {
-      ...formValues,
-      startMonth: normalizedMonth.ok ? normalizedMonth.month : formValues.startMonth,
-    };
-
-    const parsed = InvestmentPositionSchema.safeParse(nextValues);
-    if (!parsed.success) {
-      setErrors(getInvestmentPositionErrors(parsed.error, (key) => validation(key)));
+    const result = validate();
+    if (!result.isValid || !result.value) {
       return;
     }
-
-    onSave({ ...parsed.data, id: formValues.id });
+    onSave(result.value);
   };
 
   return (
     <Stack gap="md">
       <Title order={5}>{t("title")}</Title>
-      <TextInput
+      <MonthField
         label={t("startMonth")}
         placeholder={common("yearMonthPlaceholder")}
         value={formValues.startMonth ?? ""}
         error={errors.startMonth}
-        onChange={(event) => updateField("startMonth", event.target.value)}
+        onChange={(value) => updateField("startMonth", value)}
       />
       <NumberInput
         label={t("initialValue")}

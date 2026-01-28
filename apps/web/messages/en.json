@@ -1210,6 +1210,7 @@
     "eventFormEnabled": "Enabled",
     "cashflowPreviewTitle": "Cashflow preview",
     "cashflowPreviewEmpty": "Update the dates or amounts to see a preview.",
+    "cashflowPreviewError": "Preview unavailable due to invalid inputs.",
     "cashflowPreviewDisabled": "Preview is disabled for this event.",
     "cashflowPreviewTotal": "Total cashflow",
     "cashflowPreviewIncome": "Total income",

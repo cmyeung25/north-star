@@ -13,9 +13,14 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeMonthStrict } from "../../src/utils/month";
+import MonthField from "../MonthField";
+import { useEntityDraft } from "../../src/hooks/useEntityDraft";
+import {
+  clampMonthRange,
+  compareMonthKey,
+  normalizeMonthInput,
+} from "../../src/utils/monthKey";
 import type { InsurancePositionDraft } from "../../src/store/scenarioStore";
 import {
   InsurancePositionSchema,
@@ -36,45 +41,78 @@ export default function InsuranceDetailsForm({
   const t = useTranslations("insurances");
   const common = useTranslations("common");
   const validation = useTranslations("validation");
-  const [formValues, setFormValues] = useState<InsurancePositionDraft>(insurance);
-  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+  const { draft: formValues, setDraft, errors, validate } = useEntityDraft(
+    insurance,
+    (draft) => {
+      const nextErrors: Partial<Record<string, string>> = {};
+      const normalizedStart = normalizeMonthInput(draft.startMonth ?? "");
+      const normalizedEnd = normalizeMonthInput(draft.endMonth ?? "");
 
-  useEffect(() => {
-    setFormValues(insurance);
-    setErrors({});
-  }, [insurance]);
+      if (normalizedStart.status !== "valid") {
+        nextErrors.startMonth = validation("useYearMonth");
+      }
+
+      const startMonthValue =
+        normalizedStart.status === "valid" ? normalizedStart.month : null;
+      const endMonthValue =
+        normalizedEnd.status === "valid" ? normalizedEnd.month : null;
+      const hasRangeError =
+        startMonthValue &&
+        endMonthValue &&
+        compareMonthKey(startMonthValue, endMonthValue) > 0;
+      if (hasRangeError) {
+        nextErrors.endMonth = validation("endMonthAfterStart");
+      }
+      if (normalizedEnd.status === "invalid") {
+        nextErrors.endMonth = validation("useYearMonth");
+      }
+
+      const { startMonth, endMonth } = clampMonthRange(
+        startMonthValue ?? draft.startMonth,
+        endMonthValue ?? undefined
+      );
+
+      const parsed = InsurancePositionSchema.safeParse({
+        ...draft,
+        startMonth: startMonth ?? draft.startMonth,
+        endMonth: endMonth || undefined,
+      });
+
+      if (!parsed.success) {
+        return {
+          isValid: false,
+          errors: { ...nextErrors, ...getInsurancePositionErrors(parsed.error, validation) },
+        };
+      }
+
+      if (Object.keys(nextErrors).length > 0) {
+        return { isValid: false, errors: nextErrors };
+      }
+
+      return {
+        isValid: true,
+        errors: {},
+        value: { ...parsed.data, id: draft.id },
+      };
+    }
+  );
 
   const updateField = <K extends keyof InsurancePositionDraft>(
     key: K,
     value: InsurancePositionDraft[K]
   ) => {
-    setFormValues((current) => ({ ...current, [key]: value }));
+    setDraft((current) => ({ ...current, [key]: value }));
   };
 
   const toPositiveNumber = (value: number | string | null | undefined) =>
     Math.max(0, Number(value ?? 0));
 
   const handleSave = () => {
-    const normalizedStartMonth = normalizeMonthStrict(formValues.startMonth);
-    const normalizedEndMonth = formValues.endMonth
-      ? normalizeMonthStrict(formValues.endMonth)
-      : null;
-
-    const nextValues = {
-      ...formValues,
-      startMonth: normalizedStartMonth.ok
-        ? normalizedStartMonth.month
-        : formValues.startMonth,
-      endMonth: normalizedEndMonth?.ok ? normalizedEndMonth.month : undefined,
-    };
-
-    const parsed = InsurancePositionSchema.safeParse(nextValues);
-    if (!parsed.success) {
-      setErrors(getInsurancePositionErrors(parsed.error, (key) => validation(key)));
+    const result = validate();
+    if (!result.isValid || !result.value) {
       return;
     }
-
-    onSave({ ...parsed.data, id: formValues.id });
+    onSave(result.value);
   };
 
   const showSavingsFields = (formValues.kind ?? "protection") === "savings";
@@ -134,19 +172,19 @@ export default function InsuranceDetailsForm({
         </Group>
       </Radio.Group>
       <Group grow>
-        <TextInput
+        <MonthField
           label={t("startMonth")}
           placeholder={common("yearMonthPlaceholder")}
           value={formValues.startMonth ?? ""}
           error={errors.startMonth}
-          onChange={(event) => updateField("startMonth", event.target.value)}
+          onChange={(value) => updateField("startMonth", value)}
         />
-        <TextInput
+        <MonthField
           label={t("endMonth")}
           placeholder={common("yearMonthPlaceholder")}
           value={formValues.endMonth ?? ""}
           error={errors.endMonth}
-          onChange={(event) => updateField("endMonth", event.target.value)}
+          onChange={(value) => updateField("endMonth", value)}
         />
       </Group>
       <NumberInput
