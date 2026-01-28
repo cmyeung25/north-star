@@ -1,4 +1,4 @@
-import type { EventDefinition } from "../events/types";
+import type { EventDefinition, ScenarioEventRef } from "../events/types";
 import type {
   BudgetRule,
   CarPositionDraft,
@@ -146,6 +146,10 @@ export type PlanLabScorecardSettings = {
 export type PlanLabDraftAdditions = {
   members?: ScenarioMember[];
   budgetRules?: BudgetRule[];
+  events?: Array<{
+    definition: EventDefinition;
+    ref: ScenarioEventRef;
+  }>;
 };
 
 export type PlanLabDraft = {

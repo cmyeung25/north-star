@@ -224,6 +224,7 @@ export const compilePlanLabDraft = (
   const additions = draft.additions ?? {};
   const draftMembers = additions.members ?? [];
   const draftBudgetRules = additions.budgetRules ?? [];
+  const draftEvents = additions.events ?? [];
   const scenarioId = baselineScenario?.id;
 
   const normalizeMember = (member: ScenarioMember): ScenarioMember => {
@@ -282,6 +283,126 @@ export const compilePlanLabDraft = (
     ? combinedBudgetRules.filter((rule) => appliesToScenario(rule.applyScope, scenarioId))
     : combinedBudgetRules;
   const patchedBudgetRules = scopedBudgetRules.filter((rule) => rule.enabled !== false);
+
+  const normalizeEventRuleOverrides = (
+    ref: ScenarioEventRef,
+    definitionId: string
+  ): ScenarioEventRef => {
+    if (!ref.overrides) {
+      return ref;
+    }
+    const overrides = { ...ref.overrides };
+    if (overrides.startMonth) {
+      const startMonth = normalizeDraftMonth(
+        `additions.events.${definitionId}.overrides.startMonth`,
+        overrides.startMonth,
+        warnings,
+        { refId: definitionId }
+      );
+      if (startMonth) {
+        overrides.startMonth = startMonth;
+      } else {
+        delete overrides.startMonth;
+      }
+    }
+    if (overrides.endMonth) {
+      const endMonth = normalizeDraftMonth(
+        `additions.events.${definitionId}.overrides.endMonth`,
+        overrides.endMonth,
+        warnings,
+        { refId: definitionId }
+      );
+      if (endMonth) {
+        overrides.endMonth = endMonth;
+      } else {
+        delete overrides.endMonth;
+      }
+    }
+    if (overrides.schedule) {
+      const normalizedSchedule = overrides.schedule
+        .map((entry, index) => {
+          const month = normalizeDraftMonth(
+            `additions.events.${definitionId}.overrides.schedule.${index}.month`,
+            entry.month,
+            warnings,
+            { refId: definitionId }
+          );
+          if (!month) {
+            return null;
+          }
+          return { ...entry, month };
+        })
+        .filter(Boolean) as typeof overrides.schedule;
+      overrides.schedule = normalizedSchedule.length > 0 ? normalizedSchedule : undefined;
+    }
+    return {
+      ...ref,
+      overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+    };
+  };
+
+  const normalizeEventDefinition = (
+    addition: (typeof draftEvents)[number]
+  ): { definition: EventDefinition; ref: ScenarioEventRef } | null => {
+    const { definition, ref } = addition;
+    const nextRule = { ...definition.rule };
+    if (nextRule.startMonth) {
+      const startMonth = normalizeDraftMonth(
+        `additions.events.${definition.id}.startMonth`,
+        nextRule.startMonth,
+        warnings,
+        { refId: definition.id }
+      );
+      if (startMonth) {
+        nextRule.startMonth = startMonth;
+      } else {
+        return null;
+      }
+    }
+    if (nextRule.endMonth) {
+      const endMonth = normalizeDraftMonth(
+        `additions.events.${definition.id}.endMonth`,
+        nextRule.endMonth,
+        warnings,
+        { refId: definition.id }
+      );
+      if (endMonth) {
+        nextRule.endMonth = endMonth;
+      } else {
+        nextRule.endMonth = null;
+      }
+    }
+    if (nextRule.schedule) {
+      const normalizedSchedule = nextRule.schedule
+        .map((entry, index) => {
+          const month = normalizeDraftMonth(
+            `additions.events.${definition.id}.schedule.${index}.month`,
+            entry.month,
+            warnings,
+            { refId: definition.id }
+          );
+          if (!month) {
+            return null;
+          }
+          return { ...entry, month };
+        })
+        .filter(Boolean) as typeof nextRule.schedule;
+      nextRule.schedule = normalizedSchedule.length > 0 ? normalizedSchedule : undefined;
+    }
+    return {
+      definition: {
+        ...definition,
+        rule: nextRule,
+      },
+      ref: normalizeEventRuleOverrides(
+        {
+          ...ref,
+          refId: definition.id,
+        },
+        definition.id
+      ),
+    };
+  };
 
   const nextPositions: Partial<ScenarioPositions> = {};
   const smartInvestPolicy = buildSmartInvestPolicyFromDraft({
@@ -379,6 +500,14 @@ export const compilePlanLabDraft = (
   warnings.push(...extras.warnings);
   eventDefinitions.push(...extras.eventDefinitions);
   eventRefs.push(...extras.eventRefs);
+  draftEvents.forEach((addition) => {
+    const normalized = normalizeEventDefinition(addition);
+    if (!normalized) {
+      return;
+    }
+    eventDefinitions.push(normalized.definition);
+    eventRefs.push(normalized.ref);
+  });
   Object.assign(positions, nextPositions);
 
   if (extras.positions.homes) {
@@ -399,24 +528,25 @@ export const compilePlanLabDraft = (
       ...eventLibrary,
       ...eventDefinitions,
     ];
+    const baselineEventRefs = baselineScenario.eventRefs?.map((ref) => {
+      const override = eventRefOverrides.find(
+        (candidate) => candidate.refId === ref.refId
+      );
+      return override
+        ? {
+            ...ref,
+            enabled: override.enabled ?? ref.enabled,
+            overrides: {
+              ...(ref.overrides ?? {}),
+              ...(override.overrides ?? {}),
+            },
+          }
+        : ref;
+    }) ?? [];
     const eventViews = buildScenarioEventViews(
       {
         ...baselineScenario,
-        eventRefs: baselineScenario.eventRefs?.map((ref) => {
-          const override = eventRefOverrides.find(
-            (candidate) => candidate.refId === ref.refId
-          );
-          return override
-            ? {
-                ...ref,
-                enabled: override.enabled ?? ref.enabled,
-                overrides: {
-                  ...(ref.overrides ?? {}),
-                  ...(override.overrides ?? {}),
-                },
-              }
-            : ref;
-        }),
+        eventRefs: [...baselineEventRefs, ...eventRefs],
       },
       combinedEventLibrary
     );
