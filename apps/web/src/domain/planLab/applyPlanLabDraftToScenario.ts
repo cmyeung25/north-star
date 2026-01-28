@@ -65,6 +65,8 @@ export const applyPlanLabDraftToScenario = (
   const positionPatches = baselinePatches.positionPatches ?? {};
   const smartInvestPatch = baselinePatches.smartInvestPatch;
   const experiments = draft.experiments ?? [];
+  const additions = draft.additions ?? {};
+  const draftEvents = additions.events ?? [];
   const smartInvestPolicy = buildSmartInvestPolicyFromDraft({
     baselinePolicy: baseScenario.assumptions.smartInvest,
     baselinePatch: smartInvestPatch,
@@ -106,6 +108,98 @@ export const applyPlanLabDraftToScenario = (
         id: patch.patch.id ?? refId,
       } as EventDefinition);
     }
+  });
+
+  draftEvents.forEach(({ definition, ref }) => {
+    const nextRule = { ...definition.rule };
+    if (nextRule.startMonth) {
+      const startMonth = normalizeOptionalMonth(
+        `additions.events.${definition.id}.startMonth`,
+        nextRule.startMonth,
+        errors
+      );
+      if (!startMonth) {
+        return;
+      }
+      nextRule.startMonth = startMonth;
+    }
+    if (nextRule.endMonth) {
+      const endMonth = normalizeOptionalMonth(
+        `additions.events.${definition.id}.endMonth`,
+        nextRule.endMonth,
+        errors
+      );
+      nextRule.endMonth = endMonth ?? null;
+    }
+    if (nextRule.schedule) {
+      const normalizedSchedule = nextRule.schedule
+        .map((entry, index) => {
+          const month = normalizeOptionalMonth(
+            `additions.events.${definition.id}.schedule.${index}.month`,
+            entry.month,
+            errors
+          );
+          if (!month) {
+            return null;
+          }
+          return { ...entry, month };
+        })
+        .filter(Boolean) as typeof nextRule.schedule;
+      nextRule.schedule = normalizedSchedule.length > 0 ? normalizedSchedule : undefined;
+    }
+
+    eventDefinitions.push({
+      ...definition,
+      rule: nextRule,
+    });
+
+    const overrides = { ...(ref.overrides ?? {}) };
+    if (overrides.startMonth) {
+      const startMonth = normalizeOptionalMonth(
+        `additions.events.${definition.id}.overrides.startMonth`,
+        overrides.startMonth,
+        errors
+      );
+      if (!startMonth) {
+        delete overrides.startMonth;
+      } else {
+        overrides.startMonth = startMonth;
+      }
+    }
+    if (overrides.endMonth) {
+      const endMonth = normalizeOptionalMonth(
+        `additions.events.${definition.id}.overrides.endMonth`,
+        overrides.endMonth,
+        errors
+      );
+      if (!endMonth) {
+        delete overrides.endMonth;
+      } else {
+        overrides.endMonth = endMonth;
+      }
+    }
+    if (overrides.schedule) {
+      const normalizedSchedule = overrides.schedule
+        .map((entry, index) => {
+          const month = normalizeOptionalMonth(
+            `additions.events.${definition.id}.overrides.schedule.${index}.month`,
+            entry.month,
+            errors
+          );
+          if (!month) {
+            return null;
+          }
+          return { ...entry, month };
+        })
+        .filter(Boolean) as typeof overrides.schedule;
+      overrides.schedule = normalizedSchedule.length > 0 ? normalizedSchedule : undefined;
+    }
+
+    planLabEventRefs.push({
+      ...ref,
+      refId: definition.id,
+      overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+    });
   });
 
   experiments.forEach((experiment) => {

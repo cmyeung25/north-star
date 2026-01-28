@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { isFirebaseConfigured } from "../lib/firebaseClient";
 import { useAuthState } from "../src/hooks/useAuthState";
@@ -67,6 +67,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const [scenarioHydrated, setScenarioHydrated] = useState(false);
+  const footerRef = useRef<HTMLDivElement | null>(null);
   const normalizedPathname = stripLocalePrefix(pathname, locale);
   const isOnboarding = normalizedPathname.startsWith("/onboarding");
 
@@ -118,6 +119,21 @@ export default function Providers({ children }: { children: ReactNode }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const height = isOnboarding
+      ? 0
+      : isDesktop
+      ? desktopToolbarHeight
+      : footerRef.current?.offsetHeight ?? 0;
+    document.documentElement.style.setProperty(
+      "--bottom-nav-height",
+      `${height}px`
+    );
+    return () => {
+      document.documentElement.style.setProperty("--bottom-nav-height", "0px");
+    };
+  }, [isDesktop, isOnboarding, normalizedPathname]);
 
   useEffect(() => {
     if (!scenarioHydrated || normalizedPathname === "/onboarding") {
@@ -233,7 +249,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         )}
 
         {!isDesktop && !isOnboarding && (
-          <AppShell.Footer p="xs">
+          <AppShell.Footer p="xs" ref={footerRef}>
             <Group grow>
               {navItems.map((item) => (
                 <Button
