@@ -256,6 +256,7 @@ export const usePlanLabProjectionWithLedger = (
       baselineScenario: scenario ?? null,
       eventLibrary,
       budgetRules: options.budgetRules ?? [],
+      members: options.members ?? [],
     });
 
     const eventRefsWithOverrides = applyEventRefOverrides(
@@ -290,6 +291,10 @@ export const usePlanLabProjectionWithLedger = (
       return emptyProjectionWithLedger;
     }
 
+    const planLabMembers = planLabCompilation.members ?? options.members ?? [];
+    const planLabBudgetRules =
+      planLabCompilation.budgetRules ?? options.budgetRules ?? [];
+
     const {
       input,
       projection: computedProjection,
@@ -298,8 +303,8 @@ export const usePlanLabProjectionWithLedger = (
       smartInvestRebalanceSchedule,
       smartInvestTransferSeries,
     } = computeProjectionWithSmartInvest(baselineScenario, combinedEventLibrary, {
-      members: options.members ?? [],
-      budgetRules: planLabCompilation.budgetRules ?? options.budgetRules ?? [],
+      members: planLabMembers,
+      budgetRules: planLabBudgetRules,
     });
 
     const scenarioForLedger = {
@@ -314,15 +319,13 @@ export const usePlanLabProjectionWithLedger = (
 
     const includeBudgetRulesInProjection =
       scenarioForLedger.assumptions.includeBudgetRulesInProjection ?? true;
-    const members = options.members ?? [];
+    const members = planLabMembers;
     const eventLedger = compileEventLedger(
       scenarioForLedger,
       combinedEventLibrary,
       members
     );
-    const budgetRules = normalizeBudgetRulesForLedger(
-      planLabCompilation.budgetRules ?? options.budgetRules ?? []
-    );
+    const budgetRules = normalizeBudgetRulesForLedger(planLabBudgetRules);
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];

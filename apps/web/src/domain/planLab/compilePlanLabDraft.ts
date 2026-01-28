@@ -3,6 +3,7 @@ import type {
   BudgetRule,
   Scenario,
   ScenarioAssumptions,
+  ScenarioMember,
   ScenarioPositions,
 } from "../../store/scenarioStore";
 import type {
@@ -19,6 +20,7 @@ import {
 import { buildScenarioEventViews } from "../events/utils";
 import { WarningCode } from "../warnings/types";
 import { buildSmartInvestPolicyFromDraft } from "./smartInvestAdjust";
+import { appliesToScenario } from "../applyScope";
 
 export type PlanLabDraftCompilation = {
   assumptions: Partial<ScenarioAssumptions>;
@@ -26,6 +28,7 @@ export type PlanLabDraftCompilation = {
   eventDefinitions: EventDefinition[];
   eventRefs: ScenarioEventRef[];
   eventRefOverrides: ScenarioEventRef[];
+  members: ScenarioMember[];
   budgetRules?: BudgetRule[];
   warnings: PlanLabDraftWarning[];
 };
@@ -34,6 +37,7 @@ type CompilePlanLabDraftOptions = {
   baselineScenario?: Scenario | null;
   eventLibrary?: EventDefinition[];
   budgetRules?: BudgetRule[];
+  members?: ScenarioMember[];
 };
 
 const housingKeywords = ["mortgage", "housing", "home", "rent"];
@@ -185,12 +189,18 @@ export const compilePlanLabDraft = (
   options: CompilePlanLabDraftOptions = {}
 ): PlanLabDraftCompilation => {
   if (!draft) {
+    const scenarioId = options.baselineScenario?.id;
+    const combinedMembers = options.members ?? [];
+    const scopedMembers = scenarioId
+      ? combinedMembers.filter((member) => appliesToScenario(member.applyScope, scenarioId))
+      : combinedMembers;
     return {
       assumptions: {},
       positions: {},
       eventDefinitions: [],
       eventRefs: [],
       eventRefOverrides: [],
+      members: scopedMembers,
       warnings: [],
     };
   }
@@ -204,12 +214,39 @@ export const compilePlanLabDraft = (
   const baselineScenario = options.baselineScenario ?? null;
   const eventLibrary = options.eventLibrary ?? [];
   const budgetRules = options.budgetRules ?? [];
+  const members = options.members ?? [];
   const baselinePatches = draft.baselinePatches ?? {};
   const eventPatches = baselinePatches.eventPatches ?? {};
   const rulePatches = baselinePatches.rulePatches ?? {};
   const positionPatches = baselinePatches.positionPatches ?? {};
   const smartInvestPatch = baselinePatches.smartInvestPatch;
   const experiments = draft.experiments ?? [];
+  const additions = draft.additions ?? {};
+  const draftMembers = additions.members ?? [];
+  const draftBudgetRules = additions.budgetRules ?? [];
+  const scenarioId = baselineScenario?.id;
+
+  const normalizeMember = (member: ScenarioMember): ScenarioMember => {
+    if (!member.birthMonth) {
+      return member;
+    }
+    const normalizedBirthMonth = normalizeDraftMonth(
+      `members.${member.id}.birthMonth`,
+      member.birthMonth,
+      warnings,
+      { memberId: member.id }
+    );
+    return {
+      ...member,
+      birthMonth: normalizedBirthMonth ?? undefined,
+    };
+  };
+
+  const combinedMembers = [...members, ...draftMembers];
+  const scopedMembers = scenarioId
+    ? combinedMembers.filter((member) => appliesToScenario(member.applyScope, scenarioId))
+    : combinedMembers;
+  const normalizedMembers = scopedMembers.map((member) => normalizeMember(member));
 
   if (baselineScenario) {
     const eventViews = buildScenarioEventViews(baselineScenario, eventLibrary);
@@ -240,7 +277,11 @@ export const compilePlanLabDraft = (
     return applyRulePatch(rule, patch, warnings);
   });
 
-  const patchedBudgetRules = nextBudgetRules.filter((rule) => rule.enabled !== false);
+  const combinedBudgetRules = [...nextBudgetRules, ...draftBudgetRules];
+  const scopedBudgetRules = scenarioId
+    ? combinedBudgetRules.filter((rule) => appliesToScenario(rule.applyScope, scenarioId))
+    : combinedBudgetRules;
+  const patchedBudgetRules = scopedBudgetRules.filter((rule) => rule.enabled !== false);
 
   const nextPositions: Partial<ScenarioPositions> = {};
   const smartInvestPolicy = buildSmartInvestPolicyFromDraft({
@@ -409,6 +450,7 @@ export const compilePlanLabDraft = (
     eventDefinitions,
     eventRefs,
     eventRefOverrides,
+    members: normalizedMembers,
     budgetRules: patchedBudgetRules,
     warnings,
   };

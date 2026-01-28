@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Drawer,
   Grid,
   Group,
@@ -43,9 +44,17 @@ import type {
   PlanLabRulePatch,
 } from "../../src/domain/planLab/types";
 import type { EventDefinition, EventRule, EventRuleOverrides } from "../../src/domain/events/types";
-import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
-import { useScenarioStore } from "../../src/store/scenarioStore";
-import { applyPlanLabDraftToScenario } from "../../src/domain/planLab/applyPlanLabDraftToScenario";
+import type {
+  BudgetRule,
+  Scenario,
+  ScenarioMember,
+  ScenarioMemberKind,
+} from "../../src/store/scenarioStore";
+import {
+  createBudgetRuleId,
+  createMemberId,
+  useScenarioStore,
+} from "../../src/store/scenarioStore";
 import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
@@ -66,6 +75,11 @@ import SmartInvestForm from "../../components/SmartInvestForm";
 import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
 import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
 import { applySmartInvestPatch } from "../../src/domain/planLab/smartInvestAdjust";
+import { appliesToScenario } from "../../src/domain/applyScope";
+import { buildChildBudgetRuleTemplates } from "../../src/domain/planLab/childBudgetTemplates";
+import { materializePlanLabDraft } from "../../src/domain/planLab/materializePlanLabDraft";
+import { getMemberAgeYears } from "../../src/domain/members/age";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
@@ -96,6 +110,7 @@ type ScenarioEditorItem = {
   eventRefId?: string;
   eventDefinitionId?: string;
   ruleId?: string;
+  ruleSource?: "baseline" | "draft";
   positionKey?: string;
   positionKind?: PositionKind;
   position?: any;
@@ -336,9 +351,12 @@ export default function PlanLabPanel({
   const locale = useLocale();
   const router = useRouter();
   const duplicateScenario = useScenarioStore((state) => state.duplicateScenario);
+  const deleteScenario = useScenarioStore((state) => state.deleteScenario);
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
+  const createMember = useScenarioStore((state) => state.createMember);
+  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
   const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
 
   const translate = useCallback(
@@ -366,6 +384,8 @@ export default function PlanLabPanel({
     positionPatches: {},
     smartInvestPatch: undefined,
   });
+  const [draftMembers, setDraftMembers] = useState<ScenarioMember[]>([]);
+  const [draftBudgetRules, setDraftBudgetRules] = useState<BudgetRule[]>([]);
   const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
   const [experimentDrawerOpen, setExperimentDrawerOpen] = useState(false);
   const [experimentDraft, setExperimentDraft] = useState<PlanLabExperiment | null>(null);
@@ -389,6 +409,20 @@ export default function PlanLabPanel({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
   const [editingFocus, setEditingFocus] = useState<"validity" | null>(null);
+  const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
+  const [memberDraft, setMemberDraft] = useState<{
+    name: string;
+    kind: ScenarioMemberKind;
+    birthMonth: string;
+    ageAtBaseMonth: number | "";
+  } | null>(null);
+  const [memberDraftErrors, setMemberDraftErrors] = useState<{
+    name?: string;
+    birthMonth?: string;
+  }>({});
+  const [childTemplateSelections, setChildTemplateSelections] = useState<
+    Record<string, boolean>
+  >({});
 
   const monthInvalidMessage = t("planLabMonthInvalid");
 
@@ -401,6 +435,28 @@ export default function PlanLabPanel({
     []
   );
   const baselineSmartInvestPolicy = scenario.assumptions.smartInvest;
+  const combinedMembers = useMemo(
+    () => [...members, ...draftMembers],
+    [members, draftMembers]
+  );
+  const scenarioMembers = useMemo(
+    () =>
+      combinedMembers.filter((member) =>
+        appliesToScenario(member.applyScope, scenario.id)
+      ),
+    [combinedMembers, scenario.id]
+  );
+  const combinedBudgetRules = useMemo(
+    () => [...budgetRules, ...draftBudgetRules],
+    [budgetRules, draftBudgetRules]
+  );
+  const scenarioBudgetRules = useMemo(
+    () =>
+      combinedBudgetRules.filter((rule) =>
+        appliesToScenario(rule.applyScope, scenario.id)
+      ),
+    [combinedBudgetRules, scenario.id]
+  );
 
   const positionTitleLabels = useMemo(
     () => ({
@@ -440,7 +496,7 @@ export default function PlanLabPanel({
         return translate("planLabGroupUnassigned", "未指定");
       }
       return (
-        members.find((member) => member.id === item.memberId)?.name ??
+        combinedMembers.find((member) => member.id === item.memberId)?.name ??
         translate("planLabGroupUnassigned", "未指定")
       );
     }
@@ -596,6 +652,46 @@ export default function PlanLabPanel({
     []
   );
 
+  const buildNewRuleDraft = useCallback(
+    (overrides: Partial<BudgetRule> = {}) =>
+      ({
+        id: createBudgetRuleId(),
+        name: translate("planLabRuleDefaultName", "新規則"),
+        enabled: true,
+        memberId: undefined,
+        category: "baseline",
+        ageBand: { fromYears: 0, toYears: 18 },
+        monthlyAmount: 0,
+        annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+        ...overrides,
+      }) satisfies BudgetRule,
+    [translate]
+  );
+
+  const openAddRuleDrawer = useCallback(
+    (ruleOverrides: Partial<BudgetRule> = {}) => {
+      const rule = buildNewRuleDraft(ruleOverrides);
+      openEditingItem({
+        id: `rule:${rule.id}`,
+        kind: "rule",
+        title: rule.name,
+        category: rule.category,
+        memberId: rule.memberId,
+        memberName: rule.memberId
+          ? combinedMembers.find((member) => member.id === rule.memberId)?.name ?? null
+          : null,
+        startMonth: rule.startMonth ?? undefined,
+        endMonth: rule.endMonth ?? null,
+        enabled: rule.enabled,
+        amount: rule.monthlyAmount,
+        ruleId: rule.id,
+        ruleSource: "draft",
+        budgetRule: rule,
+      });
+    },
+    [buildNewRuleDraft, combinedMembers, openEditingItem]
+  );
+
   const buildExperimentDefaults = (type: PlanLabExperimentType): PlanLabExperiment => {
     const baseMonth = scenario.assumptions.baseMonth ?? "";
     if (type === "oneOffExpense") {
@@ -682,6 +778,19 @@ export default function PlanLabPanel({
     setExperiments((current) => current.filter((experiment) => experiment.id !== id));
   };
 
+  const removeDraftMember = (memberId: string) => {
+    setDraftMembers((current) =>
+      current.filter((member) => member.id !== memberId)
+    );
+    setDraftBudgetRules((current) =>
+      current.filter((rule) => rule.memberId !== memberId)
+    );
+  };
+
+  const removeDraftBudgetRule = (ruleId: string) => {
+    setDraftBudgetRules((current) => current.filter((rule) => rule.id !== ruleId));
+  };
+
   const duplicateExperiment = (experiment: PlanLabExperiment) => {
     setExperiments((current) => [...current, { ...experiment, id: nanoid() }]);
   };
@@ -758,6 +867,136 @@ export default function PlanLabPanel({
     setExperimentDrawerOpen(false);
   };
 
+  const openAddMemberDrawer = () => {
+    setMemberDraft({
+      name: "",
+      kind: "person",
+      birthMonth: "",
+      ageAtBaseMonth: "",
+    });
+    setMemberDraftErrors({});
+    setChildTemplateSelections({});
+    setMemberDrawerOpen(true);
+  };
+
+  const isChildDraft = useMemo(() => {
+    if (!memberDraft || memberDraft.kind !== "person") {
+      return false;
+    }
+    if (typeof memberDraft.ageAtBaseMonth === "number") {
+      return memberDraft.ageAtBaseMonth < 18;
+    }
+    if (!memberDraft.birthMonth) {
+      return false;
+    }
+    const baseMonth = scenario.assumptions.baseMonth;
+    if (!baseMonth) {
+      return false;
+    }
+    const normalizedBirthMonth = parseMonthStrict(memberDraft.birthMonth);
+    if (!normalizedBirthMonth.ok) {
+      return false;
+    }
+    const ageYears = getMemberAgeYears(
+      {
+        id: "draft",
+        name: memberDraft.name,
+        kind: memberDraft.kind,
+        birthMonth: normalizedBirthMonth.month,
+        ageAtBaseMonth: memberDraft.ageAtBaseMonth || undefined,
+      },
+      baseMonth,
+      baseMonth
+    );
+    return ageYears < 18;
+  }, [memberDraft, scenario.assumptions.baseMonth]);
+
+  const childTemplateOptions = useMemo(() => {
+    if (!memberDraft || !isChildDraft) {
+      return [];
+    }
+    return buildChildBudgetRuleTemplates({
+      memberId: "template",
+      memberName: memberDraft.name || undefined,
+    });
+  }, [isChildDraft, memberDraft]);
+
+  const handleMemberSave = () => {
+    if (!memberDraft) {
+      return;
+    }
+    const nextErrors: { name?: string; birthMonth?: string } = {};
+    if (!memberDraft.name.trim()) {
+      nextErrors.name = translate("planLabMemberNameRequired", "請輸入名稱");
+    }
+    if (memberDraft.birthMonth) {
+      const status = normalizeMonthInput(memberDraft.birthMonth);
+      if (status.status === "invalid") {
+        nextErrors.birthMonth = monthInvalidMessage;
+      }
+      if (status.status === "partial") {
+        nextErrors.birthMonth = translate(
+          "planLabMonthIncomplete",
+          "月份尚未完整"
+        );
+      }
+    }
+    setMemberDraftErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
+    const memberId = createMemberId();
+    const nextMember: ScenarioMember = {
+      id: memberId,
+      name: memberDraft.name.trim(),
+      kind: memberDraft.kind,
+      birthMonth: memberDraft.birthMonth || undefined,
+      ageAtBaseMonth:
+        typeof memberDraft.ageAtBaseMonth === "number"
+          ? memberDraft.ageAtBaseMonth
+          : undefined,
+    };
+    setDraftMembers((current) => [...current, nextMember]);
+
+    if (isChildDraft && childTemplateOptions.length > 0) {
+      const selectedIndexes = Object.entries(childTemplateSelections)
+        .filter(([, selected]) => selected)
+        .map(([index]) => Number(index))
+        .filter((index) => Number.isFinite(index));
+      if (selectedIndexes.length > 0) {
+        const templates = buildChildBudgetRuleTemplates({
+          memberId,
+          memberName: nextMember.name,
+        });
+        const selectedRules = templates.filter((_, index) =>
+          selectedIndexes.includes(index)
+        );
+        setDraftBudgetRules((current) => [...current, ...selectedRules]);
+        const firstRule = selectedRules[0];
+        if (firstRule) {
+          openEditingItem({
+            id: `rule:${firstRule.id}`,
+            kind: "rule",
+            title: firstRule.name,
+            category: firstRule.category,
+            memberId: firstRule.memberId,
+            memberName: nextMember.name,
+            startMonth: firstRule.startMonth ?? undefined,
+            endMonth: firstRule.endMonth ?? null,
+            enabled: firstRule.enabled,
+            amount: firstRule.monthlyAmount,
+            ruleId: firstRule.id,
+            ruleSource: "draft",
+            budgetRule: firstRule,
+          });
+        }
+      }
+    }
+
+    setMemberDrawerOpen(false);
+  };
+
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
     const items: ScenarioEditorItem[] = [];
     const eventViews = buildScenarioEventViews(scenario, eventLibrary);
@@ -768,7 +1007,8 @@ export default function PlanLabPanel({
       const title = view.definition.title;
       const rule = view.rule;
       const memberName = view.definition.memberId
-        ? members.find((member) => member.id === view.definition.memberId)?.name ?? null
+        ? combinedMembers.find((member) => member.id === view.definition.memberId)?.name ??
+          null
         : null;
       const risky =
         view.definition.type === "buy_home" ||
@@ -794,12 +1034,24 @@ export default function PlanLabPanel({
       });
     });
 
-    budgetRules.forEach((rule) => {
-      const patch = rulePatches[rule.id];
-      const isEnabled = patch?.isDisabled !== undefined ? !patch.isDisabled : rule.enabled;
+    const draftRuleIds = new Set(draftBudgetRules.map((rule) => rule.id));
+    scenarioBudgetRules.forEach((rule) => {
+      const isDraftRule = draftRuleIds.has(rule.id);
+      const patch = isDraftRule ? null : rulePatches[rule.id];
+      const isEnabled =
+        patch?.isDisabled !== undefined ? !patch.isDisabled : rule.enabled;
       const memberName = rule.memberId
-        ? members.find((member) => member.id === rule.memberId)?.name ?? null
+        ? combinedMembers.find((member) => member.id === rule.memberId)?.name ?? null
         : null;
+      const amount = isDraftRule
+        ? rule.monthlyAmount ?? null
+        : patch?.patch?.monthlyAmount ?? rule.monthlyAmount ?? null;
+      const startMonth = isDraftRule
+        ? rule.startMonth
+        : patch?.patch?.startMonth ?? rule.startMonth;
+      const endMonth = isDraftRule
+        ? rule.endMonth ?? null
+        : patch?.endMonth ?? patch?.patch?.endMonth ?? rule.endMonth ?? null;
       items.push({
         id: `rule:${rule.id}`,
         kind: "rule",
@@ -807,11 +1059,12 @@ export default function PlanLabPanel({
         category: rule.category,
         memberId: rule.memberId ?? null,
         memberName,
-        startMonth: patch?.endMonth ? rule.startMonth : rule.startMonth,
-        endMonth: patch?.endMonth ?? rule.endMonth ?? null,
+        startMonth,
+        endMonth,
         enabled: isEnabled,
-        amount: patch?.patch?.monthlyAmount ?? rule.monthlyAmount ?? null,
+        amount,
         ruleId: rule.id,
+        ruleSource: isDraftRule ? "draft" : "baseline",
         budgetRule: rule,
       });
     });
@@ -956,17 +1209,18 @@ export default function PlanLabPanel({
 
     return items;
   }, [
-    budgetRules,
+    baselineSmartInvestPolicy,
+    combinedMembers,
+    draftBudgetRules,
     eventLibrary,
     eventPatches,
     positionPatches,
-    rulePatches,
-    smartInvestPatch,
-    baselineSmartInvestPolicy,
-    smartInvestLabel,
     positionTitleLabels,
+    rulePatches,
     scenario,
-    members,
+    scenarioBudgetRules,
+    smartInvestLabel,
+    smartInvestPatch,
   ]);
 
   const getScenarioItemBadges = useCallback(
@@ -1071,6 +1325,9 @@ export default function PlanLabPanel({
           }
         }
         if (item.kind === "rule" && item.ruleId) {
+          if (item.ruleSource === "draft") {
+            return true;
+          }
           const patch = rulePatches[item.ruleId];
           if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
             return false;
@@ -1120,7 +1377,7 @@ export default function PlanLabPanel({
       groups.get(groupKey)!.push(item);
     });
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredItems, groupBy, members, categoryLabels]);
+  }, [filteredItems, groupBy, combinedMembers, categoryLabels]);
 
   const planLabDraft: PlanLabDraft = useMemo(
     () => ({
@@ -1130,8 +1387,12 @@ export default function PlanLabPanel({
         firstBucketTargetAmount:
           typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : undefined,
       },
+      additions: {
+        members: draftMembers,
+        budgetRules: draftBudgetRules,
+      },
     }),
-    [baselinePatches, experiments, firstBucketTargetAmount]
+    [baselinePatches, draftBudgetRules, draftMembers, experiments, firstBucketTargetAmount]
   );
 
   const planLabProjection = usePlanLabProjectionWithLedger(
@@ -1310,6 +1571,37 @@ export default function PlanLabPanel({
       onToggle: () => void;
       onRemove: () => void;
     }> = [];
+
+    draftMembers.forEach((member) => {
+      const deltaLine = translate("planLabAppliedAddedMember", "新增成員");
+      controls.push({
+        id: `member-${member.id}`,
+        titleLine: member.name,
+        deltaLine,
+        label: [member.name, deltaLine].filter(Boolean).join(" "),
+        isEnabled: true,
+        onToggle: () => {},
+        onRemove: () => removeDraftMember(member.id),
+      });
+    });
+
+    draftBudgetRules.forEach((rule) => {
+      const deltaLine = translate("planLabAppliedAddedRule", "新增規則");
+      controls.push({
+        id: `rule-add-${rule.id}`,
+        titleLine: rule.name,
+        deltaLine,
+        label: [rule.name, deltaLine].filter(Boolean).join(" "),
+        isEnabled: rule.enabled,
+        onToggle: () =>
+          setDraftBudgetRules((current) =>
+            current.map((entry) =>
+              entry.id === rule.id ? { ...entry, enabled: !entry.enabled } : entry
+            )
+          ),
+        onRemove: () => removeDraftBudgetRule(rule.id),
+      });
+    });
 
     Object.entries(eventPatches).forEach(([refId, patch]) => {
       const item = scenarioItems.find((entry) => entry.eventDefinitionId === refId);
@@ -1637,10 +1929,14 @@ export default function PlanLabPanel({
     return controls;
   }, [
     baselineSmartInvestPolicy,
+    draftBudgetRules,
+    draftMembers,
     eventPatches,
     experiments,
     locale,
     positionPatches,
+    removeDraftBudgetRule,
+    removeDraftMember,
     removeExperiment,
     rulePatches,
     scenario.baseCurrency,
@@ -1663,6 +1959,8 @@ export default function PlanLabPanel({
       smartInvestPatch: undefined,
     });
     setExperiments([]);
+    setDraftMembers([]);
+    setDraftBudgetRules([]);
   };
 
   const handleResetBaseline = () => {
@@ -1676,25 +1974,24 @@ export default function PlanLabPanel({
 
   const handleSave = () => {
     setSaveError(null);
-    const validation = applyPlanLabDraftToScenario(scenario, planLabDraft, {
-      scenarioId: scenario.id,
-      budgetRules,
-    });
-    if (validation.errors.length > 0) {
-      setSaveError(t("planLabSaveInvalidMonths"));
-      return;
-    }
     const duplicated = duplicateScenario(scenario.id);
     if (!duplicated) {
       setSaveError(t("planLabSaveFailed"));
       return;
     }
-    const result = applyPlanLabDraftToScenario(duplicated, planLabDraft, {
+    const sanitizedDuplicate = {
+      ...duplicated,
+      clientComputed: undefined,
+      snapshots: [],
+    };
+    const result = materializePlanLabDraft(sanitizedDuplicate, planLabDraft, {
       scenarioId: duplicated.id,
       budgetRules,
     });
     if (result.errors.length > 0) {
       setSaveError(t("planLabSaveInvalidMonths"));
+      deleteScenario(duplicated.id);
+      setActiveScenario(scenario.id);
       return;
     }
     result.eventDefinitions.forEach((definition) => {
@@ -1702,6 +1999,12 @@ export default function PlanLabPanel({
     });
     result.budgetRules?.forEach((rule) => {
       updateBudgetRule(rule.id, rule);
+    });
+    result.addedMembers.forEach((member) => {
+      createMember(member);
+    });
+    result.addedBudgetRules.forEach((rule) => {
+      createBudgetRule(rule);
     });
     replaceScenario(result.scenario);
     setActiveScenario(result.scenario.id);
@@ -1726,8 +2029,21 @@ export default function PlanLabPanel({
         errors.push(ruleId);
       }
     });
+    draftBudgetRules.forEach((rule) => {
+      if (rule.startMonth && !isStrictMonth(rule.startMonth)) {
+        errors.push(rule.id);
+      }
+      if (rule.endMonth && !isStrictMonth(rule.endMonth)) {
+        errors.push(rule.id);
+      }
+    });
+    draftMembers.forEach((member) => {
+      if (member.birthMonth && !isStrictMonth(member.birthMonth)) {
+        errors.push(member.id);
+      }
+    });
     return errors;
-  }, [eventPatches, rulePatches]);
+  }, [draftBudgetRules, draftMembers, eventPatches, rulePatches]);
 
   const saveWarnings = [
     ...(validationMonthFields.length > 0 ? [t("planLabSaveInvalidMonths")] : []),
@@ -1793,14 +2109,18 @@ export default function PlanLabPanel({
       return;
     }
     const baseRule = editingItem.budgetRule;
-    const patch = rulePatches[baseRule.id];
-    const patchedRule = {
-      ...baseRule,
-      ...(patch?.patch ?? {}),
-      startMonth: patch?.patch?.startMonth ?? baseRule.startMonth,
-      endMonth: patch?.endMonth ?? patch?.patch?.endMonth ?? baseRule.endMonth,
-      enabled: patch?.isDisabled !== undefined ? !patch.isDisabled : baseRule.enabled,
-    };
+    const isDraftRule = editingItem.ruleSource === "draft";
+    const patch = isDraftRule ? null : rulePatches[baseRule.id];
+    const patchedRule = isDraftRule
+      ? baseRule
+      : {
+          ...baseRule,
+          ...(patch?.patch ?? {}),
+          startMonth: patch?.patch?.startMonth ?? baseRule.startMonth,
+          endMonth: patch?.endMonth ?? patch?.patch?.endMonth ?? baseRule.endMonth,
+          enabled:
+            patch?.isDisabled !== undefined ? !patch.isDisabled : baseRule.enabled,
+        };
     setRuleDraft(patchedRule);
     const usesMonth = Boolean(patchedRule.startMonth || patchedRule.endMonth);
     setRuleBasis(usesMonth ? "month" : "age");
@@ -1884,7 +2204,21 @@ export default function PlanLabPanel({
         endMonth: ruleBasis === "month" ? ruleEndMonth || undefined : undefined,
       },
     };
-    updateRulePatch(ruleDraft.id, patch);
+    if (editingItem?.ruleSource === "draft") {
+      const nextRule: BudgetRule = {
+        ...ruleDraft,
+        ...patch.patch,
+      };
+      setDraftBudgetRules((current) => {
+        const exists = current.some((rule) => rule.id === nextRule.id);
+        if (exists) {
+          return current.map((rule) => (rule.id === nextRule.id ? nextRule : rule));
+        }
+        return [...current, nextRule];
+      });
+    } else {
+      updateRulePatch(ruleDraft.id, patch);
+    }
     setEditingItem(null);
   };
 
@@ -1985,6 +2319,14 @@ export default function PlanLabPanel({
                       {translate("planLabScenarioEditor", "情境編輯器")}
                     </Text>
                   </MantineTooltip>
+                  <Group gap="xs" wrap="wrap">
+                    <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
+                      {translate("planLabAddMemberAction", "新增成員")}
+                    </Button>
+                    <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
+                      {translate("planLabAddRuleAction", "新增規則")}
+                    </Button>
+                  </Group>
                 </Group>
                 <Stack gap="xs">
                   <Group align="flex-end" wrap="wrap">
@@ -2087,6 +2429,12 @@ export default function PlanLabPanel({
                                   onClick: () => openEditingItem(item, "validity"),
                                 });
                               }
+                              if (item.kind === "rule" && item.ruleSource === "draft") {
+                                menuItems.push({
+                                  label: translate("planLabAppliedRemove", "移除"),
+                                  onClick: () => removeDraftBudgetRule(item.ruleId ?? item.id),
+                                });
+                              }
                               return (
                                 <PlanLabAccordionRow
                                   key={item.id}
@@ -2102,9 +2450,19 @@ export default function PlanLabPanel({
                                       });
                                     }
                                     if (item.kind === "rule" && item.ruleId) {
-                                      updateRulePatch(item.ruleId, {
-                                        isDisabled: item.enabled,
-                                      });
+                                      if (item.ruleSource === "draft") {
+                                        setDraftBudgetRules((current) =>
+                                          current.map((rule) =>
+                                            rule.id === item.ruleId
+                                              ? { ...rule, enabled: !rule.enabled }
+                                              : rule
+                                          )
+                                        );
+                                      } else {
+                                        updateRulePatch(item.ruleId, {
+                                          isDisabled: item.enabled,
+                                        });
+                                      }
                                     }
                                     if (item.kind === "position" && item.positionKey) {
                                       if (item.positionKind === "smartInvest") {
@@ -2486,6 +2844,112 @@ export default function PlanLabPanel({
       </Grid>
 
       <Drawer
+        opened={memberDrawerOpen}
+        onClose={() => setMemberDrawerOpen(false)}
+        position="right"
+        size="lg"
+        title={translate("planLabMemberDrawerTitle", "新增成員")}
+      >
+        {memberDraft && (
+          <Stack gap="sm">
+            <TextInput
+              label={translate("planLabMemberNameLabel", "名稱")}
+              value={memberDraft.name}
+              error={memberDraftErrors.name}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                setMemberDraft((current) =>
+                  current ? { ...current, name: value } : current
+                );
+                setMemberDraftErrors((current) => ({ ...current, name: undefined }));
+              }}
+            />
+            <Select
+              label={translate("planLabMemberKindLabel", "類型")}
+              data={[
+                { value: "person", label: translate("planLabMemberKindPerson", "人") },
+                { value: "pet", label: translate("planLabMemberKindPet", "寵物") },
+              ]}
+              value={memberDraft.kind}
+              onChange={(value) =>
+                setMemberDraft((current) =>
+                  current
+                    ? { ...current, kind: (value as ScenarioMemberKind) ?? "person" }
+                    : current
+                )
+              }
+            />
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+              <TextInput
+                label={translate("planLabMemberBirthMonthLabel", "出生月份")}
+                placeholder={translate("planLabMonthPlaceholder", "YYYY-MM")}
+                value={memberDraft.birthMonth}
+                error={
+                  memberDraftErrors.birthMonth ??
+                  (memberDraft.birthMonth
+                    ? getMonthError(memberDraft.birthMonth, monthInvalidMessage)
+                    : undefined)
+                }
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setMemberDraft((current) =>
+                    current ? { ...current, birthMonth: value } : current
+                  );
+                  setMemberDraftErrors((current) => ({
+                    ...current,
+                    birthMonth: undefined,
+                  }));
+                }}
+              />
+              <NumberInput
+                label={translate("planLabMemberAgeLabel", "基準月年齡")}
+                value={memberDraft.ageAtBaseMonth}
+                min={0}
+                onChange={(value) =>
+                  setMemberDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          ageAtBaseMonth: typeof value === "number" ? value : "",
+                        }
+                      : current
+                  )
+                }
+              />
+            </SimpleGrid>
+            {isChildDraft && childTemplateOptions.length > 0 && (
+              <Stack gap="xs">
+                <Text fw={600} size="sm">
+                  {translate("planLabChildTemplatesTitle", "育兒/教育預設規則")}
+                </Text>
+                {childTemplateOptions.map((template, index) => (
+                  <Checkbox
+                    key={`child-template-${index}`}
+                    label={template.name}
+                    checked={childTemplateSelections[String(index)] ?? false}
+                    onChange={(event) =>
+                      setChildTemplateSelections((current) => ({
+                        ...current,
+                        [String(index)]: event.currentTarget.checked,
+                      }))
+                    }
+                  />
+                ))}
+              </Stack>
+            )}
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setMemberDrawerOpen(false)}>
+                {translate("planLabActionCancel", "取消")}
+              </Button>
+              <Button onClick={handleMemberSave}>
+                {translate("planLabActionAddMember", "新增成員")}
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Drawer>
+
+      <Drawer
         opened={experimentDrawerOpen}
         onClose={() => setExperimentDrawerOpen(false)}
         position="right"
@@ -2796,7 +3260,7 @@ export default function PlanLabPanel({
             <TimelineEventForm
               event={editingEventData}
               baseCurrency={scenario.baseCurrency}
-              members={members}
+              members={combinedMembers}
               assumptions={{
                 baseMonth: scenario.assumptions.baseMonth,
                 horizonMonths: scenario.assumptions.horizonMonths,
@@ -2832,7 +3296,10 @@ export default function PlanLabPanel({
                   value: "",
                   label: translate("planLabRuleMemberAllOption", "全部"),
                 },
-                ...members.map((member) => ({ value: member.id, label: member.name })),
+                ...scenarioMembers.map((member) => ({
+                  value: member.id,
+                  label: member.name,
+                })),
               ]}
               value={ruleDraft.memberId ?? ""}
               onChange={(value) =>

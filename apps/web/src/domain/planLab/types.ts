@@ -7,6 +7,7 @@ import type {
   InsurancePositionDraft,
   InvestmentPositionDraft,
   LoanPositionDraft,
+  ScenarioMember,
 } from "../../store/scenarioStore";
 import type { SmartInvestAllocation, SmartInvestPolicy } from "../smartInvest/types";
 
@@ -142,10 +143,16 @@ export type PlanLabScorecardSettings = {
   firstBucketTargetAmount?: number;
 };
 
+export type PlanLabDraftAdditions = {
+  members?: ScenarioMember[];
+  budgetRules?: BudgetRule[];
+};
+
 export type PlanLabDraft = {
   baselinePatches?: PlanLabBaselinePatches;
   experiments?: PlanLabExperiment[];
   scorecardSettings?: PlanLabScorecardSettings;
+  additions?: PlanLabDraftAdditions;
 };
 
 export type OnboardingDraftBaseline = {

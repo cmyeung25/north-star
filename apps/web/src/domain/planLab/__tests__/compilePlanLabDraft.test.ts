@@ -63,4 +63,25 @@ describe("compilePlanLabDraft", () => {
       overrides: { endMonth: "2025-06" },
     });
   });
+
+  it("skips invalid draft member months without throwing", () => {
+    const scenario = buildScenario();
+    expect(() =>
+      compilePlanLabDraft(
+        {
+          additions: {
+            members: [
+              {
+                id: "member-1",
+                name: "Kid",
+                kind: "person",
+                birthMonth: "2024-99",
+              },
+            ],
+          },
+        },
+        { baselineScenario: scenario, members: [] }
+      )
+    ).not.toThrow();
+  });
 });
