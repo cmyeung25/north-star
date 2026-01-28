@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
 import type { ApplyScope } from "../domain/applyScope";
 import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
+import type { Plan } from "../domain/planLab/types";
 import type { SmartInvestPolicy } from "../domain/smartInvest/types";
 import {
   buildEventRuleOverrides,
@@ -277,12 +278,14 @@ export type Scenario = {
   name: string;
   baseCurrency: string;
   updatedAt: number;
+  version?: number;
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
   eventRefs?: ScenarioEventRef[];
   positions?: ScenarioPositions;
   clientComputed?: ScenarioClientComputed;
   snapshots?: ProjectionSnapshot[];
+  plans?: Plan[];
   meta?: ScenarioMeta;
 };
 
@@ -388,6 +391,8 @@ type ScenarioStoreState = {
   addSnapshot: (scenarioId: string, snapshot: ProjectionSnapshot) => void;
   removeSnapshot: (scenarioId: string, snapshotId: string) => void;
   clearSnapshots: (scenarioId: string) => void;
+  upsertScenarioPlan: (scenarioId: string, plan: Plan) => void;
+  removeScenarioPlan: (scenarioId: string, planId: string) => void;
 };
 
 export type ScenarioStorePersistedState = Pick<
@@ -519,6 +524,23 @@ const clamp = (value: number, min: number, max: number) =>
 const isValidBaseMonth = (value: string) => isValidMonthStr(value);
 
 const now = () => Date.now();
+const defaultScenarioVersion = 1;
+
+const ensureScenarioVersion = (scenario: Scenario) =>
+  scenario.version ?? defaultScenarioVersion;
+
+const bumpScenarioVersion = (scenario: Scenario) =>
+  ensureScenarioVersion(scenario) + 1;
+
+const clonePlanSnapshot = (snapshot: Plan["snapshot"]) =>
+  JSON.parse(JSON.stringify(snapshot ?? {})) as Plan["snapshot"];
+
+const clonePlans = (plans?: Plan[]) =>
+  plans?.map((plan) => ({
+    ...plan,
+    snapshot: clonePlanSnapshot(plan.snapshot),
+    metricsCache: plan.metricsCache ? { ...plan.metricsCache } : undefined,
+  })) ?? [];
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
 export const createHomePositionId = () => `home-${nanoid(8)}`;
@@ -950,6 +972,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   const normalizedEventRefs = cloneEventRefs(scenario.eventRefs) ?? [];
   const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
   const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
+  const normalizedPlans = clonePlans(scenario.plans);
   const normalizedAssumptions = {
     ...defaultAssumptions,
     ...scenario.assumptions,
@@ -965,6 +988,8 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
       eventRefs: normalizedEventRefs,
       clientComputed: nextClientComputed,
       snapshots: normalizedSnapshots,
+      plans: normalizedPlans,
+      version: scenario.version ?? defaultScenarioVersion,
     };
   }
 
@@ -975,6 +1000,8 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     eventRefs: normalizedEventRefs,
     clientComputed: nextClientComputed,
     snapshots: normalizedSnapshots,
+    plans: normalizedPlans,
+    version: scenario.version ?? defaultScenarioVersion,
   };
 };
 
@@ -1061,6 +1088,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       name,
       baseCurrency: options?.baseCurrency ?? defaultCurrency,
       updatedAt: now(),
+      version: defaultScenarioVersion,
       kpis: { ...defaultKpis },
       assumptions: {
         ...defaultAssumptions,
@@ -1069,6 +1097,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       },
       eventRefs: [],
       snapshots: [],
+      plans: [],
       clientComputed:
         options?.onboardingCompleted !== undefined
           ? { onboardingCompleted: options.onboardingCompleted }
@@ -1105,12 +1134,14 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       id: createScenarioId(),
       name: `${source.name} (Copy)`,
       updatedAt: now(),
+      version: defaultScenarioVersion,
       kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
       eventRefs: cloneEventRefs(source.eventRefs),
       positions: clonePositions(source.positions),
       clientComputed: cloneClientComputed(source.clientComputed),
       snapshots: cloneSnapshots(source.snapshots),
+      plans: [],
       meta: source.meta ? { ...source.meta } : undefined,
     };
 
@@ -1174,6 +1205,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
               ...scenario,
               eventRefs,
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1187,6 +1219,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
               ...scenario,
               eventRefs: [...(scenario.eventRefs ?? []), { ...ref }],
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1214,6 +1247,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           ...scenario,
           eventRefs: [...existingRefs, nextRef],
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1236,6 +1270,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                   : ref
               ),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1268,6 +1303,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           ...scenario,
           eventRefs: nextRefs,
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1280,6 +1316,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
               ...scenario,
               eventRefs: (scenario.eventRefs ?? []).filter((ref) => ref.refId !== refId),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1411,6 +1448,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                 scenario.assumptions.baseMonth
               ),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1442,6 +1480,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1481,6 +1520,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1500,6 +1540,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                 scenario.assumptions.baseMonth
               ),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1529,6 +1570,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1554,6 +1596,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1576,6 +1619,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                 scenario.assumptions.baseMonth
               ),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1609,6 +1653,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1634,6 +1679,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1653,6 +1699,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                 scenario.assumptions.baseMonth
               ),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1682,6 +1729,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1707,6 +1755,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1728,6 +1777,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                 scenario.assumptions.baseMonth
               ),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1764,6 +1814,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1789,6 +1840,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1811,6 +1863,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                 scenario.assumptions.baseMonth
               ),
               updatedAt: now(),
+              version: bumpScenarioVersion(scenario),
             }
           : scenario
       ),
@@ -1842,6 +1895,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1867,6 +1921,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       }),
     }));
@@ -1939,6 +1994,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             scenario.assumptions.baseMonth
           ),
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       });
 
@@ -1966,6 +2022,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             smartInvest: cloneSmartInvestPolicy(sourcePolicy),
           },
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       });
 
@@ -2020,6 +2077,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           ...scenario,
           eventRefs: nextRefs,
           updatedAt: now(),
+          version: bumpScenarioVersion(scenario),
         };
       });
 
@@ -2093,7 +2151,11 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         : currentGlobalHorizon;
 
       const scenarios = state.scenarios.map((scenario) => {
+        const horizonChanged =
+          Object.prototype.hasOwnProperty.call(patch, "horizonMonths") &&
+          nextGlobalHorizon !== scenario.assumptions.horizonMonths;
         const nextAssumptions = { ...scenario.assumptions };
+        let didChange = false;
 
         if (Object.prototype.hasOwnProperty.call(patch, "horizonMonths")) {
           nextAssumptions.horizonMonths = nextGlobalHorizon;
@@ -2106,6 +2168,9 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
                 ? Math.max(0, patch.initialCash)
                 : scenario.assumptions.initialCash;
             nextAssumptions.initialCash = cash;
+            if (cash !== scenario.assumptions.initialCash) {
+              didChange = true;
+            }
           }
 
           if (Object.prototype.hasOwnProperty.call(patch, "baseMonth")) {
@@ -2115,18 +2180,30 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             } else if (typeof baseMonth === "string" && isValidBaseMonth(baseMonth)) {
               nextAssumptions.baseMonth = baseMonth;
             }
+            if (nextAssumptions.baseMonth !== scenario.assumptions.baseMonth) {
+              didChange = true;
+            }
           }
 
           if (Object.prototype.hasOwnProperty.call(patch, "inflationRate")) {
             nextAssumptions.inflationRate = patch.inflationRate;
+            if (patch.inflationRate !== scenario.assumptions.inflationRate) {
+              didChange = true;
+            }
           }
 
           if (Object.prototype.hasOwnProperty.call(patch, "salaryGrowthRate")) {
             nextAssumptions.salaryGrowthRate = patch.salaryGrowthRate;
+            if (patch.salaryGrowthRate !== scenario.assumptions.salaryGrowthRate) {
+              didChange = true;
+            }
           }
 
           if (Object.prototype.hasOwnProperty.call(patch, "emergencyFundMonths")) {
             nextAssumptions.emergencyFundMonths = patch.emergencyFundMonths;
+            if (patch.emergencyFundMonths !== scenario.assumptions.emergencyFundMonths) {
+              didChange = true;
+            }
           }
 
           if (
@@ -2137,18 +2214,35 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           ) {
             nextAssumptions.includeBudgetRulesInProjection =
               patch.includeBudgetRulesInProjection ?? true;
+            if (
+              nextAssumptions.includeBudgetRulesInProjection !==
+              scenario.assumptions.includeBudgetRulesInProjection
+            ) {
+              didChange = true;
+            }
           }
 
           if (Object.prototype.hasOwnProperty.call(patch, "smartInvest")) {
             nextAssumptions.smartInvest = patch.smartInvest ?? undefined;
+            if (nextAssumptions.smartInvest !== scenario.assumptions.smartInvest) {
+              didChange = true;
+            }
           }
         }
 
-        return scenario.id === id || Object.prototype.hasOwnProperty.call(patch, "horizonMonths")
+        return scenario.id === id || horizonChanged
           ? {
               ...scenario,
               assumptions: nextAssumptions,
-              updatedAt: scenario.id === id ? now() : scenario.updatedAt,
+              updatedAt: scenario.id === id || horizonChanged ? now() : scenario.updatedAt,
+              version:
+                scenario.id === id
+                  ? didChange || horizonChanged
+                    ? bumpScenarioVersion(scenario)
+                    : ensureScenarioVersion(scenario)
+                  : horizonChanged
+                    ? bumpScenarioVersion(scenario)
+                    : ensureScenarioVersion(scenario),
             }
           : scenario;
       });
@@ -2322,6 +2416,41 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             }
           : scenario
       ),
+    }));
+  },
+  upsertScenarioPlan: (scenarioId, plan) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== scenarioId) {
+          return scenario;
+        }
+        const existingPlans = scenario.plans ?? [];
+        const hasMatch = existingPlans.some((entry) => entry.id === plan.id);
+        const nextPlans = hasMatch
+          ? existingPlans.map((entry) => (entry.id === plan.id ? plan : entry))
+          : [...existingPlans, plan];
+        return {
+          ...scenario,
+          plans: nextPlans,
+          updatedAt: now(),
+          version: ensureScenarioVersion(scenario),
+        };
+      }),
+    }));
+  },
+  removeScenarioPlan: (scenarioId, planId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== scenarioId) {
+          return scenario;
+        }
+        return {
+          ...scenario,
+          plans: (scenario.plans ?? []).filter((plan) => plan.id !== planId),
+          updatedAt: now(),
+          version: ensureScenarioVersion(scenario),
+        };
+      }),
     }));
   },
 }));
