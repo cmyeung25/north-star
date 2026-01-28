@@ -1,5 +1,6 @@
-import { Card, Grid, Group, NumberInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Card, Grid, Group, NumberInput, Select, Stack, Text, Title } from "@mantine/core";
 import type { OnboardingSettingsDraft } from "../../../domain/onboarding/applyDraft";
+import MonthField from "../../../../components/MonthField";
 
 interface StepGlobalSettingsProps {
   settings: OnboardingSettingsDraft;
@@ -38,11 +39,11 @@ export default function StepGlobalSettings({
               />
             </Group>
             <Group align="flex-start" grow mb="md">
-              <TextInput
+              <MonthField
                 label={t("baseMonth")}
                 placeholder="YYYY-MM"
                 value={settings.baseMonth}
-                onChange={(event) => onChange({ baseMonth: event.currentTarget.value })}
+                onChange={(value) => onChange({ baseMonth: value })}
                 error={errors.baseMonth}
               />
             </Group>
