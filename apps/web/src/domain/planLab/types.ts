@@ -159,6 +159,31 @@ export type PlanLabDraft = {
   additions?: PlanLabDraftAdditions;
 };
 
+export type PlanSnapshot = {
+  baselinePatches?: PlanLabBaselinePatches;
+  experiments?: PlanLabExperiment[];
+  scorecardSettings?: PlanLabScorecardSettings;
+};
+
+export type PlanMetricsCache = {
+  minCash?: {
+    month: string;
+    amount: number;
+  } | null;
+  status?: "safe" | "bust";
+};
+
+export type Plan = {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  sourceScenarioId: string;
+  baseScenarioVersion?: number;
+  snapshot: PlanSnapshot;
+  metricsCache?: PlanMetricsCache;
+};
+
 export type OnboardingDraftBaseline = {
   monthlyIncomeTotal: number;
   monthlyExpenseTotal: number;
