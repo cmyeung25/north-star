@@ -14,7 +14,7 @@ export default function StepGlobalSettings({
   onChange,
   t,
 }: StepGlobalSettingsProps) {
-  var horizonYears = Math.round(settings.horizonMonths / 12 * 10)  / 10;
+  const horizonYears = Math.round((settings.horizonMonths / 12) * 10) / 10;
 
   return (
     <Stack gap="xl">
