@@ -2,10 +2,10 @@ import type { ProjectionResult } from "@north-star/engine";
 import type { AdapterWarning } from "../../src/engine/adapter";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { computeProjectionWithSmartInvest } from "../../src/engine/useProjectionWithLedger";
-import type { EventDefinition, ScenarioEventRef } from "../../src/domain/events/types";
-import { compilePlanLabDraft } from "../../src/domain/planLab/compilePlanLabDraft";
+import type { EventDefinition } from "../../src/domain/events/types";
+import { applyPlanPatches } from "../../src/domain/planLab/applyPlanPatches";
+import { buildPlanLabDraftFromPatches } from "../../src/domain/planLab/planPatches";
 import type { PlanLabDraft, PlanSnapshot } from "../../src/domain/planLab/types";
-import type { CompilerWarning } from "../../src/domain/warnings/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
 
 export type PlanProjectionResult = {
@@ -16,35 +16,15 @@ export type PlanProjectionResult = {
 };
 
 export type PlanSnapshotValidation = {
-  warnings: CompilerWarning[];
+  warnings: Array<{
+    messageKey: string;
+    defaultMessage: string;
+  }>;
 };
-
-const applyEventRefOverrides = (
-  baseRefs: ScenarioEventRef[] | undefined,
-  overrides: ScenarioEventRef[]
-) =>
-  (baseRefs ?? []).map((ref) => {
-    const override = overrides.find((entry) => entry.refId === ref.refId);
-    if (!override) {
-      return ref;
-    }
-    return {
-      ...ref,
-      enabled: override.enabled ?? ref.enabled,
-      overrides: {
-        ...(ref.overrides ?? {}),
-        ...(override.overrides ?? {}),
-      },
-    };
-  });
 
 export const buildPlanLabDraftFromSnapshot = (
   snapshot: PlanSnapshot | null | undefined
-): PlanLabDraft => ({
-  baselinePatches: snapshot?.baselinePatches,
-  experiments: snapshot?.experiments,
-  scorecardSettings: snapshot?.scorecardSettings,
-});
+): PlanLabDraft => buildPlanLabDraftFromPatches(snapshot?.patches ?? []);
 
 export const validatePlanSnapshot = (
   snapshot: PlanSnapshot,
@@ -53,15 +33,15 @@ export const validatePlanSnapshot = (
   members: ScenarioMember[],
   budgetRules: BudgetRule[]
 ): PlanSnapshotValidation => {
-  const draft = buildPlanLabDraftFromSnapshot(snapshot);
-  const compilation = compilePlanLabDraft(draft, {
-    baselineScenario: scenario,
+  const { warnings } = applyPlanPatches({
+    scenario,
+    patches: snapshot.patches,
     eventLibrary,
     budgetRules,
     members,
   });
   return {
-    warnings: compilation.warnings ?? [],
+    warnings: warnings ?? [],
   };
 };
 
@@ -72,46 +52,30 @@ export const getProjectionForPlanSnapshot = (
   members: ScenarioMember[],
   budgetRules: BudgetRule[]
 ): PlanProjectionResult => {
-  const draft = buildPlanLabDraftFromSnapshot(snapshot);
-  const planLabCompilation = compilePlanLabDraft(draft, {
-    baselineScenario: scenario,
+  const applied = applyPlanPatches({
+    scenario,
+    patches: snapshot.patches,
     eventLibrary,
-    budgetRules,
     members,
+    budgetRules,
   });
-  const eventRefsWithOverrides = applyEventRefOverrides(
-    scenario.eventRefs,
-    planLabCompilation.eventRefOverrides
-  );
-  const baselineScenario: Scenario = {
-    ...scenario,
-    assumptions: {
-      ...scenario.assumptions,
-      ...planLabCompilation.assumptions,
-    },
-    positions: {
-      ...(scenario.positions ?? {}),
-      ...planLabCompilation.positions,
-    },
-    eventRefs: [...eventRefsWithOverrides, ...planLabCompilation.eventRefs],
-  };
-  const combinedEventLibrary = [
-    ...eventLibrary,
-    ...planLabCompilation.eventDefinitions,
-  ];
 
   try {
     const {
       projection,
       warnings,
-    } = computeProjectionWithSmartInvest(baselineScenario, combinedEventLibrary, {
-      members,
-      budgetRules,
-    });
+    } = computeProjectionWithSmartInvest(
+      applied.scenario ?? scenario,
+      applied.eventLibrary,
+      {
+        members: applied.members,
+        budgetRules: applied.budgetRules,
+      }
+    );
     return {
       projection,
       overview: projection ? projectionToOverviewViewModel(projection) : null,
-      warnings: [...warnings, ...planLabCompilation.warnings],
+      warnings: [...warnings, ...applied.warnings],
       errors: [],
     };
   } catch (error) {
@@ -120,7 +84,7 @@ export const getProjectionForPlanSnapshot = (
     return {
       projection: null,
       overview: null,
-      warnings: [...planLabCompilation.warnings],
+      warnings: [...applied.warnings],
       errors: [message],
     };
   }

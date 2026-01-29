@@ -9,15 +9,15 @@ import { buildSmartInvestProjectionBreakdown } from "../domain/smartInvest/proje
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { getEventSign } from "../events/eventCatalog";
-import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
+import type { EventDefinition } from "../domain/events/types";
 import type { CashflowItem } from "../domain/ledger/types";
 import {
   groupLedgerByMonth,
   summarizeMonth,
   type LedgerMonthSummary,
 } from "../domain/ledger/ledgerUtils";
-import { compilePlanLabDraft } from "../domain/planLab/compilePlanLabDraft";
-import type { PlanLabDraft } from "../domain/planLab/types";
+import { applyPlanPatches } from "../domain/planLab/applyPlanPatches";
+import type { PlanPatch } from "../domain/planLab/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
 import { normalizeMonthStrict } from "../utils/month";
 import { monthIndex } from "@north-star/engine";
@@ -215,85 +215,29 @@ const buildPositionCashflowsByMonth = (projection: ProjectionResult) => {
   }, {});
 };
 
-const applyEventRefOverrides = (
-  refs: ScenarioEventRef[] | undefined,
-  overrides: ScenarioEventRef[]
-) => {
-  if (!refs || refs.length === 0 || overrides.length === 0) {
-    return refs ?? [];
-  }
-  const overridesById = new Map(
-    overrides.map((override) => [override.refId, override])
-  );
-  return refs.map((ref) => {
-    const override = overridesById.get(ref.refId);
-    if (!override) {
-      return ref;
-    }
-    return {
-      ...ref,
-      enabled: override.enabled ?? ref.enabled,
-      overrides: {
-        ...(ref.overrides ?? {}),
-        ...(override.overrides ?? {}),
-      },
-    };
-  });
-};
-
 export const usePlanLabProjectionWithLedger = (
-  draft: PlanLabDraft | null | undefined,
   scenario: Scenario | null | undefined,
+  patches: PlanPatch[],
   eventLibrary: EventDefinition[],
   options: { members?: ScenarioMember[]; budgetRules?: BudgetRule[] } = {}
 ): ProjectionWithLedger =>
   useMemo(() => {
-    if (!draft && !scenario) {
+    if (!scenario) {
       return emptyProjectionWithLedger;
     }
 
-    const planLabCompilation = compilePlanLabDraft(draft, {
-      baselineScenario: scenario ?? null,
+    const applied = applyPlanPatches({
+      scenario,
+      patches,
       eventLibrary,
       budgetRules: options.budgetRules ?? [],
       members: options.members ?? [],
     });
 
-    const eventRefsWithOverrides = applyEventRefOverrides(
-      scenario?.eventRefs,
-      planLabCompilation.eventRefOverrides
-    );
-
-    const baselineScenario: Scenario | null = scenario
-      ? {
-          ...scenario,
-          assumptions: {
-            ...scenario.assumptions,
-            ...planLabCompilation.assumptions,
-          },
-          positions: {
-            ...(scenario.positions ?? {}),
-            ...planLabCompilation.positions,
-          },
-          eventRefs: [
-            ...eventRefsWithOverrides,
-            ...planLabCompilation.eventRefs,
-          ],
-        }
-      : null;
-
-    const combinedEventLibrary = [
-      ...eventLibrary,
-      ...planLabCompilation.eventDefinitions,
-    ];
-
-    if (!baselineScenario) {
+    const sandboxScenario = applied.scenario;
+    if (!sandboxScenario) {
       return emptyProjectionWithLedger;
     }
-
-    const planLabMembers = planLabCompilation.members ?? options.members ?? [];
-    const planLabBudgetRules =
-      planLabCompilation.budgetRules ?? options.budgetRules ?? [];
 
     const {
       input,
@@ -302,30 +246,30 @@ export const usePlanLabProjectionWithLedger = (
       smartInvestWithdrawalSchedule,
       smartInvestRebalanceSchedule,
       smartInvestTransferSeries,
-    } = computeProjectionWithSmartInvest(baselineScenario, combinedEventLibrary, {
-      members: planLabMembers,
-      budgetRules: planLabBudgetRules,
+    } = computeProjectionWithSmartInvest(sandboxScenario, applied.eventLibrary, {
+      members: applied.members,
+      budgetRules: applied.budgetRules,
     });
 
     const scenarioForLedger = {
-      ...baselineScenario,
+      ...sandboxScenario,
       assumptions: {
-        ...baselineScenario.assumptions,
+        ...sandboxScenario.assumptions,
         baseMonth: input.baseMonth,
         horizonMonths: input.horizonMonths,
       },
-      eventRefs: baselineScenario.eventRefs,
+      eventRefs: sandboxScenario.eventRefs,
     };
 
     const includeBudgetRulesInProjection =
       scenarioForLedger.assumptions.includeBudgetRulesInProjection ?? true;
-    const members = planLabMembers;
+    const members = applied.members;
     const eventLedger = compileEventLedger(
       scenarioForLedger,
-      combinedEventLibrary,
+      applied.eventLibrary,
       members
     );
-    const budgetRules = normalizeBudgetRulesForLedger(planLabBudgetRules);
+    const budgetRules = normalizeBudgetRulesForLedger(applied.budgetRules);
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
       : [];
@@ -446,7 +390,7 @@ export const usePlanLabProjectionWithLedger = (
       projectionNetCashflowByMonth: netCashflowLookup.byMonth,
       projectionNetCashflowMode: netCashflowLookup.mode,
       netWorthBreakdownByMonth,
-      projectionWarnings: [...warnings, ...planLabCompilation.warnings],
+      projectionWarnings: [...warnings, ...applied.warnings],
       smartInvestTransferSeries,
     };
-  }, [draft, eventLibrary, options.budgetRules, options.members, scenario]);
+  }, [eventLibrary, options.budgetRules, options.members, patches, scenario]);
