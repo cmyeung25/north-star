@@ -12,6 +12,27 @@ import type {
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+const purchaseFeeSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1, "validation.feeLabelRequired"),
+  amount: z.number().min(0, "validation.feeAmountMin"),
+  month: z.string().regex(monthPattern, "validation.useYearMonth"),
+});
+
+const homeOngoingCostSchema = z.object({
+  key: z.enum(["managementFee", "groundRent", "insurance", "maintenance"]),
+  enabled: z.boolean(),
+  amount: z.number().min(0, "validation.ongoingCostAmountMin"),
+  startMonth: z.string().regex(monthPattern, "validation.useYearMonth"),
+});
+
+const carOngoingCostSchema = z.object({
+  key: z.enum(["insurance", "inspection", "maintenance"]),
+  enabled: z.boolean(),
+  amount: z.number().min(0, "validation.ongoingCostAmountMin"),
+  startMonth: z.string().regex(monthPattern, "validation.useYearMonth"),
+});
+
 const existingSchema = z.object({
   asOfMonth: z.string().regex(monthPattern, "validation.useYearMonth"),
   marketValue: z
@@ -97,6 +118,8 @@ export const HomePositionSchema = z
       .min(0, "validation.holdingCostGrowthMin")
       .max(100, "validation.holdingCostGrowthMax")
       .optional(),
+    purchaseFees: z.array(purchaseFeeSchema).optional(),
+    ongoingCosts: z.array(homeOngoingCostSchema).optional(),
     sellMonth: z.string().regex(monthPattern, "validation.useYearMonth").optional(),
     sellPriceOverride: z
       .number()
@@ -204,6 +227,8 @@ export const CarPositionSchema = z
       .number({ required_error: "validation.holdingCostGrowthRequired" })
       .min(0, "validation.holdingCostGrowthMin")
       .max(100, "validation.holdingCostGrowthMax"),
+    purchaseFees: z.array(purchaseFeeSchema).optional(),
+    ongoingCosts: z.array(carOngoingCostSchema).optional(),
     sellMonth: z.string().regex(monthPattern, "validation.useYearMonth").optional(),
     sellPriceOverride: z
       .number()
@@ -336,6 +361,14 @@ export const LoanPositionSchema = z.object({
   monthlyPayment: z.number().min(0, "validation.loanPaymentMin").optional(),
   paymentMethod: z.enum(["amortization", "manual"]).optional(),
   feesOneTime: z.number().min(0, "validation.feesOneTimeMin").optional(),
+  purchasePrice: z.number().min(0, "validation.purchasePriceMin").optional(),
+  downPaymentPercent: z
+    .number()
+    .min(0, "validation.downPaymentPercentMin")
+    .max(100, "validation.downPaymentPercentMax")
+    .optional(),
+  generatePaymentExpense: z.boolean().optional(),
+  linkedAssetId: z.string().optional(),
 });
 
 export const getCarPositionErrors = (

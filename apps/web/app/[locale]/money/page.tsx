@@ -13,6 +13,10 @@ export default function Page({ searchParams }: PageProps) {
     typeof searchParams?.editEventId === "string" ? searchParams.editEventId : undefined;
   const editHomeId =
     typeof searchParams?.editHomeId === "string" ? searchParams.editHomeId : undefined;
+  const editCarId =
+    typeof searchParams?.editCarId === "string" ? searchParams.editCarId : undefined;
+  const editLoanId =
+    typeof searchParams?.editLoanId === "string" ? searchParams.editLoanId : undefined;
   const editSmartInvest =
     typeof searchParams?.editSmartInvest === "string"
       ? searchParams.editSmartInvest
@@ -33,6 +37,8 @@ export default function Page({ searchParams }: PageProps) {
       initialAdd={add}
       initialEditEventId={editEventId}
       initialEditHomeId={editHomeId}
+      initialEditCarId={editCarId}
+      initialEditLoanId={editLoanId}
       initialEditSmartInvest={editSmartInvest}
       initialShowOnboardingBanner={showOnboardingBanner}
       initialShowOnboardingSkipped={showOnboardingSkipped}

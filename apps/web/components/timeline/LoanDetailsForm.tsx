@@ -2,12 +2,14 @@
 "use client";
 
 import {
+  Badge,
   Button,
   Group,
   NumberInput,
   SegmentedControl,
   Stack,
   Text,
+  Switch,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -46,11 +48,35 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
   const toPositiveNumber = (value: number | string | null | undefined) =>
     Math.max(0, Number(value ?? 0));
   const paymentMethod = formValues.paymentMethod ?? "amortization";
+  const purchasePrice = toPositiveNumber(formValues.purchasePrice);
+  const downPaymentPercent = Math.min(100, toPositiveNumber(formValues.downPaymentPercent));
+  const downPaymentAmount = purchasePrice * (downPaymentPercent / 100);
+  const loanAmount = Math.max(0, purchasePrice - downPaymentAmount);
   const computedPayment = computeMonthlyPayment(
     toPositiveNumber(formValues.principal),
     toPositiveNumber(formValues.annualInterestRatePct) / 100,
     Math.round(toPositiveNumber(formValues.termYears) * 12)
   );
+
+  const handlePurchasePriceChange = (value: number | string | null | undefined) => {
+    const nextPurchasePrice = toPositiveNumber(value);
+    const nextDownPayment = (nextPurchasePrice * downPaymentPercent) / 100;
+    setFormValues((current) => ({
+      ...current,
+      purchasePrice: nextPurchasePrice,
+      principal: Math.max(0, nextPurchasePrice - nextDownPayment),
+    }));
+  };
+
+  const handleDownPaymentPercentChange = (value: number | string | null | undefined) => {
+    const nextPercent = Math.min(100, toPositiveNumber(value));
+    const nextDownPayment = (purchasePrice * nextPercent) / 100;
+    setFormValues((current) => ({
+      ...current,
+      downPaymentPercent: nextPercent,
+      principal: Math.max(0, purchasePrice - nextDownPayment),
+    }));
+  };
 
   const handleSave = () => {
     const normalizedMonth = normalizeMonthStrict(formValues.startMonth);
@@ -81,6 +107,34 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
         error={errors.startMonth}
         onChange={(event) => updateField("startMonth", event.target.value)}
       />
+      <NumberInput
+        label={t("purchasePrice")}
+        value={formValues.purchasePrice ?? 0}
+        error={errors.purchasePrice}
+        onChange={handlePurchasePriceChange}
+        thousandSeparator=","
+        min={0}
+      />
+      <NumberInput
+        label={t("downPaymentPercent")}
+        value={formValues.downPaymentPercent ?? 0}
+        error={errors.downPaymentPercent}
+        onChange={handleDownPaymentPercentChange}
+        min={0}
+        max={100}
+        decimalScale={2}
+        suffix="%"
+      />
+      {purchasePrice > 0 && (
+        <Stack gap={2}>
+          <Text size="xs" c="dimmed">
+            {t("downPaymentAmountLabel", { amount: Math.round(downPaymentAmount) })}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {t("loanAmountLabel", { amount: Math.round(loanAmount) })}
+          </Text>
+        </Stack>
+      )}
       <NumberInput
         label={t("principal")}
         value={formValues.principal ?? 0}
@@ -137,13 +191,27 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
         />
       ) : (
         <NumberInput
-          label={t("monthlyPaymentAuto")}
+          label={
+            <Group gap={6}>
+              <Text size="sm">{t("monthlyPaymentAuto")}</Text>
+              <Badge size="xs" variant="light">
+                {t("estimateLabel")}
+              </Badge>
+            </Group>
+          }
           value={computedPayment}
           thousandSeparator=","
           min={0}
           disabled
         />
       )}
+      <Switch
+        label={t("generatePaymentExpense")}
+        checked={Boolean(formValues.generatePaymentExpense)}
+        onChange={(event) =>
+          updateField("generatePaymentExpense", event.currentTarget.checked)
+        }
+      />
       <NumberInput
         label={t("feesOneTime")}
         value={formValues.feesOneTime ?? 0}

@@ -133,4 +133,5 @@ export const buildDefinitionFromTimelineEvent = (
   endAtAgeYears: event.endAtAgeYears,
   templateId: event.templateId,
   templateParams: event.templateParams,
+  source: "manual",
 });

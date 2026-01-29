@@ -15,6 +15,13 @@ import {
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
+import {
+  appendDerivedEvents,
+  buildDerivedEventsForCar,
+  buildDerivedEventsForHome,
+  buildDerivedEventsForLoan,
+  cleanupDerivedEvents,
+} from "../domain/events/derivedMoneyItems";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -140,6 +147,28 @@ export type RentalDetails = {
   vacancyRatePct?: number;
 };
 
+export type AssetPurchaseFee = {
+  id: string;
+  label: string;
+  amount: number;
+  month: string;
+};
+
+export type HomeOngoingCostKey =
+  | "managementFee"
+  | "groundRent"
+  | "insurance"
+  | "maintenance";
+
+export type CarOngoingCostKey = "insurance" | "inspection" | "maintenance";
+
+export type AssetOngoingCost = {
+  key: HomeOngoingCostKey | CarOngoingCostKey;
+  enabled: boolean;
+  amount: number;
+  startMonth: string;
+};
+
 export type HomePosition = {
   name?: string;
   usage?: HomeUsage;
@@ -153,6 +182,8 @@ export type HomePosition = {
   feesOneTime?: number;
   holdingCostMonthly?: number;
   holdingCostAnnualGrowthPct?: number;
+  purchaseFees?: AssetPurchaseFee[];
+  ongoingCosts?: AssetOngoingCost[];
   sellMonth?: string;
   sellPriceOverride?: number;
   sellFeesOneTime?: number;
@@ -197,6 +228,10 @@ export type LoanPosition = {
   monthlyPayment?: number;
   paymentMethod?: "amortization" | "manual";
   feesOneTime?: number;
+  purchasePrice?: number;
+  downPaymentPercent?: number;
+  generatePaymentExpense?: boolean;
+  linkedAssetId?: string;
 };
 
 export type CarLoanDetails = {
@@ -214,6 +249,8 @@ export type CarPosition = {
   annualDepreciationRatePct: number;
   holdingCostMonthly: number;
   holdingCostAnnualGrowthPct: number;
+  purchaseFees?: AssetPurchaseFee[];
+  ongoingCosts?: AssetOngoingCost[];
   loan?: CarLoanDetails;
   sellMonth?: string;
   sellPriceOverride?: number;
@@ -717,7 +754,13 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
 
   return {
     home: positions.home ? { ...positions.home } : undefined,
-    homes: positions.homes ? positions.homes.map((home) => ({ ...home })) : undefined,
+    homes: positions.homes
+      ? positions.homes.map((home) => ({
+          ...home,
+          purchaseFees: home.purchaseFees ? home.purchaseFees.map((fee) => ({ ...fee })) : undefined,
+          ongoingCosts: home.ongoingCosts ? home.ongoingCosts.map((cost) => ({ ...cost })) : undefined,
+        }))
+      : undefined,
     investments: positions.investments
       ? positions.investments.map((investment) => ({ ...investment }))
       : undefined,
@@ -728,6 +771,8 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
     cars: positions.cars
       ? positions.cars.map((car) => ({
           ...car,
+          purchaseFees: car.purchaseFees ? car.purchaseFees.map((fee) => ({ ...fee })) : undefined,
+          ongoingCosts: car.ongoingCosts ? car.ongoingCosts.map((cost) => ({ ...cost })) : undefined,
           loan: car.loan ? { ...car.loan } : undefined,
         }))
       : undefined,
@@ -758,6 +803,8 @@ const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePosit
   feesOneTime: home.feesOneTime,
   holdingCostMonthly: home.holdingCostMonthly,
   holdingCostAnnualGrowthPct: home.holdingCostAnnualGrowthPct,
+  purchaseFees: home.purchaseFees ? home.purchaseFees.map((fee) => ({ ...fee })) : undefined,
+  ongoingCosts: home.ongoingCosts ? home.ongoingCosts.map((cost) => ({ ...cost })) : undefined,
   existing: home.existing ? { ...home.existing } : undefined,
   rental: home.rental ? { ...home.rental } : undefined,
 });
@@ -826,11 +873,14 @@ const normalizeInsurancePosition = (
 const ensureLoanPositionId = (loan: LoanPosition): LoanPositionDraft => ({
   ...loan,
   id: loan.id ?? createLoanPositionId(),
+  generatePaymentExpense: loan.generatePaymentExpense ?? false,
 });
 
 const ensureCarPositionId = (car: CarPosition): CarPositionDraft => ({
   ...car,
   id: car.id ?? createCarPositionId(),
+  purchaseFees: car.purchaseFees ? car.purchaseFees.map((fee) => ({ ...fee })) : undefined,
+  ongoingCosts: car.ongoingCosts ? car.ongoingCosts.map((cost) => ({ ...cost })) : undefined,
   loan: car.loan ? { ...car.loan } : undefined,
 });
 
@@ -1435,171 +1485,320 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   addHomePosition: (id, home) => {
     const nextHome = ensureHomePositionId(home);
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              positions: normalizeScenarioPositions(
-                {
-                  ...(scenario.positions ?? {}),
-                  homes: [...(scenario.positions?.homes ?? []), nextHome],
-                },
-                scenario.assumptions.baseMonth
-              ),
-              updatedAt: now(),
-              version: bumpScenarioVersion(scenario),
-            }
-          : scenario
-      ),
-    }));
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const baseRefs = scenario.eventRefs ?? [];
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        baseRefs,
+        (definition) =>
+          definition.source === "derived" &&
+          (definition.generatedBy?.type === "assetCost" ||
+            definition.generatedBy?.type === "assetRental") &&
+          definition.generatedBy?.assetId === nextHome.id
+      );
+      const derivedEvents = buildDerivedEventsForHome({
+        home: nextHome,
+        homeId: nextHome.id,
+        currency: scenario.baseCurrency,
+      });
+      const appended = appendDerivedEvents(
+        cleaned.eventLibrary,
+        cleaned.eventRefs,
+        derivedEvents
+      );
+
+      return {
+        eventLibrary: appended.eventLibrary,
+        scenarios: state.scenarios.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                eventRefs: appended.eventRefs,
+                positions: normalizeScenarioPositions(
+                  {
+                    ...(entry.positions ?? {}),
+                    homes: [...(entry.positions?.homes ?? []), nextHome],
+                  },
+                  entry.assumptions.baseMonth
+                ),
+                updatedAt: now(),
+                version: bumpScenarioVersion(entry),
+              }
+            : entry
+        ),
+      };
+    });
   },
   updateHomePosition: (id, home) => {
     const nextHome = ensureHomePositionId(home);
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const baseRefs = scenario.eventRefs ?? [];
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        baseRefs,
+        (definition) =>
+          definition.source === "derived" &&
+          (definition.generatedBy?.type === "assetCost" ||
+            definition.generatedBy?.type === "assetRental") &&
+          definition.generatedBy?.assetId === nextHome.id
+      );
+      const derivedEvents = buildDerivedEventsForHome({
+        home: nextHome,
+        homeId: nextHome.id,
+        currency: scenario.baseCurrency,
+      });
+      const appended = appendDerivedEvents(
+        cleaned.eventLibrary,
+        cleaned.eventRefs,
+        derivedEvents
+      );
 
-        const existingHomes = scenario.positions?.homes ?? [];
-        const hasMatch = existingHomes.some((entry) => entry.id === nextHome.id);
-        const nextHomes = hasMatch
-          ? existingHomes.map((entry) =>
-              entry.id === nextHome.id ? nextHome : entry
-            )
-          : [...existingHomes, nextHome];
+      return {
+        eventLibrary: appended.eventLibrary,
+        scenarios: state.scenarios.map((entry) => {
+          if (entry.id !== id) {
+            return entry;
+          }
 
-        return {
-          ...scenario,
-          positions: normalizeScenarioPositions(
-            {
-              ...(scenario.positions ?? {}),
-              homes: nextHomes,
-            },
-            scenario.assumptions.baseMonth
-          ),
-          updatedAt: now(),
-          version: bumpScenarioVersion(scenario),
-        };
-      }),
-    }));
+          const existingHomes = entry.positions?.homes ?? [];
+          const hasMatch = existingHomes.some((homeEntry) => homeEntry.id === nextHome.id);
+          const nextHomes = hasMatch
+            ? existingHomes.map((homeEntry) =>
+                homeEntry.id === nextHome.id ? nextHome : homeEntry
+              )
+            : [...existingHomes, nextHome];
+
+          return {
+            ...entry,
+            eventRefs: appended.eventRefs,
+            positions: normalizeScenarioPositions(
+              {
+                ...(entry.positions ?? {}),
+                homes: nextHomes,
+              },
+              entry.assumptions.baseMonth
+            ),
+            updatedAt: now(),
+            version: bumpScenarioVersion(entry),
+          };
+        }),
+      };
+    });
   },
   removeHomePosition: (id, homeId) => {
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        scenario.eventRefs ?? [],
+        (definition) =>
+          definition.source === "derived" &&
+          (definition.generatedBy?.type === "assetCost" ||
+            definition.generatedBy?.type === "assetRental") &&
+          definition.generatedBy?.assetId === homeId
+      );
+      const nextEventLibraryMap = buildEventLibraryMap(cleaned.eventLibrary);
 
-        const nextHomes = (scenario.positions?.homes ?? []).filter(
-          (home) => home.id !== homeId
-        );
-        const { home: legacyHome, ...otherPositions } = scenario.positions ?? {};
-        void legacyHome;
-        const nextPositions: ScenarioPositions | undefined = scenario.positions
-          ? {
-              ...otherPositions,
-              homes: nextHomes,
-            }
-          : undefined;
-        const eventLibraryMap = buildEventLibraryMap(get().eventLibrary);
-        const nextEventRefs =
-          nextHomes.length === 0
-            ? (scenario.eventRefs ?? []).filter((ref) => {
-                const definition = eventLibraryMap.get(ref.refId);
-                return definition?.type !== "buy_home";
-              })
-            : scenario.eventRefs;
+      return {
+        eventLibrary: cleaned.eventLibrary,
+        scenarios: state.scenarios.map((entry) => {
+          if (entry.id !== id) {
+            return entry;
+          }
 
-        return {
-          ...scenario,
-          eventRefs: nextEventRefs,
-          positions: normalizeScenarioPositions(
-            nextPositions,
-            scenario.assumptions.baseMonth
-          ),
-          updatedAt: now(),
-          version: bumpScenarioVersion(scenario),
-        };
-      }),
-    }));
+          const nextHomes = (entry.positions?.homes ?? []).filter(
+            (home) => home.id !== homeId
+          );
+          const { home: legacyHome, ...otherPositions } = entry.positions ?? {};
+          void legacyHome;
+          const nextPositions: ScenarioPositions | undefined = entry.positions
+            ? {
+                ...otherPositions,
+                homes: nextHomes,
+              }
+            : undefined;
+          const nextEventRefs =
+            nextHomes.length === 0
+              ? (cleaned.eventRefs ?? []).filter((ref) => {
+                  const definition = nextEventLibraryMap.get(ref.refId);
+                  return definition?.type !== "buy_home";
+                })
+              : cleaned.eventRefs;
+
+          return {
+            ...entry,
+            eventRefs: nextEventRefs,
+            positions: normalizeScenarioPositions(
+              nextPositions,
+              entry.assumptions.baseMonth
+            ),
+            updatedAt: now(),
+            version: bumpScenarioVersion(entry),
+          };
+        }),
+      };
+    });
   },
   addCarPosition: (id, car) => {
     const nextCar = ensureCarPositionId(car);
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              positions: normalizeScenarioPositions(
-                {
-                  ...(scenario.positions ?? {}),
-                  cars: [...(scenario.positions?.cars ?? []), nextCar],
-                },
-                scenario.assumptions.baseMonth
-              ),
-              updatedAt: now(),
-              version: bumpScenarioVersion(scenario),
-            }
-          : scenario
-      ),
-    }));
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const baseRefs = scenario.eventRefs ?? [];
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        baseRefs,
+        (definition) =>
+          definition.source === "derived" &&
+          definition.generatedBy?.type === "assetCost" &&
+          definition.generatedBy?.assetId === nextCar.id
+      );
+      const derivedEvents = buildDerivedEventsForCar({
+        car: nextCar,
+        carId: nextCar.id,
+        currency: scenario.baseCurrency,
+      });
+      const appended = appendDerivedEvents(
+        cleaned.eventLibrary,
+        cleaned.eventRefs,
+        derivedEvents
+      );
+      return {
+        eventLibrary: appended.eventLibrary,
+        scenarios: state.scenarios.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                eventRefs: appended.eventRefs,
+                positions: normalizeScenarioPositions(
+                  {
+                    ...(entry.positions ?? {}),
+                    cars: [...(entry.positions?.cars ?? []), nextCar],
+                  },
+                  entry.assumptions.baseMonth
+                ),
+                updatedAt: now(),
+                version: bumpScenarioVersion(entry),
+              }
+            : entry
+        ),
+      };
+    });
   },
   updateCarPosition: (id, car) => {
     const nextCar = ensureCarPositionId(car);
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const baseRefs = scenario.eventRefs ?? [];
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        baseRefs,
+        (definition) =>
+          definition.source === "derived" &&
+          definition.generatedBy?.type === "assetCost" &&
+          definition.generatedBy?.assetId === nextCar.id
+      );
+      const derivedEvents = buildDerivedEventsForCar({
+        car: nextCar,
+        carId: nextCar.id,
+        currency: scenario.baseCurrency,
+      });
+      const appended = appendDerivedEvents(
+        cleaned.eventLibrary,
+        cleaned.eventRefs,
+        derivedEvents
+      );
 
-        const existingCars = scenario.positions?.cars ?? [];
-        const hasMatch = existingCars.some((entry) => entry.id === nextCar.id);
-        const nextCars = hasMatch
-          ? existingCars.map((entry) => (entry.id === nextCar.id ? nextCar : entry))
-          : [...existingCars, nextCar];
+      return {
+        eventLibrary: appended.eventLibrary,
+        scenarios: state.scenarios.map((entry) => {
+          if (entry.id !== id) {
+            return entry;
+          }
 
-        return {
-          ...scenario,
-          positions: normalizeScenarioPositions(
-            {
-              ...(scenario.positions ?? {}),
-              cars: nextCars,
-            },
-            scenario.assumptions.baseMonth
-          ),
-          updatedAt: now(),
-          version: bumpScenarioVersion(scenario),
-        };
-      }),
-    }));
+          const existingCars = entry.positions?.cars ?? [];
+          const hasMatch = existingCars.some((carEntry) => carEntry.id === nextCar.id);
+          const nextCars = hasMatch
+            ? existingCars.map((carEntry) =>
+                carEntry.id === nextCar.id ? nextCar : carEntry
+              )
+            : [...existingCars, nextCar];
+
+          return {
+            ...entry,
+            eventRefs: appended.eventRefs,
+            positions: normalizeScenarioPositions(
+              {
+                ...(entry.positions ?? {}),
+                cars: nextCars,
+              },
+              entry.assumptions.baseMonth
+            ),
+            updatedAt: now(),
+            version: bumpScenarioVersion(entry),
+          };
+        }),
+      };
+    });
   },
   removeCarPosition: (id, carId) => {
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        scenario.eventRefs ?? [],
+        (definition) =>
+          definition.source === "derived" &&
+          definition.generatedBy?.type === "assetCost" &&
+          definition.generatedBy?.assetId === carId
+      );
 
-        const nextCars = (scenario.positions?.cars ?? []).filter(
-          (car) => car.id !== carId
-        );
+      return {
+        eventLibrary: cleaned.eventLibrary,
+        scenarios: state.scenarios.map((entry) => {
+          if (entry.id !== id) {
+            return entry;
+          }
 
-        return {
-          ...scenario,
-          positions: normalizeScenarioPositions(
-            {
-              ...(scenario.positions ?? {}),
-              cars: nextCars,
-            },
-            scenario.assumptions.baseMonth
-          ),
-          updatedAt: now(),
-          version: bumpScenarioVersion(scenario),
-        };
-      }),
-    }));
+          const nextCars = (entry.positions?.cars ?? []).filter(
+            (car) => car.id !== carId
+          );
+
+          return {
+            ...entry,
+            eventRefs: cleaned.eventRefs,
+            positions: normalizeScenarioPositions(
+              {
+                ...(entry.positions ?? {}),
+                cars: nextCars,
+              },
+              entry.assumptions.baseMonth
+            ),
+            updatedAt: now(),
+            version: bumpScenarioVersion(entry),
+          };
+        }),
+      };
+    });
   },
   addInvestmentPosition: (id, investment) => {
     const nextInvestment = ensureInvestmentPositionId(investment);
@@ -1686,79 +1885,153 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   addLoanPosition: (id, loan) => {
     const nextLoan = ensureLoanPositionId(loan);
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              positions: normalizeScenarioPositions(
-                {
-                  ...(scenario.positions ?? {}),
-                  loans: [...(scenario.positions?.loans ?? []), nextLoan],
-                },
-                scenario.assumptions.baseMonth
-              ),
-              updatedAt: now(),
-              version: bumpScenarioVersion(scenario),
-            }
-          : scenario
-      ),
-    }));
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const baseRefs = scenario.eventRefs ?? [];
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        baseRefs,
+        (definition) =>
+          definition.source === "derived" &&
+          definition.generatedBy?.type === "loanPayment" &&
+          definition.generatedBy?.liabilityId === nextLoan.id
+      );
+      const derivedEvents = buildDerivedEventsForLoan({
+        loan: nextLoan,
+        loanId: nextLoan.id,
+        currency: scenario.baseCurrency,
+      });
+      const appended = appendDerivedEvents(
+        cleaned.eventLibrary,
+        cleaned.eventRefs,
+        derivedEvents
+      );
+      return {
+        eventLibrary: appended.eventLibrary,
+        scenarios: state.scenarios.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                eventRefs: appended.eventRefs,
+                positions: normalizeScenarioPositions(
+                  {
+                    ...(entry.positions ?? {}),
+                    loans: [...(entry.positions?.loans ?? []), nextLoan],
+                  },
+                  entry.assumptions.baseMonth
+                ),
+                updatedAt: now(),
+                version: bumpScenarioVersion(entry),
+              }
+            : entry
+        ),
+      };
+    });
   },
   updateLoanPosition: (id, loan) => {
     const nextLoan = ensureLoanPositionId(loan);
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const baseRefs = scenario.eventRefs ?? [];
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        baseRefs,
+        (definition) =>
+          definition.source === "derived" &&
+          definition.generatedBy?.type === "loanPayment" &&
+          definition.generatedBy?.liabilityId === nextLoan.id
+      );
+      const derivedEvents = buildDerivedEventsForLoan({
+        loan: nextLoan,
+        loanId: nextLoan.id,
+        currency: scenario.baseCurrency,
+      });
+      const appended = appendDerivedEvents(
+        cleaned.eventLibrary,
+        cleaned.eventRefs,
+        derivedEvents
+      );
 
-        const existingLoans = scenario.positions?.loans ?? [];
-        const hasMatch = existingLoans.some((entry) => entry.id === nextLoan.id);
-        const nextLoans = hasMatch
-          ? existingLoans.map((entry) => (entry.id === nextLoan.id ? nextLoan : entry))
-          : [...existingLoans, nextLoan];
+      return {
+        eventLibrary: appended.eventLibrary,
+        scenarios: state.scenarios.map((entry) => {
+          if (entry.id !== id) {
+            return entry;
+          }
 
-        return {
-          ...scenario,
-          positions: normalizeScenarioPositions(
-            {
-              ...(scenario.positions ?? {}),
-              loans: nextLoans,
-            },
-            scenario.assumptions.baseMonth
-          ),
-          updatedAt: now(),
-          version: bumpScenarioVersion(scenario),
-        };
-      }),
-    }));
+          const existingLoans = entry.positions?.loans ?? [];
+          const hasMatch = existingLoans.some((loanEntry) => loanEntry.id === nextLoan.id);
+          const nextLoans = hasMatch
+            ? existingLoans.map((loanEntry) =>
+                loanEntry.id === nextLoan.id ? nextLoan : loanEntry
+              )
+            : [...existingLoans, nextLoan];
+
+          return {
+            ...entry,
+            eventRefs: appended.eventRefs,
+            positions: normalizeScenarioPositions(
+              {
+                ...(entry.positions ?? {}),
+                loans: nextLoans,
+              },
+              entry.assumptions.baseMonth
+            ),
+            updatedAt: now(),
+            version: bumpScenarioVersion(entry),
+          };
+        }),
+      };
+    });
   },
   removeLoanPosition: (id, loanId) => {
-    set((state) => ({
-      scenarios: state.scenarios.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario;
-        }
+    set((state) => {
+      const scenario = state.scenarios.find((entry) => entry.id === id);
+      if (!scenario) {
+        return state;
+      }
+      const cleaned = cleanupDerivedEvents(
+        state.eventLibrary,
+        scenario.eventRefs ?? [],
+        (definition) =>
+          definition.source === "derived" &&
+          definition.generatedBy?.type === "loanPayment" &&
+          definition.generatedBy?.liabilityId === loanId
+      );
 
-        const nextLoans = (scenario.positions?.loans ?? []).filter(
-          (loan) => loan.id !== loanId
-        );
+      return {
+        eventLibrary: cleaned.eventLibrary,
+        scenarios: state.scenarios.map((entry) => {
+          if (entry.id !== id) {
+            return entry;
+          }
 
-        return {
-          ...scenario,
-          positions: normalizeScenarioPositions(
-            {
-              ...(scenario.positions ?? {}),
-              loans: nextLoans,
-            },
-            scenario.assumptions.baseMonth
-          ),
-          updatedAt: now(),
-          version: bumpScenarioVersion(scenario),
-        };
-      }),
-    }));
+          const nextLoans = (entry.positions?.loans ?? []).filter(
+            (loan) => loan.id !== loanId
+          );
+
+          return {
+            ...entry,
+            eventRefs: cleaned.eventRefs,
+            positions: normalizeScenarioPositions(
+              {
+                ...(entry.positions ?? {}),
+                loans: nextLoans,
+              },
+              entry.assumptions.baseMonth
+            ),
+            updatedAt: now(),
+            version: bumpScenarioVersion(entry),
+          };
+        }),
+      };
+    });
   },
   addInsurancePosition: (id, insurance) => {
     set((state) => ({
@@ -1951,6 +2224,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         return state;
       }
 
+      let nextEventLibrary = state.eventLibrary;
       const updatedScenarios = state.scenarios.map((scenario) => {
         if (!scenarioIds.includes(scenario.id)) {
           return scenario;
@@ -1958,13 +2232,38 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         const nextPositions: ScenarioPositions = {
           ...(scenario.positions ?? {}),
         };
+        let nextEventRefs = scenario.eventRefs ?? [];
 
         if (type === "home") {
           const nextHome = cloneHomePosition(sourcePosition as HomePositionDraft);
           nextPositions.homes = [...(scenario.positions?.homes ?? []), nextHome];
+          const derivedEvents = buildDerivedEventsForHome({
+            home: nextHome,
+            homeId: nextHome.id,
+            currency: scenario.baseCurrency,
+          });
+          const appended = appendDerivedEvents(
+            nextEventLibrary,
+            nextEventRefs,
+            derivedEvents
+          );
+          nextEventLibrary = appended.eventLibrary;
+          nextEventRefs = appended.eventRefs;
         } else if (type === "car") {
           const nextCar = cloneCarPosition(sourcePosition as CarPositionDraft);
           nextPositions.cars = [...(scenario.positions?.cars ?? []), nextCar];
+          const derivedEvents = buildDerivedEventsForCar({
+            car: nextCar,
+            carId: nextCar.id,
+            currency: scenario.baseCurrency,
+          });
+          const appended = appendDerivedEvents(
+            nextEventLibrary,
+            nextEventRefs,
+            derivedEvents
+          );
+          nextEventLibrary = appended.eventLibrary;
+          nextEventRefs = appended.eventRefs;
         } else if (type === "investment") {
           const nextInvestment = cloneInvestmentPosition(
             sourcePosition as InvestmentPositionDraft
@@ -1985,10 +2284,23 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         } else if (type === "loan") {
           const nextLoan = cloneLoanPosition(sourcePosition as LoanPositionDraft);
           nextPositions.loans = [...(scenario.positions?.loans ?? []), nextLoan];
+          const derivedEvents = buildDerivedEventsForLoan({
+            loan: nextLoan,
+            loanId: nextLoan.id,
+            currency: scenario.baseCurrency,
+          });
+          const appended = appendDerivedEvents(
+            nextEventLibrary,
+            nextEventRefs,
+            derivedEvents
+          );
+          nextEventLibrary = appended.eventLibrary;
+          nextEventRefs = appended.eventRefs;
         }
 
         return {
           ...scenario,
+          eventRefs: nextEventRefs,
           positions: normalizeScenarioPositions(
             nextPositions,
             scenario.assumptions.baseMonth
@@ -1998,7 +2310,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         };
       });
 
-      return { ...state, scenarios: updatedScenarios };
+      return { ...state, scenarios: updatedScenarios, eventLibrary: nextEventLibrary };
     });
   },
   copySmartInvestToScenarios: (sourceScenarioId, scenarioIds) => {

@@ -134,6 +134,19 @@ export const buildHomeCashflowBreakdown = (params: {
           sourceId: "home:feesOneTime",
         });
       }
+      if (home.purchaseFees && home.purchaseFees.length > 0) {
+        home.purchaseFees.forEach((fee) => {
+          if (!fee.amount || !fee.month) {
+            return;
+          }
+          entries.push({
+            month: fee.month,
+            amount: -fee.amount,
+            label: "purchaseFee",
+            sourceId: `home:purchaseFee:${fee.id}`,
+          });
+        });
+      }
 
       entries.push(
         ...buildMonthlyEntries({
@@ -166,6 +179,23 @@ export const buildHomeCashflowBreakdown = (params: {
     }
   }
 
+  if (home.ongoingCosts && home.ongoingCosts.length > 0) {
+    home.ongoingCosts.forEach((cost) => {
+      if (!cost.enabled || !cost.amount || !cost.startMonth) {
+        return;
+      }
+      entries.push(
+        ...buildMonthlyEntries({
+          startMonth: cost.startMonth,
+          months: horizonMonths,
+          amount: -cost.amount,
+          label: `ongoingCost:${cost.key}`,
+          sourceId: `home:ongoing:${cost.key}`,
+        })
+      );
+    });
+  }
+
   const filtered = clampEntriesToHorizon(entries, baseMonth, horizonMonths);
   return { entries: filtered, series: buildSeries(filtered) };
 };
@@ -186,6 +216,19 @@ export const buildCarCashflowBreakdown = (params: {
         amount: -(car.downPayment ?? 0),
         label: "downPayment",
         sourceId: "car:downPayment",
+      });
+    }
+    if (car.purchaseFees && car.purchaseFees.length > 0) {
+      car.purchaseFees.forEach((fee) => {
+        if (!fee.amount || !fee.month) {
+          return;
+        }
+        entries.push({
+          month: fee.month,
+          amount: -fee.amount,
+          label: "purchaseFee",
+          sourceId: `car:purchaseFee:${fee.id}`,
+        });
       });
     }
 
@@ -219,6 +262,23 @@ export const buildCarCashflowBreakdown = (params: {
         sourceId: "car:holding",
       })
     );
+  }
+
+  if (car.ongoingCosts && car.ongoingCosts.length > 0) {
+    car.ongoingCosts.forEach((cost) => {
+      if (!cost.enabled || !cost.amount || !cost.startMonth) {
+        return;
+      }
+      entries.push(
+        ...buildMonthlyEntries({
+          startMonth: cost.startMonth,
+          months: horizonMonths,
+          amount: -cost.amount,
+          label: `ongoingCost:${cost.key}`,
+          sourceId: `car:ongoing:${cost.key}`,
+        })
+      );
+    });
   }
 
   const filtered = clampEntriesToHorizon(entries, baseMonth, horizonMonths);

@@ -7,13 +7,19 @@ import {
   NumberInput,
   Stack,
   Switch,
+  Text,
   TextInput,
   Title,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { nanoid } from "nanoid";
 import { normalizeMonthStrict } from "../../src/utils/month";
-import type { CarPositionDraft } from "../../src/store/scenarioStore";
+import type {
+  AssetOngoingCost,
+  AssetPurchaseFee,
+  CarPositionDraft,
+} from "../../src/store/scenarioStore";
 import {
   CarPositionSchema,
   getCarPositionErrors,
@@ -38,6 +44,21 @@ export default function CarDetailsForm({
   const [formValues, setFormValues] = useState<CarPositionDraft>(car);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const disableHolding = isSold;
+  const defaultStartMonth = formValues.purchaseMonth ?? "";
+  const carOngoingCostKeys = ["insurance", "inspection", "maintenance"] as const;
+
+  const resolveOngoingCosts = (existing?: AssetOngoingCost[]) => {
+    const lookup = new Map(existing?.map((cost) => [cost.key, cost]));
+    return carOngoingCostKeys.map((key) => ({
+      key,
+      enabled: lookup.get(key)?.enabled ?? false,
+      amount: lookup.get(key)?.amount ?? 0,
+      startMonth: lookup.get(key)?.startMonth ?? defaultStartMonth,
+    }));
+  };
+
+  const purchaseFees = formValues.purchaseFees ?? [];
+  const ongoingCosts = resolveOngoingCosts(formValues.ongoingCosts);
 
   useEffect(() => {
     setFormValues(car);
@@ -82,6 +103,42 @@ export default function CarDetailsForm({
     });
   };
 
+  const addPurchaseFee = () => {
+    const nextFee: AssetPurchaseFee = {
+      id: `fee_${nanoid(6)}`,
+      label: "",
+      amount: 0,
+      month: defaultStartMonth,
+    };
+    updateField("purchaseFees", [...purchaseFees, nextFee]);
+  };
+
+  const updatePurchaseFee = (id: string, patch: Partial<AssetPurchaseFee>) => {
+    updateField(
+      "purchaseFees",
+      purchaseFees.map((fee) => (fee.id === id ? { ...fee, ...patch } : fee))
+    );
+  };
+
+  const removePurchaseFee = (id: string) => {
+    updateField(
+      "purchaseFees",
+      purchaseFees.filter((fee) => fee.id !== id)
+    );
+  };
+
+  const updateOngoingCost = (
+    key: AssetOngoingCost["key"],
+    patch: Partial<AssetOngoingCost>
+  ) => {
+    updateField(
+      "ongoingCosts",
+      resolveOngoingCosts(formValues.ongoingCosts).map((cost) =>
+        cost.key === key ? { ...cost, ...patch } : cost
+      )
+    );
+  };
+
   const handleSave = () => {
     const normalizedMonth = normalizeMonthStrict(formValues.purchaseMonth);
     const sellMonthInput = formValues.sellMonth?.trim() ?? "";
@@ -98,7 +155,28 @@ export default function CarDetailsForm({
           : normalizedSellMonth?.ok
             ? normalizedSellMonth.month
             : formValues.sellMonth,
+      purchaseFees: purchaseFees.map((fee) => {
+        const normalized = normalizeMonthStrict(fee.month);
+        return {
+          ...fee,
+          month: normalized.ok ? normalized.month : fee.month,
+        };
+      }),
+      ongoingCosts: ongoingCosts.map((cost) => {
+        const normalized = normalizeMonthStrict(cost.startMonth);
+        return {
+          ...cost,
+          startMonth: normalized.ok ? normalized.month : cost.startMonth,
+        };
+      }),
     };
+    const hasOngoingCosts = nextValues.ongoingCosts.some(
+      (cost) => cost.enabled && cost.amount > 0
+    );
+    if (hasOngoingCosts) {
+      nextValues.holdingCostMonthly = 0;
+      nextValues.holdingCostAnnualGrowthPct = 0;
+    }
 
     const parsed = CarPositionSchema.safeParse(nextValues);
     if (!parsed.success) {
@@ -173,6 +251,112 @@ export default function CarDetailsForm({
         decimalScale={2}
         suffix="%"
       />
+      <Stack gap="xs">
+        <Title order={6}>{t("purchaseFeesTitle")}</Title>
+        {purchaseFees.length === 0 ? (
+          <Text size="xs" c="dimmed">
+            {t("purchaseFeesEmpty")}
+          </Text>
+        ) : (
+          <Stack gap="xs">
+            {purchaseFees.map((fee) => (
+              <Stack key={fee.id} gap="xs">
+                <Group align="flex-start" grow>
+                  <TextInput
+                    label={t("purchaseFeeLabel")}
+                    value={fee.label}
+                    disabled={disableHolding}
+                    onChange={(event) =>
+                      updatePurchaseFee(fee.id, { label: event.target.value })
+                    }
+                  />
+                  <NumberInput
+                    label={t("purchaseFeeAmount")}
+                    value={fee.amount}
+                    disabled={disableHolding}
+                    onChange={(value) =>
+                      updatePurchaseFee(fee.id, {
+                        amount: toPositiveNumber(value),
+                      })
+                    }
+                    thousandSeparator=","
+                    min={0}
+                  />
+                  <TextInput
+                    label={t("purchaseFeeMonth")}
+                    placeholder={common("yearMonthPlaceholder")}
+                    value={fee.month}
+                    disabled={disableHolding}
+                    onChange={(event) =>
+                      updatePurchaseFee(fee.id, { month: event.target.value })
+                    }
+                  />
+                </Group>
+                <Group justify="flex-end">
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    disabled={disableHolding}
+                    onClick={() => removePurchaseFee(fee.id)}
+                  >
+                    {common("actionRemove")}
+                  </Button>
+                </Group>
+              </Stack>
+            ))}
+          </Stack>
+        )}
+        <Button size="xs" variant="light" onClick={addPurchaseFee} disabled={disableHolding}>
+          {t("purchaseFeeAdd")}
+        </Button>
+      </Stack>
+      <Stack gap="xs">
+        <Title order={6}>{t("ongoingCostsTitle")}</Title>
+        <Stack gap="sm">
+          {ongoingCosts.map((cost) => (
+            <Stack key={cost.key} gap="xs">
+              <Switch
+                label={t(`ongoingCosts.${cost.key}`)}
+                checked={cost.enabled}
+                disabled={disableHolding}
+                onChange={(event) =>
+                  updateOngoingCost(cost.key, {
+                    enabled: event.currentTarget.checked,
+                  })
+                }
+              />
+              {cost.enabled && (
+                <Group grow>
+                  <NumberInput
+                    label={t("ongoingCostAmount")}
+                    value={cost.amount}
+                    disabled={disableHolding}
+                    onChange={(value) =>
+                      updateOngoingCost(cost.key, {
+                        amount: toPositiveNumber(value),
+                      })
+                    }
+                    thousandSeparator=","
+                    min={0}
+                  />
+                  <TextInput
+                    label={t("ongoingCostStartMonth")}
+                    placeholder={common("yearMonthPlaceholder")}
+                    value={cost.startMonth}
+                    disabled={disableHolding}
+                    onChange={(event) =>
+                      updateOngoingCost(cost.key, {
+                        startMonth: event.target.value,
+                      })
+                    }
+                  />
+                </Group>
+              )}
+            </Stack>
+          ))}
+        </Stack>
+      </Stack>
       <Switch
         label={t("loanEnabled")}
         checked={Boolean(formValues.loan)}

@@ -119,6 +119,8 @@ type MoneyClientProps = {
   initialAdd?: string;
   initialEditEventId?: string;
   initialEditHomeId?: string;
+  initialEditCarId?: string;
+  initialEditLoanId?: string;
   initialEditSmartInvest?: string;
   initialShowOnboardingBanner?: boolean;
   initialShowOnboardingSkipped?: boolean;
@@ -147,6 +149,8 @@ export default function MoneyClient({
   initialAdd,
   initialEditEventId,
   initialEditHomeId,
+  initialEditCarId,
+  initialEditLoanId,
   initialEditSmartInvest,
   initialShowOnboardingBanner = false,
   initialShowOnboardingSkipped = false,
@@ -404,6 +408,53 @@ export default function MoneyClient({
       return { view, event };
     });
   }, [eventLibrary, scenario]);
+  const manualEventRows = useMemo(
+    () => eventRows.filter((row) => row.view.definition.source !== "derived"),
+    [eventRows]
+  );
+  const isDerivedDefinition = (definition: (typeof eventRows)[number]["view"]["definition"]) =>
+    definition.source === "derived";
+  const getEventCadence = (event: (typeof eventRows)[number]["event"]) =>
+    event.monthlyAmount !== 0 ? "recurring" : "oneOff";
+  const getEventRange = (event: (typeof eventRows)[number]["event"]) => ({
+    start: event.startMonth,
+    end: event.endMonth ?? event.startMonth,
+  });
+  const rangesOverlap = (left: { start: string; end: string }, right: { start: string; end: string }) =>
+    left.start <= right.end && right.start <= left.end;
+  const hasDoubleCountWarning = (
+    definition: (typeof eventRows)[number]["view"]["definition"],
+    event: (typeof eventRows)[number]["event"]
+  ) => {
+    const derivedRange = getEventRange(event);
+    if (!isValidMonthStr(derivedRange.start) || !isValidMonthStr(derivedRange.end)) {
+      return false;
+    }
+    const derivedCadence = getEventCadence(event);
+    return manualEventRows.some((row) => {
+      const manualRange = getEventRange(row.event);
+      if (!isValidMonthStr(manualRange.start) || !isValidMonthStr(manualRange.end)) {
+        return false;
+      }
+      if (
+        definition.linkedAssetId &&
+        row.view.definition.linkedAssetId === definition.linkedAssetId
+      ) {
+        return true;
+      }
+      if (
+        definition.linkedLiabilityId &&
+        row.view.definition.linkedLiabilityId === definition.linkedLiabilityId
+      ) {
+        return true;
+      }
+      return (
+        row.event.type === event.type &&
+        getEventCadence(row.event) === derivedCadence &&
+        rangesOverlap(derivedRange, manualRange)
+      );
+    });
+  };
 
   const incomeEvents = eventRows.filter(
     (row) => getEventGroup(row.event.type) === "income"
@@ -724,6 +775,18 @@ export default function MoneyClient({
       hasHandledInitialEdit.current = true;
       return;
     }
+    if (initialEditCarId) {
+      setActiveTab("assets");
+      setEditingCarId(initialEditCarId);
+      hasHandledInitialEdit.current = true;
+      return;
+    }
+    if (initialEditLoanId) {
+      setActiveTab("liabilities");
+      setEditingLoanId(initialEditLoanId);
+      hasHandledInitialEdit.current = true;
+      return;
+    }
     if (initialEditSmartInvest) {
       setActiveTab("assets");
       openDrawer("smartInvest");
@@ -733,6 +796,8 @@ export default function MoneyClient({
     eventRows,
     initialEditEventId,
     initialEditHomeId,
+    initialEditCarId,
+    initialEditLoanId,
     initialEditSmartInvest,
     openDrawer,
     scenarioIdValue,
@@ -1291,6 +1356,42 @@ export default function MoneyClient({
   const investmentDrawerDraft = editingInvestment ?? creatingInvestment;
   const insuranceDrawerDraft = editingInsurance ?? creatingInsurance;
   const loanDrawerDraft = editingLoan ?? creatingLoan;
+  const handleDerivedSourceEdit = (
+    definition: (typeof eventRows)[number]["view"]["definition"]
+  ) => {
+    if (!definition.generatedBy) {
+      return;
+    }
+    if (definition.generatedBy.type === "assetCost" || definition.generatedBy.type === "assetRental") {
+      const assetId = definition.generatedBy.assetId;
+      const homeMatch = homes.find((entry) => entry.id === assetId);
+      if (homeMatch) {
+        setActiveTab("assets");
+        setEditingHomeId(assetId);
+        return;
+      }
+      const carMatch = cars.find((entry) => entry.id === assetId);
+      if (carMatch) {
+        setActiveTab("assets");
+        setEditingCarId(assetId);
+      }
+      return;
+    }
+    if (definition.generatedBy.type === "loanPayment") {
+      setActiveTab("liabilities");
+      setEditingLoanId(definition.generatedBy.liabilityId);
+    }
+  };
+  const handleDerivedDetach = (
+    definition: (typeof eventRows)[number]["view"]["definition"]
+  ) => {
+    updateEventDefinition(definition.id, {
+      source: "manual",
+      generatedBy: undefined,
+      linkedAssetId: undefined,
+      linkedLiabilityId: undefined,
+    });
+  };
 
   const renderEventList = (
     rows: typeof eventRows,
@@ -1308,26 +1409,39 @@ export default function MoneyClient({
       );
     }
 
-    return (
-      <Stack gap="sm">
-        {rows.map(({ view, event }) => {
-          const memberLabel =
-            (event.memberId ? memberLookup.get(event.memberId) : null) ??
-            timelineText("memberHousehold");
-          const displayLabel = event.name || getEventTypeDisplay(timelineText, event.type);
-          const amountValue = event.monthlyAmount || event.oneTimeAmount;
-          const amountLabel =
-            amountValue && amountValue !== 0
-              ? formatCurrency(amountValue, event.currency, locale)
-              : t("amountUnset");
-          const overlapBadge =
-            options.showOverlapHint && hasBudgetRules && getEventGroup(event.type) === "expense";
-          return (
-            <Card key={event.id} withBorder radius="md" padding="sm">
-              <Group justify="space-between" align="flex-start" wrap="wrap">
-                <Group>
-                  {options.showHighlightToggle && scenarioIdValue && (
-                    <Button
+      return (
+        <Stack gap="sm">
+          {rows.map(({ view, event }) => {
+            const isDerived = isDerivedDefinition(view.definition);
+            const memberLabel =
+              (event.memberId ? memberLookup.get(event.memberId) : null) ??
+              timelineText("memberHousehold");
+            let displayLabel = event.name || getEventTypeDisplay(timelineText, event.type);
+            if (
+              isDerived &&
+              view.definition.generatedBy?.type === "assetCost" &&
+              view.definition.generatedBy.subType === "ongoing"
+            ) {
+              const assetId = view.definition.generatedBy.assetId;
+              const key = view.definition.generatedBy.key;
+              displayLabel = homes.some((home) => home.id === assetId)
+                ? homesText(`ongoingCosts.${key}`)
+                : carsText(`ongoingCosts.${key}`);
+            }
+            const amountValue = event.monthlyAmount || event.oneTimeAmount;
+            const amountLabel =
+              amountValue && amountValue !== 0
+                ? formatCurrency(amountValue, event.currency, locale)
+                : t("amountUnset");
+            const overlapBadge =
+              options.showOverlapHint && hasBudgetRules && getEventGroup(event.type) === "expense";
+            const hasDoubleCount = isDerived && hasDoubleCountWarning(view.definition, event);
+            return (
+              <Card key={event.id} withBorder radius="md" padding="sm">
+                <Group justify="space-between" align="flex-start" wrap="wrap">
+                  <Group>
+                    {options.showHighlightToggle && scenarioIdValue && (
+                      <Button
                       size="xs"
                       variant={view.ref.highlighted ? "light" : "subtle"}
                       color={view.ref.highlighted ? "yellow" : "gray"}
@@ -1343,6 +1457,11 @@ export default function MoneyClient({
                   )}
                   <Stack gap={2}>
                     <Text fw={600}>{displayLabel}</Text>
+                    {isDerived && (
+                      <Text size="xs" c="dimmed">
+                        {t("derivedBanner")}
+                      </Text>
+                    )}
                     <Text size="xs" c="dimmed">
                       {event.endMonth == event.startMonth ?
                         t("eventMetaSingleMonth", { member: memberLabel, startMonth: event.startMonth })
@@ -1357,11 +1476,16 @@ export default function MoneyClient({
                         {t("overlapWarning")}
                       </Badge>
                     )}
+                    {hasDoubleCount && (
+                      <Badge color="orange" variant="light">
+                        {t("derivedOverlapWarning")}
+                      </Badge>
+                    )}
                   </Stack>
                 </Group>
                 
                 <Group gap="xs">
-                  {options.showEditButton && (
+                  {options.showEditButton && !isDerived && (
                     <Button
                       size="xs"
                       variant="light"
@@ -1370,21 +1494,40 @@ export default function MoneyClient({
                       {common("actionEdit")}
                     </Button>
                   )}
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    onClick={() => {
-                      const displayLabel = event.name || getEventTypeDisplay(timelineText, event.type);
-                      setDeleteConfirmation({
-                        type: "event",
-                        id: view.definition.id,
-                        label: displayLabel,
-                      });
-                    }}
-                  >
-                    {common("actionDelete")}
-                  </Button>
+                  {isDerived ? (
+                    <>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => handleDerivedSourceEdit(view.definition)}
+                      >
+                        {t("derivedEditSource")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => handleDerivedDetach(view.definition)}
+                      >
+                        {t("derivedDetach")}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      onClick={() => {
+                        const displayLabel = event.name || getEventTypeDisplay(timelineText, event.type);
+                        setDeleteConfirmation({
+                          type: "event",
+                          id: view.definition.id,
+                          label: displayLabel,
+                        });
+                      }}
+                    >
+                      {common("actionDelete")}
+                    </Button>
+                  )}
                 </Group>
               </Group>
             </Card>

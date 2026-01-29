@@ -29,6 +29,25 @@ export type EventRule = {
 
 export type EventDefinitionKind = "group" | "cashflow";
 
+export type MoneyItemSource = "manual" | "eventGenerated" | "derived";
+
+export type EventGeneratedBy =
+  | {
+      type: "assetCost";
+      assetId: string;
+      subType: "purchaseFee" | "ongoing";
+      key: string;
+    }
+  | {
+      type: "assetRental";
+      assetId: string;
+    }
+  | {
+      type: "loanPayment";
+      liabilityId: string;
+      assetId?: string;
+    };
+
 export type EventDefinition = {
   id: string;
   title: string;
@@ -42,6 +61,10 @@ export type EventDefinition = {
   endAtAgeYears?: number;
   templateId?: string;
   templateParams?: Record<string, number>;
+  source?: MoneyItemSource;
+  generatedBy?: EventGeneratedBy;
+  linkedAssetId?: string;
+  linkedLiabilityId?: string;
 };
 
 export type EventRuleOverrides = Partial<

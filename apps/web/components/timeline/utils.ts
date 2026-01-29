@@ -279,12 +279,13 @@ export const createDefinitionCopy = (definition: EventDefinition, title: string)
 export const createHomePositionFromTemplate = (
   options?: { baseMonth?: string | null; purchaseMonth?: string | null }
 ): HomePositionDraft => {
+  const purchaseMonth =
+    normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "";
   return {
     id: createHomePositionId(),
     usage: "primary",
     mode: "new_purchase",
-    purchaseMonth:
-      normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "",
+    purchaseMonth,
     purchasePrice: 8_000_000,
     downPayment: 2_400_000,
     annualAppreciationPct: DEFAULT_ANNUAL_GROWTH_PCT,
@@ -293,21 +294,35 @@ export const createHomePositionFromTemplate = (
     feesOneTime: 0,
     holdingCostMonthly: 3_000,
     holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+    purchaseFees: [],
+    ongoingCosts: [
+      { key: "managementFee", enabled: false, amount: 0, startMonth: purchaseMonth },
+      { key: "groundRent", enabled: false, amount: 0, startMonth: purchaseMonth },
+      { key: "insurance", enabled: false, amount: 0, startMonth: purchaseMonth },
+      { key: "maintenance", enabled: false, amount: 0, startMonth: purchaseMonth },
+    ],
   };
 };
 
 export const createCarPositionFromTemplate = (
   options?: { baseMonth?: string | null; purchaseMonth?: string | null }
 ): CarPositionDraft => {
+  const purchaseMonth =
+    normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "";
   return {
     id: createCarPositionId(),
-    purchaseMonth:
-      normalizeMonth(options?.purchaseMonth ?? "") ?? options?.baseMonth ?? "",
+    purchaseMonth,
     purchasePrice: 0,
     downPayment: 0,
     annualDepreciationRatePct: 0,
     holdingCostMonthly: 0,
     holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+    purchaseFees: [],
+    ongoingCosts: [
+      { key: "insurance", enabled: false, amount: 0, startMonth: purchaseMonth },
+      { key: "inspection", enabled: false, amount: 0, startMonth: purchaseMonth },
+      { key: "maintenance", enabled: false, amount: 0, startMonth: purchaseMonth },
+    ],
   };
 };
 
@@ -346,6 +361,10 @@ export const createLoanPositionFromTemplate = (
     paymentMethod: "amortization",
     monthlyPayment: undefined,
     feesOneTime: 0,
+    purchasePrice: undefined,
+    downPaymentPercent: undefined,
+    generatePaymentExpense: false,
+    linkedAssetId: undefined,
   };
 };
 

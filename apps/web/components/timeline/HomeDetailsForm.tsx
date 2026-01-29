@@ -10,13 +10,20 @@ import {
   Select,
   Stack,
   Switch,
+  Text,
   TextInput,
   Title,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { nanoid } from "nanoid";
 import { normalizeMonthStrict } from "../../src/utils/month";
-import type { HomePositionDraft, RentalDetails } from "../../src/store/scenarioStore";
+import type {
+  AssetOngoingCost,
+  AssetPurchaseFee,
+  HomePositionDraft,
+  RentalDetails,
+} from "../../src/store/scenarioStore";
 import {
   HomePositionSchema,
   getHomePositionErrors,
@@ -61,6 +68,27 @@ export default function HomeDetailsForm({
   const usageValue = formValues.usage ?? "primary";
   const modeValue = formValues.mode ?? "new_purchase";
   const disableHolding = isSold;
+  const defaultStartMonth =
+    formValues.purchaseMonth ?? formValues.existing?.asOfMonth ?? "";
+  const homeOngoingCostKeys = [
+    "managementFee",
+    "groundRent",
+    "insurance",
+    "maintenance",
+  ] as const;
+
+  const resolveOngoingCosts = (existing?: AssetOngoingCost[]) => {
+    const lookup = new Map(existing?.map((cost) => [cost.key, cost]));
+    return homeOngoingCostKeys.map((key) => ({
+      key,
+      enabled: lookup.get(key)?.enabled ?? false,
+      amount: lookup.get(key)?.amount ?? 0,
+      startMonth: lookup.get(key)?.startMonth ?? defaultStartMonth,
+    }));
+  };
+
+  const purchaseFees = formValues.purchaseFees ?? [];
+  const ongoingCosts = resolveOngoingCosts(formValues.ongoingCosts);
 
   const handleModeChange = (value: string | null) => {
     if (!value) {
@@ -93,7 +121,7 @@ export default function HomeDetailsForm({
       rental: checked
         ? current.rental ?? {
             rentMonthly: 0,
-          rentStartMonth:
+            rentStartMonth:
               current.purchaseMonth ?? current.existing?.asOfMonth ?? "",
             rentEndMonth: null,
             rentAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
@@ -118,6 +146,42 @@ export default function HomeDetailsForm({
     });
   };
 
+  const addPurchaseFee = () => {
+    const nextFee: AssetPurchaseFee = {
+      id: `fee_${nanoid(6)}`,
+      label: "",
+      amount: 0,
+      month: defaultStartMonth,
+    };
+    updateField("purchaseFees", [...purchaseFees, nextFee]);
+  };
+
+  const updatePurchaseFee = (id: string, patch: Partial<AssetPurchaseFee>) => {
+    updateField(
+      "purchaseFees",
+      purchaseFees.map((fee) => (fee.id === id ? { ...fee, ...patch } : fee))
+    );
+  };
+
+  const removePurchaseFee = (id: string) => {
+    updateField(
+      "purchaseFees",
+      purchaseFees.filter((fee) => fee.id !== id)
+    );
+  };
+
+  const updateOngoingCost = (
+    key: AssetOngoingCost["key"],
+    patch: Partial<AssetOngoingCost>
+  ) => {
+    updateField(
+      "ongoingCosts",
+      resolveOngoingCosts(formValues.ongoingCosts).map((cost) =>
+        cost.key === key ? { ...cost, ...patch } : cost
+      )
+    );
+  };
+
   const handleSave = () => {
     const normalizedMonth = formValues.purchaseMonth
       ? normalizeMonthStrict(formValues.purchaseMonth)
@@ -135,6 +199,24 @@ export default function HomeDetailsForm({
     const normalizedRentEnd = formValues.rental?.rentEndMonth
       ? normalizeMonthStrict(formValues.rental.rentEndMonth)
       : null;
+    const normalizedFees = purchaseFees.map((fee) => {
+      const normalizedMonth = normalizeMonthStrict(fee.month);
+      return {
+        ...fee,
+        month: normalizedMonth.ok ? normalizedMonth.month : fee.month,
+      };
+    });
+    const normalizedOngoingCosts = ongoingCosts.map((cost) => {
+      const normalizedMonth = normalizeMonthStrict(cost.startMonth);
+      return {
+        ...cost,
+        startMonth: normalizedMonth.ok ? normalizedMonth.month : cost.startMonth,
+      };
+    });
+    const hasPurchaseFees = normalizedFees.some((fee) => fee.amount > 0);
+    const hasOngoingCosts = normalizedOngoingCosts.some(
+      (cost) => cost.enabled && cost.amount > 0
+    );
 
     const nextValues = {
       ...formValues,
@@ -166,6 +248,13 @@ export default function HomeDetailsForm({
               : formValues.rental.rentEndMonth ?? null,
           }
         : undefined,
+      purchaseFees: normalizedFees,
+      ongoingCosts: normalizedOngoingCosts,
+      feesOneTime: hasPurchaseFees ? 0 : formValues.feesOneTime,
+      holdingCostMonthly: hasOngoingCosts ? 0 : formValues.holdingCostMonthly,
+      holdingCostAnnualGrowthPct: hasOngoingCosts
+        ? 0
+        : formValues.holdingCostAnnualGrowthPct,
     };
 
     const parsed = HomePositionSchema.safeParse(nextValues);
@@ -320,7 +409,7 @@ export default function HomeDetailsForm({
           }
           errors={errors}
           disabled={disableHolding}
-          showFeesOneTime
+          showFeesOneTime={false}
           monthPlaceholder={common("yearMonthPlaceholder")}
           t={t}
         />
@@ -335,10 +424,116 @@ export default function HomeDetailsForm({
         showPurchaseFields={false}
         showMortgageFields={false}
         showAnnualAppreciation
-        showHoldingCostFields
-        showHoldingCostGrowth
+        showHoldingCostFields={false}
+        showHoldingCostGrowth={false}
         t={t}
       />
+      <Stack gap="xs">
+        <Title order={6}>{t("purchaseFeesTitle")}</Title>
+        {purchaseFees.length === 0 ? (
+          <Text size="xs" c="dimmed">
+            {t("purchaseFeesEmpty")}
+          </Text>
+        ) : (
+          <Stack gap="xs">
+            {purchaseFees.map((fee) => (
+              <Stack key={fee.id} gap="xs">
+                <Group align="flex-start" grow>
+                  <TextInput
+                    label={t("purchaseFeeLabel")}
+                    value={fee.label}
+                    disabled={disableHolding}
+                    onChange={(event) =>
+                      updatePurchaseFee(fee.id, { label: event.target.value })
+                    }
+                  />
+                  <NumberInput
+                    label={t("purchaseFeeAmount")}
+                    value={fee.amount}
+                    disabled={disableHolding}
+                    onChange={(value) =>
+                      updatePurchaseFee(fee.id, {
+                        amount: toPositiveNumber(value),
+                      })
+                    }
+                    thousandSeparator=","
+                    min={0}
+                  />
+                  <TextInput
+                    label={t("purchaseFeeMonth")}
+                    placeholder={common("yearMonthPlaceholder")}
+                    value={fee.month}
+                    disabled={disableHolding}
+                    onChange={(event) =>
+                      updatePurchaseFee(fee.id, { month: event.target.value })
+                    }
+                  />
+                </Group>
+                <Group justify="flex-end">
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    disabled={disableHolding}
+                    onClick={() => removePurchaseFee(fee.id)}
+                  >
+                    {common("actionRemove")}
+                  </Button>
+                </Group>
+              </Stack>
+            ))}
+          </Stack>
+        )}
+        <Button size="xs" variant="light" onClick={addPurchaseFee} disabled={disableHolding}>
+          {t("purchaseFeeAdd")}
+        </Button>
+      </Stack>
+      <Stack gap="xs">
+        <Title order={6}>{t("ongoingCostsTitle")}</Title>
+        <Stack gap="sm">
+          {ongoingCosts.map((cost) => (
+            <Stack key={cost.key} gap="xs">
+              <Switch
+                label={t(`ongoingCosts.${cost.key}`)}
+                checked={cost.enabled}
+                disabled={disableHolding}
+                onChange={(event) =>
+                  updateOngoingCost(cost.key, {
+                    enabled: event.currentTarget.checked,
+                  })
+                }
+              />
+              {cost.enabled && (
+                <Group grow>
+                  <NumberInput
+                    label={t("ongoingCostAmount")}
+                    value={cost.amount}
+                    disabled={disableHolding}
+                    onChange={(value) =>
+                      updateOngoingCost(cost.key, {
+                        amount: toPositiveNumber(value),
+                      })
+                    }
+                    thousandSeparator=","
+                    min={0}
+                  />
+                  <TextInput
+                    label={t("ongoingCostStartMonth")}
+                    placeholder={common("yearMonthPlaceholder")}
+                    value={cost.startMonth}
+                    disabled={disableHolding}
+                    onChange={(event) =>
+                      updateOngoingCost(cost.key, {
+                        startMonth: event.target.value,
+                      })
+                    }
+                  />
+                </Group>
+              )}
+            </Stack>
+          ))}
+        </Stack>
+      </Stack>
       <Switch
         label={t("rentalEnabled")}
         checked={Boolean(formValues.rental)}
