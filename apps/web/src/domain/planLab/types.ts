@@ -159,10 +159,32 @@ export type PlanLabDraft = {
   additions?: PlanLabDraftAdditions;
 };
 
-export type PlanSnapshot = {
+export type PlanLabSnapshot = {
   baselinePatches?: PlanLabBaselinePatches;
   experiments?: PlanLabExperiment[];
   scorecardSettings?: PlanLabScorecardSettings;
+};
+
+export type PlanPatch = {
+  op: "set" | "add" | "remove";
+  entity: "moneyItem" | "asset" | "liability" | "rule" | "member" | "event";
+  id?: string;
+  path?: string;
+  value?: unknown;
+  note?: string;
+};
+
+export type PlanSnapshot = {
+  id: string;
+  scenarioId: string;
+  name: string;
+  description?: string;
+  createdAt: number;
+  updatedAt: number;
+  baselineRevision: number;
+  patches: PlanPatch[];
+  snapshot: PlanLabSnapshot;
+  metricsCache?: PlanMetricsCache;
 };
 
 export type PlanMetricsCache = {
@@ -173,16 +195,7 @@ export type PlanMetricsCache = {
   status?: "safe" | "bust";
 };
 
-export type Plan = {
-  id: string;
-  name: string;
-  createdAt: number;
-  updatedAt: number;
-  sourceScenarioId: string;
-  baseScenarioVersion?: number;
-  snapshot: PlanSnapshot;
-  metricsCache?: PlanMetricsCache;
-};
+export type Plan = PlanSnapshot;
 
 export type OnboardingDraftBaseline = {
   monthlyIncomeTotal: number;

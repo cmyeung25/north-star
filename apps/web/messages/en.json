@@ -275,6 +275,13 @@
     "planLabPlanSavedToast": "Plan saved.",
     "planLabPlanDuplicateName": "{name} (copy)",
     "planLabPlanDuplicatedToast": "Plan duplicated.",
+    "planLabPlanUpdatedToast": "Plan updated.",
+    "planLabPlanNotFound": "The selected plan no longer exists.",
+    "planLabPlanScenarioMismatch": "Different scenario",
+    "planLabPlanScenarioMismatchToast": "This plan belongs to another scenario and cannot be loaded here.",
+    "planLabPlanRename": "Rename",
+    "planLabPlanRenamePrompt": "Rename plan",
+    "planLabUpdatePlan": "Update plan",
     "planLabSavePlanTitle": "Save plan",
     "planLabSavePlanNameLabel": "Plan name",
     "planLabSavePlanBaselineCount": "Baseline edits: {count}",
@@ -296,6 +303,14 @@
     "planLabPlanComputeKpi": "Compute",
     "planLabPlanStatusBust": "Bust",
     "planLabPlanStatusSafe": "Safe",
+    "planLabComparePlanPatchWarningA": "Plan A patch warnings",
+    "planLabComparePlanPatchWarningB": "Plan B patch warnings",
+    "planLabCompareEndCash": "End cash",
+    "planLabCompareNegativeMonths": "Negative months",
+    "planLabCompareDrawdown": "Max drawdown",
+    "planLabDiffPatchesOnlyA": "Only Plan A has {count} change(s).",
+    "planLabDiffPatchesOnlyB": "Only Plan B has {count} change(s).",
+    "planLabDiffPatchesChanged": "{count} change(s) differ on the same path.",
     "planLabCompareTitle": "Compare plans",
     "planLabCompareSubtitle": "Select two plans to compare their results.",
     "planLabCompareSwap": "Swap",
@@ -2241,6 +2256,8 @@
     "compareTemplateCarOwnershipHint": "Add a car position with defaults."
   },
   "warnings": {
-    "doubleCountingHomeRent": "Rent and home purchase overlap; double counting may occur."
+    "doubleCountingHomeRent": "Rent and home purchase overlap; double counting may occur.",
+    "doubleCountingPlanPatch": "Plan changes include overlapping housing updates; double counting may occur.",
+    "planLabInvalidPatch": "Plan change is invalid or no longer applies."
   }
 }

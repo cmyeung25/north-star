@@ -9,7 +9,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
-import type { PlanSnapshot } from "../../src/domain/planLab/types";
+import type { PlanLabSnapshot } from "../../src/domain/planLab/types";
 
 type TranslateFn = (
   key: string,
@@ -20,14 +20,14 @@ type TranslateFn = (
 type SavePlanModalProps = {
   opened: boolean;
   onClose: () => void;
-  snapshot: PlanSnapshot;
+  snapshot: PlanLabSnapshot;
   defaultName: string;
   warnings: string[];
   translate: TranslateFn;
   onSave: (name: string) => void;
 };
 
-const countBaselinePatches = (snapshot: PlanSnapshot) => {
+const countBaselinePatches = (snapshot: PlanLabSnapshot) => {
   const baseline = snapshot.baselinePatches ?? {};
   const eventCount = Object.keys(baseline.eventPatches ?? {}).length;
   const ruleCount = Object.keys(baseline.rulePatches ?? {}).length;
