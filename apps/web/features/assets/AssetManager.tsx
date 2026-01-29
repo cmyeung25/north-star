@@ -31,6 +31,7 @@ type AssetItemDraft = {
   startMonth: string;
   notes: string;
   source: AssetItem["source"];
+  generatedByEventId?: string;
 };
 
 const buildDraft = (item: AssetItem | null, baseCurrency: string): AssetItemDraft => {
@@ -58,6 +59,7 @@ const buildDraft = (item: AssetItem | null, baseCurrency: string): AssetItemDraf
     startMonth: item.startMonth ?? "",
     notes: item.notes ?? "",
     source: item.source,
+    generatedByEventId: item.generatedByEventId,
   };
 };
 
@@ -69,6 +71,8 @@ type AssetManagerProps = {
   onUpsert: (item: AssetItemUpsert) => void;
   onDelete: (item: AssetItem) => void;
   onView?: (item: AssetItem) => void;
+  onEditEvent?: (eventId: string) => void;
+  onDetach?: (item: AssetItem) => void;
 };
 
 export default function AssetManager({
@@ -79,6 +83,8 @@ export default function AssetManager({
   onUpsert,
   onDelete,
   onView,
+  onEditEvent,
+  onDetach,
 }: AssetManagerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -116,6 +122,7 @@ export default function AssetManager({
       };
     }
   );
+  const isReadOnly = draft.source === "eventGenerated" || draft.source === "derived";
 
   const filteredItems = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -171,6 +178,7 @@ export default function AssetManager({
       startMonth: result.value.startMonth || undefined,
       notes: result.value.notes || undefined,
       source: result.value.source,
+      generatedByEventId: result.value.generatedByEventId,
     };
     onUpsert(nextValue);
     closeDrawer();
@@ -224,6 +232,7 @@ export default function AssetManager({
                 ? members.find((member) => member.id === item.ownerMemberId)?.name
                 : null) ?? t("flowMemberHousehold");
             const valueLabel = formatCurrency(item.currentValue, item.currency, locale);
+            const isGenerated = item.source === "eventGenerated";
             return (
               <Card key={item.id} withBorder radius="md" padding="sm">
                 <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -238,6 +247,11 @@ export default function AssetManager({
                         month: item.startMonth || "--",
                       })}
                     </Text>
+                    {isGenerated && (
+                      <Text size="xs" c="dimmed">
+                        {t("eventGeneratedBadge")}
+                      </Text>
+                    )}
                   </Stack>
                   <Group gap="xs">
                     {onView && (
@@ -245,17 +259,39 @@ export default function AssetManager({
                         {t("assetManagerView")}
                       </Button>
                     )}
-                    <Button size="xs" variant="light" onClick={() => openDrawer(item)}>
-                      {common("actionEdit")}
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      color="red"
-                      onClick={() => onDelete(item)}
-                    >
-                      {common("actionDelete")}
-                    </Button>
+                    {isGenerated ? (
+                      <>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => item.generatedByEventId && onEditEvent?.(item.generatedByEventId)}
+                          disabled={!item.generatedByEventId}
+                        >
+                          {t("eventGeneratedEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => onDetach?.(item)}
+                        >
+                          {t("eventGeneratedDetach")}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="xs" variant="light" onClick={() => openDrawer(item)}>
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={() => onDelete(item)}
+                        >
+                          {common("actionDelete")}
+                        </Button>
+                      </>
+                    )}
                   </Group>
                 </Group>
               </Card>
@@ -272,6 +308,38 @@ export default function AssetManager({
         title={editingItem ? t("assetFormEditTitle") : t("assetFormCreateTitle")}
       >
         <Stack gap="sm">
+          {editingItem?.source === "eventGenerated" && (
+            <Card withBorder radius="md" padding="sm">
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {t("eventGeneratedTitle")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("eventGeneratedHint")}
+                </Text>
+                <Group gap="xs">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() =>
+                      editingItem.generatedByEventId &&
+                      onEditEvent?.(editingItem.generatedByEventId)
+                    }
+                    disabled={!editingItem.generatedByEventId}
+                  >
+                    {t("eventGeneratedEdit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => onDetach?.(editingItem)}
+                  >
+                    {t("eventGeneratedDetach")}
+                  </Button>
+                </Group>
+              </Stack>
+            </Card>
+          )}
           <Select
             label={t("assetFormTypeLabel")}
             value={draft.assetType}
@@ -282,12 +350,14 @@ export default function AssetManager({
               { value: "insurance", label: t("assetTypeInsurance") },
               { value: "car", label: t("assetTypeCar") },
             ]}
+            disabled={isReadOnly}
           />
           <TextInput
             label={t("assetFormNameLabel")}
             value={draft.name}
             onChange={(event) => setDraft((current) => ({ ...current, name: event.currentTarget.value }))}
             error={errors.name}
+            disabled={isReadOnly}
           />
           <NumberInput
             label={t("assetFormValueLabel")}
@@ -300,12 +370,14 @@ export default function AssetManager({
             }
             min={0}
             error={errors.currentValue}
+            disabled={isReadOnly}
           />
           <MonthField
             label={t("assetFormStartMonthLabel")}
             value={draft.startMonth}
             onChange={(value) => setDraft((current) => ({ ...current, startMonth: value }))}
             error={errors.startMonth}
+            disabled={isReadOnly}
           />
           <Select
             label={t("assetFormOwnerLabel")}
@@ -317,17 +389,21 @@ export default function AssetManager({
               { value: "", label: t("flowMemberHousehold") },
               ...members.map((member) => ({ value: member.id, label: member.name })),
             ]}
+            disabled={isReadOnly}
           />
           <TextInput
             label={t("assetFormNotesLabel")}
             value={draft.notes}
             onChange={(event) => setDraft((current) => ({ ...current, notes: event.currentTarget.value }))}
+            disabled={isReadOnly}
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={closeDrawer}>
               {common("actionCancel")}
             </Button>
-            <Button onClick={handleSave}>{common("actionSave")}</Button>
+            <Button onClick={handleSave} disabled={isReadOnly}>
+              {common("actionSave")}
+            </Button>
           </Group>
         </Stack>
       </Drawer>

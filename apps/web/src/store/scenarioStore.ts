@@ -4,10 +4,27 @@
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { defaultCurrency } from "../../lib/i18n";
+import type { MoneyItemUpsert } from "../../features/moneyFlow/types";
+import type { AssetItemUpsert } from "../../features/assets/types";
+import type { LiabilityItemUpsert } from "../../features/liabilities/types";
 import type { ApplyScope } from "../domain/applyScope";
 import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
+import {
+  compileEventToOps,
+} from "../domain/milestoneEvents/compiler";
+import {
+  buildMilestoneScenarioSnapshot,
+} from "../domain/milestoneEvents/snapshot";
+import type {
+  MilestoneEvent,
+  MilestoneEventDraft,
+  MilestoneEventCompileResult,
+  GeneratedEntitySummary,
+} from "../domain/milestoneEvents/types";
 import type { Plan } from "../domain/planLab/types";
+import type { EventType } from "../features/timeline/schema";
 import type { SmartInvestPolicy } from "../domain/smartInvest/types";
+import { DEFAULT_ANNUAL_GROWTH_PCT } from "../domain/constants";
 import {
   buildEventRuleOverrides,
   type DuplicateCluster,
@@ -122,6 +139,8 @@ export type BudgetRule = {
   startMonth?: string;
   endMonth?: string;
   applyScope?: ApplyScope;
+  source?: "manual" | "eventGenerated" | "derived";
+  generatedByEventId?: string;
 };
 
 export type ExistingHomeDetails = {
@@ -160,6 +179,8 @@ export type HomePosition = {
   notes?: string;
   existing?: ExistingHomeDetails;
   rental?: RentalDetails;
+  source?: "manual" | "eventGenerated" | "derived";
+  generatedByEventId?: string;
 };
 
 export type HomePositionDraft = HomePosition & {
@@ -178,6 +199,8 @@ export type InvestmentPosition = {
   monthlyContribution?: number;
   monthlyWithdrawal?: number;
   feeAnnualRatePct?: number;
+  source?: "manual" | "eventGenerated" | "derived";
+  generatedByEventId?: string;
 };
 
 export type InsurancePosition = {
@@ -193,6 +216,8 @@ export type InsurancePosition = {
   initialCashValue?: number;
   expectedAnnualReturnPct?: number;
   notes?: string;
+  source?: "manual" | "eventGenerated" | "derived";
+  generatedByEventId?: string;
 };
 
 export type LoanPosition = {
@@ -207,6 +232,8 @@ export type LoanPosition = {
   paymentMethod?: "amortization" | "manual";
   feesOneTime?: number;
   notes?: string;
+  source?: "manual" | "eventGenerated" | "derived";
+  generatedByEventId?: string;
 };
 
 export type CarLoanDetails = {
@@ -231,6 +258,8 @@ export type CarPosition = {
   sellPriceOverride?: number;
   sellFeesOneTime?: number;
   notes?: string;
+  source?: "manual" | "eventGenerated" | "derived";
+  generatedByEventId?: string;
 };
 
 export type CashBucketPosition = {
@@ -295,6 +324,7 @@ export type Scenario = {
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
   eventRefs?: ScenarioEventRef[];
+  milestoneEvents?: MilestoneEvent[];
   positions?: ScenarioPositions;
   clientComputed?: ScenarioClientComputed;
   snapshots?: ProjectionSnapshot[];
@@ -407,6 +437,13 @@ type ScenarioStoreState = {
   clearSnapshots: (scenarioId: string) => void;
   upsertScenarioPlan: (scenarioId: string, plan: Plan) => void;
   removeScenarioPlan: (scenarioId: string, planId: string) => void;
+  applyMilestoneEvent: (
+    scenarioId: string,
+    draft: MilestoneEventDraft
+  ) => MilestoneEventCompileResult;
+  removeMilestoneEvent: (scenarioId: string, eventId: string) => void;
+  findGeneratedEntities: (scenarioId: string, eventId: string) => GeneratedEntitySummary;
+  cleanupGeneratedEntities: (scenarioId: string, eventId: string) => void;
 };
 
 export type ScenarioStorePersistedState = Pick<
@@ -565,6 +602,7 @@ export const createInsurancePositionId = () => `insurance-${nanoid(8)}`;
 export const createCashBucketPositionId = () => `cash-${nanoid(8)}`;
 export const createMemberId = () => `member-${nanoid(8)}`;
 export const createBudgetRuleId = () => `budget-${nanoid(8)}`;
+const createEventDefinitionId = () => `evt_${nanoid(8)}`;
 
 const DEFAULT_MEMBER_NAME = "主要成員";
 
@@ -605,6 +643,14 @@ const normalizeBudgetRules = (rules?: BudgetRule[]): BudgetRule[] =>
     ...rule,
     ageBand: { ...rule.ageBand },
     applyScope: normalizeApplyScope(rule.applyScope),
+    source: rule.source ?? "manual",
+  })) ?? [];
+
+const normalizeMilestoneEvents = (events?: MilestoneEvent[]): MilestoneEvent[] =>
+  events?.map((event) => ({
+    ...event,
+    createdAt: event.createdAt ?? now(),
+    updatedAt: event.updatedAt ?? event.createdAt ?? now(),
   })) ?? [];
 
 const ensureScenarioIncluded = (
@@ -695,6 +741,252 @@ const migrateGlobalBudgetRules = (
   return Array.from(ruleMap.values());
 };
 
+const buildEventDefinitionFromMoneyItem = (
+  item: MoneyItemUpsert,
+  baseCurrency: string
+): EventDefinition => {
+  const nextDefinitionId = createEventDefinitionId();
+  const nextTitle = item.notes?.trim() || item.category;
+  const nextType = item.category as EventType;
+  return {
+    id: nextDefinitionId,
+    title: nextTitle,
+    type: nextType,
+    kind: "cashflow",
+    rule: {
+      mode: "params",
+      startMonth: item.cadence === "recurring" ? item.startMonth ?? "" : item.month ?? "",
+      endMonth: item.cadence === "recurring" ? item.endMonth ?? null : null,
+      monthlyAmount: item.cadence === "recurring" ? item.amount : 0,
+      oneTimeAmount: item.cadence === "oneOff" ? item.amount : 0,
+      annualGrowthPct: item.cadence === "oneOff" ? 0 : DEFAULT_ANNUAL_GROWTH_PCT,
+    },
+    currency: item.currency ?? baseCurrency,
+    memberId: item.memberId,
+    incomeSubtype: undefined,
+    generatedByEventId: item.generatedByEventId,
+  };
+};
+
+const buildBudgetRuleFromMoneyItem = (item: MoneyItemUpsert): BudgetRule => ({
+  id: createBudgetRuleId(),
+  name: item.notes?.trim() || item.category,
+  enabled: true,
+  memberId: item.memberId,
+  category: item.category as BudgetRule["category"],
+  ageBand: { fromYears: 0, toYears: 120 },
+  monthlyAmount: item.amount,
+  annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+  startMonth: item.startMonth ?? undefined,
+  endMonth: item.endMonth ?? undefined,
+  applyScope: { scope: "all" },
+  source: item.source ?? "eventGenerated",
+  generatedByEventId: item.generatedByEventId,
+});
+
+const applyAssetItemUpsertToPositions = (
+  positions: ScenarioPositions | undefined,
+  item: AssetItemUpsert,
+  baseMonth: string | null
+): ScenarioPositions => {
+  const nextPositions = positions ?? {};
+  const startMonth = item.startMonth ?? baseMonth ?? "";
+  const source = item.source ?? "manual";
+  const generatedByEventId = item.generatedByEventId;
+
+  if (item.assetType === "property") {
+    const homes = nextPositions.homes ?? [];
+    const existing = homes.find((home) => home.id === item.id);
+    const nextHome: HomePositionDraft = {
+      ...(existing ?? {
+        id: createHomePositionId(),
+        purchaseMonth: startMonth,
+        purchasePrice: item.currentValue ?? 0,
+        downPayment: 0,
+        annualAppreciationPct: 0,
+        holdingCostMonthly: 0,
+        holdingCostAnnualGrowthPct: 0,
+      }),
+      id: item.id ?? existing?.id ?? createHomePositionId(),
+      name: item.name ?? existing?.name,
+      ownerMemberId: item.ownerMemberId ?? existing?.ownerMemberId,
+      purchasePrice: item.currentValue ?? existing?.purchasePrice,
+      purchaseMonth: startMonth || existing?.purchaseMonth,
+      notes: item.notes ?? existing?.notes,
+      source,
+      generatedByEventId,
+    };
+    return {
+      ...nextPositions,
+      homes: existing
+        ? homes.map((home) => (home.id === nextHome.id ? nextHome : home))
+        : [...homes, nextHome],
+    };
+  }
+
+  if (item.assetType === "investment") {
+    const investments = nextPositions.investments ?? [];
+    const existing = investments.find((investment) => investment.id === item.id);
+    const nextInvestment: InvestmentPositionDraft = {
+      ...(existing ?? {
+        id: createInvestmentPositionId(),
+        startMonth,
+        initialValue: item.currentValue ?? 0,
+        assetClass: "fund",
+      }),
+      id: item.id ?? existing?.id ?? createInvestmentPositionId(),
+      name: item.name ?? existing?.name,
+      ownerMemberId: item.ownerMemberId ?? existing?.ownerMemberId,
+      startMonth: startMonth || existing?.startMonth || "",
+      initialValue: item.currentValue ?? existing?.initialValue ?? 0,
+      notes: item.notes ?? existing?.notes,
+      source,
+      generatedByEventId,
+    };
+    return {
+      ...nextPositions,
+      investments: existing
+        ? investments.map((entry) => (entry.id === nextInvestment.id ? nextInvestment : entry))
+        : [...investments, nextInvestment],
+    };
+  }
+
+  if (item.assetType === "insurance") {
+    const insurances = nextPositions.insurances ?? [];
+    const existing = insurances.find((insurance) => insurance.id === item.id);
+    const nextInsurance: InsurancePositionDraft = {
+      ...(existing ?? {
+        id: createInsurancePositionId(),
+        name: item.name ?? "",
+        enabled: true,
+        kind: "protection",
+        startMonth,
+        premiumMonthly: 0,
+      }),
+      id: item.id ?? existing?.id ?? createInsurancePositionId(),
+      name: item.name ?? existing?.name ?? "",
+      ownerMemberId: item.ownerMemberId ?? existing?.ownerMemberId,
+      startMonth: startMonth || existing?.startMonth || "",
+      initialCashValue: item.currentValue ?? existing?.initialCashValue ?? 0,
+      notes: item.notes ?? existing?.notes,
+      source,
+      generatedByEventId,
+    };
+    return {
+      ...nextPositions,
+      insurances: existing
+        ? insurances.map((entry) => (entry.id === nextInsurance.id ? nextInsurance : entry))
+        : [...insurances, nextInsurance],
+    };
+  }
+
+  const cars = nextPositions.cars ?? [];
+  const existing = cars.find((car) => car.id === item.id);
+  const nextCar: CarPositionDraft = {
+    ...(existing ?? {
+      id: createCarPositionId(),
+      purchaseMonth: startMonth,
+      purchasePrice: item.currentValue ?? 0,
+      downPayment: 0,
+      annualDepreciationRatePct: 0,
+      holdingCostMonthly: 0,
+      holdingCostAnnualGrowthPct: 0,
+    }),
+    id: item.id ?? existing?.id ?? createCarPositionId(),
+    name: item.name ?? existing?.name,
+    ownerMemberId: item.ownerMemberId ?? existing?.ownerMemberId,
+    purchaseMonth: startMonth || existing?.purchaseMonth || "",
+    purchasePrice: item.currentValue ?? existing?.purchasePrice ?? 0,
+    notes: item.notes ?? existing?.notes,
+    source,
+    generatedByEventId,
+  };
+  return {
+    ...nextPositions,
+    cars: existing
+      ? cars.map((entry) => (entry.id === nextCar.id ? nextCar : entry))
+      : [...cars, nextCar],
+  };
+};
+
+const applyAssetItemRemoveFromPositions = (
+  positions: ScenarioPositions | undefined,
+  item: AssetItemUpsert
+): ScenarioPositions => {
+  const nextPositions = positions ?? {};
+  switch (item.assetType) {
+    case "property":
+      return {
+        ...nextPositions,
+        homes: nextPositions.homes?.filter((home) => home.id !== item.id),
+      };
+    case "investment":
+      return {
+        ...nextPositions,
+        investments: nextPositions.investments?.filter((investment) => investment.id !== item.id),
+      };
+    case "insurance":
+      return {
+        ...nextPositions,
+        insurances: nextPositions.insurances?.filter((insurance) => insurance.id !== item.id),
+      };
+    case "car":
+      return {
+        ...nextPositions,
+        cars: nextPositions.cars?.filter((car) => car.id !== item.id),
+      };
+    default:
+      return nextPositions;
+  }
+};
+
+const applyLiabilityItemUpsertToPositions = (
+  positions: ScenarioPositions | undefined,
+  item: LiabilityItemUpsert,
+  baseMonth: string | null
+): ScenarioPositions => {
+  const nextPositions = positions ?? {};
+  const loans = nextPositions.loans ?? [];
+  const existing = loans.find((loan) => loan.id === item.id);
+  const startMonth = item.startMonth ?? baseMonth ?? "";
+  const resolvedTermMonths = item.termMonths ?? 12;
+  const nextLoan: LoanPositionDraft = {
+    ...(existing ?? {
+      id: createLoanPositionId(),
+      startMonth,
+      principal: item.principalOutstanding ?? 0,
+      annualInterestRatePct: item.interestRate ?? 0,
+      termYears: Math.max(1, Math.round(resolvedTermMonths / 12)),
+    }),
+    id: item.id ?? existing?.id ?? createLoanPositionId(),
+    name: item.name ?? existing?.name,
+    startMonth: startMonth || existing?.startMonth || "",
+    principal: item.principalOutstanding ?? existing?.principal ?? 0,
+    annualInterestRatePct: item.interestRate ?? existing?.annualInterestRatePct ?? 0,
+    termYears: Math.max(1, Math.round(resolvedTermMonths / 12)),
+    notes: item.notes ?? existing?.notes,
+    source: item.source ?? existing?.source,
+    generatedByEventId: item.generatedByEventId ?? existing?.generatedByEventId,
+  };
+  return {
+    ...nextPositions,
+    loans: existing
+      ? loans.map((entry) => (entry.id === nextLoan.id ? nextLoan : entry))
+      : [...loans, nextLoan],
+  };
+};
+
+const applyLiabilityItemRemoveFromPositions = (
+  positions: ScenarioPositions | undefined,
+  item: LiabilityItemUpsert
+): ScenarioPositions => {
+  const nextPositions = positions ?? {};
+  return {
+    ...nextPositions,
+    loans: nextPositions.loans?.filter((loan) => loan.id !== item.id),
+  };
+};
+
 const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
   eventRefs?.map((ref) => ({
     ...ref,
@@ -724,6 +1016,12 @@ const cloneBudgetRules = (rules?: BudgetRule[]) =>
 const cloneClientComputed = (clientComputed?: ScenarioClientComputed) =>
   clientComputed ? { ...clientComputed } : undefined;
 
+const cloneMilestoneEvents = (events?: MilestoneEvent[]) =>
+  events?.map((event) => ({
+    ...event,
+    payload: JSON.parse(JSON.stringify(event.payload)) as MilestoneEvent["payload"],
+  }));
+
 const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | undefined => {
   if (!positions) {
     return positions;
@@ -748,6 +1046,102 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
     cashBuckets: positions.cashBuckets
       ? positions.cashBuckets.map((bucket) => ({ ...bucket }))
       : undefined,
+  };
+};
+
+const findGeneratedEntitiesForScenario = (
+  state: ScenarioStoreState,
+  scenarioId: string,
+  eventId: string
+): GeneratedEntitySummary => {
+  const scenario = state.scenarios.find((entry) => entry.id === scenarioId);
+  const positions = scenario?.positions;
+
+  return {
+    eventDefinitionIds: state.eventLibrary
+      .filter((definition) => definition.generatedByEventId === eventId)
+      .map((definition) => definition.id),
+    budgetRuleIds: state.budgetRules
+      .filter((rule) => rule.generatedByEventId === eventId)
+      .map((rule) => rule.id),
+    homeIds:
+      positions?.homes?.filter((home) => home.generatedByEventId === eventId).map((home) => home.id) ??
+      [],
+    investmentIds:
+      positions?.investments
+        ?.filter((investment) => investment.generatedByEventId === eventId)
+        .map((investment) => investment.id ?? "")
+        .filter(Boolean) ?? [],
+    insuranceIds:
+      positions?.insurances
+        ?.filter((insurance) => insurance.generatedByEventId === eventId)
+        .map((insurance) => insurance.id ?? "")
+        .filter(Boolean) ?? [],
+    carIds:
+      positions?.cars
+        ?.filter((car) => car.generatedByEventId === eventId)
+        .map((car) => car.id ?? "")
+        .filter(Boolean) ?? [],
+    loanIds:
+      positions?.loans
+        ?.filter((loan) => loan.generatedByEventId === eventId)
+        .map((loan) => loan.id ?? "")
+        .filter(Boolean) ?? [],
+  };
+};
+
+const cleanupGeneratedEntitiesForScenario = (
+  state: ScenarioStoreState,
+  scenarioId: string,
+  eventId: string
+): ScenarioStoreState => {
+  const summary = findGeneratedEntitiesForScenario(state, scenarioId, eventId);
+  const nextEventLibrary = state.eventLibrary.filter(
+    (definition) => !summary.eventDefinitionIds.includes(definition.id)
+  );
+  const nextBudgetRules = state.budgetRules.filter(
+    (rule) => !summary.budgetRuleIds.includes(rule.id)
+  );
+
+  const nextScenarios = state.scenarios.map((scenario) => {
+    if (scenario.id !== scenarioId) {
+      return scenario;
+    }
+
+    const nextEventRefs =
+      scenario.eventRefs?.filter((ref) => !summary.eventDefinitionIds.includes(ref.refId)) ?? [];
+    const positions = scenario.positions;
+
+    if (!positions) {
+      return {
+        ...scenario,
+        eventRefs: nextEventRefs,
+      };
+    }
+
+    return {
+      ...scenario,
+      eventRefs: nextEventRefs,
+      positions: {
+        ...positions,
+        homes: positions.homes?.filter((home) => !summary.homeIds.includes(home.id)),
+        investments: positions.investments?.filter(
+          (investment) => !summary.investmentIds.includes(investment.id ?? "")
+        ),
+        insurances: positions.insurances?.filter(
+          (insurance) => !summary.insuranceIds.includes(insurance.id ?? "")
+        ),
+        cars: positions.cars?.filter((car) => !summary.carIds.includes(car.id ?? "")),
+        loans: positions.loans?.filter((loan) => !summary.loanIds.includes(loan.id ?? "")),
+      },
+    };
+  });
+
+  return {
+    ...state,
+    eventLibrary: nextEventLibrary,
+    budgetRules: nextBudgetRules,
+    scenarios: nextScenarios,
   };
 };
 
@@ -987,6 +1381,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
   const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
   const normalizedPlans = clonePlans(scenario.plans);
+  const normalizedMilestoneEvents = normalizeMilestoneEvents(scenario.milestoneEvents);
   const normalizedAssumptions = {
     ...defaultAssumptions,
     ...scenario.assumptions,
@@ -1000,6 +1395,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
       ...scenario,
       assumptions: normalizedAssumptions,
       eventRefs: normalizedEventRefs,
+      milestoneEvents: normalizedMilestoneEvents,
       clientComputed: nextClientComputed,
       snapshots: normalizedSnapshots,
       plans: normalizedPlans,
@@ -1012,6 +1408,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     assumptions: normalizedAssumptions,
     positions: normalizedPositions,
     eventRefs: normalizedEventRefs,
+    milestoneEvents: normalizedMilestoneEvents,
     clientComputed: nextClientComputed,
     snapshots: normalizedSnapshots,
     plans: normalizedPlans,
@@ -1110,6 +1507,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         baseMonth: globalBaseMonth ?? defaultAssumptions.baseMonth,
       },
       eventRefs: [],
+      milestoneEvents: [],
       snapshots: [],
       plans: [],
       clientComputed:
@@ -1152,6 +1550,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
       eventRefs: cloneEventRefs(source.eventRefs),
+      milestoneEvents: cloneMilestoneEvents(source.milestoneEvents),
       positions: clonePositions(source.positions),
       clientComputed: cloneClientComputed(source.clientComputed),
       snapshots: cloneSnapshots(source.snapshots),
@@ -2497,5 +2896,177 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         };
       }),
     }));
+  },
+  applyMilestoneEvent: (scenarioId, draft) => {
+    const state = get();
+    const scenario = state.scenarios.find((entry) => entry.id === scenarioId);
+    if (!scenario) {
+      return { ops: [], warnings: [], fieldErrors: { scenario: "Scenario not found." } };
+    }
+
+    const eventId = draft.id ?? `milestone-${nanoid(8)}`;
+    const existingEvent = scenario.milestoneEvents?.find((event) => event.id === eventId);
+    const timestamp = now();
+    const event: MilestoneEvent = {
+      ...draft,
+      id: eventId,
+      createdAt: existingEvent?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    };
+
+    const snapshot = buildMilestoneScenarioSnapshot({
+      scenario,
+      eventLibrary: state.eventLibrary,
+      budgetRules: state.budgetRules,
+    });
+    const compileResult = compileEventToOps(event, snapshot);
+
+    if (Object.keys(compileResult.fieldErrors).length > 0) {
+      return compileResult;
+    }
+
+    set((current) => {
+      let workingState = current;
+      if (existingEvent) {
+        workingState = cleanupGeneratedEntitiesForScenario(
+          workingState,
+          scenarioId,
+          eventId
+        );
+      }
+
+      const scenarioIndex = workingState.scenarios.findIndex(
+        (entry) => entry.id === scenarioId
+      );
+      if (scenarioIndex === -1) {
+        return workingState;
+      }
+
+      const baseMonth = workingState.scenarios[scenarioIndex].assumptions.baseMonth ?? null;
+      const nextEventLibrary = [...workingState.eventLibrary];
+      const nextBudgetRules = [...workingState.budgetRules];
+      let nextScenario = { ...workingState.scenarios[scenarioIndex] };
+      let nextEventRefs = [...(nextScenario.eventRefs ?? [])];
+      let nextPositions = nextScenario.positions;
+
+      compileResult.ops.forEach((op) => {
+        if (op.entity === "moneyItem") {
+          if (op.action === "remove") {
+            if (op.item.sourceType === "budgetRule" && op.item.sourceId) {
+              const index = nextBudgetRules.findIndex((rule) => rule.id === op.item.sourceId);
+              if (index >= 0) {
+                nextBudgetRules.splice(index, 1);
+              }
+            } else if (op.item.sourceId) {
+              const defIndex = nextEventLibrary.findIndex(
+                (definition) => definition.id === op.item.sourceId
+              );
+              if (defIndex >= 0) {
+                nextEventLibrary.splice(defIndex, 1);
+              }
+              nextEventRefs = nextEventRefs.filter((ref) => ref.refId !== op.item.sourceId);
+            }
+            return;
+          }
+
+          if (op.item.sourceType === "budgetRule") {
+            const rule = buildBudgetRuleFromMoneyItem({
+              ...op.item,
+              source: "eventGenerated",
+              generatedByEventId: eventId,
+            });
+            nextBudgetRules.push(rule);
+            return;
+          }
+
+          const definition = buildEventDefinitionFromMoneyItem(
+            { ...op.item, generatedByEventId: eventId },
+            nextScenario.baseCurrency
+          );
+          nextEventLibrary.push(definition);
+          nextEventRefs.push({ refId: definition.id, enabled: true, highlighted: false });
+        }
+
+        if (op.entity === "rule") {
+          if (op.action === "remove") {
+            const index = nextBudgetRules.findIndex((rule) => rule.id === op.rule.id);
+            if (index >= 0) {
+              nextBudgetRules.splice(index, 1);
+            }
+            return;
+          }
+          nextBudgetRules.push({ ...op.rule, generatedByEventId: eventId, source: "eventGenerated" });
+        }
+
+        if (op.entity === "asset") {
+          if (op.action === "remove") {
+            nextPositions = applyAssetItemRemoveFromPositions(nextPositions, op.item);
+            return;
+          }
+          nextPositions = applyAssetItemUpsertToPositions(nextPositions, op.item, baseMonth);
+        }
+
+        if (op.entity === "liability") {
+          if (op.action === "remove") {
+            nextPositions = applyLiabilityItemRemoveFromPositions(nextPositions, op.item);
+            return;
+          }
+          nextPositions = applyLiabilityItemUpsertToPositions(nextPositions, op.item, baseMonth);
+        }
+      });
+
+      const nextMilestoneEvents = existingEvent
+        ? (nextScenario.milestoneEvents ?? []).map((entry) =>
+            entry.id === eventId ? event : entry
+          )
+        : [...(nextScenario.milestoneEvents ?? []), event];
+
+      nextScenario = {
+        ...nextScenario,
+        eventRefs: nextEventRefs,
+        positions: nextPositions,
+        milestoneEvents: nextMilestoneEvents,
+        updatedAt: now(),
+        version: ensureScenarioVersion(nextScenario),
+      };
+
+      const nextScenarios = [...workingState.scenarios];
+      nextScenarios[scenarioIndex] = nextScenario;
+
+      return {
+        ...workingState,
+        eventLibrary: nextEventLibrary,
+        budgetRules: nextBudgetRules,
+        scenarios: nextScenarios,
+      };
+    });
+
+    return compileResult;
+  },
+  removeMilestoneEvent: (scenarioId, eventId) => {
+    set((state) => {
+      const nextState = cleanupGeneratedEntitiesForScenario(state, scenarioId, eventId);
+      const nextScenarios = nextState.scenarios.map((scenario) => {
+        if (scenario.id !== scenarioId) {
+          return scenario;
+        }
+        return {
+          ...scenario,
+          milestoneEvents: (scenario.milestoneEvents ?? []).filter((event) => event.id !== eventId),
+          updatedAt: now(),
+          version: ensureScenarioVersion(scenario),
+        };
+      });
+
+      return {
+        ...nextState,
+        scenarios: nextScenarios,
+      };
+    });
+  },
+  findGeneratedEntities: (scenarioId, eventId) =>
+    findGeneratedEntitiesForScenario(get(), scenarioId, eventId),
+  cleanupGeneratedEntities: (scenarioId, eventId) => {
+    set((state) => cleanupGeneratedEntitiesForScenario(state, scenarioId, eventId));
   },
 }));

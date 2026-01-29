@@ -9,7 +9,7 @@ import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import type { EventType } from "../../src/features/timeline/schema";
 
 const resolveEventSource = (definition: EventDefinition): MoneyItem["source"] =>
-  definition.templateId ? "eventGenerated" : "manual";
+  definition.generatedByEventId || definition.templateId ? "eventGenerated" : "manual";
 
 export const buildMoneyItems = (params: {
   scenario: Scenario;
@@ -55,6 +55,7 @@ export const buildMoneyItems = (params: {
       source: resolveEventSource(view.definition),
       sourceId: view.definition.id,
       sourceType: "event",
+      generatedByEventId: view.definition.generatedByEventId,
     };
 
     return [item];
@@ -71,9 +72,10 @@ export const buildMoneyItems = (params: {
     startMonth: rule.startMonth ?? undefined,
     endMonth: rule.endMonth ?? undefined,
     notes: rule.name,
-    source: "manual" as const,
+    source: rule.source ?? ("manual" as const),
     sourceId: rule.id,
     sourceType: "budgetRule" as const,
+    generatedByEventId: rule.generatedByEventId,
   }));
 
   return [...eventItems, ...ruleItems];
@@ -125,6 +127,8 @@ export const upsertMoneyItem = (params: {
       startMonth: item.startMonth ?? undefined,
       endMonth: item.endMonth ?? undefined,
       applyScope: existingRule?.applyScope ?? { scope: "all" },
+      source: item.source ?? existingRule?.source ?? "manual",
+      generatedByEventId: item.generatedByEventId ?? existingRule?.generatedByEventId,
     };
 
     if (existingRule) {
@@ -168,6 +172,7 @@ export const upsertMoneyItem = (params: {
     templateId: existingDefinition?.templateId,
     templateParams: existingDefinition?.templateParams,
     parentId: existingDefinition?.parentId,
+    generatedByEventId: item.generatedByEventId ?? existingDefinition?.generatedByEventId,
   };
 
   if (existingDefinition) {

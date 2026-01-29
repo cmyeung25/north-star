@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Card,
+  Divider,
   Drawer,
   Group,
   Modal,
@@ -84,6 +85,8 @@ import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import MoneyFlowManager from "../../../features/moneyFlow/MoneyFlowManager";
 import AssetManager from "../../../features/assets/AssetManager";
 import LiabilityManager from "../../../features/liabilities/LiabilityManager";
+import EventManager from "../../../features/milestoneEvents/EventManager";
+import EventWizard from "../../../features/milestoneEvents/EventWizard";
 import type {
   BudgetCategory,
   CarPositionDraft,
@@ -92,6 +95,8 @@ import type {
   InvestmentPositionDraft,
   LoanPositionDraft,
 } from "../../../src/store/scenarioStore";
+import type { MilestoneEvent, MilestoneEventDraft } from "../../../src/domain/milestoneEvents/types";
+import { buildMilestoneScenarioSnapshot } from "../../../src/domain/milestoneEvents/snapshot";
 import { useUiStore } from "../../../src/store/uiStore";
 import { ONBOARDING_PLACEHOLDER_TAG } from "../../../src/domain/onboarding/mapOnboardingDraftToStoreItems";
 import {
@@ -151,6 +156,7 @@ const tabOrder: MoneyTab[] = [
 
 type MoneyAddAction =
   | "event"
+  | "oneOffExpense"
   | "home"
   | "investment"
   | "insurance"
@@ -206,6 +212,8 @@ export default function MoneyClient({
   const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
   const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
+  const applyMilestoneEvent = useScenarioStore((state) => state.applyMilestoneEvent);
+  const removeMilestoneEvent = useScenarioStore((state) => state.removeMilestoneEvent);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const resolvedScenarioId = useMemo(
     () => resolveScenarioIdFromQuery(scenarioId ?? null, activeScenarioId, scenarios),
@@ -272,6 +280,9 @@ export default function MoneyClient({
   }, [projection]);
   const [addFlowOpen, setAddFlowOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
+  const [milestoneWizardOpen, setMilestoneWizardOpen] = useState(false);
+  const [editingMilestoneEvent, setEditingMilestoneEvent] = useState<MilestoneEvent | null>(null);
+  const [openOneOffExpense, setOpenOneOffExpense] = useState(false);
   const [creatingHome, setCreatingHome] = useState<HomePositionDraft | null>(null);
   const [creatingCar, setCreatingCar] = useState<CarPositionDraft | null>(null);
   const [creatingInvestment, setCreatingInvestment] =
@@ -404,17 +415,19 @@ export default function MoneyClient({
     if (!scenario) {
       return [];
     }
-    return buildScenarioEventViews(scenario, eventLibrary).map((view) => {
-      const event = buildTimelineEventFromDefinition(
-        view.definition,
-        view.ref,
-        {
-          baseCurrency: scenario.baseCurrency,
-          fallbackMonth: scenario.assumptions.baseMonth ?? null,
-        }
-      );
-      return { view, event };
-    });
+    return buildScenarioEventViews(scenario, eventLibrary)
+      .filter((view) => !view.definition.generatedByEventId)
+      .map((view) => {
+        const event = buildTimelineEventFromDefinition(
+          view.definition,
+          view.ref,
+          {
+            baseCurrency: scenario.baseCurrency,
+            fallbackMonth: scenario.assumptions.baseMonth ?? null,
+          }
+        );
+        return { view, event };
+      });
   }, [eventLibrary, scenario]);
   const budgetCategoryLabels = useMemo(
     () => ({
@@ -465,6 +478,18 @@ export default function MoneyClient({
             budgetRules,
           })
         : [],
+    [budgetRules, eventLibrary, scenario]
+  );
+  const milestoneEvents = scenario?.milestoneEvents ?? [];
+  const milestoneSnapshot = useMemo(
+    () =>
+      scenario
+        ? buildMilestoneScenarioSnapshot({
+            scenario,
+            eventLibrary,
+            budgetRules,
+          })
+        : null,
     [budgetRules, eventLibrary, scenario]
   );
 
@@ -724,6 +749,18 @@ export default function MoneyClient({
       },
     });
   };
+  const handleDetachMoneyItem = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
+    if (!scenarioIdValue || item.source !== "eventGenerated") {
+      return;
+    }
+    if (item.sourceType === "budgetRule" && item.sourceId) {
+      updateBudgetRule(item.sourceId, { source: "manual", generatedByEventId: undefined });
+      return;
+    }
+    if (item.sourceId) {
+      updateEventDefinition(item.sourceId, { generatedByEventId: undefined });
+    }
+  };
   const handleUpsertAssetItem = (item: Parameters<typeof applyAssetItemChange>[1]["item"]) => {
     if (!scenario || !scenarioIdValue) {
       return;
@@ -775,6 +812,88 @@ export default function MoneyClient({
   const handleViewLiabilityItem = (item: LiabilityItem) => {
     setAssetDetails({ type: "loan", id: item.id });
   };
+  const handleEditMilestoneEvent = (event: MilestoneEvent) => {
+    setEditingMilestoneEvent(event);
+    setMilestoneWizardOpen(true);
+  };
+  const handleEditMilestoneEventById = (eventId: string) => {
+    const match = milestoneEvents.find((event) => event.id === eventId);
+    if (!match) {
+      return;
+    }
+    handleEditMilestoneEvent(match);
+  };
+  const handleCreateMilestoneEvent = () => {
+    setEditingMilestoneEvent(null);
+    setMilestoneWizardOpen(true);
+  };
+  const handleApplyMilestoneEvent = (draft: MilestoneEventDraft) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    const result = applyMilestoneEvent(scenarioIdValue, draft);
+    if (Object.keys(result.fieldErrors).length === 0) {
+      setMilestoneWizardOpen(false);
+      setEditingMilestoneEvent(null);
+    }
+  };
+  const handleRemoveMilestoneEvent = (eventId: string) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    removeMilestoneEvent(scenarioIdValue, eventId);
+  };
+  const handleDetachAssetItem = (item: AssetItem) => {
+    if (!scenario || !scenarioIdValue || item.source !== "eventGenerated") {
+      return;
+    }
+    const positions = scenario.positions ?? {};
+    if (item.assetType === "property") {
+      const nextHomes = (positions.homes ?? []).map((home) =>
+        home.id === item.id
+          ? { ...home, source: "manual" as const, generatedByEventId: undefined }
+          : home
+      );
+      setScenarioPositions(scenarioIdValue, { ...positions, homes: nextHomes });
+      return;
+    }
+    if (item.assetType === "investment") {
+      const nextInvestments = (positions.investments ?? []).map((investment) =>
+        investment.id === item.id
+          ? { ...investment, source: "manual" as const, generatedByEventId: undefined }
+          : investment
+      );
+      setScenarioPositions(scenarioIdValue, { ...positions, investments: nextInvestments });
+      return;
+    }
+    if (item.assetType === "insurance") {
+      const nextInsurances = (positions.insurances ?? []).map((insurance) =>
+        insurance.id === item.id
+          ? { ...insurance, source: "manual" as const, generatedByEventId: undefined }
+          : insurance
+      );
+      setScenarioPositions(scenarioIdValue, { ...positions, insurances: nextInsurances });
+      return;
+    }
+    const nextCars = (positions.cars ?? []).map((car) =>
+      car.id === item.id
+        ? { ...car, source: "manual" as const, generatedByEventId: undefined }
+        : car
+    );
+    setScenarioPositions(scenarioIdValue, { ...positions, cars: nextCars });
+  };
+  const handleDetachLiabilityItem = (item: LiabilityItem) => {
+    if (!scenario || !scenarioIdValue || item.source !== "eventGenerated") {
+      return;
+    }
+    const positions = scenario.positions ?? {};
+    const nextLoans = (positions.loans ?? []).map((loan) =>
+      loan.id === item.id
+        ? { ...loan, source: "manual" as const, generatedByEventId: undefined }
+        : loan
+    );
+    setScenarioPositions(scenarioIdValue, { ...positions, loans: nextLoans });
+  };
   const inputsItems = useMemo(() => {
     if (inputsFilter === "rules") {
       return inputRuleItems;
@@ -807,6 +926,12 @@ export default function MoneyClient({
     const action = initialAdd as MoneyAddAction;
     if (action === "event") {
       setActiveTab("income");
+      hasHandledInitialAdd.current = true;
+      return;
+    }
+    if (action === "oneOffExpense") {
+      setActiveTab("expenses");
+      setOpenOneOffExpense(true);
       hasHandledInitialAdd.current = true;
       return;
     }
@@ -1606,6 +1731,8 @@ export default function MoneyClient({
               defaultNewItem={{ kind: "income", cadence: "recurring" }}
               onUpsert={handleUpsertMoneyItem}
               onDelete={handleRemoveMoneyItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachMoneyItem}
             />
           </Stack>
         </Tabs.Panel>
@@ -1626,9 +1753,16 @@ export default function MoneyClient({
               categoryLabels={moneyCategoryLabelMap}
               categoryOptions={moneyCategoryOptions}
               defaultFilters={{ kind: "expense" }}
-              defaultNewItem={{ kind: "expense", cadence: "recurring" }}
+              defaultNewItem={{
+                kind: "expense",
+                cadence: openOneOffExpense ? "oneOff" : "recurring",
+              }}
               onUpsert={handleUpsertMoneyItem}
               onDelete={handleRemoveMoneyItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachMoneyItem}
+              openNewItem={openOneOffExpense}
+              onOpenNewItemHandled={() => setOpenOneOffExpense(false)}
             />
           </Stack>
         </Tabs.Panel>
@@ -1646,6 +1780,8 @@ export default function MoneyClient({
               onUpsert={handleUpsertAssetItem}
               onDelete={handleRemoveAssetItem}
               onView={handleViewAssetItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachAssetItem}
             />
             <Stack gap="sm">
               <Group justify="space-between" align="center" wrap="wrap">
@@ -1701,59 +1837,87 @@ export default function MoneyClient({
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
               onView={handleViewLiabilityItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachLiabilityItem}
             />
           </Stack>
         </Tabs.Panel>
 
         <Tabs.Panel value="timeline" pt="md">
           <Stack gap="md">
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text size="sm" c="dimmed">
-                {t("timelineDescription")}
-              </Text>
-              <Switch
-                label={t("highlightFilter")}
-                checked={highlightOnly}
-                onChange={(event) => setHighlightOnly(event.currentTarget.checked)}
-              />
-            </Group>
-            <Group wrap="wrap">
-              <Select
-                value={memberFilter}
-                onChange={setMemberFilter}
-                data={[
-                  { value: "all", label: t("filterAllMembers") },
-                  ...members.map((member) => ({
-                    value: member.id,
-                    label: member.name,
-                  })),
-                ]}
-                placeholder={t("filterMemberPlaceholder")}
-              />
-              <Select
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                data={[
-                  { value: "all", label: t("filterAllCategories") },
-                  ...Array.from(new Set(eventRows.map((row) => row.event.type))).map((type) => ({
-                    value: type,
-                    label: getEventTypeDisplay(timelineText, type),
-                  })),
-                ]}
-                placeholder={t("filterCategoryPlaceholder")}
-              />
-            </Group>
+            <EventManager
+              events={milestoneEvents}
+              onCreate={handleCreateMilestoneEvent}
+              onEdit={handleEditMilestoneEvent}
+              onDelete={handleRemoveMilestoneEvent}
+            />
             <Card withBorder radius="md" padding="md">
-              <Text size="sm">{t("timelineWarning")}</Text>
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text size="sm" c="dimmed">
+                  {t("timelineDescription")}
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => {
+                    setActiveTab("expenses");
+                    setOpenOneOffExpense(true);
+                  }}
+                >
+                  {t("timelineOneOffCta")}
+                </Button>
+              </Group>
             </Card>
-            {renderEventList(timelineEvents, {
-              showHighlightToggle: true,
-              showOverlapHint: true,
-              showEditButton: true,
-            })}
-            <Button component={Link} href={timelineTabHref} size="xs" variant="light">
-              {common("openTimeline")}
-            </Button>
+            <Divider />
+            <Stack gap="md">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text size="sm" fw={600}>
+                  {t("legacyEventsTitle")}
+                </Text>
+                <Switch
+                  label={t("highlightFilter")}
+                  checked={highlightOnly}
+                  onChange={(event) => setHighlightOnly(event.currentTarget.checked)}
+                />
+              </Group>
+              <Group wrap="wrap">
+                <Select
+                  value={memberFilter}
+                  onChange={setMemberFilter}
+                  data={[
+                    { value: "all", label: t("filterAllMembers") },
+                    ...members.map((member) => ({
+                      value: member.id,
+                      label: member.name,
+                    })),
+                  ]}
+                  placeholder={t("filterMemberPlaceholder")}
+                />
+                <Select
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  data={[
+                    { value: "all", label: t("filterAllCategories") },
+                    ...Array.from(new Set(eventRows.map((row) => row.event.type))).map((type) => ({
+                      value: type,
+                      label: getEventTypeDisplay(timelineText, type),
+                    })),
+                  ]}
+                  placeholder={t("filterCategoryPlaceholder")}
+                />
+              </Group>
+              <Card withBorder radius="md" padding="md">
+                <Text size="sm">{t("timelineWarning")}</Text>
+              </Card>
+              {renderEventList(timelineEvents, {
+                showHighlightToggle: true,
+                showOverlapHint: true,
+                showEditButton: true,
+              })}
+              <Button component={Link} href={timelineTabHref} size="xs" variant="light">
+                {common("openTimeline")}
+              </Button>
+            </Stack>
           </Stack>
         </Tabs.Panel>
 
@@ -1843,6 +2007,24 @@ export default function MoneyClient({
         onClose={() => setAddFlowOpen(false)}
         scenarioId={scenarioIdValue ?? null}
       />
+
+      {milestoneSnapshot && (
+        <EventWizard
+          opened={milestoneWizardOpen}
+          onClose={() => {
+            setMilestoneWizardOpen(false);
+            setEditingMilestoneEvent(null);
+          }}
+          baseCurrency={scenario?.baseCurrency ?? "USD"}
+          members={members}
+          incomeCategories={moneyCategoryOptions.incomeOptions}
+          expenseCategories={moneyCategoryOptions.expenseOptions}
+          budgetCategories={moneyCategoryOptions.budgetOptions}
+          snapshot={milestoneSnapshot}
+          initialEvent={editingMilestoneEvent}
+          onApply={handleApplyMilestoneEvent}
+        />
+      )}
 
       <Drawer
         opened={Boolean(assetDetails)}

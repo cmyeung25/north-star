@@ -14,6 +14,7 @@ export type LiabilityItem = {
   termMonths?: number;
   notes?: string;
   source: LiabilityItemSource;
+  generatedByEventId?: string;
 };
 
 export type LiabilityItemUpsert = Omit<LiabilityItem, "id"> & { id?: string };

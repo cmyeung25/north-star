@@ -125,7 +125,8 @@ export const toAssetItems = (scenario: Scenario): AssetItem[] => {
       ownerMemberId: home.ownerMemberId,
       startMonth: resolveAssetStartMonth(home) ?? "",
       notes: resolveAssetNotes(home),
-      source: "manual" as const,
+      source: home.source ?? ("manual" as const),
+      generatedByEventId: home.generatedByEventId,
     })),
     ...investments.map((investment) => ({
       id: investment.id ?? createInvestmentPositionId(),
@@ -136,7 +137,8 @@ export const toAssetItems = (scenario: Scenario): AssetItem[] => {
       ownerMemberId: investment.ownerMemberId,
       startMonth: resolveAssetStartMonth(investment) ?? "",
       notes: resolveAssetNotes(investment),
-      source: "manual" as const,
+      source: investment.source ?? ("manual" as const),
+      generatedByEventId: investment.generatedByEventId,
     })),
     ...insurances.map((insurance) => ({
       id: insurance.id ?? createInsurancePositionId(),
@@ -147,7 +149,8 @@ export const toAssetItems = (scenario: Scenario): AssetItem[] => {
       ownerMemberId: insurance.ownerMemberId,
       startMonth: resolveAssetStartMonth(insurance) ?? "",
       notes: resolveAssetNotes(insurance),
-      source: "manual" as const,
+      source: insurance.source ?? ("manual" as const),
+      generatedByEventId: insurance.generatedByEventId,
     })),
     ...cars.map((car) => ({
       id: car.id ?? createCarPositionId(),
@@ -158,7 +161,8 @@ export const toAssetItems = (scenario: Scenario): AssetItem[] => {
       ownerMemberId: car.ownerMemberId,
       startMonth: resolveAssetStartMonth(car) ?? "",
       notes: resolveAssetNotes(car),
-      source: "manual" as const,
+      source: car.source ?? ("manual" as const),
+      generatedByEventId: car.generatedByEventId,
     })),
   ];
 };
@@ -186,6 +190,8 @@ export const applyAssetItemChange = (
       purchasePrice: item.currentValue ?? base.purchasePrice,
       purchaseMonth: item.startMonth ?? base.purchaseMonth,
       notes: item.notes ?? base.notes,
+      source: item.source ?? base.source,
+      generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
     };
     const nextHomes = existing
       ? homes.map((home) => (home.id === next.id ? next : home))
@@ -204,6 +210,8 @@ export const applyAssetItemChange = (
       initialValue: item.currentValue ?? base.initialValue,
       startMonth: item.startMonth ?? base.startMonth,
       notes: item.notes ?? base.notes,
+      source: item.source ?? base.source,
+      generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
     };
     const nextInvestments = existing
       ? investments.map((entry) => (entry.id === next.id ? next : entry))
@@ -222,6 +230,8 @@ export const applyAssetItemChange = (
       initialCashValue: item.currentValue ?? base.initialCashValue,
       startMonth: item.startMonth ?? base.startMonth,
       notes: item.notes ?? base.notes,
+      source: item.source ?? base.source,
+      generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
     };
     const nextInsurances = existing
       ? insurances.map((entry) => (entry.id === next.id ? next : entry))
@@ -240,6 +250,8 @@ export const applyAssetItemChange = (
       purchasePrice: item.currentValue ?? base.purchasePrice,
       purchaseMonth: item.startMonth ?? base.purchaseMonth,
       notes: item.notes ?? base.notes,
+      source: item.source ?? base.source,
+      generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
     };
     const nextCars = existing
       ? cars.map((entry) => (entry.id === next.id ? next : entry))

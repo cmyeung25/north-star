@@ -18,6 +18,7 @@ export type MoneyItem = {
   source: MoneyItemSource;
   sourceId?: string;
   sourceType?: MoneyItemSourceType;
+  generatedByEventId?: string;
 };
 
 export type MoneyItemUpsert = Omit<MoneyItem, "id"> & {

@@ -32,7 +32,8 @@ export const toLiabilityItems = (scenario: Scenario): LiabilityItem[] => {
     startMonth: loan.startMonth ?? "",
     termMonths: loan.termYears ? Math.round(loan.termYears * 12) : undefined,
     notes: loan.notes,
-    source: "manual" as const,
+    source: loan.source ?? ("manual" as const),
+    generatedByEventId: loan.generatedByEventId,
   }));
 };
 
@@ -64,6 +65,8 @@ export const applyLiabilityItemChange = (
     startMonth: item.startMonth ?? base.startMonth,
     termYears: Math.max(1, Math.round(resolvedTermMonths / 12)),
     notes: item.notes ?? base.notes,
+    source: item.source ?? base.source,
+    generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
   };
   const nextLoans = existing
     ? loans.map((entry) => (entry.id === next.id ? next : entry))
