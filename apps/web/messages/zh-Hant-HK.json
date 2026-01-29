@@ -280,6 +280,13 @@
     "planLabPlanSavedToast": "已儲存方案。",
     "planLabPlanDuplicateName": "{name}（複製）",
     "planLabPlanDuplicatedToast": "已複製方案。",
+    "planLabPlanUpdatedToast": "已更新方案。",
+    "planLabPlanNotFound": "所選方案已不存在。",
+    "planLabPlanScenarioMismatch": "不同情境",
+    "planLabPlanScenarioMismatchToast": "此方案屬於其他情境，無法在此載入。",
+    "planLabPlanRename": "重新命名",
+    "planLabPlanRenamePrompt": "重新命名方案",
+    "planLabUpdatePlan": "更新方案",
     "planLabSavePlanTitle": "儲存方案",
     "planLabSavePlanNameLabel": "方案名稱",
     "planLabSavePlanBaselineCount": "基準調整：{count}",
@@ -301,6 +308,14 @@
     "planLabPlanComputeKpi": "計算",
     "planLabPlanStatusBust": "破產",
     "planLabPlanStatusSafe": "安全",
+    "planLabComparePlanPatchWarningA": "方案 A 變更警示",
+    "planLabComparePlanPatchWarningB": "方案 B 變更警示",
+    "planLabCompareEndCash": "期末現金",
+    "planLabCompareNegativeMonths": "負現金月份",
+    "planLabCompareDrawdown": "最大回撤",
+    "planLabDiffPatchesOnlyA": "只有方案 A 有 {count} 項變更。",
+    "planLabDiffPatchesOnlyB": "只有方案 B 有 {count} 項變更。",
+    "planLabDiffPatchesChanged": "{count} 項在同一路徑的變更不同。",
     "planLabCompareTitle": "方案比較",
     "planLabCompareSubtitle": "選擇兩個方案進行比較。",
     "planLabCompareSwap": "對調",
@@ -2265,6 +2280,8 @@
     "compareTemplateCarOwnershipHint": "加入預設的汽車資產項目。"
   },
   "warnings": {
-    "doubleCountingHomeRent": "租屋與買樓同時存在，可能重複計算。"
+    "doubleCountingHomeRent": "租屋與買樓同時存在，可能重複計算。",
+    "doubleCountingPlanPatch": "方案變更同時包含住屋事件與資產，可能重複計算。",
+    "planLabInvalidPatch": "方案變更無效或已不適用。"
   }
 }
