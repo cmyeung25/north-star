@@ -106,6 +106,12 @@ import {
   removeMoneyItem,
   upsertMoneyItem,
 } from "../../../features/moneyFlow/moneyFlowAdapter";
+import {
+  buildDerivedMoneyItemsForAsset,
+  buildDerivedMoneyItemsForLiability,
+  findDerivedMoneyItemsForAsset,
+  findDerivedMoneyItemsForLiability,
+} from "../../../features/moneyFlow/derivedMoneyItems";
 import { applyAssetItemChange, toAssetItems } from "../../../features/assets/assetAdapter";
 import {
   applyLiabilityItemChange,
@@ -373,6 +379,8 @@ export default function MoneyClient({
   const [inputsFilter, setInputsFilter] = useState<
     "all" | "rules" | "assets" | "events"
   >("all");
+  const [openAssetEditId, setOpenAssetEditId] = useState<string | null>(null);
+  const [openLiabilityEditId, setOpenLiabilityEditId] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveTab(resolvedTab);
@@ -469,6 +477,20 @@ export default function MoneyClient({
       }),
     [budgetCategoryLabels, expenseEventTypes, incomeEventTypes, timelineText]
   );
+  const assetDerivedLabels = useMemo(
+    () => ({
+      ongoingCostLabels: {
+        managementFee: t("assetOngoingManagementFee"),
+        groundRent: t("assetOngoingGroundRent"),
+        insurance: t("assetOngoingInsurance"),
+        maintenance: t("assetOngoingMaintenance"),
+        inspection: t("assetOngoingInspection"),
+      },
+      rentalIncomeLabel: t("assetRentalIncomeLabel"),
+    }),
+    [t]
+  );
+  const liabilityPaymentLabel = useMemo(() => t("liabilityPaymentLabel"), [t]);
   const moneyItems = useMemo(
     () =>
       scenario
@@ -750,16 +772,105 @@ export default function MoneyClient({
     });
   };
   const handleDetachMoneyItem = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
-    if (!scenarioIdValue || item.source !== "eventGenerated") {
+    if (!scenarioIdValue || (item.source !== "eventGenerated" && item.source !== "derived")) {
       return;
     }
     if (item.sourceType === "budgetRule" && item.sourceId) {
-      updateBudgetRule(item.sourceId, { source: "manual", generatedByEventId: undefined });
+      updateBudgetRule(item.sourceId, {
+        source: "manual",
+        generatedByEventId: undefined,
+        generatedBy: undefined,
+        linkedAssetId: undefined,
+        linkedLiabilityId: undefined,
+      });
       return;
     }
     if (item.sourceId) {
-      updateEventDefinition(item.sourceId, { generatedByEventId: undefined });
+      updateEventDefinition(item.sourceId, {
+        generatedByEventId: undefined,
+        source: "manual",
+        generatedBy: undefined,
+        linkedAssetId: undefined,
+        linkedLiabilityId: undefined,
+      });
     }
+  };
+  const handleEditMoneySource = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
+    const generatedBy = item.generatedBy;
+    if (generatedBy?.type === "assetCost" || generatedBy?.type === "assetRental") {
+      setActiveTab("assets");
+      setOpenAssetEditId(generatedBy.assetId);
+      return;
+    }
+    if (generatedBy?.type === "loanPayment") {
+      setActiveTab("liabilities");
+      setOpenLiabilityEditId(generatedBy.liabilityId);
+      return;
+    }
+    if (item.linkedAssetId) {
+      setActiveTab("assets");
+      setOpenAssetEditId(item.linkedAssetId);
+    }
+    if (item.linkedLiabilityId) {
+      setActiveTab("liabilities");
+      setOpenLiabilityEditId(item.linkedLiabilityId);
+    }
+  };
+  const syncDerivedMoneyItemsForAsset = (asset: AssetItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const derivedItems = buildDerivedMoneyItemsForAsset({
+      asset,
+      baseCurrency: scenario.baseCurrency,
+      labels: assetDerivedLabels,
+    });
+    const existingDerivedItems = findDerivedMoneyItemsForAsset(moneyItems, asset.id);
+    existingDerivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
+    derivedItems.forEach((entry) =>
+      upsertMoneyItem({
+        item: entry,
+        scenarioId: scenarioIdValue,
+        baseCurrency: scenario.baseCurrency,
+        eventLibrary,
+        budgetRules,
+        actions: {
+          createBudgetRule,
+          updateBudgetRule,
+          addEventToScenarios,
+          updateEventDefinition,
+        },
+        resolveCategoryLabel: resolveMoneyCategoryLabel,
+      })
+    );
+  };
+  const syncDerivedMoneyItemsForLiability = (liability: LiabilityItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const derivedItems = buildDerivedMoneyItemsForLiability({
+      liability,
+      baseCurrency: scenario.baseCurrency,
+      label: liabilityPaymentLabel,
+    });
+    const existingDerivedItems = findDerivedMoneyItemsForLiability(moneyItems, liability.id);
+    existingDerivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
+    derivedItems.forEach((entry) =>
+      upsertMoneyItem({
+        item: entry,
+        scenarioId: scenarioIdValue,
+        baseCurrency: scenario.baseCurrency,
+        eventLibrary,
+        budgetRules,
+        actions: {
+          createBudgetRule,
+          updateBudgetRule,
+          addEventToScenarios,
+          updateEventDefinition,
+        },
+        resolveCategoryLabel: resolveMoneyCategoryLabel,
+      })
+    );
   };
   const handleUpsertAssetItem = (item: Parameters<typeof applyAssetItemChange>[1]["item"]) => {
     if (!scenario || !scenarioIdValue) {
@@ -767,6 +878,11 @@ export default function MoneyClient({
     }
     const nextPositions = applyAssetItemChange(scenario, { type: "upsert", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    const nextScenario = { ...scenario, positions: nextPositions };
+    const nextAsset = toAssetItems(nextScenario).find((entry) => entry.id === item.id);
+    if (nextAsset) {
+      syncDerivedMoneyItemsForAsset(nextAsset);
+    }
   };
   const handleRemoveAssetItem = (item: AssetItem) => {
     if (!scenario || !scenarioIdValue) {
@@ -774,6 +890,8 @@ export default function MoneyClient({
     }
     const nextPositions = applyAssetItemChange(scenario, { type: "remove", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    const derivedItems = findDerivedMoneyItemsForAsset(moneyItems, item.id);
+    derivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
   };
   const handleUpsertLiabilityItem = (
     item: Parameters<typeof applyLiabilityItemChange>[1]["item"]
@@ -783,6 +901,13 @@ export default function MoneyClient({
     }
     const nextPositions = applyLiabilityItemChange(scenario, { type: "upsert", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    const nextScenario = { ...scenario, positions: nextPositions };
+    const nextLiability = toLiabilityItems(nextScenario).find(
+      (entry) => entry.id === item.id
+    );
+    if (nextLiability) {
+      syncDerivedMoneyItemsForLiability(nextLiability);
+    }
   };
   const handleRemoveLiabilityItem = (item: LiabilityItem) => {
     if (!scenario || !scenarioIdValue) {
@@ -790,6 +915,8 @@ export default function MoneyClient({
     }
     const nextPositions = applyLiabilityItemChange(scenario, { type: "remove", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    const derivedItems = findDerivedMoneyItemsForLiability(moneyItems, item.id);
+    derivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
   };
   const handleViewAssetItem = (item: AssetItem) => {
     switch (item.assetType) {
@@ -1733,6 +1860,7 @@ export default function MoneyClient({
               onDelete={handleRemoveMoneyItem}
               onEditEvent={handleEditMilestoneEventById}
               onDetach={handleDetachMoneyItem}
+              onEditSource={handleEditMoneySource}
             />
           </Stack>
         </Tabs.Panel>
@@ -1761,6 +1889,7 @@ export default function MoneyClient({
               onDelete={handleRemoveMoneyItem}
               onEditEvent={handleEditMilestoneEventById}
               onDetach={handleDetachMoneyItem}
+              onEditSource={handleEditMoneySource}
               openNewItem={openOneOffExpense}
               onOpenNewItemHandled={() => setOpenOneOffExpense(false)}
             />
@@ -1777,11 +1906,14 @@ export default function MoneyClient({
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
               members={members}
+              moneyItems={moneyItems}
               onUpsert={handleUpsertAssetItem}
               onDelete={handleRemoveAssetItem}
               onView={handleViewAssetItem}
               onEditEvent={handleEditMilestoneEventById}
               onDetach={handleDetachAssetItem}
+              openEditId={openAssetEditId}
+              onOpenEditHandled={() => setOpenAssetEditId(null)}
             />
             <Stack gap="sm">
               <Group justify="space-between" align="center" wrap="wrap">
@@ -1834,11 +1966,14 @@ export default function MoneyClient({
               items={liabilityItems}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
+              moneyItems={moneyItems}
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
               onView={handleViewLiabilityItem}
               onEditEvent={handleEditMilestoneEventById}
               onDetach={handleDetachLiabilityItem}
+              openEditId={openLiabilityEditId}
+              onOpenEditHandled={() => setOpenLiabilityEditId(null)}
             />
           </Stack>
         </Tabs.Panel>

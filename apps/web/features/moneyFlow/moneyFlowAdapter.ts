@@ -8,8 +8,12 @@ import type { MoneyItem, MoneyItemSourceType, MoneyItemUpsert } from "./types";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import type { EventType } from "../../src/features/timeline/schema";
 
-const resolveEventSource = (definition: EventDefinition): MoneyItem["source"] =>
-  definition.generatedByEventId || definition.templateId ? "eventGenerated" : "manual";
+const resolveEventSource = (definition: EventDefinition): MoneyItem["source"] => {
+  if (definition.source) {
+    return definition.source;
+  }
+  return definition.generatedByEventId || definition.templateId ? "eventGenerated" : "manual";
+};
 
 export const buildMoneyItems = (params: {
   scenario: Scenario;
@@ -40,13 +44,14 @@ export const buildMoneyItems = (params: {
 
     // If both monthly + one-off amounts are set, prefer recurring to avoid double counting
     // in the unified MoneyItem list (one-off amount remains in the underlying event rule).
+    const category = view.definition.categoryOverride ?? event.type;
     const item: MoneyItem = {
       id: `event:${event.id}`,
       kind: group,
       cadence,
       amount,
       currency: event.currency,
-      category: event.type,
+      category,
       memberId: event.memberId,
       startMonth: cadence === "recurring" ? event.startMonth : undefined,
       endMonth: cadence === "recurring" ? event.endMonth : undefined,
@@ -56,6 +61,10 @@ export const buildMoneyItems = (params: {
       sourceId: view.definition.id,
       sourceType: "event",
       generatedByEventId: view.definition.generatedByEventId,
+      generatedBy: view.definition.generatedBy,
+      linkedAssetId: view.definition.linkedAssetId,
+      linkedLiabilityId: view.definition.linkedLiabilityId,
+      categoryOverride: view.definition.categoryOverride,
     };
 
     return [item];
@@ -76,6 +85,9 @@ export const buildMoneyItems = (params: {
     sourceId: rule.id,
     sourceType: "budgetRule" as const,
     generatedByEventId: rule.generatedByEventId,
+    generatedBy: rule.generatedBy,
+    linkedAssetId: rule.linkedAssetId,
+    linkedLiabilityId: rule.linkedLiabilityId,
   }));
 
   return [...eventItems, ...ruleItems];
@@ -129,6 +141,9 @@ export const upsertMoneyItem = (params: {
       applyScope: existingRule?.applyScope ?? { scope: "all" },
       source: item.source ?? existingRule?.source ?? "manual",
       generatedByEventId: item.generatedByEventId ?? existingRule?.generatedByEventId,
+      generatedBy: item.generatedBy ?? existingRule?.generatedBy,
+      linkedAssetId: item.linkedAssetId ?? existingRule?.linkedAssetId,
+      linkedLiabilityId: item.linkedLiabilityId ?? existingRule?.linkedLiabilityId,
     };
 
     if (existingRule) {
@@ -173,6 +188,11 @@ export const upsertMoneyItem = (params: {
     templateParams: existingDefinition?.templateParams,
     parentId: existingDefinition?.parentId,
     generatedByEventId: item.generatedByEventId ?? existingDefinition?.generatedByEventId,
+    source: item.source ?? existingDefinition?.source,
+    generatedBy: item.generatedBy ?? existingDefinition?.generatedBy,
+    linkedAssetId: item.linkedAssetId ?? existingDefinition?.linkedAssetId,
+    linkedLiabilityId: item.linkedLiabilityId ?? existingDefinition?.linkedLiabilityId,
+    categoryOverride: item.categoryOverride ?? existingDefinition?.categoryOverride,
   };
 
   if (existingDefinition) {

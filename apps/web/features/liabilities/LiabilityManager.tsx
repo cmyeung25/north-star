@@ -8,10 +8,11 @@ import {
   NumberInput,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
 } from "@mantine/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import MonthField from "../../components/MonthField";
 import { formatCurrency } from "../../lib/i18n";
@@ -19,6 +20,11 @@ import { useEntityDraft } from "../../src/hooks/useEntityDraft";
 import { isValidMonthKey } from "../../src/utils/monthKey";
 import { createLiabilityItemId } from "./liabilityAdapter";
 import type { LiabilityItem, LiabilityItemUpsert, LiabilityType } from "./types";
+import type { MoneyItem } from "../moneyFlow/types";
+import {
+  buildDerivedMoneyItemsForLiability,
+  findOverlappingManualItems,
+} from "../moneyFlow/derivedMoneyItems";
 
 type LiabilityItemDraft = {
   id: string;
@@ -30,6 +36,9 @@ type LiabilityItemDraft = {
   startMonth: string;
   termMonths: string;
   notes: string;
+  purchasePrice: string;
+  downPaymentPercent: string;
+  generatePaymentExpense: boolean;
   source: LiabilityItem["source"];
   generatedByEventId?: string;
 };
@@ -46,6 +55,9 @@ const buildDraft = (item: LiabilityItem | null, baseCurrency: string): Liability
       startMonth: "",
       termMonths: "12",
       notes: "",
+      purchasePrice: "",
+      downPaymentPercent: "",
+      generatePaymentExpense: false,
       source: "manual",
     };
   }
@@ -62,6 +74,11 @@ const buildDraft = (item: LiabilityItem | null, baseCurrency: string): Liability
     startMonth: item.startMonth ?? "",
     termMonths: item.termMonths ? String(item.termMonths) : "",
     notes: item.notes ?? "",
+    purchasePrice: Number.isFinite(item.purchasePrice) ? String(item.purchasePrice) : "",
+    downPaymentPercent: Number.isFinite(item.downPaymentPercent)
+      ? String(item.downPaymentPercent)
+      : "",
+    generatePaymentExpense: item.generatePaymentExpense ?? false,
     source: item.source,
     generatedByEventId: item.generatedByEventId,
   };
@@ -71,22 +88,28 @@ type LiabilityManagerProps = {
   items: LiabilityItem[];
   baseCurrency: string;
   locale: string;
+  moneyItems: MoneyItem[];
   onUpsert: (item: LiabilityItemUpsert) => void;
   onDelete: (item: LiabilityItem) => void;
   onView?: (item: LiabilityItem) => void;
   onEditEvent?: (eventId: string) => void;
   onDetach?: (item: LiabilityItem) => void;
+  openEditId?: string | null;
+  onOpenEditHandled?: () => void;
 };
 
 export default function LiabilityManager({
   items,
   baseCurrency,
   locale,
+  moneyItems,
   onUpsert,
   onDelete,
   onView,
   onEditEvent,
   onDetach,
+  openEditId,
+  onOpenEditHandled,
 }: LiabilityManagerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -108,6 +131,12 @@ export default function LiabilityManager({
       const principalValue = Number(currentDraft.principalOutstanding);
       const rateValue = currentDraft.interestRate === "" ? null : Number(currentDraft.interestRate);
       const termValue = currentDraft.termMonths === "" ? null : Number(currentDraft.termMonths);
+      const purchaseValue =
+        currentDraft.purchasePrice === "" ? null : Number(currentDraft.purchasePrice);
+      const downPaymentValue =
+        currentDraft.downPaymentPercent === ""
+          ? null
+          : Number(currentDraft.downPaymentPercent);
 
       if (!currentDraft.name.trim()) {
         nextErrors.name = t("liabilityFormNameRequired");
@@ -124,6 +153,17 @@ export default function LiabilityManager({
       if (termValue !== null && (!Number.isFinite(termValue) || termValue <= 0)) {
         nextErrors.termMonths = t("liabilityFormTermInvalid");
       }
+      if (purchaseValue !== null && (!Number.isFinite(purchaseValue) || purchaseValue < 0)) {
+        nextErrors.purchasePrice = t("liabilityFormPurchasePriceInvalid");
+      }
+      if (
+        downPaymentValue !== null &&
+        (!Number.isFinite(downPaymentValue) ||
+          downPaymentValue < 0 ||
+          downPaymentValue > 100)
+      ) {
+        nextErrors.downPaymentPercent = t("liabilityFormDownPaymentInvalid");
+      }
 
       return {
         isValid: Object.keys(nextErrors).length === 0,
@@ -133,6 +173,80 @@ export default function LiabilityManager({
     }
   );
   const isReadOnly = draft.source === "eventGenerated" || draft.source === "derived";
+  const manualMoneyItems = useMemo(
+    () => moneyItems.filter((item) => item.source === "manual"),
+    [moneyItems]
+  );
+  const purchasePriceValue =
+    draft.purchasePrice === "" ? Number.NaN : Number(draft.purchasePrice);
+  const downPaymentPercentValue =
+    draft.downPaymentPercent === "" ? Number.NaN : Number(draft.downPaymentPercent);
+  const downPaymentAmount =
+    Number.isFinite(purchasePriceValue) && Number.isFinite(downPaymentPercentValue)
+      ? (purchasePriceValue * downPaymentPercentValue) / 100
+      : null;
+  const loanAmount =
+    Number.isFinite(purchasePriceValue) && downPaymentAmount != null
+      ? Math.max(purchasePriceValue - downPaymentAmount, 0)
+      : null;
+
+  const estimatedMonthlyPayment = useMemo(() => {
+    const principal = Number(draft.principalOutstanding);
+    const termMonths = Number(draft.termMonths);
+    if (!Number.isFinite(principal) || principal <= 0) {
+      return null;
+    }
+    if (!Number.isFinite(termMonths) || termMonths <= 0) {
+      return null;
+    }
+    const annualRate = draft.interestRate === "" ? 0 : Number(draft.interestRate);
+    if (!Number.isFinite(annualRate) || annualRate < 0) {
+      return null;
+    }
+    const monthlyRate = annualRate / 100 / 12;
+    if (monthlyRate === 0) {
+      return principal / termMonths;
+    }
+    const denominator = 1 - Math.pow(1 + monthlyRate, -termMonths);
+    if (denominator === 0) {
+      return null;
+    }
+    return (principal * monthlyRate) / denominator;
+  }, [draft.interestRate, draft.principalOutstanding, draft.termMonths]);
+
+  const overlappingManualItems = useMemo(() => {
+    if (!draft.generatePaymentExpense) {
+      return [];
+    }
+    const candidateLiability: LiabilityItem = {
+      id: draft.id,
+      liabilityType: draft.liabilityType,
+      name: draft.name,
+      principalOutstanding: Number(draft.principalOutstanding),
+      currency: draft.currency,
+      interestRate: draft.interestRate === "" ? undefined : Number(draft.interestRate),
+      startMonth: draft.startMonth || undefined,
+      termMonths: draft.termMonths === "" ? undefined : Number(draft.termMonths),
+      notes: draft.notes || undefined,
+      purchasePrice: draft.purchasePrice === "" ? undefined : Number(draft.purchasePrice),
+      downPaymentPercent:
+        draft.downPaymentPercent === "" ? undefined : Number(draft.downPaymentPercent),
+      generatePaymentExpense: draft.generatePaymentExpense,
+      source: draft.source,
+      generatedByEventId: draft.generatedByEventId,
+    };
+    const candidates = buildDerivedMoneyItemsForLiability({
+      liability: candidateLiability,
+      baseCurrency,
+      label: t("liabilityPaymentLabel"),
+    });
+    return findOverlappingManualItems(manualMoneyItems, candidates);
+  }, [
+    baseCurrency,
+    draft,
+    manualMoneyItems,
+    t,
+  ]);
 
   const filteredItems = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -153,6 +267,8 @@ export default function LiabilityManager({
         return t("liabilityTypeMortgage");
       case "loan":
         return t("liabilityTypeLoan");
+      case "carLoan":
+        return t("liabilityTypeCarLoan");
       case "other":
         return t("liabilityTypeOther");
       default:
@@ -164,6 +280,17 @@ export default function LiabilityManager({
     setEditingItem(item);
     setIsDrawerOpen(true);
   };
+
+  useEffect(() => {
+    if (!openEditId) {
+      return;
+    }
+    const target = items.find((entry) => entry.id === openEditId) ?? null;
+    if (target) {
+      openDrawer(target);
+      onOpenEditHandled?.();
+    }
+  }, [items, onOpenEditHandled, openEditId]);
 
   const closeDrawer = () => {
     setIsDrawerOpen(false);
@@ -187,6 +314,13 @@ export default function LiabilityManager({
       startMonth: result.value.startMonth || undefined,
       termMonths: result.value.termMonths === "" ? undefined : Number(result.value.termMonths),
       notes: result.value.notes || undefined,
+      purchasePrice:
+        result.value.purchasePrice === "" ? undefined : Number(result.value.purchasePrice),
+      downPaymentPercent:
+        result.value.downPaymentPercent === ""
+          ? undefined
+          : Number(result.value.downPaymentPercent),
+      generatePaymentExpense: result.value.generatePaymentExpense,
       source: result.value.source,
       generatedByEventId: result.value.generatedByEventId,
     };
@@ -206,6 +340,7 @@ export default function LiabilityManager({
               { value: "all", label: t("liabilityFilterAll") },
               { value: "mortgage", label: t("liabilityTypeMortgage") },
               { value: "loan", label: t("liabilityTypeLoan") },
+              { value: "carLoan", label: t("liabilityTypeCarLoan") },
               { value: "other", label: t("liabilityTypeOther") },
             ]}
           />
@@ -352,6 +487,7 @@ export default function LiabilityManager({
             data={[
               { value: "mortgage", label: t("liabilityTypeMortgage") },
               { value: "loan", label: t("liabilityTypeLoan") },
+              { value: "carLoan", label: t("liabilityTypeCarLoan") },
               { value: "other", label: t("liabilityTypeOther") },
             ]}
             disabled={isReadOnly}
@@ -376,6 +512,58 @@ export default function LiabilityManager({
             error={errors.principalOutstanding}
             disabled={isReadOnly}
           />
+          {(draft.liabilityType === "mortgage" || draft.liabilityType === "carLoan") && (
+            <Stack gap="xs">
+              <Group grow align="flex-end">
+                <NumberInput
+                  label={t("liabilityFormPurchasePriceLabel")}
+                  value={draft.purchasePrice}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      purchasePrice: value === "" || value === null ? "" : String(value),
+                    }))
+                  }
+                  min={0}
+                  error={errors.purchasePrice}
+                  disabled={isReadOnly}
+                />
+                <NumberInput
+                  label={t("liabilityFormDownPaymentPercentLabel")}
+                  value={draft.downPaymentPercent}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      downPaymentPercent: value === "" || value === null ? "" : String(value),
+                    }))
+                  }
+                  min={0}
+                  max={100}
+                  suffix="%"
+                  error={errors.downPaymentPercent}
+                  disabled={isReadOnly}
+                />
+              </Group>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {t("liabilityFormDownPaymentAmount", {
+                    amount:
+                      downPaymentAmount != null
+                        ? formatCurrency(downPaymentAmount, draft.currency, locale)
+                        : "--",
+                  })}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("liabilityFormLoanAmount", {
+                    amount:
+                      loanAmount != null
+                        ? formatCurrency(loanAmount, draft.currency, locale)
+                        : "--",
+                  })}
+                </Text>
+              </Stack>
+            </Stack>
+          )}
           <NumberInput
             label={t("liabilityFormRateLabel")}
             value={draft.interestRate}
@@ -411,6 +599,39 @@ export default function LiabilityManager({
             error={errors.termMonths}
             disabled={isReadOnly}
           />
+          <Card withBorder radius="md" padding="sm">
+            <Stack gap={2}>
+              <Text size="xs" c="dimmed">
+                {t("liabilityFormPaymentEstimateLabel")}
+              </Text>
+              <Text size="sm" fw={600}>
+                {estimatedMonthlyPayment != null
+                  ? formatCurrency(estimatedMonthlyPayment, draft.currency, locale)
+                  : "--"}{" "}
+                <Text span size="xs" c="dimmed">
+                  {t("liabilityFormPaymentEstimateBadge")}
+                </Text>
+              </Text>
+            </Stack>
+          </Card>
+          <Switch
+            label={t("liabilityFormGeneratePaymentToggle")}
+            checked={draft.generatePaymentExpense}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                generatePaymentExpense: event.currentTarget.checked,
+              }))
+            }
+            disabled={isReadOnly}
+          />
+          {overlappingManualItems.length > 0 && draft.generatePaymentExpense && (
+            <Card withBorder radius="md" padding="sm">
+              <Text size="sm" c="orange">
+                {t("derivedDoubleCountWarning")}
+              </Text>
+            </Card>
+          )}
           <TextInput
             label={t("liabilityFormNotesLabel")}
             value={draft.notes}

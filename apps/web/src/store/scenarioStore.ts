@@ -141,6 +141,20 @@ export type BudgetRule = {
   applyScope?: ApplyScope;
   source?: "manual" | "eventGenerated" | "derived";
   generatedByEventId?: string;
+  generatedBy?: {
+    type: "assetCost";
+    assetId: string;
+    subType: "purchaseFee" | "ongoing";
+    key: string;
+  } | {
+    type: "assetRental";
+    assetId: string;
+  } | {
+    type: "loanPayment";
+    liabilityId: string;
+  };
+  linkedAssetId?: string;
+  linkedLiabilityId?: string;
 };
 
 export type ExistingHomeDetails = {
@@ -152,11 +166,26 @@ export type ExistingHomeDetails = {
 };
 
 export type RentalDetails = {
+  isRented?: boolean;
   rentMonthly: number;
   rentStartMonth: string;
   rentEndMonth?: string | null;
   rentAnnualGrowthPct?: number;
   vacancyRatePct?: number;
+};
+
+export type AssetPurchaseFee = {
+  id: string;
+  label: string;
+  amount: number;
+  month: string;
+};
+
+export type AssetOngoingCost = {
+  key: string;
+  enabled: boolean;
+  amount: number;
+  startMonth: string;
 };
 
 export type HomePosition = {
@@ -176,6 +205,8 @@ export type HomePosition = {
   sellMonth?: string;
   sellPriceOverride?: number;
   sellFeesOneTime?: number;
+  purchaseFees?: AssetPurchaseFee[];
+  ongoingCosts?: AssetOngoingCost[];
   notes?: string;
   existing?: ExistingHomeDetails;
   rental?: RentalDetails;
@@ -225,12 +256,17 @@ export type LoanPosition = {
   name?: string;
   ownerMemberId?: string;
   startMonth: string;
+  loanType?: "mortgage" | "loan" | "carLoan" | "other";
   principal: number;
   annualInterestRatePct: number;
   termYears: number;
   monthlyPayment?: number;
   paymentMethod?: "amortization" | "manual";
   feesOneTime?: number;
+  purchasePrice?: number;
+  downPaymentPercent?: number;
+  generatePaymentExpense?: boolean;
+  linkedAssetId?: string;
   notes?: string;
   source?: "manual" | "eventGenerated" | "derived";
   generatedByEventId?: string;
@@ -253,6 +289,8 @@ export type CarPosition = {
   annualDepreciationRatePct: number;
   holdingCostMonthly: number;
   holdingCostAnnualGrowthPct: number;
+  purchaseFees?: AssetPurchaseFee[];
+  ongoingCosts?: AssetOngoingCost[];
   loan?: CarLoanDetails;
   sellMonth?: string;
   sellPriceOverride?: number;
@@ -765,6 +803,11 @@ const buildEventDefinitionFromMoneyItem = (
     memberId: item.memberId,
     incomeSubtype: undefined,
     generatedByEventId: item.generatedByEventId,
+    source: item.source,
+    generatedBy: item.generatedBy,
+    linkedAssetId: item.linkedAssetId,
+    linkedLiabilityId: item.linkedLiabilityId,
+    categoryOverride: item.categoryOverride,
   };
 };
 
@@ -782,6 +825,9 @@ const buildBudgetRuleFromMoneyItem = (item: MoneyItemUpsert): BudgetRule => ({
   applyScope: { scope: "all" },
   source: item.source ?? "eventGenerated",
   generatedByEventId: item.generatedByEventId,
+  generatedBy: item.generatedBy,
+  linkedAssetId: item.linkedAssetId,
+  linkedLiabilityId: item.linkedLiabilityId,
 });
 
 const applyAssetItemUpsertToPositions = (
@@ -813,6 +859,16 @@ const applyAssetItemUpsertToPositions = (
       purchasePrice: item.currentValue ?? existing?.purchasePrice,
       purchaseMonth: startMonth || existing?.purchaseMonth,
       notes: item.notes ?? existing?.notes,
+      purchaseFees: item.purchaseFees ?? existing?.purchaseFees,
+      ongoingCosts: item.ongoingCosts ?? existing?.ongoingCosts,
+      rental: item.rental
+        ? {
+            isRented: item.rental.isRented,
+            rentMonthly: item.rental.rentAmountMonthly,
+            rentStartMonth: item.rental.rentStartMonth,
+            rentEndMonth: item.rental.rentEndMonth ?? null,
+          }
+        : existing?.rental,
       source,
       generatedByEventId,
     };
@@ -898,6 +954,8 @@ const applyAssetItemUpsertToPositions = (
     purchaseMonth: startMonth || existing?.purchaseMonth || "",
     purchasePrice: item.currentValue ?? existing?.purchasePrice ?? 0,
     notes: item.notes ?? existing?.notes,
+    purchaseFees: item.purchaseFees ?? existing?.purchaseFees,
+    ongoingCosts: item.ongoingCosts ?? existing?.ongoingCosts,
     source,
     generatedByEventId,
   };
@@ -961,10 +1019,16 @@ const applyLiabilityItemUpsertToPositions = (
     id: item.id ?? existing?.id ?? createLoanPositionId(),
     name: item.name ?? existing?.name,
     startMonth: startMonth || existing?.startMonth || "",
+    loanType: item.liabilityType ?? existing?.loanType,
     principal: item.principalOutstanding ?? existing?.principal ?? 0,
     annualInterestRatePct: item.interestRate ?? existing?.annualInterestRatePct ?? 0,
     termYears: Math.max(1, Math.round(resolvedTermMonths / 12)),
     notes: item.notes ?? existing?.notes,
+    purchasePrice: item.purchasePrice ?? existing?.purchasePrice,
+    downPaymentPercent: item.downPaymentPercent ?? existing?.downPaymentPercent,
+    generatePaymentExpense:
+      item.generatePaymentExpense ?? existing?.generatePaymentExpense,
+    linkedAssetId: item.linkedAssetId ?? existing?.linkedAssetId,
     source: item.source ?? existing?.source,
     generatedByEventId: item.generatedByEventId ?? existing?.generatedByEventId,
   };
@@ -1029,7 +1093,18 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
 
   return {
     home: positions.home ? { ...positions.home } : undefined,
-    homes: positions.homes ? positions.homes.map((home) => ({ ...home })) : undefined,
+    homes: positions.homes
+      ? positions.homes.map((home) => ({
+          ...home,
+          purchaseFees: home.purchaseFees
+            ? home.purchaseFees.map((fee) => ({ ...fee }))
+            : undefined,
+          ongoingCosts: home.ongoingCosts
+            ? home.ongoingCosts.map((entry) => ({ ...entry }))
+            : undefined,
+          rental: home.rental ? { ...home.rental } : undefined,
+        }))
+      : undefined,
     investments: positions.investments
       ? positions.investments.map((investment) => ({ ...investment }))
       : undefined,
@@ -1040,6 +1115,12 @@ const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | unde
     cars: positions.cars
       ? positions.cars.map((car) => ({
           ...car,
+          purchaseFees: car.purchaseFees
+            ? car.purchaseFees.map((fee) => ({ ...fee }))
+            : undefined,
+          ongoingCosts: car.ongoingCosts
+            ? car.ongoingCosts.map((entry) => ({ ...entry }))
+            : undefined,
           loan: car.loan ? { ...car.loan } : undefined,
         }))
       : undefined,
@@ -1166,6 +1247,10 @@ const ensureHomePositionId = (home: HomePosition | HomePositionDraft): HomePosit
   feesOneTime: home.feesOneTime,
   holdingCostMonthly: home.holdingCostMonthly,
   holdingCostAnnualGrowthPct: home.holdingCostAnnualGrowthPct,
+  purchaseFees: home.purchaseFees ? home.purchaseFees.map((fee) => ({ ...fee })) : undefined,
+  ongoingCosts: home.ongoingCosts
+    ? home.ongoingCosts.map((entry) => ({ ...entry }))
+    : undefined,
   existing: home.existing ? { ...home.existing } : undefined,
   rental: home.rental ? { ...home.rental } : undefined,
 });
@@ -1239,6 +1324,10 @@ const ensureLoanPositionId = (loan: LoanPosition): LoanPositionDraft => ({
 const ensureCarPositionId = (car: CarPosition): CarPositionDraft => ({
   ...car,
   id: car.id ?? createCarPositionId(),
+  purchaseFees: car.purchaseFees ? car.purchaseFees.map((fee) => ({ ...fee })) : undefined,
+  ongoingCosts: car.ongoingCosts
+    ? car.ongoingCosts.map((entry) => ({ ...entry }))
+    : undefined,
   loan: car.loan ? { ...car.loan } : undefined,
 });
 

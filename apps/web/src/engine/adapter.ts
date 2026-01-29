@@ -335,6 +335,7 @@ export const sanitizeScenarioForProjection = ({
             ];
           }),
           homes: scenario.positions.homes?.map((home) => {
+            const rental = home.rental?.isRented === false ? undefined : home.rental;
             const normalizedPurchase = sanitizeMonth(
               "home.purchaseMonth",
               home.purchaseMonth,
@@ -352,18 +353,18 @@ export const sanitizeScenarioForProjection = ({
                   { positionId: home.id, month: home.existing.asOfMonth }
                 )
               : null;
-            const normalizedRentStart = home.rental?.rentStartMonth
+            const normalizedRentStart = rental?.rentStartMonth
               ? sanitizeMonth(
                   "home.rental.rentStartMonth",
-                  home.rental.rentStartMonth,
-                  { positionId: home.id, month: home.rental.rentStartMonth }
+                  rental.rentStartMonth,
+                  { positionId: home.id, month: rental.rentStartMonth }
                 )
               : null;
-            const normalizedRentEnd = home.rental?.rentEndMonth
+            const normalizedRentEnd = rental?.rentEndMonth
               ? sanitizeMonth(
                   "home.rental.rentEndMonth",
-                  home.rental.rentEndMonth,
-                  { positionId: home.id, month: home.rental.rentEndMonth }
+                  rental.rentEndMonth,
+                  { positionId: home.id, month: rental.rentEndMonth }
                 )
               : null;
 
@@ -377,12 +378,12 @@ export const sanitizeScenarioForProjection = ({
                     asOfMonth: normalizedExisting ?? home.existing.asOfMonth,
                   }
                 : undefined,
-              rental: home.rental
+              rental:
+                rental
                 ? {
-                    ...home.rental,
-                    rentStartMonth:
-                      normalizedRentStart ?? home.rental.rentStartMonth,
-                    rentEndMonth: normalizedRentEnd ?? home.rental.rentEndMonth,
+                    ...rental,
+                    rentStartMonth: normalizedRentStart ?? rental.rentStartMonth,
+                    rentEndMonth: normalizedRentEnd ?? rental.rentEndMonth,
                   }
                 : undefined,
             };
@@ -652,10 +653,11 @@ export const mapScenarioToEngineInput = (
   const normalizeHomeMonths = (home: HomePosition, homeId?: string) => {
     const issues: Array<{ label: string; value: string }> = [];
     const refs = homeId ? { positionId: homeId } : undefined;
+    const rental = home.rental?.isRented === false ? undefined : home.rental;
     const normalized: HomePosition = {
       ...home,
       existing: home.existing ? { ...home.existing } : undefined,
-      rental: home.rental ? { ...home.rental } : undefined,
+      rental: rental ? { ...rental } : undefined,
     };
     if (home.purchaseMonth) {
       const normalizedPurchase = normalizeOptionalMonth(
@@ -684,31 +686,31 @@ export const mapScenarioToEngineInput = (
         normalized.existing.asOfMonth = normalizedExisting;
       }
     }
-    if (home.rental?.rentStartMonth) {
+    if (rental?.rentStartMonth) {
       const normalizedRentStart = normalizeRequiredMonth(
         "home.rental.rentStartMonth",
-        home.rental.rentStartMonth,
+        rental.rentStartMonth,
         refs
       );
       if (!normalizedRentStart) {
         issues.push({
           label: "home.rental.rentStartMonth",
-          value: home.rental.rentStartMonth,
+          value: rental.rentStartMonth,
         });
       } else if (normalized.rental) {
         normalized.rental.rentStartMonth = normalizedRentStart;
       }
     }
-    if (home.rental?.rentEndMonth) {
+    if (rental?.rentEndMonth) {
       const normalizedRentEnd = normalizeOptionalMonth(
         "home.rental.rentEndMonth",
-        home.rental.rentEndMonth,
+        rental.rentEndMonth,
         refs
       );
       if (!normalizedRentEnd) {
         issues.push({
           label: "home.rental.rentEndMonth",
-          value: home.rental.rentEndMonth,
+          value: rental.rentEndMonth,
         });
       } else if (normalized.rental) {
         normalized.rental.rentEndMonth = normalizedRentEnd;
@@ -1016,13 +1018,14 @@ export const mapScenarioToEngineInput = (
       ? validatedHomes.map((home) => {
           const mode = home.mode ?? "new_purchase";
           const usage = home.usage ?? "primary";
-          const rental = home.rental
+          const rentalDetails = home.rental?.isRented === false ? undefined : home.rental;
+          const rental = rentalDetails
             ? {
-                rentMonthly: home.rental.rentMonthly,
-                rentStartMonth: home.rental.rentStartMonth,
-                rentEndMonth: home.rental.rentEndMonth ?? undefined,
-                rentAnnualGrowth: (home.rental.rentAnnualGrowthPct ?? 0) / 100,
-                vacancyRate: (home.rental.vacancyRatePct ?? 0) / 100,
+                rentMonthly: rentalDetails.rentMonthly,
+                rentStartMonth: rentalDetails.rentStartMonth,
+                rentEndMonth: rentalDetails.rentEndMonth ?? undefined,
+                rentAnnualGrowth: (rentalDetails.rentAnnualGrowthPct ?? 0) / 100,
+                vacancyRate: (rentalDetails.vacancyRatePct ?? 0) / 100,
               }
             : undefined;
 

@@ -107,6 +107,7 @@ type MoneyFlowManagerProps = {
   onDelete: (item: MoneyItem) => void;
   onEditEvent?: (eventId: string) => void;
   onDetach?: (item: MoneyItem) => void;
+  onEditSource?: (item: MoneyItem) => void;
   openNewItem?: boolean;
   onOpenNewItemHandled?: () => void;
 };
@@ -124,6 +125,7 @@ export default function MoneyFlowManager({
   onDelete,
   onEditEvent,
   onDetach,
+  onEditSource,
   openNewItem,
   onOpenNewItemHandled,
 }: MoneyFlowManagerProps) {
@@ -334,7 +336,9 @@ export default function MoneyFlowManager({
               : item.endMonth && item.endMonth !== item.startMonth
                 ? `${item.startMonth ?? "--"} → ${item.endMonth ?? "--"}`
                 : item.startMonth ?? "--";
-          const isGenerated = item.source === "eventGenerated";
+          const isDerived = item.source === "derived";
+          const isEventGenerated = item.source === "eventGenerated";
+          const isGenerated = isDerived || isEventGenerated;
 
           return (
             <Card key={item.id} withBorder radius="md" padding="sm">
@@ -347,14 +351,19 @@ export default function MoneyFlowManager({
                   <Text size="xs" c="dimmed">
                     {t("flowItemMeta", { amount: amountLabel, month: dateLabel })}
                   </Text>
-                  {isGenerated && (
+                  {isDerived && (
+                    <Text size="xs" c="dimmed">
+                      {t("derivedBadge")}
+                    </Text>
+                  )}
+                  {isEventGenerated && (
                     <Text size="xs" c="dimmed">
                       {t("eventGeneratedBadge")}
                     </Text>
                   )}
                 </Stack>
                 <Group gap="xs">
-                  {isGenerated ? (
+                  {isEventGenerated ? (
                     <>
                       <Button
                         size="xs"
@@ -370,6 +379,24 @@ export default function MoneyFlowManager({
                         onClick={() => onDetach?.(item)}
                       >
                         {t("eventGeneratedDetach")}
+                      </Button>
+                    </>
+                  ) : isDerived ? (
+                    <>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => onEditSource?.(item)}
+                        disabled={!onEditSource}
+                      >
+                        {t("derivedEditSource")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => onDetach?.(item)}
+                      >
+                        {t("derivedDetach")}
                       </Button>
                     </>
                   ) : (
@@ -502,6 +529,35 @@ export default function MoneyFlowManager({
                     onClick={() => onDetach?.(editingItem)}
                   >
                     {t("eventGeneratedDetach")}
+                  </Button>
+                </Group>
+              </Stack>
+            </Card>
+          )}
+          {editingItem?.source === "derived" && (
+            <Card withBorder radius="md" padding="sm">
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {t("derivedTitle")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("derivedHint")}
+                </Text>
+                <Group gap="xs">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => onEditSource?.(editingItem)}
+                    disabled={!onEditSource}
+                  >
+                    {t("derivedEditSource")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => onDetach?.(editingItem)}
+                  >
+                    {t("derivedDetach")}
                   </Button>
                 </Group>
               </Stack>

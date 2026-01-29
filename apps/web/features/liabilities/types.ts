@@ -1,4 +1,4 @@
-export type LiabilityType = "mortgage" | "loan" | "other";
+export type LiabilityType = "mortgage" | "loan" | "carLoan" | "other";
 export type LiabilityItemSource = "manual" | "derived" | "eventGenerated";
 
 export type LiabilityItem = {
@@ -13,6 +13,10 @@ export type LiabilityItem = {
   maturityMonth?: string;
   termMonths?: number;
   notes?: string;
+  purchasePrice?: number;
+  downPaymentPercent?: number;
+  generatePaymentExpense?: boolean;
+  linkedAssetId?: string;
   source: LiabilityItemSource;
   generatedByEventId?: string;
 };
