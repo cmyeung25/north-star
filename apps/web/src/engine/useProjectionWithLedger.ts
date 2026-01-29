@@ -272,20 +272,24 @@ export const computeProjectionWithSmartInvest = (
   const maxPasses = options.maxPasses ?? 3;
   const members = options.members ?? [];
   const budgetRules = options.budgetRules ?? [];
-  const { input: baseInput, warnings: baseWarnings } = mapScenarioToEngineInput(
-    scenario,
-    eventLibrary,
-    {
-      strict: false,
-      members,
-      budgetRules,
-      horizonMonths: options.horizonMonths,
-    }
-  );
+  const {
+    input: baseInput,
+    warnings: baseWarnings,
+    sanitized,
+  } = mapScenarioToEngineInput(scenario, eventLibrary, {
+    strict: false,
+    members,
+    budgetRules,
+    horizonMonths: options.horizonMonths,
+  });
   let input = baseInput;
   let warnings = baseWarnings;
   let projection = computeProjection(baseInput);
-  const smartInvestPolicy = scenario.assumptions.smartInvest;
+  const sanitizedScenario = sanitized.scenario;
+  const sanitizedEventLibrary = sanitized.eventLibrary;
+  const sanitizedMembers = sanitized.members;
+  const sanitizedBudgetRules = sanitized.budgetRules;
+  const smartInvestPolicy = sanitizedScenario.assumptions.smartInvest;
   const normalizedAllocations = smartInvestPolicy
     ? normalizeAllocations(smartInvestPolicy)
     : [];
@@ -308,27 +312,29 @@ export const computeProjectionWithSmartInvest = (
   }
 
   const scenarioForLedger = {
-    ...scenario,
+    ...sanitizedScenario,
     assumptions: {
-      ...scenario.assumptions,
+      ...sanitizedScenario.assumptions,
       baseMonth: input.baseMonth,
       horizonMonths: input.horizonMonths,
     },
   };
   const includeBudgetRulesInProjection =
-    scenario.assumptions.includeBudgetRulesInProjection ?? true;
+    sanitizedScenario.assumptions.includeBudgetRulesInProjection ?? true;
   const budgetLedger = includeBudgetRulesInProjection
     ? compileAllBudgetRules(
         scenarioForLedger,
-        normalizeBudgetRulesForLedger(budgetRules),
-        members
+        normalizeBudgetRulesForLedger(
+          sanitizedBudgetRules.length ? sanitizedBudgetRules : budgetRules
+        ),
+        sanitizedMembers
       )
     : [];
   const eventLedger = compileScenarioCashflows({
     scenario: scenarioForLedger,
-    eventLibrary,
+    eventLibrary: sanitizedEventLibrary,
     signByType: getEventSign,
-    members,
+    members: sanitizedMembers,
   }).map((entry) => ({
     month: entry.month,
     amount: entry.amountSigned,
@@ -462,10 +468,10 @@ export const computeProjectionWithSmartInvest = (
     if (passCount >= maxPasses) {
       return;
     }
-    const result = mapScenarioToEngineInput(scenario, eventLibrary, {
+    const result = mapScenarioToEngineInput(sanitizedScenario, sanitizedEventLibrary, {
       strict: false,
-      members,
-      budgetRules,
+      members: sanitizedMembers,
+      budgetRules: sanitizedBudgetRules.length ? sanitizedBudgetRules : budgetRules,
       smartInvestContributionSchedules: params.smartInvestContributionSchedules,
       smartInvestWithdrawalSchedules: params.smartInvestWithdrawalSchedules,
       smartInvestRebalanceSchedules: params.smartInvestRebalanceSchedules,

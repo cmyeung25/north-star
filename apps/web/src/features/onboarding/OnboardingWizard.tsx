@@ -22,6 +22,7 @@ import {
   type BudgetCategory,
 } from "../../store/scenarioStore";
 import { normalizeOnboardingMonth } from "../../utils/month";
+import { compareMonthKey, isValidMonthKey } from "../../utils/monthKey";
 import { getBaseMonth } from "./utils";
 import { detectOnboardingOverlaps } from "../../domain/onboarding/overlapDetector";
 import { hasIncomeAttribution } from "../../domain/onboarding/validation";
@@ -396,14 +397,46 @@ export default function OnboardingWizard() {
     });
   };
 
-  const validateStep = (nextStepKey: StepKey) => {
+  const normalizeDraftMonths = (current: OnboardingDraft): OnboardingDraft => {
+    const normalizedBase = normalizeOnboardingMonth(current.settings.baseMonth);
+    const baseMonth =
+      normalizedBase.ok && normalizedBase.month ? normalizedBase.month : current.settings.baseMonth;
+
+    return {
+      ...current,
+      settings: {
+        ...current.settings,
+        baseMonth,
+      },
+      budgetRules: current.budgetRules.map((rule) => {
+        const normalizedStart = normalizeOnboardingMonth(rule.startMonth);
+        const normalizedEnd = normalizeOnboardingMonth(rule.endMonth);
+        return {
+          ...rule,
+          startMonth:
+            normalizedStart.ok && normalizedStart.month !== undefined
+              ? normalizedStart.month
+              : rule.startMonth,
+          endMonth:
+            normalizedEnd.ok && normalizedEnd.month !== undefined
+              ? normalizedEnd.month
+              : rule.endMonth,
+        };
+      }),
+    };
+  };
+
+  const validateStep = (nextStepKey: StepKey, nextDraft = draft) => {
     const nextErrors: Record<string, string> = {};
+    if (!nextDraft) {
+      return false;
+    }
 
     if (nextStepKey === "members") {
-      if (draft.members.length === 0) {
+      if (nextDraft.members.length === 0) {
         nextErrors.members = onboardingText("memberRequired");
       }
-      draft.members.forEach((member) => {
+      nextDraft.members.forEach((member) => {
         if (!member.name.trim()) {
           nextErrors[`member.${member.id}.name`] = onboardingText("memberNameRequired");
         }
@@ -426,17 +459,17 @@ export default function OnboardingWizard() {
     }
 
     if (nextStepKey === "settings") {
-      const baseMonthNormalized = normalizeOnboardingMonth(draft.settings.baseMonth);
+      const baseMonthNormalized = normalizeOnboardingMonth(nextDraft.settings.baseMonth);
       if (!baseMonthNormalized.ok || !baseMonthNormalized.month) {
         nextErrors.baseMonth = onboardingText("monthInvalid");
       }
-      if (draft.settings.horizonMonths <= 0) {
+      if (nextDraft.settings.horizonMonths <= 0) {
         nextErrors.horizonMonths = onboardingText("horizonRequired");
       }
     }
 
     if (nextStepKey === "budget") {
-      draft.budgetRules.forEach((rule) => {
+      nextDraft.budgetRules.forEach((rule) => {
         const hasMember = Boolean(rule.memberId && rule.memberId !== "household");
         const usesMonthBasis = !hasMember || Boolean(rule.startMonth || rule.endMonth);
         if (!rule.name.trim()) {
@@ -454,25 +487,33 @@ export default function OnboardingWizard() {
             nextErrors[`rule.${rule.id}.ageFrom`] = onboardingText("ageBandRequired");
           }
         }
-        if (usesMonthBasis && rule.startMonth) {
-          const normalized = normalizeOnboardingMonth(rule.startMonth, draft.settings.baseMonth);
-          if (!normalized.ok) {
+        if (usesMonthBasis) {
+          if (!rule.startMonth?.trim()) {
+            nextErrors[`rule.${rule.id}.startMonth`] = onboardingText("monthInvalid");
+          } else if (!isValidMonthKey(rule.startMonth)) {
             nextErrors[`rule.${rule.id}.startMonth`] = onboardingText("monthInvalid");
           }
-        }
-        if (usesMonthBasis && rule.endMonth) {
-          const normalized = normalizeOnboardingMonth(rule.endMonth);
-          if (!normalized.ok) {
-            nextErrors[`rule.${rule.id}.endMonth`] = onboardingText("monthInvalid");
+          if (rule.endMonth) {
+            if (!isValidMonthKey(rule.endMonth)) {
+              nextErrors[`rule.${rule.id}.endMonth`] = onboardingText("monthInvalid");
+            } else if (
+              isValidMonthKey(rule.startMonth ?? "") &&
+              compareMonthKey(rule.startMonth ?? "", rule.endMonth) > 0
+            ) {
+              nextErrors[`rule.${rule.id}.endMonth`] = onboardingText("monthInvalid");
+            }
           }
         }
       });
     }
 
     if (nextStepKey === "positions") {
-      draft.positions.homes.forEach((home) => {
+      nextDraft.positions.homes.forEach((home) => {
         if (home.purchaseMonth) {
-          const normalized = normalizeOnboardingMonth(home.purchaseMonth, draft.settings.baseMonth);
+          const normalized = normalizeOnboardingMonth(
+            home.purchaseMonth,
+            nextDraft.settings.baseMonth
+          );
           if (!normalized.ok) {
             nextErrors[`home.${home.id}.purchaseMonth`] = onboardingText("monthInvalid");
           }
@@ -481,28 +522,34 @@ export default function OnboardingWizard() {
           nextErrors[`home.${home.id}.purchasePrice`] = onboardingText("amountInvalid");
         }
       });
-      draft.positions.cars.forEach((car) => {
+      nextDraft.positions.cars.forEach((car) => {
         if (car.purchaseMonth) {
-          const normalized = normalizeOnboardingMonth(car.purchaseMonth, draft.settings.baseMonth);
+          const normalized = normalizeOnboardingMonth(
+            car.purchaseMonth,
+            nextDraft.settings.baseMonth
+          );
           if (!normalized.ok) {
             nextErrors[`car.${car.id}.purchaseMonth`] = onboardingText("monthInvalid");
           }
         }
       });
-      draft.positions.investments.forEach((investment) => {
+      nextDraft.positions.investments.forEach((investment) => {
         if (investment.startMonth) {
           const normalized = normalizeOnboardingMonth(
             investment.startMonth,
-            draft.settings.baseMonth
+            nextDraft.settings.baseMonth
           );
           if (!normalized.ok) {
             nextErrors[`investment.${investment.id}.startMonth`] = onboardingText("monthInvalid");
           }
         }
       });
-      draft.positions.loans.forEach((loan) => {
+      nextDraft.positions.loans.forEach((loan) => {
         if (loan.startMonth) {
-          const normalized = normalizeOnboardingMonth(loan.startMonth, draft.settings.baseMonth);
+          const normalized = normalizeOnboardingMonth(
+            loan.startMonth,
+            nextDraft.settings.baseMonth
+          );
           if (!normalized.ok) {
             nextErrors[`loan.${loan.id}.startMonth`] = onboardingText("monthInvalid");
           }
@@ -514,7 +561,7 @@ export default function OnboardingWizard() {
     }
 
     if (nextStepKey === "income") {
-      draft.incomes.forEach((income) => {
+      nextDraft.incomes.forEach((income) => {
         if (!income.title.trim()) {
           nextErrors[`income.${income.id}.title`] = onboardingText("incomeNameRequired");
         }
@@ -527,7 +574,7 @@ export default function OnboardingWizard() {
         if (income.startMonth) {
           const normalized = normalizeOnboardingMonth(
             income.startMonth,
-            draft.settings.baseMonth
+            nextDraft.settings.baseMonth
           );
           if (!normalized.ok) {
             nextErrors[`income.${income.id}.startMonth`] = onboardingText("monthInvalid");
@@ -543,7 +590,7 @@ export default function OnboardingWizard() {
     }
 
     if (nextStepKey === "timeline") {
-      draft.timelineEvents.forEach((event) => {
+      nextDraft.timelineEvents.forEach((event) => {
         if (!event.title.trim()) {
           nextErrors[`event.${event.id}.title`] = onboardingText("eventNameRequired");
         }
@@ -556,7 +603,7 @@ export default function OnboardingWizard() {
         if (event.startMonth) {
           const normalized = normalizeOnboardingMonth(
             event.startMonth,
-            draft.settings.baseMonth
+            nextDraft.settings.baseMonth
           );
           if (!normalized.ok) {
             nextErrors[`event.${event.id}.startMonth`] = onboardingText("monthInvalid");
@@ -589,10 +636,15 @@ export default function OnboardingWizard() {
   };
 
   const handleNext = () => {
-    const currentKey = steps[step];
-    if (!validateStep(currentKey)) {
+    if (!draft) {
       return;
     }
+    const currentKey = steps[step];
+    const normalizedDraft = normalizeDraftMonths(draft);
+    if (!validateStep(currentKey, normalizedDraft)) {
+      return;
+    }
+    setDraft(normalizedDraft);
     setErrors({});
     setStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
@@ -603,11 +655,15 @@ export default function OnboardingWizard() {
   };
 
   const handleFinish = () => {
-    if (!validateStep("review")) {
+    if (!draft) {
+      return;
+    }
+    const normalizedDraft = normalizeDraftMonths(draft);
+    if (!validateStep("review", normalizedDraft)) {
       return;
     }
 
-    applyOnboardingDraftToScenario(scenario, draft, {
+    applyOnboardingDraftToScenario(scenario, normalizedDraft, {
       members: membersStore,
       budgetRules: budgetRulesStore,
       updateScenarioAssumptions,
@@ -636,6 +692,7 @@ export default function OnboardingWizard() {
       removeBudgetRule,
     });
 
+    setDraft(normalizedDraft);
     updateScenarioMeta(scenario.id, { onboardingVersion: 2 });
     updateScenarioClientComputed(scenario.id, { onboardingCompleted: true });
     router.push(`/${locale}${buildScenarioUrl("/dashboard", scenario.id)}`);

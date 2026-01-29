@@ -8,12 +8,12 @@ import {
   SegmentedControl,
   Stack,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
-import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { normalizeMonthStrict } from "../../src/utils/month";
+import MonthField from "../MonthField";
+import { useEntityDraft } from "../../src/hooks/useEntityDraft";
+import { normalizeMonthInput } from "../../src/utils/monthKey";
 import type { LoanPositionDraft } from "../../src/store/scenarioStore";
 import { LoanPositionSchema, getLoanPositionErrors } from "../../src/store/scenarioValidation";
 import { computeMonthlyPayment } from "../../src/domain/positions/calculations";
@@ -28,19 +28,48 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
   const t = useTranslations("loans");
   const common = useTranslations("common");
   const validation = useTranslations("validation");
-  const [formValues, setFormValues] = useState<LoanPositionDraft>(loan);
-  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+  const { draft: formValues, setDraft, errors, validate } = useEntityDraft(loan, (draft) => {
+    const nextErrors: Partial<Record<string, string>> = {};
+    const normalizedStart = normalizeMonthInput(draft.startMonth ?? "");
+    if (normalizedStart.status !== "valid") {
+      nextErrors.startMonth = validation("useYearMonth");
+    }
 
-  useEffect(() => {
-    setFormValues(loan);
-    setErrors({});
-  }, [loan]);
+    const parsed = LoanPositionSchema.safeParse({
+      ...draft,
+      startMonth: normalizedStart.month ?? draft.startMonth,
+    });
+    if (!parsed.success) {
+      return {
+        isValid: false,
+        errors: { ...nextErrors, ...getLoanPositionErrors(parsed.error, validation) },
+      };
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      return { isValid: false, errors: nextErrors };
+    }
+
+    return {
+      isValid: true,
+      errors: {},
+      value: {
+        ...parsed.data,
+        id: draft.id,
+        monthlyPayment:
+          (draft.paymentMethod ?? "amortization") === "manual"
+            ? draft.monthlyPayment
+            : undefined,
+        paymentMethod: draft.paymentMethod ?? "amortization",
+      },
+    };
+  });
 
   const updateField = <K extends keyof LoanPositionDraft>(
     key: K,
     value: LoanPositionDraft[K]
   ) => {
-    setFormValues((current) => ({ ...current, [key]: value }));
+    setDraft((current) => ({ ...current, [key]: value }));
   };
 
   const toPositiveNumber = (value: number | string | null | undefined) =>
@@ -53,33 +82,22 @@ export default function LoanDetailsForm({ loan, onCancel, onSave }: LoanDetailsF
   );
 
   const handleSave = () => {
-    const normalizedMonth = normalizeMonthStrict(formValues.startMonth);
-
-    const nextValues = {
-      ...formValues,
-      startMonth: normalizedMonth.ok ? normalizedMonth.month : formValues.startMonth,
-      monthlyPayment: paymentMethod === "manual" ? formValues.monthlyPayment : undefined,
-      paymentMethod,
-    };
-
-    const parsed = LoanPositionSchema.safeParse(nextValues);
-    if (!parsed.success) {
-      setErrors(getLoanPositionErrors(parsed.error, (key) => validation(key)));
+    const result = validate();
+    if (!result.isValid || !result.value) {
       return;
     }
-
-    onSave({ ...parsed.data, id: formValues.id });
+    onSave(result.value);
   };
 
   return (
     <Stack gap="md">
       <Title order={5}>{t("title")}</Title>
-      <TextInput
+      <MonthField
         label={t("startMonth")}
         placeholder={common("yearMonthPlaceholder")}
         value={formValues.startMonth ?? ""}
         error={errors.startMonth}
-        onChange={(event) => updateField("startMonth", event.target.value)}
+        onChange={(value) => updateField("startMonth", value)}
       />
       <NumberInput
         label={t("principal")}

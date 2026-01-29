@@ -45,6 +45,8 @@ import type {
   PlanLabPositionPatch,
   PlanLabRulePatch,
   Plan,
+  PlanLabSnapshot,
+  PlanPatch,
   PlanSnapshot,
 } from "../../src/domain/planLab/types";
 import type {
@@ -101,6 +103,18 @@ import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
 import { SavePlanModal } from "./SavePlanModal";
 import { validatePlanSnapshot } from "./planLabPlans";
 import { PlanCompareMode } from "./PlanCompareMode";
+import {
+  buildPlanPatchesFromSnapshot,
+  validatePlanPatches,
+} from "../../src/domain/planLab/planPatches";
+import {
+  deletePlanSnapshot,
+  duplicatePlanSnapshot,
+  listAllPlanSnapshots,
+  listPlanSnapshots,
+  renamePlanSnapshot,
+  savePlanSnapshot,
+} from "../../src/persistence/planLibrary";
 
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
@@ -384,8 +398,6 @@ export default function PlanLabPanel({
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
-  const upsertScenarioPlan = useScenarioStore((state) => state.upsertScenarioPlan);
-  const removeScenarioPlan = useScenarioStore((state) => state.removeScenarioPlan);
   const createMember = useScenarioStore((state) => state.createMember);
   const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
   const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
@@ -414,8 +426,11 @@ export default function PlanLabPanel({
   const [savePlanOpen, setSavePlanOpen] = useState(false);
   const [planToast, setPlanToast] = useState<string | null>(null);
   const planToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [planAId, setPlanAId] = useState<string | null>(null);
   const [planBId, setPlanBId] = useState<string | null>(null);
+  const [planLibrary, setPlanLibrary] = useState<PlanSnapshot[]>([]);
+  const [otherPlans, setOtherPlans] = useState<PlanSnapshot[]>([]);
   const [baselinePatches, setBaselinePatches] = useState<PlanLabDraft["baselinePatches"]>({
     eventPatches: {},
     rulePatches: {},
@@ -498,6 +513,39 @@ export default function PlanLabPanel({
     localStorage.setItem("planLabActiveOnly", String(activeOnly));
   }, [activeOnly]);
 
+  const refreshPlanLibrary = useCallback(() => {
+    let plans = listPlanSnapshots(scenario.id);
+    const legacyPlans = scenario.plans ?? [];
+    if (plans.length === 0 && legacyPlans.length > 0) {
+      legacyPlans.forEach((plan) => {
+        const legacy = plan as Plan & {
+          sourceScenarioId?: string;
+          baseScenarioVersion?: number;
+        };
+        const patches = buildPlanPatchesFromSnapshot(plan.snapshot);
+        savePlanSnapshot({
+          id: plan.id,
+          scenarioId: legacy.sourceScenarioId ?? scenario.id,
+          name: plan.name,
+          description: plan.description,
+          createdAt: plan.createdAt,
+          updatedAt: plan.updatedAt,
+          baselineRevision: legacy.baseScenarioVersion ?? scenario.version ?? 1,
+          patches,
+          snapshot: plan.snapshot,
+          metricsCache: plan.metricsCache,
+        });
+      });
+      plans = listPlanSnapshots(scenario.id);
+    }
+    setPlanLibrary(plans);
+    setOtherPlans(listAllPlanSnapshots().filter((plan) => plan.scenarioId !== scenario.id));
+  }, [scenario.id, scenario.plans, scenario.version]);
+
+  useEffect(() => {
+    refreshPlanLibrary();
+  }, [refreshPlanLibrary]);
+
   useEffect(() => {
     if (!planToast) {
       return;
@@ -525,7 +573,7 @@ export default function PlanLabPanel({
     []
   );
   const baselineSmartInvestPolicy = scenario.assumptions.smartInvest;
-  const plans = scenario.plans ?? [];
+  const plans = planLibrary;
   const planCount = plans.length;
   const defaultPlanName = translate("planLabPlanDefaultName", "方案 {index}", {
     index: planCount + 1,
@@ -539,6 +587,9 @@ export default function PlanLabPanel({
       if (planBId) {
         setPlanBId(null);
       }
+      if (activePlanId) {
+        setActivePlanId(null);
+      }
       return;
     }
     if (!planAId || !plans.some((plan) => plan.id === planAId)) {
@@ -547,7 +598,10 @@ export default function PlanLabPanel({
     if (!planBId || !plans.some((plan) => plan.id === planBId)) {
       setPlanBId(plans[1]?.id ?? plans[0]?.id ?? null);
     }
-  }, [planAId, planBId, plans]);
+    if (activePlanId && !plans.some((plan) => plan.id === activePlanId)) {
+      setActivePlanId(null);
+    }
+  }, [activePlanId, planAId, planBId, plans]);
   const combinedMembers = useMemo(
     () => [...members, ...draftMembers],
     [members, draftMembers]
@@ -1641,7 +1695,7 @@ export default function PlanLabPanel({
     ]
   );
 
-  const planSnapshot = useMemo<PlanSnapshot>(() => {
+  const planSnapshot = useMemo<PlanLabSnapshot>(() => {
     const cloneSerializable = <T,>(value: T): T =>
       JSON.parse(JSON.stringify(value)) as T;
     return {
@@ -1653,6 +1707,12 @@ export default function PlanLabPanel({
           : undefined,
     };
   }, [baselinePatches, experiments, firstBucketTargetAmount]);
+
+  const baselineScenarioSnapshot = useMemo(() => scenario, [scenario]);
+  const sandboxPatches = useMemo(
+    () => buildPlanPatchesFromSnapshot(planSnapshot),
+    [planSnapshot]
+  );
 
   const planSnapshotWarnings = useMemo(() => {
     const validation = validatePlanSnapshot(
@@ -1669,17 +1729,32 @@ export default function PlanLabPanel({
     );
   }, [budgetRules, eventLibrary, members, planSnapshot, scenario, warningsT]);
 
+  const planPatchWarnings = useMemo(() => {
+    const warnings = validatePlanPatches({
+      patches: sandboxPatches,
+      scenario,
+      eventLibrary,
+      budgetRules,
+      members,
+    });
+    return warnings.map((warning) =>
+      warningsT.has(warning.messageKey)
+        ? warningsT(warning.messageKey)
+        : warning.defaultMessage
+    );
+  }, [budgetRules, eventLibrary, members, sandboxPatches, scenario, warningsT]);
+
   const planLabProjection = usePlanLabProjectionWithLedger(
     planLabDraft,
-    scenario,
+    baselineScenarioSnapshot,
     eventLibrary,
-    { members, budgetRules }
+    { members, budgetRules, patches: sandboxPatches }
   );
   const baselineProjection = usePlanLabProjectionWithLedger(
     null,
-    scenario,
+    baselineScenarioSnapshot,
     eventLibrary,
-    { members, budgetRules }
+    { members, budgetRules, patches: [] }
   );
 
   const optionViewModel = useMemo(
@@ -2437,7 +2512,17 @@ export default function PlanLabPanel({
     });
   };
 
-  const handleLoadPlanSnapshot = (snapshot: PlanSnapshot) => {
+  const handleLoadPlanSnapshot = (plan: PlanSnapshot) => {
+    if (plan.scenarioId !== scenario.id) {
+      setPlanToast(
+        translate(
+          "planLabPlanScenarioMismatchToast",
+          "This plan belongs to another scenario and cannot be loaded here."
+        )
+      );
+      return;
+    }
+    const snapshot = plan.snapshot;
     const baseline = snapshot.baselinePatches ?? {};
     setBaselinePatches({
       eventPatches: baseline.eventPatches ?? {},
@@ -2454,50 +2539,80 @@ export default function PlanLabPanel({
     setDraftMembers([]);
     setDraftBudgetRules([]);
     setDraftEvents([]);
+    setActivePlanId(plan.id);
     setMode("edit");
   };
 
   const handleSavePlan = (name: string) => {
     const timestamp = Date.now();
-    const snapshot = JSON.parse(JSON.stringify(planSnapshot)) as PlanSnapshot;
-    const nextPlan: Plan = {
+    const snapshot = JSON.parse(JSON.stringify(planSnapshot)) as PlanLabSnapshot;
+    const patches = JSON.parse(JSON.stringify(sandboxPatches)) as PlanPatch[];
+    const nextPlan: PlanSnapshot = {
       id: nanoid(),
+      scenarioId: scenario.id,
       name,
       createdAt: timestamp,
       updatedAt: timestamp,
-      sourceScenarioId: scenario.id,
-      baseScenarioVersion: scenario.version,
+      baselineRevision: scenario.version ?? 1,
+      patches,
       snapshot,
     };
-    upsertScenarioPlan(scenario.id, nextPlan);
+    savePlanSnapshot(nextPlan);
+    refreshPlanLibrary();
+    setActivePlanId(nextPlan.id);
     setSavePlanOpen(false);
     setPlanToast(translate("planLabPlanSavedToast", "Plan saved."));
   };
 
-  const handleDuplicatePlan = (plan: Plan) => {
+  const handleUpdatePlan = () => {
+    if (!activePlanId) {
+      return;
+    }
+    const existing = plans.find((plan) => plan.id === activePlanId);
+    if (!existing) {
+      setPlanToast(
+        translate("planLabPlanNotFound", "The selected plan no longer exists.")
+      );
+      setActivePlanId(null);
+      return;
+    }
     const timestamp = Date.now();
-    const snapshot = JSON.parse(JSON.stringify(plan.snapshot)) as PlanSnapshot;
-    upsertScenarioPlan(scenario.id, {
-      ...plan,
-      id: nanoid(),
-      name: translate("planLabPlanDuplicateName", "{name} (copy)", {
-        name: plan.name,
-      }),
-      createdAt: timestamp,
+    const snapshot = JSON.parse(JSON.stringify(planSnapshot)) as PlanLabSnapshot;
+    const patches = JSON.parse(JSON.stringify(sandboxPatches)) as PlanPatch[];
+    savePlanSnapshot({
+      ...existing,
       updatedAt: timestamp,
+      baselineRevision: scenario.version ?? 1,
+      patches,
       snapshot,
     });
+    refreshPlanLibrary();
+    setPlanToast(translate("planLabPlanUpdatedToast", "Plan updated."));
+  };
+
+  const handleDuplicatePlan = (plan: Plan) => {
+    duplicatePlanSnapshot(plan);
+    refreshPlanLibrary();
     setPlanToast(translate("planLabPlanDuplicatedToast", "Plan duplicated."));
   };
 
   const handleDeletePlan = (plan: Plan) => {
-    removeScenarioPlan(scenario.id, plan.id);
+    deletePlanSnapshot(plan.scenarioId, plan.id);
+    refreshPlanLibrary();
     if (planAId === plan.id) {
       setPlanAId(null);
     }
     if (planBId === plan.id) {
       setPlanBId(null);
     }
+    if (activePlanId === plan.id) {
+      setActivePlanId(null);
+    }
+  };
+
+  const handleRenamePlan = (plan: Plan, name: string) => {
+    renamePlanSnapshot(plan.scenarioId, plan.id, name);
+    refreshPlanLibrary();
   };
 
   const handleSave = () => {
@@ -2875,6 +2990,16 @@ export default function PlanLabPanel({
             {mode === "edit" && (
               <Button size="sm" variant="light" onClick={() => setSavePlanOpen(true)}>
                 {translate("planLabSavePlan", "Save plan")}
+              </Button>
+            )}
+            {mode === "edit" && (
+              <Button
+                size="sm"
+                variant="light"
+                onClick={handleUpdatePlan}
+                disabled={!activePlanId}
+              >
+                {translate("planLabUpdatePlan", "Update plan")}
               </Button>
             )}
             <Button size="sm" variant="light" onClick={() => setPlanLibraryOpen(true)}>
@@ -3516,7 +3641,7 @@ export default function PlanLabPanel({
             setPlanAId(planBId);
             setPlanBId(planAId);
           }}
-          onLoadPlan={(plan) => handleLoadPlanSnapshot(plan.snapshot)}
+          onLoadPlan={(plan) => handleLoadPlanSnapshot(plan)}
           displayMode={displayMode}
           deflateSeries={deflateSeries}
           locale={locale}
@@ -3532,13 +3657,14 @@ export default function PlanLabPanel({
         onClose={() => setPlanLibraryOpen(false)}
         scenario={scenario}
         plans={plans}
+        otherPlans={otherPlans}
         locale={locale}
         eventLibrary={eventLibrary}
         members={members}
         budgetRules={budgetRules}
         translate={translate}
         onLoadPlan={(plan) => {
-          handleLoadPlanSnapshot(plan.snapshot);
+          handleLoadPlanSnapshot(plan);
           setPlanLibraryOpen(false);
         }}
         onSetPlanA={(plan) => {
@@ -3552,6 +3678,7 @@ export default function PlanLabPanel({
           setPlanLibraryOpen(false);
         }}
         onDuplicatePlan={handleDuplicatePlan}
+        onRenamePlan={handleRenamePlan}
         onDeletePlan={handleDeletePlan}
       />
 
@@ -3560,7 +3687,7 @@ export default function PlanLabPanel({
         onClose={() => setSavePlanOpen(false)}
         snapshot={planSnapshot}
         defaultName={defaultPlanName}
-        warnings={planSnapshotWarnings}
+        warnings={[...planSnapshotWarnings, ...planPatchWarnings]}
         translate={translate}
         onSave={handleSavePlan}
       />

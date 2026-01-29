@@ -76,7 +76,7 @@ export const usePlanCompareProjections = ({
     setPlanAState({ status: "loading", result: null });
     const handle = setTimeout(() => {
       const result = getProjectionForPlanSnapshot(
-        planA.snapshot,
+        planA,
         scenario,
         eventLibrary,
         members,
@@ -115,7 +115,7 @@ export const usePlanCompareProjections = ({
     setPlanBState({ status: "loading", result: null });
     const handle = setTimeout(() => {
       const result = getProjectionForPlanSnapshot(
-        planB.snapshot,
+        planB,
         scenario,
         eventLibrary,
         members,

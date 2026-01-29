@@ -16,6 +16,7 @@ import type {
 } from "../../../domain/onboarding/applyDraft";
 import type { IncomeSubtype } from "../../timeline/schema";
 import EndConditionPicker, { type EndConditionMode } from "../../../../components/EndConditionPicker";
+import MonthField from "../../../../components/MonthField";
 
 interface StepIncomeSourcesProps {
   incomes: OnboardingIncomeDraft[];
@@ -137,12 +138,12 @@ export default function StepIncomeSources({
                 />
               </Group>
               <Stack gap="xs">
-                <TextInput
+                <MonthField
                   label={t("startMonth")}
                   placeholder="YYYY-MM"
                   value={income.startMonth ?? ""}
-                  onChange={(event) =>
-                    onUpdateIncome(income.id, { startMonth: event.currentTarget.value })
+                  onChange={(value) =>
+                    onUpdateIncome(income.id, { startMonth: value })
                   }
                   error={errors[`income.${income.id}.startMonth`]}
                 />

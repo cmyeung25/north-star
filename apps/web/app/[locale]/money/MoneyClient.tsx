@@ -4,12 +4,12 @@ import {
   Badge,
   Button,
   Card,
+  Divider,
   Drawer,
   Group,
   Modal,
   SegmentedControl,
   Select,
-  SimpleGrid,
   Stack,
   Switch,
   Tabs,
@@ -61,7 +61,7 @@ import {
   formatHomeSummary,
   formatInsuranceSummary,
   formatInvestmentSummary,
-  formatLoanSummary,
+  listEventTypesForGroup,
 } from "../../../components/timeline/utils";
 import {
   getScenarioById,
@@ -82,16 +82,43 @@ import { compileSellLifecycle } from "../../../src/domain/positions/compileSellL
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
+import MoneyFlowManager from "../../../features/moneyFlow/MoneyFlowManager";
+import AssetManager from "../../../features/assets/AssetManager";
+import LiabilityManager from "../../../features/liabilities/LiabilityManager";
+import EventManager from "../../../features/milestoneEvents/EventManager";
+import EventWizard from "../../../features/milestoneEvents/EventWizard";
 import type {
+  BudgetCategory,
   CarPositionDraft,
   HomePositionDraft,
   InsurancePositionDraft,
   InvestmentPositionDraft,
   LoanPositionDraft,
 } from "../../../src/store/scenarioStore";
-import type { EventGroup } from "@north-star/engine";
+import type { MilestoneEvent, MilestoneEventDraft } from "../../../src/domain/milestoneEvents/types";
+import { buildMilestoneScenarioSnapshot } from "../../../src/domain/milestoneEvents/snapshot";
 import { useUiStore } from "../../../src/store/uiStore";
 import { ONBOARDING_PLACEHOLDER_TAG } from "../../../src/domain/onboarding/mapOnboardingDraftToStoreItems";
+import {
+  buildMoneyCategoryLabelMap,
+  buildMoneyCategoryOptions,
+  buildMoneyItems,
+  removeMoneyItem,
+  upsertMoneyItem,
+} from "../../../features/moneyFlow/moneyFlowAdapter";
+import {
+  buildDerivedMoneyItemsForAsset,
+  buildDerivedMoneyItemsForLiability,
+  findDerivedMoneyItemsForAsset,
+  findDerivedMoneyItemsForLiability,
+} from "../../../features/moneyFlow/derivedMoneyItems";
+import { applyAssetItemChange, toAssetItems } from "../../../features/assets/assetAdapter";
+import {
+  applyLiabilityItemChange,
+  toLiabilityItems,
+} from "../../../features/liabilities/liabilityAdapter";
+import type { AssetItem } from "../../../features/assets/types";
+import type { LiabilityItem } from "../../../features/liabilities/types";
 
 type CashflowModalState = {
   opened: boolean;
@@ -135,6 +162,7 @@ const tabOrder: MoneyTab[] = [
 
 type MoneyAddAction =
   | "event"
+  | "oneOffExpense"
   | "home"
   | "investment"
   | "insurance"
@@ -170,6 +198,9 @@ export default function MoneyClient({
   const updateEventDefinition = useScenarioStore((state) => state.updateEventDefinition);
   const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
   const removeScenarioEventRef = useScenarioStore((state) => state.removeScenarioEventRef);
+  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
+  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
+  const setScenarioPositions = useScenarioStore((state) => state.setScenarioPositions);
   const addHomePosition = useScenarioStore((state) => state.addHomePosition);
   const updateHomePosition = useScenarioStore((state) => state.updateHomePosition);
   const removeHomePosition = useScenarioStore((state) => state.removeHomePosition);
@@ -187,6 +218,8 @@ export default function MoneyClient({
   const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
   const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
+  const applyMilestoneEvent = useScenarioStore((state) => state.applyMilestoneEvent);
+  const removeMilestoneEvent = useScenarioStore((state) => state.removeMilestoneEvent);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const resolvedScenarioId = useMemo(
     () => resolveScenarioIdFromQuery(scenarioId ?? null, activeScenarioId, scenarios),
@@ -252,9 +285,10 @@ export default function MoneyClient({
     }, {});
   }, [projection]);
   const [addFlowOpen, setAddFlowOpen] = useState(false);
-  const [addEventGroup, setAddEventGroup] = useState<EventGroup | null>(null);
-  const [addEventDrawerOpen, setAddEventDrawerOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
+  const [milestoneWizardOpen, setMilestoneWizardOpen] = useState(false);
+  const [editingMilestoneEvent, setEditingMilestoneEvent] = useState<MilestoneEvent | null>(null);
+  const [openOneOffExpense, setOpenOneOffExpense] = useState(false);
   const [creatingHome, setCreatingHome] = useState<HomePositionDraft | null>(null);
   const [creatingCar, setCreatingCar] = useState<CarPositionDraft | null>(null);
   const [creatingInvestment, setCreatingInvestment] =
@@ -345,6 +379,8 @@ export default function MoneyClient({
   const [inputsFilter, setInputsFilter] = useState<
     "all" | "rules" | "assets" | "events"
   >("all");
+  const [openAssetEditId, setOpenAssetEditId] = useState<string | null>(null);
+  const [openLiabilityEditId, setOpenLiabilityEditId] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveTab(resolvedTab);
@@ -378,11 +414,6 @@ export default function MoneyClient({
     setBreakdownMonthRange,
   ]);
 
-  const openEventDrawer = (group?: EventGroup) => {
-    setAddEventGroup(group ?? null);
-    setAddEventDrawerOpen(true);
-  };
-
   const memberLookup = useMemo(
     () => new Map(members.map((member) => [member.id, member.name])),
     [members]
@@ -392,24 +423,96 @@ export default function MoneyClient({
     if (!scenario) {
       return [];
     }
-    return buildScenarioEventViews(scenario, eventLibrary).map((view) => {
-      const event = buildTimelineEventFromDefinition(
-        view.definition,
-        view.ref,
-        {
-          baseCurrency: scenario.baseCurrency,
-          fallbackMonth: scenario.assumptions.baseMonth ?? null,
-        }
-      );
-      return { view, event };
-    });
+    return buildScenarioEventViews(scenario, eventLibrary)
+      .filter((view) => !view.definition.generatedByEventId)
+      .map((view) => {
+        const event = buildTimelineEventFromDefinition(
+          view.definition,
+          view.ref,
+          {
+            baseCurrency: scenario.baseCurrency,
+            fallbackMonth: scenario.assumptions.baseMonth ?? null,
+          }
+        );
+        return { view, event };
+      });
   }, [eventLibrary, scenario]);
-
-  const incomeEvents = eventRows.filter(
-    (row) => getEventGroup(row.event.type) === "income"
+  const budgetCategoryLabels = useMemo(
+    () => ({
+      health: budgetText("categoryHealth"),
+      baseline: budgetText("categoryBaseline"),
+      childcare: budgetText("categoryChildcare"),
+      education: budgetText("categoryEducation"),
+      eldercare: budgetText("categoryEldercare"),
+      petcare: budgetText("categoryPetcare"),
+    }),
+    [budgetText]
   );
-  const expenseEvents = eventRows.filter(
-    (row) => getEventGroup(row.event.type) === "expense"
+  const incomeEventTypes = useMemo(() => listEventTypesForGroup("income"), []);
+  const expenseEventTypes = useMemo(() => listEventTypesForGroup("expense"), []);
+  const moneyCategoryLabelMap = useMemo(
+    () =>
+      buildMoneyCategoryLabelMap(
+        [...incomeEventTypes, ...expenseEventTypes],
+        Object.keys(budgetCategoryLabels) as BudgetCategory[],
+        {
+          getEventLabel: (type) => getEventTypeDisplay(timelineText, type),
+          getBudgetLabel: (category) =>
+            budgetCategoryLabels[category as BudgetCategory] ?? category,
+        }
+      ),
+    [budgetCategoryLabels, expenseEventTypes, incomeEventTypes, timelineText]
+  );
+  const moneyCategoryOptions = useMemo(
+    () =>
+      buildMoneyCategoryOptions({
+        incomeEventTypes,
+        expenseEventTypes,
+        budgetCategories: Object.keys(budgetCategoryLabels) as BudgetCategory[],
+        labels: {
+          getEventLabel: (type) => getEventTypeDisplay(timelineText, type),
+          getBudgetLabel: (category) =>
+            budgetCategoryLabels[category as BudgetCategory] ?? category,
+        },
+      }),
+    [budgetCategoryLabels, expenseEventTypes, incomeEventTypes, timelineText]
+  );
+  const assetDerivedLabels = useMemo(
+    () => ({
+      ongoingCostLabels: {
+        managementFee: t("assetOngoingManagementFee"),
+        groundRent: t("assetOngoingGroundRent"),
+        insurance: t("assetOngoingInsurance"),
+        maintenance: t("assetOngoingMaintenance"),
+        inspection: t("assetOngoingInspection"),
+      },
+      rentalIncomeLabel: t("assetRentalIncomeLabel"),
+    }),
+    [t]
+  );
+  const liabilityPaymentLabel = useMemo(() => t("liabilityPaymentLabel"), [t]);
+  const moneyItems = useMemo(
+    () =>
+      scenario
+        ? buildMoneyItems({
+            scenario,
+            eventLibrary,
+            budgetRules,
+          })
+        : [],
+    [budgetRules, eventLibrary, scenario]
+  );
+  const milestoneEvents = scenario?.milestoneEvents ?? [];
+  const milestoneSnapshot = useMemo(
+    () =>
+      scenario
+        ? buildMilestoneScenarioSnapshot({
+            scenario,
+            eventLibrary,
+            budgetRules,
+          })
+        : null,
+    [budgetRules, eventLibrary, scenario]
   );
 
   const parentGroupOptions = useMemo(
@@ -446,9 +549,6 @@ export default function MoneyClient({
     ? buildScenarioUrl("/money", scenarioIdValue)
     : "/money";
   const timelineTabHref = `${timelineHref}${timelineHref.includes("?") ? "&" : "?"}tab=timeline`;
-  const budgetHref = scenarioIdValue
-    ? `/people?scenarioId=${scenarioIdValue}&tab=budget`
-    : "/people?tab=budget";
 
   const positions = scenario?.positions;
   const homes = useMemo(() => positions?.homes ?? [], [positions?.homes]);
@@ -481,21 +581,12 @@ export default function MoneyClient({
     [projection, smartInvestPolicy.allocation]
   );
   const inputRuleItems = useMemo(() => {
-    const categoryLabels: Record<string, string> = {
-      health: budgetText("categoryHealth"),
-      baseline: budgetText("categoryBaseline"),
-      childcare: budgetText("categoryChildcare"),
-      education: budgetText("categoryEducation"),
-      eldercare: budgetText("categoryEldercare"),
-      petcare: budgetText("categoryPetcare"),
-    };
-
     return budgetRules.map((rule) => ({
         id: rule.id,
         kind: "rule" as const,
         label: rule.name,
         description: t("inputsRuleMeta", {
-          category: categoryLabels[rule.category] ?? rule.category,
+          category: budgetCategoryLabels[rule.category] ?? rule.category,
           amount: formatCurrency(rule.monthlyAmount, scenario?.baseCurrency ?? "USD", locale),
         }),
         onEdit: () => {
@@ -511,7 +602,7 @@ export default function MoneyClient({
       }));
   }, [
     budgetRules,
-    budgetText,
+    budgetCategoryLabels,
     locale,
     removeBudgetRule,
     router,
@@ -635,6 +726,301 @@ export default function MoneyClient({
       timelineText,
     ]
   );
+
+  const resolveMoneyCategoryLabel = useMemo(
+    () => (category: string) => moneyCategoryLabelMap.get(category) ?? category,
+    [moneyCategoryLabelMap]
+  );
+  const assetItems = useMemo(
+    () => (scenario ? toAssetItems(scenario) : []),
+    [scenario]
+  );
+  const liabilityItems = useMemo(
+    () => (scenario ? toLiabilityItems(scenario) : []),
+    [scenario]
+  );
+  const handleUpsertMoneyItem = (item: Parameters<typeof upsertMoneyItem>[0]["item"]) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    upsertMoneyItem({
+      item,
+      scenarioId: scenarioIdValue,
+      baseCurrency: scenario.baseCurrency,
+      eventLibrary,
+      budgetRules,
+      actions: {
+        createBudgetRule,
+        updateBudgetRule,
+        addEventToScenarios,
+        updateEventDefinition,
+      },
+      resolveCategoryLabel: resolveMoneyCategoryLabel,
+    });
+  };
+  const handleRemoveMoneyItem = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    removeMoneyItem({
+      item,
+      scenarioId: scenarioIdValue,
+      actions: {
+        removeScenarioEventRef,
+        removeBudgetRule,
+      },
+    });
+  };
+  const handleDetachMoneyItem = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
+    if (!scenarioIdValue || (item.source !== "eventGenerated" && item.source !== "derived")) {
+      return;
+    }
+    if (item.sourceType === "budgetRule" && item.sourceId) {
+      updateBudgetRule(item.sourceId, {
+        source: "manual",
+        generatedByEventId: undefined,
+        generatedBy: undefined,
+        linkedAssetId: undefined,
+        linkedLiabilityId: undefined,
+      });
+      return;
+    }
+    if (item.sourceId) {
+      updateEventDefinition(item.sourceId, {
+        generatedByEventId: undefined,
+        source: "manual",
+        generatedBy: undefined,
+        linkedAssetId: undefined,
+        linkedLiabilityId: undefined,
+      });
+    }
+  };
+  const handleEditMoneySource = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
+    const generatedBy = item.generatedBy;
+    if (generatedBy?.type === "assetCost" || generatedBy?.type === "assetRental") {
+      setActiveTab("assets");
+      setOpenAssetEditId(generatedBy.assetId);
+      return;
+    }
+    if (generatedBy?.type === "loanPayment") {
+      setActiveTab("liabilities");
+      setOpenLiabilityEditId(generatedBy.liabilityId);
+      return;
+    }
+    if (item.linkedAssetId) {
+      setActiveTab("assets");
+      setOpenAssetEditId(item.linkedAssetId);
+    }
+    if (item.linkedLiabilityId) {
+      setActiveTab("liabilities");
+      setOpenLiabilityEditId(item.linkedLiabilityId);
+    }
+  };
+  const syncDerivedMoneyItemsForAsset = (asset: AssetItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const derivedItems = buildDerivedMoneyItemsForAsset({
+      asset,
+      baseCurrency: scenario.baseCurrency,
+      labels: assetDerivedLabels,
+    });
+    const existingDerivedItems = findDerivedMoneyItemsForAsset(moneyItems, asset.id);
+    existingDerivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
+    derivedItems.forEach((entry) =>
+      upsertMoneyItem({
+        item: entry,
+        scenarioId: scenarioIdValue,
+        baseCurrency: scenario.baseCurrency,
+        eventLibrary,
+        budgetRules,
+        actions: {
+          createBudgetRule,
+          updateBudgetRule,
+          addEventToScenarios,
+          updateEventDefinition,
+        },
+        resolveCategoryLabel: resolveMoneyCategoryLabel,
+      })
+    );
+  };
+  const syncDerivedMoneyItemsForLiability = (liability: LiabilityItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const derivedItems = buildDerivedMoneyItemsForLiability({
+      liability,
+      baseCurrency: scenario.baseCurrency,
+      label: liabilityPaymentLabel,
+    });
+    const existingDerivedItems = findDerivedMoneyItemsForLiability(moneyItems, liability.id);
+    existingDerivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
+    derivedItems.forEach((entry) =>
+      upsertMoneyItem({
+        item: entry,
+        scenarioId: scenarioIdValue,
+        baseCurrency: scenario.baseCurrency,
+        eventLibrary,
+        budgetRules,
+        actions: {
+          createBudgetRule,
+          updateBudgetRule,
+          addEventToScenarios,
+          updateEventDefinition,
+        },
+        resolveCategoryLabel: resolveMoneyCategoryLabel,
+      })
+    );
+  };
+  const handleUpsertAssetItem = (item: Parameters<typeof applyAssetItemChange>[1]["item"]) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyAssetItemChange(scenario, { type: "upsert", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+    const nextScenario = { ...scenario, positions: nextPositions };
+    const nextAsset = toAssetItems(nextScenario).find((entry) => entry.id === item.id);
+    if (nextAsset) {
+      syncDerivedMoneyItemsForAsset(nextAsset);
+    }
+  };
+  const handleRemoveAssetItem = (item: AssetItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyAssetItemChange(scenario, { type: "remove", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+    const derivedItems = findDerivedMoneyItemsForAsset(moneyItems, item.id);
+    derivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
+  };
+  const handleUpsertLiabilityItem = (
+    item: Parameters<typeof applyLiabilityItemChange>[1]["item"]
+  ) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyLiabilityItemChange(scenario, { type: "upsert", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+    const nextScenario = { ...scenario, positions: nextPositions };
+    const nextLiability = toLiabilityItems(nextScenario).find(
+      (entry) => entry.id === item.id
+    );
+    if (nextLiability) {
+      syncDerivedMoneyItemsForLiability(nextLiability);
+    }
+  };
+  const handleRemoveLiabilityItem = (item: LiabilityItem) => {
+    if (!scenario || !scenarioIdValue) {
+      return;
+    }
+    const nextPositions = applyLiabilityItemChange(scenario, { type: "remove", item });
+    setScenarioPositions(scenarioIdValue, nextPositions);
+    const derivedItems = findDerivedMoneyItemsForLiability(moneyItems, item.id);
+    derivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
+  };
+  const handleViewAssetItem = (item: AssetItem) => {
+    switch (item.assetType) {
+      case "property":
+        setAssetDetails({ type: "home", id: item.id });
+        break;
+      case "investment":
+        setAssetDetails({ type: "investment", id: item.id });
+        break;
+      case "insurance":
+        setAssetDetails({ type: "insurance", id: item.id });
+        break;
+      case "car":
+        setAssetDetails({ type: "car", id: item.id });
+        break;
+      default:
+        break;
+    }
+  };
+  const handleViewLiabilityItem = (item: LiabilityItem) => {
+    setAssetDetails({ type: "loan", id: item.id });
+  };
+  const handleEditMilestoneEvent = (event: MilestoneEvent) => {
+    setEditingMilestoneEvent(event);
+    setMilestoneWizardOpen(true);
+  };
+  const handleEditMilestoneEventById = (eventId: string) => {
+    const match = milestoneEvents.find((event) => event.id === eventId);
+    if (!match) {
+      return;
+    }
+    handleEditMilestoneEvent(match);
+  };
+  const handleCreateMilestoneEvent = () => {
+    setEditingMilestoneEvent(null);
+    setMilestoneWizardOpen(true);
+  };
+  const handleApplyMilestoneEvent = (draft: MilestoneEventDraft) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    const result = applyMilestoneEvent(scenarioIdValue, draft);
+    if (Object.keys(result.fieldErrors).length === 0) {
+      setMilestoneWizardOpen(false);
+      setEditingMilestoneEvent(null);
+    }
+  };
+  const handleRemoveMilestoneEvent = (eventId: string) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    removeMilestoneEvent(scenarioIdValue, eventId);
+  };
+  const handleDetachAssetItem = (item: AssetItem) => {
+    if (!scenario || !scenarioIdValue || item.source !== "eventGenerated") {
+      return;
+    }
+    const positions = scenario.positions ?? {};
+    if (item.assetType === "property") {
+      const nextHomes = (positions.homes ?? []).map((home) =>
+        home.id === item.id
+          ? { ...home, source: "manual" as const, generatedByEventId: undefined }
+          : home
+      );
+      setScenarioPositions(scenarioIdValue, { ...positions, homes: nextHomes });
+      return;
+    }
+    if (item.assetType === "investment") {
+      const nextInvestments = (positions.investments ?? []).map((investment) =>
+        investment.id === item.id
+          ? { ...investment, source: "manual" as const, generatedByEventId: undefined }
+          : investment
+      );
+      setScenarioPositions(scenarioIdValue, { ...positions, investments: nextInvestments });
+      return;
+    }
+    if (item.assetType === "insurance") {
+      const nextInsurances = (positions.insurances ?? []).map((insurance) =>
+        insurance.id === item.id
+          ? { ...insurance, source: "manual" as const, generatedByEventId: undefined }
+          : insurance
+      );
+      setScenarioPositions(scenarioIdValue, { ...positions, insurances: nextInsurances });
+      return;
+    }
+    const nextCars = (positions.cars ?? []).map((car) =>
+      car.id === item.id
+        ? { ...car, source: "manual" as const, generatedByEventId: undefined }
+        : car
+    );
+    setScenarioPositions(scenarioIdValue, { ...positions, cars: nextCars });
+  };
+  const handleDetachLiabilityItem = (item: LiabilityItem) => {
+    if (!scenario || !scenarioIdValue || item.source !== "eventGenerated") {
+      return;
+    }
+    const positions = scenario.positions ?? {};
+    const nextLoans = (positions.loans ?? []).map((loan) =>
+      loan.id === item.id
+        ? { ...loan, source: "manual" as const, generatedByEventId: undefined }
+        : loan
+    );
+    setScenarioPositions(scenarioIdValue, { ...positions, loans: nextLoans });
+  };
   const inputsItems = useMemo(() => {
     if (inputsFilter === "rules") {
       return inputRuleItems;
@@ -666,8 +1052,13 @@ export default function MoneyClient({
     }
     const action = initialAdd as MoneyAddAction;
     if (action === "event") {
-      setAddEventGroup(null);
-      setAddEventDrawerOpen(true);
+      setActiveTab("income");
+      hasHandledInitialAdd.current = true;
+      return;
+    }
+    if (action === "oneOffExpense") {
+      setActiveTab("expenses");
+      setOpenOneOffExpense(true);
       hasHandledInitialAdd.current = true;
       return;
     }
@@ -1456,20 +1847,21 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("incomeDescription")}
             </Text>
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text size="sm" c="dimmed">
-                {t("incomeListLabel")}
-              </Text>
-              <Button
-                size="xs"
-                variant="light"
-                onClick={() => openEventDrawer("income")}
-                disabled={!scenarioIdValue}
-              >
-                {t("addIncomeEvent")}
-              </Button>
-            </Group>
-            {renderEventList(incomeEvents, { showEditButton: true })}
+            <MoneyFlowManager
+              items={moneyItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              members={members}
+              categoryLabels={moneyCategoryLabelMap}
+              categoryOptions={moneyCategoryOptions}
+              defaultFilters={{ kind: "income" }}
+              defaultNewItem={{ kind: "income", cadence: "recurring" }}
+              onUpsert={handleUpsertMoneyItem}
+              onDelete={handleRemoveMoneyItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachMoneyItem}
+              onEditSource={handleEditMoneySource}
+            />
           </Stack>
         </Tabs.Panel>
 
@@ -1478,28 +1870,29 @@ export default function MoneyClient({
             <Card withBorder radius="md" padding="md">
               <Text size="sm">{t("expenseGuidance")}</Text>
             </Card>
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text size="sm" c="dimmed">
-                {t("expensesDescription")}
-              </Text>
-              <Group gap="xs">
-                <Button component={Link} href={budgetHref} size="xs" variant="light">
-                  {t("expensesBudgetCta")}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() => openEventDrawer("expense")}
-                  disabled={!scenarioIdValue}
-                >
-                  {t("addExpenseEvent")}
-                </Button>
-              </Group>
-            </Group>
-            {renderEventList(expenseEvents, {
-              showOverlapHint: true,
-              showEditButton: true,
-            })}
+            <Text size="sm" c="dimmed">
+              {t("expensesDescription")}
+            </Text>
+            <MoneyFlowManager
+              items={moneyItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              members={members}
+              categoryLabels={moneyCategoryLabelMap}
+              categoryOptions={moneyCategoryOptions}
+              defaultFilters={{ kind: "expense" }}
+              defaultNewItem={{
+                kind: "expense",
+                cadence: openOneOffExpense ? "oneOff" : "recurring",
+              }}
+              onUpsert={handleUpsertMoneyItem}
+              onDelete={handleRemoveMoneyItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachMoneyItem}
+              onEditSource={handleEditMoneySource}
+              openNewItem={openOneOffExpense}
+              onOpenNewItemHandled={() => setOpenOneOffExpense(false)}
+            />
           </Stack>
         </Tabs.Panel>
 
@@ -1508,139 +1901,20 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("assetsDescription")}
             </Text>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{homesText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingHome(createHomePositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {homesText("addHome")}
-                </Button>
-              </Group>
-              {homes.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {homesText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {homes.map((home) => (
-                    <Card key={home.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{homesText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatHomeSummary(homesText, home, scenario?.baseCurrency ?? "USD", locale)}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setAssetDetails({ type: "home", id: home.id })}
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingHomeId(home.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: home.id,
-                                label: homesText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{investmentsText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingInvestment(createInvestmentPositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {investmentsText("addInvestment")}
-                </Button>
-              </Group>
-              {investments.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {investmentsText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {investments.map((investment) => (
-                    <Card key={investment.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{investmentsText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatInvestmentSummary(
-                            investmentsText,
-                            investment,
-                            scenario?.baseCurrency ?? "USD",
-                            locale
-                          )}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() =>
-                              setAssetDetails({ type: "investment", id: investment.id })
-                            }
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingInvestmentId(investment.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: investment.id ?? "",
-                                label: investmentsText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
+            <AssetManager
+              items={assetItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              members={members}
+              moneyItems={moneyItems}
+              onUpsert={handleUpsertAssetItem}
+              onDelete={handleRemoveAssetItem}
+              onView={handleViewAssetItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachAssetItem}
+              openEditId={openAssetEditId}
+              onOpenEditHandled={() => setOpenAssetEditId(null)}
+            />
             <Stack gap="sm">
               <Group justify="space-between" align="center" wrap="wrap">
                 <Text fw={600}>{timelineText("smartInvestTitle")}</Text>
@@ -1680,139 +1954,6 @@ export default function MoneyClient({
                 </Stack>
               </Card>
             </Stack>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{insurancesText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingInsurance(createInsurancePositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {insurancesText("addInsurance")}
-                </Button>
-              </Group>
-              {insurances.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {insurancesText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {insurances.map((insurance) => (
-                    <Card key={insurance.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{insurancesText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatInsuranceSummary(
-                            insurancesText,
-                            insurance,
-                            scenario?.baseCurrency ?? "USD",
-                            locale
-                          )}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() =>
-                              setAssetDetails({ type: "insurance", id: insurance.id })
-                            }
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingInsuranceId(insurance.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: insurance.id ?? "",
-                                label: insurancesText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <Text fw={600}>{carsText("title")}</Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() =>
-                    setCreatingCar(createCarPositionFromTemplate({ baseMonth }))
-                  }
-                  disabled={!scenarioIdValue}
-                >
-                  {carsText("addCar")}
-                </Button>
-              </Group>
-              {cars.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {carsText("empty")}
-                </Text>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {cars.map((car) => (
-                    <Card key={car.id} withBorder radius="md" padding="sm">
-                      <Stack gap={4}>
-                        <Text fw={600}>{carsText("title")}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatCarSummary(carsText, car, scenario?.baseCurrency ?? "USD", locale)}
-                        </Text>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setAssetDetails({ type: "car", id: car.id })}
-                          >
-                            {common("actionDetails")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            onClick={() => setEditingCarId(car.id)}
-                          >
-                            {common("actionEdit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setDeleteConfirmation({
-                                type: "asset",
-                                id: car.id ?? "",
-                                label: carsText("title"),
-                              });
-                            }}
-                          >
-                            {common("actionDelete")}
-                          </Button>
-                        </Group>
-                      </Stack>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Stack>
           </Stack>
         </Tabs.Panel>
 
@@ -1821,117 +1962,97 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("liabilitiesDescription")}
             </Text>
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text fw={600}>{loansText("title")}</Text>
-              <Button
-                size="xs"
-                variant="light"
-                onClick={() => setCreatingLoan(createLoanPositionFromTemplate({ baseMonth }))}
-                disabled={!scenarioIdValue}
-              >
-                {loansText("addLoan")}
-              </Button>
-            </Group>
-            {loans.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                {loansText("empty")}
-              </Text>
-            ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                {loans.map((loan) => (
-                  <Card key={loan.id} withBorder radius="md" padding="sm">
-                    <Stack gap={4}>
-                      <Text fw={600}>{loansText("title")}</Text>
-                      <Text size="sm" c="dimmed">
-                        {formatLoanSummary(loansText, loan, scenario?.baseCurrency ?? "USD", locale)}
-                      </Text>
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setAssetDetails({ type: "loan", id: loan.id })}
-                        >
-                          {common("actionDetails")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => setEditingLoanId(loan.id)}
-                        >
-                          {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          color="red"
-                          onClick={() => {
-                            setDeleteConfirmation({
-                              type: "loan",
-                              id: loan.id ?? "",
-                              label: loansText("title"),
-                            });
-                          }}
-                        >
-                          {common("actionDelete")}
-                        </Button>
-                      </Group>
-                    </Stack>
-                  </Card>
-                ))}
-              </SimpleGrid>
-            )}
+            <LiabilityManager
+              items={liabilityItems}
+              baseCurrency={scenario?.baseCurrency ?? "USD"}
+              locale={locale}
+              moneyItems={moneyItems}
+              onUpsert={handleUpsertLiabilityItem}
+              onDelete={handleRemoveLiabilityItem}
+              onView={handleViewLiabilityItem}
+              onEditEvent={handleEditMilestoneEventById}
+              onDetach={handleDetachLiabilityItem}
+              openEditId={openLiabilityEditId}
+              onOpenEditHandled={() => setOpenLiabilityEditId(null)}
+            />
           </Stack>
         </Tabs.Panel>
 
         <Tabs.Panel value="timeline" pt="md">
           <Stack gap="md">
-            <Group justify="space-between" align="center" wrap="wrap">
-              <Text size="sm" c="dimmed">
-                {t("timelineDescription")}
-              </Text>
-              <Switch
-                label={t("highlightFilter")}
-                checked={highlightOnly}
-                onChange={(event) => setHighlightOnly(event.currentTarget.checked)}
-              />
-            </Group>
-            <Group wrap="wrap">
-              <Select
-                value={memberFilter}
-                onChange={setMemberFilter}
-                data={[
-                  { value: "all", label: t("filterAllMembers") },
-                  ...members.map((member) => ({
-                    value: member.id,
-                    label: member.name,
-                  })),
-                ]}
-                placeholder={t("filterMemberPlaceholder")}
-              />
-              <Select
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                data={[
-                  { value: "all", label: t("filterAllCategories") },
-                  ...Array.from(new Set(eventRows.map((row) => row.event.type))).map((type) => ({
-                    value: type,
-                    label: getEventTypeDisplay(timelineText, type),
-                  })),
-                ]}
-                placeholder={t("filterCategoryPlaceholder")}
-              />
-            </Group>
+            <EventManager
+              events={milestoneEvents}
+              onCreate={handleCreateMilestoneEvent}
+              onEdit={handleEditMilestoneEvent}
+              onDelete={handleRemoveMilestoneEvent}
+            />
             <Card withBorder radius="md" padding="md">
-              <Text size="sm">{t("timelineWarning")}</Text>
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text size="sm" c="dimmed">
+                  {t("timelineDescription")}
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => {
+                    setActiveTab("expenses");
+                    setOpenOneOffExpense(true);
+                  }}
+                >
+                  {t("timelineOneOffCta")}
+                </Button>
+              </Group>
             </Card>
-            {renderEventList(timelineEvents, {
-              showHighlightToggle: true,
-              showOverlapHint: true,
-              showEditButton: true,
-            })}
-            <Button component={Link} href={timelineTabHref} size="xs" variant="light">
-              {common("openTimeline")}
-            </Button>
+            <Divider />
+            <Stack gap="md">
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text size="sm" fw={600}>
+                  {t("legacyEventsTitle")}
+                </Text>
+                <Switch
+                  label={t("highlightFilter")}
+                  checked={highlightOnly}
+                  onChange={(event) => setHighlightOnly(event.currentTarget.checked)}
+                />
+              </Group>
+              <Group wrap="wrap">
+                <Select
+                  value={memberFilter}
+                  onChange={setMemberFilter}
+                  data={[
+                    { value: "all", label: t("filterAllMembers") },
+                    ...members.map((member) => ({
+                      value: member.id,
+                      label: member.name,
+                    })),
+                  ]}
+                  placeholder={t("filterMemberPlaceholder")}
+                />
+                <Select
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  data={[
+                    { value: "all", label: t("filterAllCategories") },
+                    ...Array.from(new Set(eventRows.map((row) => row.event.type))).map((type) => ({
+                      value: type,
+                      label: getEventTypeDisplay(timelineText, type),
+                    })),
+                  ]}
+                  placeholder={t("filterCategoryPlaceholder")}
+                />
+              </Group>
+              <Card withBorder radius="md" padding="md">
+                <Text size="sm">{t("timelineWarning")}</Text>
+              </Card>
+              {renderEventList(timelineEvents, {
+                showHighlightToggle: true,
+                showOverlapHint: true,
+                showEditButton: true,
+              })}
+              <Button component={Link} href={timelineTabHref} size="xs" variant="light">
+                {common("openTimeline")}
+              </Button>
+            </Stack>
           </Stack>
         </Tabs.Panel>
 
@@ -2021,6 +2142,24 @@ export default function MoneyClient({
         onClose={() => setAddFlowOpen(false)}
         scenarioId={scenarioIdValue ?? null}
       />
+
+      {milestoneSnapshot && (
+        <EventWizard
+          opened={milestoneWizardOpen}
+          onClose={() => {
+            setMilestoneWizardOpen(false);
+            setEditingMilestoneEvent(null);
+          }}
+          baseCurrency={scenario?.baseCurrency ?? "USD"}
+          members={members}
+          incomeCategories={moneyCategoryOptions.incomeOptions}
+          expenseCategories={moneyCategoryOptions.expenseOptions}
+          budgetCategories={moneyCategoryOptions.budgetOptions}
+          snapshot={milestoneSnapshot}
+          initialEvent={editingMilestoneEvent}
+          onApply={handleApplyMilestoneEvent}
+        />
+      )}
 
       <Drawer
         opened={Boolean(assetDetails)}
@@ -2154,36 +2293,6 @@ export default function MoneyClient({
 
       {scenario && scenarioIdValue && (
         <>
-          <TimelineEventDrawer
-            mode="create"
-            opened={addEventDrawerOpen}
-            onClose={() => {
-              setAddEventDrawerOpen(false);
-              setAddEventGroup(null);
-            }}
-            baseCurrency={scenario.baseCurrency}
-            baseMonth={baseMonth}
-            assumptions={{
-              baseMonth,
-              horizonMonths: scenario.assumptions.horizonMonths ?? 0,
-            }}
-            members={members}
-            scenarioOptions={scenarios.map((entry) => ({
-              value: entry.id,
-              label: entry.name,
-            }))}
-            defaultScenarioId={scenarioIdValue}
-            defaultMonth={baseMonth}
-            defaultGroup={addEventGroup ?? undefined}
-            parentGroupOptions={parentGroupOptions}
-            onAddDefinition={(definition, scenarioIds) =>
-              addEventToScenarios(definition, scenarioIds)
-            }
-            onAddHomePosition={() =>
-              setCreatingHome(createHomePositionFromTemplate({ baseMonth }))
-            }
-          />
-
           <TimelineEventDrawer
             mode="edit"
             opened={Boolean(editingEvent)}

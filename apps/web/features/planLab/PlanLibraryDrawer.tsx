@@ -38,6 +38,7 @@ type PlanLibraryDrawerProps = {
   onClose: () => void;
   scenario: Scenario;
   plans: Plan[];
+  otherPlans: Plan[];
   locale: string;
   eventLibrary: EventDefinition[];
   members: ScenarioMember[];
@@ -47,6 +48,7 @@ type PlanLibraryDrawerProps = {
   onSetPlanA: (plan: Plan) => void;
   onSetPlanB: (plan: Plan) => void;
   onDuplicatePlan: (plan: Plan) => void;
+  onRenamePlan: (plan: Plan, name: string) => void;
   onDeletePlan: (plan: Plan) => void;
 };
 
@@ -58,7 +60,7 @@ const computePlanMetric = (
   budgetRules: BudgetRule[]
 ): PlanMetric => {
   const result = getProjectionForPlanSnapshot(
-    plan.snapshot,
+    plan,
     scenario,
     eventLibrary,
     members,
@@ -90,6 +92,7 @@ export const PlanLibraryDrawer = ({
   onClose,
   scenario,
   plans,
+  otherPlans,
   locale,
   eventLibrary,
   members,
@@ -99,20 +102,26 @@ export const PlanLibraryDrawer = ({
   onSetPlanA,
   onSetPlanB,
   onDuplicatePlan,
+  onRenamePlan,
   onDeletePlan,
 }: PlanLibraryDrawerProps) => {
   const [metrics, setMetrics] = useState<Record<string, PlanMetric>>({});
 
-  const sortedPlans = useMemo(
-    () => [...plans].sort((a, b) => b.updatedAt - a.updatedAt),
-    [plans]
-  );
+  const sortedPlans = useMemo(() => {
+    const combined = [
+      ...plans,
+      ...otherPlans.map((plan) => ({ ...plan, name: `${plan.name}` })),
+    ];
+    return combined.sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [otherPlans, plans]);
 
   useEffect(() => {
     if (!opened) {
       return;
     }
-    const pending = sortedPlans.slice(0, 5).filter((plan) => !metrics[plan.id]);
+    const pending = sortedPlans
+      .slice(0, 5)
+      .filter((plan) => !metrics[plan.id] && plan.scenarioId === scenario.id);
     if (pending.length === 0) {
       return;
     }
@@ -152,9 +161,10 @@ export const PlanLibraryDrawer = ({
         {sortedPlans.map((plan) => {
           const metric = metrics[plan.id];
           const badgeColor = metric?.status === "bust" ? "red" : "teal";
+          const isCompatible = plan.scenarioId === scenario.id;
           const baselineMismatch =
-            plan.baseScenarioVersion !== undefined &&
-            plan.baseScenarioVersion !== scenario.version;
+            plan.baselineRevision !== undefined &&
+            plan.baselineRevision !== scenario.version;
           return (
             <Card key={plan.id} withBorder radius="md" padding="sm">
               <Stack gap="xs">
@@ -173,15 +183,29 @@ export const PlanLibraryDrawer = ({
                         •••
                       </ActionIcon>
                     </Menu.Target>
-                    <Menu.Dropdown>
-                      <Menu.Item onClick={() => onLoadPlan(plan)}>
+                  <Menu.Dropdown>
+                      <Menu.Item onClick={() => onLoadPlan(plan)} disabled={!isCompatible}>
                         {translate("planLabPlanLoad", "Load into editor")}
                       </Menu.Item>
-                      <Menu.Item onClick={() => onSetPlanA(plan)}>
+                      <Menu.Item onClick={() => onSetPlanA(plan)} disabled={!isCompatible}>
                         {translate("planLabPlanSetA", "Set as Plan A")}
                       </Menu.Item>
-                      <Menu.Item onClick={() => onSetPlanB(plan)}>
+                      <Menu.Item onClick={() => onSetPlanB(plan)} disabled={!isCompatible}>
                         {translate("planLabPlanSetB", "Set as Plan B")}
+                      </Menu.Item>
+                      <Menu.Item
+                        onClick={() => {
+                          const nextName = window.prompt(
+                            translate("planLabPlanRenamePrompt", "Rename plan"),
+                            plan.name
+                          );
+                          if (nextName && nextName.trim().length > 0) {
+                            onRenamePlan(plan, nextName.trim());
+                          }
+                        }}
+                        disabled={!isCompatible}
+                      >
+                        {translate("planLabPlanRename", "Rename")}
                       </Menu.Item>
                       <Menu.Item onClick={() => onDuplicatePlan(plan)}>
                         {translate("planLabPlanDuplicate", "Duplicate")}
@@ -213,6 +237,11 @@ export const PlanLibraryDrawer = ({
                     )}
                   </Badge>
                 )}
+                {!isCompatible && (
+                  <Badge color="gray" variant="light">
+                    {translate("planLabPlanScenarioMismatch", "Different scenario")}
+                  </Badge>
+                )}
                 <Group justify="space-between" align="center">
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">
@@ -237,7 +266,11 @@ export const PlanLibraryDrawer = ({
                       <Button
                         size="xs"
                         variant="subtle"
+                        disabled={!isCompatible}
                         onClick={() => {
+                          if (!isCompatible) {
+                            return;
+                          }
                           setMetrics((current) => ({
                             ...current,
                             [plan.id]: { isLoading: true },
