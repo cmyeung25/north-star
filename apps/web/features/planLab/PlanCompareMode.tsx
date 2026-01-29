@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import { useMemo } from "react";
 import type { EventDefinition } from "../../src/domain/events/types";
-import type { PlanSnapshot } from "../../src/domain/planLab/types";
+import type { Plan } from "../../src/domain/planLab/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
 import { formatCurrency } from "../../lib/i18n";
 import { diffPlanSnapshots } from "./diffPlanSnapshots";
@@ -36,13 +36,13 @@ type TranslateFn = (
 
 type PlanCompareModeProps = {
   scenario: Scenario;
-  plans: PlanSnapshot[];
+  plans: Plan[];
   planAId: string | null;
   planBId: string | null;
   onPlanAChange: (id: string | null) => void;
   onPlanBChange: (id: string | null) => void;
   onSwapPlans: () => void;
-  onLoadPlan: (plan: PlanSnapshot) => void;
+  onLoadPlan: (plan: Plan) => void;
   displayMode: "nominal" | "real";
   deflateSeries: (series: Array<{ month: string; value: number }>) => Array<{
     month: string;
@@ -143,12 +143,14 @@ export const PlanCompareMode = ({
     if (!planA || !planB) {
       return [];
     }
-    return diffPlanSnapshots(planA, planB, translate);
+    return diffPlanSnapshots(planA.snapshot, planB.snapshot, translate);
   }, [planA, planB, translate]);
 
   const baselineMismatch =
-    (planA && planA.baselineRevision !== scenario.version) ||
-    (planB && planB.baselineRevision !== scenario.version);
+    (planA?.baseScenarioVersion !== undefined &&
+      planA.baseScenarioVersion !== scenario.version) ||
+    (planB?.baseScenarioVersion !== undefined &&
+      planB.baseScenarioVersion !== scenario.version);
 
   const isLoading = planAState.status === "loading" || planBState.status === "loading";
 
@@ -259,92 +261,57 @@ export const PlanCompareMode = ({
             )}
             {!isLoading && planA && planB && (
               <Stack gap="sm">
-                {[
-                  { label: "A", plan: planA, state: planAState },
-                  { label: "B", plan: planB, state: planBState },
-                ].map(({ label, plan, state }) => {
-                  const projection = state.result?.projection ?? null;
-                  const minCash = projection ? getMinCash(projection) : null;
-                  const cashBalance = projection?.cashBalance ?? [];
-                  const negativeMonths = cashBalance.filter((value) => value < 0).length;
-                  const netWorthSeries = state.result?.overview?.netWorthSeries ?? [];
-                  const endNetWorth = netWorthSeries.slice(-1)[0]?.value ?? null;
-                  let peak = Number.NEGATIVE_INFINITY;
-                  let maxDrawdown = 0;
-                  netWorthSeries.forEach((point) => {
-                    peak = Math.max(peak, point.value);
-                    if (peak > 0) {
-                      const drawdown = (peak - point.value) / peak;
-                      maxDrawdown = Math.max(maxDrawdown, drawdown);
-                    }
-                  });
-                  const drawdownLabel =
-                    maxDrawdown > 0 ? `${(maxDrawdown * 100).toFixed(1)}%` : null;
-
-                  return (
-                    <Card key={plan.id} withBorder radius="md" padding="sm">
-                      <Group justify="space-between" align="center">
-                        <Text fw={600}>
-                          {translate("planLabComparePlanLabel", "Plan {label}", { label })}
-                        </Text>
-                        <Badge variant="light">{plan.name}</Badge>
-                      </Group>
-                      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-                        <Stack gap={2}>
-                          <Text size="xs" c="dimmed">
-                            {translate("planLabCompareMinCash", "Worst cash")}
-                          </Text>
-                          {minCash ? (
-                            <Text size="sm">
-                              {formatCurrency(minCash.value, scenario.baseCurrency, locale)}
-                              {minCash.month && (
-                                <Text size="xs" c="dimmed">
-                                  {minCash.month}
-                                </Text>
-                              )}
+                {[{ label: "A", plan: planA, state: planAState }, { label: "B", plan: planB, state: planBState }].map(
+                  ({ label, plan, state }) => {
+                    const projection = state.result?.projection ?? null;
+                    const minCash = projection ? getMinCash(projection) : null;
+                    const endNetWorth = state.result?.overview?.netWorthSeries?.slice(-1)[0]
+                      ?.value ?? null;
+                    return (
+                      <Card key={plan.id} withBorder radius="md" padding="sm">
+                        <Group justify="space-between" align="center">
+                          <Text fw={600}>{translate("planLabComparePlanLabel", "Plan {label}", { label })}</Text>
+                          <Badge variant="light">{plan.name}</Badge>
+                        </Group>
+                        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {translate("planLabCompareMinCash", "Min cash")}
                             </Text>
-                          ) : (
-                            <Text size="sm" c="dimmed">
-                              {translate("planLabCompareValueUnavailable", "Unavailable")}
+                            {minCash ? (
+                              <Text size="sm">
+                                {formatCurrency(minCash.value, scenario.baseCurrency, locale)}
+                                {minCash.month && (
+                                  <Text size="xs" c="dimmed">
+                                    {minCash.month}
+                                  </Text>
+                                )}
+                              </Text>
+                            ) : (
+                              <Text size="sm" c="dimmed">
+                                {translate("planLabCompareValueUnavailable", "Unavailable")}
+                              </Text>
+                            )}
+                          </Stack>
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              {translate("planLabCompareEndNetWorth", "End net worth")}
                             </Text>
-                          )}
-                        </Stack>
-                        <Stack gap={2}>
-                          <Text size="xs" c="dimmed">
-                            {translate("planLabCompareNegativeMonths", "Negative months")}
-                          </Text>
-                          <Text size="sm">{negativeMonths}</Text>
-                        </Stack>
-                        <Stack gap={2}>
-                          <Text size="xs" c="dimmed">
-                            {translate("planLabCompareEndNetWorth", "End net worth")}
-                          </Text>
-                          {endNetWorth != null ? (
-                            <Text size="sm">
-                              {formatCurrency(endNetWorth, scenario.baseCurrency, locale)}
-                            </Text>
-                          ) : (
-                            <Text size="sm" c="dimmed">
-                              {translate("planLabCompareValueUnavailable", "Unavailable")}
-                            </Text>
-                          )}
-                        </Stack>
-                        <Stack gap={2}>
-                          <Text size="xs" c="dimmed">
-                            {translate("planLabCompareDrawdown", "Max drawdown")}
-                          </Text>
-                          {drawdownLabel ? (
-                            <Text size="sm">{drawdownLabel}</Text>
-                          ) : (
-                            <Text size="sm" c="dimmed">
-                              {translate("planLabCompareValueUnavailable", "Unavailable")}
-                            </Text>
-                          )}
-                        </Stack>
-                      </SimpleGrid>
-                    </Card>
-                  );
-                })}
+                            {endNetWorth != null ? (
+                              <Text size="sm">
+                                {formatCurrency(endNetWorth, scenario.baseCurrency, locale)}
+                              </Text>
+                            ) : (
+                              <Text size="sm" c="dimmed">
+                                {translate("planLabCompareValueUnavailable", "Unavailable")}
+                              </Text>
+                            )}
+                          </Stack>
+                        </SimpleGrid>
+                      </Card>
+                    );
+                  }
+                )}
               </Stack>
             )}
           </Stack>

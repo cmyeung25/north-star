@@ -27,6 +27,15 @@ type SavePlanModalProps = {
   onSave: (name: string) => void;
 };
 
+const countBaselinePatches = (snapshot: PlanSnapshot) => {
+  const baseline = snapshot.baselinePatches ?? {};
+  const eventCount = Object.keys(baseline.eventPatches ?? {}).length;
+  const ruleCount = Object.keys(baseline.rulePatches ?? {}).length;
+  const positionCount = Object.keys(baseline.positionPatches ?? {}).length;
+  const smartInvestCount = baseline.smartInvestPatch ? 1 : 0;
+  return eventCount + ruleCount + positionCount + smartInvestCount;
+};
+
 export const SavePlanModal = ({
   opened,
   onClose,
@@ -44,11 +53,8 @@ export const SavePlanModal = ({
     }
   }, [defaultName, opened]);
 
-  const patchCount = useMemo(() => snapshot.patches.length, [snapshot.patches.length]);
-  const addCount = useMemo(
-    () => snapshot.patches.filter((patch) => patch.op === "add").length,
-    [snapshot.patches]
-  );
+  const baselineCount = useMemo(() => countBaselinePatches(snapshot), [snapshot]);
+  const experimentCount = snapshot.experiments?.length ?? 0;
 
   return (
     <Modal
@@ -64,13 +70,13 @@ export const SavePlanModal = ({
         />
         <Group gap="md">
           <Text size="sm">
-            {translate("planLabSavePlanPatchCount", "Edits: {count}", {
-              count: patchCount,
+            {translate("planLabSavePlanBaselineCount", "Baseline edits: {count}", {
+              count: baselineCount,
             })}
           </Text>
           <Text size="sm">
-            {translate("planLabSavePlanAddCount", "Adds: {count}", {
-              count: addCount,
+            {translate("planLabSavePlanExperimentCount", "Experiments: {count}", {
+              count: experimentCount,
             })}
           </Text>
         </Group>
