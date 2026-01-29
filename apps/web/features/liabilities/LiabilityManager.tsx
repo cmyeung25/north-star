@@ -31,6 +31,7 @@ type LiabilityItemDraft = {
   termMonths: string;
   notes: string;
   source: LiabilityItem["source"];
+  generatedByEventId?: string;
 };
 
 const buildDraft = (item: LiabilityItem | null, baseCurrency: string): LiabilityItemDraft => {
@@ -62,6 +63,7 @@ const buildDraft = (item: LiabilityItem | null, baseCurrency: string): Liability
     termMonths: item.termMonths ? String(item.termMonths) : "",
     notes: item.notes ?? "",
     source: item.source,
+    generatedByEventId: item.generatedByEventId,
   };
 };
 
@@ -72,6 +74,8 @@ type LiabilityManagerProps = {
   onUpsert: (item: LiabilityItemUpsert) => void;
   onDelete: (item: LiabilityItem) => void;
   onView?: (item: LiabilityItem) => void;
+  onEditEvent?: (eventId: string) => void;
+  onDetach?: (item: LiabilityItem) => void;
 };
 
 export default function LiabilityManager({
@@ -81,6 +85,8 @@ export default function LiabilityManager({
   onUpsert,
   onDelete,
   onView,
+  onEditEvent,
+  onDetach,
 }: LiabilityManagerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -126,6 +132,7 @@ export default function LiabilityManager({
       };
     }
   );
+  const isReadOnly = draft.source === "eventGenerated" || draft.source === "derived";
 
   const filteredItems = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -181,6 +188,7 @@ export default function LiabilityManager({
       termMonths: result.value.termMonths === "" ? undefined : Number(result.value.termMonths),
       notes: result.value.notes || undefined,
       source: result.value.source,
+      generatedByEventId: result.value.generatedByEventId,
     };
     onUpsert(nextValue);
     closeDrawer();
@@ -222,6 +230,7 @@ export default function LiabilityManager({
               item.currency,
               locale
             );
+            const isGenerated = item.source === "eventGenerated";
             return (
               <Card key={item.id} withBorder radius="md" padding="sm">
                 <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -236,6 +245,11 @@ export default function LiabilityManager({
                         month: item.startMonth || "--",
                       })}
                     </Text>
+                    {isGenerated && (
+                      <Text size="xs" c="dimmed">
+                        {t("eventGeneratedBadge")}
+                      </Text>
+                    )}
                   </Stack>
                   <Group gap="xs">
                     {onView && (
@@ -243,17 +257,41 @@ export default function LiabilityManager({
                         {t("liabilityManagerView")}
                       </Button>
                     )}
-                    <Button size="xs" variant="light" onClick={() => openDrawer(item)}>
-                      {common("actionEdit")}
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      color="red"
-                      onClick={() => onDelete(item)}
-                    >
-                      {common("actionDelete")}
-                    </Button>
+                    {isGenerated ? (
+                      <>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() =>
+                            item.generatedByEventId && onEditEvent?.(item.generatedByEventId)
+                          }
+                          disabled={!item.generatedByEventId}
+                        >
+                          {t("eventGeneratedEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => onDetach?.(item)}
+                        >
+                          {t("eventGeneratedDetach")}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="xs" variant="light" onClick={() => openDrawer(item)}>
+                          {common("actionEdit")}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={() => onDelete(item)}
+                        >
+                          {common("actionDelete")}
+                        </Button>
+                      </>
+                    )}
                   </Group>
                 </Group>
               </Card>
@@ -270,6 +308,38 @@ export default function LiabilityManager({
         title={editingItem ? t("liabilityFormEditTitle") : t("liabilityFormCreateTitle")}
       >
         <Stack gap="sm">
+          {editingItem?.source === "eventGenerated" && (
+            <Card withBorder radius="md" padding="sm">
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {t("eventGeneratedTitle")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("eventGeneratedHint")}
+                </Text>
+                <Group gap="xs">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() =>
+                      editingItem.generatedByEventId &&
+                      onEditEvent?.(editingItem.generatedByEventId)
+                    }
+                    disabled={!editingItem.generatedByEventId}
+                  >
+                    {t("eventGeneratedEdit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => onDetach?.(editingItem)}
+                  >
+                    {t("eventGeneratedDetach")}
+                  </Button>
+                </Group>
+              </Stack>
+            </Card>
+          )}
           <Select
             label={t("liabilityFormTypeLabel")}
             value={draft.liabilityType}
@@ -284,12 +354,14 @@ export default function LiabilityManager({
               { value: "loan", label: t("liabilityTypeLoan") },
               { value: "other", label: t("liabilityTypeOther") },
             ]}
+            disabled={isReadOnly}
           />
           <TextInput
             label={t("liabilityFormNameLabel")}
             value={draft.name}
             onChange={(event) => setDraft((current) => ({ ...current, name: event.currentTarget.value }))}
             error={errors.name}
+            disabled={isReadOnly}
           />
           <NumberInput
             label={t("liabilityFormPrincipalLabel")}
@@ -302,6 +374,7 @@ export default function LiabilityManager({
             }
             min={0}
             error={errors.principalOutstanding}
+            disabled={isReadOnly}
           />
           <NumberInput
             label={t("liabilityFormRateLabel")}
@@ -316,12 +389,14 @@ export default function LiabilityManager({
             max={100}
             suffix="%"
             error={errors.interestRate}
+            disabled={isReadOnly}
           />
           <MonthField
             label={t("liabilityFormStartMonthLabel")}
             value={draft.startMonth}
             onChange={(value) => setDraft((current) => ({ ...current, startMonth: value }))}
             error={errors.startMonth}
+            disabled={isReadOnly}
           />
           <NumberInput
             label={t("liabilityFormTermMonthsLabel")}
@@ -334,17 +409,21 @@ export default function LiabilityManager({
             }
             min={1}
             error={errors.termMonths}
+            disabled={isReadOnly}
           />
           <TextInput
             label={t("liabilityFormNotesLabel")}
             value={draft.notes}
             onChange={(event) => setDraft((current) => ({ ...current, notes: event.currentTarget.value }))}
+            disabled={isReadOnly}
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={closeDrawer}>
               {common("actionCancel")}
             </Button>
-            <Button onClick={handleSave}>{common("actionSave")}</Button>
+            <Button onClick={handleSave} disabled={isReadOnly}>
+              {common("actionSave")}
+            </Button>
           </Group>
         </Stack>
       </Drawer>

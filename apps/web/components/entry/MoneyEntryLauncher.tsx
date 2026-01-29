@@ -44,7 +44,11 @@ export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherPro
                 {t("addIncomeHint")}
               </Text>
               <Group>
-                <Button component={Link} href={`${entryHref("/money")}?tab=timeline`} size="xs">
+                <Button
+                  component={Link}
+                  href={`${entryHref("/money")}?tab=expenses&add=oneOffExpense`}
+                  size="xs"
+                >
                   {t("openEvents")}
                 </Button>
               </Group>

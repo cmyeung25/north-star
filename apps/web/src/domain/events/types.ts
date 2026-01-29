@@ -42,6 +42,7 @@ export type EventDefinition = {
   endAtAgeYears?: number;
   templateId?: string;
   templateParams?: Record<string, number>;
+  generatedByEventId?: string;
 };
 
 export type EventRuleOverrides = Partial<

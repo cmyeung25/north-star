@@ -12,6 +12,7 @@ export type AssetItem = {
   growthRuleId?: string;
   notes?: string;
   source: AssetItemSource;
+  generatedByEventId?: string;
 };
 
 export type AssetItemUpsert = Omit<AssetItem, "id"> & { id?: string };

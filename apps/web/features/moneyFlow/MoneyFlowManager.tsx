@@ -12,7 +12,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import MonthField from "../../components/MonthField";
 import { compareMonthKey, isValidMonthKey } from "../../src/utils/monthKey";
@@ -105,6 +105,10 @@ type MoneyFlowManagerProps = {
   defaultNewItem?: { kind: MoneyItemKind; cadence: MoneyItemCadence };
   onUpsert: (item: MoneyItemUpsert) => void;
   onDelete: (item: MoneyItem) => void;
+  onEditEvent?: (eventId: string) => void;
+  onDetach?: (item: MoneyItem) => void;
+  openNewItem?: boolean;
+  onOpenNewItemHandled?: () => void;
 };
 
 export default function MoneyFlowManager({
@@ -118,6 +122,10 @@ export default function MoneyFlowManager({
   defaultNewItem,
   onUpsert,
   onDelete,
+  onEditEvent,
+  onDetach,
+  openNewItem,
+  onOpenNewItemHandled,
 }: MoneyFlowManagerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -299,6 +307,13 @@ export default function MoneyFlowManager({
     closeDrawer();
   };
 
+  const handleEventEdit = (item: MoneyItem) => {
+    if (!item.generatedByEventId) {
+      return;
+    }
+    onEditEvent?.(item.generatedByEventId);
+  };
+
   const renderGroup = (groupTitle: string, entries: MoneyItem[]) => {
     if (entries.length === 0) {
       return null;
@@ -319,6 +334,7 @@ export default function MoneyFlowManager({
               : item.endMonth && item.endMonth !== item.startMonth
                 ? `${item.startMonth ?? "--"} → ${item.endMonth ?? "--"}`
                 : item.startMonth ?? "--";
+          const isGenerated = item.source === "eventGenerated";
 
           return (
             <Card key={item.id} withBorder radius="md" padding="sm">
@@ -331,22 +347,49 @@ export default function MoneyFlowManager({
                   <Text size="xs" c="dimmed">
                     {t("flowItemMeta", { amount: amountLabel, month: dateLabel })}
                   </Text>
+                  {isGenerated && (
+                    <Text size="xs" c="dimmed">
+                      {t("eventGeneratedBadge")}
+                    </Text>
+                  )}
                 </Stack>
                 <Group gap="xs">
-                  <Button size="xs" variant="light" onClick={() => openDrawer(item)}>
-                    {common("actionEdit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    onClick={() => {
-                      setEditingItem(item);
-                      setIsDeleteOpen(true);
-                    }}
-                  >
-                    {common("actionDelete")}
-                  </Button>
+                  {isGenerated ? (
+                    <>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => handleEventEdit(item)}
+                        disabled={!item.generatedByEventId}
+                      >
+                        {t("eventGeneratedEdit")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => onDetach?.(item)}
+                      >
+                        {t("eventGeneratedDetach")}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="xs" variant="light" onClick={() => openDrawer(item)}>
+                        {common("actionEdit")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        onClick={() => {
+                          setEditingItem(item);
+                          setIsDeleteOpen(true);
+                        }}
+                      >
+                        {common("actionDelete")}
+                      </Button>
+                    </>
+                  )}
                 </Group>
               </Group>
             </Card>
@@ -355,6 +398,13 @@ export default function MoneyFlowManager({
       </Stack>
     );
   };
+
+  useEffect(() => {
+    if (openNewItem) {
+      openDrawer(null);
+      onOpenNewItemHandled?.();
+    }
+  }, [openNewItem, onOpenNewItemHandled]);
 
   return (
     <Stack gap="md">
@@ -428,6 +478,35 @@ export default function MoneyFlowManager({
         title={editingItem ? t("flowFormEditTitle") : t("flowFormCreateTitle")}
       >
         <Stack gap="sm">
+          {editingItem?.source === "eventGenerated" && (
+            <Card withBorder radius="md" padding="sm">
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {t("eventGeneratedTitle")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("eventGeneratedHint")}
+                </Text>
+                <Group gap="xs">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => handleEventEdit(editingItem)}
+                    disabled={!editingItem.generatedByEventId}
+                  >
+                    {t("eventGeneratedEdit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => onDetach?.(editingItem)}
+                  >
+                    {t("eventGeneratedDetach")}
+                  </Button>
+                </Group>
+              </Stack>
+            </Card>
+          )}
           <Group grow align="flex-start">
           <Select
             label={t("flowFormKindLabel")}
@@ -566,7 +645,9 @@ export default function MoneyFlowManager({
               <Button variant="default" onClick={closeDrawer}>
                 {common("actionCancel")}
               </Button>
-              <Button onClick={handleSave}>{common("actionSave")}</Button>
+              <Button onClick={handleSave} disabled={isReadOnly}>
+                {common("actionSave")}
+              </Button>
             </Group>
           </Group>
         </Stack>
