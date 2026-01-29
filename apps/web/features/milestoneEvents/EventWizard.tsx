@@ -72,7 +72,7 @@ type AssetPayloadDraft = {
 };
 
 type LiabilityPayloadDraft = {
-  liabilityType: "mortgage" | "loan" | "other";
+  liabilityType: "mortgage" | "loan" | "carLoan" | "other";
   name: string;
   principalOutstanding: string;
   currency: string;
@@ -773,6 +773,7 @@ export default function EventWizard({
                     data={[
                       { value: "mortgage", label: t("liabilityTypeMortgage") },
                       { value: "loan", label: t("liabilityTypeLoan") },
+                      { value: "carLoan", label: t("liabilityTypeCarLoan") },
                       { value: "other", label: t("liabilityTypeOther") },
                     ]}
                   />

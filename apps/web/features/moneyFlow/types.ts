@@ -3,6 +3,22 @@ export type MoneyItemCadence = "recurring" | "oneOff";
 export type MoneyItemSource = "manual" | "eventGenerated" | "derived";
 export type MoneyItemSourceType = "event" | "budgetRule";
 
+export type MoneyItemGeneratedBy =
+  | {
+      type: "assetCost";
+      assetId: string;
+      subType: "purchaseFee" | "ongoing";
+      key: string;
+    }
+  | {
+      type: "assetRental";
+      assetId: string;
+    }
+  | {
+      type: "loanPayment";
+      liabilityId: string;
+    };
+
 export type MoneyItem = {
   id: string;
   kind: MoneyItemKind;
@@ -19,6 +35,10 @@ export type MoneyItem = {
   sourceId?: string;
   sourceType?: MoneyItemSourceType;
   generatedByEventId?: string;
+  generatedBy?: MoneyItemGeneratedBy;
+  linkedAssetId?: string;
+  linkedLiabilityId?: string;
+  categoryOverride?: string;
 };
 
 export type MoneyItemUpsert = Omit<MoneyItem, "id"> & {

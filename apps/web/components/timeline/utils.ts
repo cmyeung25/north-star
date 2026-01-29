@@ -293,6 +293,8 @@ export const createHomePositionFromTemplate = (
     feesOneTime: 0,
     holdingCostMonthly: 3_000,
     holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+    purchaseFees: [],
+    ongoingCosts: [],
   };
 };
 
@@ -308,6 +310,8 @@ export const createCarPositionFromTemplate = (
     annualDepreciationRatePct: 0,
     holdingCostMonthly: 0,
     holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
+    purchaseFees: [],
+    ongoingCosts: [],
   };
 };
 
@@ -340,6 +344,7 @@ export const createLoanPositionFromTemplate = (
   return {
     id: createLoanPositionId(),
     startMonth,
+    loanType: "loan",
     principal: 500_000,
     annualInterestRatePct: 4,
     termYears: 5,

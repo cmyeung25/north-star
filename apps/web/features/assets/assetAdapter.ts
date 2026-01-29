@@ -125,6 +125,16 @@ export const toAssetItems = (scenario: Scenario): AssetItem[] => {
       ownerMemberId: home.ownerMemberId,
       startMonth: resolveAssetStartMonth(home) ?? "",
       notes: resolveAssetNotes(home),
+      purchaseFees: home.purchaseFees,
+      ongoingCosts: home.ongoingCosts,
+      rental: home.rental
+        ? {
+            isRented: home.rental.isRented ?? true,
+            rentAmountMonthly: home.rental.rentMonthly,
+            rentStartMonth: home.rental.rentStartMonth,
+            rentEndMonth: home.rental.rentEndMonth ?? undefined,
+          }
+        : undefined,
       source: home.source ?? ("manual" as const),
       generatedByEventId: home.generatedByEventId,
     })),
@@ -161,6 +171,8 @@ export const toAssetItems = (scenario: Scenario): AssetItem[] => {
       ownerMemberId: car.ownerMemberId,
       startMonth: resolveAssetStartMonth(car) ?? "",
       notes: resolveAssetNotes(car),
+      purchaseFees: car.purchaseFees,
+      ongoingCosts: car.ongoingCosts,
       source: car.source ?? ("manual" as const),
       generatedByEventId: car.generatedByEventId,
     })),
@@ -190,6 +202,16 @@ export const applyAssetItemChange = (
       purchasePrice: item.currentValue ?? base.purchasePrice,
       purchaseMonth: item.startMonth ?? base.purchaseMonth,
       notes: item.notes ?? base.notes,
+      purchaseFees: item.purchaseFees ?? base.purchaseFees,
+      ongoingCosts: item.ongoingCosts ?? base.ongoingCosts,
+      rental: item.rental
+        ? {
+            isRented: item.rental.isRented,
+            rentMonthly: item.rental.rentAmountMonthly,
+            rentStartMonth: item.rental.rentStartMonth,
+            rentEndMonth: item.rental.rentEndMonth ?? null,
+          }
+        : base.rental,
       source: item.source ?? base.source,
       generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
     };
@@ -250,6 +272,8 @@ export const applyAssetItemChange = (
       purchasePrice: item.currentValue ?? base.purchasePrice,
       purchaseMonth: item.startMonth ?? base.purchaseMonth,
       notes: item.notes ?? base.notes,
+      purchaseFees: item.purchaseFees ?? base.purchaseFees,
+      ongoingCosts: item.ongoingCosts ?? base.ongoingCosts,
       source: item.source ?? base.source,
       generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
     };

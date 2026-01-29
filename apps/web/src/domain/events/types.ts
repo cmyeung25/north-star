@@ -43,6 +43,22 @@ export type EventDefinition = {
   templateId?: string;
   templateParams?: Record<string, number>;
   generatedByEventId?: string;
+  source?: "manual" | "eventGenerated" | "derived";
+  generatedBy?: {
+    type: "assetCost";
+    assetId: string;
+    subType: "purchaseFee" | "ongoing";
+    key: string;
+  } | {
+    type: "assetRental";
+    assetId: string;
+  } | {
+    type: "loanPayment";
+    liabilityId: string;
+  };
+  linkedAssetId?: string;
+  linkedLiabilityId?: string;
+  categoryOverride?: string;
 };
 
 export type EventRuleOverrides = Partial<

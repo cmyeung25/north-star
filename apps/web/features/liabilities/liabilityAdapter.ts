@@ -24,7 +24,7 @@ export const toLiabilityItems = (scenario: Scenario): LiabilityItem[] => {
 
   return loans.map((loan) => ({
     id: loan.id ?? createLoanPositionId(),
-    liabilityType: "loan" as const,
+    liabilityType: loan.loanType ?? "loan",
     name: loan.name ?? "Loan",
     principalOutstanding: loan.principal ?? 0,
     currency: baseCurrency,
@@ -32,6 +32,10 @@ export const toLiabilityItems = (scenario: Scenario): LiabilityItem[] => {
     startMonth: loan.startMonth ?? "",
     termMonths: loan.termYears ? Math.round(loan.termYears * 12) : undefined,
     notes: loan.notes,
+    purchasePrice: loan.purchasePrice,
+    downPaymentPercent: loan.downPaymentPercent,
+    generatePaymentExpense: loan.generatePaymentExpense,
+    linkedAssetId: loan.linkedAssetId,
     source: loan.source ?? ("manual" as const),
     generatedByEventId: loan.generatedByEventId,
   }));
@@ -60,11 +64,17 @@ export const applyLiabilityItemChange = (
     ...base,
     id: item.id ?? base.id,
     name: item.name ?? base.name,
+    loanType: item.liabilityType ?? base.loanType,
     principal: item.principalOutstanding ?? base.principal,
     annualInterestRatePct: item.interestRate ?? base.annualInterestRatePct,
     startMonth: item.startMonth ?? base.startMonth,
     termYears: Math.max(1, Math.round(resolvedTermMonths / 12)),
     notes: item.notes ?? base.notes,
+    purchasePrice: item.purchasePrice ?? base.purchasePrice,
+    downPaymentPercent: item.downPaymentPercent ?? base.downPaymentPercent,
+    generatePaymentExpense:
+      item.generatePaymentExpense ?? base.generatePaymentExpense,
+    linkedAssetId: item.linkedAssetId ?? base.linkedAssetId,
     source: item.source ?? base.source,
     generatedByEventId: item.generatedByEventId ?? base.generatedByEventId,
   };
