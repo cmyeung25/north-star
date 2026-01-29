@@ -16,8 +16,6 @@ export enum WarningCode {
   ApplyScopeMismatch = "APPLY_SCOPE_MISMATCH",
   SalaryLadderInvalid = "SALARY_LADDER_INVALID",
   SmartInvestReserveShortfall = "SMART_INVEST_RESERVE_SHORTFALL",
-  PlanInvalidPatch = "PLAN_INVALID_PATCH",
-  PlanDoubleCounting = "PLAN_DOUBLE_COUNTING",
 }
 
 export type CompilerWarning = {

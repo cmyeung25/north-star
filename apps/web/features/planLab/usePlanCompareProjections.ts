@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PlanSnapshot } from "../../src/domain/planLab/types";
+import type { Plan } from "../../src/domain/planLab/types";
 import type { EventDefinition } from "../../src/domain/events/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
 import {
@@ -14,8 +14,8 @@ type PlanCompareEntry = {
 
 type UsePlanCompareProjectionsParams = {
   scenario: Scenario | null;
-  planA: PlanSnapshot | null;
-  planB: PlanSnapshot | null;
+  planA: Plan | null;
+  planB: Plan | null;
   eventLibrary: EventDefinition[];
   members: ScenarioMember[];
   budgetRules: BudgetRule[];
@@ -76,7 +76,7 @@ export const usePlanCompareProjections = ({
     setPlanAState({ status: "loading", result: null });
     const handle = setTimeout(() => {
       const result = getProjectionForPlanSnapshot(
-        planA,
+        planA.snapshot,
         scenario,
         eventLibrary,
         members,
@@ -115,7 +115,7 @@ export const usePlanCompareProjections = ({
     setPlanBState({ status: "loading", result: null });
     const handle = setTimeout(() => {
       const result = getProjectionForPlanSnapshot(
-        planB,
+        planB.snapshot,
         scenario,
         eventLibrary,
         members,

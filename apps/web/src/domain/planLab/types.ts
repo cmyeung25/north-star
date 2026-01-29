@@ -159,33 +159,13 @@ export type PlanLabDraft = {
   additions?: PlanLabDraftAdditions;
 };
 
-export type PlanPatch = {
-  op: "set" | "add" | "remove";
-  entity: "moneyItem" | "asset" | "liability" | "rule" | "member" | "event";
-  id?: string;
-  path?: string;
-  value?: unknown;
-  note?: string;
-};
-
 export type PlanSnapshot = {
-  id: string;
-  scenarioId: string;
-  name: string;
-  description?: string;
-  createdAt: number;
-  updatedAt: number;
-  baselineRevision: number;
-  patches: PlanPatch[];
-};
-
-export type LegacyPlanSnapshot = {
   baselinePatches?: PlanLabBaselinePatches;
   experiments?: PlanLabExperiment[];
   scorecardSettings?: PlanLabScorecardSettings;
 };
 
-export type LegacyPlanMetricsCache = {
+export type PlanMetricsCache = {
   minCash?: {
     month: string;
     amount: number;
@@ -200,8 +180,8 @@ export type Plan = {
   updatedAt: number;
   sourceScenarioId: string;
   baseScenarioVersion?: number;
-  snapshot: LegacyPlanSnapshot;
-  metricsCache?: LegacyPlanMetricsCache;
+  snapshot: PlanSnapshot;
+  metricsCache?: PlanMetricsCache;
 };
 
 export type OnboardingDraftBaseline = {

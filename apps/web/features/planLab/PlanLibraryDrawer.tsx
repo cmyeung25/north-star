@@ -14,7 +14,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import type { EventDefinition } from "../../src/domain/events/types";
-import type { PlanSnapshot } from "../../src/domain/planLab/types";
+import type { Plan } from "../../src/domain/planLab/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
 import { formatCurrency } from "../../lib/i18n";
 import { computeCashRiskScorecard } from "../../src/domain/planLab/scorecard/cashRisk";
@@ -37,30 +37,28 @@ type PlanLibraryDrawerProps = {
   opened: boolean;
   onClose: () => void;
   scenario: Scenario;
-  plans: PlanSnapshot[];
-  otherPlans: PlanSnapshot[];
+  plans: Plan[];
   locale: string;
   eventLibrary: EventDefinition[];
   members: ScenarioMember[];
   budgetRules: BudgetRule[];
   translate: TranslateFn;
-  onLoadPlan: (plan: PlanSnapshot) => void;
-  onSetPlanA: (plan: PlanSnapshot) => void;
-  onSetPlanB: (plan: PlanSnapshot) => void;
-  onDuplicatePlan: (plan: PlanSnapshot) => void;
-  onDeletePlan: (plan: PlanSnapshot) => void;
-  onRenamePlan: (plan: PlanSnapshot) => void;
+  onLoadPlan: (plan: Plan) => void;
+  onSetPlanA: (plan: Plan) => void;
+  onSetPlanB: (plan: Plan) => void;
+  onDuplicatePlan: (plan: Plan) => void;
+  onDeletePlan: (plan: Plan) => void;
 };
 
 const computePlanMetric = (
-  plan: PlanSnapshot,
+  plan: Plan,
   scenario: Scenario,
   eventLibrary: EventDefinition[],
   members: ScenarioMember[],
   budgetRules: BudgetRule[]
 ): PlanMetric => {
   const result = getProjectionForPlanSnapshot(
-    plan,
+    plan.snapshot,
     scenario,
     eventLibrary,
     members,
@@ -92,7 +90,6 @@ export const PlanLibraryDrawer = ({
   onClose,
   scenario,
   plans,
-  otherPlans,
   locale,
   eventLibrary,
   members,
@@ -103,17 +100,12 @@ export const PlanLibraryDrawer = ({
   onSetPlanB,
   onDuplicatePlan,
   onDeletePlan,
-  onRenamePlan,
 }: PlanLibraryDrawerProps) => {
   const [metrics, setMetrics] = useState<Record<string, PlanMetric>>({});
 
   const sortedPlans = useMemo(
     () => [...plans].sort((a, b) => b.updatedAt - a.updatedAt),
     [plans]
-  );
-  const sortedOtherPlans = useMemo(
-    () => [...otherPlans].sort((a, b) => b.updatedAt - a.updatedAt),
-    [otherPlans]
   );
 
   useEffect(() => {
@@ -161,7 +153,8 @@ export const PlanLibraryDrawer = ({
           const metric = metrics[plan.id];
           const badgeColor = metric?.status === "bust" ? "red" : "teal";
           const baselineMismatch =
-            plan.baselineRevision !== scenario.version;
+            plan.baseScenarioVersion !== undefined &&
+            plan.baseScenarioVersion !== scenario.version;
           return (
             <Card key={plan.id} withBorder radius="md" padding="sm">
               <Stack gap="xs">
@@ -189,9 +182,6 @@ export const PlanLibraryDrawer = ({
                       </Menu.Item>
                       <Menu.Item onClick={() => onSetPlanB(plan)}>
                         {translate("planLabPlanSetB", "Set as Plan B")}
-                      </Menu.Item>
-                      <Menu.Item onClick={() => onRenamePlan(plan)}>
-                        {translate("planLabPlanRename", "Rename")}
                       </Menu.Item>
                       <Menu.Item onClick={() => onDuplicatePlan(plan)}>
                         {translate("planLabPlanDuplicate", "Duplicate")}
@@ -281,25 +271,6 @@ export const PlanLibraryDrawer = ({
             </Card>
           );
         })}
-        {sortedOtherPlans.length > 0 && (
-          <Stack gap="xs">
-            <Text size="xs" fw={600} c="dimmed" mt="sm">
-              {translate("planLabPlanLibraryOther", "Other scenarios")}
-            </Text>
-            {sortedOtherPlans.map((plan) => (
-              <Card key={plan.id} withBorder radius="md" padding="sm">
-                <Stack gap={4}>
-                  <Text size="sm" fw={600}>
-                    {plan.name}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {translate("planLabPlanLibraryOtherHint", "Not available for this scenario")}
-                  </Text>
-                </Stack>
-              </Card>
-            ))}
-          </Stack>
-        )}
       </Stack>
     </Drawer>
   );
