@@ -37,6 +37,7 @@ import HousingStep, { type HousingErrors } from "./v2/HousingStep";
 import AssetsStep, { type AssetsErrors } from "./v2/AssetsStep";
 import DebtsStep, { type DebtsErrors } from "./v2/DebtsStep";
 import InsuranceStep, { type InsuranceErrors } from "./v2/InsuranceStep";
+import ReviewStep from "./v2/ReviewStep";
 import {
   type OnboardingV2Draft,
   type OnboardingV2DraftAssets,
@@ -79,7 +80,7 @@ const steps = [
   "assets",
   "debts",
   "insurance",
-  "result",
+  "review",
 ] as const;
 
 const DRAFT_STORAGE_KEY = "onboarding:v2:draft";
@@ -1992,28 +1993,22 @@ export default function OnboardingDraftWizard() {
             ),
           },
           {
-            id: "result",
-            title: t("step.result"),
+            id: "review",
+            title: t("step.review"),
             content: (
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="md">
-                  <Title order={4}>{t("resultTitle")}</Title>
-                  <Text size="sm" c="dimmed">
-                    {t("resultHint")}
-                  </Text>
-                  <Group align="center" wrap="wrap">
-                    <Button onClick={handleSave} disabled={!canProceed}>
-                      {t("saveCta")}
-                    </Button>
-                    <Button variant="default" onClick={handleLater}>
-                      {t("laterCta")}
-                    </Button>
-                  </Group>
-                  <Text size="xs" c="dimmed">
-                    {t("saveHint")}
-                  </Text>
-                </Stack>
-              </Card>
+              <ReviewStep
+                draft={draft}
+                scenario={scenario ?? null}
+                scenarioId={scenarioId}
+                baseMonth={profile.startMonth || resolvedBaseMonth}
+                horizonYears={profile.horizonYears}
+                scenarioChanges={scenarioChanges}
+                onJumpToStep={setStep}
+                onApplyDraft={handleSave}
+                onApplyLater={handleLater}
+                canApplyDraft={canProceed}
+                t={t}
+              />
             ),
           },
         ]}
