@@ -36,6 +36,7 @@ import LivingSpendStep from "./v2/LivingSpendStep";
 import HousingStep, { type HousingErrors } from "./v2/HousingStep";
 import AssetsStep, { type AssetsErrors } from "./v2/AssetsStep";
 import DebtsStep, { type DebtsErrors } from "./v2/DebtsStep";
+import InsuranceStep, { type InsuranceErrors } from "./v2/InsuranceStep";
 import {
   type OnboardingV2Draft,
   type OnboardingV2DraftAssets,
@@ -43,6 +44,7 @@ import {
   type OnboardingV2DraftDebtType,
   type OnboardingV2DraftIncome,
   type OnboardingV2DraftHousing,
+  type OnboardingV2DraftInsurance,
   type OnboardingV2DraftLivingSpend,
   type OnboardingV2DraftMember,
   type OnboardingV2IncomeFrequency,
@@ -52,6 +54,7 @@ import {
   ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID,
   ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
   ONBOARDING_V2_INCOME_GENERATED_EVENT_ID,
+  ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID,
   ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID,
   mapOnboardingV2DraftToScenario,
 } from "../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
@@ -75,6 +78,7 @@ const steps = [
   "housing",
   "assets",
   "debts",
+  "insurance",
   "result",
 ] as const;
 
@@ -105,6 +109,7 @@ type DraftStorageState = {
   housing: OnboardingV2DraftHousing;
   assets: OnboardingV2DraftAssets;
   debts: OnboardingV2DraftDebt[];
+  insurance: OnboardingV2DraftInsurance;
 };
 
 const clampCount = (value: number | null | undefined) =>
@@ -377,6 +382,83 @@ const buildAssetsDraft = ({
   };
 };
 
+const buildInsuranceDraft = ({
+  baseMonth,
+  existing,
+  legacyInsurances,
+}: {
+  baseMonth: string;
+  existing?: Partial<OnboardingV2DraftInsurance>;
+  legacyInsurances?: OnboardingV2DraftAssets["insurances"];
+}): OnboardingV2DraftInsurance => {
+  const toNumber = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const toOptional = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+
+  const normalizePolicies = (
+    policies: NonNullable<OnboardingV2DraftInsurance["policies"]>
+  ): OnboardingV2DraftInsurance["policies"] => {
+    const used = new Set<number>();
+    return policies.map((policy, index) => {
+      const match = /policy-(\d+)/.exec(policy.id ?? "");
+      let nextIndex = match ? Number(match[1]) : null;
+      if (!nextIndex || used.has(nextIndex)) {
+        nextIndex = index + 1;
+        while (used.has(nextIndex)) {
+          nextIndex += 1;
+        }
+      }
+      used.add(nextIndex);
+      const cashValue = toOptional(policy.cashValue);
+      return {
+        id: `policy-${nextIndex}`,
+        name: policy.name ?? "",
+        type: policy.type === "savings" ? "savings" : "protection",
+        premiumPerMonth: toNumber(policy.premiumPerMonth),
+        startMonth: policy.startMonth ?? baseMonth,
+        endMonth: policy.endMonth ?? "",
+        memberId: policy.memberId ?? "",
+        cashValue,
+        cashValueKnown:
+          typeof policy.cashValueKnown === "boolean"
+            ? policy.cashValueKnown
+            : cashValue !== null,
+        returnPct: toOptional(policy.returnPct),
+      };
+    });
+  };
+
+  const existingPolicies = Array.isArray(existing?.policies) ? existing.policies : [];
+  const fallbackPolicies: OnboardingV2DraftInsurance["policies"] =
+    existingPolicies.length > 0
+      ? normalizePolicies(existingPolicies)
+      : Array.isArray(legacyInsurances)
+        ? legacyInsurances.map((entry, index) => ({
+            id: `policy-${index + 1}`,
+            name: "",
+            type: "savings" as const,
+            premiumPerMonth: 0,
+            startMonth: entry.startMonth ?? baseMonth,
+            endMonth: "",
+            memberId: entry.memberId ?? "",
+            cashValue: toOptional(entry.cashValue),
+            cashValueKnown: true,
+            returnPct: toOptional(entry.returnPct),
+          }))
+        : [];
+
+  return {
+    mode: existing?.mode === "quick" ? "quick" : "detailed",
+    quick: {
+      amount: toNumber(existing?.quick?.amount),
+      startMonth: existing?.quick?.startMonth ?? baseMonth,
+      endMonth: existing?.quick?.endMonth ?? "",
+    },
+    policies: fallbackPolicies,
+  };
+};
+
 const resolveDebtType = (value?: string): OnboardingV2DraftDebtType => {
   switch (value) {
     case "carLoan":
@@ -501,6 +583,7 @@ const getInitialDraftState = ({
     housing: buildHousingDraft({ baseMonth: getCurrentMonth() }),
     assets: buildAssetsDraft({ baseMonth: getCurrentMonth() }),
     debts: [],
+    insurance: buildInsuranceDraft({ baseMonth: getCurrentMonth() }),
   };
 
   if (typeof window === "undefined") {
@@ -560,6 +643,11 @@ const getInitialDraftState = ({
       fallbackStartMonth:
         profile.startMonth || fallback.profile.startMonth || getCurrentMonth(),
     });
+    const insurance = buildInsuranceDraft({
+      baseMonth: profile.startMonth || fallback.profile.startMonth || getCurrentMonth(),
+      existing: parsed.insurance,
+      legacyInsurances: assets.insurances,
+    });
 
     return {
       step: typeof parsed.step === "number" ? parsed.step : fallback.step,
@@ -571,6 +659,7 @@ const getInitialDraftState = ({
       housing,
       assets,
       debts,
+      insurance,
     };
   } catch (error) {
     console.warn("Failed to parse onboarding draft state", error);
@@ -687,6 +776,9 @@ export default function OnboardingDraftWizard() {
   const [debts, setDebts] = useState<OnboardingV2DraftDebt[]>(
     initialState.debts
   );
+  const [insurance, setInsurance] = useState<OnboardingV2DraftInsurance>(
+    initialState.insurance
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -702,6 +794,7 @@ export default function OnboardingDraftWizard() {
       housing,
       assets,
       debts,
+      insurance,
     };
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
   }, [
@@ -711,6 +804,7 @@ export default function OnboardingDraftWizard() {
     household,
     housing,
     incomes,
+    insurance,
     livingSpend,
     profile,
     step,
@@ -1077,7 +1171,6 @@ export default function OnboardingDraftWizard() {
     breakdown: {},
     contributions: {},
     car: {},
-    insurances: {},
   };
 
   if (!Number.isFinite(assets.cash.amount) || assets.cash.amount <= 0) {
@@ -1169,41 +1262,80 @@ export default function OnboardingDraftWizard() {
     }
   }
 
-  assets.insurances.forEach((entry) => {
-    const entryErrors: Partial<{ cashValue: string; startMonth: string; returnPct: string }> =
-      {};
-    const hasAny =
-      entry.cashValue > 0 || entry.startMonth || entry.memberId || entry.returnPct;
-    if (!hasAny) {
-      return;
-    }
-    if (!Number.isFinite(entry.cashValue) || entry.cashValue <= 0) {
-      entryErrors.cashValue = t("assetsInsuranceCashValueRequired");
-    }
-    if (!entry.startMonth) {
-      entryErrors.startMonth = t("assetsInsuranceStartMonthRequired");
-    } else if (!isValidMonthKey(entry.startMonth)) {
-      entryErrors.startMonth = t("monthInvalid");
-    }
-    if (
-      entry.returnPct !== null &&
-      entry.returnPct !== undefined &&
-      (!Number.isFinite(entry.returnPct) || entry.returnPct < 0)
-    ) {
-      entryErrors.returnPct = t("assetsInsuranceReturnInvalid");
-    }
-    if (Object.keys(entryErrors).length > 0) {
-      assetsErrors.insurances[entry.id] = entryErrors;
-    }
-  });
-
   const hasAssetsErrors =
     Object.values(assetsErrors.cash).some((value) => value) ||
     Object.values(assetsErrors.investment).some((value) => value) ||
     Object.keys(assetsErrors.breakdown).length > 0 ||
     Object.keys(assetsErrors.contributions).length > 0 ||
-    Object.values(assetsErrors.car).some((value) => value) ||
-    Object.keys(assetsErrors.insurances).length > 0;
+    Object.values(assetsErrors.car).some((value) => value);
+
+  const insuranceErrors: InsuranceErrors = {
+    quick: {},
+    policies: {},
+  };
+
+  if (insurance.mode === "quick") {
+    if (insurance.quick.startMonth && !isValidMonthKey(insurance.quick.startMonth)) {
+      insuranceErrors.quick.startMonth = t("monthInvalid");
+    }
+    if (insurance.quick.endMonth) {
+      if (!isValidMonthKey(insurance.quick.endMonth)) {
+        insuranceErrors.quick.endMonth = t("monthInvalid");
+      } else if (
+        insurance.quick.startMonth &&
+        isValidMonthKey(insurance.quick.startMonth) &&
+        compareMonthKey(insurance.quick.startMonth, insurance.quick.endMonth) > 0
+      ) {
+        insuranceErrors.quick.endMonth = t("livingEndMonthBeforeStart");
+      }
+    }
+  }
+
+  if (insurance.mode === "detailed") {
+    insurance.policies.forEach((policy) => {
+      const entryErrors: NonNullable<InsuranceErrors["policies"][string]> = {};
+      if (!Number.isFinite(policy.premiumPerMonth) || policy.premiumPerMonth <= 0) {
+        entryErrors.premiumPerMonth = t("insurancePremiumRequired");
+      }
+      if (!policy.startMonth) {
+        entryErrors.startMonth = t("insuranceStartMonthRequired");
+      } else if (!isValidMonthKey(policy.startMonth)) {
+        entryErrors.startMonth = t("monthInvalid");
+      }
+      if (policy.endMonth) {
+        if (!isValidMonthKey(policy.endMonth)) {
+          entryErrors.endMonth = t("monthInvalid");
+        } else if (
+          policy.startMonth &&
+          isValidMonthKey(policy.startMonth) &&
+          compareMonthKey(policy.startMonth, policy.endMonth) > 0
+        ) {
+          entryErrors.endMonth = t("livingEndMonthBeforeStart");
+        }
+      }
+      if (
+        policy.type === "savings" &&
+        policy.cashValueKnown &&
+        (!Number.isFinite(policy.cashValue) || (policy.cashValue ?? 0) <= 0)
+      ) {
+        entryErrors.cashValue = t("insuranceCashValueRequired");
+      }
+      if (
+        policy.returnPct !== null &&
+        policy.returnPct !== undefined &&
+        (!Number.isFinite(policy.returnPct) || policy.returnPct < 0)
+      ) {
+        entryErrors.returnPct = t("insuranceReturnInvalid");
+      }
+      if (Object.keys(entryErrors).length > 0) {
+        insuranceErrors.policies[policy.id] = entryErrors;
+      }
+    });
+  }
+
+  const hasInsuranceErrors =
+    Object.values(insuranceErrors.quick).some((value) => value) ||
+    Object.keys(insuranceErrors.policies).length > 0;
 
   const debtsErrors: DebtsErrors = { debts: {} };
   debts.forEach((debt) => {
@@ -1283,7 +1415,8 @@ export default function OnboardingDraftWizard() {
     !hasLivingSpendErrors &&
     !hasHousingErrors &&
     !hasAssetsErrors &&
-    !hasDebtsErrors;
+    !hasDebtsErrors &&
+    !hasInsuranceErrors;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -1297,6 +1430,7 @@ export default function OnboardingDraftWizard() {
       housing,
       assets,
       debts,
+      insurance,
     }),
     [
       assumptions,
@@ -1304,6 +1438,7 @@ export default function OnboardingDraftWizard() {
       debts,
       household.members,
       housing,
+      insurance,
       incomes,
       livingSpend,
       profile,
@@ -1335,6 +1470,10 @@ export default function OnboardingDraftWizard() {
     cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID);
     cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID);
     cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID);
+    cleanupGeneratedEntities(
+      scenarioId,
+      ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID
+    );
     const baseCurrency =
       scenarioChanges.settingsPatch.baseCurrency ??
       scenario?.baseCurrency ??
@@ -1489,6 +1628,9 @@ export default function OnboardingDraftWizard() {
       return;
     }
     if (step === 7 && hasDebtsErrors) {
+      return;
+    }
+    if (step === 8 && hasInsuranceErrors) {
       return;
     }
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -1836,6 +1978,20 @@ export default function OnboardingDraftWizard() {
             ),
           },
           {
+            id: "insurance",
+            title: t("step.insurance"),
+            content: (
+              <InsuranceStep
+                insurance={insurance}
+                baseMonth={profile.startMonth || resolvedBaseMonth}
+                members={household.members}
+                errors={insuranceErrors}
+                onChange={setInsurance}
+                t={t}
+              />
+            ),
+          },
+          {
             id: "result",
             title: t("step.result"),
             content: (
@@ -1877,7 +2033,8 @@ export default function OnboardingDraftWizard() {
                 (step === 4 && hasLivingSpendErrors) ||
                 (step === 5 && hasHousingErrors) ||
                 (step === 6 && hasAssetsErrors) ||
-                (step === 7 && hasDebtsErrors)
+                (step === 7 && hasDebtsErrors) ||
+                (step === 8 && hasInsuranceErrors)
               }
             >
               {t("next")}
