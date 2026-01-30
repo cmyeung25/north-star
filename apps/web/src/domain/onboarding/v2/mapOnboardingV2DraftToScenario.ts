@@ -2,7 +2,7 @@ import { defaultCurrency } from "../../../../lib/i18n";
 import type { AssetItemUpsert } from "../../../../features/assets/types";
 import type { LiabilityItemUpsert } from "../../../../features/liabilities/types";
 import type { MoneyItemUpsert } from "../../../../features/moneyFlow/types";
-import { addMonths } from "../../members/age";
+import { addMonths, monthsBetween } from "../../members/age";
 import type { ApplyScope } from "../../applyScope";
 import type {
   CarPositionDraft,
@@ -14,6 +14,7 @@ import type {
 } from "../../../store/scenarioStore";
 import { compareMonthKey, isValidMonthKey } from "../../../utils/monthKey";
 import type { EventDefinition } from "../../events/types";
+import { computeMonthlyPayment } from "../../positions/calculations";
 import {
   type OnboardingV2DraftAssumptions,
   buildAssumptionsPatch,
@@ -195,6 +196,29 @@ export type OnboardingV2DraftAssets = {
   insurances: OnboardingV2DraftInsuranceCashValue[];
 };
 
+export type OnboardingV2DraftDebtType =
+  | "carLoan"
+  | "personalLoan"
+  | "creditCard"
+  | "other";
+
+export type OnboardingV2DraftDebt = {
+  id: string;
+  type: OnboardingV2DraftDebtType;
+  label: string;
+  principalOutstanding: number;
+  interestRatePct: number | null;
+  termYears: number | null;
+  maturityMonth?: string;
+  startMonth?: string;
+  monthlyPayment: number | null;
+  monthlyPaymentSource?: "estimated" | "manual";
+  purchasePrice?: number;
+  downPaymentMode?: "percent" | "amount";
+  downPaymentPercent?: number | null;
+  downPaymentAmount?: number | null;
+};
+
 export type OnboardingV2Draft = {
   profile: OnboardingV2DraftProfile;
   household: {
@@ -205,6 +229,7 @@ export type OnboardingV2Draft = {
   livingSpend: OnboardingV2DraftLivingSpend;
   housing: OnboardingV2DraftHousing;
   assets: OnboardingV2DraftAssets;
+  debts: OnboardingV2DraftDebt[];
 };
 
 export type OnboardingV2IncomeMoneyItem = {
@@ -227,6 +252,8 @@ export type OnboardingV2ScenarioChanges = {
   housingLiabilities: LiabilityItemUpsert[];
   housingEventDefinitions: EventDefinition[];
   assetEventDefinitions: EventDefinition[];
+  debtLiabilities: LiabilityItemUpsert[];
+  debtMoneyItems: MoneyItemUpsert[];
   investmentPositions: InvestmentPositionDraft[];
   insurancePositions: InsurancePositionDraft[];
   carPositions: CarPositionDraft[];
@@ -238,6 +265,7 @@ export const ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID =
   "onboarding-v2-living-spend";
 export const ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID = "onboarding-v2-housing";
 export const ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID = "onboarding-v2-assets";
+export const ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID = "onboarding-v2-debts";
 
 const isOnboardingMemberId = (id: string) => ONBOARDING_MEMBER_ID.test(id);
 
@@ -906,6 +934,160 @@ const buildHousingChanges = ({
   return { assets, liabilities, eventDefinitions };
 };
 
+const buildDebtsEntityId = (scenarioId: string, key: string) =>
+  `onboarding-v2-${scenarioId}-debts-${key}`;
+
+const defaultDebtLabelMap: Record<OnboardingV2DraftDebtType, string> = {
+  carLoan: "Car loan",
+  personalLoan: "Personal loan",
+  creditCard: "Credit card",
+  other: "Debt",
+};
+
+const resolveDebtTermMonths = ({
+  startMonth,
+  maturityMonth,
+  termYears,
+}: {
+  startMonth?: string;
+  maturityMonth?: string;
+  termYears?: number | null;
+}) => {
+  const normalizedStart = normalizeMonth(startMonth);
+  const normalizedMaturity = normalizeMonth(maturityMonth);
+  if (normalizedStart && normalizedMaturity) {
+    return Math.max(1, monthsBetween(normalizedStart, normalizedMaturity) + 1);
+  }
+  if (Number.isFinite(termYears ?? NaN) && (termYears ?? 0) > 0) {
+    return Math.max(1, Math.round((termYears ?? 0) * 12));
+  }
+  return undefined;
+};
+
+const resolveDebtEndMonth = ({
+  startMonth,
+  maturityMonth,
+  termMonths,
+}: {
+  startMonth: string;
+  maturityMonth?: string;
+  termMonths?: number;
+}) => {
+  const normalizedMaturity = normalizeMonth(maturityMonth);
+  if (normalizedMaturity) {
+    if (compareMonthKey(normalizedMaturity, startMonth) < 0) {
+      return startMonth;
+    }
+    return normalizedMaturity;
+  }
+  if (termMonths && termMonths > 0) {
+    return addMonths(startMonth, Math.max(termMonths - 1, 0));
+  }
+  return undefined;
+};
+
+const buildDebtsChanges = ({
+  debts,
+  scenarioId,
+  baseCurrency,
+  baseMonth,
+}: {
+  debts: OnboardingV2DraftDebt[];
+  scenarioId: string;
+  baseCurrency: string;
+  baseMonth?: string;
+}) => {
+  const liabilities: LiabilityItemUpsert[] = [];
+  const moneyItems: MoneyItemUpsert[] = [];
+
+  debts.forEach((debt) => {
+    const label = debt.label?.trim();
+    const principalOutstanding = normalizeAmount(debt.principalOutstanding);
+    const startMonth = normalizeMonth(debt.startMonth) ?? baseMonth;
+    if (!startMonth || principalOutstanding <= 0) {
+      return;
+    }
+
+    const termMonths = resolveDebtTermMonths({
+      startMonth,
+      maturityMonth: debt.maturityMonth,
+      termYears: debt.termYears,
+    });
+    const interestRatePct = normalizeOptionalNumber(debt.interestRatePct);
+    const liabilityId = buildDebtsEntityId(scenarioId, debt.id);
+    const liabilityType =
+      debt.type === "carLoan" ? "carLoan" : debt.type === "other" ? "other" : "loan";
+
+    const purchasePrice = normalizeOptionalNumber(debt.purchasePrice);
+    const downPaymentPercent =
+      debt.type === "carLoan" && purchasePrice && purchasePrice > 0
+        ? debt.downPaymentMode === "amount"
+          ? (normalizeAmount(debt.downPaymentAmount) / purchasePrice) * 100
+          : normalizeAmount(debt.downPaymentPercent)
+        : undefined;
+
+    liabilities.push({
+      id: liabilityId,
+      liabilityType,
+      name: label || defaultDebtLabelMap[debt.type],
+      principalOutstanding,
+      currency: baseCurrency,
+      interestRate: interestRatePct ?? undefined,
+      termMonths,
+      startMonth,
+      maturityMonth: normalizeMonth(debt.maturityMonth),
+      purchasePrice: debt.type === "carLoan" ? purchasePrice ?? undefined : undefined,
+      downPaymentPercent:
+        debt.type === "carLoan" ? downPaymentPercent ?? undefined : undefined,
+      generatePaymentExpense: false,
+      source: "eventGenerated",
+      generatedByEventId: ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID,
+    });
+
+    const estimatedPayment =
+      interestRatePct !== null && termMonths
+        ? computeMonthlyPayment(
+            principalOutstanding,
+            interestRatePct / 100,
+            termMonths
+          )
+        : null;
+    const inputPayment = normalizeOptionalNumber(debt.monthlyPayment);
+    const paymentAmount =
+      inputPayment && inputPayment > 0
+        ? inputPayment
+        : estimatedPayment && estimatedPayment > 0
+          ? estimatedPayment
+          : null;
+
+    if (paymentAmount && paymentAmount > 0) {
+      moneyItems.push({
+        kind: "expense",
+        cadence: "recurring",
+        amount: paymentAmount,
+        currency: baseCurrency,
+        category: "custom",
+        startMonth,
+        endMonth: resolveDebtEndMonth({
+          startMonth,
+          maturityMonth: debt.maturityMonth,
+          termMonths,
+        }),
+        notes: label ? `${label} payment` : "Loan payment",
+        source: "eventGenerated",
+        generatedByEventId: ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID,
+        generatedBy: {
+          type: "loanPayment",
+          liabilityId,
+        },
+        linkedLiabilityId: liabilityId,
+      });
+    }
+  });
+
+  return { liabilities, moneyItems };
+};
+
 const buildAssetsEntityId = (scenarioId: string, key: string) =>
   `onboarding-v2-${scenarioId}-assets-${key}`;
 
@@ -1221,6 +1403,12 @@ export const mapOnboardingV2DraftToScenario = ({
     baseMonth,
     defaultCarDepreciationPct,
   });
+  const debtsChanges = buildDebtsChanges({
+    debts: draft.debts,
+    scenarioId,
+    baseCurrency,
+    baseMonth,
+  });
 
   return {
     membersToUpsert,
@@ -1237,6 +1425,8 @@ export const mapOnboardingV2DraftToScenario = ({
     housingLiabilities: housingChanges.liabilities,
     housingEventDefinitions: housingChanges.eventDefinitions,
     assetEventDefinitions: assetsChanges.eventDefinitions,
+    debtLiabilities: debtsChanges.liabilities,
+    debtMoneyItems: debtsChanges.moneyItems,
     investmentPositions: assetsChanges.investments,
     insurancePositions: assetsChanges.insurances,
     carPositions: assetsChanges.cars,
