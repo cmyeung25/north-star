@@ -34,8 +34,10 @@ import AssumptionsStep from "./v2/AssumptionsStep";
 import IncomeStep from "./v2/IncomeStep";
 import LivingSpendStep from "./v2/LivingSpendStep";
 import HousingStep, { type HousingErrors } from "./v2/HousingStep";
+import AssetsStep, { type AssetsErrors } from "./v2/AssetsStep";
 import {
   type OnboardingV2Draft,
+  type OnboardingV2DraftAssets,
   type OnboardingV2DraftIncome,
   type OnboardingV2DraftHousing,
   type OnboardingV2DraftLivingSpend,
@@ -43,6 +45,7 @@ import {
   type OnboardingV2IncomeFrequency,
   type OnboardingV2MemberRole,
   type OnboardingV2ScenarioChanges,
+  ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID,
   ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
   ONBOARDING_V2_INCOME_GENERATED_EVENT_ID,
   ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID,
@@ -66,6 +69,7 @@ const steps = [
   "income",
   "livingSpend",
   "housing",
+  "assets",
   "result",
 ] as const;
 
@@ -94,6 +98,7 @@ type DraftStorageState = {
   incomes: OnboardingV2DraftIncome[];
   livingSpend: OnboardingV2DraftLivingSpend;
   housing: OnboardingV2DraftHousing;
+  assets: OnboardingV2DraftAssets;
 };
 
 const clampCount = (value: number | null | undefined) =>
@@ -292,6 +297,80 @@ const buildHousingDraft = ({
   };
 };
 
+const buildAssetsDraft = ({
+  baseMonth,
+  existing,
+}: {
+  baseMonth: string;
+  existing?: Partial<OnboardingV2DraftAssets>;
+}): OnboardingV2DraftAssets => {
+  const toNumber = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const toOptional = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+
+  const defaultBreakdown = [
+    { type: "stock" },
+    { type: "etf" },
+    { type: "fund" },
+    { type: "crypto" },
+    { type: "other" },
+  ] as const;
+
+  const existingBreakdown = new Map(
+    Array.isArray(existing?.investment?.breakdown)
+      ? existing.investment.breakdown.map((entry) => [entry.type, entry])
+      : []
+  );
+  const breakdown = defaultBreakdown.map((entry) => {
+    const existingEntry = existingBreakdown.get(entry.type);
+    return {
+      id: existingEntry?.id || nanoid(6),
+      type: entry.type,
+      value: toNumber(existingEntry?.value),
+      followGlobalReturn: existingEntry?.followGlobalReturn !== false,
+      customReturnPct: toOptional(existingEntry?.customReturnPct),
+    };
+  });
+
+  return {
+    cash: {
+      amount: toNumber(existing?.cash?.amount),
+      startMonth: existing?.cash?.startMonth ?? baseMonth,
+    },
+    investment: {
+      totalAmount: toNumber(existing?.investment?.totalAmount),
+      startMonth: existing?.investment?.startMonth ?? baseMonth,
+      breakdownEnabled: existing?.investment?.breakdownEnabled ?? true,
+      breakdown,
+    },
+    contributions: Array.isArray(existing?.contributions)
+      ? existing.contributions.map((entry) => ({
+          id: entry.id || nanoid(6),
+          amount: toNumber(entry.amount),
+          startMonth: entry.startMonth ?? baseMonth,
+          endMonth: entry.endMonth ?? "",
+          memberId: entry.memberId ?? "",
+        }))
+      : [],
+    car: {
+      enabled: existing?.car?.enabled ?? false,
+      value: toNumber(existing?.car?.value),
+      startMonth: existing?.car?.startMonth ?? baseMonth,
+      depreciationPct: toOptional(existing?.car?.depreciationPct),
+    },
+    insurances: Array.isArray(existing?.insurances)
+      ? existing.insurances.map((entry) => ({
+          id: entry.id || nanoid(6),
+          cashValue: toNumber(entry.cashValue),
+          startMonth: entry.startMonth ?? baseMonth,
+          memberId: entry.memberId ?? "",
+          returnPct: toOptional(entry.returnPct),
+        }))
+      : [],
+  };
+};
+
 const buildIncomeEventDefinition = (
   entry: OnboardingV2ScenarioChanges["incomeMoneyItems"][number],
   baseCurrency: string
@@ -351,6 +430,7 @@ const getInitialDraftState = ({
       baseMonth: getCurrentMonth(),
     }),
     housing: buildHousingDraft({ baseMonth: getCurrentMonth() }),
+    assets: buildAssetsDraft({ baseMonth: getCurrentMonth() }),
   };
 
   if (typeof window === "undefined") {
@@ -401,6 +481,10 @@ const getInitialDraftState = ({
       baseMonth: profile.startMonth || fallback.profile.startMonth || getCurrentMonth(),
       existing: parsed.housing,
     });
+    const assets = buildAssetsDraft({
+      baseMonth: profile.startMonth || fallback.profile.startMonth || getCurrentMonth(),
+      existing: parsed.assets,
+    });
 
     return {
       step: typeof parsed.step === "number" ? parsed.step : fallback.step,
@@ -410,6 +494,7 @@ const getInitialDraftState = ({
       incomes,
       livingSpend,
       housing,
+      assets,
     };
   } catch (error) {
     console.warn("Failed to parse onboarding draft state", error);
@@ -520,6 +605,9 @@ export default function OnboardingDraftWizard() {
   const [housing, setHousing] = useState<OnboardingV2DraftHousing>(
     initialState.housing
   );
+  const [assets, setAssets] = useState<OnboardingV2DraftAssets>(
+    initialState.assets
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -533,9 +621,10 @@ export default function OnboardingDraftWizard() {
       incomes,
       livingSpend,
       housing,
+      assets,
     };
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
-  }, [assumptions, household, housing, incomes, livingSpend, profile, step]);
+  }, [assumptions, assets, household, housing, incomes, livingSpend, profile, step]);
 
   const resolvedBaseMonth = useMemo(() => {
     const raw = appSettings.globalBaseMonth ?? getCurrentMonth();
@@ -892,13 +981,148 @@ export default function OnboardingDraftWizard() {
     Object.keys(housingErrors.own.ongoingCosts).length > 0 ||
     Object.values(housingErrors.own.rental).some((value) => value);
 
+  const assetsErrors: AssetsErrors = {
+    cash: {},
+    investment: {},
+    breakdown: {},
+    contributions: {},
+    car: {},
+    insurances: {},
+  };
+
+  if (!Number.isFinite(assets.cash.amount) || assets.cash.amount <= 0) {
+    assetsErrors.cash.amount = t("assetsCashAmountRequired");
+  }
+
+  if (!assets.cash.startMonth) {
+    assetsErrors.cash.startMonth = t("assetsCashStartMonthRequired");
+  } else if (!isValidMonthKey(assets.cash.startMonth)) {
+    assetsErrors.cash.startMonth = t("monthInvalid");
+  }
+
+  const investmentHasAmount =
+    (Number.isFinite(assets.investment.totalAmount) &&
+      assets.investment.totalAmount > 0) ||
+    assets.investment.breakdown.some((entry) => entry.value > 0);
+
+  if (investmentHasAmount) {
+    if (!assets.investment.startMonth) {
+      assetsErrors.investment.startMonth = t("assetsInvestmentStartMonthRequired");
+    } else if (!isValidMonthKey(assets.investment.startMonth)) {
+      assetsErrors.investment.startMonth = t("monthInvalid");
+    }
+  }
+
+  assets.investment.breakdown.forEach((entry) => {
+    const entryErrors: Partial<{ value: string; customReturnPct: string }> = {};
+    if (
+      entry.customReturnPct !== null &&
+      entry.customReturnPct !== undefined &&
+      (!Number.isFinite(entry.customReturnPct) || entry.customReturnPct < 0)
+    ) {
+      entryErrors.customReturnPct = t("assetsInvestmentReturnInvalid");
+    }
+    if (Object.keys(entryErrors).length > 0) {
+      assetsErrors.breakdown[entry.id] = entryErrors;
+    }
+  });
+
+  assets.contributions.forEach((entry) => {
+    const entryErrors: Partial<{ amount: string; startMonth: string; endMonth: string }> =
+      {};
+    const hasAny =
+      entry.amount > 0 || entry.startMonth || entry.endMonth || entry.memberId;
+
+    if (!hasAny) {
+      return;
+    }
+
+    if (!Number.isFinite(entry.amount) || entry.amount <= 0) {
+      entryErrors.amount = t("assetsContributionAmountRequired");
+    }
+    if (!entry.startMonth) {
+      entryErrors.startMonth = t("assetsContributionStartMonthRequired");
+    } else if (!isValidMonthKey(entry.startMonth)) {
+      entryErrors.startMonth = t("monthInvalid");
+    }
+    if (entry.endMonth) {
+      if (!isValidMonthKey(entry.endMonth)) {
+        entryErrors.endMonth = t("monthInvalid");
+      } else if (
+        entry.startMonth &&
+        isValidMonthKey(entry.startMonth) &&
+        compareMonthKey(entry.startMonth, entry.endMonth) > 0
+      ) {
+        entryErrors.endMonth = t("assetsContributionEndMonthBeforeStart");
+      }
+    }
+    if (Object.keys(entryErrors).length > 0) {
+      assetsErrors.contributions[entry.id] = entryErrors;
+    }
+  });
+
+  if (assets.car.enabled) {
+    if (!Number.isFinite(assets.car.value) || assets.car.value <= 0) {
+      assetsErrors.car.value = t("assetsCarValueRequired");
+    }
+    if (!assets.car.startMonth) {
+      assetsErrors.car.startMonth = t("assetsCarStartMonthRequired");
+    } else if (!isValidMonthKey(assets.car.startMonth)) {
+      assetsErrors.car.startMonth = t("monthInvalid");
+    }
+    if (
+      assets.car.depreciationPct !== null &&
+      assets.car.depreciationPct !== undefined &&
+      (!Number.isFinite(assets.car.depreciationPct) || assets.car.depreciationPct < 0)
+    ) {
+      assetsErrors.car.depreciationPct = t("assetsCarDepreciationInvalid");
+    }
+  }
+
+  assets.insurances.forEach((entry) => {
+    const entryErrors: Partial<{ cashValue: string; startMonth: string; returnPct: string }> =
+      {};
+    const hasAny =
+      entry.cashValue > 0 || entry.startMonth || entry.memberId || entry.returnPct;
+    if (!hasAny) {
+      return;
+    }
+    if (!Number.isFinite(entry.cashValue) || entry.cashValue <= 0) {
+      entryErrors.cashValue = t("assetsInsuranceCashValueRequired");
+    }
+    if (!entry.startMonth) {
+      entryErrors.startMonth = t("assetsInsuranceStartMonthRequired");
+    } else if (!isValidMonthKey(entry.startMonth)) {
+      entryErrors.startMonth = t("monthInvalid");
+    }
+    if (
+      entry.returnPct !== null &&
+      entry.returnPct !== undefined &&
+      (!Number.isFinite(entry.returnPct) || entry.returnPct < 0)
+    ) {
+      entryErrors.returnPct = t("assetsInsuranceReturnInvalid");
+    }
+    if (Object.keys(entryErrors).length > 0) {
+      assetsErrors.insurances[entry.id] = entryErrors;
+    }
+  });
+
+  const hasAssetsErrors =
+    Object.values(assetsErrors.cash).some((value) => value) ||
+    Object.values(assetsErrors.investment).some((value) => value) ||
+    Object.keys(assetsErrors.breakdown).length > 0 ||
+    Object.keys(assetsErrors.contributions).length > 0 ||
+    Object.values(assetsErrors.car).some((value) => value) ||
+    Object.keys(assetsErrors.insurances).length > 0;
+
   const canProceed =
     !hasProfileError &&
     !hasMemberMonthErrors &&
     !hasAssumptionErrors &&
     !hasIncomeErrors &&
     !hasLivingSpendErrors &&
-    !hasHousingErrors;
+    !hasHousingErrors &&
+    !hasAssetsErrors;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -910,8 +1134,9 @@ export default function OnboardingDraftWizard() {
       incomes,
       livingSpend,
       housing,
+      assets,
     }),
-    [assumptions, household.members, housing, incomes, livingSpend, profile]
+    [assumptions, assets, household.members, housing, incomes, livingSpend, profile]
   );
 
   const scenarioChanges = useMemo(
@@ -937,6 +1162,7 @@ export default function OnboardingDraftWizard() {
       ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID
     );
     cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID);
+    cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID);
     const baseCurrency =
       scenarioChanges.settingsPatch.baseCurrency ??
       scenario?.baseCurrency ??
@@ -966,6 +1192,9 @@ export default function OnboardingDraftWizard() {
     });
 
     scenarioChanges.housingEventDefinitions.forEach((definition) => {
+      addEventToScenarios(definition, [scenarioId]);
+    });
+    scenarioChanges.assetEventDefinitions.forEach((definition) => {
       addEventToScenarios(definition, [scenarioId]);
     });
 
@@ -999,6 +1228,34 @@ export default function OnboardingDraftWizard() {
         setScenarioPositions(scenarioId, nextPositions);
       }
     }
+
+    if (
+      scenarioChanges.investmentPositions.length > 0 ||
+      scenarioChanges.insurancePositions.length > 0 ||
+      scenarioChanges.carPositions.length > 0
+    ) {
+      const latestScenario =
+        getActiveScenario(useScenarioStore.getState().scenarios, scenarioId) ??
+        scenario;
+      if (latestScenario) {
+        const nextPositions = {
+          ...(latestScenario.positions ?? {}),
+          investments: [
+            ...(latestScenario.positions?.investments ?? []),
+            ...scenarioChanges.investmentPositions,
+          ],
+          insurances: [
+            ...(latestScenario.positions?.insurances ?? []),
+            ...scenarioChanges.insurancePositions,
+          ],
+          cars: [
+            ...(latestScenario.positions?.cars ?? []),
+            ...scenarioChanges.carPositions,
+          ],
+        };
+        setScenarioPositions(scenarioId, nextPositions);
+      }
+    }
   }, [
     addEventToScenarios,
     cleanupGeneratedEntities,
@@ -1029,6 +1286,9 @@ export default function OnboardingDraftWizard() {
       return;
     }
     if (step === 5 && hasHousingErrors) {
+      return;
+    }
+    if (step === 6 && hasAssetsErrors) {
       return;
     }
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -1349,6 +1609,20 @@ export default function OnboardingDraftWizard() {
             ),
           },
           {
+            id: "assets",
+            title: t("step.assets"),
+            content: (
+              <AssetsStep
+                assets={assets}
+                baseMonth={profile.startMonth || resolvedBaseMonth}
+                members={household.members}
+                errors={assetsErrors}
+                onChange={setAssets}
+                t={t}
+              />
+            ),
+          },
+          {
             id: "result",
             title: t("step.result"),
             content: (
@@ -1388,7 +1662,8 @@ export default function OnboardingDraftWizard() {
                 (step === 2 && hasAssumptionErrors) ||
                 (step === 3 && hasIncomeErrors) ||
                 (step === 4 && hasLivingSpendErrors) ||
-                (step === 5 && hasHousingErrors)
+                (step === 5 && hasHousingErrors) ||
+                (step === 6 && hasAssetsErrors)
               }
             >
               {t("next")}
