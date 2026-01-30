@@ -33,14 +33,17 @@ import OnboardingV2WizardShell from "./v2/OnboardingV2WizardShell";
 import AssumptionsStep from "./v2/AssumptionsStep";
 import IncomeStep from "./v2/IncomeStep";
 import LivingSpendStep from "./v2/LivingSpendStep";
+import HousingStep, { type HousingErrors } from "./v2/HousingStep";
 import {
   type OnboardingV2Draft,
   type OnboardingV2DraftIncome,
+  type OnboardingV2DraftHousing,
   type OnboardingV2DraftLivingSpend,
   type OnboardingV2DraftMember,
   type OnboardingV2IncomeFrequency,
   type OnboardingV2MemberRole,
   type OnboardingV2ScenarioChanges,
+  ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
   ONBOARDING_V2_INCOME_GENERATED_EVENT_ID,
   ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID,
   mapOnboardingV2DraftToScenario,
@@ -53,6 +56,8 @@ import {
   mergeOnboardingAssumptionsDraft,
 } from "../../domain/onboarding/v2/assumptions";
 import { upsertMoneyItem } from "../../../features/moneyFlow/moneyFlowAdapter";
+import { applyAssetItemChange } from "../../../features/assets/assetAdapter";
+import { applyLiabilityItemChange } from "../../../features/liabilities/liabilityAdapter";
 
 const steps = [
   "profile",
@@ -60,6 +65,7 @@ const steps = [
   "assumptions",
   "income",
   "livingSpend",
+  "housing",
   "result",
 ] as const;
 
@@ -87,6 +93,7 @@ type DraftStorageState = {
   assumptions: OnboardingV2DraftAssumptions;
   incomes: OnboardingV2DraftIncome[];
   livingSpend: OnboardingV2DraftLivingSpend;
+  housing: OnboardingV2DraftHousing;
 };
 
 const clampCount = (value: number | null | undefined) =>
@@ -239,6 +246,52 @@ const buildLivingSpendDraft = ({
   };
 };
 
+const buildHousingDraft = ({
+  baseMonth,
+  existing,
+}: {
+  baseMonth: string;
+  existing?: Partial<OnboardingV2DraftHousing>;
+}): OnboardingV2DraftHousing => {
+  const toNumber = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const toOptional = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+
+  return {
+    mode: existing?.mode === "own" ? "own" : "rent",
+    rent: {
+      amount: toNumber(existing?.rent?.amount),
+      startMonth: existing?.rent?.startMonth ?? baseMonth,
+      endMonth: existing?.rent?.endMonth ?? "",
+      rentGrowthPct: toOptional(existing?.rent?.rentGrowthPct),
+    },
+    own: {
+      propertyValue: toNumber(existing?.own?.propertyValue),
+      startMonth: existing?.own?.startMonth ?? baseMonth,
+      downPaymentMode:
+        existing?.own?.downPaymentMode === "amount" ? "amount" : "percent",
+      downPaymentPercent: toNumber(existing?.own?.downPaymentPercent),
+      downPaymentAmount: toNumber(existing?.own?.downPaymentAmount),
+      mortgageEnabled: existing?.own?.mortgageEnabled ?? true,
+      mortgageRatePct: toNumber(existing?.own?.mortgageRatePct ?? 4),
+      mortgageTermMonths: toNumber(existing?.own?.mortgageTermMonths ?? 360),
+      mortgagePayment: toNumber(existing?.own?.mortgagePayment),
+      fees: Array.isArray(existing?.own?.fees) ? existing?.own?.fees : [],
+      ongoingCosts: Array.isArray(existing?.own?.ongoingCosts)
+        ? existing?.own?.ongoingCosts
+        : [],
+      rental: {
+        enabled: existing?.own?.rental?.enabled ?? false,
+        amount: toNumber(existing?.own?.rental?.amount),
+        startMonth: existing?.own?.rental?.startMonth ?? baseMonth,
+        endMonth: existing?.own?.rental?.endMonth ?? "",
+        discountAmount: toNumber(existing?.own?.rental?.discountAmount),
+      },
+    },
+  };
+};
+
 const buildIncomeEventDefinition = (
   entry: OnboardingV2ScenarioChanges["incomeMoneyItems"][number],
   baseCurrency: string
@@ -297,6 +350,7 @@ const getInitialDraftState = ({
     livingSpend: buildLivingSpendDraft({
       baseMonth: getCurrentMonth(),
     }),
+    housing: buildHousingDraft({ baseMonth: getCurrentMonth() }),
   };
 
   if (typeof window === "undefined") {
@@ -343,6 +397,10 @@ const getInitialDraftState = ({
       baseMonth: profile.startMonth || fallback.profile.startMonth || getCurrentMonth(),
       existing: parsed.livingSpend,
     });
+    const housing = buildHousingDraft({
+      baseMonth: profile.startMonth || fallback.profile.startMonth || getCurrentMonth(),
+      existing: parsed.housing,
+    });
 
     return {
       step: typeof parsed.step === "number" ? parsed.step : fallback.step,
@@ -351,6 +409,7 @@ const getInitialDraftState = ({
       assumptions,
       incomes,
       livingSpend,
+      housing,
     };
   } catch (error) {
     console.warn("Failed to parse onboarding draft state", error);
@@ -424,6 +483,7 @@ export default function OnboardingDraftWizard() {
   const updateScenarioBaseCurrency = useScenarioStore(
     (state) => state.updateScenarioBaseCurrency
   );
+  const setScenarioPositions = useScenarioStore((state) => state.setScenarioPositions);
   const createMember = useScenarioStore((state) => state.createMember);
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
@@ -457,6 +517,9 @@ export default function OnboardingDraftWizard() {
   const [livingSpend, setLivingSpend] = useState<OnboardingV2DraftLivingSpend>(
     initialState.livingSpend
   );
+  const [housing, setHousing] = useState<OnboardingV2DraftHousing>(
+    initialState.housing
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -469,9 +532,10 @@ export default function OnboardingDraftWizard() {
       assumptions,
       incomes,
       livingSpend,
+      housing,
     };
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
-  }, [assumptions, household, incomes, livingSpend, profile, step]);
+  }, [assumptions, household, housing, incomes, livingSpend, profile, step]);
 
   const resolvedBaseMonth = useMemo(() => {
     const raw = appSettings.globalBaseMonth ?? getCurrentMonth();
@@ -695,12 +759,146 @@ export default function OnboardingDraftWizard() {
     Object.values(livingSpendErrors.tax).some((value) => value) ||
     Object.keys(livingSpendErrors.otherFixed).length > 0;
 
+  const housingErrors: HousingErrors = {
+    rent: {},
+    own: {
+      fees: {},
+      ongoingCosts: {},
+      rental: {},
+    },
+  };
+
+  if (housing.mode === "rent") {
+    if (!Number.isFinite(housing.rent.amount) || housing.rent.amount <= 0) {
+      housingErrors.rent.amount = t("housingRentAmountRequired");
+    }
+    if (!housing.rent.startMonth) {
+      housingErrors.rent.startMonth = t("housingRentStartMonthRequired");
+    } else if (!isValidMonthKey(housing.rent.startMonth)) {
+      housingErrors.rent.startMonth = t("monthInvalid");
+    }
+    if (housing.rent.endMonth) {
+      if (!isValidMonthKey(housing.rent.endMonth)) {
+        housingErrors.rent.endMonth = t("monthInvalid");
+      } else if (
+        housing.rent.startMonth &&
+        compareMonthKey(housing.rent.startMonth, housing.rent.endMonth) > 0
+      ) {
+        housingErrors.rent.endMonth = t("livingEndMonthBeforeStart");
+      }
+    }
+  }
+
+  if (housing.mode === "own") {
+    if (!Number.isFinite(housing.own.propertyValue) || housing.own.propertyValue <= 0) {
+      housingErrors.own.propertyValue = t("housingPropertyValueRequired");
+    }
+    if (!housing.own.startMonth) {
+      housingErrors.own.startMonth = t("housingPropertyStartMonthRequired");
+    } else if (!isValidMonthKey(housing.own.startMonth)) {
+      housingErrors.own.startMonth = t("monthInvalid");
+    }
+
+    if (housing.own.mortgageEnabled) {
+      const mortgageRatePct = housing.own.mortgageRatePct ?? NaN;
+      const mortgageTermMonths = housing.own.mortgageTermMonths ?? NaN;
+      const mortgagePayment = housing.own.mortgagePayment ?? NaN;
+
+      if (!Number.isFinite(mortgageRatePct) || mortgageRatePct < 0) {
+        housingErrors.own.mortgageRatePct = t("housingMortgageRateRequired");
+      }
+      if (!Number.isFinite(mortgageTermMonths) || mortgageTermMonths <= 0) {
+        housingErrors.own.mortgageTermMonths = t("housingMortgageTermRequired");
+      }
+      if (!Number.isFinite(mortgagePayment) || mortgagePayment <= 0) {
+        housingErrors.own.mortgagePayment = t("housingMortgagePaymentRequired");
+      }
+    }
+
+    housing.own.fees.forEach((fee) => {
+      const entryErrors: NonNullable<HousingErrors["own"]["fees"][string]> = {};
+      if (!fee.label?.trim()) {
+        entryErrors.label = t("requiredField");
+      }
+      if (!Number.isFinite(fee.amount) || fee.amount <= 0) {
+        entryErrors.amount = t("requiredField");
+      }
+      if (!fee.month) {
+        entryErrors.month = t("requiredField");
+      } else if (!isValidMonthKey(fee.month)) {
+        entryErrors.month = t("monthInvalid");
+      }
+      if (Object.keys(entryErrors).length > 0) {
+        housingErrors.own.fees[fee.id] = entryErrors;
+      }
+    });
+
+    housing.own.ongoingCosts.forEach((cost) => {
+      const entryErrors: NonNullable<HousingErrors["own"]["ongoingCosts"][string]> = {};
+      if (!cost.label?.trim()) {
+        entryErrors.label = t("requiredField");
+      }
+      if (!Number.isFinite(cost.amount) || cost.amount <= 0) {
+        entryErrors.amount = t("requiredField");
+      }
+      if (!cost.startMonth) {
+        entryErrors.startMonth = t("requiredField");
+      } else if (!isValidMonthKey(cost.startMonth)) {
+        entryErrors.startMonth = t("monthInvalid");
+      }
+      if (cost.endMonth) {
+        if (!isValidMonthKey(cost.endMonth)) {
+          entryErrors.endMonth = t("monthInvalid");
+        } else if (
+          cost.startMonth &&
+          compareMonthKey(cost.startMonth, cost.endMonth) > 0
+        ) {
+          entryErrors.endMonth = t("livingEndMonthBeforeStart");
+        }
+      }
+      if (Object.keys(entryErrors).length > 0) {
+        housingErrors.own.ongoingCosts[cost.id] = entryErrors;
+      }
+    });
+
+    if (housing.own.rental.enabled) {
+      if (!Number.isFinite(housing.own.rental.amount) || housing.own.rental.amount <= 0) {
+        housingErrors.own.rental.amount = t("housingRentalAmountRequired");
+      }
+      if (!housing.own.rental.startMonth) {
+        housingErrors.own.rental.startMonth = t("housingRentalStartMonthRequired");
+      } else if (!isValidMonthKey(housing.own.rental.startMonth)) {
+        housingErrors.own.rental.startMonth = t("monthInvalid");
+      }
+      if (housing.own.rental.endMonth) {
+        if (!isValidMonthKey(housing.own.rental.endMonth)) {
+          housingErrors.own.rental.endMonth = t("monthInvalid");
+        } else if (
+          housing.own.rental.startMonth &&
+          compareMonthKey(housing.own.rental.startMonth, housing.own.rental.endMonth) > 0
+        ) {
+          housingErrors.own.rental.endMonth = t("livingEndMonthBeforeStart");
+        }
+      }
+    }
+  }
+
+  const hasHousingErrors =
+    Object.values(housingErrors.rent).some((value) => value) ||
+    Object.values(housingErrors.own).some(
+      (value) => typeof value === "string" && value.length > 0
+    ) ||
+    Object.keys(housingErrors.own.fees).length > 0 ||
+    Object.keys(housingErrors.own.ongoingCosts).length > 0 ||
+    Object.values(housingErrors.own.rental).some((value) => value);
+
   const canProceed =
     !hasProfileError &&
     !hasMemberMonthErrors &&
     !hasAssumptionErrors &&
     !hasIncomeErrors &&
-    !hasLivingSpendErrors;
+    !hasLivingSpendErrors &&
+    !hasHousingErrors;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -711,8 +909,9 @@ export default function OnboardingDraftWizard() {
       assumptions,
       incomes,
       livingSpend,
+      housing,
     }),
-    [assumptions, household.members, incomes, livingSpend, profile]
+    [assumptions, household.members, housing, incomes, livingSpend, profile]
   );
 
   const scenarioChanges = useMemo(
@@ -737,6 +936,7 @@ export default function OnboardingDraftWizard() {
       scenarioId,
       ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID
     );
+    cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID);
     const baseCurrency =
       scenarioChanges.settingsPatch.baseCurrency ??
       scenario?.baseCurrency ??
@@ -764,6 +964,41 @@ export default function OnboardingDraftWizard() {
         resolveCategoryLabel: (category) => category,
       });
     });
+
+    scenarioChanges.housingEventDefinitions.forEach((definition) => {
+      addEventToScenarios(definition, [scenarioId]);
+    });
+
+    if (
+      scenarioChanges.housingAssets.length > 0 ||
+      scenarioChanges.housingLiabilities.length > 0
+    ) {
+      const latestScenario =
+        getActiveScenario(useScenarioStore.getState().scenarios, scenarioId) ??
+        scenario;
+      if (latestScenario) {
+        let workingScenario = { ...latestScenario };
+        let nextPositions = latestScenario.positions ?? {};
+
+        scenarioChanges.housingAssets.forEach((item) => {
+          nextPositions = applyAssetItemChange(workingScenario, {
+            type: "upsert",
+            item,
+          });
+          workingScenario = { ...workingScenario, positions: nextPositions };
+        });
+
+        scenarioChanges.housingLiabilities.forEach((item) => {
+          nextPositions = applyLiabilityItemChange(workingScenario, {
+            type: "upsert",
+            item,
+          });
+          workingScenario = { ...workingScenario, positions: nextPositions };
+        });
+
+        setScenarioPositions(scenarioId, nextPositions);
+      }
+    }
   }, [
     addEventToScenarios,
     cleanupGeneratedEntities,
@@ -771,6 +1006,8 @@ export default function OnboardingDraftWizard() {
     scenario?.baseCurrency,
     scenarioChanges,
     scenarioId,
+    scenario,
+    setScenarioPositions,
     updateBudgetRule,
     updateEventDefinition,
   ]);
@@ -789,6 +1026,9 @@ export default function OnboardingDraftWizard() {
       return;
     }
     if (step === 4 && hasLivingSpendErrors) {
+      return;
+    }
+    if (step === 5 && hasHousingErrors) {
       return;
     }
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -1096,6 +1336,19 @@ export default function OnboardingDraftWizard() {
             ),
           },
           {
+            id: "housing",
+            title: t("step.housing"),
+            content: (
+              <HousingStep
+                housing={housing}
+                baseMonth={profile.startMonth || resolvedBaseMonth}
+                errors={housingErrors}
+                onChange={setHousing}
+                t={t}
+              />
+            ),
+          },
+          {
             id: "result",
             title: t("step.result"),
             content: (
@@ -1134,7 +1387,8 @@ export default function OnboardingDraftWizard() {
                 (step === 1 && hasMemberMonthErrors) ||
                 (step === 2 && hasAssumptionErrors) ||
                 (step === 3 && hasIncomeErrors) ||
-                (step === 4 && hasLivingSpendErrors)
+                (step === 4 && hasLivingSpendErrors) ||
+                (step === 5 && hasHousingErrors)
               }
             >
               {t("next")}

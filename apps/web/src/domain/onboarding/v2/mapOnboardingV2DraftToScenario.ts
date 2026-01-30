@@ -1,9 +1,12 @@
 import { defaultCurrency } from "../../../../lib/i18n";
+import type { AssetItemUpsert } from "../../../../features/assets/types";
+import type { LiabilityItemUpsert } from "../../../../features/liabilities/types";
 import type { MoneyItemUpsert } from "../../../../features/moneyFlow/types";
 import { addMonths } from "../../members/age";
 import type { ApplyScope } from "../../applyScope";
 import type { ScenarioMember, ScenarioAssumptions } from "../../../store/scenarioStore";
 import { compareMonthKey, isValidMonthKey } from "../../../utils/monthKey";
+import type { EventDefinition } from "../../events/types";
 import {
   type OnboardingV2DraftAssumptions,
   buildAssumptionsPatch,
@@ -60,6 +63,57 @@ export type OnboardingV2DraftLivingSpendOtherItem = {
   endMonth?: string;
 };
 
+export type OnboardingV2DraftHousingRent = {
+  amount: number;
+  startMonth?: string;
+  endMonth?: string;
+  rentGrowthPct?: number | null;
+};
+
+export type OnboardingV2DraftHousingFee = {
+  id: string;
+  label: string;
+  amount: number;
+  month?: string;
+};
+
+export type OnboardingV2DraftHousingOngoingCost = {
+  id: string;
+  label: string;
+  amount: number;
+  startMonth?: string;
+  endMonth?: string;
+};
+
+export type OnboardingV2DraftHousingRental = {
+  enabled: boolean;
+  amount: number;
+  startMonth?: string;
+  endMonth?: string;
+  discountAmount?: number;
+};
+
+export type OnboardingV2DraftHousingOwn = {
+  propertyValue: number;
+  startMonth?: string;
+  downPaymentMode: "percent" | "amount";
+  downPaymentPercent?: number;
+  downPaymentAmount?: number;
+  mortgageEnabled: boolean;
+  mortgageRatePct?: number;
+  mortgageTermMonths?: number;
+  mortgagePayment?: number;
+  fees: OnboardingV2DraftHousingFee[];
+  ongoingCosts: OnboardingV2DraftHousingOngoingCost[];
+  rental: OnboardingV2DraftHousingRental;
+};
+
+export type OnboardingV2DraftHousing = {
+  mode: "rent" | "own";
+  rent: OnboardingV2DraftHousingRent;
+  own: OnboardingV2DraftHousingOwn;
+};
+
 export type OnboardingV2DraftLivingSpend = {
   fixed: {
     amount: number;
@@ -86,6 +140,7 @@ export type OnboardingV2Draft = {
   assumptions: OnboardingV2DraftAssumptions;
   incomes: OnboardingV2DraftIncome[];
   livingSpend: OnboardingV2DraftLivingSpend;
+  housing: OnboardingV2DraftHousing;
 };
 
 export type OnboardingV2IncomeMoneyItem = {
@@ -104,12 +159,16 @@ export type OnboardingV2ScenarioChanges = {
   assumptionsPatch: Partial<ScenarioAssumptions>;
   incomeMoneyItems: OnboardingV2IncomeMoneyItem[];
   expenseMoneyItems: MoneyItemUpsert[];
+  housingAssets: AssetItemUpsert[];
+  housingLiabilities: LiabilityItemUpsert[];
+  housingEventDefinitions: EventDefinition[];
 };
 
 const ONBOARDING_MEMBER_ID = /^(self|partner|child-\d+|pet-\d+)$/;
 export const ONBOARDING_V2_INCOME_GENERATED_EVENT_ID = "onboarding-v2-income";
 export const ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID =
   "onboarding-v2-living-spend";
+export const ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID = "onboarding-v2-housing";
 
 const isOnboardingMemberId = (id: string) => ONBOARDING_MEMBER_ID.test(id);
 
@@ -139,6 +198,11 @@ const normalizeMemberId = (value?: string) => {
 const normalizeAmount = (value: number | null | undefined) => {
   const numeric = Number(value ?? 0);
   return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const normalizeOptionalNumber = (value: number | null | undefined) => {
+  const numeric = Number(value ?? NaN);
+  return Number.isFinite(numeric) ? numeric : null;
 };
 
 const resolveRecurringEndMonth = ({
@@ -524,6 +588,255 @@ const buildLivingSpendMoneyItems = ({
   return items;
 };
 
+const buildHousingEntityId = (scenarioId: string, key: string) =>
+  `onboarding-v2-${scenarioId}-housing-${key}`;
+
+const buildHousingChanges = ({
+  housing,
+  scenarioId,
+  baseCurrency,
+  baseMonth,
+  inflationRate,
+}: {
+  housing: OnboardingV2DraftHousing;
+  scenarioId: string;
+  baseCurrency: string;
+  baseMonth?: string;
+  inflationRate: number;
+}) => {
+  const assets: AssetItemUpsert[] = [];
+  const liabilities: LiabilityItemUpsert[] = [];
+  const eventDefinitions: EventDefinition[] = [];
+
+  const propertyId = buildHousingEntityId(scenarioId, "property");
+  const mortgageId = buildHousingEntityId(scenarioId, "mortgage");
+  const resolvedBaseMonth = baseMonth ?? "";
+
+  if (housing.mode === "rent") {
+    const amount = normalizeAmount(housing.rent.amount);
+    const startMonth = normalizeMonth(housing.rent.startMonth) ?? resolvedBaseMonth;
+    const endMonth = resolveRecurringEndMonth({
+      startMonth,
+      endMonth: normalizeMonth(housing.rent.endMonth),
+    });
+    if (amount > 0 && startMonth) {
+      const rentGrowthPct = normalizeOptionalNumber(housing.rent.rentGrowthPct);
+      eventDefinitions.push({
+        id: buildHousingEntityId(scenarioId, "rent-expense"),
+        title: "Rent",
+        type: "rent",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth,
+          endMonth: endMonth ?? null,
+          monthlyAmount: amount,
+          oneTimeAmount: 0,
+          annualGrowthPct: rentGrowthPct ?? inflationRate,
+        },
+        currency: baseCurrency,
+        generatedByEventId: ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
+        source: "eventGenerated",
+      });
+    }
+    return { assets, liabilities, eventDefinitions };
+  }
+
+  const propertyValue = normalizeAmount(housing.own.propertyValue);
+  const propertyStartMonth =
+    normalizeMonth(housing.own.startMonth) ?? resolvedBaseMonth;
+  if (propertyValue > 0 && propertyStartMonth) {
+    assets.push({
+      id: propertyId,
+      assetType: "property",
+      name: "Property",
+      currentValue: propertyValue,
+      currency: baseCurrency,
+      startMonth: propertyStartMonth,
+      source: "eventGenerated",
+      generatedByEventId: ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
+    });
+  }
+
+  const downPaymentPercent =
+    housing.own.downPaymentMode === "percent"
+      ? normalizeAmount(housing.own.downPaymentPercent)
+      : propertyValue > 0
+        ? (normalizeAmount(housing.own.downPaymentAmount) / propertyValue) * 100
+        : 0;
+  const downPaymentAmount =
+    housing.own.downPaymentMode === "percent"
+      ? (propertyValue * downPaymentPercent) / 100
+      : normalizeAmount(housing.own.downPaymentAmount);
+  const loanAmount = Math.max(0, propertyValue - downPaymentAmount);
+
+  const mortgageRatePct = normalizeAmount(housing.own.mortgageRatePct);
+  const mortgageTermMonths = Math.max(
+    1,
+    Math.round(normalizeAmount(housing.own.mortgageTermMonths))
+  );
+
+  if (
+    housing.own.mortgageEnabled &&
+    loanAmount > 0 &&
+    propertyStartMonth
+  ) {
+    liabilities.push({
+      id: mortgageId,
+      liabilityType: "mortgage",
+      name: "Mortgage",
+      principalOutstanding: loanAmount,
+      currency: baseCurrency,
+      interestRate: mortgageRatePct,
+      termMonths: mortgageTermMonths,
+      startMonth: propertyStartMonth,
+      purchasePrice: propertyValue,
+      downPaymentPercent,
+      generatePaymentExpense: false,
+      linkedAssetId: propertyId,
+      source: "eventGenerated",
+      generatedByEventId: ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
+    });
+  }
+
+  if (
+    housing.own.mortgageEnabled &&
+    normalizeAmount(housing.own.mortgagePayment) > 0 &&
+    propertyStartMonth
+  ) {
+    const paymentEndMonth = mortgageTermMonths
+      ? addMonths(propertyStartMonth, Math.max(mortgageTermMonths - 1, 0))
+      : undefined;
+    eventDefinitions.push({
+      id: buildHousingEntityId(scenarioId, "mortgage-payment"),
+      title: "Mortgage payment",
+      type: "custom",
+      kind: "cashflow",
+      rule: {
+        mode: "params",
+        startMonth: propertyStartMonth,
+        endMonth: paymentEndMonth ?? null,
+        monthlyAmount: normalizeAmount(housing.own.mortgagePayment),
+        oneTimeAmount: 0,
+        annualGrowthPct: 0,
+      },
+      currency: baseCurrency,
+      generatedByEventId: ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
+      source: "eventGenerated",
+      linkedLiabilityId: mortgageId,
+    });
+  }
+
+  housing.own.fees.forEach((fee) => {
+    const label = fee.label?.trim();
+    if (!label) {
+      return;
+    }
+    const amount = normalizeAmount(fee.amount);
+    if (amount <= 0) {
+      return;
+    }
+    const month =
+      normalizeMonth(fee.month) ?? propertyStartMonth ?? resolvedBaseMonth;
+    if (!month) {
+      return;
+    }
+    eventDefinitions.push({
+      id: buildHousingEntityId(scenarioId, `fee-${fee.id}`),
+      title: label,
+      type: "custom",
+      kind: "cashflow",
+      rule: {
+        mode: "params",
+        startMonth: month,
+        endMonth: null,
+        monthlyAmount: 0,
+        oneTimeAmount: amount,
+        annualGrowthPct: 0,
+      },
+      currency: baseCurrency,
+      generatedByEventId: ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
+      source: "eventGenerated",
+      linkedAssetId: propertyId,
+    });
+  });
+
+  housing.own.ongoingCosts.forEach((cost) => {
+    const label = cost.label?.trim();
+    if (!label) {
+      return;
+    }
+    const amount = normalizeAmount(cost.amount);
+    if (amount <= 0) {
+      return;
+    }
+    const startMonth =
+      normalizeMonth(cost.startMonth) ?? propertyStartMonth ?? resolvedBaseMonth;
+    if (!startMonth) {
+      return;
+    }
+    const endMonth = resolveRecurringEndMonth({
+      startMonth,
+      endMonth: normalizeMonth(cost.endMonth),
+    });
+    eventDefinitions.push({
+      id: buildHousingEntityId(scenarioId, `cost-${cost.id}`),
+      title: label,
+      type: "custom",
+      kind: "cashflow",
+      rule: {
+        mode: "params",
+        startMonth,
+        endMonth: endMonth ?? null,
+        monthlyAmount: amount,
+        oneTimeAmount: 0,
+        annualGrowthPct: 0,
+      },
+      currency: baseCurrency,
+      generatedByEventId: ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
+      source: "eventGenerated",
+      linkedAssetId: propertyId,
+    });
+  });
+
+  if (housing.own.rental.enabled) {
+    const rentAmount = normalizeAmount(housing.own.rental.amount);
+    const discountAmount = normalizeAmount(housing.own.rental.discountAmount);
+    const netAmount = Math.max(0, rentAmount - discountAmount);
+    const startMonth =
+      normalizeMonth(housing.own.rental.startMonth) ??
+      propertyStartMonth ??
+      resolvedBaseMonth;
+    const endMonth = resolveRecurringEndMonth({
+      startMonth,
+      endMonth: normalizeMonth(housing.own.rental.endMonth),
+    });
+    if (netAmount > 0 && startMonth) {
+      eventDefinitions.push({
+        id: buildHousingEntityId(scenarioId, "rental-income"),
+        title: "Rental income",
+        type: "salary",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth,
+          endMonth: endMonth ?? null,
+          monthlyAmount: netAmount,
+          oneTimeAmount: 0,
+          annualGrowthPct: inflationRate,
+        },
+        currency: baseCurrency,
+        incomeSubtype: "rental",
+        generatedByEventId: ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
+        source: "eventGenerated",
+        linkedAssetId: propertyId,
+      });
+    }
+  }
+
+  return { assets, liabilities, eventDefinitions };
+};
+
 const buildApplyScope = (scenarioId: string): ApplyScope => ({
   scope: "include",
   scenarioIds: [scenarioId],
@@ -612,6 +925,10 @@ export const mapOnboardingV2DraftToScenario = ({
     draft: draft.assumptions,
     existing: existingAssumptions,
   });
+  const inflationRate =
+    typeof assumptionsPatch.inflationRate === "number"
+      ? assumptionsPatch.inflationRate
+      : existingAssumptions?.inflationRate ?? 0;
   const incomeGrowthPct =
     typeof assumptionsPatch.salaryGrowthRate === "number"
       ? assumptionsPatch.salaryGrowthRate
@@ -636,6 +953,13 @@ export const mapOnboardingV2DraftToScenario = ({
     baseMonth,
     horizonEnd,
   });
+  const housingChanges = buildHousingChanges({
+    housing: draft.housing,
+    scenarioId,
+    baseCurrency,
+    baseMonth,
+    inflationRate,
+  });
 
   return {
     membersToUpsert,
@@ -648,5 +972,8 @@ export const mapOnboardingV2DraftToScenario = ({
     assumptionsPatch,
     incomeMoneyItems,
     expenseMoneyItems,
+    housingAssets: housingChanges.assets,
+    housingLiabilities: housingChanges.liabilities,
+    housingEventDefinitions: housingChanges.eventDefinitions,
   };
 };
