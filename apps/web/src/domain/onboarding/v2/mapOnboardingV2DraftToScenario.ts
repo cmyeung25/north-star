@@ -185,6 +185,33 @@ export type OnboardingV2DraftInsuranceCashValue = {
   returnPct?: number | null;
 };
 
+export type OnboardingV2DraftInsuranceMode = "quick" | "detailed";
+
+export type OnboardingV2DraftInsuranceQuick = {
+  amount: number;
+  startMonth?: string;
+  endMonth?: string;
+};
+
+export type OnboardingV2DraftInsurancePolicy = {
+  id: string;
+  name?: string;
+  type: "protection" | "savings";
+  premiumPerMonth: number;
+  startMonth?: string;
+  endMonth?: string;
+  memberId?: string;
+  cashValue?: number | null;
+  cashValueKnown: boolean;
+  returnPct?: number | null;
+};
+
+export type OnboardingV2DraftInsurance = {
+  mode: OnboardingV2DraftInsuranceMode;
+  quick: OnboardingV2DraftInsuranceQuick;
+  policies: OnboardingV2DraftInsurancePolicy[];
+};
+
 export type OnboardingV2DraftAssets = {
   cash: {
     amount: number;
@@ -230,6 +257,7 @@ export type OnboardingV2Draft = {
   housing: OnboardingV2DraftHousing;
   assets: OnboardingV2DraftAssets;
   debts: OnboardingV2DraftDebt[];
+  insurance: OnboardingV2DraftInsurance;
 };
 
 export type OnboardingV2IncomeMoneyItem = {
@@ -266,6 +294,8 @@ export const ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID =
 export const ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID = "onboarding-v2-housing";
 export const ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID = "onboarding-v2-assets";
 export const ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID = "onboarding-v2-debts";
+export const ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID =
+  "onboarding-v2-insurance";
 
 const isOnboardingMemberId = (id: string) => ONBOARDING_MEMBER_ID.test(id);
 
@@ -687,6 +717,119 @@ const buildLivingSpendMoneyItems = ({
 
 const buildHousingEntityId = (scenarioId: string, key: string) =>
   `onboarding-v2-${scenarioId}-housing-${key}`;
+
+const buildInsuranceEntityId = (scenarioId: string, key: string) =>
+  `onboarding-v2-${scenarioId}-insurance-${key}`;
+
+const buildInsuranceChanges = ({
+  insurance,
+  scenarioId,
+  baseCurrency,
+  baseMonth,
+}: {
+  insurance: OnboardingV2DraftInsurance;
+  scenarioId: string;
+  baseCurrency: string;
+  baseMonth?: string;
+}) => {
+  const moneyItems: MoneyItemUpsert[] = [];
+  const insurancePositions: InsurancePositionDraft[] = [];
+
+  const addPremiumItem = ({
+    amount,
+    startMonth,
+    endMonth,
+    notes,
+    memberId,
+  }: {
+    amount: number;
+    startMonth: string;
+    endMonth?: string;
+    notes?: string;
+    memberId?: string;
+  }) => {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return;
+    }
+    moneyItems.push({
+      kind: "expense",
+      cadence: "recurring",
+      amount,
+      currency: baseCurrency,
+      category: "insurancePremium",
+      startMonth,
+      endMonth,
+      notes,
+      memberId,
+      source: "eventGenerated",
+      sourceType: "event",
+      generatedByEventId: ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID,
+    });
+  };
+
+  if (insurance.mode === "quick") {
+    const amount = normalizeAmount(insurance.quick.amount);
+    const startMonth =
+      normalizeMonth(insurance.quick.startMonth) ?? baseMonth ?? "";
+    if (!startMonth) {
+      return { moneyItems, insurancePositions };
+    }
+    const endMonth = resolveRecurringEndMonth({
+      startMonth,
+      endMonth: normalizeMonth(insurance.quick.endMonth),
+    });
+    addPremiumItem({
+      amount,
+      startMonth,
+      endMonth,
+      notes: "Insurance premium",
+    });
+    return { moneyItems, insurancePositions };
+  }
+
+  insurance.policies.forEach((policy) => {
+    const startMonth = normalizeMonth(policy.startMonth) ?? baseMonth ?? "";
+    if (!startMonth) {
+      return;
+    }
+    const endMonth = resolveRecurringEndMonth({
+      startMonth,
+      endMonth: normalizeMonth(policy.endMonth),
+    });
+    addPremiumItem({
+      amount: normalizeAmount(policy.premiumPerMonth),
+      startMonth,
+      endMonth,
+      notes: policy.name?.trim() || "Insurance premium",
+      memberId: normalizeMemberId(policy.memberId),
+    });
+
+    if (policy.type !== "savings") {
+      return;
+    }
+    const cashValue = normalizeOptionalNumber(policy.cashValue);
+    if (!cashValue || cashValue <= 0) {
+      return;
+    }
+    insurancePositions.push({
+      id: buildInsuranceEntityId(scenarioId, policy.id),
+      name: policy.name?.trim() || "Insurance policy",
+      ownerMemberId: normalizeMemberId(policy.memberId),
+      enabled: true,
+      kind: "savings",
+      startMonth,
+      endMonth,
+      premiumMonthly: 0,
+      premiumAnnualGrowthPct: 0,
+      initialCashValue: cashValue,
+      expectedAnnualReturnPct: normalizeOptionalNumber(policy.returnPct) ?? undefined,
+      source: "eventGenerated",
+      generatedByEventId: ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID,
+    });
+  });
+
+  return { moneyItems, insurancePositions };
+};
 
 const buildHousingChanges = ({
   housing,
@@ -1127,7 +1270,6 @@ const buildAssetsChanges = ({
   defaultCarDepreciationPct: number;
 }) => {
   const investments: InvestmentPositionDraft[] = [];
-  const insurances: InsurancePositionDraft[] = [];
   const cars: CarPositionDraft[] = [];
   const eventDefinitions: EventDefinition[] = [];
 
@@ -1236,33 +1378,7 @@ const buildAssetsChanges = ({
     }
   }
 
-  assets.insurances.forEach((insurance) => {
-    const cashValue = normalizeAmount(insurance.cashValue);
-    if (cashValue <= 0) {
-      return;
-    }
-    const startMonth =
-      normalizeMonth(insurance.startMonth) ?? baseMonth ?? "";
-    if (!startMonth) {
-      return;
-    }
-    insurances.push({
-      id: buildAssetsEntityId(scenarioId, `insurance-${insurance.id}`),
-      name: "Insurance policy",
-      ownerMemberId: normalizeMemberId(insurance.memberId),
-      enabled: true,
-      kind: "savings",
-      startMonth,
-      premiumMonthly: 0,
-      premiumAnnualGrowthPct: 0,
-      initialCashValue: cashValue,
-      expectedAnnualReturnPct: normalizeOptionalNumber(insurance.returnPct) ?? undefined,
-      source: "eventGenerated",
-      generatedByEventId: ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID,
-    });
-  });
-
-  return { investments, insurances, cars, eventDefinitions };
+  return { investments, cars, eventDefinitions };
 };
 
 const buildApplyScope = (scenarioId: string): ApplyScope => ({
@@ -1384,6 +1500,12 @@ export const mapOnboardingV2DraftToScenario = ({
     baseMonth,
     horizonEnd,
   });
+  const insuranceChanges = buildInsuranceChanges({
+    insurance: draft.insurance,
+    scenarioId,
+    baseCurrency,
+    baseMonth,
+  });
   const housingChanges = buildHousingChanges({
     housing: draft.housing,
     scenarioId,
@@ -1420,7 +1542,7 @@ export const mapOnboardingV2DraftToScenario = ({
     },
     assumptionsPatch,
     incomeMoneyItems,
-    expenseMoneyItems,
+    expenseMoneyItems: [...expenseMoneyItems, ...insuranceChanges.moneyItems],
     housingAssets: housingChanges.assets,
     housingLiabilities: housingChanges.liabilities,
     housingEventDefinitions: housingChanges.eventDefinitions,
@@ -1428,7 +1550,7 @@ export const mapOnboardingV2DraftToScenario = ({
     debtLiabilities: debtsChanges.liabilities,
     debtMoneyItems: debtsChanges.moneyItems,
     investmentPositions: assetsChanges.investments,
-    insurancePositions: assetsChanges.insurances,
+    insurancePositions: insuranceChanges.insurancePositions,
     carPositions: assetsChanges.cars,
   };
 };

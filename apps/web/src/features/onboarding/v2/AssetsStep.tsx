@@ -29,7 +29,6 @@ export type AssetsErrors = {
   breakdown: Record<string, Partial<{ value: string; customReturnPct: string }>>;
   contributions: Record<string, Partial<{ amount: string; startMonth: string; endMonth: string }>>;
   car: Partial<{ value: string; startMonth: string; depreciationPct: string }>;
-  insurances: Record<string, Partial<{ cashValue: string; startMonth: string; returnPct: string }>>;
 };
 
 type AssetsStepProps = {
@@ -147,38 +146,6 @@ export default function AssetsStep({
         ...assets.car,
         ...patch,
       },
-    });
-  };
-
-  const updateInsurance = (
-    id: string,
-    patch: Partial<OnboardingV2DraftAssets["insurances"][number]>
-  ) => {
-    updateAssets({
-      insurances: assets.insurances.map((entry) =>
-        entry.id === id ? { ...entry, ...patch } : entry
-      ),
-    });
-  };
-
-  const addInsurance = () => {
-    updateAssets({
-      insurances: [
-        ...assets.insurances,
-        {
-          id: nanoid(6),
-          cashValue: 0,
-          startMonth: baseMonth,
-          memberId: "",
-          returnPct: null,
-        },
-      ],
-    });
-  };
-
-  const removeInsurance = (id: string) => {
-    updateAssets({
-      insurances: assets.insurances.filter((entry) => entry.id !== id),
     });
   };
 
@@ -457,93 +424,6 @@ export default function AssetsStep({
         </Stack>
       </Card>
 
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
-          <Group align="center" justify="space-between">
-            <Title order={5}>{t("assetsInsuranceTitle")}</Title>
-            <Badge variant="light">{t("assetsOptionalBadge")}</Badge>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {t("assetsInsuranceHint")}
-          </Text>
-          <Button size="xs" onClick={addInsurance}>
-            {t("assetsInsuranceAdd")}
-          </Button>
-          {assets.insurances.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {t("assetsInsuranceEmpty")}
-            </Text>
-          ) : (
-            <Stack gap="sm">
-              {assets.insurances.map((entry, index) => {
-                const entryErrors = errors.insurances[entry.id];
-                return (
-                  <Card key={entry.id} withBorder radius="md" padding="sm">
-                    <Stack gap="xs">
-                      <Group justify="space-between" align="center">
-                        <Text fw={600}>
-                          {t("assetsInsuranceItem", { index: index + 1 })}
-                        </Text>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          color="red"
-                          onClick={() => removeInsurance(entry.id)}
-                        >
-                          {t("assetsInsuranceRemove")}
-                        </Button>
-                      </Group>
-                      <Group grow align="flex-start">
-                        <NumberInput
-                          label={t("assetsInsuranceCashValue")}
-                          min={0}
-                          value={entry.cashValue}
-                          error={entryErrors?.cashValue}
-                          onChange={(value) =>
-                            updateInsurance(entry.id, {
-                              cashValue: typeof value === "number" ? value : 0,
-                            })
-                          }
-                        />
-                        <Select
-                          label={t("assetsInsuranceMember")}
-                          data={memberOptions}
-                          value={entry.memberId ?? ""}
-                          onChange={(value) =>
-                            updateInsurance(entry.id, { memberId: value ?? "" })
-                          }
-                        />
-                      </Group>
-                      <Group grow align="flex-start">
-                        <MonthField
-                          label={t("assetsInsuranceStartMonth")}
-                          placeholder={t("monthPlaceholder")}
-                          value={entry.startMonth ?? ""}
-                          error={entryErrors?.startMonth}
-                          onChange={(value) =>
-                            updateInsurance(entry.id, { startMonth: value })
-                          }
-                        />
-                        <NumberInput
-                          label={t("assetsInsuranceReturn")}
-                          min={0}
-                          value={entry.returnPct ?? ""}
-                          error={entryErrors?.returnPct}
-                          onChange={(value) =>
-                            updateInsurance(entry.id, {
-                              returnPct: typeof value === "number" ? value : null,
-                            })
-                          }
-                        />
-                      </Group>
-                    </Stack>
-                  </Card>
-                );
-              })}
-            </Stack>
-          )}
-        </Stack>
-      </Card>
     </Stack>
   );
 }
