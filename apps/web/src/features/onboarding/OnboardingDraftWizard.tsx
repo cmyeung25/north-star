@@ -17,7 +17,7 @@ import {
 } from "@mantine/core";
 import { nanoid } from "nanoid";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { defaultCurrency } from "../../../lib/i18n";
 import MonthField from "../../../components/MonthField";
@@ -84,6 +84,23 @@ const steps = [
 ] as const;
 
 const DRAFT_STORAGE_KEY = "onboarding:v2:draft";
+const TELEMETRY_STORAGE_KEY = "onboarding:v2:telemetry";
+const TELEMETRY_EVENT_LIMIT = 50;
+const isDev = process.env.NODE_ENV === "development";
+
+type OnboardingTelemetryEvent = {
+  name:
+    | "onboarding_v2_started"
+    | "onboarding_v2_step_viewed"
+    | "onboarding_v2_step_completed"
+    | "onboarding_v2_completed"
+    | "onboarding_v2_abandoned";
+  ts: string;
+  stepId?: (typeof steps)[number];
+  stepIndex?: number;
+  scenarioId?: string;
+  action?: "save" | "later";
+};
 
 type HorizonYears = 3 | 5 | 10;
 
@@ -111,6 +128,24 @@ type DraftStorageState = {
   assets: OnboardingV2DraftAssets;
   debts: OnboardingV2DraftDebt[];
   insurance: OnboardingV2DraftInsurance;
+};
+
+const loadTelemetryEvents = () => {
+  if (typeof window === "undefined" || !isDev) {
+    return [];
+  }
+
+  try {
+    const stored = window.localStorage.getItem(TELEMETRY_STORAGE_KEY);
+    if (!stored) {
+      return [];
+    }
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn("Failed to parse onboarding telemetry", error);
+    return [];
+  }
 };
 
 const clampCount = (value: number | null | undefined) =>
@@ -742,6 +777,7 @@ export default function OnboardingDraftWizard() {
     () => getActiveScenario(scenarios, activeScenarioId),
     [activeScenarioId, scenarios]
   );
+  const scenarioId = scenario?.id ?? "";
   const initialState = useMemo(
     () =>
       getInitialDraftState({
@@ -780,6 +816,95 @@ export default function OnboardingDraftWizard() {
   const [insurance, setInsurance] = useState<OnboardingV2DraftInsurance>(
     initialState.insurance
   );
+  const [telemetryEvents, setTelemetryEvents] = useState<OnboardingTelemetryEvent[]>(
+    []
+  );
+  const latestStepRef = useRef(step);
+  const latestScenarioIdRef = useRef(scenarioId);
+  const hasCompletedRef = useRef(false);
+  const hasStartedRef = useRef(false);
+  const initialStepRef = useRef(step);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    if (!isDev) {
+      return;
+    }
+    setTelemetryEvents(loadTelemetryEvents());
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    latestStepRef.current = step;
+  }, [step]);
+
+  useEffect(() => {
+    latestScenarioIdRef.current = scenarioId;
+  }, [scenarioId]);
+
+  const logTelemetryEvent = useCallback((event: OnboardingTelemetryEvent) => {
+    if (typeof window === "undefined" || !isDev) {
+      return;
+    }
+
+    if (isMountedRef.current) {
+      setTelemetryEvents((current) => {
+        const next = [...current, event].slice(-TELEMETRY_EVENT_LIMIT);
+        window.localStorage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    } else {
+      const current = loadTelemetryEvents();
+      const next = [...current, event].slice(-TELEMETRY_EVENT_LIMIT);
+      window.localStorage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(next));
+    }
+
+    console.info("[onboarding telemetry]", event);
+  }, []);
+
+  useEffect(() => {
+    if (hasStartedRef.current || !scenarioId) {
+      return;
+    }
+    hasStartedRef.current = true;
+    logTelemetryEvent({
+      name: "onboarding_v2_started",
+      ts: new Date().toISOString(),
+      stepId: steps[initialStepRef.current],
+      stepIndex: initialStepRef.current,
+      scenarioId,
+    });
+  }, [logTelemetryEvent, scenarioId]);
+
+  useEffect(() => {
+    logTelemetryEvent({
+      name: "onboarding_v2_step_viewed",
+      ts: new Date().toISOString(),
+      stepId: steps[step],
+      stepIndex: step,
+      scenarioId,
+    });
+  }, [logTelemetryEvent, scenarioId, step]);
+
+  useEffect(() => {
+    return () => {
+      if (hasCompletedRef.current) {
+        return;
+      }
+      logTelemetryEvent({
+        name: "onboarding_v2_abandoned",
+        ts: new Date().toISOString(),
+        stepId: steps[latestStepRef.current],
+        stepIndex: latestStepRef.current,
+        scenarioId: latestScenarioIdRef.current,
+      });
+    };
+  }, [logTelemetryEvent]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -816,8 +941,6 @@ export default function OnboardingDraftWizard() {
     const normalized = normalizeMonthStrict(raw);
     return normalized.ok ? normalized.month : getCurrentMonth();
   }, [appSettings.globalBaseMonth]);
-
-  const scenarioId = scenario?.id ?? "";
   const currencyOptions = useMemo(() => {
     const options = new Set(
       [
@@ -1634,6 +1757,13 @@ export default function OnboardingDraftWizard() {
     if (step === 8 && hasInsuranceErrors) {
       return;
     }
+    logTelemetryEvent({
+      name: "onboarding_v2_step_completed",
+      ts: new Date().toISOString(),
+      stepId: steps[step],
+      stepIndex: step,
+      scenarioId,
+    });
     setStep((current) => Math.min(current + 1, steps.length - 1));
   };
 
@@ -1684,6 +1814,23 @@ export default function OnboardingDraftWizard() {
       updateScenarioAssumptions(scenarioId, mapping.assumptionsPatch);
     }
 
+    hasCompletedRef.current = true;
+    logTelemetryEvent({
+      name: "onboarding_v2_step_completed",
+      ts: new Date().toISOString(),
+      stepId: steps[step],
+      stepIndex: step,
+      scenarioId,
+    });
+    logTelemetryEvent({
+      name: "onboarding_v2_completed",
+      ts: new Date().toISOString(),
+      stepId: steps[step],
+      stepIndex: step,
+      scenarioId,
+      action: "save",
+    });
+
     updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
     router.push(`/${locale}${buildScenarioUrl("/money", scenarioId)}`);
@@ -1693,6 +1840,22 @@ export default function OnboardingDraftWizard() {
     if (!scenarioId) {
       return;
     }
+    hasCompletedRef.current = true;
+    logTelemetryEvent({
+      name: "onboarding_v2_step_completed",
+      ts: new Date().toISOString(),
+      stepId: steps[step],
+      stepIndex: step,
+      scenarioId,
+    });
+    logTelemetryEvent({
+      name: "onboarding_v2_completed",
+      ts: new Date().toISOString(),
+      stepId: steps[step],
+      stepIndex: step,
+      scenarioId,
+      action: "later",
+    });
     updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
     router.push(`/${locale}${buildScenarioUrl("/dashboard", scenarioId)}`);
@@ -1714,6 +1877,37 @@ export default function OnboardingDraftWizard() {
           </Badge>
         </Group>
       </Stack>
+
+      {isDev ? (
+        <Card withBorder padding="sm">
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text size="xs" fw={600}>
+                Onboarding debug
+              </Text>
+              <Badge color="blue" variant="light" size="xs">
+                V2
+              </Badge>
+            </Group>
+            <Text size="xs" c="dimmed">
+              Current step: {steps[step]}
+            </Text>
+            <Stack gap={4}>
+              {telemetryEvents.slice(-5).map((event, index) => (
+                <Text size="xs" key={`${event.ts}-${index}`}>
+                  {event.name}
+                  {event.stepId ? ` (${event.stepId})` : ""} · {event.ts}
+                </Text>
+              ))}
+              {telemetryEvents.length === 0 ? (
+                <Text size="xs" c="dimmed">
+                  No telemetry yet.
+                </Text>
+              ) : null}
+            </Stack>
+          </Stack>
+        </Card>
+      ) : null}
 
       <OnboardingV2WizardShell
         activeStep={step}
