@@ -450,6 +450,7 @@ type ScenarioStoreState = {
     id: string,
     patch: Partial<ScenarioClientComputed>
   ) => void;
+  updateScenarioBaseCurrency: (id: string, baseCurrency: string) => void;
   skipOnboardingForScenario: (id: string) => void;
   upsertScenarioEventRef: (id: string, ref: ScenarioEventRef) => void;
   upsertEventDefinition: (definition: EventDefinition) => void;
@@ -2641,6 +2642,28 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
               ...scenario,
               clientComputed: { ...(scenario.clientComputed ?? {}), ...patch },
               updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  updateScenarioBaseCurrency: (id, baseCurrency) => {
+    const nextCurrency = baseCurrency.trim();
+    if (!nextCurrency) {
+      return;
+    }
+
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              baseCurrency: nextCurrency,
+              updatedAt: now(),
+              version:
+                scenario.baseCurrency === nextCurrency
+                  ? ensureScenarioVersion(scenario)
+                  : bumpScenarioVersion(scenario),
             }
           : scenario
       ),
