@@ -15,6 +15,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { nanoid } from "nanoid";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -22,7 +23,7 @@ import { defaultCurrency } from "../../../lib/i18n";
 import MonthField from "../../../components/MonthField";
 import { getCurrentMonth } from "./utils";
 import { normalizeMonthStrict } from "../../utils/month";
-import { isValidMonthKey } from "../../utils/monthKey";
+import { compareMonthKey, isValidMonthKey } from "../../utils/monthKey";
 import {
   getActiveScenario,
   useScenarioStore,
@@ -30,19 +31,26 @@ import {
 import { buildScenarioUrl } from "../../utils/scenarioContext";
 import OnboardingV2WizardShell from "./v2/OnboardingV2WizardShell";
 import AssumptionsStep from "./v2/AssumptionsStep";
+import IncomeStep from "./v2/IncomeStep";
 import {
   type OnboardingV2Draft,
+  type OnboardingV2DraftIncome,
   type OnboardingV2DraftMember,
+  type OnboardingV2IncomeFrequency,
   type OnboardingV2MemberRole,
+  type OnboardingV2ScenarioChanges,
+  ONBOARDING_V2_INCOME_GENERATED_EVENT_ID,
   mapOnboardingV2DraftToScenario,
 } from "../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+import type { EventDefinition } from "../../domain/events/types";
+import { createEventId } from "../../../components/timeline/utils";
 import {
   type OnboardingV2DraftAssumptions,
   buildOnboardingAssumptionsDraft,
   mergeOnboardingAssumptionsDraft,
 } from "../../domain/onboarding/v2/assumptions";
 
-const steps = ["profile", "household", "assumptions", "result"] as const;
+const steps = ["profile", "household", "assumptions", "income", "result"] as const;
 
 const DRAFT_STORAGE_KEY = "onboarding:v2:draft";
 
@@ -66,6 +74,7 @@ type DraftStorageState = {
   profile: DraftProfileState;
   household: DraftHouseholdState;
   assumptions: OnboardingV2DraftAssumptions;
+  incomes: OnboardingV2DraftIncome[];
 };
 
 const clampCount = (value: number | null | undefined) =>
@@ -117,6 +126,75 @@ const buildHouseholdMembers = ({
   return members;
 };
 
+const resolveIncomeFrequency = (
+  value?: string
+): OnboardingV2IncomeFrequency =>
+  value === "monthly" || value === "quarterly" || value === "yearly" || value === "oneOff"
+    ? value
+    : "monthly";
+
+const buildIncomeDraft = ({
+  id,
+  startMonth,
+  existing,
+}: {
+  id: string;
+  startMonth: string;
+  existing?: Partial<OnboardingV2DraftIncome>;
+}): OnboardingV2DraftIncome => ({
+  id,
+  label: existing?.label ?? "",
+  amount: typeof existing?.amount === "number" ? existing.amount : 0,
+  frequency: resolveIncomeFrequency(existing?.frequency),
+  startMonth: existing?.startMonth ?? startMonth,
+  endMonth: existing?.endMonth ?? "",
+  memberId: existing?.memberId ?? "",
+  followIncomeGrowth: existing?.followIncomeGrowth !== false,
+});
+
+const normalizeDraftIncomes = ({
+  existingIncomes,
+  fallbackStartMonth,
+}: {
+  existingIncomes?: OnboardingV2DraftIncome[];
+  fallbackStartMonth: string;
+}) => {
+  const incomes = Array.isArray(existingIncomes) ? existingIncomes : [];
+  return incomes.map((income) =>
+    buildIncomeDraft({
+      id: income.id || `income-${nanoid(6)}`,
+      startMonth: fallbackStartMonth,
+      existing: income,
+    })
+  );
+};
+
+const buildIncomeEventDefinition = (
+  entry: OnboardingV2ScenarioChanges["incomeMoneyItems"][number],
+  baseCurrency: string
+): EventDefinition => ({
+  id: createEventId(),
+  title: entry.item.notes?.trim() || "Income",
+  type: "salary",
+  kind: "cashflow",
+  rule: {
+    mode: "params",
+    startMonth:
+      entry.item.cadence === "recurring"
+        ? entry.item.startMonth ?? ""
+        : entry.item.month ?? "",
+    endMonth: entry.item.cadence === "recurring" ? entry.item.endMonth ?? null : null,
+    monthlyAmount: entry.item.cadence === "recurring" ? entry.item.amount : 0,
+    oneTimeAmount: entry.item.cadence === "oneOff" ? entry.item.amount : 0,
+    annualGrowthPct:
+      entry.item.cadence === "recurring" ? entry.annualGrowthPct : 0,
+  },
+  currency: entry.item.currency ?? baseCurrency,
+  memberId: entry.item.memberId,
+  generatedByEventId: entry.item.generatedByEventId,
+  source: entry.item.source,
+});
+
 const getInitialDraftState = ({
   baseCurrency,
   assumptions,
@@ -145,6 +223,7 @@ const getInitialDraftState = ({
       }),
     },
     assumptions: assumptionsFallback,
+    incomes: [],
   };
 
   if (typeof window === "undefined") {
@@ -183,12 +262,17 @@ const getInitialDraftState = ({
       fallback.assumptions,
       parsed.assumptions
     );
+    const incomes = normalizeDraftIncomes({
+      existingIncomes: parsed.incomes,
+      fallbackStartMonth: profile.startMonth ?? fallback.profile.startMonth,
+    });
 
     return {
       step: typeof parsed.step === "number" ? parsed.step : fallback.step,
       profile,
       household,
       assumptions,
+      incomes,
     };
   } catch (error) {
     console.warn("Failed to parse onboarding draft state", error);
@@ -248,6 +332,10 @@ export default function OnboardingDraftWizard() {
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
+  const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
+  const cleanupGeneratedEntities = useScenarioStore(
+    (state) => state.cleanupGeneratedEntities
+  );
   const updateScenarioClientComputed = useScenarioStore(
     (state) => state.updateScenarioClientComputed
   );
@@ -282,6 +370,9 @@ export default function OnboardingDraftWizard() {
   const [assumptions, setAssumptions] = useState<OnboardingV2DraftAssumptions>(
     initialState.assumptions
   );
+  const [incomes, setIncomes] = useState<OnboardingV2DraftIncome[]>(
+    initialState.incomes
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -292,9 +383,10 @@ export default function OnboardingDraftWizard() {
       profile,
       household,
       assumptions,
+      incomes,
     };
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
-  }, [assumptions, household, profile, step]);
+  }, [assumptions, household, incomes, profile, step]);
 
   const resolvedBaseMonth = useMemo(() => {
     const raw = appSettings.globalBaseMonth ?? getCurrentMonth();
@@ -369,8 +461,58 @@ export default function OnboardingDraftWizard() {
     (value) => value
   );
 
+  const incomeErrors = incomes.reduce<
+    Record<
+      string,
+      Partial<{
+        label: string;
+        amount: string;
+        startMonth: string;
+        endMonth: string;
+      }>
+    >
+  >((acc, income) => {
+    const errors: Partial<{
+      label: string;
+      amount: string;
+      startMonth: string;
+      endMonth: string;
+    }> = {};
+    if (!income.label.trim()) {
+      errors.label = t("incomeNameRequired");
+    }
+    if (!Number.isFinite(income.amount) || income.amount <= 0) {
+      errors.amount = t("incomeAmountRequired");
+    }
+    if (!income.startMonth) {
+      errors.startMonth = t("incomeStartMonthRequired");
+    } else if (!isValidMonthKey(income.startMonth)) {
+      errors.startMonth = t("monthInvalid");
+    }
+    if (income.frequency !== "oneOff" && income.endMonth) {
+      if (!isValidMonthKey(income.endMonth)) {
+        errors.endMonth = t("monthInvalid");
+      } else if (
+        income.startMonth &&
+        isValidMonthKey(income.startMonth) &&
+        compareMonthKey(income.startMonth, income.endMonth) > 0
+      ) {
+        errors.endMonth = t("incomeEndMonthBeforeStart");
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      acc[income.id] = errors;
+    }
+    return acc;
+  }, {});
+
+  const hasIncomeErrors = Object.keys(incomeErrors).length > 0;
+
   const canProceed =
-    !hasProfileError && !hasMemberMonthErrors && !hasAssumptionErrors;
+    !hasProfileError &&
+    !hasMemberMonthErrors &&
+    !hasAssumptionErrors &&
+    !hasIncomeErrors;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -379,9 +521,47 @@ export default function OnboardingDraftWizard() {
         members: household.members,
       },
       assumptions,
+      incomes,
     }),
-    [assumptions, household.members, profile]
+    [assumptions, household.members, incomes, profile]
   );
+
+  const scenarioChanges = useMemo(
+    () =>
+      scenarioId
+        ? mapOnboardingV2DraftToScenario({
+            draft,
+            scenarioId,
+            existingMembers: membersStore,
+            existingAssumptions: scenario?.assumptions,
+          })
+        : null,
+    [draft, membersStore, scenario?.assumptions, scenarioId]
+  );
+
+  useEffect(() => {
+    if (!scenarioId || !scenarioChanges) {
+      return;
+    }
+    cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_INCOME_GENERATED_EVENT_ID);
+    const baseCurrency =
+      scenarioChanges.settingsPatch.baseCurrency ??
+      scenario?.baseCurrency ??
+      defaultCurrency;
+
+    scenarioChanges.incomeMoneyItems.forEach((entry) => {
+      addEventToScenarios(
+        buildIncomeEventDefinition(entry, baseCurrency),
+        [scenarioId]
+      );
+    });
+  }, [
+    addEventToScenarios,
+    cleanupGeneratedEntities,
+    scenario?.baseCurrency,
+    scenarioChanges,
+    scenarioId,
+  ]);
 
   const handleNext = () => {
     if (step === 0 && hasProfileError) {
@@ -391,6 +571,9 @@ export default function OnboardingDraftWizard() {
       return;
     }
     if (step === 2 && hasAssumptionErrors) {
+      return;
+    }
+    if (step === 3 && hasIncomeErrors) {
       return;
     }
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -405,12 +588,10 @@ export default function OnboardingDraftWizard() {
       return;
     }
 
-    const mapping = mapOnboardingV2DraftToScenario({
-      draft,
-      scenarioId,
-      existingMembers: membersStore,
-      existingAssumptions: scenario?.assumptions,
-    });
+    const mapping = scenarioChanges;
+    if (!mapping) {
+      return;
+    }
 
     mapping.memberIdsToDelete.forEach((memberId) => {
       deleteMember(memberId);
@@ -672,6 +853,20 @@ export default function OnboardingDraftWizard() {
             ),
           },
           {
+            id: "income",
+            title: t("step.income"),
+            content: (
+              <IncomeStep
+                incomes={incomes}
+                members={household.members}
+                baseMonth={profile.startMonth || resolvedBaseMonth}
+                errors={incomeErrors}
+                onChange={setIncomes}
+                t={t}
+              />
+            ),
+          },
+          {
             id: "result",
             title: t("step.result"),
             content: (
@@ -708,7 +903,8 @@ export default function OnboardingDraftWizard() {
                 step === steps.length - 1 ||
                 (step === 0 && hasProfileError) ||
                 (step === 1 && hasMemberMonthErrors) ||
-                (step === 2 && hasAssumptionErrors)
+                (step === 2 && hasAssumptionErrors) ||
+                (step === 3 && hasIncomeErrors)
               }
             >
               {t("next")}
