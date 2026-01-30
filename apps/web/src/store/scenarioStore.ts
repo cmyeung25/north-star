@@ -59,6 +59,10 @@ export type ScenarioAssumptions = {
   rentMonthly?: number;
   rentAnnualGrowthPct?: number;
   investmentReturnAssumptions?: Partial<Record<InvestmentAssetClass, number>>;
+  propertyAppreciationPct?: number;
+  carDepreciationRatePct?: number;
+  cashYieldPct?: number;
+  taxInputMode?: "gross" | "net";
   smartInvest?: SmartInvestPolicy;
 };
 
@@ -2751,6 +2755,63 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           if (Object.prototype.hasOwnProperty.call(patch, "salaryGrowthRate")) {
             nextAssumptions.salaryGrowthRate = patch.salaryGrowthRate;
             if (patch.salaryGrowthRate !== scenario.assumptions.salaryGrowthRate) {
+              didChange = true;
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "rentAnnualGrowthPct")) {
+            nextAssumptions.rentAnnualGrowthPct = patch.rentAnnualGrowthPct;
+            if (patch.rentAnnualGrowthPct !== scenario.assumptions.rentAnnualGrowthPct) {
+              didChange = true;
+            }
+          }
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              patch,
+              "investmentReturnAssumptions"
+            )
+          ) {
+            nextAssumptions.investmentReturnAssumptions =
+              patch.investmentReturnAssumptions;
+            if (
+              patch.investmentReturnAssumptions !==
+              scenario.assumptions.investmentReturnAssumptions
+            ) {
+              didChange = true;
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "propertyAppreciationPct")) {
+            nextAssumptions.propertyAppreciationPct = patch.propertyAppreciationPct;
+            if (
+              patch.propertyAppreciationPct !==
+              scenario.assumptions.propertyAppreciationPct
+            ) {
+              didChange = true;
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "carDepreciationRatePct")) {
+            nextAssumptions.carDepreciationRatePct = patch.carDepreciationRatePct;
+            if (
+              patch.carDepreciationRatePct !==
+              scenario.assumptions.carDepreciationRatePct
+            ) {
+              didChange = true;
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "cashYieldPct")) {
+            nextAssumptions.cashYieldPct = patch.cashYieldPct;
+            if (patch.cashYieldPct !== scenario.assumptions.cashYieldPct) {
+              didChange = true;
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(patch, "taxInputMode")) {
+            nextAssumptions.taxInputMode = patch.taxInputMode;
+            if (patch.taxInputMode !== scenario.assumptions.taxInputMode) {
               didChange = true;
             }
           }

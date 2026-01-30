@@ -1,7 +1,11 @@
 import { defaultCurrency } from "../../../../lib/i18n";
 import type { ApplyScope } from "../../applyScope";
-import type { ScenarioMember } from "../../../store/scenarioStore";
+import type { ScenarioMember, ScenarioAssumptions } from "../../../store/scenarioStore";
 import { isValidMonthKey } from "../../../utils/monthKey";
+import {
+  type OnboardingV2DraftAssumptions,
+  buildAssumptionsPatch,
+} from "./assumptions";
 
 export type OnboardingV2MemberRole = "self" | "partner" | "child" | "pet";
 
@@ -23,6 +27,7 @@ export type OnboardingV2Draft = {
   household: {
     members: OnboardingV2DraftMember[];
   };
+  assumptions: OnboardingV2DraftAssumptions;
 };
 
 export type OnboardingV2ScenarioChanges = {
@@ -33,6 +38,7 @@ export type OnboardingV2ScenarioChanges = {
     horizonMonths?: number;
     startMonth?: string;
   };
+  assumptionsPatch: Partial<ScenarioAssumptions>;
 };
 
 const ONBOARDING_MEMBER_ID = /^(self|partner|child-\d+|pet-\d+)$/;
@@ -112,10 +118,12 @@ export const mapOnboardingV2DraftToScenario = ({
   draft,
   scenarioId,
   existingMembers,
+  existingAssumptions,
 }: {
   draft: OnboardingV2Draft;
   scenarioId: string;
   existingMembers: ScenarioMember[];
+  existingAssumptions?: ScenarioAssumptions;
 }): OnboardingV2ScenarioChanges => {
   const applyScope = buildApplyScope(scenarioId);
   const normalizedMembers = normalizeDraftMembers(draft.household.members);
@@ -148,5 +156,9 @@ export const mapOnboardingV2DraftToScenario = ({
       horizonMonths: resolveHorizonMonths(draft.profile.horizonYears),
       startMonth,
     },
+    assumptionsPatch: buildAssumptionsPatch({
+      draft: draft.assumptions,
+      existing: existingAssumptions,
+    }),
   };
 };

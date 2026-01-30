@@ -29,14 +29,20 @@ import {
 } from "../../store/scenarioStore";
 import { buildScenarioUrl } from "../../utils/scenarioContext";
 import OnboardingV2WizardShell from "./v2/OnboardingV2WizardShell";
+import AssumptionsStep from "./v2/AssumptionsStep";
 import {
   type OnboardingV2Draft,
   type OnboardingV2DraftMember,
   type OnboardingV2MemberRole,
   mapOnboardingV2DraftToScenario,
 } from "../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+import {
+  type OnboardingV2DraftAssumptions,
+  buildOnboardingAssumptionsDraft,
+  mergeOnboardingAssumptionsDraft,
+} from "../../domain/onboarding/v2/assumptions";
 
-const steps = ["profile", "household", "result"] as const;
+const steps = ["profile", "household", "assumptions", "result"] as const;
 
 const DRAFT_STORAGE_KEY = "onboarding:v2:draft";
 
@@ -59,6 +65,7 @@ type DraftStorageState = {
   step: number;
   profile: DraftProfileState;
   household: DraftHouseholdState;
+  assumptions: OnboardingV2DraftAssumptions;
 };
 
 const clampCount = (value: number | null | undefined) =>
@@ -112,9 +119,13 @@ const buildHouseholdMembers = ({
 
 const getInitialDraftState = ({
   baseCurrency,
+  assumptions,
 }: {
   baseCurrency: string;
+  assumptions?: OnboardingV2DraftAssumptions;
 }): DraftStorageState => {
+  const assumptionsFallback =
+    assumptions ?? buildOnboardingAssumptionsDraft(undefined);
   const fallback: DraftStorageState = {
     step: 0,
     profile: {
@@ -133,6 +144,7 @@ const getInitialDraftState = ({
         existingMembers: [],
       }),
     },
+    assumptions: assumptionsFallback,
   };
 
   if (typeof window === "undefined") {
@@ -167,11 +179,16 @@ const getInitialDraftState = ({
         existingMembers: parsed.household?.members ?? [],
       }),
     };
+    const assumptions = mergeOnboardingAssumptionsDraft(
+      fallback.assumptions,
+      parsed.assumptions
+    );
 
     return {
       step: typeof parsed.step === "number" ? parsed.step : fallback.step,
       profile,
       household,
+      assumptions,
     };
   } catch (error) {
     console.warn("Failed to parse onboarding draft state", error);
@@ -249,8 +266,9 @@ export default function OnboardingDraftWizard() {
     () =>
       getInitialDraftState({
         baseCurrency: scenario?.baseCurrency ?? defaultCurrency,
+        assumptions: buildOnboardingAssumptionsDraft(scenario?.assumptions),
       }),
-    [scenario?.baseCurrency]
+    [scenario?.assumptions, scenario?.baseCurrency]
   );
   const [step, setStep] = useState(
     Math.min(initialState.step, steps.length - 1)
@@ -261,6 +279,9 @@ export default function OnboardingDraftWizard() {
   const [household, setHousehold] = useState<DraftHouseholdState>(
     initialState.household
   );
+  const [assumptions, setAssumptions] = useState<OnboardingV2DraftAssumptions>(
+    initialState.assumptions
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -270,9 +291,10 @@ export default function OnboardingDraftWizard() {
       step,
       profile,
       household,
+      assumptions,
     };
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
-  }, [household, profile, step]);
+  }, [assumptions, household, profile, step]);
 
   const resolvedBaseMonth = useMemo(() => {
     const raw = appSettings.globalBaseMonth ?? getCurrentMonth();
@@ -332,7 +354,23 @@ export default function OnboardingDraftWizard() {
   );
   const hasMemberMonthErrors = Object.keys(memberMonthErrors).length > 0;
 
-  const canProceed = !hasProfileError && !hasMemberMonthErrors;
+  const assumptionsErrors: Partial<
+    Record<keyof OnboardingV2DraftAssumptions, string>
+  > = {
+    inflationPct:
+      assumptions.inflationPct === null ? t("requiredField") : "",
+    incomeGrowthPct:
+      assumptions.incomeGrowthPct === null ? t("requiredField") : "",
+    investmentReturnPct:
+      assumptions.investmentReturnPct === null ? t("requiredField") : "",
+  };
+
+  const hasAssumptionErrors = Object.values(assumptionsErrors).some(
+    (value) => value
+  );
+
+  const canProceed =
+    !hasProfileError && !hasMemberMonthErrors && !hasAssumptionErrors;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -340,8 +378,9 @@ export default function OnboardingDraftWizard() {
       household: {
         members: household.members,
       },
+      assumptions,
     }),
-    [household.members, profile]
+    [assumptions, household.members, profile]
   );
 
   const handleNext = () => {
@@ -349,6 +388,9 @@ export default function OnboardingDraftWizard() {
       return;
     }
     if (step === 1 && hasMemberMonthErrors) {
+      return;
+    }
+    if (step === 2 && hasAssumptionErrors) {
       return;
     }
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -367,6 +409,7 @@ export default function OnboardingDraftWizard() {
       draft,
       scenarioId,
       existingMembers: membersStore,
+      existingAssumptions: scenario?.assumptions,
     });
 
     mapping.memberIdsToDelete.forEach((memberId) => {
@@ -396,6 +439,10 @@ export default function OnboardingDraftWizard() {
       updateScenarioAssumptions(scenarioId, {
         baseMonth: mapping.settingsPatch.startMonth,
       });
+    }
+
+    if (Object.keys(mapping.assumptionsPatch).length > 0) {
+      updateScenarioAssumptions(scenarioId, mapping.assumptionsPatch);
     }
 
     updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
@@ -611,6 +658,20 @@ export default function OnboardingDraftWizard() {
             ),
           },
           {
+            id: "assumptions",
+            title: t("step.assumptions"),
+            content: (
+              <AssumptionsStep
+                assumptions={assumptions}
+                errors={assumptionsErrors}
+                onChange={(patch) =>
+                  setAssumptions((current) => ({ ...current, ...patch }))
+                }
+                t={t}
+              />
+            ),
+          },
+          {
             id: "result",
             title: t("step.result"),
             content: (
@@ -646,7 +707,8 @@ export default function OnboardingDraftWizard() {
               disabled={
                 step === steps.length - 1 ||
                 (step === 0 && hasProfileError) ||
-                (step === 1 && hasMemberMonthErrors)
+                (step === 1 && hasMemberMonthErrors) ||
+                (step === 2 && hasAssumptionErrors)
               }
             >
               {t("next")}
