@@ -13,7 +13,7 @@ const normalizeVersion = (value?: string | null) => {
 
 const resolveDefaultVersion = () => {
   const envVersion = process.env.NEXT_PUBLIC_ONBOARDING_DEFAULT_VERSION;
-  return envVersion === "2" ? "2" : "1";
+  return envVersion === "1" ? "1" : "2";
 };
 
 export default function OnboardingEntry() {
