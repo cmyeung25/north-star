@@ -37,6 +37,47 @@ export type OnboardingV2DraftIncome = {
   followIncomeGrowth: boolean;
 };
 
+export type OnboardingV2LivingSpendCategoryKey =
+  | "food"
+  | "transport"
+  | "entertainment"
+  | "medical"
+  | "education"
+  | "misc";
+
+export type OnboardingV2DraftAnnualExpense = {
+  mode: "monthly" | "annual";
+  monthlyAmount: number;
+  annualAmount: number;
+  months: string[];
+};
+
+export type OnboardingV2DraftLivingSpendOtherItem = {
+  id: string;
+  label: string;
+  amount: number;
+  startMonth?: string;
+  endMonth?: string;
+};
+
+export type OnboardingV2DraftLivingSpend = {
+  fixed: {
+    amount: number;
+    startMonth?: string;
+    endMonth?: string;
+  };
+  variable: {
+    amount: number;
+  };
+  categoryBreakdown: {
+    enabled: boolean;
+    categories: Record<OnboardingV2LivingSpendCategoryKey, number>;
+  };
+  travel: OnboardingV2DraftAnnualExpense;
+  tax: OnboardingV2DraftAnnualExpense;
+  otherFixed: OnboardingV2DraftLivingSpendOtherItem[];
+};
+
 export type OnboardingV2Draft = {
   profile: OnboardingV2DraftProfile;
   household: {
@@ -44,6 +85,7 @@ export type OnboardingV2Draft = {
   };
   assumptions: OnboardingV2DraftAssumptions;
   incomes: OnboardingV2DraftIncome[];
+  livingSpend: OnboardingV2DraftLivingSpend;
 };
 
 export type OnboardingV2IncomeMoneyItem = {
@@ -61,10 +103,13 @@ export type OnboardingV2ScenarioChanges = {
   };
   assumptionsPatch: Partial<ScenarioAssumptions>;
   incomeMoneyItems: OnboardingV2IncomeMoneyItem[];
+  expenseMoneyItems: MoneyItemUpsert[];
 };
 
 const ONBOARDING_MEMBER_ID = /^(self|partner|child-\d+|pet-\d+)$/;
 export const ONBOARDING_V2_INCOME_GENERATED_EVENT_ID = "onboarding-v2-income";
+export const ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID =
+  "onboarding-v2-living-spend";
 
 const isOnboardingMemberId = (id: string) => ONBOARDING_MEMBER_ID.test(id);
 
@@ -89,6 +134,27 @@ const normalizeMonth = (value?: string) =>
 const normalizeMemberId = (value?: string) => {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
+};
+
+const normalizeAmount = (value: number | null | undefined) => {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const resolveRecurringEndMonth = ({
+  startMonth,
+  endMonth,
+}: {
+  startMonth: string;
+  endMonth?: string;
+}) => {
+  if (!endMonth) {
+    return undefined;
+  }
+  if (compareMonthKey(endMonth, startMonth) < 0) {
+    return startMonth;
+  }
+  return endMonth;
 };
 
 const resolveRangeEndMonth = ({
@@ -234,6 +300,230 @@ const buildIncomeMoneyItems = ({
   return items;
 };
 
+const buildAnnualExpenseMonths = ({
+  baseMonth,
+  horizonEnd,
+  startMonths,
+}: {
+  baseMonth?: string;
+  horizonEnd?: string;
+  startMonths: string[];
+}) => {
+  if (!baseMonth || !horizonEnd) {
+    return [];
+  }
+  const normalizedStartMonths = Array.from(new Set(startMonths));
+  const months = new Set<string>();
+
+  normalizedStartMonths.forEach((startMonth) => {
+    let current = startMonth;
+    while (compareMonthKey(current, baseMonth) < 0) {
+      current = addMonths(current, 12);
+    }
+    while (compareMonthKey(current, horizonEnd) <= 0) {
+      months.add(current);
+      current = addMonths(current, 12);
+    }
+  });
+
+  return Array.from(months).sort(compareMonthKey);
+};
+
+const buildLivingSpendMoneyItems = ({
+  livingSpend,
+  baseCurrency,
+  baseMonth,
+  horizonEnd,
+}: {
+  livingSpend: OnboardingV2DraftLivingSpend;
+  baseCurrency: string;
+  baseMonth?: string;
+  horizonEnd?: string;
+}): MoneyItemUpsert[] => {
+  const items: MoneyItemUpsert[] = [];
+  const fixedStart =
+    normalizeMonth(livingSpend.fixed.startMonth) ?? baseMonth ?? "";
+  if (!fixedStart) {
+    return items;
+  }
+  const fixedEnd = resolveRecurringEndMonth({
+    startMonth: fixedStart,
+    endMonth: normalizeMonth(livingSpend.fixed.endMonth),
+  });
+
+  const addRecurringExpense = ({
+    amount,
+    category,
+    notes,
+    startMonth,
+    endMonth,
+  }: {
+    amount: number;
+    category: string;
+    notes?: string;
+    startMonth: string;
+    endMonth?: string;
+  }) => {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return;
+    }
+    items.push({
+      kind: "expense",
+      cadence: "recurring",
+      amount,
+      currency: baseCurrency,
+      category,
+      startMonth,
+      endMonth,
+      notes,
+      source: "eventGenerated",
+      sourceType: "event",
+      generatedByEventId: ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID,
+    });
+  };
+
+  const addOneOffExpense = ({
+    amount,
+    category,
+    notes,
+    month,
+  }: {
+    amount: number;
+    category: string;
+    notes?: string;
+    month: string;
+  }) => {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return;
+    }
+    items.push({
+      kind: "expense",
+      cadence: "oneOff",
+      amount,
+      currency: baseCurrency,
+      category,
+      month,
+      notes,
+      source: "eventGenerated",
+      sourceType: "event",
+      generatedByEventId: ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID,
+    });
+  };
+
+  if (!livingSpend.categoryBreakdown.enabled) {
+    addRecurringExpense({
+      amount: normalizeAmount(livingSpend.fixed.amount),
+      category: "custom",
+      notes: "Living expenses",
+      startMonth: fixedStart,
+      endMonth: fixedEnd,
+    });
+  }
+
+  addRecurringExpense({
+    amount: normalizeAmount(livingSpend.variable.amount),
+    category: "custom",
+    notes: "Variable spending",
+    startMonth: fixedStart,
+    endMonth: fixedEnd,
+  });
+
+  if (livingSpend.categoryBreakdown.enabled) {
+    const categoryLabels: Record<OnboardingV2LivingSpendCategoryKey, string> = {
+      food: "Food",
+      transport: "Transport",
+      entertainment: "Entertainment",
+      medical: "Medical",
+      education: "Education",
+      misc: "Misc",
+    };
+    (Object.keys(categoryLabels) as OnboardingV2LivingSpendCategoryKey[]).forEach(
+      (key) => {
+        addRecurringExpense({
+          amount: normalizeAmount(livingSpend.categoryBreakdown.categories[key]),
+          category: "custom",
+          notes: categoryLabels[key],
+          startMonth: fixedStart,
+          endMonth: fixedEnd,
+        });
+      }
+    );
+  }
+
+  const resolvedAnnualExpenses = [
+    {
+      draft: livingSpend.travel,
+      category: "travel",
+      label: "Travel",
+    },
+    {
+      draft: livingSpend.tax,
+      category: "custom",
+      label: "Tax",
+    },
+  ];
+
+  resolvedAnnualExpenses.forEach(({ draft, category, label }) => {
+    if (draft.mode === "monthly") {
+      addRecurringExpense({
+        amount: normalizeAmount(draft.monthlyAmount),
+        category,
+        notes: label,
+        startMonth: fixedStart,
+        endMonth: fixedEnd,
+      });
+      return;
+    }
+
+    const annualAmount = normalizeAmount(draft.annualAmount);
+    const startMonths = Array.from(
+      new Set(draft.months.filter((month) => isValidMonthKey(month)))
+    );
+    const months = buildAnnualExpenseMonths({
+      baseMonth: fixedStart,
+      horizonEnd,
+      startMonths,
+    });
+    if (annualAmount <= 0 || startMonths.length === 0 || months.length === 0) {
+      return;
+    }
+    const perMonthAmount = annualAmount / startMonths.length;
+    months.forEach((month) => {
+      addOneOffExpense({
+        amount: perMonthAmount,
+        category,
+        notes: label,
+        month,
+      });
+    });
+  });
+
+  livingSpend.otherFixed.forEach((item) => {
+    const label = item.label?.trim();
+    if (!label) {
+      return;
+    }
+    const amount = normalizeAmount(item.amount);
+    if (amount <= 0) {
+      return;
+    }
+    const startMonth = normalizeMonth(item.startMonth) ?? fixedStart;
+    const endMonth = resolveRecurringEndMonth({
+      startMonth,
+      endMonth: normalizeMonth(item.endMonth),
+    });
+    addRecurringExpense({
+      amount,
+      category: "custom",
+      notes: label,
+      startMonth,
+      endMonth,
+    });
+  });
+
+  return items;
+};
+
 const buildApplyScope = (scenarioId: string): ApplyScope => ({
   scope: "include",
   scenarioIds: [scenarioId],
@@ -340,6 +630,12 @@ export const mapOnboardingV2DraftToScenario = ({
     horizonEnd,
     incomeGrowthPct,
   });
+  const expenseMoneyItems = buildLivingSpendMoneyItems({
+    livingSpend: draft.livingSpend,
+    baseCurrency,
+    baseMonth,
+    horizonEnd,
+  });
 
   return {
     membersToUpsert,
@@ -351,5 +647,6 @@ export const mapOnboardingV2DraftToScenario = ({
     },
     assumptionsPatch,
     incomeMoneyItems,
+    expenseMoneyItems,
   };
 };

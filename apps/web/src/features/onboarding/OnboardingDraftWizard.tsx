@@ -32,14 +32,17 @@ import { buildScenarioUrl } from "../../utils/scenarioContext";
 import OnboardingV2WizardShell from "./v2/OnboardingV2WizardShell";
 import AssumptionsStep from "./v2/AssumptionsStep";
 import IncomeStep from "./v2/IncomeStep";
+import LivingSpendStep from "./v2/LivingSpendStep";
 import {
   type OnboardingV2Draft,
   type OnboardingV2DraftIncome,
+  type OnboardingV2DraftLivingSpend,
   type OnboardingV2DraftMember,
   type OnboardingV2IncomeFrequency,
   type OnboardingV2MemberRole,
   type OnboardingV2ScenarioChanges,
   ONBOARDING_V2_INCOME_GENERATED_EVENT_ID,
+  ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID,
   mapOnboardingV2DraftToScenario,
 } from "../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
 import type { EventDefinition } from "../../domain/events/types";
@@ -49,8 +52,16 @@ import {
   buildOnboardingAssumptionsDraft,
   mergeOnboardingAssumptionsDraft,
 } from "../../domain/onboarding/v2/assumptions";
+import { upsertMoneyItem } from "../../../features/moneyFlow/moneyFlowAdapter";
 
-const steps = ["profile", "household", "assumptions", "income", "result"] as const;
+const steps = [
+  "profile",
+  "household",
+  "assumptions",
+  "income",
+  "livingSpend",
+  "result",
+] as const;
 
 const DRAFT_STORAGE_KEY = "onboarding:v2:draft";
 
@@ -75,6 +86,7 @@ type DraftStorageState = {
   household: DraftHouseholdState;
   assumptions: OnboardingV2DraftAssumptions;
   incomes: OnboardingV2DraftIncome[];
+  livingSpend: OnboardingV2DraftLivingSpend;
 };
 
 const clampCount = (value: number | null | undefined) =>
@@ -169,6 +181,64 @@ const normalizeDraftIncomes = ({
   );
 };
 
+const normalizeAnnualExpenseDraft = (
+  existing?: Partial<OnboardingV2DraftLivingSpend["travel"]>
+): OnboardingV2DraftLivingSpend["travel"] => ({
+  mode: existing?.mode === "annual" ? "annual" : "monthly",
+  monthlyAmount:
+    typeof existing?.monthlyAmount === "number" ? existing.monthlyAmount : 0,
+  annualAmount:
+    typeof existing?.annualAmount === "number" ? existing.annualAmount : 0,
+  months: Array.isArray(existing?.months)
+    ? existing.months.filter((month) => isValidMonthKey(month))
+    : [],
+});
+
+const buildLivingSpendDraft = ({
+  baseMonth,
+  existing,
+}: {
+  baseMonth: string;
+  existing?: Partial<OnboardingV2DraftLivingSpend>;
+}): OnboardingV2DraftLivingSpend => {
+  const categories = existing?.categoryBreakdown?.categories;
+  const normalizeAmount = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+  return {
+    fixed: {
+      amount: normalizeAmount(existing?.fixed?.amount),
+      startMonth: existing?.fixed?.startMonth ?? baseMonth,
+      endMonth: existing?.fixed?.endMonth ?? "",
+    },
+    variable: {
+      amount: normalizeAmount(existing?.variable?.amount),
+    },
+    categoryBreakdown: {
+      enabled: existing?.categoryBreakdown?.enabled ?? false,
+      categories: {
+        food: normalizeAmount(categories?.food),
+        transport: normalizeAmount(categories?.transport),
+        entertainment: normalizeAmount(categories?.entertainment),
+        medical: normalizeAmount(categories?.medical),
+        education: normalizeAmount(categories?.education),
+        misc: normalizeAmount(categories?.misc),
+      },
+    },
+    travel: normalizeAnnualExpenseDraft(existing?.travel),
+    tax: normalizeAnnualExpenseDraft(existing?.tax),
+    otherFixed: Array.isArray(existing?.otherFixed)
+      ? existing.otherFixed.map((item) => ({
+          id: item.id || `living-${nanoid(6)}`,
+          label: item.label ?? "",
+          amount: normalizeAmount(item.amount),
+          startMonth: item.startMonth ?? baseMonth,
+          endMonth: item.endMonth ?? "",
+        }))
+      : [],
+  };
+};
+
 const buildIncomeEventDefinition = (
   entry: OnboardingV2ScenarioChanges["incomeMoneyItems"][number],
   baseCurrency: string
@@ -224,6 +294,9 @@ const getInitialDraftState = ({
     },
     assumptions: assumptionsFallback,
     incomes: [],
+    livingSpend: buildLivingSpendDraft({
+      baseMonth: getCurrentMonth(),
+    }),
   };
 
   if (typeof window === "undefined") {
@@ -266,6 +339,10 @@ const getInitialDraftState = ({
       existingIncomes: parsed.incomes,
       fallbackStartMonth: profile.startMonth ?? fallback.profile.startMonth,
     });
+    const livingSpend = buildLivingSpendDraft({
+      baseMonth: profile.startMonth || fallback.profile.startMonth || getCurrentMonth(),
+      existing: parsed.livingSpend,
+    });
 
     return {
       step: typeof parsed.step === "number" ? parsed.step : fallback.step,
@@ -273,6 +350,7 @@ const getInitialDraftState = ({
       household,
       assumptions,
       incomes,
+      livingSpend,
     };
   } catch (error) {
     console.warn("Failed to parse onboarding draft state", error);
@@ -336,6 +414,9 @@ export default function OnboardingDraftWizard() {
   const cleanupGeneratedEntities = useScenarioStore(
     (state) => state.cleanupGeneratedEntities
   );
+  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
+  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
+  const updateEventDefinition = useScenarioStore((state) => state.updateEventDefinition);
   const updateScenarioClientComputed = useScenarioStore(
     (state) => state.updateScenarioClientComputed
   );
@@ -373,6 +454,9 @@ export default function OnboardingDraftWizard() {
   const [incomes, setIncomes] = useState<OnboardingV2DraftIncome[]>(
     initialState.incomes
   );
+  const [livingSpend, setLivingSpend] = useState<OnboardingV2DraftLivingSpend>(
+    initialState.livingSpend
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -384,9 +468,10 @@ export default function OnboardingDraftWizard() {
       household,
       assumptions,
       incomes,
+      livingSpend,
     };
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
-  }, [assumptions, household, incomes, profile, step]);
+  }, [assumptions, household, incomes, livingSpend, profile, step]);
 
   const resolvedBaseMonth = useMemo(() => {
     const raw = appSettings.globalBaseMonth ?? getCurrentMonth();
@@ -508,11 +593,114 @@ export default function OnboardingDraftWizard() {
 
   const hasIncomeErrors = Object.keys(incomeErrors).length > 0;
 
+  const livingSpendErrors: {
+    fixed: Partial<{ amount: string; startMonth: string; endMonth: string }>;
+    travel: Partial<{ months: string }>;
+    tax: Partial<{ months: string }>;
+    otherFixed: Record<
+      string,
+      Partial<{ label: string; amount: string; startMonth: string; endMonth: string }>
+    >;
+  } = {
+    fixed: {},
+    travel: {},
+    tax: {},
+    otherFixed: {},
+  };
+
+  if (!Number.isFinite(livingSpend.fixed.amount) || livingSpend.fixed.amount <= 0) {
+    livingSpendErrors.fixed.amount = t("livingFixedAmountRequired");
+  }
+
+  if (!livingSpend.fixed.startMonth) {
+    livingSpendErrors.fixed.startMonth = t("livingFixedStartMonthRequired");
+  }
+
+  const fixedStartMonth = livingSpend.fixed.startMonth ?? "";
+  const fixedStartValid = isValidMonthKey(fixedStartMonth);
+  if (livingSpend.fixed.startMonth && !fixedStartValid) {
+    livingSpendErrors.fixed.startMonth = t("monthInvalid");
+  }
+
+  if (livingSpend.fixed.endMonth) {
+    if (!isValidMonthKey(livingSpend.fixed.endMonth)) {
+      livingSpendErrors.fixed.endMonth = t("monthInvalid");
+    } else if (
+      fixedStartValid &&
+      compareMonthKey(fixedStartMonth, livingSpend.fixed.endMonth) > 0
+    ) {
+      livingSpendErrors.fixed.endMonth = t("livingEndMonthBeforeStart");
+    }
+  }
+
+  const validateAnnualMonths = (entry: OnboardingV2DraftLivingSpend["travel"]) => {
+    if (entry.mode === "annual" && entry.annualAmount > 0 && entry.months.length === 0) {
+      return t("livingAnnualMonthsRequired");
+    }
+    return "";
+  };
+
+  livingSpendErrors.travel.months = validateAnnualMonths(livingSpend.travel);
+  livingSpendErrors.tax.months = validateAnnualMonths(livingSpend.tax);
+
+  livingSpend.otherFixed.forEach((item) => {
+    const entryErrors: Partial<{
+      label: string;
+      amount: string;
+      startMonth: string;
+      endMonth: string;
+    }> = {};
+    const hasAny =
+      item.label.trim() ||
+      item.amount > 0 ||
+      item.startMonth ||
+      item.endMonth;
+
+    if (!hasAny) {
+      return;
+    }
+
+    if (!item.label.trim()) {
+      entryErrors.label = t("livingOtherLabelRequired");
+    }
+    if (!Number.isFinite(item.amount) || item.amount <= 0) {
+      entryErrors.amount = t("livingOtherAmountRequired");
+    }
+    const startMonthValue = item.startMonth ?? "";
+    const startMonthValid = isValidMonthKey(startMonthValue);
+    if (!item.startMonth) {
+      entryErrors.startMonth = t("livingOtherStartMonthRequired");
+    } else if (!startMonthValid) {
+      entryErrors.startMonth = t("monthInvalid");
+    }
+    if (item.endMonth) {
+      if (!isValidMonthKey(item.endMonth)) {
+        entryErrors.endMonth = t("monthInvalid");
+      } else if (
+        startMonthValid &&
+        compareMonthKey(startMonthValue, item.endMonth) > 0
+      ) {
+        entryErrors.endMonth = t("livingEndMonthBeforeStart");
+      }
+    }
+
+    if (Object.keys(entryErrors).length > 0) {
+      livingSpendErrors.otherFixed[item.id] = entryErrors;
+    }
+  });
+
+  const hasLivingSpendErrors =
+    Object.values(livingSpendErrors.fixed).some((value) => value) ||
+    Object.values(livingSpendErrors.travel).some((value) => value) ||
+    Object.values(livingSpendErrors.tax).some((value) => value) ||
+    Object.keys(livingSpendErrors.otherFixed).length > 0;
+
   const canProceed =
     !hasProfileError &&
     !hasMemberMonthErrors &&
     !hasAssumptionErrors &&
-    !hasIncomeErrors;
+    !hasIncomeErrors &&
+    !hasLivingSpendErrors;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -522,8 +710,9 @@ export default function OnboardingDraftWizard() {
       },
       assumptions,
       incomes,
+      livingSpend,
     }),
-    [assumptions, household.members, incomes, profile]
+    [assumptions, household.members, incomes, livingSpend, profile]
   );
 
   const scenarioChanges = useMemo(
@@ -544,6 +733,10 @@ export default function OnboardingDraftWizard() {
       return;
     }
     cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_INCOME_GENERATED_EVENT_ID);
+    cleanupGeneratedEntities(
+      scenarioId,
+      ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID
+    );
     const baseCurrency =
       scenarioChanges.settingsPatch.baseCurrency ??
       scenario?.baseCurrency ??
@@ -555,12 +748,31 @@ export default function OnboardingDraftWizard() {
         [scenarioId]
       );
     });
+    scenarioChanges.expenseMoneyItems.forEach((item) => {
+      upsertMoneyItem({
+        item,
+        scenarioId,
+        baseCurrency,
+        eventLibrary: [],
+        budgetRules: [],
+        actions: {
+          createBudgetRule,
+          updateBudgetRule,
+          addEventToScenarios,
+          updateEventDefinition,
+        },
+        resolveCategoryLabel: (category) => category,
+      });
+    });
   }, [
     addEventToScenarios,
     cleanupGeneratedEntities,
+    createBudgetRule,
     scenario?.baseCurrency,
     scenarioChanges,
     scenarioId,
+    updateBudgetRule,
+    updateEventDefinition,
   ]);
 
   const handleNext = () => {
@@ -574,6 +786,9 @@ export default function OnboardingDraftWizard() {
       return;
     }
     if (step === 3 && hasIncomeErrors) {
+      return;
+    }
+    if (step === 4 && hasLivingSpendErrors) {
       return;
     }
     setStep((current) => Math.min(current + 1, steps.length - 1));
@@ -867,6 +1082,20 @@ export default function OnboardingDraftWizard() {
             ),
           },
           {
+            id: "livingSpend",
+            title: t("step.livingSpend"),
+            content: (
+              <LivingSpendStep
+                livingSpend={livingSpend}
+                baseMonth={profile.startMonth || resolvedBaseMonth}
+                horizonYears={profile.horizonYears}
+                errors={livingSpendErrors}
+                onChange={setLivingSpend}
+                t={t}
+              />
+            ),
+          },
+          {
             id: "result",
             title: t("step.result"),
             content: (
@@ -904,7 +1133,8 @@ export default function OnboardingDraftWizard() {
                 (step === 0 && hasProfileError) ||
                 (step === 1 && hasMemberMonthErrors) ||
                 (step === 2 && hasAssumptionErrors) ||
-                (step === 3 && hasIncomeErrors)
+                (step === 3 && hasIncomeErrors) ||
+                (step === 4 && hasLivingSpendErrors)
               }
             >
               {t("next")}
