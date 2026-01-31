@@ -431,6 +431,8 @@ type ScenarioStoreState = {
   deleteScenario: (id: string) => void;
   setActiveScenario: (id: string) => void;
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
+  upsertScenarioAssets: (id: string, assets: ScenarioAsset[]) => void;
+  upsertScenarioLiabilities: (id: string, liabilities: ScenarioLiability[]) => void;
   addEvent: (
     event: ScenarioEventDraft,
     scenarioId?: string
@@ -1826,6 +1828,52 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
             }
           : scenario
       ),
+    }));
+  },
+  upsertScenarioAssets: (id, assets) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+        const existing = scenario.assets ?? [];
+        const incomingById = new Map(assets.map((asset) => [asset.id, asset]));
+        const nextAssets = [
+          ...existing.map((asset) => incomingById.get(asset.id) ?? asset),
+          ...assets.filter((asset) => !existing.some((item) => item.id === asset.id)),
+        ];
+        return {
+          ...scenario,
+          assets: nextAssets,
+          updatedAt: now(),
+        };
+      }),
+    }));
+  },
+  upsertScenarioLiabilities: (id, liabilities) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) => {
+        if (scenario.id !== id) {
+          return scenario;
+        }
+        const existing = scenario.liabilities ?? [];
+        const incomingById = new Map(
+          liabilities.map((liability) => [liability.id, liability])
+        );
+        const nextLiabilities = [
+          ...existing.map(
+            (liability) => incomingById.get(liability.id) ?? liability
+          ),
+          ...liabilities.filter(
+            (liability) => !existing.some((item) => item.id === liability.id)
+          ),
+        ];
+        return {
+          ...scenario,
+          liabilities: nextLiabilities,
+          updatedAt: now(),
+        };
+      }),
     }));
   },
   addEvent: (event, scenarioId) => {

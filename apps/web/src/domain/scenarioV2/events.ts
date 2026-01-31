@@ -91,41 +91,211 @@ const validateCashflowFields = (
 
 export const HousingEventSchema = BaseEventSchema.extend({
   type: z.literal("housing"),
-  kind: z.enum(["rent", "own"]),
+  kind: z.enum(["rent", "mortgage"]),
   startMonth: MonthKeySchema,
   endMonth: MonthKeySchema.optional(),
   rentMonthly: z.number().optional(),
   rentAnnualGrowthPct: z.number().optional(),
   purchasePrice: z.number().optional(),
-  downPayment: z.number().optional(),
+  downPaymentMode: z.enum(["percent", "amount"]).optional(),
+  downPaymentPercent: z.number().optional(),
+  downPaymentAmount: z.number().optional(),
   mortgageRatePct: z.number().optional(),
   mortgageTermYears: z.number().optional(),
-  holdingCostMonthly: z.number().optional(),
-  holdingCostAnnualGrowthPct: z.number().optional(),
-  linkedAssetId: z.string().optional(),
+  mortgagePayment: z.number().optional(),
+  mortgagePaymentIsEstimated: z.boolean().optional(),
+  feesOneOff: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string().optional(),
+        amount: z.number(),
+        month: MonthKeySchema,
+      })
+    )
+    .optional(),
+  ongoingCosts: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string().optional(),
+        amount: z.number(),
+        startMonth: MonthKeySchema,
+        endMonth: MonthKeySchema.optional(),
+      })
+    )
+    .optional(),
+  rental: z
+    .object({
+      enabled: z.boolean().optional(),
+      rentMonthly: z.number().optional(),
+      startMonth: MonthKeySchema.optional(),
+      endMonth: MonthKeySchema.optional(),
+      vacancyRatePct: z.number().optional(),
+    })
+    .optional(),
+  propertyAssetId: z.string().optional(),
+  mortgageLiabilityId: z.string().optional(),
+}).superRefine((event, ctx) => {
+  if (event.kind === "rent") {
+    if (typeof event.rentMonthly !== "number") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.rentMonthlyRequired",
+        path: ["rentMonthly"],
+      });
+    }
+    return;
+  }
+
+  if (!event.propertyAssetId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "validation.propertyAssetIdRequired",
+      path: ["propertyAssetId"],
+    });
+  }
+  if (!event.mortgageLiabilityId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "validation.mortgageLiabilityIdRequired",
+      path: ["mortgageLiabilityId"],
+    });
+  }
+  if (typeof event.purchasePrice !== "number") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "validation.purchasePriceRequired",
+      path: ["purchasePrice"],
+    });
+  }
+  if (typeof event.mortgageRatePct !== "number") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "validation.mortgageRateRequired",
+      path: ["mortgageRatePct"],
+    });
+  }
+  if (typeof event.mortgageTermYears !== "number") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "validation.mortgageTermRequired",
+      path: ["mortgageTermYears"],
+    });
+  }
+  if (event.rental?.enabled) {
+    if (typeof event.rental.rentMonthly !== "number") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.rentalMonthlyRequired",
+        path: ["rental", "rentMonthly"],
+      });
+    }
+    if (!event.rental.startMonth) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.rentalStartMonthRequired",
+        path: ["rental", "startMonth"],
+      });
+    }
+  }
 });
 
 export const LoanEventSchema = BaseEventSchema.extend({
   type: z.literal("loan"),
-  kind: z.enum(["mortgage", "loan", "carLoan", "other"]),
+  loanKind: z.enum(["car", "personal", "credit", "other"]),
   startMonth: MonthKeySchema,
   principal: z.number(),
   annualInterestRatePct: z.number(),
   termYears: z.number(),
   monthlyPayment: z.number().optional(),
   paymentMethod: z.enum(["amortization", "manual"]).optional(),
-  linkedLiabilityId: z.string().optional(),
+  paymentIsEstimated: z.boolean().optional(),
+  purchasePrice: z.number().optional(),
+  downPaymentMode: z.enum(["percent", "amount"]).optional(),
+  downPaymentPercent: z.number().optional(),
+  downPaymentAmount: z.number().optional(),
+  liabilityId: z.string(),
+}).superRefine((event, ctx) => {
+  if (event.loanKind === "car") {
+    if (typeof event.purchasePrice !== "number") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.purchasePriceRequired",
+        path: ["purchasePrice"],
+      });
+    }
+  }
 });
 
-export const InsuranceEventSchema = BaseEventSchema.extend({
-  type: z.literal("insurance"),
+const InsurancePolicySchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
   kind: z.enum(["protection", "savings"]),
   startMonth: MonthKeySchema,
   endMonth: MonthKeySchema.optional(),
   premiumMonthly: z.number(),
   premiumAnnualGrowthPct: z.number().optional(),
-  initialCashValue: z.number().optional(),
+  cashValue: z.number().optional(),
   expectedAnnualReturnPct: z.number().optional(),
+  policyId: z.string().optional(),
+  policyAssetId: z.string().optional(),
+});
+
+export const InsuranceEventSchema = BaseEventSchema.extend({
+  type: z.literal("insurance"),
+  mode: z.enum(["quick", "detailed"]),
+  startMonth: MonthKeySchema.optional(),
+  endMonth: MonthKeySchema.optional(),
+  premiumMonthly: z.number().optional(),
+  premiumAnnualGrowthPct: z.number().optional(),
+  policies: z.array(InsurancePolicySchema).optional(),
+}).superRefine((event, ctx) => {
+  if (event.mode === "quick") {
+    if (!event.startMonth) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.startMonthRequired",
+        path: ["startMonth"],
+      });
+    }
+    if (typeof event.premiumMonthly !== "number") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "validation.premiumMonthlyRequired",
+        path: ["premiumMonthly"],
+      });
+    }
+    return;
+  }
+
+  if (!event.policies || event.policies.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "validation.policiesRequired",
+      path: ["policies"],
+    });
+    return;
+  }
+
+  event.policies.forEach((policy, index) => {
+    if (policy.kind === "savings") {
+      if (!policy.policyId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "validation.policyIdRequired",
+          path: ["policies", index, "policyId"],
+        });
+      }
+      if (!policy.policyAssetId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "validation.policyAssetIdRequired",
+          path: ["policies", index, "policyAssetId"],
+        });
+      }
+    }
+  });
 });
 
 export const AdjustmentEventSchema = BaseEventSchema.extend({

@@ -91,6 +91,15 @@ import MoneyLegacyBanner from "../../../features/moneyFlow/MoneyLegacyBanner";
 import CashflowEventDrawer, {
   type ScenarioEventDraft,
 } from "../../../features/moneyFlow/CashflowEventDrawer";
+import HousingEventDrawer, {
+  type HousingEventDraft,
+} from "../../../features/moneyFlow/HousingEventDrawer";
+import LoanEventDrawer, {
+  type LoanEventDraft,
+} from "../../../features/moneyFlow/LoanEventDrawer";
+import InsuranceEventDrawer, {
+  type InsuranceEventDraft,
+} from "../../../features/moneyFlow/InsuranceEventDrawer";
 import AssetManager from "../../../features/assets/AssetManager";
 import LiabilityManager from "../../../features/liabilities/LiabilityManager";
 import EventManager from "../../../features/milestoneEvents/EventManager";
@@ -233,6 +242,8 @@ export default function MoneyClient({
   const updateEvent = useScenarioStore((state) => state.updateEvent);
   const removeEvent = useScenarioStore((state) => state.removeEvent);
   const duplicateEvent = useScenarioStore((state) => state.duplicateEvent);
+  const upsertScenarioAssets = useScenarioStore((state) => state.upsertScenarioAssets);
+  const upsertScenarioLiabilities = useScenarioStore((state) => state.upsertScenarioLiabilities);
   const applyMilestoneEvent = useScenarioStore((state) => state.applyMilestoneEvent);
   const removeMilestoneEvent = useScenarioStore((state) => state.removeMilestoneEvent);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -306,7 +317,14 @@ export default function MoneyClient({
   const [v2EventDrawerMode, setV2EventDrawerMode] = useState<"create" | "edit">(
     "create"
   );
+  const [v2EventDrawerType, setV2EventDrawerType] = useState<
+    ScenarioEvent["type"] | null
+  >(null);
   const [editingV2EventId, setEditingV2EventId] = useState<string | null>(null);
+  const [v2EventTypePickerOpen, setV2EventTypePickerOpen] = useState(false);
+  const [v2EventDefaultKind, setV2EventDefaultKind] = useState<
+    "income" | "expense"
+  >("income");
   const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
   const [adjustmentDraft, setAdjustmentDraft] = useState<{
     row: LedgerRow;
@@ -586,6 +604,10 @@ export default function MoneyClient({
     }
     return null;
   }, [editingV2Event]);
+  const editingHousingEvent = editingV2Event?.type === "housing" ? editingV2Event : null;
+  const editingLoanEvent = editingV2Event?.type === "loan" ? editingV2Event : null;
+  const editingInsuranceEvent =
+    editingV2Event?.type === "insurance" ? editingV2Event : null;
 
   const parentGroupOptions = useMemo(
     () =>
@@ -804,11 +826,25 @@ export default function MoneyClient({
     [moneyCategoryLabelMap]
   );
   const openV2EventDrawer = useCallback(
-    (mode: "create" | "edit", eventId?: string | null) => {
+    (
+      mode: "create" | "edit",
+      type: ScenarioEvent["type"],
+      eventId?: string | null
+    ) => {
       setLedgerActionError(null);
       setV2EventDrawerMode(mode);
+      setV2EventDrawerType(type);
       setEditingV2EventId(eventId ?? null);
       setV2EventDrawerOpen(true);
+    },
+    []
+  );
+
+  const openV2EventTypePicker = useCallback(
+    (defaultKind: "income" | "expense") => {
+      setLedgerActionError(null);
+      setV2EventDefaultKind(defaultKind);
+      setV2EventTypePickerOpen(true);
     },
     []
   );
@@ -843,6 +879,7 @@ export default function MoneyClient({
       }
       setV2EventDrawerOpen(false);
       setEditingV2EventId(null);
+      setV2EventDrawerType(null);
       return;
     }
 
@@ -875,8 +912,256 @@ export default function MoneyClient({
       }
     }
 
+    if (payload.kind === "mortgage" && payload.propertyAssetId && payload.mortgageLiabilityId) {
+      upsertScenarioAssets(scenarioIdValue, [
+        {
+          id: payload.propertyAssetId,
+          kind: "home",
+          label: payload.label,
+        },
+      ]);
+      upsertScenarioLiabilities(scenarioIdValue, [
+        {
+          id: payload.mortgageLiabilityId,
+          kind: "mortgage",
+          label: payload.label,
+        },
+      ]);
+    }
+
     setV2EventDrawerOpen(false);
     setEditingV2EventId(null);
+    setV2EventDrawerType(null);
+  };
+
+  const handleSaveHousingEvent = (draft: HousingEventDraft) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    setLedgerActionError(null);
+    const payload = {
+      type: "housing" as const,
+      label: draft.label.trim() || undefined,
+      kind: draft.kind,
+      startMonth: draft.startMonth,
+      endMonth: draft.endMonth || undefined,
+      rentMonthly: draft.kind === "rent" ? Number(draft.rentMonthly) : undefined,
+      rentAnnualGrowthPct:
+        draft.kind === "rent" && draft.rentAnnualGrowthPct
+          ? Number(draft.rentAnnualGrowthPct)
+          : undefined,
+      purchasePrice: draft.kind === "mortgage" ? Number(draft.purchasePrice) : undefined,
+      downPaymentMode: draft.kind === "mortgage" ? draft.downPaymentMode : undefined,
+      downPaymentPercent:
+        draft.kind === "mortgage" && draft.downPaymentPercent
+          ? Number(draft.downPaymentPercent)
+          : undefined,
+      downPaymentAmount:
+        draft.kind === "mortgage" && draft.downPaymentAmount
+          ? Number(draft.downPaymentAmount)
+          : undefined,
+      mortgageRatePct:
+        draft.kind === "mortgage" ? Number(draft.mortgageRatePct) : undefined,
+      mortgageTermYears:
+        draft.kind === "mortgage" ? Number(draft.mortgageTermYears) : undefined,
+      mortgagePayment:
+        draft.kind === "mortgage" && draft.mortgagePayment
+          ? Number(draft.mortgagePayment)
+          : undefined,
+      mortgagePaymentIsEstimated:
+        draft.kind === "mortgage" && !draft.mortgagePayment ? true : undefined,
+      feesOneOff:
+        draft.kind === "mortgage"
+          ? draft.feesOneOff.map((fee) => ({
+              id: fee.id,
+              label: fee.label.trim() || undefined,
+              amount: Number(fee.amount),
+              month: fee.month,
+            }))
+          : undefined,
+      ongoingCosts:
+        draft.kind === "mortgage"
+          ? draft.ongoingCosts.map((cost) => ({
+              id: cost.id,
+              label: cost.label.trim() || undefined,
+              amount: Number(cost.amount),
+              startMonth: cost.startMonth,
+              endMonth: cost.endMonth || undefined,
+            }))
+          : undefined,
+      rental:
+        draft.kind === "mortgage" && draft.rental.enabled
+          ? {
+              enabled: true,
+              rentMonthly: Number(draft.rental.rentMonthly),
+              startMonth: draft.rental.startMonth,
+              endMonth: draft.rental.endMonth || undefined,
+              vacancyRatePct: draft.rental.vacancyRatePct
+                ? Number(draft.rental.vacancyRatePct)
+                : undefined,
+            }
+          : undefined,
+      propertyAssetId: draft.kind === "mortgage" ? draft.propertyAssetId : undefined,
+      mortgageLiabilityId:
+        draft.kind === "mortgage" ? draft.mortgageLiabilityId : undefined,
+      memberId: draft.memberId || undefined,
+    };
+
+    if (draft.id) {
+      const result = updateEvent(draft.id, payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventUpdateFailed"));
+        return;
+      }
+    } else {
+      const result = addEvent(payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventCreateFailed"));
+        return;
+      }
+    }
+
+    upsertScenarioLiabilities(scenarioIdValue, [
+      {
+        id: payload.liabilityId,
+        kind:
+          payload.loanKind === "car"
+            ? "carLoan"
+            : payload.loanKind === "credit"
+            ? "credit"
+            : payload.loanKind === "personal"
+            ? "loan"
+            : "other",
+        label: payload.label,
+      },
+    ]);
+
+    setV2EventDrawerOpen(false);
+    setEditingV2EventId(null);
+    setV2EventDrawerType(null);
+  };
+
+  const handleSaveLoanEvent = (draft: LoanEventDraft) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    setLedgerActionError(null);
+    const payload = {
+      type: "loan" as const,
+      label: draft.label.trim() || undefined,
+      loanKind: draft.loanKind,
+      startMonth: draft.startMonth,
+      principal: Number(draft.principal),
+      annualInterestRatePct: Number(draft.annualInterestRatePct),
+      termYears: Number(draft.termYears),
+      monthlyPayment: draft.monthlyPayment ? Number(draft.monthlyPayment) : undefined,
+      paymentMethod: draft.paymentMethod,
+      paymentIsEstimated: draft.paymentIsEstimated,
+      purchasePrice: draft.purchasePrice ? Number(draft.purchasePrice) : undefined,
+      downPaymentMode: draft.downPaymentMode,
+      downPaymentPercent: draft.downPaymentPercent
+        ? Number(draft.downPaymentPercent)
+        : undefined,
+      downPaymentAmount: draft.downPaymentAmount
+        ? Number(draft.downPaymentAmount)
+        : undefined,
+      liabilityId: draft.liabilityId,
+      memberId: draft.memberId || undefined,
+    };
+
+    if (draft.id) {
+      const result = updateEvent(draft.id, payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventUpdateFailed"));
+        return;
+      }
+    } else {
+      const result = addEvent(payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventCreateFailed"));
+        return;
+      }
+    }
+
+    if (payload.policies) {
+      const savingsAssets = payload.policies.flatMap((policy) =>
+        policy.kind === "savings" && policy.policyAssetId && policy.cashValue !== undefined
+          ? [
+              {
+                id: policy.policyAssetId,
+                kind: "other",
+                label: policy.name,
+              },
+            ]
+          : []
+      );
+      if (savingsAssets.length > 0) {
+        upsertScenarioAssets(scenarioIdValue, savingsAssets);
+      }
+    }
+
+    setV2EventDrawerOpen(false);
+    setEditingV2EventId(null);
+    setV2EventDrawerType(null);
+  };
+
+  const handleSaveInsuranceEvent = (draft: InsuranceEventDraft) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    setLedgerActionError(null);
+    const payload = {
+      type: "insurance" as const,
+      label: draft.label.trim() || undefined,
+      mode: draft.mode,
+      startMonth: draft.mode === "quick" ? draft.startMonth : undefined,
+      endMonth: draft.mode === "quick" ? draft.endMonth || undefined : undefined,
+      premiumMonthly:
+        draft.mode === "quick" ? Number(draft.premiumMonthly) : undefined,
+      premiumAnnualGrowthPct:
+        draft.mode === "quick" && draft.premiumAnnualGrowthPct
+          ? Number(draft.premiumAnnualGrowthPct)
+          : undefined,
+      policies:
+        draft.mode === "detailed"
+          ? draft.policies.map((policy) => ({
+              id: policy.id,
+              name: policy.name.trim() || undefined,
+              kind: policy.kind,
+              startMonth: policy.startMonth,
+              endMonth: policy.endMonth || undefined,
+              premiumMonthly: Number(policy.premiumMonthly),
+              premiumAnnualGrowthPct: policy.premiumAnnualGrowthPct
+                ? Number(policy.premiumAnnualGrowthPct)
+                : undefined,
+              cashValue: policy.cashValue ? Number(policy.cashValue) : undefined,
+              expectedAnnualReturnPct: policy.expectedAnnualReturnPct
+                ? Number(policy.expectedAnnualReturnPct)
+                : undefined,
+              policyId: policy.policyId,
+              policyAssetId: policy.policyAssetId,
+            }))
+          : undefined,
+      memberId: draft.memberId || undefined,
+    };
+
+    if (draft.id) {
+      const result = updateEvent(draft.id, payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventUpdateFailed"));
+        return;
+      }
+    } else {
+      const result = addEvent(payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventCreateFailed"));
+        return;
+      }
+    }
+
+    setV2EventDrawerOpen(false);
+    setEditingV2EventId(null);
+    setV2EventDrawerType(null);
   };
   const handleEditV2Event = (eventId: string) => {
     if (!scenarioIsV2) {
@@ -887,7 +1172,7 @@ export default function MoneyClient({
       setLedgerActionError(t("ledgerEventMissing"));
       return;
     }
-    openV2EventDrawer("edit", eventId);
+    openV2EventDrawer("edit", match.type, eventId);
   };
   const handleDuplicateV2Event = (eventId: string) => {
     if (!scenarioIdValue) {
@@ -2111,7 +2396,7 @@ export default function MoneyClient({
                 baseCurrency={scenario?.baseCurrency ?? "USD"}
                 locale={locale}
                 members={members}
-                onAddEvent={() => openV2EventDrawer("create")}
+                onAddEvent={() => openV2EventTypePicker("income")}
                 onEditEvent={handleEditV2Event}
                 onDuplicateEvent={handleDuplicateV2Event}
                 onDeleteEvent={handleDeleteV2Event}
@@ -2152,7 +2437,7 @@ export default function MoneyClient({
                 baseCurrency={scenario?.baseCurrency ?? "USD"}
                 locale={locale}
                 members={members}
-                onAddEvent={() => openV2EventDrawer("create")}
+                onAddEvent={() => openV2EventTypePicker("expense")}
                 onEditEvent={handleEditV2Event}
                 onDuplicateEvent={handleDuplicateV2Event}
                 onDeleteEvent={handleDeleteV2Event}
@@ -2582,18 +2867,111 @@ export default function MoneyClient({
       {scenario && scenarioIdValue && (
         <>
           {scenarioIsV2 && (
-            <CashflowEventDrawer
-              opened={v2EventDrawerOpen}
-              mode={v2EventDrawerMode}
-              baseCurrency={scenario.baseCurrency}
-              members={members}
-              event={editingV2DrawerEvent}
-              onClose={() => {
-                setV2EventDrawerOpen(false);
-                setEditingV2EventId(null);
-              }}
-              onSave={handleSaveV2Event}
-            />
+            <>
+              <Drawer
+                opened={v2EventTypePickerOpen}
+                onClose={() => setV2EventTypePickerOpen(false)}
+                position="right"
+                size="sm"
+                title={t("ledgerAddEvent")}
+              >
+                <Stack gap="sm">
+                  <Button
+                    variant="light"
+                    onClick={() => {
+                      setV2EventTypePickerOpen(false);
+                      openV2EventDrawer("create", "cashflow");
+                    }}
+                  >
+                    {t("ledgerEventCashflowType")}
+                  </Button>
+                  <Button
+                    variant="light"
+                    onClick={() => {
+                      setV2EventTypePickerOpen(false);
+                      openV2EventDrawer("create", "housing");
+                    }}
+                  >
+                    {t("housingDrawerTitle")}
+                  </Button>
+                  <Button
+                    variant="light"
+                    onClick={() => {
+                      setV2EventTypePickerOpen(false);
+                      openV2EventDrawer("create", "loan");
+                    }}
+                  >
+                    {t("loanDrawerTitle")}
+                  </Button>
+                  <Button
+                    variant="light"
+                    onClick={() => {
+                      setV2EventTypePickerOpen(false);
+                      openV2EventDrawer("create", "insurance");
+                    }}
+                  >
+                    {t("insuranceDrawerTitle")}
+                  </Button>
+                </Stack>
+              </Drawer>
+              <CashflowEventDrawer
+                opened={
+                  v2EventDrawerOpen &&
+                  (v2EventDrawerType === "cashflow" || v2EventDrawerType === "adjustment")
+                }
+                mode={v2EventDrawerMode}
+                baseCurrency={scenario.baseCurrency}
+                members={members}
+                event={
+                  v2EventDrawerMode === "create"
+                    ? null
+                    : editingV2DrawerEvent
+                }
+                defaultKind={v2EventDefaultKind}
+                onClose={() => {
+                  setV2EventDrawerOpen(false);
+                  setEditingV2EventId(null);
+                  setV2EventDrawerType(null);
+                }}
+                onSave={handleSaveV2Event}
+              />
+              <HousingEventDrawer
+                opened={v2EventDrawerOpen && v2EventDrawerType === "housing"}
+                mode={v2EventDrawerMode}
+                baseCurrency={scenario.baseCurrency}
+                event={v2EventDrawerMode === "edit" ? editingHousingEvent : null}
+                onClose={() => {
+                  setV2EventDrawerOpen(false);
+                  setEditingV2EventId(null);
+                  setV2EventDrawerType(null);
+                }}
+                onSave={handleSaveHousingEvent}
+              />
+              <LoanEventDrawer
+                opened={v2EventDrawerOpen && v2EventDrawerType === "loan"}
+                mode={v2EventDrawerMode}
+                baseCurrency={scenario.baseCurrency}
+                event={v2EventDrawerMode === "edit" ? editingLoanEvent : null}
+                onClose={() => {
+                  setV2EventDrawerOpen(false);
+                  setEditingV2EventId(null);
+                  setV2EventDrawerType(null);
+                }}
+                onSave={handleSaveLoanEvent}
+              />
+              <InsuranceEventDrawer
+                opened={v2EventDrawerOpen && v2EventDrawerType === "insurance"}
+                mode={v2EventDrawerMode}
+                baseCurrency={scenario.baseCurrency}
+                event={v2EventDrawerMode === "edit" ? editingInsuranceEvent : null}
+                onClose={() => {
+                  setV2EventDrawerOpen(false);
+                  setEditingV2EventId(null);
+                  setV2EventDrawerType(null);
+                }}
+                onSave={handleSaveInsuranceEvent}
+              />
+            </>
           )}
           <TimelineEventDrawer
             mode="edit"
