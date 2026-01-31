@@ -44,6 +44,7 @@ import {
 import { useAuthState } from "../../../src/hooks/useAuthState";
 import {
   getScenarioById,
+  isLegacyOnboardingScenario,
   resolveScenarioIdFromQuery,
   useScenarioStore,
   createBudgetRuleId,
@@ -1013,6 +1014,8 @@ export default function SettingsClient({
     updateMember(memberId, { milestones: updater(currentMilestones) });
   };
 
+  const showLegacyOnboardingBanner = isLegacyOnboardingScenario(scenario);
+
   return (
     <Stack gap="xl">
       <Stack gap={4}>
@@ -1021,6 +1024,28 @@ export default function SettingsClient({
           {common(subtitleKey, { name: scenario.name })}
         </Text>
       </Stack>
+
+      <Group>
+        <Button component={Link} href="/onboarding" variant="light">
+          {common("runOnboardingAgain")}
+        </Button>
+      </Group>
+
+      {showLegacyOnboardingBanner && (
+        <Card withBorder radius="md" padding="md">
+          <Group justify="space-between" align="flex-start" wrap="wrap">
+            <Stack gap={2}>
+              <Text fw={600}>{common("onboardingRefreshTitle")}</Text>
+              <Text size="sm" c="dimmed">
+                {common("onboardingRefreshBody")}
+              </Text>
+            </Stack>
+            <Button component={Link} href="/onboarding" variant="light" size="xs">
+              {common("runOnboardingAgain")}
+            </Button>
+          </Group>
+        </Card>
+      )}
 
       {toast && (
         <Notification color={toast.color} onClose={() => setToast(null)}>

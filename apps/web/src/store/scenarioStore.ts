@@ -1540,6 +1540,11 @@ export const resolveScenarioIdFromQuery = (
   return scenarios[0]?.id ?? "";
 };
 
+export const isLegacyOnboardingScenario = (scenario?: Scenario | null) => {
+  const onboardingVersion = scenario?.meta?.onboardingVersion;
+  return !onboardingVersion || onboardingVersion < 2;
+};
+
 export const resetAppState = () => {
   const state = useScenarioStore.getState();
   useScenarioStore.setState({

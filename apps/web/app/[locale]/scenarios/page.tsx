@@ -29,6 +29,7 @@ import { useScenarioSummary } from "../../../src/scenarios/useScenarioSummary";
 import {
   getActiveScenario,
   getScenarioById,
+  isLegacyOnboardingScenario,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
@@ -115,9 +116,16 @@ export default function ScenariosPage() {
     );
   }, [activeScenario, scenarios, selectedScenarioId]);
   const { summary: selectedSummary } = useScenarioSummary(selectedScenario?.id);
+  const showLegacyOnboardingBanner = isLegacyOnboardingScenario(selectedScenario);
 
   const showToast = (message: string, color?: string) => {
     setToast({ message, color });
+  };
+
+  const handleRunOnboarding = (scenarioId: string) => {
+    setActiveScenario(scenarioId);
+    setSelectedScenarioId(scenarioId);
+    router.push(`/${locale}/onboarding`);
   };
 
   const handleSetActiveScenario = (id: string) => {
@@ -231,6 +239,26 @@ export default function ScenariosPage() {
         </Notification>
       )}
 
+      {showLegacyOnboardingBanner && (
+        <Card withBorder radius="md" padding="md">
+          <Group justify="space-between" align="flex-start" wrap="wrap">
+            <Stack gap={2}>
+              <Text fw={600}>{common("onboardingRefreshTitle")}</Text>
+              <Text size="sm" c="dimmed">
+                {common("onboardingRefreshBody")}
+              </Text>
+            </Stack>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => handleRunOnboarding(selectedScenario.id)}
+            >
+              {common("runOnboardingAgain")}
+            </Button>
+          </Group>
+        </Card>
+      )}
+
       {isDesktop ? (
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
           <Stack gap="md">
@@ -310,6 +338,12 @@ export default function ScenariosPage() {
                     {t("duplicate")}
                   </Button>
                   <Button
+                    variant="light"
+                    onClick={() => handleRunOnboarding(selectedScenario.id)}
+                  >
+                    {common("runOnboardingAgain")}
+                  </Button>
+                  <Button
                     color="red"
                     variant="light"
                     onClick={() => setDeleteScenarioTarget(selectedScenario)}
@@ -350,6 +384,12 @@ export default function ScenariosPage() {
                         disabled={scenario.id !== activeScenarioId}
                       >
                         {t("goToTimeline")}
+                      </Button>
+                      <Button
+                        variant="default"
+                        onClick={() => handleRunOnboarding(scenario.id)}
+                      >
+                        {common("runOnboardingAgain")}
                       </Button>
                     </Group>
                   }
