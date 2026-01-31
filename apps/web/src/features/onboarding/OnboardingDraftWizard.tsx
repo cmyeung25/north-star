@@ -1598,9 +1598,13 @@ export default function OnboardingDraftWizard() {
       scenarioId,
       ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID
     );
+    const latestScenario = getActiveScenario(
+      useScenarioStore.getState().scenarios,
+      scenarioId
+    );
     const baseCurrency =
       scenarioChanges.settingsPatch.baseCurrency ??
-      scenario?.baseCurrency ??
+      latestScenario?.baseCurrency ??
       defaultCurrency;
 
     scenarioChanges.incomeMoneyItems.forEach((entry) => {
@@ -1654,9 +1658,10 @@ export default function OnboardingDraftWizard() {
       scenarioChanges.housingLiabilities.length > 0 ||
       scenarioChanges.debtLiabilities.length > 0
     ) {
-      const latestScenario =
-        getActiveScenario(useScenarioStore.getState().scenarios, scenarioId) ??
-        scenario;
+      const latestScenario = getActiveScenario(
+        useScenarioStore.getState().scenarios,
+        scenarioId
+      );
       if (latestScenario) {
         let workingScenario = { ...latestScenario };
         let nextPositions = latestScenario.positions ?? {};
@@ -1694,9 +1699,10 @@ export default function OnboardingDraftWizard() {
       scenarioChanges.insurancePositions.length > 0 ||
       scenarioChanges.carPositions.length > 0
     ) {
-      const latestScenario =
-        getActiveScenario(useScenarioStore.getState().scenarios, scenarioId) ??
-        scenario;
+      const latestScenario = getActiveScenario(
+        useScenarioStore.getState().scenarios,
+        scenarioId
+      );
       if (latestScenario) {
         const nextPositions = {
           ...(latestScenario.positions ?? {}),
@@ -1720,10 +1726,8 @@ export default function OnboardingDraftWizard() {
     addEventToScenarios,
     cleanupGeneratedEntities,
     createBudgetRule,
-    scenario?.baseCurrency,
     scenarioChanges,
     scenarioId,
-    scenario,
     setScenarioPositions,
     updateBudgetRule,
     updateEventDefinition,
