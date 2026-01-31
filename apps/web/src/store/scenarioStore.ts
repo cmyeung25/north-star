@@ -9,6 +9,14 @@ import type { AssetItemUpsert } from "../../features/assets/types";
 import type { LiabilityItemUpsert } from "../../features/liabilities/types";
 import type { ApplyScope } from "../domain/applyScope";
 import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
+import type {
+  ScenarioEvent,
+  ScenarioEventDraft,
+} from "../domain/scenarioV2/events";
+import {
+  CashflowEventSchema,
+  ScenarioEventSchema,
+} from "../domain/scenarioV2/events";
 import {
   compileEventToOps,
 } from "../domain/milestoneEvents/compiler";
@@ -331,6 +339,31 @@ export type CashBucketPositionDraft = CashBucketPosition & {
   id: string;
 };
 
+export type ScenarioAssetKind = "home" | "investment" | "cash" | "car" | "other";
+
+export type ScenarioAsset = {
+  id: string;
+  kind: ScenarioAssetKind;
+  label?: string;
+  ownerMemberId?: string;
+  notes?: string;
+};
+
+export type ScenarioLiabilityKind =
+  | "mortgage"
+  | "loan"
+  | "carLoan"
+  | "credit"
+  | "other";
+
+export type ScenarioLiability = {
+  id: string;
+  kind: ScenarioLiabilityKind;
+  label?: string;
+  ownerMemberId?: string;
+  notes?: string;
+};
+
 export type ScenarioPositions = {
   home?: HomePosition;
   homes?: HomePositionDraft[];
@@ -350,6 +383,7 @@ export type PositionCopyType =
 
 export type ScenarioMeta = {
   onboardingVersion?: number;
+  schemaVersion?: number;
 };
 
 export type ScenarioClientComputed = {
@@ -365,6 +399,10 @@ export type Scenario = {
   version?: number;
   kpis: ScenarioKpis;
   assumptions: ScenarioAssumptions;
+  members?: ScenarioMember[];
+  assets?: ScenarioAsset[];
+  liabilities?: ScenarioLiability[];
+  events?: ScenarioEvent[];
   eventRefs?: ScenarioEventRef[];
   milestoneEvents?: MilestoneEvent[];
   positions?: ScenarioPositions;
@@ -393,6 +431,23 @@ type ScenarioStoreState = {
   deleteScenario: (id: string) => void;
   setActiveScenario: (id: string) => void;
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
+  addEvent: (
+    event: ScenarioEventDraft,
+    scenarioId?: string
+  ) => { ok: boolean; event?: ScenarioEvent; error?: string };
+  updateEvent: (
+    eventId: string,
+    patch: Partial<ScenarioEvent>,
+    scenarioId?: string
+  ) => { ok: boolean; event?: ScenarioEvent; error?: string };
+  removeEvent: (
+    eventId: string,
+    scenarioId?: string
+  ) => { ok: boolean; error?: string };
+  duplicateEvent: (
+    eventId: string,
+    scenarioId?: string
+  ) => { ok: boolean; event?: ScenarioEvent; error?: string };
   upsertScenarioEventRefs: (id: string, eventRefs: ScenarioEventRef[]) => void;
   addScenarioEventRef: (id: string, ref: ScenarioEventRef) => void;
   addEventToScenarios: (
@@ -513,6 +568,25 @@ export const selectPersistedState = (
 
 export const selectHasExistingProfile = (state: ScenarioStoreState): boolean =>
   state.scenarios.length > 0;
+
+export const selectEvents = (
+  state: ScenarioStoreState,
+  scenarioId?: string
+): ScenarioEvent[] => {
+  const resolvedScenarioId = scenarioId ?? state.activeScenarioId;
+  const scenario = state.scenarios.find((entry) => entry.id === resolvedScenarioId);
+  return scenario?.events ?? [];
+};
+
+export const selectEventById = (
+  state: ScenarioStoreState,
+  eventId: string,
+  scenarioId?: string
+): ScenarioEvent | null => {
+  const resolvedScenarioId = scenarioId ?? state.activeScenarioId;
+  const scenario = state.scenarios.find((entry) => entry.id === resolvedScenarioId);
+  return scenario?.events?.find((event) => event.id === eventId) ?? null;
+};
 
 export const hydrateFromPersistedState = (
   payload: ScenarioStorePersistedState
@@ -637,6 +711,7 @@ const clonePlans = (plans?: Plan[]) =>
   })) ?? [];
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
+const createScenarioEventId = () => `evt_v2_${nanoid(8)}`;
 export const createHomePositionId = () => `home-${nanoid(8)}`;
 export const createCarPositionId = () => `car-${nanoid(8)}`;
 export const createInvestmentPositionId = () => `investment-${nanoid(8)}`;
@@ -1063,6 +1138,18 @@ const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
     overrides: ref.overrides ? { ...ref.overrides } : undefined,
   }));
 
+const cloneScenarioEvents = (events?: ScenarioEvent[]) =>
+  events?.map((event) => ({
+    ...event,
+    tags: event.tags ? [...event.tags] : undefined,
+  }));
+
+const cloneScenarioAssets = (assets?: ScenarioAsset[]) =>
+  assets?.map((asset) => ({ ...asset }));
+
+const cloneScenarioLiabilities = (liabilities?: ScenarioLiability[]) =>
+  liabilities?.map((liability) => ({ ...liability }));
+
 const cloneMembers = (members?: ScenarioMember[]) =>
   members?.map((member) => ({
     ...member,
@@ -1472,6 +1559,18 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     scenario.assumptions?.baseMonth
   );
   const normalizedEventRefs = cloneEventRefs(scenario.eventRefs) ?? [];
+  const normalizedEvents =
+    cloneScenarioEvents(scenario.events) ??
+    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
+  const normalizedAssets =
+    cloneScenarioAssets(scenario.assets) ??
+    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
+  const normalizedLiabilities =
+    cloneScenarioLiabilities(scenario.liabilities) ??
+    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
+  const normalizedScenarioMembers =
+    cloneMembers(scenario.members) ??
+    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
   const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
   const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
   const normalizedPlans = clonePlans(scenario.plans);
@@ -1488,6 +1587,10 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     return {
       ...scenario,
       assumptions: normalizedAssumptions,
+      members: normalizedScenarioMembers,
+      assets: normalizedAssets,
+      liabilities: normalizedLiabilities,
+      events: normalizedEvents,
       eventRefs: normalizedEventRefs,
       milestoneEvents: normalizedMilestoneEvents,
       clientComputed: nextClientComputed,
@@ -1500,6 +1603,10 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   return {
     ...scenario,
     assumptions: normalizedAssumptions,
+    members: normalizedScenarioMembers,
+    assets: normalizedAssets,
+    liabilities: normalizedLiabilities,
+    events: normalizedEvents,
     positions: normalizedPositions,
     eventRefs: normalizedEventRefs,
     milestoneEvents: normalizedMilestoneEvents,
@@ -1544,6 +1651,9 @@ export const isLegacyOnboardingScenario = (scenario?: Scenario | null) => {
   const onboardingVersion = scenario?.meta?.onboardingVersion;
   return !onboardingVersion || onboardingVersion < 2;
 };
+
+export const isScenarioV2 = (scenario?: Scenario | null) =>
+  scenario?.meta?.schemaVersion === 2;
 
 export const resetAppState = () => {
   const state = useScenarioStore.getState();
@@ -1605,10 +1715,15 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         horizonMonths: globalHorizonMonths,
         baseMonth: globalBaseMonth ?? defaultAssumptions.baseMonth,
       },
+      members: [],
+      assets: [],
+      liabilities: [],
+      events: [],
       eventRefs: [],
       milestoneEvents: [],
       snapshots: [],
       plans: [],
+      meta: { schemaVersion: 2 },
       clientComputed:
         options?.onboardingCompleted !== undefined
           ? { onboardingCompleted: options.onboardingCompleted }
@@ -1648,6 +1763,10 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       version: defaultScenarioVersion,
       kpis: { ...source.kpis },
       assumptions: { ...source.assumptions },
+      members: cloneMembers(source.members),
+      assets: cloneScenarioAssets(source.assets),
+      liabilities: cloneScenarioLiabilities(source.liabilities),
+      events: cloneScenarioEvents(source.events),
       eventRefs: cloneEventRefs(source.eventRefs),
       milestoneEvents: cloneMilestoneEvents(source.milestoneEvents),
       positions: clonePositions(source.positions),
@@ -1708,6 +1827,168 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           : scenario
       ),
     }));
+  },
+  addEvent: (event, scenarioId) => {
+    const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
+    const scenario = get().scenarios.find(
+      (entry) => entry.id === resolvedScenarioId
+    );
+    if (!scenario) {
+      return { ok: false, error: "Scenario not found." };
+    }
+
+    const candidate = {
+      ...event,
+      id: event.id ?? createScenarioEventId(),
+    };
+    const parsed = ScenarioEventSchema.safeParse(candidate);
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid event payload." };
+    }
+    const refined =
+      parsed.data.type === "cashflow"
+        ? CashflowEventSchema.safeParse(parsed.data)
+        : parsed;
+    if (!refined.success) {
+      return { ok: false, error: "Invalid event payload." };
+    }
+
+    set((state) => ({
+      scenarios: state.scenarios.map((entry) =>
+        entry.id === resolvedScenarioId
+          ? {
+              ...entry,
+              events: [...(entry.events ?? []), refined.data],
+              updatedAt: now(),
+            }
+          : entry
+      ),
+    }));
+
+    return { ok: true, event: refined.data };
+  },
+  updateEvent: (eventId, patch, scenarioId) => {
+    const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
+    const scenario = get().scenarios.find(
+      (entry) => entry.id === resolvedScenarioId
+    );
+    if (!scenario) {
+      return { ok: false, error: "Scenario not found." };
+    }
+
+    const events = scenario.events ?? [];
+    const target = events.find((entry) => entry.id === eventId);
+    if (!target) {
+      return { ok: false, error: "Event not found." };
+    }
+
+    const merged = {
+      ...target,
+      ...patch,
+      id: target.id,
+      type: target.type,
+    };
+    const parsed = ScenarioEventSchema.safeParse(merged);
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid event payload." };
+    }
+    const refined =
+      parsed.data.type === "cashflow"
+        ? CashflowEventSchema.safeParse(parsed.data)
+        : parsed;
+    if (!refined.success) {
+      return { ok: false, error: "Invalid event payload." };
+    }
+
+    set((state) => ({
+      scenarios: state.scenarios.map((entry) =>
+        entry.id === resolvedScenarioId
+          ? {
+              ...entry,
+              events: (entry.events ?? []).map((entryEvent) =>
+                entryEvent.id === eventId ? refined.data : entryEvent
+              ),
+              updatedAt: now(),
+            }
+          : entry
+      ),
+    }));
+
+    return { ok: true, event: refined.data };
+  },
+  removeEvent: (eventId, scenarioId) => {
+    const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
+    const scenario = get().scenarios.find(
+      (entry) => entry.id === resolvedScenarioId
+    );
+    if (!scenario) {
+      return { ok: false, error: "Scenario not found." };
+    }
+
+    const existing = scenario.events ?? [];
+    const nextEvents = existing.filter((event) => event.id !== eventId);
+    if (nextEvents.length === existing.length) {
+      return { ok: false, error: "Event not found." };
+    }
+
+    set((state) => ({
+      scenarios: state.scenarios.map((entry) =>
+        entry.id === resolvedScenarioId
+          ? {
+              ...entry,
+              events: nextEvents,
+              updatedAt: now(),
+            }
+          : entry
+      ),
+    }));
+
+    return { ok: true };
+  },
+  duplicateEvent: (eventId, scenarioId) => {
+    const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
+    const scenario = get().scenarios.find(
+      (entry) => entry.id === resolvedScenarioId
+    );
+    if (!scenario) {
+      return { ok: false, error: "Scenario not found." };
+    }
+
+    const target = (scenario.events ?? []).find((event) => event.id === eventId);
+    if (!target) {
+      return { ok: false, error: "Event not found." };
+    }
+
+    const duplicated = {
+      ...target,
+      id: createScenarioEventId(),
+      label: target.label ? `${target.label} (Copy)` : target.label,
+    };
+    const parsed = ScenarioEventSchema.safeParse(duplicated);
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid event payload." };
+    }
+    const refined =
+      parsed.data.type === "cashflow"
+        ? CashflowEventSchema.safeParse(parsed.data)
+        : parsed;
+    if (!refined.success) {
+      return { ok: false, error: "Invalid event payload." };
+    }
+
+    set((state) => ({
+      scenarios: state.scenarios.map((entry) =>
+        entry.id === resolvedScenarioId
+          ? {
+              ...entry,
+              events: [...(entry.events ?? []), refined.data],
+              updatedAt: now(),
+            }
+          : entry
+      ),
+    }));
+
+    return { ok: true, event: refined.data };
   },
   upsertScenarioEventRefs: (id, eventRefs) => {
     set((state) => ({
