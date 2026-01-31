@@ -236,6 +236,49 @@ describe("position actions", () => {
   });
 });
 
+describe("scenario v2 events", () => {
+  it("creates a v2 scenario skeleton and manages events", () => {
+    const { createScenario, addEvent, updateEvent, removeEvent } =
+      useScenarioStore.getState();
+
+    const created = createScenario("V2 Scenario");
+
+    expect(created.meta?.schemaVersion).toBe(2);
+    expect(created.events).toEqual([]);
+    expect(created.assets).toEqual([]);
+    expect(created.liabilities).toEqual([]);
+    expect(created.members).toEqual([]);
+
+    const addResult = addEvent(
+      {
+        type: "cashflow",
+        kind: "income",
+        cadence: "monthly",
+        amount: 3200,
+        startMonth: "2024-01",
+        label: "Salary",
+      },
+      created.id
+    );
+
+    expect(addResult.ok).toBe(true);
+    const addedEventId = addResult.event?.id ?? "";
+
+    const updateResult = updateEvent(
+      addedEventId,
+      { amount: 3500 },
+      created.id
+    );
+    expect(updateResult.ok).toBe(true);
+    if (updateResult.event?.type === "cashflow") {
+      expect(updateResult.event.amount).toBe(3500);
+    }
+
+    const removeResult = removeEvent(addedEventId, created.id);
+    expect(removeResult.ok).toBe(true);
+  });
+});
+
 describe("onboarding writes", () => {
   it("stores assumptions, positions, members, and budget rules", () => {
     const {
