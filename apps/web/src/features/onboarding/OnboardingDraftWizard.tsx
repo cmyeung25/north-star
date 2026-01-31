@@ -2062,7 +2062,7 @@ export default function OnboardingDraftWizard() {
                                     entry.id === member.id
                                       ? {
                                           ...entry,
-                                          name: event.currentTarget.value,
+                                          name: (event.target as HTMLInputElement).value,
                                         }
                                       : entry
                                   ),
