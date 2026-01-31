@@ -10,6 +10,7 @@ declare module "vitest" {
   type Matchers = {
     toBe: (...args: unknown[]) => void;
     toEqual: (...args: unknown[]) => void;
+    toContain: (...args: unknown[]) => void;
     toHaveLength: (...args: unknown[]) => void;
     toMatchObject: (...args: unknown[]) => void;
     toBeUndefined: (...args: unknown[]) => void;
@@ -19,4 +20,7 @@ declare module "vitest" {
   };
 
   export const expect: (...args: unknown[]) => Matchers & { not: Matchers };
+  export const vi: {
+    mock: (path: string, factory?: () => unknown) => void;
+  };
 }

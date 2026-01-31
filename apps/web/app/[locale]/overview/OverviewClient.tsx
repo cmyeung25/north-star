@@ -61,6 +61,7 @@ import {
 } from "../../../src/export/projectionExport";
 import {
   getScenarioById,
+  isLegacyOnboardingScenario,
   resolveScenarioIdFromQuery,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
@@ -739,6 +740,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const visibleTimelineMarkers = timelineStripMarkers.slice(0, 8);
   const timelineOverflowCount = timelineStripMarkers.length - visibleTimelineMarkers.length;
   const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
+  const showLegacyOnboardingBanner = isLegacyOnboardingScenario(selectedScenario);
 
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
@@ -769,8 +771,27 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Button component={Link} href="/scenarios" variant="subtle">
               {t("backToScenarios")}
             </Button>
+            <Button component={Link} href="/onboarding" variant="light">
+              {common("runOnboardingAgain")}
+            </Button>
           </Group>
         </Group>
+
+        {showLegacyOnboardingBanner && (
+          <Card withBorder radius="md" padding="md">
+            <Group justify="space-between" align="flex-start" wrap="wrap">
+              <Stack gap={2}>
+                <Text fw={600}>{common("onboardingRefreshTitle")}</Text>
+                <Text size="sm" c="dimmed">
+                  {common("onboardingRefreshBody")}
+                </Text>
+              </Stack>
+              <Button component={Link} href="/onboarding" variant="light" size="xs">
+                {common("runOnboardingAgain")}
+              </Button>
+            </Group>
+          </Card>
+        )}
 
         <Stack gap="sm">
           <Group gap="sm" wrap="wrap">
