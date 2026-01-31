@@ -3,7 +3,14 @@ import { addMonths } from "../domain/members/age";
 import { mapScenarioToEngineInput } from "./adapter";
 import { isValidMonthKey, compareMonthKey } from "../utils/monthKey";
 import type { EventDefinition } from "../domain/events/types";
-import type { CashflowEvent, ScenarioEvent } from "../domain/scenarioV2/events";
+import type {
+  CashflowEvent,
+  HousingEvent,
+  InsuranceEvent,
+  LoanEvent,
+  ScenarioEvent,
+} from "../domain/scenarioV2/events";
+import { computeMonthlyPayment } from "../domain/positions/calculations";
 import type { EventType } from "../features/timeline/schema";
 import type {
   Scenario,
@@ -22,6 +29,7 @@ export type LedgerRow = {
   memberId?: string;
   tags?: string[];
   kind?: "income" | "expense";
+  linkedLiabilityId?: string;
 };
 
 export type ScenarioV2 = {
@@ -101,6 +109,265 @@ const buildCashflowMonths = (
   return months;
 };
 
+const resolveDownPaymentAmount = (event: {
+  purchasePrice?: number;
+  downPaymentMode?: "percent" | "amount";
+  downPaymentPercent?: number;
+  downPaymentAmount?: number;
+}) => {
+  const purchasePrice = event.purchasePrice ?? 0;
+  if (event.downPaymentMode === "amount") {
+    return event.downPaymentAmount ?? 0;
+  }
+  const percent = event.downPaymentPercent ?? 0;
+  return purchasePrice * (percent / 100);
+};
+
+const buildRangeMonths = (params: {
+  startMonth?: string;
+  endMonth?: string | null;
+  assumptions: ScenarioAssumptions;
+}) => {
+  const { startMonth, endMonth, assumptions } = params;
+  if (!startMonth || !isValidMonthKey(startMonth)) {
+    return [];
+  }
+  const horizonEndMonth = resolveHorizonEndMonth(assumptions);
+  const resolvedEnd =
+    endMonth && isValidMonthKey(endMonth) ? endMonth : horizonEndMonth;
+  if (!resolvedEnd || compareMonthKey(startMonth, resolvedEnd) > 0) {
+    return [];
+  }
+  const months: string[] = [];
+  let current = startMonth;
+  while (compareMonthKey(current, resolvedEnd) <= 0) {
+    months.push(current);
+    current = addMonths(current, 1);
+  }
+  return months;
+};
+
+const buildTermEndMonth = (startMonth: string, termMonths: number) => {
+  if (!isValidMonthKey(startMonth) || termMonths <= 0) {
+    return null;
+  }
+  return addMonths(startMonth, termMonths - 1);
+};
+
+const buildHousingLedgerRows = (
+  event: HousingEvent,
+  assumptions: ScenarioAssumptions
+): LedgerRow[] => {
+  const rows: LedgerRow[] = [];
+  if (!isValidMonthKey(event.startMonth)) {
+    return rows;
+  }
+
+  if (event.kind === "rent") {
+    const rentMonthly = event.rentMonthly ?? 0;
+    if (rentMonthly > 0) {
+      const months = buildRangeMonths({
+        startMonth: event.startMonth,
+        endMonth: event.endMonth ?? null,
+        assumptions,
+      });
+      months.forEach((month) => {
+        rows.push({
+          month,
+          amount: -Math.abs(rentMonthly),
+          sourceEventId: event.id,
+          label: event.label,
+          memberId: event.memberId,
+          tags: event.tags ? [...event.tags] : undefined,
+          kind: "expense",
+        });
+      });
+    }
+    return rows;
+  }
+
+  const purchasePrice = event.purchasePrice ?? 0;
+  const downPayment = resolveDownPaymentAmount(event);
+  const principal = Math.max(0, purchasePrice - downPayment);
+  const termMonths = Math.max(0, Math.round((event.mortgageTermYears ?? 0) * 12));
+  const payment =
+    event.mortgagePayment ??
+    computeMonthlyPayment(principal, (event.mortgageRatePct ?? 0) / 100, termMonths);
+  const termEndMonth = buildTermEndMonth(event.startMonth, termMonths);
+  const paymentMonths = buildRangeMonths({
+    startMonth: event.startMonth,
+    endMonth: termEndMonth ?? event.endMonth ?? null,
+    assumptions,
+  });
+
+  paymentMonths.forEach((month) => {
+    if (!payment) {
+      return;
+    }
+    rows.push({
+      month,
+      amount: -Math.abs(payment),
+      sourceEventId: event.id,
+      label: event.label,
+      memberId: event.memberId,
+      tags: event.tags ? [...event.tags] : undefined,
+      kind: "expense",
+      linkedLiabilityId: event.mortgageLiabilityId ?? event.id,
+    });
+  });
+
+  (event.feesOneOff ?? []).forEach((fee) => {
+    if (!isValidMonthKey(fee.month)) {
+      return;
+    }
+    if (!fee.amount) {
+      return;
+    }
+    rows.push({
+      month: fee.month,
+      amount: -Math.abs(fee.amount),
+      sourceEventId: event.id,
+      label: fee.label ?? event.label,
+      memberId: event.memberId,
+      tags: event.tags ? [...event.tags] : undefined,
+      kind: "expense",
+    });
+  });
+
+  (event.ongoingCosts ?? []).forEach((cost) => {
+    if (!isValidMonthKey(cost.startMonth)) {
+      return;
+    }
+    const months = buildRangeMonths({
+      startMonth: cost.startMonth,
+      endMonth: cost.endMonth ?? event.endMonth ?? null,
+      assumptions,
+    });
+    months.forEach((month) => {
+      rows.push({
+        month,
+        amount: -Math.abs(cost.amount ?? 0),
+        sourceEventId: event.id,
+        label: cost.label ?? event.label,
+        memberId: event.memberId,
+        tags: event.tags ? [...event.tags] : undefined,
+        kind: "expense",
+      });
+    });
+  });
+
+  if (event.rental?.enabled && event.rental.rentMonthly) {
+    const vacancyRate = event.rental.vacancyRatePct ?? 0;
+    const rentNet = Math.max(0, event.rental.rentMonthly * (1 - vacancyRate / 100));
+    const months = buildRangeMonths({
+      startMonth: event.rental.startMonth ?? event.startMonth,
+      endMonth: event.rental.endMonth ?? event.endMonth ?? null,
+      assumptions,
+    });
+    months.forEach((month) => {
+      rows.push({
+        month,
+        amount: Math.abs(rentNet),
+        sourceEventId: event.id,
+        label: event.label,
+        memberId: event.memberId,
+        tags: event.tags ? [...event.tags] : undefined,
+        kind: "income",
+      });
+    });
+  }
+
+  return rows;
+};
+
+const buildLoanLedgerRows = (
+  event: LoanEvent,
+  assumptions: ScenarioAssumptions
+): LedgerRow[] => {
+  if (!isValidMonthKey(event.startMonth)) {
+    return [];
+  }
+  const termMonths = Math.max(0, Math.round((event.termYears ?? 0) * 12));
+  const payment =
+    event.monthlyPayment ??
+    computeMonthlyPayment(
+      event.principal,
+      (event.annualInterestRatePct ?? 0) / 100,
+      termMonths
+    );
+  const termEndMonth = buildTermEndMonth(event.startMonth, termMonths);
+  const months = buildRangeMonths({
+    startMonth: event.startMonth,
+    endMonth: termEndMonth,
+    assumptions,
+  });
+  return months.map((month) => ({
+    month,
+    amount: -Math.abs(payment),
+    sourceEventId: event.id,
+    label: event.label,
+    memberId: event.memberId,
+    tags: event.tags ? [...event.tags] : undefined,
+    kind: "expense",
+    linkedLiabilityId: event.liabilityId ?? event.id,
+  }));
+};
+
+const buildInsuranceLedgerRows = (
+  event: InsuranceEvent,
+  assumptions: ScenarioAssumptions
+): LedgerRow[] => {
+  const rows: LedgerRow[] = [];
+  if (event.mode === "quick") {
+    if (!event.startMonth || !isValidMonthKey(event.startMonth)) {
+      return rows;
+    }
+    const months = buildRangeMonths({
+      startMonth: event.startMonth,
+      endMonth: event.endMonth ?? null,
+      assumptions,
+    });
+    const premium = event.premiumMonthly ?? 0;
+    months.forEach((month) => {
+      rows.push({
+        month,
+        amount: -Math.abs(premium),
+        sourceEventId: event.id,
+        label: event.label,
+        memberId: event.memberId,
+        tags: event.tags ? [...event.tags] : undefined,
+        kind: "expense",
+      });
+    });
+    return rows;
+  }
+
+  (event.policies ?? []).forEach((policy) => {
+    if (!isValidMonthKey(policy.startMonth)) {
+      return;
+    }
+    const months = buildRangeMonths({
+      startMonth: policy.startMonth,
+      endMonth: policy.endMonth ?? null,
+      assumptions,
+    });
+    const premium = policy.premiumMonthly ?? 0;
+    months.forEach((month) => {
+      rows.push({
+        month,
+        amount: -Math.abs(premium),
+        sourceEventId: event.id,
+        label: policy.name ?? event.label,
+        memberId: event.memberId,
+        tags: event.tags ? [...event.tags] : undefined,
+        kind: "expense",
+      });
+    });
+  });
+
+  return rows;
+};
+
 export const compileScenarioV2ToLedger = (
   scenario: ScenarioV2
 ): LedgerRow[] => {
@@ -110,6 +377,15 @@ export const compileScenarioV2ToLedger = (
   return events.flatMap((event) => {
     if (event.type !== "cashflow") {
       if (event.type !== "adjustment") {
+        if (event.type === "housing") {
+          return buildHousingLedgerRows(event, assumptions);
+        }
+        if (event.type === "loan") {
+          return buildLoanLedgerRows(event, assumptions);
+        }
+        if (event.type === "insurance") {
+          return buildInsuranceLedgerRows(event, assumptions);
+        }
         return [];
       }
       if (!isValidMonthKey(event.month)) {
@@ -185,36 +461,194 @@ const buildLegacyEventLibrary = (
   const horizonEndMonth = resolveHorizonEndMonth(assumptions);
 
   return events.flatMap((event) => {
-    if (event.type !== "cashflow") {
-      return [];
-    }
-    const months = buildCashflowMonths(event, assumptions);
-    if (months.length === 0) {
-      return [];
-    }
+    if (event.type === "cashflow") {
+      const months = buildCashflowMonths(event, assumptions);
+      if (months.length === 0) {
+        return [];
+      }
 
-    const type = buildEventTypeForKind(event.kind);
-    const schedule = months.map((month) => ({
-      month,
-      amount: Math.abs(event.amount),
-    }));
+      const type = buildEventTypeForKind(event.kind);
+      const schedule = months.map((month) => ({
+        month,
+        amount: Math.abs(event.amount),
+      }));
 
-    return [
-      {
-        id: event.id,
-        title: event.label ?? "Cashflow",
-        type,
-        kind: "cashflow",
-        rule: {
-          mode: "schedule",
-          startMonth: event.startMonth ?? event.occurrenceMonth ?? horizonEndMonth ?? "",
-          endMonth: event.endMonth ?? null,
-          schedule,
+      return [
+        {
+          id: event.id,
+          title: event.label ?? "Cashflow",
+          type,
+          kind: "cashflow",
+          rule: {
+            mode: "schedule",
+            startMonth: event.startMonth ?? event.occurrenceMonth ?? horizonEndMonth ?? "",
+            endMonth: event.endMonth ?? null,
+            schedule,
+          },
+          currency: scenario.baseCurrency,
+          memberId: event.memberId,
         },
-        currency: scenario.baseCurrency,
-        memberId: event.memberId,
-      },
-    ];
+      ];
+    }
+
+    if (event.type === "housing") {
+      if (event.kind === "rent") {
+        const rentMonthly = event.rentMonthly ?? 0;
+        if (!rentMonthly) {
+          return [];
+        }
+        const months = buildRangeMonths({
+          startMonth: event.startMonth,
+          endMonth: event.endMonth ?? null,
+          assumptions,
+        });
+        const schedule = months.map((month) => ({
+          month,
+          amount: Math.abs(rentMonthly),
+        }));
+        return [
+          {
+            id: event.id,
+            title: event.label ?? "Rent",
+            type: "rent",
+            kind: "cashflow",
+            rule: {
+              mode: "schedule",
+              startMonth: event.startMonth,
+              endMonth: event.endMonth ?? null,
+              schedule,
+            },
+            currency: scenario.baseCurrency,
+            memberId: event.memberId,
+          },
+        ];
+      }
+
+      const feeDefinitions = (event.feesOneOff ?? []).flatMap((fee, index) => {
+        if (!isValidMonthKey(fee.month) || !fee.amount) {
+          return [];
+        }
+        return [
+          {
+            id: `${event.id}-fee-${index}`,
+            title: fee.label ?? event.label ?? "Housing fee",
+            type: "custom",
+            kind: "cashflow" as const,
+            rule: {
+              mode: "schedule",
+              startMonth: fee.month,
+              endMonth: fee.month,
+              schedule: [{ month: fee.month, amount: Math.abs(fee.amount) }],
+            },
+            currency: scenario.baseCurrency,
+            memberId: event.memberId,
+          },
+        ];
+      });
+
+      const ongoingDefinitions = (event.ongoingCosts ?? []).flatMap((cost, index) => {
+        if (!isValidMonthKey(cost.startMonth) || !cost.amount) {
+          return [];
+        }
+        const months = buildRangeMonths({
+          startMonth: cost.startMonth,
+          endMonth: cost.endMonth ?? event.endMonth ?? null,
+          assumptions,
+        });
+        const schedule = months.map((month) => ({
+          month,
+          amount: Math.abs(cost.amount ?? 0),
+        }));
+        return [
+          {
+            id: `${event.id}-ongoing-${index}`,
+            title: cost.label ?? event.label ?? "Housing cost",
+            type: "custom",
+            kind: "cashflow" as const,
+            rule: {
+              mode: "schedule",
+              startMonth: cost.startMonth,
+              endMonth: cost.endMonth ?? null,
+              schedule,
+            },
+            currency: scenario.baseCurrency,
+            memberId: event.memberId,
+          },
+        ];
+      });
+
+      return [...feeDefinitions, ...ongoingDefinitions];
+    }
+
+    if (event.type === "loan") {
+      return [];
+    }
+
+    if (event.type === "insurance") {
+      if (event.mode === "quick") {
+        if (!event.startMonth || !event.premiumMonthly) {
+          return [];
+        }
+        const months = buildRangeMonths({
+          startMonth: event.startMonth,
+          endMonth: event.endMonth ?? null,
+          assumptions,
+        });
+        const schedule = months.map((month) => ({
+          month,
+          amount: Math.abs(event.premiumMonthly ?? 0),
+        }));
+        return [
+          {
+            id: event.id,
+            title: event.label ?? "Insurance premium",
+            type: "custom",
+            kind: "cashflow",
+            rule: {
+              mode: "schedule",
+              startMonth: event.startMonth,
+              endMonth: event.endMonth ?? null,
+              schedule,
+            },
+            currency: scenario.baseCurrency,
+            memberId: event.memberId,
+          },
+        ];
+      }
+
+      return (event.policies ?? []).flatMap((policy, index) => {
+        if (!isValidMonthKey(policy.startMonth) || !policy.premiumMonthly) {
+          return [];
+        }
+        const months = buildRangeMonths({
+          startMonth: policy.startMonth,
+          endMonth: policy.endMonth ?? null,
+          assumptions,
+        });
+        const schedule = months.map((month) => ({
+          month,
+          amount: Math.abs(policy.premiumMonthly ?? 0),
+        }));
+        return [
+          {
+            id: `${event.id}-policy-${index}`,
+            title: policy.name ?? event.label ?? "Insurance premium",
+            type: "custom",
+            kind: "cashflow" as const,
+            rule: {
+              mode: "schedule",
+              startMonth: policy.startMonth,
+              endMonth: policy.endMonth ?? null,
+              schedule,
+            },
+            currency: scenario.baseCurrency,
+            memberId: event.memberId,
+          },
+        ];
+      });
+    }
+
+    return [];
   });
 };
 
@@ -223,12 +657,171 @@ export const compileScenarioV2ToProjectionInput = (
 ): ProjectionInput => {
   const shellScenario = buildLegacyScenarioShell(scenario);
   const eventLibrary = buildLegacyEventLibrary(scenario);
+  const events = scenario.events ?? [];
+
+  const housingPositions = events.flatMap((event) => {
+    if (event.type !== "housing" || event.kind !== "mortgage") {
+      return [];
+    }
+    const purchasePrice = event.purchasePrice ?? 0;
+    const downPayment = resolveDownPaymentAmount(event);
+    return [
+      {
+        id: event.propertyAssetId ?? event.id,
+        usage: "primary" as const,
+        mode: "new_purchase" as const,
+        purchasePrice,
+        downPayment,
+        purchaseMonth: event.startMonth,
+        annualAppreciationPct: scenario.assumptions.propertyAppreciationPct ?? 0,
+        mortgageRatePct: event.mortgageRatePct ?? 0,
+        mortgageTermYears: event.mortgageTermYears ?? 0,
+        feesOneTime: 0,
+        holdingCostMonthly: 0,
+        holdingCostAnnualGrowthPct: 0,
+        rental: event.rental?.enabled
+          ? {
+              isRented: true,
+              rentMonthly: event.rental.rentMonthly ?? 0,
+              rentStartMonth: event.rental.startMonth ?? event.startMonth,
+              rentEndMonth: event.rental.endMonth ?? null,
+              rentAnnualGrowthPct: 0,
+              vacancyRatePct: event.rental.vacancyRatePct ?? 0,
+            }
+          : undefined,
+      },
+    ];
+  });
+
+  const loanPositions = events.flatMap((event) => {
+    if (event.type !== "loan") {
+      return [];
+    }
+    return [
+      {
+        id: event.liabilityId,
+        name: event.label,
+        loanType:
+          event.loanKind === "car"
+            ? "carLoan"
+            : event.loanKind === "credit"
+            ? "credit"
+            : event.loanKind === "personal"
+            ? "loan"
+            : "other",
+        startMonth: event.startMonth,
+        principal: event.principal,
+        annualInterestRatePct: event.annualInterestRatePct,
+        termYears: event.termYears,
+        monthlyPayment: event.monthlyPayment,
+        paymentMethod: event.paymentMethod,
+      },
+    ];
+  });
+
+  const insurancePositions = events.flatMap((event) => {
+    if (event.type !== "insurance") {
+      return [];
+    }
+    if (event.mode === "quick") {
+      if (!event.startMonth || !event.premiumMonthly) {
+        return [];
+      }
+      return [
+        {
+          id: event.id,
+          name: event.label ?? "Insurance",
+          enabled: true,
+          kind: "protection" as const,
+          startMonth: event.startMonth,
+          endMonth: event.endMonth ?? undefined,
+          premiumMonthly: event.premiumMonthly ?? 0,
+          premiumAnnualGrowthPct: event.premiumAnnualGrowthPct ?? 0,
+        },
+      ];
+    }
+    return (event.policies ?? []).map((policy) => ({
+      id: policy.policyId ?? policy.id,
+      name: policy.name ?? "Insurance",
+      enabled: true,
+      kind: policy.kind,
+      startMonth: policy.startMonth,
+      endMonth: policy.endMonth ?? undefined,
+      premiumMonthly: policy.premiumMonthly ?? 0,
+      premiumAnnualGrowthPct: policy.premiumAnnualGrowthPct ?? 0,
+      initialCashValue: policy.cashValue,
+      expectedAnnualReturnPct: policy.expectedAnnualReturnPct,
+    }));
+  });
+
+  const assets = events.flatMap((event) => {
+    if (event.type === "housing" && event.kind === "mortgage") {
+      return [
+        {
+          id: event.propertyAssetId ?? event.id,
+          kind: "home" as const,
+          label: event.label,
+        },
+      ];
+    }
+    if (event.type === "insurance" && event.mode === "detailed") {
+      return (event.policies ?? []).flatMap((policy) =>
+        policy.kind === "savings"
+          ? [
+              {
+                id: policy.policyAssetId ?? policy.id,
+                kind: "other" as const,
+                label: policy.name ?? event.label,
+              },
+            ]
+          : []
+      );
+    }
+    return [];
+  });
+
+  const liabilities = events.flatMap((event) => {
+    if (event.type === "housing" && event.kind === "mortgage") {
+      return [
+        {
+          id: event.mortgageLiabilityId ?? event.id,
+          kind: "mortgage" as const,
+          label: event.label,
+        },
+      ];
+    }
+    if (event.type === "loan") {
+      return [
+        {
+          id: event.liabilityId ?? event.id,
+          kind:
+            event.loanKind === "car"
+              ? "carLoan"
+              : event.loanKind === "credit"
+              ? "credit"
+              : event.loanKind === "personal"
+              ? "loan"
+              : "other",
+          label: event.label,
+        },
+      ];
+    }
+    return [];
+  });
+
   const scenarioWithEvents = {
     ...shellScenario,
     eventRefs: eventLibrary.map((definition) => ({
       refId: definition.id,
       enabled: true,
     })),
+    assets,
+    liabilities,
+    positions: {
+      homes: housingPositions,
+      loans: loanPositions,
+      insurances: insurancePositions,
+    },
   };
   const { input } = mapScenarioToEngineInput(scenarioWithEvents, eventLibrary);
   return input;

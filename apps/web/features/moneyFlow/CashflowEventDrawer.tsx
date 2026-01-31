@@ -49,16 +49,20 @@ type CashflowEventDrawerProps = {
   baseCurrency: string;
   members: ScenarioMember[];
   event: CashflowEvent | AdjustmentEvent | null;
+  defaultKind?: CashflowEvent["kind"];
   onClose: () => void;
   onSave: (draft: ScenarioEventDraft) => void;
 };
 
-const buildCashflowDraft = (event: CashflowEvent | null): CashflowEventDraft => {
+const buildCashflowDraft = (
+  event: CashflowEvent | null,
+  defaultKind: CashflowEvent["kind"] = "income"
+): CashflowEventDraft => {
   if (!event) {
     return {
       id: undefined,
       label: "",
-      kind: "income",
+      kind: defaultKind,
       cadence: "monthly",
       amount: "",
       startMonth: "",
@@ -111,6 +115,7 @@ export default function CashflowEventDrawer({
   baseCurrency,
   members,
   event,
+  defaultKind,
   onClose,
   onSave,
 }: CashflowEventDrawerProps) {
@@ -120,7 +125,7 @@ export default function CashflowEventDrawer({
     event?.type === "adjustment" ? "adjustment" : "cashflow"
   );
   const [cashflowDraft, setCashflowDraft] = useState<CashflowEventDraft>(() =>
-    buildCashflowDraft(event?.type === "cashflow" ? event : null)
+    buildCashflowDraft(event?.type === "cashflow" ? event : null, defaultKind)
   );
   const [adjustmentDraft, setAdjustmentDraft] = useState<AdjustmentEventDraft>(() =>
     buildAdjustmentDraft(event?.type === "adjustment" ? event : null)
@@ -129,10 +134,12 @@ export default function CashflowEventDrawer({
 
   useEffect(() => {
     setEventType(event?.type === "adjustment" ? "adjustment" : "cashflow");
-    setCashflowDraft(buildCashflowDraft(event?.type === "cashflow" ? event : null));
+    setCashflowDraft(
+      buildCashflowDraft(event?.type === "cashflow" ? event : null, defaultKind)
+    );
     setAdjustmentDraft(buildAdjustmentDraft(event?.type === "adjustment" ? event : null));
     setErrors({});
-  }, [event, opened]);
+  }, [event, opened, defaultKind]);
 
   const memberOptions = useMemo(
     () => [
