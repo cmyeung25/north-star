@@ -1,0 +1,55 @@
+diff --git a/cjs/use-merged-ref/use-merged-ref.cjs b/cjs/use-merged-ref/use-merged-ref.cjs
+index e23821658e410d28a155a0af93053fdac4f0031a..e70f2bffecc7ab2be123584738d0aad2f0c033e1 100644
+--- a/cjs/use-merged-ref/use-merged-ref.cjs
++++ b/cjs/use-merged-ref/use-merged-ref.cjs
+@@ -35,7 +35,18 @@ function mergeRefs(...refs) {
+   };
+ }
+ function useMergedRef(...refs) {
+-  return React.useCallback(mergeRefs(...refs), refs);
++  const refsRef = React.useRef(refs);
++  const lastValueRef = React.useRef(null);
++  React.useLayoutEffect(() => {
++    refsRef.current = refs;
++  });
++  return React.useCallback((node) => {
++    if (lastValueRef.current === node) {
++      return;
++    }
++    lastValueRef.current = node;
++    return mergeRefs(...refsRef.current)(node);
++  }, []);
+ }
+ 
+ exports.assignRef = assignRef;
+diff --git a/esm/use-merged-ref/use-merged-ref.mjs b/esm/use-merged-ref/use-merged-ref.mjs
+index 0e335fe51e3fea7dd89fa5c83f408e7540824633..f8ca899a43c2a3bfa708e1d852cbb32b1b9bc1a2 100644
+--- a/esm/use-merged-ref/use-merged-ref.mjs
++++ b/esm/use-merged-ref/use-merged-ref.mjs
+@@ -1,5 +1,5 @@
+ 'use client';
+-import { useCallback } from 'react';
++import { useCallback, useLayoutEffect, useRef } from 'react';
+ 
+ function assignRef(ref, value) {
+   if (typeof ref === "function") {
+@@ -33,7 +33,18 @@ function mergeRefs(...refs) {
+   };
+ }
+ function useMergedRef(...refs) {
+-  return useCallback(mergeRefs(...refs), refs);
++  const refsRef = useRef(refs);
++  const lastValueRef = useRef(null);
++  useLayoutEffect(() => {
++    refsRef.current = refs;
++  });
++  return useCallback((node) => {
++    if (lastValueRef.current === node) {
++      return;
++    }
++    lastValueRef.current = node;
++    return mergeRefs(...refsRef.current)(node);
++  }, []);
+ }
+ 
+ export { assignRef, mergeRefs, useMergedRef };

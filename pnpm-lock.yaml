@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@mantine/hooks':
+    hash: ijbguwnh43wht7gvclcgnloeeu
+    path: patches/@mantine__hooks.patch
+
 importers:
 
   .:
@@ -37,13 +42,13 @@ importers:
     dependencies:
       '@mantine/core':
         specifier: ^8.3.12
-        version: 8.3.12(@mantine/hooks@8.3.12(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 8.3.12(@mantine/hooks@8.3.12(patch_hash=ijbguwnh43wht7gvclcgnloeeu)(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@mantine/form':
         specifier: ^8.3.12
         version: 8.3.12(react@18.3.1)
       '@mantine/hooks':
         specifier: ^8.3.12
-        version: 8.3.12(react@18.3.1)
+        version: 8.3.12(patch_hash=ijbguwnh43wht7gvclcgnloeeu)(react@18.3.1)
       '@mantine/next':
         specifier: ^6.0.22
         version: 6.0.22(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@emotion/server@11.11.0)(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3699,10 +3704,10 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@mantine/core@8.3.12(@mantine/hooks@8.3.12(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@mantine/core@8.3.12(@mantine/hooks@8.3.12(patch_hash=ijbguwnh43wht7gvclcgnloeeu)(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@floating-ui/react': 0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@mantine/hooks': 8.3.12(react@18.3.1)
+      '@mantine/hooks': 8.3.12(patch_hash=ijbguwnh43wht7gvclcgnloeeu)(react@18.3.1)
       clsx: 2.1.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -3719,7 +3724,7 @@ snapshots:
       klona: 2.0.6
       react: 18.3.1
 
-  '@mantine/hooks@8.3.12(react@18.3.1)':
+  '@mantine/hooks@8.3.12(patch_hash=ijbguwnh43wht7gvclcgnloeeu)(react@18.3.1)':
     dependencies:
       react: 18.3.1
 
