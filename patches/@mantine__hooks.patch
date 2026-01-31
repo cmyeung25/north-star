@@ -1,14 +1,15 @@
 diff --git a/cjs/use-merged-ref/use-merged-ref.cjs b/cjs/use-merged-ref/use-merged-ref.cjs
-index e23821658e410d28a155a0af93053fdac4f0031a..e70f2bffecc7ab2be123584738d0aad2f0c033e1 100644
+index e23821658e410d28a155a0af93053fdac4f0031a..a0dab72bc993d73513117505ee1ca66d4807f105 100644
 --- a/cjs/use-merged-ref/use-merged-ref.cjs
 +++ b/cjs/use-merged-ref/use-merged-ref.cjs
-@@ -35,7 +35,18 @@ function mergeRefs(...refs) {
+@@ -35,7 +35,23 @@ function mergeRefs(...refs) {
    };
  }
  function useMergedRef(...refs) {
 -  return React.useCallback(mergeRefs(...refs), refs);
 +  const refsRef = React.useRef(refs);
 +  const lastValueRef = React.useRef(null);
++  const cleanupRef = React.useRef();
 +  React.useLayoutEffect(() => {
 +    refsRef.current = refs;
 +  });
@@ -16,14 +17,18 @@ index e23821658e410d28a155a0af93053fdac4f0031a..e70f2bffecc7ab2be123584738d0aad2
 +    if (lastValueRef.current === node) {
 +      return;
 +    }
++    if (cleanupRef.current) {
++      cleanupRef.current();
++      cleanupRef.current = void 0;
++    }
 +    lastValueRef.current = node;
-+    return mergeRefs(...refsRef.current)(node);
++    cleanupRef.current = mergeRefs(...refsRef.current)(node);
 +  }, []);
  }
  
  exports.assignRef = assignRef;
 diff --git a/esm/use-merged-ref/use-merged-ref.mjs b/esm/use-merged-ref/use-merged-ref.mjs
-index 0e335fe51e3fea7dd89fa5c83f408e7540824633..f8ca899a43c2a3bfa708e1d852cbb32b1b9bc1a2 100644
+index 0e335fe51e3fea7dd89fa5c83f408e7540824633..062eb2b2aee4194f45eecfbe77dc7610af75cf72 100644
 --- a/esm/use-merged-ref/use-merged-ref.mjs
 +++ b/esm/use-merged-ref/use-merged-ref.mjs
 @@ -1,5 +1,5 @@
@@ -33,13 +38,14 @@ index 0e335fe51e3fea7dd89fa5c83f408e7540824633..f8ca899a43c2a3bfa708e1d852cbb32b
  
  function assignRef(ref, value) {
    if (typeof ref === "function") {
-@@ -33,7 +33,18 @@ function mergeRefs(...refs) {
+@@ -33,7 +33,23 @@ function mergeRefs(...refs) {
    };
  }
  function useMergedRef(...refs) {
 -  return useCallback(mergeRefs(...refs), refs);
 +  const refsRef = useRef(refs);
 +  const lastValueRef = useRef(null);
++  const cleanupRef = useRef();
 +  useLayoutEffect(() => {
 +    refsRef.current = refs;
 +  });
@@ -47,8 +53,12 @@ index 0e335fe51e3fea7dd89fa5c83f408e7540824633..f8ca899a43c2a3bfa708e1d852cbb32b
 +    if (lastValueRef.current === node) {
 +      return;
 +    }
++    if (cleanupRef.current) {
++      cleanupRef.current();
++      cleanupRef.current = void 0;
++    }
 +    lastValueRef.current = node;
-+    return mergeRefs(...refsRef.current)(node);
++    cleanupRef.current = mergeRefs(...refsRef.current)(node);
 +  }, []);
  }
  
