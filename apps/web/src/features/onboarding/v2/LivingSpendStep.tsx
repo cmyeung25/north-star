@@ -20,6 +20,8 @@ import { nanoid } from "nanoid";
 import { useMemo } from "react";
 import { buildMonthRange } from "@north-star/engine";
 import MonthField from "../../../../components/MonthField";
+import { getCurrentMonth } from "../utils";
+import { isValidMonthKey } from "../../../utils/monthKey";
 import type { OnboardingV2DraftLivingSpend } from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
 
 type LivingSpendErrors = {
@@ -62,11 +64,15 @@ export default function LivingSpendStep({
   onChange,
   t,
 }: LivingSpendStepProps) {
+  const safeBaseMonth = useMemo(
+    () => (isValidMonthKey(baseMonth) ? baseMonth : getCurrentMonth()),
+    [baseMonth]
+  );
   const monthOptions = useMemo(() => {
     const horizonMonths = resolveHorizonMonths(horizonYears);
-    const months = buildMonthRange(baseMonth, horizonMonths);
+    const months = buildMonthRange(safeBaseMonth, horizonMonths);
     return months.map((month) => ({ value: month, label: month }));
-  }, [baseMonth, horizonYears]);
+  }, [horizonYears, safeBaseMonth]);
 
   const categoryFields = [
     { key: "food", label: t("livingCategoryFood") },
