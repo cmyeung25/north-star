@@ -2006,7 +2006,7 @@ export default function OnboardingDraftWizard() {
                       onChange={(event) =>
                         setHousehold((current) =>
                           normalizeHouseholdCounts(current, {
-                            hasPartner: event.currentTarget.checked,
+                            hasPartner: (event.target as HTMLInputElement).checked,
                           })
                         )
                       }
