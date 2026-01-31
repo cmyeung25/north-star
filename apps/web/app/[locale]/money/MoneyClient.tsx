@@ -8,6 +8,7 @@ import {
   Drawer,
   Group,
   Modal,
+  NumberInput,
   SegmentedControl,
   Select,
   Stack,
@@ -19,7 +20,7 @@ import {
 import { getEventGroup, monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "../../../src/i18n/navigation";
 import AddFlowDrawer from "../../../features/add/AddFlowDrawer";
 import TimelineEventDrawer from "../../../components/timeline/TimelineEventDrawer";
@@ -65,6 +66,7 @@ import {
 } from "../../../components/timeline/utils";
 import {
   getScenarioById,
+  isScenarioV2,
   resolveScenarioIdFromQuery,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
@@ -75,6 +77,7 @@ import { getEventTypeDisplay } from "../../../components/timeline/utils";
 import type { ScenarioEventView } from "../../../components/timeline/types";
 import { monthsBetween } from "../../../src/domain/members/age";
 import { isValidMonthStr } from "../../../src/utils/month";
+import { compareMonthKey } from "../../../src/utils/monthKey";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { buildSmartInvestProjectionBreakdown, type SmartInvestProjectionBreakdown } from "../../../src/domain/smartInvest/projection";
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
@@ -83,6 +86,11 @@ import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModal
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import MoneyFlowManager from "../../../features/moneyFlow/MoneyFlowManager";
+import MoneyLedgerView from "../../../features/moneyFlow/MoneyLedgerView";
+import MoneyLegacyBanner from "../../../features/moneyFlow/MoneyLegacyBanner";
+import CashflowEventDrawer, {
+  type ScenarioEventDraft,
+} from "../../../features/moneyFlow/CashflowEventDrawer";
 import AssetManager from "../../../features/assets/AssetManager";
 import LiabilityManager from "../../../features/liabilities/LiabilityManager";
 import EventManager from "../../../features/milestoneEvents/EventManager";
@@ -99,6 +107,7 @@ import type { MilestoneEvent, MilestoneEventDraft } from "../../../src/domain/mi
 import { buildMilestoneScenarioSnapshot } from "../../../src/domain/milestoneEvents/snapshot";
 import { useUiStore } from "../../../src/store/uiStore";
 import { ONBOARDING_PLACEHOLDER_TAG } from "../../../src/domain/onboarding/mapOnboardingDraftToStoreItems";
+import { compileScenarioV2ToLedger } from "../../../src/engine/scenarioV2Compiler";
 import {
   buildMoneyCategoryLabelMap,
   buildMoneyCategoryOptions,
@@ -119,6 +128,8 @@ import {
 } from "../../../features/liabilities/liabilityAdapter";
 import type { AssetItem } from "../../../features/assets/types";
 import type { LiabilityItem } from "../../../features/liabilities/types";
+import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
+import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
 
 type CashflowModalState = {
   opened: boolean;
@@ -218,6 +229,10 @@ export default function MoneyClient({
   const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
   const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
+  const addEvent = useScenarioStore((state) => state.addEvent);
+  const updateEvent = useScenarioStore((state) => state.updateEvent);
+  const removeEvent = useScenarioStore((state) => state.removeEvent);
+  const duplicateEvent = useScenarioStore((state) => state.duplicateEvent);
   const applyMilestoneEvent = useScenarioStore((state) => state.applyMilestoneEvent);
   const removeMilestoneEvent = useScenarioStore((state) => state.removeMilestoneEvent);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -226,6 +241,7 @@ export default function MoneyClient({
     [activeScenarioId, scenarioId, scenarios]
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
+  const scenarioIsV2 = isScenarioV2(scenario);
   const scenarioEventViews = useMemo(
     () => (scenario ? buildScenarioEventViews(scenario, eventLibrary) : []),
     [eventLibrary, scenario]
@@ -286,6 +302,17 @@ export default function MoneyClient({
   }, [projection]);
   const [addFlowOpen, setAddFlowOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ScenarioEventView | null>(null);
+  const [v2EventDrawerOpen, setV2EventDrawerOpen] = useState(false);
+  const [v2EventDrawerMode, setV2EventDrawerMode] = useState<"create" | "edit">(
+    "create"
+  );
+  const [editingV2EventId, setEditingV2EventId] = useState<string | null>(null);
+  const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
+  const [adjustmentDraft, setAdjustmentDraft] = useState<{
+    row: LedgerRow;
+    amount: string;
+    error?: string;
+  } | null>(null);
   const [milestoneWizardOpen, setMilestoneWizardOpen] = useState(false);
   const [editingMilestoneEvent, setEditingMilestoneEvent] = useState<MilestoneEvent | null>(null);
   const [openOneOffExpense, setOpenOneOffExpense] = useState(false);
@@ -352,7 +379,7 @@ export default function MoneyClient({
   } | null>(null);
   const [assetDetailsMonth, setAssetDetailsMonth] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
-    type: "event" | "asset" | "loan";
+    type: "event" | "eventV2" | "asset" | "loan";
     id: string;
     label: string;
   } | null>(null);
@@ -493,14 +520,43 @@ export default function MoneyClient({
   const liabilityPaymentLabel = useMemo(() => t("liabilityPaymentLabel"), [t]);
   const moneyItems = useMemo(
     () =>
-      scenario
+      scenario && !scenarioIsV2
         ? buildMoneyItems({
             scenario,
             eventLibrary,
             budgetRules,
           })
         : [],
-    [budgetRules, eventLibrary, scenario]
+    [budgetRules, eventLibrary, scenario, scenarioIsV2]
+  );
+  const v2LedgerRows = useMemo<LedgerRow[]>(() => {
+    if (!scenario || !scenarioIsV2) {
+      return [];
+    }
+    return compileScenarioV2ToLedger(scenario);
+  }, [scenario, scenarioIsV2]);
+  const sortedLedgerRows = useMemo(() => {
+    return [...v2LedgerRows].sort((a, b) => {
+      const monthSort = compareMonthKey(b.month, a.month);
+      if (monthSort !== 0) {
+        return monthSort;
+      }
+      return (a.label ?? "").localeCompare(b.label ?? "");
+    });
+  }, [v2LedgerRows]);
+  const incomeLedgerRows = useMemo(
+    () =>
+      sortedLedgerRows.filter(
+        (row) => row.kind === "income" || (!row.kind && row.amount > 0)
+      ),
+    [sortedLedgerRows]
+  );
+  const expenseLedgerRows = useMemo(
+    () =>
+      sortedLedgerRows.filter(
+        (row) => row.kind === "expense" || (!row.kind && row.amount < 0)
+      ),
+    [sortedLedgerRows]
   );
   const milestoneEvents = scenario?.milestoneEvents ?? [];
   const milestoneSnapshot = useMemo(
@@ -514,6 +570,22 @@ export default function MoneyClient({
         : null,
     [budgetRules, eventLibrary, scenario]
   );
+  const v2ScenarioEvents = useMemo(() => scenario?.events ?? [], [scenario?.events]);
+  const editingV2Event = useMemo<ScenarioEvent | null>(() => {
+    if (!editingV2EventId) {
+      return null;
+    }
+    return v2ScenarioEvents.find((event) => event.id === editingV2EventId) ?? null;
+  }, [editingV2EventId, v2ScenarioEvents]);
+  const editingV2DrawerEvent = useMemo(() => {
+    if (!editingV2Event) {
+      return null;
+    }
+    if (editingV2Event.type === "cashflow" || editingV2Event.type === "adjustment") {
+      return editingV2Event;
+    }
+    return null;
+  }, [editingV2Event]);
 
   const parentGroupOptions = useMemo(
     () =>
@@ -731,6 +803,124 @@ export default function MoneyClient({
     () => (category: string) => moneyCategoryLabelMap.get(category) ?? category,
     [moneyCategoryLabelMap]
   );
+  const openV2EventDrawer = useCallback(
+    (mode: "create" | "edit", eventId?: string | null) => {
+      setLedgerActionError(null);
+      setV2EventDrawerMode(mode);
+      setEditingV2EventId(eventId ?? null);
+      setV2EventDrawerOpen(true);
+    },
+    []
+  );
+  const handleSaveV2Event = (draft: ScenarioEventDraft) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    setLedgerActionError(null);
+    if (draft.type === "adjustment") {
+      const amount = Number(draft.amount);
+      const payload = {
+        type: "adjustment" as const,
+        label: draft.label.trim() || undefined,
+        kind: draft.kind,
+        amount,
+        month: draft.month,
+        memberId: draft.memberId || undefined,
+        tags: ["adjustment"],
+      };
+      if (draft.id) {
+        const result = updateEvent(draft.id, payload, scenarioIdValue);
+        if (!result.ok) {
+          setLedgerActionError(t("ledgerEventUpdateFailed"));
+          return;
+        }
+      } else {
+        const result = addEvent(payload, scenarioIdValue);
+        if (!result.ok) {
+          setLedgerActionError(t("ledgerEventCreateFailed"));
+          return;
+        }
+      }
+      setV2EventDrawerOpen(false);
+      setEditingV2EventId(null);
+      return;
+    }
+
+    const amount = Number(draft.amount);
+    const payload = {
+      type: "cashflow" as const,
+      label: draft.label.trim() || undefined,
+      kind: draft.kind,
+      cadence: draft.cadence,
+      amount,
+      startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
+      endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
+      occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
+      everyNMonths:
+        draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
+      memberId: draft.memberId || undefined,
+    };
+
+    if (draft.id) {
+      const result = updateEvent(draft.id, payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventUpdateFailed"));
+        return;
+      }
+    } else {
+      const result = addEvent(payload, scenarioIdValue);
+      if (!result.ok) {
+        setLedgerActionError(t("ledgerEventCreateFailed"));
+        return;
+      }
+    }
+
+    setV2EventDrawerOpen(false);
+    setEditingV2EventId(null);
+  };
+  const handleEditV2Event = (eventId: string) => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    const match = v2ScenarioEvents.find((event) => event.id === eventId);
+    if (!match) {
+      setLedgerActionError(t("ledgerEventMissing"));
+      return;
+    }
+    openV2EventDrawer("edit", eventId);
+  };
+  const handleDuplicateV2Event = (eventId: string) => {
+    if (!scenarioIdValue) {
+      return;
+    }
+    setLedgerActionError(null);
+    const result = duplicateEvent(eventId, scenarioIdValue);
+    if (!result.ok) {
+      setLedgerActionError(t("ledgerEventDuplicateFailed"));
+    }
+  };
+  const handleDeleteV2Event = (eventId: string) => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    const match = v2ScenarioEvents.find((event) => event.id === eventId);
+    if (!match) {
+      setLedgerActionError(t("ledgerEventMissing"));
+      return;
+    }
+    setDeleteConfirmation({
+      type: "eventV2",
+      id: eventId,
+      label: match.label ?? t("ledgerRowFallbackLabel"),
+    });
+  };
+  const handleAdjustEvent = (row: LedgerRow) => {
+    setLedgerActionError(null);
+    setAdjustmentDraft({
+      row,
+      amount: "",
+    });
+  };
   const assetItems = useMemo(
     () => (scenario ? toAssetItems(scenario) : []),
     [scenario]
@@ -740,7 +930,7 @@ export default function MoneyClient({
     [scenario]
   );
   const handleUpsertMoneyItem = (item: Parameters<typeof upsertMoneyItem>[0]["item"]) => {
-    if (!scenario || !scenarioIdValue) {
+    if (!scenario || !scenarioIdValue || scenarioIsV2) {
       return;
     }
     upsertMoneyItem({
@@ -759,7 +949,7 @@ export default function MoneyClient({
     });
   };
   const handleRemoveMoneyItem = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
-    if (!scenarioIdValue) {
+    if (!scenarioIdValue || scenarioIsV2) {
       return;
     }
     removeMoneyItem({
@@ -772,7 +962,11 @@ export default function MoneyClient({
     });
   };
   const handleDetachMoneyItem = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
-    if (!scenarioIdValue || (item.source !== "eventGenerated" && item.source !== "derived")) {
+    if (
+      !scenarioIdValue ||
+      scenarioIsV2 ||
+      (item.source !== "eventGenerated" && item.source !== "derived")
+    ) {
       return;
     }
     if (item.sourceType === "budgetRule" && item.sourceId) {
@@ -796,6 +990,9 @@ export default function MoneyClient({
     }
   };
   const handleEditMoneySource = (item: Parameters<typeof removeMoneyItem>[0]["item"]) => {
+    if (scenarioIsV2) {
+      return;
+    }
     const generatedBy = item.generatedBy;
     if (generatedBy?.type === "assetCost" || generatedBy?.type === "assetRental") {
       setActiveTab("assets");
@@ -817,7 +1014,7 @@ export default function MoneyClient({
     }
   };
   const syncDerivedMoneyItemsForAsset = (asset: AssetItem) => {
-    if (!scenario || !scenarioIdValue) {
+    if (!scenario || !scenarioIdValue || scenarioIsV2) {
       return;
     }
     const derivedItems = buildDerivedMoneyItemsForAsset({
@@ -845,7 +1042,7 @@ export default function MoneyClient({
     );
   };
   const syncDerivedMoneyItemsForLiability = (liability: LiabilityItem) => {
-    if (!scenario || !scenarioIdValue) {
+    if (!scenario || !scenarioIdValue || scenarioIsV2) {
       return;
     }
     const derivedItems = buildDerivedMoneyItemsForLiability({
@@ -878,6 +1075,9 @@ export default function MoneyClient({
     }
     const nextPositions = applyAssetItemChange(scenario, { type: "upsert", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    if (scenarioIsV2) {
+      return;
+    }
     const nextScenario = { ...scenario, positions: nextPositions };
     const nextAsset = toAssetItems(nextScenario).find((entry) => entry.id === item.id);
     if (nextAsset) {
@@ -890,6 +1090,9 @@ export default function MoneyClient({
     }
     const nextPositions = applyAssetItemChange(scenario, { type: "remove", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    if (scenarioIsV2) {
+      return;
+    }
     const derivedItems = findDerivedMoneyItemsForAsset(moneyItems, item.id);
     derivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
   };
@@ -901,6 +1104,9 @@ export default function MoneyClient({
     }
     const nextPositions = applyLiabilityItemChange(scenario, { type: "upsert", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    if (scenarioIsV2) {
+      return;
+    }
     const nextScenario = { ...scenario, positions: nextPositions };
     const nextLiability = toLiabilityItems(nextScenario).find(
       (entry) => entry.id === item.id
@@ -915,6 +1121,9 @@ export default function MoneyClient({
     }
     const nextPositions = applyLiabilityItemChange(scenario, { type: "remove", item });
     setScenarioPositions(scenarioIdValue, nextPositions);
+    if (scenarioIsV2) {
+      return;
+    }
     const derivedItems = findDerivedMoneyItemsForLiability(moneyItems, item.id);
     derivedItems.forEach((entry) => handleRemoveMoneyItem(entry));
   };
@@ -1101,12 +1310,22 @@ export default function MoneyClient({
       return;
     }
     if (initialEditEventId) {
-      const match = eventRows.find((row) => row.view.definition.id === initialEditEventId);
-      if (match) {
-        setActiveTab("timeline");
-        setEditingEvent(match.view);
-        hasHandledInitialEdit.current = true;
-        return;
+      if (scenarioIsV2) {
+        const match = v2ScenarioEvents.find((event) => event.id === initialEditEventId);
+        if (match) {
+          setActiveTab("income");
+          openV2EventDrawer("edit", match.id);
+          hasHandledInitialEdit.current = true;
+          return;
+        }
+      } else {
+        const match = eventRows.find((row) => row.view.definition.id === initialEditEventId);
+        if (match) {
+          setActiveTab("timeline");
+          setEditingEvent(match.view);
+          hasHandledInitialEdit.current = true;
+          return;
+        }
       }
     }
     if (initialEditHomeId) {
@@ -1126,8 +1345,11 @@ export default function MoneyClient({
     initialEditHomeId,
     initialEditSmartInvest,
     openDrawer,
+    openV2EventDrawer,
     scenarioIdValue,
+    scenarioIsV2,
     setActiveTab,
+    v2ScenarioEvents,
   ]);
 
   useEffect(() => {
@@ -1194,6 +1416,9 @@ export default function MoneyClient({
       case "event":
         removeScenarioEventRef(scenarioIdValue, id);
         break;
+      case "eventV2":
+        removeEvent(id, scenarioIdValue);
+        break;
       case "asset":
         // Determine asset type from the homes, cars, investments, insurances lists
         if (homes.some((h) => h.id === id)) {
@@ -1212,6 +1437,38 @@ export default function MoneyClient({
     }
 
     setDeleteConfirmation(null);
+  };
+
+  const handleConfirmAdjustment = () => {
+    if (!adjustmentDraft || !scenarioIdValue) {
+      return;
+    }
+    const amountValue = Number(adjustmentDraft.amount);
+    if (!Number.isFinite(amountValue) || amountValue === 0) {
+      setAdjustmentDraft({
+        ...adjustmentDraft,
+        error: t("ledgerAdjustmentAmountRequired"),
+      });
+      return;
+    }
+    const { row } = adjustmentDraft;
+    const result = addEvent(
+      {
+        type: "adjustment",
+        kind: "cash",
+        month: row.month,
+        amount: amountValue,
+        label: `[Adjustment] ${row.label ?? t("ledgerRowFallbackLabel")}`,
+        memberId: row.memberId,
+        tags: ["adjustment"],
+      },
+      scenarioIdValue
+    );
+    if (!result.ok) {
+      setLedgerActionError(t("ledgerEventCreateFailed"));
+      return;
+    }
+    setAdjustmentDraft(null);
   };
   
   const editingHome = homes.find((home) => home.id === editingHomeId) ?? null;
@@ -1831,6 +2088,7 @@ export default function MoneyClient({
                 </Text>
               </Stack>
             </Card>
+            <MoneyLegacyBanner schemaVersion={scenario?.meta?.schemaVersion} />
 
             <Tabs value={activeTab} onChange={(value) => setActiveTab(value as MoneyTab)}>
               <Tabs.List>
@@ -1847,21 +2105,36 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("incomeDescription")}
             </Text>
-            <MoneyFlowManager
-              items={moneyItems}
-              baseCurrency={scenario?.baseCurrency ?? "USD"}
-              locale={locale}
-              members={members}
-              categoryLabels={moneyCategoryLabelMap}
-              categoryOptions={moneyCategoryOptions}
-              defaultFilters={{ kind: "income" }}
-              defaultNewItem={{ kind: "income", cadence: "recurring" }}
-              onUpsert={handleUpsertMoneyItem}
-              onDelete={handleRemoveMoneyItem}
-              onEditEvent={handleEditMilestoneEventById}
-              onDetach={handleDetachMoneyItem}
-              onEditSource={handleEditMoneySource}
-            />
+            {scenarioIsV2 ? (
+              <MoneyLedgerView
+                rows={incomeLedgerRows}
+                baseCurrency={scenario?.baseCurrency ?? "USD"}
+                locale={locale}
+                members={members}
+                onAddEvent={() => openV2EventDrawer("create")}
+                onEditEvent={handleEditV2Event}
+                onDuplicateEvent={handleDuplicateV2Event}
+                onDeleteEvent={handleDeleteV2Event}
+                onAdjustEvent={handleAdjustEvent}
+                errorMessage={ledgerActionError}
+              />
+            ) : (
+              <MoneyFlowManager
+                items={moneyItems}
+                baseCurrency={scenario?.baseCurrency ?? "USD"}
+                locale={locale}
+                members={members}
+                categoryLabels={moneyCategoryLabelMap}
+                categoryOptions={moneyCategoryOptions}
+                defaultFilters={{ kind: "income" }}
+                defaultNewItem={{ kind: "income", cadence: "recurring" }}
+                onUpsert={handleUpsertMoneyItem}
+                onDelete={handleRemoveMoneyItem}
+                onEditEvent={handleEditMilestoneEventById}
+                onDetach={handleDetachMoneyItem}
+                onEditSource={handleEditMoneySource}
+              />
+            )}
           </Stack>
         </Tabs.Panel>
 
@@ -1873,26 +2146,41 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("expensesDescription")}
             </Text>
-            <MoneyFlowManager
-              items={moneyItems}
-              baseCurrency={scenario?.baseCurrency ?? "USD"}
-              locale={locale}
-              members={members}
-              categoryLabels={moneyCategoryLabelMap}
-              categoryOptions={moneyCategoryOptions}
-              defaultFilters={{ kind: "expense" }}
-              defaultNewItem={{
-                kind: "expense",
-                cadence: openOneOffExpense ? "oneOff" : "recurring",
-              }}
-              onUpsert={handleUpsertMoneyItem}
-              onDelete={handleRemoveMoneyItem}
-              onEditEvent={handleEditMilestoneEventById}
-              onDetach={handleDetachMoneyItem}
-              onEditSource={handleEditMoneySource}
-              openNewItem={openOneOffExpense}
-              onOpenNewItemHandled={() => setOpenOneOffExpense(false)}
-            />
+            {scenarioIsV2 ? (
+              <MoneyLedgerView
+                rows={expenseLedgerRows}
+                baseCurrency={scenario?.baseCurrency ?? "USD"}
+                locale={locale}
+                members={members}
+                onAddEvent={() => openV2EventDrawer("create")}
+                onEditEvent={handleEditV2Event}
+                onDuplicateEvent={handleDuplicateV2Event}
+                onDeleteEvent={handleDeleteV2Event}
+                onAdjustEvent={handleAdjustEvent}
+                errorMessage={ledgerActionError}
+              />
+            ) : (
+              <MoneyFlowManager
+                items={moneyItems}
+                baseCurrency={scenario?.baseCurrency ?? "USD"}
+                locale={locale}
+                members={members}
+                categoryLabels={moneyCategoryLabelMap}
+                categoryOptions={moneyCategoryOptions}
+                defaultFilters={{ kind: "expense" }}
+                defaultNewItem={{
+                  kind: "expense",
+                  cadence: openOneOffExpense ? "oneOff" : "recurring",
+                }}
+                onUpsert={handleUpsertMoneyItem}
+                onDelete={handleRemoveMoneyItem}
+                onEditEvent={handleEditMilestoneEventById}
+                onDetach={handleDetachMoneyItem}
+                onEditSource={handleEditMoneySource}
+                openNewItem={openOneOffExpense}
+                onOpenNewItemHandled={() => setOpenOneOffExpense(false)}
+              />
+            )}
           </Stack>
         </Tabs.Panel>
 
@@ -2293,6 +2581,20 @@ export default function MoneyClient({
 
       {scenario && scenarioIdValue && (
         <>
+          {scenarioIsV2 && (
+            <CashflowEventDrawer
+              opened={v2EventDrawerOpen}
+              mode={v2EventDrawerMode}
+              baseCurrency={scenario.baseCurrency}
+              members={members}
+              event={editingV2DrawerEvent}
+              onClose={() => {
+                setV2EventDrawerOpen(false);
+                setEditingV2EventId(null);
+              }}
+              onSave={handleSaveV2Event}
+            />
+          )}
           <TimelineEventDrawer
             mode="edit"
             opened={Boolean(editingEvent)}
@@ -2502,6 +2804,52 @@ export default function MoneyClient({
             bucketValueSeries={calculatorModal.bucketValueSeries}
             bucketCurrentRows={calculatorModal.bucketCurrentRows}
           />
+
+          <Modal
+            opened={Boolean(adjustmentDraft)}
+            onClose={() => setAdjustmentDraft(null)}
+            title={t("ledgerAdjustTitle")}
+            centered
+          >
+            <Stack gap="sm">
+              <Text size="sm" c="dimmed">
+                {t("ledgerAdjustHint", {
+                  month: adjustmentDraft?.row.month ?? "--",
+                })}
+              </Text>
+              <NumberInput
+                label={t("ledgerAdjustAmount")}
+                value={adjustmentDraft?.amount ?? ""}
+                onChange={(value) =>
+                  setAdjustmentDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          amount:
+                            value === "" || value === undefined
+                              ? ""
+                              : String(value),
+                          error: undefined,
+                        }
+                      : null
+                  )
+                }
+                error={adjustmentDraft?.error}
+                allowNegative
+              />
+              <Group justify="flex-end" gap="sm">
+                <Button
+                  variant="subtle"
+                  onClick={() => setAdjustmentDraft(null)}
+                >
+                  {common("actionCancel")}
+                </Button>
+                <Button onClick={handleConfirmAdjustment}>
+                  {t("ledgerAdjustConfirm")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
 
           <Modal
             opened={Boolean(deleteConfirmation)}

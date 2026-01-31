@@ -109,7 +109,27 @@ export const compileScenarioV2ToLedger = (
 
   return events.flatMap((event) => {
     if (event.type !== "cashflow") {
-      return [];
+      if (event.type !== "adjustment") {
+        return [];
+      }
+      if (!isValidMonthKey(event.month)) {
+        return [];
+      }
+      const rawAmount = Number(event.amount);
+      if (!Number.isFinite(rawAmount) || rawAmount === 0) {
+        return [];
+      }
+      return [
+        {
+          month: event.month,
+          amount: rawAmount,
+          sourceEventId: event.id,
+          label: event.label,
+          memberId: event.memberId,
+          tags: event.tags ? [...event.tags] : undefined,
+          kind: rawAmount < 0 ? "expense" : "income",
+        },
+      ];
     }
     const months = buildCashflowMonths(event, assumptions);
     if (months.length === 0) {
