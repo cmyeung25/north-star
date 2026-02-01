@@ -29,7 +29,7 @@ import { useSettingsStore } from "../src/store/settingsStore";
 import { getActiveScenario, useScenarioStore } from "../src/store/scenarioStore";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import ScenarioSwitcher from "../components/ScenarioSwitcher";
-import DesktopBottomToolbar, {
+import {
   desktopToolbarHeight,
 } from "../components/DesktopBottomToolbar";
 import { Link } from "../src/i18n/navigation";
@@ -248,7 +248,7 @@ export default function Providers({ children }: { children: ReactNode }) {
           </AppShell.Navbar>
         )}
 
-        {!isDesktop && !isOnboarding && (
+        {!isDesktop && !isOnboarding &&  (
           <AppShell.Footer p="xs" ref={footerRef}>
             <Group grow>
               {navItems.map((item) => (
@@ -279,7 +279,7 @@ export default function Providers({ children }: { children: ReactNode }) {
             {children}
           </Container>
         </AppShell.Main>
-        {isDesktop && !isOnboarding && <DesktopBottomToolbar />}
+        {/* {isDesktop && !isOnboarding && <DesktopBottomToolbar />} */}
       </AppShell>
     </MantineProvider>
   );
