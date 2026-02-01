@@ -37,6 +37,7 @@ type PlanLibraryDrawerProps = {
   opened: boolean;
   onClose: () => void;
   scenario: Scenario;
+  baselineFingerprint: string;
   plans: Plan[];
   otherPlans: Plan[];
   locale: string;
@@ -91,6 +92,7 @@ export const PlanLibraryDrawer = ({
   opened,
   onClose,
   scenario,
+  baselineFingerprint,
   plans,
   otherPlans,
   locale,
@@ -162,9 +164,7 @@ export const PlanLibraryDrawer = ({
           const metric = metrics[plan.id];
           const badgeColor = metric?.status === "bust" ? "red" : "teal";
           const isCompatible = plan.scenarioId === scenario.id;
-          const baselineMismatch =
-            plan.baselineRevision !== undefined &&
-            plan.baselineRevision !== scenario.version;
+          const baselineMismatch = plan.baselineFingerprint !== baselineFingerprint;
           return (
             <Card key={plan.id} withBorder radius="md" padding="sm">
               <Stack gap="xs">
@@ -172,10 +172,24 @@ export const PlanLibraryDrawer = ({
                   <Stack gap={4}>
                     <Text fw={600}>{plan.name}</Text>
                     <Text size="xs" c="dimmed">
-                      {translate("planLabPlanUpdatedAt", "Updated {date}", {
-                        date: new Date(plan.updatedAt).toLocaleDateString(locale),
-                      })}
+                    {translate("planLabPlanUpdatedAt", "Updated {date}", {
+                      date: new Date(plan.updatedAt).toLocaleDateString(locale),
+                    })}
+                  </Text>
+                  {plan.notes && (
+                    <Text size="xs" c="dimmed">
+                      {plan.notes}
                     </Text>
+                  )}
+                  {plan.tags && plan.tags.length > 0 && (
+                      <Group gap={4} wrap="wrap">
+                        {plan.tags.map((tag) => (
+                          <Badge key={tag} variant="light" size="xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </Group>
+                    )}
                   </Stack>
                   <Menu withinPortal shadow="md" position="bottom-end">
                     <Menu.Target>

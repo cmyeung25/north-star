@@ -22,9 +22,11 @@ type SavePlanModalProps = {
   onClose: () => void;
   snapshot: PlanLabSnapshot;
   defaultName: string;
+  defaultNotes?: string;
+  defaultTags?: string[];
   warnings: string[];
   translate: TranslateFn;
-  onSave: (name: string) => void;
+  onSave: (values: { name: string; notes?: string; tags?: string[] }) => void;
 };
 
 const countBaselinePatches = (snapshot: PlanLabSnapshot) => {
@@ -41,17 +43,23 @@ export const SavePlanModal = ({
   onClose,
   snapshot,
   defaultName,
+  defaultNotes,
+  defaultTags,
   warnings,
   translate,
   onSave,
 }: SavePlanModalProps) => {
   const [name, setName] = useState(defaultName);
+  const [notes, setNotes] = useState(defaultNotes ?? "");
+  const [tagsInput, setTagsInput] = useState((defaultTags ?? []).join(", "));
 
   useEffect(() => {
     if (opened) {
       setName(defaultName);
+      setNotes(defaultNotes ?? "");
+      setTagsInput((defaultTags ?? []).join(", "));
     }
-  }, [defaultName, opened]);
+  }, [defaultName, defaultNotes, defaultTags, opened]);
 
   const baselineCount = useMemo(() => countBaselinePatches(snapshot), [snapshot]);
   const experimentCount = snapshot.experiments?.length ?? 0;
@@ -67,6 +75,18 @@ export const SavePlanModal = ({
           label={translate("planLabSavePlanNameLabel", "Plan name")}
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
+        />
+        <TextInput
+          label={translate("planLabSavePlanTagsLabel", "Tags")}
+          placeholder={translate("planLabSavePlanTagsPlaceholder", "e.g. housing, baby")}
+          value={tagsInput}
+          onChange={(event) => setTagsInput(event.currentTarget.value)}
+        />
+        <TextInput
+          label={translate("planLabSavePlanNotesLabel", "Notes")}
+          placeholder={translate("planLabSavePlanNotesPlaceholder", "Optional notes")}
+          value={notes}
+          onChange={(event) => setNotes(event.currentTarget.value)}
         />
         <Group gap="md">
           <Text size="sm">
@@ -99,7 +119,15 @@ export const SavePlanModal = ({
           <Button
             onClick={() => {
               if (name.trim().length > 0) {
-                onSave(name.trim());
+                const tags = tagsInput
+                  .split(",")
+                  .map((tag) => tag.trim())
+                  .filter(Boolean);
+                onSave({
+                  name: name.trim(),
+                  notes: notes.trim().length > 0 ? notes.trim() : undefined,
+                  tags: tags.length > 0 ? tags : undefined,
+                });
               }
             }}
           >

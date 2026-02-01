@@ -1,27 +1,23 @@
 import type { ProjectionResult } from "@north-star/engine";
+import { computeProjection } from "@north-star/engine";
 import type { AdapterWarning } from "../../src/engine/adapter";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
-import { computeProjectionWithSmartInvest } from "../../src/engine/useProjectionWithLedger";
 import type { EventDefinition } from "../../src/domain/events/types";
-import { compilePlanLabDraft } from "../../src/domain/planLab/compilePlanLabDraft";
+import { compileScenarioV2ToProjectionInput } from "../../src/engine/scenarioV2Compiler";
 import type {
   PlanLabDraft,
   PlanLabSnapshot,
   PlanSnapshot,
 } from "../../src/domain/planLab/types";
-import type { CompilerWarning } from "../../src/domain/warnings/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scenarioStore";
-import { applyPlanPatches } from "../../src/domain/planLab/applyPlanPatches";
+import { applyPatchToScenario } from "../../src/domain/planLab/snapshotPayload";
+import { buildScenarioV2FromScenario } from "../../src/domain/planLab/scenarioV2Bridge";
 
 export type PlanProjectionResult = {
   projection: ProjectionResult | null;
   overview: ReturnType<typeof projectionToOverviewViewModel> | null;
   warnings: AdapterWarning[];
   errors: string[];
-};
-
-export type PlanSnapshotValidation = {
-  warnings: CompilerWarning[];
 };
 
 export const buildPlanLabDraftFromSnapshot = (
@@ -32,25 +28,6 @@ export const buildPlanLabDraftFromSnapshot = (
   scorecardSettings: snapshot?.scorecardSettings,
 });
 
-export const validatePlanSnapshot = (
-  snapshot: PlanLabSnapshot,
-  scenario: Scenario,
-  eventLibrary: EventDefinition[],
-  members: ScenarioMember[],
-  budgetRules: BudgetRule[]
-): PlanSnapshotValidation => {
-  const draft = buildPlanLabDraftFromSnapshot(snapshot);
-  const compilation = compilePlanLabDraft(draft, {
-    baselineScenario: scenario,
-    eventLibrary,
-    budgetRules,
-    members,
-  });
-  return {
-    warnings: compilation.warnings ?? [],
-  };
-};
-
 export const getProjectionForPlanSnapshot = (
   plan: PlanSnapshot,
   scenario: Scenario,
@@ -58,33 +35,15 @@ export const getProjectionForPlanSnapshot = (
   members: ScenarioMember[],
   budgetRules: BudgetRule[]
 ): PlanProjectionResult => {
-  const applyResult = applyPlanPatches({
-    scenario,
-    snapshot: plan.snapshot,
-    patches: plan.patches ?? [],
-    eventLibrary,
-    budgetRules,
-    members,
-  });
-  const sandboxScenario = applyResult.scenario;
-  const combinedEventLibrary = [...eventLibrary, ...applyResult.eventDefinitions];
-
   try {
-    const {
-      projection,
-      warnings,
-    } = computeProjectionWithSmartInvest(sandboxScenario, combinedEventLibrary, {
-      members,
-      budgetRules,
-    });
+    const baselineScenario = buildScenarioV2FromScenario(scenario, eventLibrary);
+    const sandboxScenario = applyPatchToScenario(baselineScenario, plan.payload);
+    const projectionInput = compileScenarioV2ToProjectionInput(sandboxScenario);
+    const projection = computeProjection(projectionInput);
     return {
       projection,
       overview: projection ? projectionToOverviewViewModel(projection) : null,
-      warnings: [
-        ...warnings,
-        ...applyResult.warnings,
-        ...applyResult.patchWarnings,
-      ],
+      warnings: [],
       errors: [],
     };
   } catch (error) {
@@ -93,7 +52,7 @@ export const getProjectionForPlanSnapshot = (
     return {
       projection: null,
       overview: null,
-      warnings: [...applyResult.warnings, ...applyResult.patchWarnings],
+      warnings: [],
       errors: [message],
     };
   }

@@ -27,7 +27,9 @@ import type { BudgetRule, Scenario, ScenarioMember } from "../../src/store/scena
 import { formatCurrency } from "../../lib/i18n";
 import { diffPlanSnapshots } from "./diffPlanSnapshots";
 import { usePlanCompareProjections } from "./usePlanCompareProjections";
-import { validatePlanPatches } from "../../src/domain/planLab/planPatches";
+import { emptySnapshotPayload } from "../../src/domain/planLab/snapshotPayload";
+import { buildScenarioV2FromScenario } from "../../src/domain/planLab/scenarioV2Bridge";
+import { detectDoubleCountingWarnings } from "../../src/domain/planLab/guardrails";
 
 type TranslateFn = (
   key: string,
@@ -44,6 +46,7 @@ type PlanCompareModeProps = {
   onPlanBChange: (id: string | null) => void;
   onSwapPlans: () => void;
   onLoadPlan: (plan: Plan) => void;
+  baselineFingerprint: string;
   displayMode: "nominal" | "real";
   deflateSeries: (series: Array<{ month: string; value: number }>) => Array<{
     month: string;
@@ -120,6 +123,7 @@ export const PlanCompareMode = ({
   onPlanBChange,
   onSwapPlans,
   onLoadPlan,
+  baselineFingerprint,
   displayMode,
   deflateSeries,
   locale,
@@ -128,9 +132,40 @@ export const PlanCompareMode = ({
   budgetRules,
   translate,
 }: PlanCompareModeProps) => {
-  const planA = plans.find((plan) => plan.id === planAId) ?? null;
-  const planB = plans.find((plan) => plan.id === planBId) ?? null;
-  const options = plans.map((plan) => ({ value: plan.id, label: plan.name }));
+  const baselineOption: Plan = useMemo(
+    () => ({
+      id: "baseline",
+      scenarioId: scenario.id,
+      name: translate("planLabCompareBaselineLabel", "Baseline"),
+      createdAt: 0,
+      updatedAt: 0,
+      baselineFingerprint,
+      payload: emptySnapshotPayload(),
+      snapshot: {},
+    }),
+    [baselineFingerprint, scenario.id, translate]
+  );
+
+  const resolvePlan = (id: string | null) => {
+    if (!id) {
+      return null;
+    }
+    if (id === baselineOption.id) {
+      return baselineOption;
+    }
+    return plans.find((plan) => plan.id === id) ?? null;
+  };
+
+  const planA = resolvePlan(planAId);
+  const planB = resolvePlan(planBId);
+  const options = [
+    { value: baselineOption.id, label: baselineOption.name },
+    ...plans.map((plan) => ({ value: plan.id, label: plan.name })),
+  ];
+  const baselineScenarioV2 = useMemo(
+    () => buildScenarioV2FromScenario(scenario, eventLibrary),
+    [eventLibrary, scenario]
+  );
 
   const { planA: planAState, planB: planBState } = usePlanCompareProjections({
     scenario,
@@ -166,39 +201,19 @@ export const PlanCompareMode = ({
   }, [planA, planB, translate]);
 
   const baselineMismatch =
-    (planA?.baselineRevision !== undefined &&
-      planA.baselineRevision !== scenario.version) ||
-    (planB?.baselineRevision !== undefined &&
-      planB.baselineRevision !== scenario.version);
+    (planA?.baselineFingerprint &&
+      planA.baselineFingerprint !== baselineFingerprint) ||
+    (planB?.baselineFingerprint &&
+      planB.baselineFingerprint !== baselineFingerprint);
 
   const isLoading = planAState.status === "loading" || planBState.status === "loading";
-
-  const planAPatchWarnings = useMemo(
-    () =>
-      planA
-        ? validatePlanPatches({
-            patches: planA.patches ?? [],
-            scenario,
-            eventLibrary,
-            budgetRules,
-            members,
-          })
-        : [],
-    [budgetRules, eventLibrary, members, planA, scenario]
+  const planADoubleWarnings = useMemo(
+    () => (planA ? detectDoubleCountingWarnings(baselineScenarioV2, planA.payload) : []),
+    [baselineScenarioV2, planA]
   );
-
-  const planBPatchWarnings = useMemo(
-    () =>
-      planB
-        ? validatePlanPatches({
-            patches: planB.patches ?? [],
-            scenario,
-            eventLibrary,
-            budgetRules,
-            members,
-          })
-        : [],
-    [budgetRules, eventLibrary, members, planB, scenario]
+  const planBDoubleWarnings = useMemo(
+    () => (planB ? detectDoubleCountingWarnings(baselineScenarioV2, planB.payload) : []),
+    [baselineScenarioV2, planB]
   );
 
   return (
@@ -222,16 +237,16 @@ export const PlanCompareMode = ({
               <Button
                 size="xs"
                 variant="light"
-                onClick={() => planA && onLoadPlan(planA)}
-                disabled={!planA}
+                onClick={() => planA && planA.id !== baselineOption.id && onLoadPlan(planA)}
+                disabled={!planA || planA.id === baselineOption.id}
               >
                 {translate("planLabCompareLoadA", "Load A into editor")}
               </Button>
               <Button
                 size="xs"
                 variant="light"
-                onClick={() => planB && onLoadPlan(planB)}
-                disabled={!planB}
+                onClick={() => planB && planB.id !== baselineOption.id && onLoadPlan(planB)}
+                disabled={!planB || planB.id === baselineOption.id}
               >
                 {translate("planLabCompareLoadB", "Load B into editor")}
               </Button>
@@ -282,12 +297,12 @@ export const PlanCompareMode = ({
               </Stack>
             </Alert>
           )}
-          {planAPatchWarnings.length > 0 && (
-            <Alert color="orange" title={translate("planLabComparePlanPatchWarningA", "Plan A patch warnings")}>
+          {planADoubleWarnings.length > 0 && (
+            <Alert color="orange" title={translate("planLabComparePlanWarningA", "Plan A warnings")}>
               <Stack gap={4}>
-                {planAPatchWarnings.map((warning, index) => (
-                  <Text key={`${warning.code}-${index}`} size="sm">
-                    {translate(warning.messageKey, warning.defaultMessage)}
+                {planADoubleWarnings.map((warning) => (
+                  <Text key={warning} size="sm">
+                    {warning}
                   </Text>
                 ))}
               </Stack>
@@ -304,12 +319,12 @@ export const PlanCompareMode = ({
               </Stack>
             </Alert>
           )}
-          {planBPatchWarnings.length > 0 && (
-            <Alert color="orange" title={translate("planLabComparePlanPatchWarningB", "Plan B patch warnings")}>
+          {planBDoubleWarnings.length > 0 && (
+            <Alert color="orange" title={translate("planLabComparePlanWarningB", "Plan B warnings")}>
               <Stack gap={4}>
-                {planBPatchWarnings.map((warning, index) => (
-                  <Text key={`${warning.code}-${index}`} size="sm">
-                    {translate(warning.messageKey, warning.defaultMessage)}
+                {planBDoubleWarnings.map((warning) => (
+                  <Text key={warning} size="sm">
+                    {warning}
                   </Text>
                 ))}
               </Stack>

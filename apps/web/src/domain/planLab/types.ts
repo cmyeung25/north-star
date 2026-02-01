@@ -1,4 +1,5 @@
 import type { EventDefinition, ScenarioEventRef } from "../events/types";
+import type { ScenarioEvent } from "../scenarioV2/events";
 import type {
   BudgetRule,
   CarPositionDraft,
@@ -165,6 +166,23 @@ export type PlanLabSnapshot = {
   scorecardSettings?: PlanLabScorecardSettings;
 };
 
+export type PlanLabEventsPatch = {
+  add: ScenarioEvent[];
+  update: Array<{ id: string; patch: Partial<ScenarioEvent> }>;
+  remove: string[];
+};
+
+export type PlanLabRulesPatch = {
+  add: BudgetRule[];
+  update: Array<{ id: string; patch: Partial<BudgetRule> }>;
+  remove: string[];
+};
+
+export type PlanLabSnapshotPayload = {
+  eventsPatch: PlanLabEventsPatch;
+  rulesPatch?: PlanLabRulesPatch;
+};
+
 export type PlanPatch = {
   op: "set" | "add" | "remove";
   entity: "moneyItem" | "asset" | "liability" | "rule" | "member" | "event";
@@ -178,21 +196,13 @@ export type PlanSnapshot = {
   id: string;
   scenarioId: string;
   name: string;
-  description?: string;
+  notes?: string;
+  tags?: string[];
   createdAt: number;
   updatedAt: number;
-  baselineRevision: number;
-  patches: PlanPatch[];
+  baselineFingerprint: string;
+  payload: PlanLabSnapshotPayload;
   snapshot: PlanLabSnapshot;
-  metricsCache?: PlanMetricsCache;
-};
-
-export type PlanMetricsCache = {
-  minCash?: {
-    month: string;
-    amount: number;
-  } | null;
-  status?: "safe" | "bust";
 };
 
 export type Plan = PlanSnapshot;
