@@ -225,6 +225,7 @@ export default function HousingStep({
     toNumber(housing.own.rental.amount) -
       toNumber(housing.own.rental.discountAmount ?? 0)
   );
+  const isRentFree = housing.rent.noPayment ?? false;
 
   return (
     <Stack gap="md">
@@ -254,38 +255,59 @@ export default function HousingStep({
             <Text size="sm" c="dimmed">
               {t("housingRentHint")}
             </Text>
-            <NumberInput
-              label={t("housingRentAmount")}
-              min={0}
-              value={housing.rent.amount}
-              error={errors.rent.amount}
-              onChange={(value) => updateRent({ amount: toNumber(value) })}
+            <Switch
+              checked={isRentFree}
+              label={t("housingRentNoPayment")}
+              onChange={(event) => {
+                const checked = event.currentTarget.checked;
+                updateRent({
+                  noPayment: checked,
+                  amount: checked ? 0 : housing.rent.amount,
+                  startMonth: checked
+                    ? ""
+                    : housing.rent.startMonth || baseMonth,
+                  endMonth: checked ? "" : housing.rent.endMonth ?? "",
+                });
+              }}
             />
-            <Group grow align="flex-start">
-              <MonthField
-                label={t("housingRentStartMonth")}
-                placeholder={t("monthPlaceholder")}
-                value={housing.rent.startMonth ?? ""}
-                error={errors.rent.startMonth}
-                onChange={(value) => updateRent({ startMonth: value })}
-              />
-              <MonthField
-                label={t("housingRentEndMonth")}
-                placeholder={t("monthPlaceholder")}
-                value={housing.rent.endMonth ?? ""}
-                error={errors.rent.endMonth}
-                onChange={(value) => updateRent({ endMonth: value })}
-              />
-            </Group>
-            <NumberInput
-              label={t("housingRentGrowth")}
-              min={0}
-              value={housing.rent.rentGrowthPct ?? ""}
-              onChange={(value) => updateRent({ rentGrowthPct: toOptionalNumber(value) })}
-            />
-            <Text size="xs" c="dimmed">
-              {t("housingRentGrowthHint")}
-            </Text>
+            {!isRentFree && (
+              <>
+                <NumberInput
+                  label={t("housingRentAmount")}
+                  min={0}
+                  value={housing.rent.amount}
+                  error={errors.rent.amount}
+                  onChange={(value) => updateRent({ amount: toNumber(value) })}
+                />
+                <Group grow align="flex-start">
+                  <MonthField
+                    label={t("housingRentStartMonth")}
+                    placeholder={t("monthPlaceholder")}
+                    value={housing.rent.startMonth ?? ""}
+                    error={errors.rent.startMonth}
+                    onChange={(value) => updateRent({ startMonth: value })}
+                  />
+                  <MonthField
+                    label={t("housingRentEndMonth")}
+                    placeholder={t("monthPlaceholder")}
+                    value={housing.rent.endMonth ?? ""}
+                    error={errors.rent.endMonth}
+                    onChange={(value) => updateRent({ endMonth: value })}
+                  />
+                </Group>
+                <NumberInput
+                  label={t("housingRentGrowth")}
+                  min={0}
+                  value={housing.rent.rentGrowthPct ?? ""}
+                  onChange={(value) =>
+                    updateRent({ rentGrowthPct: toOptionalNumber(value) })
+                  }
+                />
+                <Text size="xs" c="dimmed">
+                  {t("housingRentGrowthHint")}
+                </Text>
+              </>
+            )}
           </Stack>
         </Card>
       ) : (

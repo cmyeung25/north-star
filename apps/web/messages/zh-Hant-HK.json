@@ -2259,6 +2259,7 @@
     "housingModeOwn": "按揭／自置",
     "housingRentTitle": "租屋",
     "housingRentHint": "輸入租金與租期資料以建立住屋支出。",
+    "housingRentNoPayment": "無需租金支出",
     "housingRentAmount": "每月租金",
     "housingRentStartMonth": "開始月份",
     "housingRentEndMonth": "結束月份（可選）",

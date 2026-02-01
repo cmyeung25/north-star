@@ -404,6 +404,9 @@ const buildHousingChanges = ({
   const resolvedBaseMonth = baseMonth ?? "";
 
   if (housing.mode === "rent") {
+    if (housing.rent.noPayment) {
+      return { assets, liabilities, events };
+    }
     const amount = normalizeAmount(housing.rent.amount);
     const startMonth = normalizeMonth(housing.rent.startMonth) ?? resolvedBaseMonth;
     if (amount > 0 && startMonth) {
