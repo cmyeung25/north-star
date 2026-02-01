@@ -1199,6 +1199,99 @@
     "milestoneBack": "Back",
     "milestoneNext": "Next",
     "milestoneApply": "Apply",
+    "templatePickerTitle": "Choose a template",
+    "templatePickerHint": "Pick a template to prefill the right event drawer.",
+    "templatePickerSearchPlaceholder": "Search templates",
+    "templatePickerEmpty": "No templates found.",
+    "templatePickerTabPopular": "Popular",
+    "templatePickerTabIncome": "Income",
+    "templatePickerTabExpenses": "Expenses",
+    "templatePickerTabHousing": "Housing",
+    "templatePickerTabLoans": "Loans",
+    "templatePickerTabInsurance": "Insurance",
+    "templatePickerTabAssets": "Assets",
+    "templatePickerTabAdjustments": "Adjustments",
+    "templateChipCashflow": "Affects cashflow",
+    "templateChipNetWorth": "Affects net worth",
+    "templateChipRequiresLiability": "Requires liability",
+    "templates": {
+      "monthly_salary": {
+        "name": "Monthly salary",
+        "desc": "Recurring salary income each month."
+      },
+      "salary_adjustment": {
+        "name": "Salary adjustment",
+        "desc": "Increase or decrease your salary over time."
+      },
+      "bonus_13th": {
+        "name": "13th month bonus",
+        "desc": "One-off bonus tied to annual payout."
+      },
+      "rental_income": {
+        "name": "Rental income",
+        "desc": "Monthly income from renting property."
+      },
+      "dividends_interest": {
+        "name": "Dividends & interest",
+        "desc": "Investment income from dividends or interest."
+      },
+      "living_total": {
+        "name": "Living expenses (total)",
+        "desc": "Single monthly expense covering daily living."
+      },
+      "living_breakdown": {
+        "name": "Living expenses (breakdown)",
+        "desc": "Break down recurring living costs into items."
+      },
+      "rent_housing": {
+        "name": "Rent housing",
+        "desc": "Monthly rent with annual growth."
+      },
+      "insurance_quick": {
+        "name": "Insurance (quick)",
+        "desc": "Set a simple monthly premium."
+      },
+      "insurance_detailed": {
+        "name": "Insurance (detailed)",
+        "desc": "Add detailed policy premiums and cash values."
+      },
+      "childcare_monthly": {
+        "name": "Childcare monthly",
+        "desc": "Recurring childcare and education expenses."
+      },
+      "one_time_big_expense": {
+        "name": "One-time big expense",
+        "desc": "Large one-off expense at a specific month."
+      },
+      "mortgage_home_purchase": {
+        "name": "Mortgage home purchase",
+        "desc": "Buy a home with mortgage payments and fees."
+      },
+      "housing_fees_rates": {
+        "name": "Housing fees & rates",
+        "desc": "Ongoing housing-related fees and rates."
+      },
+      "buy_car": {
+        "name": "Buy a car",
+        "desc": "One-time car purchase and related costs."
+      },
+      "monthly_investing": {
+        "name": "Monthly investing",
+        "desc": "Recurring investment contributions."
+      },
+      "personal_loan": {
+        "name": "Personal loan",
+        "desc": "Loan repayment schedule with interest."
+      },
+      "car_loan": {
+        "name": "Car loan",
+        "desc": "Loan for vehicle purchase with repayments."
+      },
+      "credit_card_balance": {
+        "name": "Credit card balance",
+        "desc": "Pay down revolving credit card debt."
+      }
+    },
     "timelineTitle": "One-off / Timeline",
     "timelineDescription": "Need a one-off or exceptional expense? Add it directly to the money flows.",
     "timelineOneOffCta": "Add one-off expense",

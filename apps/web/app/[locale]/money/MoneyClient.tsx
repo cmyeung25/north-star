@@ -75,8 +75,10 @@ import { compileSellLifecycle } from "../../../src/domain/positions/compileSellL
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
+import TemplatePickerDrawer from "../../../components/eventTemplates/TemplatePickerDrawer";
 import EventCardList from "../../../src/features/money/EventCardList";
 import CashflowEventDrawer, {
+  type CashflowEventDraft,
   type ScenarioEventDraft,
 } from "../../../features/moneyFlow/CashflowEventDrawer";
 import HousingEventDrawer, {
@@ -113,6 +115,8 @@ import type { AssetItem } from "../../../features/assets/types";
 import type { LiabilityItem } from "../../../features/liabilities/types";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
 import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
+import type { TemplateCategory, TemplateDef } from "../../../src/domain/eventTemplates/types";
+import { buildTemplateDrawerDraftOverrides } from "../../../src/domain/eventTemplates/presets";
 
 type CashflowModalState = {
   opened: boolean;
@@ -279,6 +283,17 @@ export default function MoneyClient({
   const [v2EventDefaultKind, setV2EventDefaultKind] = useState<
     "income" | "expense"
   >("income");
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [templatePickerCategory, setTemplatePickerCategory] =
+    useState<TemplateCategory>("popular");
+  const [templateCashflowDraft, setTemplateCashflowDraft] =
+    useState<Partial<CashflowEventDraft> | null>(null);
+  const [templateHousingDraft, setTemplateHousingDraft] =
+    useState<Partial<HousingEventDraft> | null>(null);
+  const [templateLoanDraft, setTemplateLoanDraft] =
+    useState<Partial<LoanEventDraft> | null>(null);
+  const [templateInsuranceDraft, setTemplateInsuranceDraft] =
+    useState<Partial<InsuranceEventDraft> | null>(null);
   const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
   const [adjustmentDraft, setAdjustmentDraft] = useState<{
     row: LedgerRow;
@@ -637,12 +652,62 @@ export default function MoneyClient({
     []
   );
 
+  const closeV2EventDrawer = useCallback(() => {
+    setV2EventDrawerOpen(false);
+    setEditingV2EventId(null);
+    setV2EventDrawerType(null);
+    setTemplateCashflowDraft(null);
+    setTemplateHousingDraft(null);
+    setTemplateLoanDraft(null);
+    setTemplateInsuranceDraft(null);
+  }, []);
+
+  const openTemplatePicker = useCallback((category: TemplateCategory) => {
+    setTemplatePickerCategory(category);
+    setTemplatePickerOpen(true);
+  }, []);
+
+  const handleTemplateSelect = useCallback(
+    (template: TemplateDef) => {
+      const label = t(`templates.${template.id}.name`);
+      const draftOverrides = buildTemplateDrawerDraftOverrides(template.id, {
+        baseMonth,
+        label,
+      });
+      setTemplateCashflowDraft(null);
+      setTemplateHousingDraft(null);
+      setTemplateLoanDraft(null);
+      setTemplateInsuranceDraft(null);
+
+      if (draftOverrides.drawerType === "cashflow") {
+        setV2EventDefaultKind(draftOverrides.cashflow?.kind ?? "income");
+        setTemplateCashflowDraft(draftOverrides.cashflow ?? null);
+        openV2EventDrawer("create", "cashflow");
+        return;
+      }
+      if (draftOverrides.drawerType === "housing") {
+        setTemplateHousingDraft(draftOverrides.housing ?? null);
+        openV2EventDrawer("create", "housing");
+        return;
+      }
+      if (draftOverrides.drawerType === "loan") {
+        setTemplateLoanDraft(draftOverrides.loan ?? null);
+        openV2EventDrawer("create", "loan");
+        return;
+      }
+      if (draftOverrides.drawerType === "insurance") {
+        setTemplateInsuranceDraft(draftOverrides.insurance ?? null);
+        openV2EventDrawer("create", "insurance");
+      }
+    },
+    [baseMonth, openV2EventDrawer, t]
+  );
+
   const handleAddCashflowEvent = useCallback(
     (kind: "income" | "expense") => {
-      setV2EventDefaultKind(kind);
-      openV2EventDrawer("create", "cashflow");
+      openTemplatePicker(kind === "income" ? "income" : "expenses");
     },
-    [openV2EventDrawer]
+    [openTemplatePicker]
   );
 
   const handleSaveV2Event = (draft: ScenarioEventDraft) => {
@@ -659,7 +724,7 @@ export default function MoneyClient({
         amount,
         month: draft.month,
         memberId: draft.memberId || undefined,
-        tags: ["adjustment"],
+        tags: draft.tags && draft.tags.length > 0 ? draft.tags : ["adjustment"],
       };
       if (draft.id) {
         const result = updateEvent(draft.id, payload, scenarioIdValue);
@@ -693,6 +758,7 @@ export default function MoneyClient({
       everyNMonths:
         draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
       memberId: draft.memberId || undefined,
+      tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
     };
 
     if (draft.id) {
@@ -2177,6 +2243,13 @@ export default function MoneyClient({
         </Stack>
       </Drawer>
 
+      <TemplatePickerDrawer
+        opened={templatePickerOpen}
+        defaultCategory={templatePickerCategory}
+        onClose={() => setTemplatePickerOpen(false)}
+        onSelect={handleTemplateSelect}
+      />
+
       {scenario && scenarioIdValue && (
         <>
           {scenarioIsV2 && (
@@ -2196,11 +2269,8 @@ export default function MoneyClient({
                     : editingV2DrawerEvent
                 }
                 defaultKind={v2EventDefaultKind}
-                onClose={() => {
-                  setV2EventDrawerOpen(false);
-                  setEditingV2EventId(null);
-                  setV2EventDrawerType(null);
-                }}
+                initialCashflowDraft={templateCashflowDraft ?? undefined}
+                onClose={closeV2EventDrawer}
                 onSave={handleSaveV2Event}
               />
               <HousingEventDrawer
@@ -2208,11 +2278,8 @@ export default function MoneyClient({
                 mode={v2EventDrawerMode}
                 baseCurrency={scenario.baseCurrency}
                 event={v2EventDrawerMode === "edit" ? editingHousingEvent : null}
-                onClose={() => {
-                  setV2EventDrawerOpen(false);
-                  setEditingV2EventId(null);
-                  setV2EventDrawerType(null);
-                }}
+                initialDraft={templateHousingDraft ?? undefined}
+                onClose={closeV2EventDrawer}
                 onSave={handleSaveHousingEvent}
               />
               <LoanEventDrawer
@@ -2220,11 +2287,8 @@ export default function MoneyClient({
                 mode={v2EventDrawerMode}
                 baseCurrency={scenario.baseCurrency}
                 event={v2EventDrawerMode === "edit" ? editingLoanEvent : null}
-                onClose={() => {
-                  setV2EventDrawerOpen(false);
-                  setEditingV2EventId(null);
-                  setV2EventDrawerType(null);
-                }}
+                initialDraft={templateLoanDraft ?? undefined}
+                onClose={closeV2EventDrawer}
                 onSave={handleSaveLoanEvent}
               />
               <InsuranceEventDrawer
@@ -2232,11 +2296,8 @@ export default function MoneyClient({
                 mode={v2EventDrawerMode}
                 baseCurrency={scenario.baseCurrency}
                 event={v2EventDrawerMode === "edit" ? editingInsuranceEvent : null}
-                onClose={() => {
-                  setV2EventDrawerOpen(false);
-                  setEditingV2EventId(null);
-                  setV2EventDrawerType(null);
-                }}
+                initialDraft={templateInsuranceDraft ?? undefined}
+                onClose={closeV2EventDrawer}
                 onSave={handleSaveInsuranceEvent}
               />
             </>

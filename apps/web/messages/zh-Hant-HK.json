@@ -1211,6 +1211,99 @@
     "milestoneBack": "返回",
     "milestoneNext": "下一步",
     "milestoneApply": "套用",
+    "templatePickerTitle": "選擇模板",
+    "templatePickerHint": "選擇模板以預填相應的事件抽屜。",
+    "templatePickerSearchPlaceholder": "搜尋模板",
+    "templatePickerEmpty": "找不到相關模板。",
+    "templatePickerTabPopular": "熱門",
+    "templatePickerTabIncome": "收入",
+    "templatePickerTabExpenses": "支出",
+    "templatePickerTabHousing": "住屋",
+    "templatePickerTabLoans": "貸款",
+    "templatePickerTabInsurance": "保險",
+    "templatePickerTabAssets": "資產",
+    "templatePickerTabAdjustments": "調整",
+    "templateChipCashflow": "影響現金流",
+    "templateChipNetWorth": "影響淨資產",
+    "templateChipRequiresLiability": "需要負債連結",
+    "templates": {
+      "monthly_salary": {
+        "name": "每月薪金",
+        "desc": "每月固定薪金收入。"
+      },
+      "salary_adjustment": {
+        "name": "薪金調整",
+        "desc": "調整薪金（加薪/減薪）。"
+      },
+      "bonus_13th": {
+        "name": "第 13 個月花紅",
+        "desc": "年度一次性花紅收入。"
+      },
+      "rental_income": {
+        "name": "租金收入",
+        "desc": "出租物業的每月租金收入。"
+      },
+      "dividends_interest": {
+        "name": "股息／利息",
+        "desc": "投資股息或利息收入。"
+      },
+      "living_total": {
+        "name": "生活開支（總額）",
+        "desc": "以單一項目記錄每月生活開支。"
+      },
+      "living_breakdown": {
+        "name": "生活開支（拆分）",
+        "desc": "把生活開支拆分成多個經常性項目。"
+      },
+      "rent_housing": {
+        "name": "租屋",
+        "desc": "每月租金並設定年度增長。"
+      },
+      "insurance_quick": {
+        "name": "保險（快速）",
+        "desc": "以簡單月供建立保險支出。"
+      },
+      "insurance_detailed": {
+        "name": "保險（詳細）",
+        "desc": "新增詳細保單與現金價值。"
+      },
+      "childcare_monthly": {
+        "name": "育兒／教育（月費）",
+        "desc": "每月育兒或教育支出。"
+      },
+      "one_time_big_expense": {
+        "name": "一次性大額支出",
+        "desc": "於指定月份的一次性支出。"
+      },
+      "mortgage_home_purchase": {
+        "name": "按揭置業",
+        "desc": "買樓並設定按揭與相關費用。"
+      },
+      "housing_fees_rates": {
+        "name": "屋苑費用／差餉",
+        "desc": "持續性的房屋相關費用。"
+      },
+      "buy_car": {
+        "name": "買車",
+        "desc": "一次性買車及相關成本。"
+      },
+      "monthly_investing": {
+        "name": "每月投資",
+        "desc": "每月定期投資供款。"
+      },
+      "personal_loan": {
+        "name": "私人貸款",
+        "desc": "含利息的貸款還款。"
+      },
+      "car_loan": {
+        "name": "車貸",
+        "desc": "購車貸款與還款。"
+      },
+      "credit_card_balance": {
+        "name": "信用卡結欠",
+        "desc": "分期還清信用卡負債。"
+      }
+    },
     "timelineTitle": "一次性／時間線",
     "timelineDescription": "一次性或例外支出直接加入收支項目。",
     "timelineOneOffCta": "新增一次性支出",

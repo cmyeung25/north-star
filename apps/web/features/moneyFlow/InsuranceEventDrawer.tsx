@@ -49,11 +49,23 @@ type InsuranceEventDrawerProps = {
   mode: "create" | "edit";
   baseCurrency: string;
   event: InsuranceEvent | null;
+  initialDraft?: Partial<InsuranceEventDraft>;
   onClose: () => void;
   onSave: (draft: InsuranceEventDraft) => void;
 };
 
 type InsurancePolicy = NonNullable<InsuranceEvent["policies"]>[number];
+
+const applyDraftOverrides = <T,>(draft: T, overrides?: Partial<T>): T => {
+  if (!overrides) {
+    return draft;
+  }
+  const definedEntries = Object.entries(overrides).filter(([, value]) => value !== undefined);
+  return {
+    ...draft,
+    ...Object.fromEntries(definedEntries),
+  };
+};
 
 const buildPolicyDraft = (policy: InsurancePolicy): InsurancePolicyDraft => ({
   id: policy.id,
@@ -112,21 +124,24 @@ export default function InsuranceEventDrawer({
   mode,
   baseCurrency,
   event,
+  initialDraft,
   onClose,
   onSave,
 }: InsuranceEventDrawerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
-  const [draft, setDraft] = useState<InsuranceEventDraft>(() => buildDraft(event));
+  const [draft, setDraft] = useState<InsuranceEventDraft>(() =>
+    applyDraftOverrides(buildDraft(event), initialDraft)
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!opened) {
       return;
     }
-    setDraft(buildDraft(event));
+    setDraft(applyDraftOverrides(buildDraft(event), event ? undefined : initialDraft));
     setErrors({});
-  }, [event, opened]);
+  }, [event, initialDraft, opened]);
 
   const validate = () => {
     const nextErrors: Record<string, string> = {};
