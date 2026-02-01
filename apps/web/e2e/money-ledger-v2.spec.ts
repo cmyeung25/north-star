@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs/promises";
 
 const locale = "en";
 
@@ -61,6 +62,22 @@ test.describe("money v2 ledger", () => {
     await page.getByRole("button", { name: "Save and continue" }).click();
     await expect(page).toHaveURL(/\/money/);
 
+    await page.goto(`/${locale}/dashboard`);
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export" }).click();
+    await page.getByRole("menuitem", { name: "Export JSON" }).click();
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    if (!downloadPath) {
+      throw new Error("Failed to resolve export download path.");
+    }
+    const projectionPayload = JSON.parse(
+      await fs.readFile(downloadPath, "utf-8")
+    );
+    const cashBalance: number[] = projectionPayload.projection.cashBalance ?? [];
+    expect(new Set(cashBalance).size).toBeGreaterThan(1);
+
+    await page.goto(`/${locale}/money`);
     await page.getByRole("button", { name: "Add event" }).click();
     await page.getByLabel("Label").fill("Salary");
     await page.getByLabel(/Amount/).fill("1000");
@@ -68,6 +85,9 @@ test.describe("money v2 ledger", () => {
     await page.getByRole("button", { name: "Save" }).click();
 
     await expect(page.getByText("Salary")).toBeVisible();
+
+    await page.getByRole("button", { name: "View ledger impact" }).first().click();
+    await expect(page.getByText(baseMonth)).toBeVisible();
 
     await page.getByRole("button", { name: "Edit" }).first().click();
     await page.getByLabel(/Amount/).fill("1200");

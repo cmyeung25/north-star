@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Scenario } from "../../../../store/scenarioStore";
 import type { HousingEvent, InsuranceEvent, LoanEvent } from "../../../scenarioV2/events";
-import type { OnboardingV2Draft } from "../mapOnboardingV2DraftToScenario";
+import type { OnboardingV2Draft } from "../draftTypes";
 import { applyOnboardingV2DraftToScenarioV2 } from "../applyOnboardingV2DraftToScenarioV2";
 
 const baseScenario: Scenario = {

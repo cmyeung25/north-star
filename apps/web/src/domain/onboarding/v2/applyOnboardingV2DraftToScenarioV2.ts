@@ -25,7 +25,7 @@ import {
   type OnboardingV2DraftLivingSpend,
   type OnboardingV2DraftMember,
   type OnboardingV2LivingSpendCategoryKey,
-} from "./mapOnboardingV2DraftToScenario";
+} from "./draftTypes";
 import { buildAssumptionsPatch } from "./assumptions";
 
 export const ONBOARDING_V2_PREFIX = "onboarding-v2";

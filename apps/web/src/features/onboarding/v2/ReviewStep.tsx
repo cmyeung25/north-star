@@ -23,7 +23,7 @@ import {
 } from "../../../engine/scenarioV2Compiler";
 import type {
   OnboardingV2Draft,
-} from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+} from "../../../domain/onboarding/v2/draftTypes";
 
 type ReviewStepProps = {
   draft: OnboardingV2Draft;

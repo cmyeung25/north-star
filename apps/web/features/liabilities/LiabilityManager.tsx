@@ -20,11 +20,6 @@ import { useEntityDraft } from "../../src/hooks/useEntityDraft";
 import { isValidMonthKey } from "../../src/utils/monthKey";
 import { createLiabilityItemId } from "./liabilityAdapter";
 import type { LiabilityItem, LiabilityItemUpsert, LiabilityType } from "./types";
-import type { MoneyItem } from "../moneyFlow/types";
-import {
-  buildDerivedMoneyItemsForLiability,
-  findOverlappingManualItems,
-} from "../moneyFlow/derivedMoneyItems";
 
 type LiabilityItemDraft = {
   id: string;
@@ -88,12 +83,10 @@ type LiabilityManagerProps = {
   items: LiabilityItem[];
   baseCurrency: string;
   locale: string;
-  moneyItems: MoneyItem[];
   onUpsert: (item: LiabilityItemUpsert) => void;
   onDelete: (item: LiabilityItem) => void;
   onView?: (item: LiabilityItem) => void;
   onEditEvent?: (eventId: string) => void;
-  onDetach?: (item: LiabilityItem) => void;
   openEditId?: string | null;
   onOpenEditHandled?: () => void;
 };
@@ -102,12 +95,10 @@ export default function LiabilityManager({
   items,
   baseCurrency,
   locale,
-  moneyItems,
   onUpsert,
   onDelete,
   onView,
   onEditEvent,
-  onDetach,
   openEditId,
   onOpenEditHandled,
 }: LiabilityManagerProps) {
@@ -173,10 +164,6 @@ export default function LiabilityManager({
     }
   );
   const isReadOnly = draft.source === "eventGenerated" || draft.source === "derived";
-  const manualMoneyItems = useMemo(
-    () => moneyItems.filter((item) => item.source === "manual"),
-    [moneyItems]
-  );
   const purchasePriceValue =
     draft.purchasePrice === "" ? Number.NaN : Number(draft.purchasePrice);
   const downPaymentPercentValue =
@@ -213,40 +200,6 @@ export default function LiabilityManager({
     }
     return (principal * monthlyRate) / denominator;
   }, [draft.interestRate, draft.principalOutstanding, draft.termMonths]);
-
-  const overlappingManualItems = useMemo(() => {
-    if (!draft.generatePaymentExpense) {
-      return [];
-    }
-    const candidateLiability: LiabilityItem = {
-      id: draft.id,
-      liabilityType: draft.liabilityType,
-      name: draft.name,
-      principalOutstanding: Number(draft.principalOutstanding),
-      currency: draft.currency,
-      interestRate: draft.interestRate === "" ? undefined : Number(draft.interestRate),
-      startMonth: draft.startMonth || undefined,
-      termMonths: draft.termMonths === "" ? undefined : Number(draft.termMonths),
-      notes: draft.notes || undefined,
-      purchasePrice: draft.purchasePrice === "" ? undefined : Number(draft.purchasePrice),
-      downPaymentPercent:
-        draft.downPaymentPercent === "" ? undefined : Number(draft.downPaymentPercent),
-      generatePaymentExpense: draft.generatePaymentExpense,
-      source: draft.source,
-      generatedByEventId: draft.generatedByEventId,
-    };
-    const candidates = buildDerivedMoneyItemsForLiability({
-      liability: candidateLiability,
-      baseCurrency,
-      label: t("liabilityPaymentLabel"),
-    });
-    return findOverlappingManualItems(manualMoneyItems, candidates);
-  }, [
-    baseCurrency,
-    draft,
-    manualMoneyItems,
-    t,
-  ]);
 
   const filteredItems = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -404,13 +357,6 @@ export default function LiabilityManager({
                         >
                           {t("eventGeneratedEdit")}
                         </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => onDetach?.(item)}
-                        >
-                          {t("eventGeneratedDetach")}
-                        </Button>
                       </>
                     ) : (
                       <>
@@ -463,13 +409,6 @@ export default function LiabilityManager({
                     disabled={!editingItem.generatedByEventId}
                   >
                     {t("eventGeneratedEdit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    onClick={() => onDetach?.(editingItem)}
-                  >
-                    {t("eventGeneratedDetach")}
                   </Button>
                 </Group>
               </Stack>
@@ -625,13 +564,6 @@ export default function LiabilityManager({
             }
             disabled={isReadOnly}
           />
-          {overlappingManualItems.length > 0 && draft.generatePaymentExpense && (
-            <Card withBorder radius="md" padding="sm">
-              <Text size="sm" c="orange">
-                {t("derivedDoubleCountWarning")}
-              </Text>
-            </Card>
-          )}
           <TextInput
             label={t("liabilityFormNotesLabel")}
             value={draft.notes}

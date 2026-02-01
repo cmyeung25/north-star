@@ -61,8 +61,6 @@ import {
 } from "../../../src/export/projectionExport";
 import {
   getScenarioById,
-  isLegacyOnboardingScenario,
-  isScenarioV2,
   resolveScenarioIdFromQuery,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
@@ -741,9 +739,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const visibleTimelineMarkers = timelineStripMarkers.slice(0, 8);
   const timelineOverflowCount = timelineStripMarkers.length - visibleTimelineMarkers.length;
   const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
-  const showLegacyOnboardingBanner = isLegacyOnboardingScenario(selectedScenario);
-  const showLegacySchemaBanner = selectedScenario ? !isScenarioV2(selectedScenario) : false;
-
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap="sm">
@@ -778,37 +773,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             </Button>
           </Group>
         </Group>
-
-        {showLegacyOnboardingBanner && (
-          <Card withBorder radius="md" padding="md">
-            <Group justify="space-between" align="flex-start" wrap="wrap">
-              <Stack gap={2}>
-                <Text fw={600}>{common("onboardingRefreshTitle")}</Text>
-                <Text size="sm" c="dimmed">
-                  {common("onboardingRefreshBody")}
-                </Text>
-              </Stack>
-              <Button component={Link} href="/onboarding" variant="light" size="xs">
-                {common("runOnboardingAgain")}
-              </Button>
-            </Group>
-          </Card>
-        )}
-
-        {showLegacySchemaBanner && (
-          <Card withBorder radius="md" padding="md">
-            <Stack gap={4}>
-              <Badge color="yellow" variant="light" w="fit-content">
-                Legacy Scenario
-              </Badge>
-              <Text fw={600}>This scenario uses a legacy schema.</Text>
-              <Text size="sm" c="dimmed">
-                New event-based scenarios are required to edit money flows. This
-                scenario is displayed in read-only fallback mode.
-              </Text>
-            </Stack>
-          </Card>
-        )}
 
         <Stack gap="sm">
           <Group gap="sm" wrap="wrap">

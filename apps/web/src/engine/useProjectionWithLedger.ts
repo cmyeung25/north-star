@@ -5,7 +5,7 @@ import { mapScenarioToEngineInput, type AdapterWarning } from "./adapter";
 import { compileScenarioCashflows } from "../domain/events/compiler";
 import { getEventSign } from "../events/eventCatalog";
 import { compileAllBudgetRules } from "../domain/budget/compileBudgetRules";
-import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
+import { isScenarioV2, type BudgetRule, type Scenario, type ScenarioMember } from "../store/scenarioStore";
 import type { EventDefinition } from "../domain/events/types";
 import type { CashflowItem } from "../domain/ledger/types";
 import { normalizeMonthStrict } from "../utils/month";
@@ -14,6 +14,7 @@ import {
   summarizeMonth,
   type LedgerMonthSummary,
 } from "../domain/ledger/ledgerUtils";
+import { compileScenarioV2ToLedger, compileScenarioV2ToProjectionInput } from "./scenarioV2Compiler";
 import { compileSellLifecycle } from "../domain/positions/compileSellLifecycle";
 import {
   buildNetWorthBreakdownByMonth,
@@ -588,6 +589,7 @@ export const useProjectionWithLedger = (
       return emptyProjectionWithLedger;
     }
 
+    const isV2 = isScenarioV2(scenario);
     const {
       input,
       warnings,
@@ -595,10 +597,23 @@ export const useProjectionWithLedger = (
       smartInvestWithdrawalSchedule,
       smartInvestRebalanceSchedule,
       smartInvestTransferSeries,
-    } = computeProjectionWithSmartInvest(scenario, eventLibrary, {
-      members: options.members ?? [],
-      budgetRules: options.budgetRules ?? [],
-    });
+    } = isV2
+      ? (() => {
+          const input = compileScenarioV2ToProjectionInput(scenario);
+          const projection = computeProjection(input);
+          return {
+            input,
+            warnings: [] as AdapterWarning[],
+            projection,
+            smartInvestWithdrawalSchedule: {},
+            smartInvestRebalanceSchedule: null,
+            smartInvestTransferSeries: [],
+          };
+        })()
+      : computeProjectionWithSmartInvest(scenario, eventLibrary, {
+          members: options.members ?? [],
+          budgetRules: options.budgetRules ?? [],
+        });
     const scenarioForLedger = {
       ...scenario,
       assumptions: {
@@ -610,11 +625,17 @@ export const useProjectionWithLedger = (
     const includeBudgetRulesInProjection =
       scenario.assumptions.includeBudgetRulesInProjection ?? true;
     const members = options.members ?? [];
-    const eventLedger = compileEventLedger(
-      scenarioForLedger,
-      eventLibrary,
-      members
-    );
+    const eventLedger = isV2
+      ? compileScenarioV2ToLedger(scenarioForLedger).map((entry) => ({
+          month: entry.month,
+          amount: entry.amount,
+          source: "event" as const,
+          sourceId: entry.sourceEventId,
+          label: entry.label,
+          memberId: entry.memberId,
+          category: entry.kind ?? (entry.amount >= 0 ? "income" : "expense"),
+        }))
+      : compileEventLedger(scenarioForLedger, eventLibrary, members);
     const budgetRules = normalizeBudgetRulesForLedger(options.budgetRules ?? []);
     const budgetLedger = includeBudgetRulesInProjection
       ? compileAllBudgetRules(scenarioForLedger, budgetRules, members)
