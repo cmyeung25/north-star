@@ -1941,6 +1941,7 @@ export default function TimelineDesktop({
       <TemplatePickerDrawer
         opened={templatePickerOpen}
         defaultCategory={templatePickerCategory}
+        filterTemplates={(template) => !template.isBundle}
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
       />

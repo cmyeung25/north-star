@@ -18,10 +18,12 @@ type TemplatePickerProps = {
   opened?: boolean;
   defaultCategory?: TemplateCategory;
   onSelect: (template: TemplateDef) => void;
+  filterTemplates?: (template: TemplateDef) => boolean;
 };
 
 const categoryOrder: TemplateCategory[] = [
   "popular",
+  "life_events",
   "income",
   "expenses",
   "housing",
@@ -51,6 +53,8 @@ const resolveCategoryLabel = (
   switch (category) {
     case "popular":
       return t("templatePickerTabPopular");
+    case "life_events":
+      return t("templatePickerTabLifeEvents");
     case "income":
       return t("templatePickerTabIncome");
     case "expenses":
@@ -74,6 +78,7 @@ export default function TemplatePicker({
   opened = true,
   defaultCategory = "popular",
   onSelect,
+  filterTemplates,
 }: TemplatePickerProps) {
   const t = useTranslations("money");
   const [search, setSearch] = useState("");
@@ -93,6 +98,9 @@ export default function TemplatePicker({
   const filteredTemplates = useMemo(() => {
     const query = search.trim().toLowerCase();
     return templates.filter((template) => {
+      if (filterTemplates && !filterTemplates(template)) {
+        return false;
+      }
       if (activeCategory === "popular") {
         if (!template.categories.includes("popular")) {
           return false;
@@ -107,7 +115,7 @@ export default function TemplatePicker({
       const desc = t(`templates.${template.id}.desc`).toLowerCase();
       return name.includes(query) || desc.includes(query);
     });
-  }, [activeCategory, search, t, templates]);
+  }, [activeCategory, filterTemplates, search, t, templates]);
 
   return (
     <Stack gap="sm">

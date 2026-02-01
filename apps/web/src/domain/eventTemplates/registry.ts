@@ -115,6 +115,20 @@ export const templateRegistry: TemplateDef[] = [
     drawerType: "loan",
     chips: ["affectsCashflow", "requiresLiability"],
   },
+  {
+    id: "life_new_baby_plan",
+    categories: ["life_events"],
+    drawerType: "bundle",
+    chips: ["affectsCashflow"],
+    isBundle: true,
+  },
+  {
+    id: "life_home_purchase",
+    categories: ["life_events", "housing", "assets"],
+    drawerType: "bundle",
+    chips: ["affectsCashflow", "affectsNetWorth", "requiresLiability"],
+    isBundle: true,
+  },
 ];
 
 export const listTemplates = () => templateRegistry;

@@ -4,9 +4,9 @@ import { buildTemplateDrawerDraftOverrides, getTemplatePreset } from "../presets
 import { templateIds } from "../types";
 
 describe("event templates registry", () => {
-  it("returns 19 templates with matching ids", () => {
+  it("returns 21 templates with matching ids", () => {
     const templates = listTemplates();
-    expect(templates).toHaveLength(19);
+    expect(templates).toHaveLength(21);
     expect(templates.map((template) => template.id)).toEqual(templateIds);
   });
 
