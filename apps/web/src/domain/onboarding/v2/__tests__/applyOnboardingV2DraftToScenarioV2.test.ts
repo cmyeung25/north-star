@@ -215,6 +215,34 @@ describe("applyOnboardingV2DraftToScenarioV2", () => {
     ).toBe(true);
   });
 
+  it("skips rent events when rent is marked as no payment", () => {
+    const draft = buildDraft({
+      housing: {
+        mode: "rent",
+        rent: { amount: 0, noPayment: true, startMonth: "2024-01" },
+        own: {
+          propertyValue: 0,
+          downPaymentMode: "percent",
+          mortgageEnabled: false,
+          mortgageRatePct: 0,
+          mortgageTermMonths: 0,
+          mortgagePayment: 0,
+          fees: [],
+          ongoingCosts: [],
+          rental: { enabled: false, amount: 0 },
+        },
+      },
+    });
+
+    const result = applyOnboardingV2DraftToScenarioV2(draft, baseScenario);
+    const rentEvent = result.events?.find(
+      (event): event is HousingEvent =>
+        event.type === "housing" && event.kind === "rent"
+    );
+
+    expect(rentEvent).toBeUndefined();
+  });
+
   it("maps debts to loan events with stable liability ids", () => {
     const draft = buildDraft({
       debts: [

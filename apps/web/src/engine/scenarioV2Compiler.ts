@@ -488,6 +488,7 @@ const buildLegacyEventLibrary = (
         },
         currency: scenario.baseCurrency,
         memberId: event.memberId,
+        ...(event.kind === "income" ? { incomeSubtype: "other" } : {}),
       };
 
       return [definition];

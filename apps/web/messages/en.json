@@ -2235,6 +2235,7 @@
     "housingModeOwn": "Mortgage / Own",
     "housingRentTitle": "Rent",
     "housingRentHint": "Enter your rent details so we can project housing expenses.",
+    "housingRentNoPayment": "No rent payment",
     "housingRentAmount": "Monthly rent",
     "housingRentStartMonth": "Start month",
     "housingRentEndMonth": "End month (optional)",

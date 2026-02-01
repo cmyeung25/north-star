@@ -237,7 +237,7 @@ describe("compileScenarioV2ToLedger", () => {
         ...baseScenario.assumptions,
         baseMonth: "2024-01",
         horizonMonths: 6,
-        initialCash: 1000,
+        initialCash: 100000,
       },
       events: [
         {
@@ -245,7 +245,7 @@ describe("compileScenarioV2ToLedger", () => {
           type: "cashflow",
           kind: "income",
           cadence: "monthly",
-          amount: 200,
+          amount: 20000,
           startMonth: "2024-01",
         },
         {
@@ -253,7 +253,7 @@ describe("compileScenarioV2ToLedger", () => {
           type: "cashflow",
           kind: "expense",
           cadence: "monthly",
-          amount: 50,
+          amount: 15000,
           startMonth: "2024-01",
         },
       ],
@@ -262,7 +262,6 @@ describe("compileScenarioV2ToLedger", () => {
     const input = compileScenarioV2ToProjectionInput(scenario);
     const projection = computeProjection(input);
 
-    expect(projection.cashBalance.length > 1).toBe(true);
-    expect(projection.cashBalance[0]).not.toBe(projection.cashBalance[1]);
+    expect(projection.cashBalance.slice(0, 3)).toEqual([105000, 110000, 115000]);
   });
 });

@@ -306,6 +306,7 @@ const buildHousingDraft = ({
     mode: existing?.mode === "own" ? "own" : "rent",
     rent: {
       amount: toNumber(existing?.rent?.amount),
+      noPayment: existing?.rent?.noPayment ?? false,
       startMonth: existing?.rent?.startMonth ?? baseMonth,
       endMonth: existing?.rent?.endMonth ?? "",
       rentGrowthPct: toOptional(existing?.rent?.rentGrowthPct),
@@ -1131,22 +1132,24 @@ export default function OnboardingDraftWizard() {
   };
 
   if (housing.mode === "rent") {
-    if (!Number.isFinite(housing.rent.amount) || housing.rent.amount <= 0) {
-      housingErrors.rent.amount = t("housingRentAmountRequired");
-    }
-    if (!housing.rent.startMonth) {
-      housingErrors.rent.startMonth = t("housingRentStartMonthRequired");
-    } else if (!isValidMonthKey(housing.rent.startMonth)) {
-      housingErrors.rent.startMonth = t("monthInvalid");
-    }
-    if (housing.rent.endMonth) {
-      if (!isValidMonthKey(housing.rent.endMonth)) {
-        housingErrors.rent.endMonth = t("monthInvalid");
-      } else if (
-        housing.rent.startMonth &&
-        compareMonthKey(housing.rent.startMonth, housing.rent.endMonth) > 0
-      ) {
-        housingErrors.rent.endMonth = t("livingEndMonthBeforeStart");
+    if (!housing.rent.noPayment) {
+      if (!Number.isFinite(housing.rent.amount) || housing.rent.amount <= 0) {
+        housingErrors.rent.amount = t("housingRentAmountRequired");
+      }
+      if (!housing.rent.startMonth) {
+        housingErrors.rent.startMonth = t("housingRentStartMonthRequired");
+      } else if (!isValidMonthKey(housing.rent.startMonth)) {
+        housingErrors.rent.startMonth = t("monthInvalid");
+      }
+      if (housing.rent.endMonth) {
+        if (!isValidMonthKey(housing.rent.endMonth)) {
+          housingErrors.rent.endMonth = t("monthInvalid");
+        } else if (
+          housing.rent.startMonth &&
+          compareMonthKey(housing.rent.startMonth, housing.rent.endMonth) > 0
+        ) {
+          housingErrors.rent.endMonth = t("livingEndMonthBeforeStart");
+        }
       }
     }
   }

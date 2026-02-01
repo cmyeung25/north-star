@@ -53,6 +53,7 @@ export type OnboardingV2DraftLivingSpendOtherItem = {
 
 export type OnboardingV2DraftHousingRent = {
   amount: number;
+  noPayment?: boolean;
   startMonth?: string;
   endMonth?: string;
   rentGrowthPct?: number | null;
