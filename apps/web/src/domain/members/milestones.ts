@@ -77,11 +77,11 @@ export const computeMilestonesForScenario = (
             return null;
           }
 
-          const clampedMonth = clampMonthToHorizon(month, baseMonth, horizonMonths);
+          // const clampedMonth = clampMonthToHorizon(month, baseMonth, horizonMonths);
 
           return {
             id: milestone.id,
-            month: clampedMonth,
+            month: month,
             label: normalizeLabel(milestone),
             memberName: member.name,
             kind: milestone.kind,

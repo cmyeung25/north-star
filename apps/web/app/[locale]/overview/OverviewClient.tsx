@@ -736,7 +736,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     openBreakdown(month);
   };
 
-  const visibleTimelineMarkers = timelineStripMarkers.slice(0, 8);
+  const visibleTimelineMarkers = timelineStripMarkers.sort((a, b) => a.month.localeCompare(b.month)).slice(0, 10);
   const timelineOverflowCount = timelineStripMarkers.length - visibleTimelineMarkers.length;
   const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
   return (
@@ -765,7 +765,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
-            <Button component={Link} href="/scenarios" variant="subtle">
+            <Button component={Link} href="/scenarios" variant="subtle" display={"none"}>
               {t("backToScenarios")}
             </Button>
             <Button component={Link} href="/onboarding" variant="light">
@@ -777,6 +777,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         <Stack gap="sm">
           <Group gap="sm" wrap="wrap">
             <SegmentedControl
+              display={"none"}
               data={[
                 { value: "single", label: t("viewSingle") },
                 { value: "compare", label: t("viewCompare") },
@@ -785,6 +786,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               onChange={(value) => setViewMode(value as "single" | "compare")}
             />
             <SegmentedControl
+              display={"none"}
               data={[
                 { value: "nominal", label: t("viewNominal") },
                 { value: "real", label: t("viewReal") },
@@ -795,7 +797,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               }
             />
           </Group>
-          <Text size="xs" c="dimmed">
+          <Text size="xs" c="dimmed" display={"none"}>
             {t("viewRealHint")}
           </Text>
           {showCompare ? (

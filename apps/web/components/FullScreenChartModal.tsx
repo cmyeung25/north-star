@@ -29,7 +29,6 @@ export default function FullScreenChartModal({
   markers,
   title,
 }: FullScreenChartModalProps) {
-  console.log(markers)
   return (
     <Modal opened={opened} onClose={onClose} fullScreen centered title={title}>
       <ZoomableLineChart data={data} markers={markers} color={chartColors[type]} height={560} />

@@ -1883,14 +1883,6 @@ export default function MoneyClient({
                 </Group>
               </Card>
             )}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="xs">
-                <Text fw={600}>{t("orderTitle")}</Text>
-                <Text size="sm" c="dimmed">
-                  {t("orderHint")}
-                </Text>
-              </Stack>
-            </Card>
             {!scenarioIsV2 && (
               <Card withBorder radius="md" padding="md">
                 <Stack gap={4}>

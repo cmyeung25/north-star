@@ -1644,7 +1644,7 @@ export default function OnboardingDraftWizard() {
 
     updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
-    router.push(`/${locale}${buildScenarioUrl("/money", scenarioId)}`);
+    router.push(`/${locale}/dashboard`);
   };
 
   const handleLater = () => {

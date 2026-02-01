@@ -443,7 +443,7 @@ export default function AssetManager({
           <TextInput
             label={t("assetFilterSearch")}
             value={search}
-            onChange={(event) => setSearch(event.currentTarget.value)}
+            onChange={(event) => setSearch(event.currentTarget?.value ?? "")}
           />
         </Group>
         <Button onClick={() => openDrawer(null)}>{t("assetManagerAdd")}</Button>
@@ -582,7 +582,7 @@ export default function AssetManager({
           <TextInput
             label={t("assetFormNameLabel")}
             value={draft.name}
-            onChange={(event) => setDraft((current) => ({ ...current, name: event.currentTarget.value }))}
+            onChange={(event) => setDraft((current) => ({ ...current, name: event.currentTarget?.value ?? "" }))}
             error={errors.name}
             disabled={isReadOnly}
           />
@@ -621,7 +621,7 @@ export default function AssetManager({
           <TextInput
             label={t("assetFormNotesLabel")}
             value={draft.notes}
-            onChange={(event) => setDraft((current) => ({ ...current, notes: event.currentTarget.value }))}
+            onChange={(event) => setDraft((current) => ({ ...current, notes: event.currentTarget?.value ?? "" }))}
             disabled={isReadOnly}
           />
           {(draft.assetType === "property" || draft.assetType === "car") && (
