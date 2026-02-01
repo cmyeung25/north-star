@@ -89,7 +89,7 @@ const validateCashflowFields = (
   }
 };
 
-export const HousingEventSchema = BaseEventSchema.extend({
+const HousingEventSchemaBase = BaseEventSchema.extend({
   type: z.literal("housing"),
   kind: z.enum(["rent", "mortgage"]),
   startMonth: MonthKeySchema,
@@ -136,7 +136,12 @@ export const HousingEventSchema = BaseEventSchema.extend({
     .optional(),
   propertyAssetId: z.string().optional(),
   mortgageLiabilityId: z.string().optional(),
-}).superRefine((event, ctx) => {
+});
+
+const validateHousingEvent = (
+  event: z.infer<typeof HousingEventSchemaBase>,
+  ctx: z.RefinementCtx
+) => {
   if (event.kind === "rent") {
     if (typeof event.rentMonthly !== "number") {
       ctx.addIssue({
@@ -199,9 +204,13 @@ export const HousingEventSchema = BaseEventSchema.extend({
       });
     }
   }
-});
+};
 
-export const LoanEventSchema = BaseEventSchema.extend({
+export const HousingEventSchema = HousingEventSchemaBase.superRefine(
+  validateHousingEvent
+);
+
+const LoanEventSchemaBase = BaseEventSchema.extend({
   type: z.literal("loan"),
   loanKind: z.enum(["car", "personal", "credit", "other"]),
   startMonth: MonthKeySchema,
@@ -216,7 +225,12 @@ export const LoanEventSchema = BaseEventSchema.extend({
   downPaymentPercent: z.number().optional(),
   downPaymentAmount: z.number().optional(),
   liabilityId: z.string(),
-}).superRefine((event, ctx) => {
+});
+
+const validateLoanEvent = (
+  event: z.infer<typeof LoanEventSchemaBase>,
+  ctx: z.RefinementCtx
+) => {
   if (event.loanKind === "car") {
     if (typeof event.purchasePrice !== "number") {
       ctx.addIssue({
@@ -226,7 +240,9 @@ export const LoanEventSchema = BaseEventSchema.extend({
       });
     }
   }
-});
+};
+
+export const LoanEventSchema = LoanEventSchemaBase.superRefine(validateLoanEvent);
 
 const InsurancePolicySchema = z.object({
   id: z.string(),
@@ -242,7 +258,7 @@ const InsurancePolicySchema = z.object({
   policyAssetId: z.string().optional(),
 });
 
-export const InsuranceEventSchema = BaseEventSchema.extend({
+const InsuranceEventSchemaBase = BaseEventSchema.extend({
   type: z.literal("insurance"),
   mode: z.enum(["quick", "detailed"]),
   startMonth: MonthKeySchema.optional(),
@@ -250,7 +266,12 @@ export const InsuranceEventSchema = BaseEventSchema.extend({
   premiumMonthly: z.number().optional(),
   premiumAnnualGrowthPct: z.number().optional(),
   policies: z.array(InsurancePolicySchema).optional(),
-}).superRefine((event, ctx) => {
+});
+
+const validateInsuranceEvent = (
+  event: z.infer<typeof InsuranceEventSchemaBase>,
+  ctx: z.RefinementCtx
+) => {
   if (event.mode === "quick") {
     if (!event.startMonth) {
       ctx.addIssue({
@@ -296,7 +317,11 @@ export const InsuranceEventSchema = BaseEventSchema.extend({
       }
     }
   });
-});
+};
+
+export const InsuranceEventSchema = InsuranceEventSchemaBase.superRefine(
+  validateInsuranceEvent
+);
 
 export const AdjustmentEventSchema = BaseEventSchema.extend({
   type: z.literal("adjustment"),
@@ -308,14 +333,26 @@ export const AdjustmentEventSchema = BaseEventSchema.extend({
 export const ScenarioEventSchema = z
   .discriminatedUnion("type", [
     CashflowEventSchemaBase,
-    HousingEventSchema,
-    LoanEventSchema,
-    InsuranceEventSchema,
+    HousingEventSchemaBase,
+    LoanEventSchemaBase,
+    InsuranceEventSchemaBase,
     AdjustmentEventSchema,
   ])
   .superRefine((event, ctx) => {
     if (event.type === "cashflow") {
       validateCashflowFields(event, ctx);
+      return;
+    }
+    if (event.type === "housing") {
+      validateHousingEvent(event, ctx);
+      return;
+    }
+    if (event.type === "loan") {
+      validateLoanEvent(event, ctx);
+      return;
+    }
+    if (event.type === "insurance") {
+      validateInsuranceEvent(event, ctx);
     }
   });
 

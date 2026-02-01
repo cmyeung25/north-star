@@ -13,23 +13,25 @@ import {
 } from "@mantine/core";
 import { useLocale } from "next-intl";
 import type { useTranslations } from "next-intl";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
+import { computeProjection } from "@north-star/engine";
 import { useRouter } from "next/navigation";
-import { useScenarioStore, type Scenario } from "../../../store/scenarioStore";
-import { useProjectionWithLedger } from "../../../engine/useProjectionWithLedger";
+import type { Scenario } from "../../../store/scenarioStore";
+import {
+  compileScenarioV2ToLedger,
+  compileScenarioV2ToProjectionInput,
+} from "../../../engine/scenarioV2Compiler";
 import type {
   OnboardingV2Draft,
-  OnboardingV2ScenarioChanges,
 } from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
-import { buildScenarioUrl } from "../../../utils/scenarioContext";
 
 type ReviewStepProps = {
   draft: OnboardingV2Draft;
   scenario: Scenario | null;
-  scenarioId: string;
   baseMonth: string;
   horizonYears: number;
-  scenarioChanges: OnboardingV2ScenarioChanges | null;
+  scenarioPreview: Scenario | null;
+  scenarioIsV2: boolean;
   onJumpToStep: (step: number) => void;
   onApplyDraft: () => void;
   onApplyLater: () => void;
@@ -71,10 +73,10 @@ const stepIndex = {
 export default function ReviewStep({
   draft,
   scenario,
-  scenarioId,
   baseMonth,
   horizonYears,
-  scenarioChanges,
+  scenarioPreview,
+  scenarioIsV2,
   onJumpToStep,
   onApplyDraft,
   onApplyLater,
@@ -83,44 +85,33 @@ export default function ReviewStep({
 }: ReviewStepProps) {
   const locale = useLocale();
   const router = useRouter();
-  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
-  const members = useScenarioStore((state) => state.members);
-  const budgetRules = useScenarioStore((state) => state.budgetRules);
 
   const horizonMonths = useMemo(() => resolveHorizonMonths(horizonYears), [horizonYears]);
-  const assumptionsPatch = useMemo(
-    () => scenarioChanges?.assumptionsPatch ?? {},
-    [scenarioChanges]
-  );
-
   const scenarioForProjection = useMemo(() => {
-    if (!scenario) {
+    if (!scenarioPreview) {
       return null;
     }
-    const baseCurrency = scenario.baseCurrency;
     return {
-      ...scenario,
-      baseCurrency,
+      ...scenarioPreview,
       assumptions: {
-        ...scenario.assumptions,
-        ...assumptionsPatch,
+        ...scenarioPreview.assumptions,
         baseMonth,
         horizonMonths,
-        initialCash:
-          typeof assumptionsPatch.initialCash === "number"
-            ? assumptionsPatch.initialCash
-            : scenario.assumptions.initialCash,
       },
     };
-  }, [assumptionsPatch, baseMonth, horizonMonths, scenario]);
+  }, [baseMonth, horizonMonths, scenarioPreview]);
 
-  const projectionBundle = useProjectionWithLedger(
-    scenarioForProjection,
-    eventLibrary,
-    {
-      members,
-      budgetRules,
+  const projectionResult = useMemo(() => {
+    if (!scenarioForProjection) {
+      return null;
     }
+    const input = compileScenarioV2ToProjectionInput(scenarioForProjection);
+    return computeProjection(input);
+  }, [scenarioForProjection]);
+
+  const ledgerRows = useMemo(
+    () => (scenarioForProjection ? compileScenarioV2ToLedger(scenarioForProjection) : []),
+    [scenarioForProjection]
   );
 
   const formatCurrency = (value: number, currency?: string) => {
@@ -130,12 +121,16 @@ export default function ReviewStep({
     });
     const prefix = rounded < 0 ? "-" : "";
     const resolvedCurrency =
-      currency ?? scenario?.baseCurrency ?? draft.profile.baseCurrency ?? "USD";
+      currency ??
+      scenarioPreview?.baseCurrency ??
+      scenario?.baseCurrency ??
+      draft.profile.baseCurrency ??
+      "USD";
     return `${prefix}${resolvedCurrency} ${formatted}`;
   };
 
   const summary = useMemo(() => {
-    const ledgerEntries = projectionBundle.ledgerByMonth[baseMonth] ?? [];
+    const ledgerEntries = ledgerRows.filter((entry) => entry.month === baseMonth);
     const incomeTotal = ledgerEntries.reduce(
       (sum, entry) => (entry.amount > 0 ? sum + entry.amount : sum),
       0
@@ -145,18 +140,16 @@ export default function ReviewStep({
       0
     );
     const netCashflow = incomeTotal - expenseTotal;
-    const netWorthNow = projectionBundle.projection?.netWorth?.[0] ?? 0;
-    const cashNow = projectionBundle.projection?.cashBalance?.[0] ?? 0;
+    const netWorthNow = projectionResult?.netWorth?.[0] ?? 0;
+    const cashNow = projectionResult?.cashBalance?.[0] ?? 0;
     const cashBufferMonths = expenseTotal > 0 ? cashNow / expenseTotal : null;
-    const netWorthSeries = projectionBundle.projection?.netWorth ?? [];
-    const months = projectionBundle.months ?? [];
+    const netWorthSeries = projectionResult?.netWorth ?? [];
+    const months = projectionResult?.months ?? [];
     const endNetWorth =
       netWorthSeries.length > 0 ? netWorthSeries[netWorthSeries.length - 1] : 0;
     const endCash =
-      projectionBundle.projection?.cashBalance?.length
-        ? projectionBundle.projection.cashBalance[
-            projectionBundle.projection.cashBalance.length - 1
-          ] ?? 0
+      projectionResult?.cashBalance?.length
+        ? projectionResult.cashBalance[projectionResult.cashBalance.length - 1] ?? 0
         : 0;
     const baseNetWorth = netWorthSeries[0] ?? 0;
     const targets = [100000, 500000, 1000000];
@@ -180,21 +173,21 @@ export default function ReviewStep({
       endNetWorth,
       endCash,
     };
-  }, [baseMonth, projectionBundle]);
+  }, [baseMonth, ledgerRows, projectionResult]);
 
-  const goToMoneyTab = useCallback(
-    (tab: "income" | "expenses" | "assets" | "liabilities") => {
-      if (!scenarioId) {
-        return;
-      }
-      const baseUrl = buildScenarioUrl("/money", scenarioId);
-      router.push(`/${locale}${baseUrl}&tab=${tab}`);
-    },
-    [locale, router, scenarioId]
-  );
 
   const dataQualityFlags = useMemo<DataQualityFlag[]>(() => {
     const flags: DataQualityFlag[] = [];
+    if (!scenarioIsV2) {
+      flags.push({
+        id: "scenario-legacy",
+        severity: "critical",
+        message: t("flagScenarioV2Required"),
+        actionLabel: t("flagScenarioV2RequiredAction"),
+        onAction: () => router.push(`/${locale}/scenarios`),
+      });
+      return flags;
+    }
     const own = draft.housing.own;
     const propertyValue = Number(own.propertyValue ?? 0);
     const downPaymentPercent =
@@ -225,21 +218,6 @@ export default function ReviewStep({
       });
     }
 
-    if (
-      draft.housing.mode === "own" &&
-      own.mortgagePayment &&
-      own.mortgagePayment > 0 &&
-      (!own.mortgageEnabled || loanAmount <= 0)
-    ) {
-      flags.push({
-        id: "mortgage-payment-unlinked",
-        severity: "warning",
-        message: t("flagMortgagePaymentUnlinked"),
-        actionLabel: t("flagFixInMoney", { tab: t("moneyTab.liabilities") }),
-        onAction: () => goToMoneyTab("liabilities"),
-      });
-    }
-
     draft.debts.forEach((debt) => {
       const principal = Number(debt.principalOutstanding ?? 0);
       const interestRate = debt.interestRatePct;
@@ -253,17 +231,6 @@ export default function ReviewStep({
           }),
           actionLabel: t("flagFixInStep", { step: t("step.debts") }),
           onAction: () => onJumpToStep(stepIndex.debts),
-        });
-      }
-      if (debt.monthlyPayment && debt.monthlyPayment > 0 && principal <= 0) {
-        flags.push({
-          id: `loan-payment-unlinked-${debt.id}`,
-          severity: "warning",
-          message: t("flagLoanPaymentUnlinked", {
-            label: debt.label || t("flagLoanMissingDetailsFallback"),
-          }),
-          actionLabel: t("flagFixInMoney", { tab: t("moneyTab.liabilities") }),
-          onAction: () => goToMoneyTab("liabilities"),
         });
       }
     });
@@ -306,26 +273,8 @@ export default function ReviewStep({
       });
     }
 
-    const breakdownTotal = draft.assets.investment.breakdown.reduce(
-      (sum, entry) => sum + (entry.value ?? 0),
-      0
-    );
-    if (
-      draft.assets.investment.breakdownEnabled &&
-      draft.assets.investment.totalAmount > 0 &&
-      breakdownTotal <= 0
-    ) {
-      flags.push({
-        id: "investment-breakdown-empty",
-        severity: "warning",
-        message: t("flagInvestmentBreakdownEmpty"),
-        actionLabel: t("flagFixInStep", { step: t("step.assets") }),
-        onAction: () => onJumpToStep(stepIndex.assets),
-      });
-    }
-
     return flags;
-  }, [draft, goToMoneyTab, onJumpToStep, summary, t]);
+  }, [draft, locale, onJumpToStep, router, scenarioIsV2, summary, t]);
 
   return (
     <Stack gap="lg">

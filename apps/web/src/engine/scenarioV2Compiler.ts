@@ -19,6 +19,9 @@ import type {
   ScenarioMeta,
   ScenarioAsset,
   ScenarioLiability,
+  HomePositionDraft,
+  LoanPositionDraft,
+  InsurancePositionDraft,
 } from "../store/scenarioStore";
 
 export type LedgerRow = {
@@ -374,7 +377,7 @@ export const compileScenarioV2ToLedger = (
   const events = scenario.events ?? [];
   const assumptions = scenario.assumptions;
 
-  return events.flatMap((event) => {
+  return events.flatMap<LedgerRow>((event) => {
     if (event.type !== "cashflow") {
       if (event.type !== "adjustment") {
         if (event.type === "housing") {
@@ -460,35 +463,34 @@ const buildLegacyEventLibrary = (
   const events = scenario.events ?? [];
   const horizonEndMonth = resolveHorizonEndMonth(assumptions);
 
-  return events.flatMap((event) => {
+  return events.flatMap<EventDefinition>((event) => {
     if (event.type === "cashflow") {
       const months = buildCashflowMonths(event, assumptions);
       if (months.length === 0) {
         return [];
       }
 
-      const type = buildEventTypeForKind(event.kind);
+      const type = buildEventTypeForKind(event.kind) as EventType;
       const schedule = months.map((month) => ({
         month,
         amount: Math.abs(event.amount),
       }));
-
-      return [
-        {
-          id: event.id,
-          title: event.label ?? "Cashflow",
-          type,
-          kind: "cashflow",
-          rule: {
-            mode: "schedule",
-            startMonth: event.startMonth ?? event.occurrenceMonth ?? horizonEndMonth ?? "",
-            endMonth: event.endMonth ?? null,
-            schedule,
-          },
-          currency: scenario.baseCurrency,
-          memberId: event.memberId,
+      const definition: EventDefinition = {
+        id: event.id,
+        title: event.label ?? "Cashflow",
+        type,
+        kind: "cashflow",
+        rule: {
+          mode: "schedule",
+          startMonth: event.startMonth ?? event.occurrenceMonth ?? horizonEndMonth ?? "",
+          endMonth: event.endMonth ?? null,
+          schedule,
         },
-      ];
+        currency: scenario.baseCurrency,
+        memberId: event.memberId,
+      };
+
+      return [definition];
     }
 
     if (event.type === "housing") {
@@ -506,47 +508,48 @@ const buildLegacyEventLibrary = (
           month,
           amount: Math.abs(rentMonthly),
         }));
-        return [
-          {
-            id: event.id,
-            title: event.label ?? "Rent",
-            type: "rent",
-            kind: "cashflow",
-            rule: {
-              mode: "schedule",
-              startMonth: event.startMonth,
-              endMonth: event.endMonth ?? null,
-              schedule,
-            },
-            currency: scenario.baseCurrency,
-            memberId: event.memberId,
+        const definition: EventDefinition = {
+          id: event.id,
+          title: event.label ?? "Rent",
+          type: "rent",
+          kind: "cashflow",
+          rule: {
+            mode: "schedule",
+            startMonth: event.startMonth,
+            endMonth: event.endMonth ?? null,
+            schedule,
           },
-        ];
+          currency: scenario.baseCurrency,
+          memberId: event.memberId,
+        };
+        return [definition];
       }
 
-      const feeDefinitions = (event.feesOneOff ?? []).flatMap((fee, index) => {
+      const feeDefinitions = (event.feesOneOff ?? []).flatMap<EventDefinition>(
+        (fee, index) => {
         if (!isValidMonthKey(fee.month) || !fee.amount) {
           return [];
         }
-        return [
-          {
-            id: `${event.id}-fee-${index}`,
-            title: fee.label ?? event.label ?? "Housing fee",
-            type: "custom",
-            kind: "cashflow" as const,
-            rule: {
-              mode: "schedule",
-              startMonth: fee.month,
-              endMonth: fee.month,
-              schedule: [{ month: fee.month, amount: Math.abs(fee.amount) }],
-            },
-            currency: scenario.baseCurrency,
-            memberId: event.memberId,
+        const definition: EventDefinition = {
+          id: `${event.id}-fee-${index}`,
+          title: fee.label ?? event.label ?? "Housing fee",
+          type: "custom",
+          kind: "cashflow",
+          rule: {
+            mode: "schedule",
+            startMonth: fee.month,
+            endMonth: fee.month,
+            schedule: [{ month: fee.month, amount: Math.abs(fee.amount) }],
           },
-        ];
-      });
+          currency: scenario.baseCurrency,
+          memberId: event.memberId,
+        };
+        return [definition];
+      }
+      );
 
-      const ongoingDefinitions = (event.ongoingCosts ?? []).flatMap((cost, index) => {
+      const ongoingDefinitions = (event.ongoingCosts ?? []).flatMap<EventDefinition>(
+        (cost, index) => {
         if (!isValidMonthKey(cost.startMonth) || !cost.amount) {
           return [];
         }
@@ -559,23 +562,23 @@ const buildLegacyEventLibrary = (
           month,
           amount: Math.abs(cost.amount ?? 0),
         }));
-        return [
-          {
-            id: `${event.id}-ongoing-${index}`,
-            title: cost.label ?? event.label ?? "Housing cost",
-            type: "custom",
-            kind: "cashflow" as const,
-            rule: {
-              mode: "schedule",
-              startMonth: cost.startMonth,
-              endMonth: cost.endMonth ?? null,
-              schedule,
-            },
-            currency: scenario.baseCurrency,
-            memberId: event.memberId,
+        const definition: EventDefinition = {
+          id: `${event.id}-ongoing-${index}`,
+          title: cost.label ?? event.label ?? "Housing cost",
+          type: "custom",
+          kind: "cashflow",
+          rule: {
+            mode: "schedule",
+            startMonth: cost.startMonth,
+            endMonth: cost.endMonth ?? null,
+            schedule,
           },
-        ];
-      });
+          currency: scenario.baseCurrency,
+          memberId: event.memberId,
+        };
+        return [definition];
+      }
+      );
 
       return [...feeDefinitions, ...ongoingDefinitions];
     }
@@ -598,25 +601,24 @@ const buildLegacyEventLibrary = (
           month,
           amount: Math.abs(event.premiumMonthly ?? 0),
         }));
-        return [
-          {
-            id: event.id,
-            title: event.label ?? "Insurance premium",
-            type: "custom",
-            kind: "cashflow",
-            rule: {
-              mode: "schedule",
-              startMonth: event.startMonth,
-              endMonth: event.endMonth ?? null,
-              schedule,
-            },
-            currency: scenario.baseCurrency,
-            memberId: event.memberId,
+        const definition: EventDefinition = {
+          id: event.id,
+          title: event.label ?? "Insurance premium",
+          type: "custom",
+          kind: "cashflow",
+          rule: {
+            mode: "schedule",
+            startMonth: event.startMonth,
+            endMonth: event.endMonth ?? null,
+            schedule,
           },
-        ];
+          currency: scenario.baseCurrency,
+          memberId: event.memberId,
+        };
+        return [definition];
       }
 
-      return (event.policies ?? []).flatMap((policy, index) => {
+      return (event.policies ?? []).flatMap<EventDefinition>((policy, index) => {
         if (!isValidMonthKey(policy.startMonth) || !policy.premiumMonthly) {
           return [];
         }
@@ -629,22 +631,21 @@ const buildLegacyEventLibrary = (
           month,
           amount: Math.abs(policy.premiumMonthly ?? 0),
         }));
-        return [
-          {
-            id: `${event.id}-policy-${index}`,
-            title: policy.name ?? event.label ?? "Insurance premium",
-            type: "custom",
-            kind: "cashflow" as const,
-            rule: {
-              mode: "schedule",
-              startMonth: policy.startMonth,
-              endMonth: policy.endMonth ?? null,
-              schedule,
-            },
-            currency: scenario.baseCurrency,
-            memberId: event.memberId,
+        const definition: EventDefinition = {
+          id: `${event.id}-policy-${index}`,
+          title: policy.name ?? event.label ?? "Insurance premium",
+          type: "custom",
+          kind: "cashflow",
+          rule: {
+            mode: "schedule",
+            startMonth: policy.startMonth,
+            endMonth: policy.endMonth ?? null,
+            schedule,
           },
-        ];
+          currency: scenario.baseCurrency,
+          memberId: event.memberId,
+        };
+        return [definition];
       });
     }
 
@@ -659,7 +660,7 @@ export const compileScenarioV2ToProjectionInput = (
   const eventLibrary = buildLegacyEventLibrary(scenario);
   const events = scenario.events ?? [];
 
-  const housingPositions = events.flatMap((event) => {
+  const housingPositions = events.flatMap<HomePositionDraft>((event) => {
     if (event.type !== "housing" || event.kind !== "mortgage") {
       return [];
     }
@@ -693,7 +694,7 @@ export const compileScenarioV2ToProjectionInput = (
     ];
   });
 
-  const loanPositions = events.flatMap((event) => {
+  const loanPositions = events.flatMap<LoanPositionDraft>((event) => {
     if (event.type !== "loan") {
       return [];
     }
@@ -704,9 +705,7 @@ export const compileScenarioV2ToProjectionInput = (
         loanType:
           event.loanKind === "car"
             ? "carLoan"
-            : event.loanKind === "credit"
-            ? "credit"
-            : event.loanKind === "personal"
+            : event.loanKind === "personal" || event.loanKind === "credit"
             ? "loan"
             : "other",
         startMonth: event.startMonth,
@@ -719,7 +718,7 @@ export const compileScenarioV2ToProjectionInput = (
     ];
   });
 
-  const insurancePositions = events.flatMap((event) => {
+  const insurancePositions = events.flatMap<InsurancePositionDraft>((event) => {
     if (event.type !== "insurance") {
       return [];
     }
@@ -754,7 +753,7 @@ export const compileScenarioV2ToProjectionInput = (
     }));
   });
 
-  const assets = events.flatMap((event) => {
+  const assets = events.flatMap<ScenarioAsset>((event) => {
     if (event.type === "housing" && event.kind === "mortgage") {
       return [
         {
@@ -780,7 +779,7 @@ export const compileScenarioV2ToProjectionInput = (
     return [];
   });
 
-  const liabilities = events.flatMap((event) => {
+  const liabilities = events.flatMap<ScenarioLiability>((event) => {
     if (event.type === "housing" && event.kind === "mortgage") {
       return [
         {
