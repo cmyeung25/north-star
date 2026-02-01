@@ -147,6 +147,10 @@ export const formatDateRange = (
     return `${start} → ${t("ongoing")}`;
   }
 
+  if (end === start) {
+    return start;
+  }
+
   return `${start} → ${end}`;
 };
 
