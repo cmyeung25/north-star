@@ -26,6 +26,7 @@ import { normalizeMonthStrict } from "../../utils/month";
 import { compareMonthKey, isValidMonthKey } from "../../utils/monthKey";
 import {
   getActiveScenario,
+  isScenarioV2,
   useScenarioStore,
 } from "../../store/scenarioStore";
 import { buildScenarioUrl } from "../../utils/scenarioContext";
@@ -50,25 +51,16 @@ import {
   type OnboardingV2DraftMember,
   type OnboardingV2IncomeFrequency,
   type OnboardingV2MemberRole,
-  type OnboardingV2ScenarioChanges,
-  ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID,
-  ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID,
-  ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID,
-  ONBOARDING_V2_INCOME_GENERATED_EVENT_ID,
-  ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID,
-  ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID,
-  mapOnboardingV2DraftToScenario,
 } from "../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
-import type { EventDefinition } from "../../domain/events/types";
-import { createEventId } from "../../../components/timeline/utils";
+import {
+  applyOnboardingV2DraftToScenarioV2,
+  isOnboardingMemberId,
+} from "../../domain/onboarding/v2/applyOnboardingV2DraftToScenarioV2";
 import {
   type OnboardingV2DraftAssumptions,
   buildOnboardingAssumptionsDraft,
   mergeOnboardingAssumptionsDraft,
 } from "../../domain/onboarding/v2/assumptions";
-import { upsertMoneyItem } from "../../../features/moneyFlow/moneyFlowAdapter";
-import { applyAssetItemChange } from "../../../features/assets/assetAdapter";
-import { applyLiabilityItemChange } from "../../../features/liabilities/liabilityAdapter";
 
 const steps = [
   "profile",
@@ -558,32 +550,6 @@ const normalizeDraftDebts = ({
   );
 };
 
-const buildIncomeEventDefinition = (
-  entry: OnboardingV2ScenarioChanges["incomeMoneyItems"][number],
-  baseCurrency: string
-): EventDefinition => ({
-  id: createEventId(),
-  title: entry.item.notes?.trim() || "Income",
-  type: "salary",
-  kind: "cashflow",
-  rule: {
-    mode: "params",
-    startMonth:
-      entry.item.cadence === "recurring"
-        ? entry.item.startMonth ?? ""
-        : entry.item.month ?? "",
-    endMonth: entry.item.cadence === "recurring" ? entry.item.endMonth ?? null : null,
-    monthlyAmount: entry.item.cadence === "recurring" ? entry.item.amount : 0,
-    oneTimeAmount: entry.item.cadence === "oneOff" ? entry.item.amount : 0,
-    annualGrowthPct:
-      entry.item.cadence === "recurring" ? entry.annualGrowthPct : 0,
-  },
-  currency: entry.item.currency ?? baseCurrency,
-  memberId: entry.item.memberId,
-  generatedByEventId: entry.item.generatedByEventId,
-  source: entry.item.source,
-});
-
 const getInitialDraftState = ({
   baseCurrency,
   assumptions,
@@ -755,13 +721,6 @@ export default function OnboardingDraftWizard() {
   const updateScenarioAssumptions = useScenarioStore(
     (state) => state.updateScenarioAssumptions
   );
-  const addEventToScenarios = useScenarioStore((state) => state.addEventToScenarios);
-  const cleanupGeneratedEntities = useScenarioStore(
-    (state) => state.cleanupGeneratedEntities
-  );
-  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
-  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
-  const updateEventDefinition = useScenarioStore((state) => state.updateEventDefinition);
   const updateScenarioClientComputed = useScenarioStore(
     (state) => state.updateScenarioClientComputed
   );
@@ -769,7 +728,12 @@ export default function OnboardingDraftWizard() {
   const updateScenarioBaseCurrency = useScenarioStore(
     (state) => state.updateScenarioBaseCurrency
   );
-  const setScenarioPositions = useScenarioStore((state) => state.setScenarioPositions);
+  const setScenarioEvents = useScenarioStore((state) => state.setScenarioEvents);
+  const setScenarioAssets = useScenarioStore((state) => state.setScenarioAssets);
+  const setScenarioLiabilities = useScenarioStore(
+    (state) => state.setScenarioLiabilities
+  );
+  const setScenarioMembers = useScenarioStore((state) => state.setScenarioMembers);
   const createMember = useScenarioStore((state) => state.createMember);
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
@@ -777,6 +741,7 @@ export default function OnboardingDraftWizard() {
     () => getActiveScenario(scenarios, activeScenarioId),
     [activeScenarioId, scenarios]
   );
+  const scenarioIsV2 = isScenarioV2(scenario);
   const scenarioId = scenario?.id ?? "";
   const initialState = useMemo(
     () =>
@@ -1541,6 +1506,7 @@ export default function OnboardingDraftWizard() {
     !hasAssetsErrors &&
     !hasDebtsErrors &&
     !hasInsuranceErrors;
+  const canApply = canProceed && scenarioIsV2;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -1569,169 +1535,12 @@ export default function OnboardingDraftWizard() {
     ]
   );
 
-  const scenarioChanges = useMemo(
-    () =>
-      scenarioId
-        ? mapOnboardingV2DraftToScenario({
-            draft,
-            scenarioId,
-            existingMembers: membersStore,
-            existingAssumptions: scenario?.assumptions,
-          })
-        : null,
-    [draft, membersStore, scenario?.assumptions, scenarioId]
-  );
-
-  useEffect(() => {
-    if (!scenarioId || !scenarioChanges) {
-      return;
+  const scenarioPreview = useMemo(() => {
+    if (!scenario || !scenarioId || !isScenarioV2(scenario)) {
+      return null;
     }
-    cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_INCOME_GENERATED_EVENT_ID);
-    cleanupGeneratedEntities(
-      scenarioId,
-      ONBOARDING_V2_LIVING_SPEND_GENERATED_EVENT_ID
-    );
-    cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_HOUSING_GENERATED_EVENT_ID);
-    cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_ASSETS_GENERATED_EVENT_ID);
-    cleanupGeneratedEntities(scenarioId, ONBOARDING_V2_DEBTS_GENERATED_EVENT_ID);
-    cleanupGeneratedEntities(
-      scenarioId,
-      ONBOARDING_V2_INSURANCE_GENERATED_EVENT_ID
-    );
-    const latestScenario = getActiveScenario(
-      useScenarioStore.getState().scenarios,
-      scenarioId
-    );
-    const baseCurrency =
-      scenarioChanges.settingsPatch.baseCurrency ??
-      latestScenario?.baseCurrency ??
-      defaultCurrency;
-
-    scenarioChanges.incomeMoneyItems.forEach((entry) => {
-      addEventToScenarios(
-        buildIncomeEventDefinition(entry, baseCurrency),
-        [scenarioId]
-      );
-    });
-    scenarioChanges.expenseMoneyItems.forEach((item) => {
-      upsertMoneyItem({
-        item,
-        scenarioId,
-        baseCurrency,
-        eventLibrary: [],
-        budgetRules: [],
-        actions: {
-          createBudgetRule,
-          updateBudgetRule,
-          addEventToScenarios,
-          updateEventDefinition,
-        },
-        resolveCategoryLabel: (category) => category,
-      });
-    });
-    scenarioChanges.debtMoneyItems.forEach((item) => {
-      upsertMoneyItem({
-        item,
-        scenarioId,
-        baseCurrency,
-        eventLibrary: [],
-        budgetRules: [],
-        actions: {
-          createBudgetRule,
-          updateBudgetRule,
-          addEventToScenarios,
-          updateEventDefinition,
-        },
-        resolveCategoryLabel: (category) => category,
-      });
-    });
-
-    scenarioChanges.housingEventDefinitions.forEach((definition) => {
-      addEventToScenarios(definition, [scenarioId]);
-    });
-    scenarioChanges.assetEventDefinitions.forEach((definition) => {
-      addEventToScenarios(definition, [scenarioId]);
-    });
-
-    if (
-      scenarioChanges.housingAssets.length > 0 ||
-      scenarioChanges.housingLiabilities.length > 0 ||
-      scenarioChanges.debtLiabilities.length > 0
-    ) {
-      const latestScenario = getActiveScenario(
-        useScenarioStore.getState().scenarios,
-        scenarioId
-      );
-      if (latestScenario) {
-        let workingScenario = { ...latestScenario };
-        let nextPositions = latestScenario.positions ?? {};
-
-        scenarioChanges.housingAssets.forEach((item) => {
-          nextPositions = applyAssetItemChange(workingScenario, {
-            type: "upsert",
-            item,
-          });
-          workingScenario = { ...workingScenario, positions: nextPositions };
-        });
-
-        scenarioChanges.housingLiabilities.forEach((item) => {
-          nextPositions = applyLiabilityItemChange(workingScenario, {
-            type: "upsert",
-            item,
-          });
-          workingScenario = { ...workingScenario, positions: nextPositions };
-        });
-
-        scenarioChanges.debtLiabilities.forEach((item) => {
-          nextPositions = applyLiabilityItemChange(workingScenario, {
-            type: "upsert",
-            item,
-          });
-          workingScenario = { ...workingScenario, positions: nextPositions };
-        });
-
-        setScenarioPositions(scenarioId, nextPositions);
-      }
-    }
-
-    if (
-      scenarioChanges.investmentPositions.length > 0 ||
-      scenarioChanges.insurancePositions.length > 0 ||
-      scenarioChanges.carPositions.length > 0
-    ) {
-      const latestScenario = getActiveScenario(
-        useScenarioStore.getState().scenarios,
-        scenarioId
-      );
-      if (latestScenario) {
-        const nextPositions = {
-          ...(latestScenario.positions ?? {}),
-          investments: [
-            ...(latestScenario.positions?.investments ?? []),
-            ...scenarioChanges.investmentPositions,
-          ],
-          insurances: [
-            ...(latestScenario.positions?.insurances ?? []),
-            ...scenarioChanges.insurancePositions,
-          ],
-          cars: [
-            ...(latestScenario.positions?.cars ?? []),
-            ...scenarioChanges.carPositions,
-          ],
-        };
-        setScenarioPositions(scenarioId, nextPositions);
-      }
-    }
-  }, [
-    addEventToScenarios,
-    cleanupGeneratedEntities,
-    createBudgetRule,
-    scenarioChanges,
-    scenarioId,
-    setScenarioPositions,
-    updateBudgetRule,
-    updateEventDefinition,
-  ]);
+    return applyOnboardingV2DraftToScenarioV2(draft, scenario);
+  }, [draft, scenario, scenarioId]);
 
   const handleNext = () => {
     if (step === 0 && hasProfileError) {
@@ -1776,20 +1585,25 @@ export default function OnboardingDraftWizard() {
   };
 
   const handleSave = () => {
-    if (!scenarioId || !canProceed) {
+    if (!scenarioId || !canApply) {
       return;
     }
 
-    const mapping = scenarioChanges;
-    if (!mapping) {
+    if (!scenarioIsV2 || !scenarioPreview) {
       return;
     }
 
-    mapping.memberIdsToDelete.forEach((memberId) => {
+    const desiredMemberIds = new Set(
+      (scenarioPreview.members ?? []).map((member) => member.id)
+    );
+    membersStore
+      .map((member) => member.id)
+      .filter((id) => isOnboardingMemberId(id) && !desiredMemberIds.has(id))
+      .forEach((memberId) => {
       deleteMember(memberId);
     });
 
-    mapping.membersToUpsert.forEach((member) => {
+    (scenarioPreview.members ?? []).forEach((member) => {
       const existing = membersStore.find((entry) => entry.id === member.id);
       if (existing) {
         updateMember(member.id, member);
@@ -1798,25 +1612,15 @@ export default function OnboardingDraftWizard() {
       }
     });
 
-    if (mapping.settingsPatch.baseCurrency) {
-      updateScenarioBaseCurrency(scenarioId, mapping.settingsPatch.baseCurrency);
+    if (scenarioPreview.baseCurrency) {
+      updateScenarioBaseCurrency(scenarioId, scenarioPreview.baseCurrency);
     }
 
-    if (typeof mapping.settingsPatch.horizonMonths === "number") {
-      updateScenarioAssumptions(scenarioId, {
-        horizonMonths: mapping.settingsPatch.horizonMonths,
-      });
-    }
-
-    if (mapping.settingsPatch.startMonth) {
-      updateScenarioAssumptions(scenarioId, {
-        baseMonth: mapping.settingsPatch.startMonth,
-      });
-    }
-
-    if (Object.keys(mapping.assumptionsPatch).length > 0) {
-      updateScenarioAssumptions(scenarioId, mapping.assumptionsPatch);
-    }
+    updateScenarioAssumptions(scenarioId, scenarioPreview.assumptions);
+    setScenarioMembers(scenarioId, scenarioPreview.members ?? []);
+    setScenarioAssets(scenarioId, scenarioPreview.assets ?? []);
+    setScenarioLiabilities(scenarioId, scenarioPreview.liabilities ?? []);
+    setScenarioEvents(scenarioId, scenarioPreview.events ?? []);
 
     hasCompletedRef.current = true;
     logTelemetryEvent({
@@ -2197,14 +2001,14 @@ export default function OnboardingDraftWizard() {
               <ReviewStep
                 draft={draft}
                 scenario={scenario ?? null}
-                scenarioId={scenarioId}
                 baseMonth={profile.startMonth || resolvedBaseMonth}
                 horizonYears={profile.horizonYears}
-                scenarioChanges={scenarioChanges}
+                scenarioPreview={scenarioPreview}
+                scenarioIsV2={scenarioIsV2}
                 onJumpToStep={setStep}
                 onApplyDraft={handleSave}
                 onApplyLater={handleLater}
-                canApplyDraft={canProceed}
+                canApplyDraft={canApply}
                 t={t}
               />
             ),

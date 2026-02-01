@@ -912,23 +912,6 @@ export default function MoneyClient({
       }
     }
 
-    if (payload.kind === "mortgage" && payload.propertyAssetId && payload.mortgageLiabilityId) {
-      upsertScenarioAssets(scenarioIdValue, [
-        {
-          id: payload.propertyAssetId,
-          kind: "home",
-          label: payload.label,
-        },
-      ]);
-      upsertScenarioLiabilities(scenarioIdValue, [
-        {
-          id: payload.mortgageLiabilityId,
-          kind: "mortgage",
-          label: payload.label,
-        },
-      ]);
-    }
-
     setV2EventDrawerOpen(false);
     setEditingV2EventId(null);
     setV2EventDrawerType(null);
@@ -1021,20 +1004,22 @@ export default function MoneyClient({
       }
     }
 
-    upsertScenarioLiabilities(scenarioIdValue, [
-      {
-        id: payload.liabilityId,
-        kind:
-          payload.loanKind === "car"
-            ? "carLoan"
-            : payload.loanKind === "credit"
-            ? "credit"
-            : payload.loanKind === "personal"
-            ? "loan"
-            : "other",
-        label: payload.label,
-      },
-    ]);
+    if (payload.kind === "mortgage" && payload.propertyAssetId && payload.mortgageLiabilityId) {
+      upsertScenarioAssets(scenarioIdValue, [
+        {
+          id: payload.propertyAssetId,
+          kind: "home",
+          label: payload.label,
+        },
+      ]);
+      upsertScenarioLiabilities(scenarioIdValue, [
+        {
+          id: payload.mortgageLiabilityId,
+          kind: "mortgage",
+          label: payload.label,
+        },
+      ]);
+    }
 
     setV2EventDrawerOpen(false);
     setEditingV2EventId(null);
@@ -1083,22 +1068,20 @@ export default function MoneyClient({
       }
     }
 
-    if (payload.policies) {
-      const savingsAssets = payload.policies.flatMap((policy) =>
-        policy.kind === "savings" && policy.policyAssetId && policy.cashValue !== undefined
-          ? [
-              {
-                id: policy.policyAssetId,
-                kind: "other",
-                label: policy.name,
-              },
-            ]
-          : []
-      );
-      if (savingsAssets.length > 0) {
-        upsertScenarioAssets(scenarioIdValue, savingsAssets);
-      }
-    }
+    upsertScenarioLiabilities(scenarioIdValue, [
+      {
+        id: payload.liabilityId,
+        kind:
+          payload.loanKind === "car"
+            ? "carLoan"
+            : payload.loanKind === "credit"
+            ? "credit"
+            : payload.loanKind === "personal"
+            ? "loan"
+            : "other",
+        label: payload.label,
+      },
+    ]);
 
     setV2EventDrawerOpen(false);
     setEditingV2EventId(null);
@@ -1599,7 +1582,7 @@ export default function MoneyClient({
         const match = v2ScenarioEvents.find((event) => event.id === initialEditEventId);
         if (match) {
           setActiveTab("income");
-          openV2EventDrawer("edit", match.id);
+          openV2EventDrawer("edit", match.type, match.id);
           hasHandledInitialEdit.current = true;
           return;
         }

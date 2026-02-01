@@ -433,6 +433,10 @@ type ScenarioStoreState = {
   updateScenarioKpis: (id: string, kpis: ScenarioKpis) => void;
   upsertScenarioAssets: (id: string, assets: ScenarioAsset[]) => void;
   upsertScenarioLiabilities: (id: string, liabilities: ScenarioLiability[]) => void;
+  setScenarioAssets: (id: string, assets: ScenarioAsset[]) => void;
+  setScenarioLiabilities: (id: string, liabilities: ScenarioLiability[]) => void;
+  setScenarioMembers: (id: string, members: ScenarioMember[]) => void;
+  setScenarioEvents: (id: string, events: ScenarioEvent[]) => void;
   addEvent: (
     event: ScenarioEventDraft,
     scenarioId?: string
@@ -1874,6 +1878,58 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           updatedAt: now(),
         };
       }),
+    }));
+  },
+  setScenarioAssets: (id, assets) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              assets,
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  setScenarioLiabilities: (id, liabilities) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              liabilities,
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  setScenarioMembers: (id, members) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              members,
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  setScenarioEvents: (id, events) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              events,
+              updatedAt: now(),
+            }
+          : scenario
+      ),
     }));
   },
   addEvent: (event, scenarioId) => {

@@ -2433,6 +2433,8 @@
     "flagSavingsMissingCashValue": "{count} savings policy(ies) missing cash value.",
     "flagIncomeZero": "Income is 0 while expenses are greater than 0.",
     "flagCashZero": "Cash is 0 while expenses are greater than 0.",
+    "flagScenarioV2Required": "This scenario must be event-based (V2) before applying onboarding.",
+    "flagScenarioV2RequiredAction": "Go to scenarios",
     "flagInvestmentBreakdownEmpty": "Investment breakdown is enabled but no allocations are set.",
     "resultTitle": "Save your profile",
     "resultHint": "We'll create the household members and apply your settings.",

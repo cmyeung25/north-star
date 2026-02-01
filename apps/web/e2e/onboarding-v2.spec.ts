@@ -126,6 +126,11 @@ test.describe("onboarding v2", () => {
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Next" }).click();
 
+    await page.getByLabel("Income name").fill("Salary");
+    await page.getByLabel("Income amount").fill("5000");
+    await page.getByLabel("Start month").fill(baseMonth);
+    await page.getByRole("button", { name: "Next" }).click();
+
     await page.getByLabel("Monthly fixed living spend").fill("2500");
     await page.getByRole("button", { name: "Next" }).click();
 
@@ -145,5 +150,12 @@ test.describe("onboarding v2", () => {
     await page.getByRole("heading", { name: "Review & finish" }).waitFor();
     await page.getByRole("button", { name: "Save and continue" }).click();
     await expect(page).toHaveURL(/\/money/);
+
+    await page.getByRole("tab", { name: "Income" }).click();
+    await page.getByRole("button", { name: "Edit" }).first().click();
+    const amountField = page.getByLabel("Amount (USD)");
+    await amountField.fill("5500");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("USD 5,500")).toBeVisible();
   });
 });

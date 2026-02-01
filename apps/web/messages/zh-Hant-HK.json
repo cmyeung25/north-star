@@ -2457,6 +2457,8 @@
     "flagSavingsMissingCashValue": "{count} 份儲蓄保單缺少現金價值。",
     "flagIncomeZero": "收入為 0，但支出大於 0。",
     "flagCashZero": "現金為 0，但支出大於 0。",
+    "flagScenarioV2Required": "此情境需要先升級為事件版（V2）才能套用 onboarding。",
+    "flagScenarioV2RequiredAction": "前往情境列表",
     "flagInvestmentBreakdownEmpty": "已啟用投資拆分，但未設定配置。",
     "resultTitle": "保存資料",
     "resultHint": "我們會建立成員並套用設定。",
