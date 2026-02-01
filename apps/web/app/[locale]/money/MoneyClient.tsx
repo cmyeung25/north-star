@@ -76,6 +76,7 @@ import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModal
 import RightPaneDashboard from "../../../components/RightPaneDashboard";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import TemplatePickerDrawer from "../../../components/eventTemplates/TemplatePickerDrawer";
+import BundleWizardDrawer from "../../../components/eventTemplates/bundles/BundleWizardDrawer";
 import EventCardList from "../../../src/features/money/EventCardList";
 import CashflowEventDrawer, {
   type CashflowEventDraft,
@@ -286,6 +287,8 @@ export default function MoneyClient({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templatePickerCategory, setTemplatePickerCategory] =
     useState<TemplateCategory>("popular");
+  const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
+  const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
     useState<Partial<CashflowEventDraft> | null>(null);
   const [templateHousingDraft, setTemplateHousingDraft] =
@@ -669,6 +672,11 @@ export default function MoneyClient({
 
   const handleTemplateSelect = useCallback(
     (template: TemplateDef) => {
+      if (template.isBundle) {
+        setBundleTemplate(template);
+        setBundleWizardOpen(true);
+        return;
+      }
       const label = t(`templates.${template.id}.name`);
       const draftOverrides = buildTemplateDrawerDraftOverrides(template.id, {
         baseMonth,
@@ -701,6 +709,13 @@ export default function MoneyClient({
       }
     },
     [baseMonth, openV2EventDrawer, t]
+  );
+
+  const handleOpenBundleEvent = useCallback(
+    (type: ScenarioEvent["type"], eventId: string) => {
+      openV2EventDrawer("edit", type, eventId);
+    },
+    [openV2EventDrawer]
   );
 
   const handleAddCashflowEvent = useCallback(
@@ -2248,6 +2263,20 @@ export default function MoneyClient({
         defaultCategory={templatePickerCategory}
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
+      />
+
+      <BundleWizardDrawer
+        opened={bundleWizardOpen}
+        template={bundleTemplate}
+        scenarioId={scenarioIdValue}
+        baseMonth={baseMonth}
+        baseCurrency={scenario?.baseCurrency ?? "USD"}
+        scenarioEvents={scenario?.events ?? []}
+        onClose={() => {
+          setBundleWizardOpen(false);
+          setBundleTemplate(null);
+        }}
+        onOpenEventDrawer={handleOpenBundleEvent}
       />
 
       {scenario && scenarioIdValue && (

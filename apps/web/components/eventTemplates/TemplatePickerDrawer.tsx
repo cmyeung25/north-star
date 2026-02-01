@@ -10,6 +10,7 @@ type TemplatePickerDrawerProps = {
   defaultCategory?: TemplateCategory;
   onClose: () => void;
   onSelect: (template: TemplateDef) => void;
+  filterTemplates?: (template: TemplateDef) => boolean;
 };
 
 export default function TemplatePickerDrawer({
@@ -17,6 +18,7 @@ export default function TemplatePickerDrawer({
   defaultCategory,
   onClose,
   onSelect,
+  filterTemplates,
 }: TemplatePickerDrawerProps) {
   const t = useTranslations("money");
 
@@ -35,6 +37,7 @@ export default function TemplatePickerDrawer({
         <TemplatePicker
           opened={opened}
           defaultCategory={defaultCategory}
+          filterTemplates={filterTemplates}
           onSelect={(template) => {
             onSelect(template);
             onClose();

@@ -3904,6 +3904,7 @@ export default function PlanLabPanel({
       <TemplatePickerDrawer
         opened={templatePickerOpen}
         defaultCategory={templatePickerCategory}
+        filterTemplates={(template) => !template.isBundle}
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
       />

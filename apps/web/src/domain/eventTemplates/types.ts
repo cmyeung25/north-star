@@ -18,12 +18,15 @@ export const templateIds = [
   "personal_loan",
   "car_loan",
   "credit_card_balance",
+  "life_new_baby_plan",
+  "life_home_purchase",
 ] as const;
 
 export type TemplateId = (typeof templateIds)[number];
 
 export type TemplateCategory =
   | "popular"
+  | "life_events"
   | "income"
   | "expenses"
   | "housing"
@@ -42,11 +45,13 @@ export type TemplateDrawerType =
   | "housing"
   | "loan"
   | "insurance"
-  | "adjustment";
+  | "adjustment"
+  | "bundle";
 
 export type TemplateDef = {
   id: TemplateId;
   categories: TemplateCategory[];
   drawerType: TemplateDrawerType;
   chips: TemplateChip[];
+  isBundle?: boolean;
 };

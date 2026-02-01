@@ -263,6 +263,12 @@ const templatePresets: Record<TemplateId, TemplatePreset> = {
       rule: { monthlyAmount: 500 },
     },
   },
+  life_new_baby_plan: {
+    drawerType: "bundle",
+  },
+  life_home_purchase: {
+    drawerType: "bundle",
+  },
 };
 
 export const getTemplatePreset = (templateId: TemplateId) => templatePresets[templateId];
@@ -349,6 +355,10 @@ export const buildTemplateDrawerDraftOverrides = (
         policies: detailedPolicies,
       },
     };
+  }
+
+  if (preset.drawerType === "bundle") {
+    return { drawerType: "bundle" };
   }
 
   return { drawerType: "cashflow" };
