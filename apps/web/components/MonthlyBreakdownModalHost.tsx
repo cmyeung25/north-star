@@ -26,6 +26,7 @@ type MonthlyBreakdownModalHostProps = {
   horizonMonths?: number;
   members?: ScenarioMember[];
   eventViews?: ScenarioEventView[];
+  isScenarioV2?: boolean;
 };
 
 export default function MonthlyBreakdownModalHost({
@@ -44,6 +45,7 @@ export default function MonthlyBreakdownModalHost({
   horizonMonths,
   members,
   eventViews,
+  isScenarioV2,
 }: MonthlyBreakdownModalHostProps) {
   const activeModal = useUiStore((state) => state.activeModal);
   const breakdownOpen = useUiStore((state) => state.breakdownOpen);
@@ -90,6 +92,7 @@ export default function MonthlyBreakdownModalHost({
       horizonMonths={horizonMonths}
       members={members}
       eventViews={eventViews}
+      isScenarioV2={isScenarioV2}
     />
   );
 }

@@ -436,6 +436,9 @@ const buildHousingChanges = ({
       id: propertyId,
       kind: "home",
       label: "Property",
+      currentValue: propertyValue,
+      startMonth: propertyStartMonth,
+      source: "eventGenerated",
     });
   }
 
@@ -450,16 +453,22 @@ const buildHousingChanges = ({
       ? (propertyValue * downPaymentPercent) / 100
       : normalizeAmount(housing.own.downPaymentAmount);
 
+  const mortgageTermMonths = normalizeAmount(housing.own.mortgageTermMonths);
+  const mortgageTermYears = mortgageTermMonths ? mortgageTermMonths / 12 : 0;
+
   if (propertyValue > 0) {
+    const principalOutstanding = Math.max(propertyValue - downPaymentAmount, 0);
     liabilities.push({
       id: mortgageId,
       kind: "mortgage",
       label: "Mortgage",
+      principalOutstanding,
+      annualInterestRatePct: normalizeAmount(housing.own.mortgageRatePct),
+      termYears: mortgageTermYears || undefined,
+      startMonth: propertyStartMonth ?? resolvedBaseMonth,
+      source: "eventGenerated",
     });
   }
-
-  const mortgageTermMonths = normalizeAmount(housing.own.mortgageTermMonths);
-  const mortgageTermYears = mortgageTermMonths ? mortgageTermMonths / 12 : 0;
 
   if (!propertyStartMonth || propertyValue <= 0) {
     return { assets, liabilities, events };
@@ -712,9 +721,12 @@ const buildInsuranceChanges = ({
       if (cashValue && cashValue > 0) {
         assets.push({
           id: policyAssetId,
-          kind: "other",
+          kind: "policy",
           label: policy.name?.trim() || "Insurance cash value",
           ownerMemberId: normalizeMemberId(policy.memberId),
+          currentValue: cashValue,
+          startMonth,
+          source: "eventGenerated",
         });
       }
     }
@@ -765,10 +777,14 @@ const buildAssetEntries = ({
   const assets: ScenarioAsset[] = [];
 
   if (normalizeAmount(draft.assets.cash.amount) > 0) {
+    const cashValue = normalizeAmount(draft.assets.cash.amount);
     assets.push({
       id: buildAssetsEntityId(scenarioId, "cash"),
       kind: "cash",
       label: "Cash",
+      currentValue: cashValue,
+      startMonth: normalizeMonth(draft.assets.cash.startMonth) ?? undefined,
+      source: "manual",
     });
   }
 
@@ -784,22 +800,33 @@ const buildAssetEntries = ({
           id: buildAssetsEntityId(scenarioId, `investment-${entry.id}`),
           kind: "investment",
           label: entry.type,
+          currentValue: amount,
+          startMonth: investmentStart ?? undefined,
+          source: "manual",
         });
       });
     } else if (normalizeAmount(draft.assets.investment.totalAmount) > 0) {
+      const totalAmount = normalizeAmount(draft.assets.investment.totalAmount);
       assets.push({
         id: buildAssetsEntityId(scenarioId, "investment-total"),
         kind: "investment",
         label: "Investments",
+        currentValue: totalAmount,
+        startMonth: investmentStart ?? undefined,
+        source: "manual",
       });
     }
   }
 
   if (draft.assets.car.enabled && normalizeAmount(draft.assets.car.value) > 0) {
+    const carValue = normalizeAmount(draft.assets.car.value);
     assets.push({
       id: buildAssetsEntityId(scenarioId, "car"),
       kind: "car",
       label: "Car",
+      currentValue: carValue,
+      startMonth: normalizeMonth(draft.assets.car.startMonth) ?? undefined,
+      source: "manual",
     });
   }
 
@@ -810,9 +837,12 @@ const buildAssetEntries = ({
     }
     assets.push({
       id: buildAssetsEntityId(scenarioId, `insurance-cash-${entry.id}`),
-      kind: "other",
+      kind: "policy",
       label: "Insurance cash value",
       ownerMemberId: normalizeMemberId(entry.memberId),
+      currentValue: cashValue,
+      startMonth: normalizeMonth(entry.startMonth) ?? undefined,
+      source: "manual",
     });
   });
 
