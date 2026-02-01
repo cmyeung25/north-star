@@ -2028,7 +2028,7 @@ export default function MoneyClient({
             <LiabilityManager
               items={liabilityItems}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
-              locale={locale}
+            locale={locale}
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
               onView={handleViewLiabilityItem}

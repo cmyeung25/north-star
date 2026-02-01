@@ -1,5 +1,5 @@
 import type { ScenarioMember, MemberMilestone } from "../../store/scenarioStore";
-import { addMonths } from "./age";
+// import { addMonths } from "./age";
 import { appliesToScenario } from "../applyScope";
 import { monthAtAge } from "./age";
 
@@ -27,20 +27,20 @@ const buildBirthMilestone = (member: ScenarioMember): MemberMilestone | null => 
   };
 };
 
-const clampMonthToHorizon = (
-  month: string,
-  baseMonth: string,
-  horizonMonths: number
-) => {
-  const horizonEnd = addMonths(baseMonth, Math.max(horizonMonths - 1, 0));
-  if (month < baseMonth) {
-    return baseMonth;
-  }
-  if (month > horizonEnd) {
-    return horizonEnd;
-  }
-  return month;
-};
+// const clampMonthToHorizon = (
+//   month: string,
+//   baseMonth: string,
+//   horizonMonths: number
+// ) => {
+//   const horizonEnd = addMonths(baseMonth, Math.max(horizonMonths - 1, 0));
+//   if (month < baseMonth) {
+//     return baseMonth;
+//   }
+//   if (month > horizonEnd) {
+//     return horizonEnd;
+//   }
+//   return month;
+// };
 
 export const computeMilestonesForScenario = (
   scenarioId: string,
