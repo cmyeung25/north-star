@@ -8,7 +8,6 @@ import {
   Group,
   NumberInput,
   Select,
-  SimpleGrid,
   Stack,
   Stepper,
   Text,
@@ -18,6 +17,7 @@ import { nanoid } from "nanoid";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import MonthField from "../../components/MonthField";
+import TemplatePicker from "../../components/eventTemplates/TemplatePicker";
 import { formatCurrency } from "../../lib/i18n";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
 import type { MoneyItemCadence } from "../moneyFlow/types";
@@ -30,22 +30,49 @@ import type {
   MilestoneEventType,
   MilestoneScenarioSnapshot,
 } from "../../src/domain/milestoneEvents/types";
+import type { TemplateDef, TemplateId } from "../../src/domain/eventTemplates/types";
 
-const resolveEventTypeLabel = (
-  t: ReturnType<typeof useTranslations>,
-  eventType: MilestoneEventType
-) => {
-  switch (eventType) {
-    case "income":
-      return t("milestoneEventTypeIncome");
-    case "expense":
-      return t("milestoneEventTypeExpense");
-    case "asset":
-      return t("milestoneEventTypeAsset");
-    case "liability":
-      return t("milestoneEventTypeLiability");
+type MilestoneTemplatePreset = {
+  eventType: MilestoneEventType;
+  cadence?: MoneyItemCadence;
+  assetType?: AssetPayloadDraft["assetType"];
+  liabilityType?: LiabilityPayloadDraft["liabilityType"];
+};
+
+const resolveMilestoneTemplatePreset = (templateId: TemplateId): MilestoneTemplatePreset => {
+  switch (templateId) {
+    case "monthly_salary":
+    case "salary_adjustment":
+    case "rental_income":
+    case "dividends_interest":
+      return { eventType: "income", cadence: "recurring" };
+    case "bonus_13th":
+      return { eventType: "income", cadence: "oneOff" };
+    case "living_total":
+    case "living_breakdown":
+    case "rent_housing":
+    case "insurance_quick":
+    case "insurance_detailed":
+    case "childcare_monthly":
+      return { eventType: "expense", cadence: "recurring" };
+    case "one_time_big_expense":
+      return { eventType: "expense", cadence: "oneOff" };
+    case "mortgage_home_purchase":
+      return { eventType: "liability", liabilityType: "mortgage" };
+    case "housing_fees_rates":
+      return { eventType: "expense", cadence: "recurring" };
+    case "buy_car":
+      return { eventType: "asset", assetType: "car" };
+    case "monthly_investing":
+      return { eventType: "asset", assetType: "investment" };
+    case "personal_loan":
+      return { eventType: "liability", liabilityType: "loan" };
+    case "car_loan":
+      return { eventType: "liability", liabilityType: "carLoan" };
+    case "credit_card_balance":
+      return { eventType: "liability", liabilityType: "other" };
     default:
-      return eventType;
+      return { eventType: "income", cadence: "recurring" };
   }
 };
 
@@ -337,6 +364,45 @@ export default function EventWizard({
     setStep(0);
   }, [opened, baseCurrency, members, initialEvent]);
 
+  const handleTemplateSelect = (template: TemplateDef) => {
+    const preset = resolveMilestoneTemplatePreset(template.id);
+    setDraft((current) => {
+      const nextDraft = { ...current, eventType: preset.eventType };
+      if (preset.eventType === "income" || preset.eventType === "expense") {
+        const cadence = preset.cadence ?? current.money.cadence;
+        const effectiveMonth = current.effectiveMonth;
+        nextDraft.money = {
+          ...current.money,
+          cadence,
+          startMonth:
+            cadence === "recurring"
+              ? current.money.startMonth || effectiveMonth
+              : current.money.startMonth,
+          month:
+            cadence === "oneOff"
+              ? current.money.month || effectiveMonth
+              : current.money.month,
+        };
+      }
+      if (preset.eventType === "asset") {
+        nextDraft.asset = {
+          ...current.asset,
+          assetType: preset.assetType ?? current.asset.assetType,
+          startMonth: current.asset.startMonth || current.effectiveMonth,
+        };
+      }
+      if (preset.eventType === "liability") {
+        nextDraft.liability = {
+          ...current.liability,
+          liabilityType: preset.liabilityType ?? current.liability.liabilityType,
+          startMonth: current.liability.startMonth || current.effectiveMonth,
+        };
+      }
+      return nextDraft;
+    });
+    setStep(1);
+  };
+
   const previewEvent = useMemo(() => buildEventFromDraft(draft), [draft]);
   const previewResult = useMemo(
     () => compileEventToOps(previewEvent, snapshot),
@@ -463,31 +529,11 @@ export default function EventWizard({
         </Stepper>
 
         {step === 0 && (
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            {(["income", "expense", "asset", "liability"] as MilestoneEventType[]).map(
-              (type) => (
-                <Card
-                  key={type}
-                  withBorder
-                  radius="md"
-                  padding="sm"
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      eventType: type,
-                    }))
-                  }
-                  style={{
-                    cursor: "pointer",
-                    borderColor:
-                      draft.eventType === type ? "var(--mantine-color-blue-5)" : undefined,
-                  }}
-                >
-                  <Text fw={600}>{resolveEventTypeLabel(t, type)}</Text>
-                </Card>
-              )
-            )}
-          </SimpleGrid>
+          <TemplatePicker
+            opened={opened}
+            defaultCategory="popular"
+            onSelect={handleTemplateSelect}
+          />
         )}
 
         {step === 1 && (

@@ -78,6 +78,9 @@ import {
   computeBufferThresholdFromLedger,
 } from "../../src/domain/planLab/scorecard/cashRisk";
 import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
+import TemplatePickerDrawer from "../../components/eventTemplates/TemplatePickerDrawer";
+import type { TemplateCategory, TemplateDef } from "../../src/domain/eventTemplates/types";
+import { buildTimelineDefinitionFromTemplate } from "../../src/domain/eventTemplates/presets";
 import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import TimelineEventForm, { type TimelineEventFormResult } from "../../components/timeline/TimelineEventForm";
 import { getEventMeta } from "../../src/events/eventCatalog";
@@ -494,6 +497,9 @@ export default function PlanLabPanel({
   const [eventDraftRef, setEventDraftRef] = useState<ScenarioEventRef | null>(null);
   const [eventDraftGroup, setEventDraftGroup] = useState<EventGroup | null>(null);
   const [eventDraftType, setEventDraftType] = useState<EventType | null>(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [templatePickerCategory, setTemplatePickerCategory] =
+    useState<TemplateCategory>("popular");
 
   const monthInvalidMessage = t("planLabMonthInvalid");
   const drawerStyles = useMemo(
@@ -1105,12 +1111,8 @@ export default function PlanLabPanel({
   };
 
   const openAddEventDrawer = () => {
-    setEventDrawerMode("add");
-    setEventDraftGroup((eventGroupOptions[0]?.value as EventGroup) ?? null);
-    setEventDraftType(null);
-    setEventDraftDefinition(null);
-    setEventDraftRef(null);
-    setEventDrawerOpen(true);
+    setTemplatePickerCategory("popular");
+    setTemplatePickerOpen(true);
   };
 
   const openEditEventDrawer = (addition: PlanLabDraftEventAddition) => {
@@ -1119,6 +1121,20 @@ export default function PlanLabPanel({
     setEventDraftType(addition.definition.type);
     setEventDraftDefinition(addition.definition);
     setEventDraftRef(addition.ref);
+    setEventDrawerOpen(true);
+  };
+
+  const handleTemplateSelect = (template: TemplateDef) => {
+    const definition = buildTimelineDefinitionFromTemplate(template.id, timeline, {
+      baseCurrency: scenario.baseCurrency,
+      baseMonth: scenario.assumptions.baseMonth,
+      memberId: scenarioMembers[0]?.id,
+    });
+    setEventDrawerMode("add");
+    setEventDraftGroup(getEventMeta(definition.type).group as EventGroup);
+    setEventDraftType(definition.type);
+    setEventDraftDefinition(definition);
+    setEventDraftRef(createScenarioEventRef(definition.id));
     setEventDrawerOpen(true);
   };
 
@@ -3885,9 +3901,22 @@ export default function PlanLabPanel({
         )}
       </Drawer>
 
+      <TemplatePickerDrawer
+        opened={templatePickerOpen}
+        defaultCategory={templatePickerCategory}
+        onClose={() => setTemplatePickerOpen(false)}
+        onSelect={handleTemplateSelect}
+      />
+
       <Drawer
         opened={eventDrawerOpen}
-        onClose={() => setEventDrawerOpen(false)}
+        onClose={() => {
+          setEventDrawerOpen(false);
+          setEventDraftGroup(null);
+          setEventDraftType(null);
+          setEventDraftDefinition(null);
+          setEventDraftRef(null);
+        }}
         position="right"
         size="lg"
         zIndex={400}
@@ -3899,7 +3928,7 @@ export default function PlanLabPanel({
         }
       >
         <Stack gap="sm">
-          {eventDrawerMode === "add" && (
+          {eventDrawerMode === "add" && !eventDraftDefinition && (
             <Stack gap="xs">
               <Select
                 label={translate("planLabEventGroupLabel", "事件類別")}
@@ -3920,6 +3949,16 @@ export default function PlanLabPanel({
                 disabled={!eventDraftGroup}
               />
             </Stack>
+          )}
+          {eventDrawerMode === "add" && eventDraftDefinition && eventDraftType && (
+            <Text size="sm" fw={600}>
+              {translate("planLabEventTypeLabel", "事件類型")}：{" "}
+              {getEventTypeDisplay(
+                timeline,
+                eventDraftType,
+                eventDraftDefinition.incomeSubtype
+              )}
+            </Text>
           )}
           {eventDrawerMode === "edit" && eventDraftDefinition && (
             <Text size="sm" fw={600}>

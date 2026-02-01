@@ -71,8 +71,20 @@ type HousingEventDrawerProps = {
   mode: "create" | "edit";
   baseCurrency: string;
   event: HousingEvent | null;
+  initialDraft?: Partial<HousingEventDraft>;
   onClose: () => void;
   onSave: (draft: HousingEventDraft) => void;
+};
+
+const applyDraftOverrides = <T,>(draft: T, overrides?: Partial<T>): T => {
+  if (!overrides) {
+    return draft;
+  }
+  const definedEntries = Object.entries(overrides).filter(([, value]) => value !== undefined);
+  return {
+    ...draft,
+    ...Object.fromEntries(definedEntries),
+  };
 };
 
 const buildFeesDraft = (fees?: HousingEvent["feesOneOff"]): HousingFeeDraft[] =>
@@ -181,21 +193,24 @@ export default function HousingEventDrawer({
   mode,
   baseCurrency,
   event,
+  initialDraft,
   onClose,
   onSave,
 }: HousingEventDrawerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
-  const [draft, setDraft] = useState<HousingEventDraft>(() => buildDraft(event));
+  const [draft, setDraft] = useState<HousingEventDraft>(() =>
+    applyDraftOverrides(buildDraft(event), initialDraft)
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!opened) {
       return;
     }
-    setDraft(buildDraft(event));
+    setDraft(applyDraftOverrides(buildDraft(event), event ? undefined : initialDraft));
     setErrors({});
-  }, [event, opened]);
+  }, [event, initialDraft, opened]);
 
   const purchasePrice = Number(draft.purchasePrice) || 0;
   const downPaymentPercent = Number(draft.downPaymentPercent) || 0;

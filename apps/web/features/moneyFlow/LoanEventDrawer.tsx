@@ -44,8 +44,20 @@ type LoanEventDrawerProps = {
   mode: "create" | "edit";
   baseCurrency: string;
   event: LoanEvent | null;
+  initialDraft?: Partial<LoanEventDraft>;
   onClose: () => void;
   onSave: (draft: LoanEventDraft) => void;
+};
+
+const applyDraftOverrides = <T,>(draft: T, overrides?: Partial<T>): T => {
+  if (!overrides) {
+    return draft;
+  }
+  const definedEntries = Object.entries(overrides).filter(([, value]) => value !== undefined);
+  return {
+    ...draft,
+    ...Object.fromEntries(definedEntries),
+  };
 };
 
 const buildDraft = (event: LoanEvent | null): LoanEventDraft => {
@@ -105,21 +117,24 @@ export default function LoanEventDrawer({
   mode,
   baseCurrency,
   event,
+  initialDraft,
   onClose,
   onSave,
 }: LoanEventDrawerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
-  const [draft, setDraft] = useState<LoanEventDraft>(() => buildDraft(event));
+  const [draft, setDraft] = useState<LoanEventDraft>(() =>
+    applyDraftOverrides(buildDraft(event), initialDraft)
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!opened) {
       return;
     }
-    setDraft(buildDraft(event));
+    setDraft(applyDraftOverrides(buildDraft(event), event ? undefined : initialDraft));
     setErrors({});
-  }, [event, opened]);
+  }, [event, initialDraft, opened]);
 
   const purchasePrice = Number(draft.purchasePrice) || 0;
   const downPaymentPercent = Number(draft.downPaymentPercent) || 0;

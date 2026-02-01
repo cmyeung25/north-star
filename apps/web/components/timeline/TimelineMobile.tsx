@@ -30,6 +30,7 @@ import InsuranceDetailsForm from "./InsuranceDetailsForm";
 import PositionDetailList from "./PositionDetailList";
 import TimelineEventDrawer from "./TimelineEventDrawer";
 import MergeDuplicatesModal from "./MergeDuplicatesModal";
+import TemplatePickerDrawer from "../eventTemplates/TemplatePickerDrawer";
 import {
   PositionCashflowModal,
   PositionCalculatorModal,
@@ -62,6 +63,8 @@ import {
   formatLoanSummary,
   iconMap,
 } from "./utils";
+import type { TemplateCategory, TemplateDef } from "../../src/domain/eventTemplates/types";
+import { buildTimelineDefinitionFromTemplate } from "../../src/domain/eventTemplates/presets";
 import type {
   CarPositionDraft,
   HomePositionDraft,
@@ -361,6 +364,12 @@ export default function TimelineMobile({
     ]
   );
   const [addEventOpen, setAddEventOpen] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [templatePickerCategory, setTemplatePickerCategory] =
+    useState<TemplateCategory>("popular");
+  const [templateDefinition, setTemplateDefinition] = useState<EventDefinition | null>(
+    null
+  );
   const [mergeOpen, setMergeOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<"all" | EventGroup>("all");
   const [activeTab, setActiveTab] = useState<
@@ -555,6 +564,37 @@ export default function TimelineMobile({
       setPendingScrollMonth(null);
     }
   }, [monthGroups, pendingScrollMonth]);
+
+  const resolveTemplateCategory = (
+    group: "all" | EventGroup
+  ): TemplateCategory => {
+    switch (group) {
+      case "income":
+        return "income";
+      case "expense":
+        return "expenses";
+      case "housing":
+        return "housing";
+      case "insurance":
+        return "insurance";
+      case "investment":
+        return "assets";
+      case "debt":
+        return "loans";
+      default:
+        return "popular";
+    }
+  };
+
+  const handleTemplateSelect = (template: TemplateDef) => {
+    const definition = buildTimelineDefinitionFromTemplate(template.id, t, {
+      baseCurrency,
+      baseMonth,
+      memberId: members[0]?.id,
+    });
+    setTemplateDefinition(definition);
+    setAddEventOpen(true);
+  };
 
   return (
     <Stack gap="lg" pb={120}>
@@ -1916,17 +1956,28 @@ export default function TimelineMobile({
           style={floatingButtonStyle}
           onClick={() => {
             setActiveTab("events");
-            setAddEventOpen(true);
+            setTemplatePickerCategory(resolveTemplateCategory(activeGroup));
+            setTemplatePickerOpen(true);
           }}
         >
           {t("addEvent")}
         </Button>
       )}
 
+      <TemplatePickerDrawer
+        opened={templatePickerOpen}
+        defaultCategory={templatePickerCategory}
+        onClose={() => setTemplatePickerOpen(false)}
+        onSelect={handleTemplateSelect}
+      />
+
       <TimelineEventDrawer
         mode="create"
         opened={addEventOpen}
-        onClose={() => setAddEventOpen(false)}
+        onClose={() => {
+          setAddEventOpen(false);
+          setTemplateDefinition(null);
+        }}
         baseCurrency={baseCurrency}
         baseMonth={baseMonth}
         assumptions={assumptions}
@@ -1938,6 +1989,7 @@ export default function TimelineMobile({
         defaultScenarioId={scenarioId}
         defaultMonth={selectedMonth ?? baseMonth ?? null}
         parentGroupOptions={parentGroupOptions}
+        initialDefinition={templateDefinition ?? undefined}
         onAddDefinition={(definition, scenarioIds) => onAddDefinition(definition, scenarioIds)}
         onAddHomePosition={() => {
           setCreatingHome(createHomePositionFromTemplate({ baseMonth }));

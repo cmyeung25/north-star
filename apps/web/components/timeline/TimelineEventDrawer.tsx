@@ -59,6 +59,7 @@ type TimelineEventDrawerCreateProps = TimelineEventDrawerBaseProps & {
   defaultScenarioId: string;
   defaultMonth?: string | null;
   defaultGroup?: EventGroup;
+  initialDefinition?: EventDefinition;
   onAddDefinition: (definition: EventDefinition, scenarioIds: string[]) => void;
   onAddHomePosition: () => void;
   onCreateComplete?: (startMonth?: string | null) => void;
@@ -96,33 +97,50 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       ? resolveEventRule(props.editingEvent.definition, props.editingEvent.ref)
       : null;
 
+  const { opened, mode } = props;
+  const defaultGroup =
+    mode === "create" && "defaultGroup" in props ? props.defaultGroup ?? null : null;
+  const initialDefinition =
+    mode === "create" && "initialDefinition" in props
+      ? props.initialDefinition ?? null
+      : null;
+
   const defaultScenarioId =
     props.mode === "create" ? props.defaultScenarioId : "";
   const editingEvent = props.mode === "edit" ? props.editingEvent : null;
 
   useEffect(() => {
-    if (!props.opened) {
+    if (!opened) {
       setStep("group");
       setSelectedGroup(null);
       setSelectedType(null);
       setDraftDefinition(null);
       setParentId(null);
       setGroupTitle("");
-      if (props.mode === "create") {
+      if (mode === "create") {
         setSelectedScenarioIds([defaultScenarioId]);
       }
     }
-  }, [defaultScenarioId, props.mode, props.opened]);
-
-  const defaultGroup = "defaultGroup" in props ? props.defaultGroup : null;
+  }, [defaultScenarioId, mode, opened]);
 
   useEffect(() => {
-    if (!props.opened || props.mode !== "create" || !defaultGroup) {
+    if (!opened || mode !== "create" || !defaultGroup || initialDefinition) {
       return;
     }
     setSelectedGroup(defaultGroup);
     setStep("type");
-  }, [defaultGroup, props.mode, props.opened]);
+  }, [defaultGroup, initialDefinition, mode, opened]);
+
+  useEffect(() => {
+    if (!opened || mode !== "create" || !initialDefinition) {
+      return;
+    }
+    const group = getEventMeta(initialDefinition.type).group;
+    setSelectedGroup(group);
+    setSelectedType(initialDefinition.type);
+    setDraftDefinition(initialDefinition);
+    setStep("details");
+  }, [initialDefinition, mode, opened]);
 
   useEffect(() => {
     if (props.mode !== "edit" || !editingEvent) {

@@ -1,0 +1,123 @@
+import type { TemplateDef, TemplateId } from "./types";
+
+export const templateRegistry: TemplateDef[] = [
+  {
+    id: "monthly_salary",
+    categories: ["popular", "income"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "salary_adjustment",
+    categories: ["income", "adjustments"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "bonus_13th",
+    categories: ["income", "adjustments"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "rental_income",
+    categories: ["income"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "dividends_interest",
+    categories: ["income"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "living_total",
+    categories: ["popular", "expenses"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "living_breakdown",
+    categories: ["expenses"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "rent_housing",
+    categories: ["housing", "expenses"],
+    drawerType: "housing",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "insurance_quick",
+    categories: ["insurance", "expenses"],
+    drawerType: "insurance",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "insurance_detailed",
+    categories: ["insurance", "expenses"],
+    drawerType: "insurance",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "childcare_monthly",
+    categories: ["expenses"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "one_time_big_expense",
+    categories: ["expenses"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow"],
+  },
+  {
+    id: "mortgage_home_purchase",
+    categories: ["popular", "housing", "assets"],
+    drawerType: "housing",
+    chips: ["affectsCashflow", "affectsNetWorth", "requiresLiability"],
+  },
+  {
+    id: "housing_fees_rates",
+    categories: ["housing", "assets"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow", "affectsNetWorth"],
+  },
+  {
+    id: "buy_car",
+    categories: ["assets"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow", "affectsNetWorth"],
+  },
+  {
+    id: "monthly_investing",
+    categories: ["assets"],
+    drawerType: "cashflow",
+    chips: ["affectsCashflow", "affectsNetWorth"],
+  },
+  {
+    id: "personal_loan",
+    categories: ["loans"],
+    drawerType: "loan",
+    chips: ["affectsCashflow", "requiresLiability"],
+  },
+  {
+    id: "car_loan",
+    categories: ["loans"],
+    drawerType: "loan",
+    chips: ["affectsCashflow", "requiresLiability"],
+  },
+  {
+    id: "credit_card_balance",
+    categories: ["loans"],
+    drawerType: "loan",
+    chips: ["affectsCashflow", "requiresLiability"],
+  },
+];
+
+export const listTemplates = () => templateRegistry;
+
+export const getTemplateDef = (id: TemplateId) =>
+  templateRegistry.find((template) => template.id === id);

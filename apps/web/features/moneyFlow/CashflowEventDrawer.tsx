@@ -30,6 +30,7 @@ export type CashflowEventDraft = {
   occurrenceMonth: string;
   everyNMonths: string;
   memberId: string;
+  tags?: string[];
 };
 
 export type AdjustmentEventDraft = {
@@ -39,6 +40,7 @@ export type AdjustmentEventDraft = {
   amount: string;
   month: string;
   memberId: string;
+  tags?: string[];
 };
 
 export type ScenarioEventDraft =
@@ -53,8 +55,21 @@ type CashflowEventDrawerProps = {
   members: ScenarioMember[];
   event: CashflowEvent | AdjustmentEvent | null;
   defaultKind?: CashflowEvent["kind"];
+  initialCashflowDraft?: Partial<CashflowEventDraft>;
+  initialAdjustmentDraft?: Partial<AdjustmentEventDraft>;
   onClose: () => void;
   onSave: (draft: ScenarioEventDraft) => void;
+};
+
+const applyDraftOverrides = <T,>(draft: T, overrides?: Partial<T>): T => {
+  if (!overrides) {
+    return draft;
+  }
+  const definedEntries = Object.entries(overrides).filter(([, value]) => value !== undefined);
+  return {
+    ...draft,
+    ...Object.fromEntries(definedEntries),
+  };
 };
 
 const buildCashflowDraft = (
@@ -73,6 +88,7 @@ const buildCashflowDraft = (
       occurrenceMonth: "",
       everyNMonths: "",
       memberId: "",
+      tags: undefined,
     };
   }
 
@@ -87,6 +103,7 @@ const buildCashflowDraft = (
     occurrenceMonth: event.occurrenceMonth ?? "",
     everyNMonths: event.everyNMonths ? String(event.everyNMonths) : "",
     memberId: event.memberId ?? "",
+    tags: event.tags ? [...event.tags] : undefined,
   };
 };
 
@@ -99,6 +116,7 @@ const buildAdjustmentDraft = (event: AdjustmentEvent | null): AdjustmentEventDra
       amount: "",
       month: "",
       memberId: "",
+      tags: undefined,
     };
   }
 
@@ -109,6 +127,7 @@ const buildAdjustmentDraft = (event: AdjustmentEvent | null): AdjustmentEventDra
     amount: Number.isFinite(event.amount) ? String(event.amount) : "",
     month: event.month ?? "",
     memberId: event.memberId ?? "",
+    tags: event.tags ? [...event.tags] : undefined,
   };
 };
 
@@ -120,6 +139,8 @@ export default function CashflowEventDrawer({
   members,
   event,
   defaultKind,
+  initialCashflowDraft,
+  initialAdjustmentDraft,
   onClose,
   onSave,
 }: CashflowEventDrawerProps) {
@@ -129,21 +150,35 @@ export default function CashflowEventDrawer({
     event?.type === "adjustment" ? "adjustment" : "cashflow"
   );
   const [cashflowDraft, setCashflowDraft] = useState<CashflowEventDraft>(() =>
-    buildCashflowDraft(event?.type === "cashflow" ? event : null, defaultKind)
+    applyDraftOverrides(
+      buildCashflowDraft(event?.type === "cashflow" ? event : null, defaultKind),
+      initialCashflowDraft
+    )
   );
   const [adjustmentDraft, setAdjustmentDraft] = useState<AdjustmentEventDraft>(() =>
-    buildAdjustmentDraft(event?.type === "adjustment" ? event : null)
+    applyDraftOverrides(
+      buildAdjustmentDraft(event?.type === "adjustment" ? event : null),
+      initialAdjustmentDraft
+    )
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setEventType(event?.type === "adjustment" ? "adjustment" : "cashflow");
     setCashflowDraft(
-      buildCashflowDraft(event?.type === "cashflow" ? event : null, defaultKind)
+      applyDraftOverrides(
+        buildCashflowDraft(event?.type === "cashflow" ? event : null, defaultKind),
+        event?.type ? undefined : initialCashflowDraft
+      )
     );
-    setAdjustmentDraft(buildAdjustmentDraft(event?.type === "adjustment" ? event : null));
+    setAdjustmentDraft(
+      applyDraftOverrides(
+        buildAdjustmentDraft(event?.type === "adjustment" ? event : null),
+        event?.type ? undefined : initialAdjustmentDraft
+      )
+    );
     setErrors({});
-  }, [event, opened, defaultKind]);
+  }, [event, initialAdjustmentDraft, initialCashflowDraft, opened, defaultKind]);
 
   const memberOptions = useMemo(
     () => [
