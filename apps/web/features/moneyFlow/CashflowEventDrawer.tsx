@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Button,
   Drawer,
@@ -16,6 +17,7 @@ import MonthField from "../../components/MonthField";
 import { compareMonthKey, isValidMonthKey } from "../../src/utils/monthKey";
 import type { AdjustmentEvent, CashflowEvent } from "../../src/domain/scenarioV2/events";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
+import { resolveYearlyStartMonthKey } from "../../src/features/moneyFlow/yearlyCadence";
 
 export type CashflowEventDraft = {
   id?: string;
@@ -47,6 +49,7 @@ type CashflowEventDrawerProps = {
   opened: boolean;
   mode: "create" | "edit";
   baseCurrency: string;
+  scenarioStartMonth?: string | null;
   members: ScenarioMember[];
   event: CashflowEvent | AdjustmentEvent | null;
   defaultKind?: CashflowEvent["kind"];
@@ -113,6 +116,7 @@ export default function CashflowEventDrawer({
   opened,
   mode,
   baseCurrency,
+  scenarioStartMonth,
   members,
   event,
   defaultKind,
@@ -159,6 +163,25 @@ export default function CashflowEventDrawer({
     ],
     [t]
   );
+
+  const yearlyMonthOptions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, index) => {
+        const month = String(index + 1);
+        return { value: month, label: month };
+      }),
+    []
+  );
+
+  const yearlyMonthValue = useMemo(() => {
+    if (!isValidMonthKey(cashflowDraft.startMonth)) {
+      return "";
+    }
+    const [, month] = cashflowDraft.startMonth.split("-");
+    return String(Number(month));
+  }, [cashflowDraft.startMonth]);
+
+  const canUseDOM = typeof document !== "undefined";
 
   const validate = () => {
     const nextErrors: Record<string, string> = {};
@@ -234,6 +257,7 @@ export default function CashflowEventDrawer({
       onClose={onClose}
       position="right"
       size="md"
+      withinPortal={canUseDOM}
       title={
         mode === "edit" ? t("ledgerEventEditTitle") : t("ledgerEventCreateTitle")
       }
@@ -331,17 +355,35 @@ export default function CashflowEventDrawer({
               />
             ) : (
               <>
-                <MonthField
-                  label={t("ledgerEventStartMonth")}
-                  value={cashflowDraft.startMonth}
-                  onChange={(value) =>
-                    setCashflowDraft((current) => ({
-                      ...current,
-                      startMonth: value,
-                    }))
-                  }
-                  error={errors.startMonth}
-                />
+                {cashflowDraft.cadence === "yearly" ? (
+                  <Select
+                    label={t("ledgerEventYearlyMonth")}
+                    data={yearlyMonthOptions}
+                    value={yearlyMonthValue}
+                    onChange={(value) =>
+                      setCashflowDraft((current) => ({
+                        ...current,
+                        startMonth: resolveYearlyStartMonthKey(
+                          value,
+                          scenarioStartMonth ?? null
+                        ),
+                      }))
+                    }
+                    error={errors.startMonth}
+                  />
+                ) : (
+                  <MonthField
+                    label={t("ledgerEventStartMonth")}
+                    value={cashflowDraft.startMonth}
+                    onChange={(value) =>
+                      setCashflowDraft((current) => ({
+                        ...current,
+                        startMonth: value,
+                      }))
+                    }
+                    error={errors.startMonth}
+                  />
+                )}
                 <MonthField
                   label={t("ledgerEventEndMonth")}
                   value={cashflowDraft.endMonth}
@@ -357,7 +399,9 @@ export default function CashflowEventDrawer({
             )}
 
             <Text size="xs" c="dimmed">
-              {t("ledgerEventMonthHint")}
+              {cashflowDraft.cadence === "yearly"
+                ? t("ledgerEventMonthHintYearly")
+                : t("ledgerEventMonthHint")}
             </Text>
           </>
         ) : (

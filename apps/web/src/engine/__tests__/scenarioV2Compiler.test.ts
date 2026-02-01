@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileScenarioV2ToLedger, type ScenarioV2 } from "../scenarioV2Compiler";
+import { computeProjection } from "@north-star/engine";
+import {
+  compileScenarioV2ToLedger,
+  compileScenarioV2ToProjectionInput,
+  type ScenarioV2,
+} from "../scenarioV2Compiler";
 
 const baseScenario = {
   id: "scenario-v2",
@@ -223,5 +228,41 @@ describe("compileScenarioV2ToLedger", () => {
           row.amount === -200
       )
     ).toBe(true);
+  });
+
+  it("builds projection input that reflects cashflow events", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        baseMonth: "2024-01",
+        horizonMonths: 6,
+        initialCash: 1000,
+      },
+      events: [
+        {
+          id: "evt-income",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 200,
+          startMonth: "2024-01",
+        },
+        {
+          id: "evt-expense",
+          type: "cashflow",
+          kind: "expense",
+          cadence: "monthly",
+          amount: 50,
+          startMonth: "2024-01",
+        },
+      ],
+    };
+
+    const input = compileScenarioV2ToProjectionInput(scenario);
+    const projection = computeProjection(input);
+
+    expect(projection.cashBalance.length > 1).toBe(true);
+    expect(projection.cashBalance[0]).not.toBe(projection.cashBalance[1]);
   });
 });

@@ -22,7 +22,7 @@ import { buildMonthRange } from "@north-star/engine";
 import MonthField from "../../../../components/MonthField";
 import { getCurrentMonth } from "../utils";
 import { isValidMonthKey } from "../../../utils/monthKey";
-import type { OnboardingV2DraftLivingSpend } from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+import type { OnboardingV2DraftLivingSpend } from "../../../domain/onboarding/v2/draftTypes";
 
 type LivingSpendErrors = {
   fixed: Partial<{ amount: string; startMonth: string; endMonth: string }>;

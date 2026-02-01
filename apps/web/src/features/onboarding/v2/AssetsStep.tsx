@@ -21,7 +21,7 @@ import type {
   OnboardingV2DraftAssets,
   OnboardingV2DraftInvestmentBreakdownType,
   OnboardingV2DraftMember,
-} from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+} from "../../../domain/onboarding/v2/draftTypes";
 
 export type AssetsErrors = {
   cash: Partial<{ amount: string; startMonth: string }>;

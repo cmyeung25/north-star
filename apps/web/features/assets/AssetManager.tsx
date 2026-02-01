@@ -23,11 +23,6 @@ import { compareMonthKey, isValidMonthKey } from "../../src/utils/monthKey";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
 import { createAssetItemId } from "./assetAdapter";
 import type { AssetItem, AssetItemUpsert, AssetType } from "./types";
-import {
-  buildDerivedMoneyItemsForAsset,
-  findOverlappingManualItems,
-} from "../moneyFlow/derivedMoneyItems";
-import type { MoneyItem } from "../moneyFlow/types";
 
 type AssetItemDraft = {
   id: string;
@@ -163,12 +158,10 @@ type AssetManagerProps = {
   baseCurrency: string;
   locale: string;
   members: ScenarioMember[];
-  moneyItems: MoneyItem[];
   onUpsert: (item: AssetItemUpsert) => void;
   onDelete: (item: AssetItem) => void;
   onView?: (item: AssetItem) => void;
   onEditEvent?: (eventId: string) => void;
-  onDetach?: (item: AssetItem) => void;
   openEditId?: string | null;
   onOpenEditHandled?: () => void;
 };
@@ -178,12 +171,10 @@ export default function AssetManager({
   baseCurrency,
   locale,
   members,
-  moneyItems,
   onUpsert,
   onDelete,
   onView,
   onEditEvent,
-  onDetach,
   openEditId,
   onOpenEditHandled,
 }: AssetManagerProps) {
@@ -278,67 +269,6 @@ export default function AssetManager({
     }
   );
   const isReadOnly = draft.source === "eventGenerated" || draft.source === "derived";
-  const manualMoneyItems = useMemo(
-    () => moneyItems.filter((item) => item.source === "manual"),
-    [moneyItems]
-  );
-  const derivedLabels = useMemo(
-    () => ({
-      ongoingCostLabels: {
-        managementFee: t("assetOngoingManagementFee"),
-        groundRent: t("assetOngoingGroundRent"),
-        insurance: t("assetOngoingInsurance"),
-        maintenance: t("assetOngoingMaintenance"),
-        inspection: t("assetOngoingInspection"),
-      },
-      rentalIncomeLabel: t("assetRentalIncomeLabel"),
-    }),
-    [t]
-  );
-  const overlappingManualItems = useMemo(() => {
-    if (draft.assetType !== "property" && draft.assetType !== "car") {
-      return [];
-    }
-    const candidateAsset: AssetItem = {
-      id: draft.id,
-      assetType: draft.assetType,
-      name: draft.name,
-      currentValue: Number(draft.currentValue),
-      currency: draft.currency,
-      ownerMemberId: draft.ownerMemberId || undefined,
-      startMonth: draft.startMonth || undefined,
-      notes: draft.notes || undefined,
-      purchaseFees: draft.purchaseFees.map((fee) => ({
-        id: fee.id,
-        label: fee.label,
-        amount: Number(fee.amount),
-        month: fee.month,
-      })),
-      ongoingCosts: draft.ongoingCosts.map((cost) => ({
-        key: cost.key,
-        enabled: cost.enabled,
-        amount: Number(cost.amount),
-        startMonth: cost.startMonth,
-      })),
-      rental:
-        draft.assetType === "property"
-          ? {
-              isRented: draft.rental.isRented,
-              rentAmountMonthly: Number(draft.rental.rentAmountMonthly),
-              rentStartMonth: draft.rental.rentStartMonth,
-              rentEndMonth: draft.rental.rentEndMonth || undefined,
-            }
-          : undefined,
-      source: draft.source,
-      generatedByEventId: draft.generatedByEventId,
-    };
-    const candidates = buildDerivedMoneyItemsForAsset({
-      asset: candidateAsset,
-      baseCurrency,
-      labels: derivedLabels,
-    });
-    return findOverlappingManualItems(manualMoneyItems, candidates);
-  }, [baseCurrency, draft, derivedLabels, manualMoneyItems]);
 
   const filteredItems = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -574,25 +504,11 @@ export default function AssetManager({
                         >
                           {t("eventGeneratedEdit")}
                         </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => onDetach?.(item)}
-                        >
-                          {t("eventGeneratedDetach")}
-                        </Button>
                       </>
                     ) : isDerived ? (
                       <>
                         <Button size="xs" variant="light" onClick={() => openDrawer(item)}>
                           {common("actionEdit")}
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          onClick={() => onDetach?.(item)}
-                        >
-                          {t("derivedDetach")}
                         </Button>
                       </>
                     ) : (
@@ -646,13 +562,6 @@ export default function AssetManager({
                     disabled={!editingItem.generatedByEventId}
                   >
                     {t("eventGeneratedEdit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    onClick={() => onDetach?.(editingItem)}
-                  >
-                    {t("eventGeneratedDetach")}
                   </Button>
                 </Group>
               </Stack>
@@ -947,13 +856,6 @@ export default function AssetManager({
                 </>
               )}
 
-              {overlappingManualItems.length > 0 && (
-                <Card withBorder radius="md" padding="sm">
-                  <Text size="sm" c="orange">
-                    {t("derivedDoubleCountWarning")}
-                  </Text>
-                </Card>
-              )}
             </>
           )}
           <Group justify="flex-end">

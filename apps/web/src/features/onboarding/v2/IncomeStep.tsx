@@ -21,7 +21,7 @@ import type {
   OnboardingV2DraftIncome,
   OnboardingV2DraftMember,
   OnboardingV2IncomeFrequency,
-} from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+} from "../../../domain/onboarding/v2/draftTypes";
 
 type IncomeFieldErrors = Partial<{
   label: string;

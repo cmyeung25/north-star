@@ -51,7 +51,7 @@ import {
   type OnboardingV2DraftMember,
   type OnboardingV2IncomeFrequency,
   type OnboardingV2MemberRole,
-} from "../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+} from "../../domain/onboarding/v2/draftTypes";
 import {
   applyOnboardingV2DraftToScenarioV2,
   isOnboardingMemberId,

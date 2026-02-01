@@ -19,7 +19,7 @@ import MonthField from "../../../../components/MonthField";
 import type {
   OnboardingV2DraftInsurance,
   OnboardingV2DraftMember,
-} from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+} from "../../../domain/onboarding/v2/draftTypes";
 
 export type InsuranceErrors = {
   quick: Partial<{ amount: string; startMonth: string; endMonth: string }>;

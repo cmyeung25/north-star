@@ -20,7 +20,7 @@ import MonthField from "../../../../components/MonthField";
 import type {
   OnboardingV2DraftDebt,
   OnboardingV2DraftDebtType,
-} from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+} from "../../../domain/onboarding/v2/draftTypes";
 import { monthsBetween } from "../../../domain/members/age";
 import { computeMonthlyPayment } from "../../../domain/positions/calculations";
 import { isValidMonthKey } from "../../../utils/monthKey";

@@ -16,7 +16,7 @@ import {
 } from "@mantine/core";
 import { nanoid } from "nanoid";
 import MonthField from "../../../../components/MonthField";
-import type { OnboardingV2DraftHousing } from "../../../domain/onboarding/v2/mapOnboardingV2DraftToScenario";
+import type { OnboardingV2DraftHousing } from "../../../domain/onboarding/v2/draftTypes";
 
 export type HousingErrors = {
   rent: Partial<{
