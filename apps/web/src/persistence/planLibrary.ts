@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 import type { PlanSnapshot } from "../domain/planLab/types";
 
-export const PLAN_LIBRARY_KEY = "northstar.planlab.library.v1";
+export const PLAN_LIBRARY_KEY = "northstar.planlab.library.v2";
 
 const isBrowser =
   typeof window !== "undefined" && typeof window.localStorage !== "undefined";

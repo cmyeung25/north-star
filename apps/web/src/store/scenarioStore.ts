@@ -713,7 +713,6 @@ const clonePlans = (plans?: Plan[]) =>
   plans?.map((plan) => ({
     ...plan,
     snapshot: clonePlanSnapshot(plan.snapshot),
-    metricsCache: plan.metricsCache ? { ...plan.metricsCache } : undefined,
   })) ?? [];
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
