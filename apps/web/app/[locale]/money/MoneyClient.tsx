@@ -6,6 +6,7 @@ import {
   Drawer,
   Group,
   Modal,
+  Notification,
   NumberInput,
   SegmentedControl,
   Select,
@@ -91,14 +92,16 @@ import LoanEventDrawer, {
 import InsuranceEventDrawer, {
   type InsuranceEventDraft,
 } from "../../../features/moneyFlow/InsuranceEventDrawer";
-import AssetManager from "../../../features/assets/AssetManager";
-import LiabilityManager from "../../../features/liabilities/LiabilityManager";
+import ScenarioAssetManager from "../../../features/assets/ScenarioAssetManager";
+import ScenarioLiabilityManager from "../../../features/liabilities/ScenarioLiabilityManager";
 import type {
   CarPositionDraft,
   HomePositionDraft,
   InsurancePositionDraft,
   InvestmentPositionDraft,
   LoanPositionDraft,
+  ScenarioAsset,
+  ScenarioLiability,
 } from "../../../src/store/scenarioStore";
 import { useUiStore } from "../../../src/store/uiStore";
 import { compileScenarioV2ToLedger } from "../../../src/engine/scenarioV2Compiler";
@@ -107,13 +110,6 @@ import {
   resolveEventCardStartMonth,
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
-import { applyAssetItemChange, toAssetItems } from "../../../features/assets/assetAdapter";
-import {
-  applyLiabilityItemChange,
-  toLiabilityItems,
-} from "../../../features/liabilities/liabilityAdapter";
-import type { AssetItem } from "../../../features/assets/types";
-import type { LiabilityItem } from "../../../features/liabilities/types";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
 import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
 import type { TemplateCategory, TemplateDef } from "../../../src/domain/eventTemplates/types";
@@ -191,7 +187,6 @@ export default function MoneyClient({
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);
   const budgetRules = useScenarioStore((state) => state.budgetRules);
-  const setScenarioPositions = useScenarioStore((state) => state.setScenarioPositions);
   const addHomePosition = useScenarioStore((state) => state.addHomePosition);
   const updateHomePosition = useScenarioStore((state) => state.updateHomePosition);
   const removeHomePosition = useScenarioStore((state) => state.removeHomePosition);
@@ -215,6 +210,8 @@ export default function MoneyClient({
   const duplicateEvent = useScenarioStore((state) => state.duplicateEvent);
   const upsertScenarioAssets = useScenarioStore((state) => state.upsertScenarioAssets);
   const upsertScenarioLiabilities = useScenarioStore((state) => state.upsertScenarioLiabilities);
+  const setScenarioAssets = useScenarioStore((state) => state.setScenarioAssets);
+  const setScenarioLiabilities = useScenarioStore((state) => state.setScenarioLiabilities);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const resolvedScenarioId = useMemo(
     () => resolveScenarioIdFromQuery(scenarioId ?? null, activeScenarioId, scenarios),
@@ -392,6 +389,7 @@ export default function MoneyClient({
   >("all");
   const [openAssetEditId, setOpenAssetEditId] = useState<string | null>(null);
   const [openLiabilityEditId, setOpenLiabilityEditId] = useState<string | null>(null);
+  const [assetHoldingCostNotice, setAssetHoldingCostNotice] = useState(false);
 
   useEffect(() => {
     setActiveTab(resolvedTab);
@@ -563,6 +561,53 @@ export default function MoneyClient({
     if (!scenario) {
       return [];
     }
+    if (scenarioIsV2) {
+      const typeLabel = (kind: ScenarioAsset["kind"]) => {
+        switch (kind) {
+          case "cash":
+            return t("assetTypeCash");
+          case "home":
+            return t("assetTypeProperty");
+          case "investment":
+            return t("assetTypeInvestment");
+          case "car":
+            return t("assetTypeCar");
+          case "policy":
+            return t("assetTypePolicy");
+          case "other":
+            return t("assetTypeOther");
+          default:
+            return kind;
+        }
+      };
+      return (scenario.assets ?? []).map((asset) => {
+        const resolvedValue =
+          asset.currentValue ??
+          (asset.kind === "cash" ? scenario.assumptions.initialCash : undefined);
+        return {
+          id: asset.id,
+          kind: "asset" as const,
+          label: asset.label ?? t("assetUntitled"),
+          description: t("inputsAssetMetaV2", {
+            type: typeLabel(asset.kind),
+            value:
+              typeof resolvedValue === "number"
+                ? formatCurrency(resolvedValue, scenario.baseCurrency, locale)
+                : t("amountUnset"),
+          }),
+          onEdit: () => setActiveTab("assets"),
+          onDelete: () => {
+            if (!scenarioIdValue) {
+              return;
+            }
+            const nextAssets = (scenario.assets ?? []).filter(
+              (entry) => entry.id !== asset.id
+            );
+            setScenarioAssets(scenarioIdValue, nextAssets);
+          },
+        };
+      });
+    }
     const currency = scenario.baseCurrency;
     const items = [
       ...homes.map((home) => ({
@@ -638,6 +683,10 @@ export default function MoneyClient({
     removeInsurancePosition,
     removeInvestmentPosition,
     scenario,
+    scenarioIdValue,
+    scenarioIsV2,
+    setScenarioAssets,
+    t,
   ]);
 
   const openV2EventDrawer = useCallback(
@@ -1045,21 +1094,24 @@ export default function MoneyClient({
       setLedgerActionError(t("ledgerEventDuplicateFailed"));
     }
   };
-  const handleDeleteV2Event = (eventId: string) => {
-    if (!scenarioIsV2) {
-      return;
-    }
-    const match = v2ScenarioEvents.find((event) => event.id === eventId);
-    if (!match) {
-      setLedgerActionError(t("ledgerEventMissing"));
-      return;
-    }
-    setDeleteConfirmation({
-      type: "eventV2",
-      id: eventId,
-      label: match.label ?? t("ledgerRowFallbackLabel"),
-    });
-  };
+  const handleDeleteV2Event = useCallback(
+    (eventId: string) => {
+      if (!scenarioIsV2) {
+        return;
+      }
+      const match = v2ScenarioEvents.find((event) => event.id === eventId);
+      if (!match) {
+        setLedgerActionError(t("ledgerEventMissing"));
+        return;
+      }
+      setDeleteConfirmation({
+        type: "eventV2",
+        id: eventId,
+        label: match.label ?? t("ledgerRowFallbackLabel"),
+      });
+    },
+    [scenarioIsV2, t, v2ScenarioEvents]
+  );
   const handleAdjustEvent = (row: LedgerRow) => {
     setLedgerActionError(null);
     setAdjustmentDraft({
@@ -1096,64 +1148,185 @@ export default function MoneyClient({
       v2ScenarioEvents,
     ]
   );
+  const scenarioAssets = useMemo(() => scenario?.assets ?? [], [scenario?.assets]);
+  const scenarioLiabilities = useMemo(
+    () => scenario?.liabilities ?? [],
+    [scenario?.liabilities]
+  );
+  const assetSourcesById = useMemo(() => {
+    const sources: Record<string, { id: string; label: string }[]> = {};
+    const addSource = (assetId: string | undefined, event: ScenarioEvent, label?: string) => {
+      if (!assetId) {
+        return;
+      }
+      const eventLabel = label ?? event.label ?? t("ledgerRowFallbackLabel");
+      sources[assetId] = [...(sources[assetId] ?? []), { id: event.id, label: eventLabel }];
+    };
+    v2ScenarioEvents.forEach((event) => {
+      if (event.type === "housing" && event.kind === "mortgage") {
+        addSource(event.propertyAssetId, event);
+      }
+      if (event.type === "insurance" && event.mode === "detailed") {
+        (event.policies ?? []).forEach((policy) => {
+          if (policy.kind === "savings") {
+            addSource(policy.policyAssetId, event, policy.name ?? event.label);
+          }
+        });
+      }
+    });
+    return sources;
+  }, [t, v2ScenarioEvents]);
+  const liabilitySourcesById = useMemo(() => {
+    const sources: Record<string, { id: string; label: string }[]> = {};
+    const addSource = (
+      liabilityId: string | undefined,
+      event: ScenarioEvent,
+      label?: string
+    ) => {
+      if (!liabilityId) {
+        return;
+      }
+      const eventLabel = label ?? event.label ?? t("ledgerRowFallbackLabel");
+      sources[liabilityId] = [...(sources[liabilityId] ?? []), { id: event.id, label: eventLabel }];
+    };
+    v2ScenarioEvents.forEach((event) => {
+      if (event.type === "housing" && event.kind === "mortgage") {
+        addSource(event.mortgageLiabilityId, event);
+      }
+      if (event.type === "loan") {
+        addSource(event.liabilityId, event);
+      }
+    });
+    return sources;
+  }, [t, v2ScenarioEvents]);
+  const assetValueById = useMemo(() => {
+    const values = new Map<string, number>();
+    v2ScenarioEvents.forEach((event) => {
+      if (event.type === "housing" && event.kind === "mortgage") {
+        if (event.propertyAssetId && typeof event.purchasePrice === "number") {
+          values.set(event.propertyAssetId, event.purchasePrice);
+        }
+      }
+      if (event.type === "insurance" && event.mode === "detailed") {
+        (event.policies ?? []).forEach((policy) => {
+          if (
+            policy.kind === "savings" &&
+            policy.policyAssetId &&
+            typeof policy.cashValue === "number"
+          ) {
+            values.set(policy.policyAssetId, policy.cashValue);
+          }
+        });
+      }
+    });
+    return values;
+  }, [v2ScenarioEvents]);
+  const liabilityDefaultsById = useMemo(() => {
+    const values = new Map<
+      string,
+      { principalOutstanding?: number; annualInterestRatePct?: number; termYears?: number }
+    >();
+    v2ScenarioEvents.forEach((event) => {
+      if (event.type === "housing" && event.kind === "mortgage") {
+        if (event.mortgageLiabilityId) {
+          const downPaymentAmount =
+            event.downPaymentMode === "amount"
+              ? event.downPaymentAmount ?? 0
+              : typeof event.purchasePrice === "number"
+                ? (event.purchasePrice * (event.downPaymentPercent ?? 0)) / 100
+                : 0;
+          const principalOutstanding =
+            typeof event.purchasePrice === "number"
+              ? Math.max(event.purchasePrice - downPaymentAmount, 0)
+              : undefined;
+          values.set(event.mortgageLiabilityId, {
+            principalOutstanding,
+            annualInterestRatePct: event.mortgageRatePct,
+            termYears: event.mortgageTermYears,
+          });
+        }
+      }
+      if (event.type === "loan") {
+        values.set(event.liabilityId, {
+          principalOutstanding: event.principal,
+          annualInterestRatePct: event.annualInterestRatePct,
+          termYears: event.termYears,
+        });
+      }
+    });
+    return values;
+  }, [v2ScenarioEvents]);
   const assetItems = useMemo(
-    () => (scenario ? toAssetItems(scenario) : []),
-    [scenario]
+    () =>
+      scenarioAssets.map((asset) => {
+        const resolvedValue =
+          asset.currentValue ??
+          (asset.kind === "cash" ? scenario?.assumptions.initialCash : undefined) ??
+          assetValueById.get(asset.id);
+        return {
+          ...asset,
+          currentValue: resolvedValue,
+        };
+      }),
+    [assetValueById, scenario?.assumptions.initialCash, scenarioAssets]
   );
   const liabilityItems = useMemo(
-    () => (scenario ? toLiabilityItems(scenario) : []),
-    [scenario]
+    () =>
+      scenarioLiabilities.map((liability) => {
+        const derived = liabilityDefaultsById.get(liability.id);
+        return {
+          ...liability,
+          principalOutstanding:
+            liability.principalOutstanding ?? derived?.principalOutstanding,
+          annualInterestRatePct:
+            liability.annualInterestRatePct ?? derived?.annualInterestRatePct,
+          termYears: liability.termYears ?? derived?.termYears,
+        };
+      }),
+    [liabilityDefaultsById, scenarioLiabilities]
   );
-  const handleUpsertAssetItem = (item: Parameters<typeof applyAssetItemChange>[1]["item"]) => {
+  const handleUpsertAssetItem = (item: ScenarioAsset) => {
     if (!scenario || !scenarioIdValue) {
       return;
     }
-    const nextPositions = applyAssetItemChange(scenario, { type: "upsert", item });
-    setScenarioPositions(scenarioIdValue, nextPositions);
+    const isNew = !scenarioAssets.some((asset) => asset.id === item.id);
+    upsertScenarioAssets(scenarioIdValue, [
+      {
+        ...item,
+        currency: item.currency ?? scenario.baseCurrency,
+        source: item.source ?? "manual",
+      },
+    ]);
+    if (isNew) {
+      setAssetHoldingCostNotice(true);
+    }
   };
-  const handleRemoveAssetItem = (item: AssetItem) => {
-    if (!scenario || !scenarioIdValue) {
+  const handleRemoveAssetItem = (item: ScenarioAsset) => {
+    if (!scenarioIdValue) {
       return;
     }
-    const nextPositions = applyAssetItemChange(scenario, { type: "remove", item });
-    setScenarioPositions(scenarioIdValue, nextPositions);
+    const nextAssets = scenarioAssets.filter((asset) => asset.id !== item.id);
+    setScenarioAssets(scenarioIdValue, nextAssets);
   };
-  const handleUpsertLiabilityItem = (
-    item: Parameters<typeof applyLiabilityItemChange>[1]["item"]
-  ) => {
-    if (!scenario || !scenarioIdValue) {
+  const handleUpsertLiabilityItem = (item: ScenarioLiability) => {
+    if (!scenarioIdValue) {
       return;
     }
-    const nextPositions = applyLiabilityItemChange(scenario, { type: "upsert", item });
-    setScenarioPositions(scenarioIdValue, nextPositions);
+    upsertScenarioLiabilities(scenarioIdValue, [
+      {
+        ...item,
+        source: item.source ?? "manual",
+      },
+    ]);
   };
-  const handleRemoveLiabilityItem = (item: LiabilityItem) => {
-    if (!scenario || !scenarioIdValue) {
+  const handleRemoveLiabilityItem = (item: ScenarioLiability) => {
+    if (!scenarioIdValue) {
       return;
     }
-    const nextPositions = applyLiabilityItemChange(scenario, { type: "remove", item });
-    setScenarioPositions(scenarioIdValue, nextPositions);
-  };
-  const handleViewAssetItem = (item: AssetItem) => {
-    switch (item.assetType) {
-      case "property":
-        setAssetDetails({ type: "home", id: item.id });
-        break;
-      case "investment":
-        setAssetDetails({ type: "investment", id: item.id });
-        break;
-      case "insurance":
-        setAssetDetails({ type: "insurance", id: item.id });
-        break;
-      case "car":
-        setAssetDetails({ type: "car", id: item.id });
-        break;
-      default:
-        break;
-    }
-  };
-  const handleViewLiabilityItem = (item: LiabilityItem) => {
-    setAssetDetails({ type: "loan", id: item.id });
+    const nextLiabilities = scenarioLiabilities.filter(
+      (liability) => liability.id !== item.id
+    );
+    setScenarioLiabilities(scenarioIdValue, nextLiabilities);
   };
   const inputsItems = useMemo(() => {
     if (inputsFilter === "rules") {
@@ -1966,14 +2139,21 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("assetsDescription")}
             </Text>
-            <AssetManager
+            {assetHoldingCostNotice && (
+              <Notification
+                color="blue"
+                onClose={() => setAssetHoldingCostNotice(false)}
+              >
+                {t("assetHoldingCostHint")}
+              </Notification>
+            )}
+            <ScenarioAssetManager
               items={assetItems}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
-              members={members}
+              sourceEventsByAssetId={assetSourcesById}
               onUpsert={handleUpsertAssetItem}
               onDelete={handleRemoveAssetItem}
-              onView={handleViewAssetItem}
               onEditEvent={handleEditV2Event}
               openEditId={openAssetEditId}
               onOpenEditHandled={() => setOpenAssetEditId(null)}
@@ -2025,13 +2205,11 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("liabilitiesDescription")}
             </Text>
-            <LiabilityManager
+            <ScenarioLiabilityManager
               items={liabilityItems}
-              baseCurrency={scenario?.baseCurrency ?? "USD"}
-            locale={locale}
+              sourceEventsByLiabilityId={liabilitySourcesById}
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
-              onView={handleViewLiabilityItem}
               onEditEvent={handleEditV2Event}
               openEditId={openLiabilityEditId}
               onOpenEditHandled={() => setOpenLiabilityEditId(null)}
@@ -2604,6 +2782,7 @@ export default function MoneyClient({
           horizonMonths={scenario?.assumptions.horizonMonths}
           members={members}
           eventViews={scenarioEventViews}
+          isScenarioV2={scenarioIsV2}
         />
     </Stack>
   );

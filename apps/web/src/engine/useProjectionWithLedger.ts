@@ -623,7 +623,7 @@ export const useProjectionWithLedger = (
       },
     };
     const includeBudgetRulesInProjection =
-      scenario.assumptions.includeBudgetRulesInProjection ?? true;
+      !isV2 && (scenario.assumptions.includeBudgetRulesInProjection ?? true);
     const members = options.members ?? [];
     const eventLedger = isV2
       ? compileScenarioV2ToLedger(scenarioForLedger).map((entry) => ({

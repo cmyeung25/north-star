@@ -291,7 +291,7 @@ export const createHomePositionFromTemplate = (
     mortgageRatePct: 0,
     mortgageTermYears: 30,
     feesOneTime: 0,
-    holdingCostMonthly: 3_000,
+    holdingCostMonthly: 0,
     holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
     purchaseFees: [],
     ongoingCosts: [],

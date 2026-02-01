@@ -339,7 +339,13 @@ export type CashBucketPositionDraft = CashBucketPosition & {
   id: string;
 };
 
-export type ScenarioAssetKind = "home" | "investment" | "cash" | "car" | "other";
+export type ScenarioAssetKind =
+  | "home"
+  | "investment"
+  | "cash"
+  | "car"
+  | "policy"
+  | "other";
 
 export type ScenarioAsset = {
   id: string;
@@ -347,6 +353,10 @@ export type ScenarioAsset = {
   label?: string;
   ownerMemberId?: string;
   notes?: string;
+  currentValue?: number;
+  currency?: string;
+  startMonth?: string;
+  source?: "manual" | "eventGenerated";
 };
 
 export type ScenarioLiabilityKind =
@@ -362,6 +372,11 @@ export type ScenarioLiability = {
   label?: string;
   ownerMemberId?: string;
   notes?: string;
+  principalOutstanding?: number;
+  annualInterestRatePct?: number;
+  termYears?: number;
+  startMonth?: string;
+  source?: "manual" | "eventGenerated";
 };
 
 export type ScenarioPositions = {
@@ -1133,6 +1148,122 @@ const applyLiabilityItemRemoveFromPositions = (
   return {
     ...nextPositions,
     loans: nextPositions.loans?.filter((loan) => loan.id !== item.id),
+  };
+};
+
+const resolveMortgagePrincipal = (event: ScenarioEvent) => {
+  if (event.type !== "housing" || event.kind !== "mortgage") {
+    return undefined;
+  }
+  if (typeof event.purchasePrice !== "number") {
+    return undefined;
+  }
+  if (event.downPaymentMode === "amount") {
+    return Math.max(event.purchasePrice - (event.downPaymentAmount ?? 0), 0);
+  }
+  if (event.downPaymentMode === "percent") {
+    const downPaymentPct = event.downPaymentPercent ?? 0;
+    return Math.max(event.purchasePrice * (1 - downPaymentPct / 100), 0);
+  }
+  if (typeof event.downPaymentAmount === "number") {
+    return Math.max(event.purchasePrice - event.downPaymentAmount, 0);
+  }
+  return event.purchasePrice;
+};
+
+const buildEventGeneratedAssets = (events: ScenarioEvent[]): ScenarioAsset[] =>
+  events.flatMap<ScenarioAsset>((event) => {
+    if (event.type === "housing" && event.kind === "mortgage") {
+      return [
+        {
+          id: event.propertyAssetId ?? event.id,
+          kind: "home" as const,
+          label: event.label,
+          currentValue: event.purchasePrice,
+          source: "eventGenerated" as const,
+        },
+      ];
+    }
+    if (event.type === "insurance" && event.mode === "detailed") {
+      return (event.policies ?? []).flatMap<ScenarioAsset>((policy) =>
+        policy.kind === "savings"
+          ? [
+              {
+                id: policy.policyAssetId ?? policy.id,
+                kind: "policy" as const,
+                label: policy.name ?? event.label,
+                currentValue: policy.cashValue,
+                source: "eventGenerated" as const,
+              },
+            ]
+          : []
+      );
+    }
+    return [];
+  });
+
+const buildEventGeneratedLiabilities = (
+  events: ScenarioEvent[]
+): ScenarioLiability[] =>
+  events.flatMap<ScenarioLiability>((event) => {
+    if (event.type === "housing" && event.kind === "mortgage") {
+      return [
+        {
+          id: event.mortgageLiabilityId ?? event.id,
+          kind: "mortgage" as const,
+          label: event.label,
+          principalOutstanding: resolveMortgagePrincipal(event),
+          annualInterestRatePct: event.mortgageRatePct,
+          termYears: event.mortgageTermYears,
+          startMonth: event.startMonth,
+          source: "eventGenerated" as const,
+        },
+      ];
+    }
+    if (event.type === "loan") {
+      return [
+        {
+          id: event.liabilityId ?? event.id,
+          kind:
+            event.loanKind === "car"
+              ? "carLoan"
+              : event.loanKind === "credit"
+              ? "credit"
+              : event.loanKind === "personal"
+              ? "loan"
+              : "other",
+          label: event.label,
+          principalOutstanding: event.principal,
+          annualInterestRatePct: event.annualInterestRatePct,
+          termYears: event.termYears,
+          startMonth: event.startMonth,
+          source: "eventGenerated" as const,
+        },
+      ];
+    }
+    return [];
+  });
+
+const mergeEventGeneratedEntities = ({
+  existingAssets,
+  existingLiabilities,
+  events,
+}: {
+  existingAssets: ScenarioAsset[];
+  existingLiabilities: ScenarioLiability[];
+  events: ScenarioEvent[];
+}) => {
+  const eventAssets = buildEventGeneratedAssets(events);
+  const eventLiabilities = buildEventGeneratedLiabilities(events);
+  const eventAssetIds = new Set(eventAssets.map((asset) => asset.id));
+  const eventLiabilityIds = new Set(eventLiabilities.map((liability) => liability.id));
+  const manualAssets = existingAssets.filter((asset) => !eventAssetIds.has(asset.id));
+  const manualLiabilities = existingLiabilities.filter(
+    (liability) => !eventLiabilityIds.has(liability.id)
+  );
+  return {
+    assets: [...manualAssets, ...eventAssets],
+    liabilities: [...manualLiabilities, ...eventLiabilities],
   };
 };
 
@@ -1959,11 +2090,21 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     set((state) => ({
       scenarios: state.scenarios.map((entry) =>
         entry.id === resolvedScenarioId
-          ? {
-              ...entry,
-              events: [...(entry.events ?? []), refined.data],
-              updatedAt: now(),
-            }
+          ? (() => {
+              const nextEvents = [...(entry.events ?? []), refined.data];
+              const { assets, liabilities } = mergeEventGeneratedEntities({
+                existingAssets: entry.assets ?? [],
+                existingLiabilities: entry.liabilities ?? [],
+                events: nextEvents,
+              });
+              return {
+                ...entry,
+                events: nextEvents,
+                assets,
+                liabilities,
+                updatedAt: now(),
+              };
+            })()
           : entry
       ),
     }));
@@ -2006,13 +2147,23 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     set((state) => ({
       scenarios: state.scenarios.map((entry) =>
         entry.id === resolvedScenarioId
-          ? {
-              ...entry,
-              events: (entry.events ?? []).map((entryEvent) =>
+          ? (() => {
+              const nextEvents = (entry.events ?? []).map((entryEvent) =>
                 entryEvent.id === eventId ? refined.data : entryEvent
-              ),
-              updatedAt: now(),
-            }
+              );
+              const { assets, liabilities } = mergeEventGeneratedEntities({
+                existingAssets: entry.assets ?? [],
+                existingLiabilities: entry.liabilities ?? [],
+                events: nextEvents,
+              });
+              return {
+                ...entry,
+                events: nextEvents,
+                assets,
+                liabilities,
+                updatedAt: now(),
+              };
+            })()
           : entry
       ),
     }));
@@ -2037,11 +2188,20 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     set((state) => ({
       scenarios: state.scenarios.map((entry) =>
         entry.id === resolvedScenarioId
-          ? {
-              ...entry,
-              events: nextEvents,
-              updatedAt: now(),
-            }
+          ? (() => {
+              const { assets, liabilities } = mergeEventGeneratedEntities({
+                existingAssets: entry.assets ?? [],
+                existingLiabilities: entry.liabilities ?? [],
+                events: nextEvents,
+              });
+              return {
+                ...entry,
+                events: nextEvents,
+                assets,
+                liabilities,
+                updatedAt: now(),
+              };
+            })()
           : entry
       ),
     }));
@@ -2082,11 +2242,21 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     set((state) => ({
       scenarios: state.scenarios.map((entry) =>
         entry.id === resolvedScenarioId
-          ? {
-              ...entry,
-              events: [...(entry.events ?? []), refined.data],
-              updatedAt: now(),
-            }
+          ? (() => {
+              const nextEvents = [...(entry.events ?? []), refined.data];
+              const { assets, liabilities } = mergeEventGeneratedEntities({
+                existingAssets: entry.assets ?? [],
+                existingLiabilities: entry.liabilities ?? [],
+                events: nextEvents,
+              });
+              return {
+                ...entry,
+                events: nextEvents,
+                assets,
+                liabilities,
+                updatedAt: now(),
+              };
+            })()
           : entry
       ),
     }));

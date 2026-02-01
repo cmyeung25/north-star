@@ -49,6 +49,7 @@ type ProjectionDetailsModalProps = {
   horizonMonths?: number;
   members?: ScenarioMember[];
   eventViews?: ScenarioEventView[];
+  isScenarioV2?: boolean;
 };
 
 const buildEmptySummary = (): LedgerMonthSummary => ({
@@ -120,6 +121,7 @@ export default function ProjectionDetailsModal({
   horizonMonths,
   members,
   eventViews,
+  isScenarioV2 = false,
 }: ProjectionDetailsModalProps) {
   const t = useTranslations("overview");
   const locale = useLocale();
@@ -150,12 +152,14 @@ export default function ProjectionDetailsModal({
   const netWorthBreakdown = resolvedMonth
     ? netWorthBreakdownByMonth?.[resolvedMonth]
     : undefined;
-  const doubleCountingWarning = hasDoubleCountingWarning(monthItems);
+  const doubleCountingWarning = !isScenarioV2 && hasDoubleCountingWarning(monthItems);
   const sortedItems = [...monthItems].sort(
     (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
   );
   const { jumpToSource, toast, clearToast } = useJumpToSource();
-  const budgetItems = sortedItems.filter((item) => item.source === "budget");
+  const budgetItems = isScenarioV2
+    ? []
+    : sortedItems.filter((item) => item.source === "budget");
   const eventItems = sortedItems.filter((item) => item.source === "event");
   const otherItems = sortedItems.filter(
     (item) => item.source !== "budget" && item.source !== "event"
@@ -175,12 +179,16 @@ export default function ProjectionDetailsModal({
     0
   );
   const sections = [
-    {
-      key: "budget",
-      label: t("breakdownSectionBudget"),
-      total: monthSummary.bySource.budget,
-      items: budgetItems,
-    },
+    ...(!isScenarioV2
+      ? [
+          {
+            key: "budget",
+            label: t("breakdownSectionBudget"),
+            total: monthSummary.bySource.budget,
+            items: budgetItems,
+          },
+        ]
+      : []),
     {
       key: "event",
       label: t("breakdownSectionEvents"),
@@ -373,12 +381,14 @@ export default function ProjectionDetailsModal({
                     </Text>
                     <Text fw={600}>{formatValue(operationalNetCashflow)}</Text>
                   </Stack>
-                  <Stack gap={2}>
-                    <Text size="xs" c="dimmed">
-                      {t("breakdownBudgetTotal")}
-                    </Text>
-                    <Text fw={600}>{formatValue(monthSummary.bySource.budget)}</Text>
-                  </Stack>
+                  {!isScenarioV2 && (
+                    <Stack gap={2}>
+                      <Text size="xs" c="dimmed">
+                        {t("breakdownBudgetTotal")}
+                      </Text>
+                      <Text fw={600}>{formatValue(monthSummary.bySource.budget)}</Text>
+                    </Stack>
+                  )}
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">
                       {t("breakdownEventTotal")}
@@ -572,41 +582,45 @@ export default function ProjectionDetailsModal({
                     </Stack>
                   </SimpleGrid>
 
-                  <Stack gap="xs">
-                    <Text fw={600}>{t("breakdownNetWorthAllocation")}</Text>
-                    <Table striped withTableBorder>
-                      <Table.Tbody>
-                        <Table.Tr>
-                          <Table.Td>{t("breakdownNetWorthCash")}</Table.Td>
-                          <Table.Td>{formatPct(netWorthBreakdown.allocation.cashPct)}</Table.Td>
-                        </Table.Tr>
-                        <Table.Tr>
-                          <Table.Td>{t("breakdownNetWorthHousing")}</Table.Td>
-                          <Table.Td>
-                            {formatPct(netWorthBreakdown.allocation.housingPct)}
-                          </Table.Td>
-                        </Table.Tr>
-                        <Table.Tr>
-                          <Table.Td>{t("breakdownNetWorthInvestments")}</Table.Td>
-                          <Table.Td>
-                            {formatPct(netWorthBreakdown.allocation.investmentsPct)}
-                          </Table.Td>
-                        </Table.Tr>
-                        <Table.Tr>
-                          <Table.Td>{t("breakdownNetWorthCars")}</Table.Td>
-                          <Table.Td>
-                            {formatPct(netWorthBreakdown.allocation.carsPct)}
-                          </Table.Td>
-                        </Table.Tr>
-                        <Table.Tr>
-                          <Table.Td>{t("breakdownNetWorthInsurance")}</Table.Td>
-                          <Table.Td>
-                            {formatPct(netWorthBreakdown.allocation.insurancePct)}
-                          </Table.Td>
-                        </Table.Tr>
-                      </Table.Tbody>
-                    </Table>
-                  </Stack>
+                  {!isScenarioV2 && (
+                    <Stack gap="xs">
+                      <Text fw={600}>{t("breakdownNetWorthAllocation")}</Text>
+                      <Table striped withTableBorder>
+                        <Table.Tbody>
+                          <Table.Tr>
+                            <Table.Td>{t("breakdownNetWorthCash")}</Table.Td>
+                            <Table.Td>
+                              {formatPct(netWorthBreakdown.allocation.cashPct)}
+                            </Table.Td>
+                          </Table.Tr>
+                          <Table.Tr>
+                            <Table.Td>{t("breakdownNetWorthHousing")}</Table.Td>
+                            <Table.Td>
+                              {formatPct(netWorthBreakdown.allocation.housingPct)}
+                            </Table.Td>
+                          </Table.Tr>
+                          <Table.Tr>
+                            <Table.Td>{t("breakdownNetWorthInvestments")}</Table.Td>
+                            <Table.Td>
+                              {formatPct(netWorthBreakdown.allocation.investmentsPct)}
+                            </Table.Td>
+                          </Table.Tr>
+                          <Table.Tr>
+                            <Table.Td>{t("breakdownNetWorthCars")}</Table.Td>
+                            <Table.Td>
+                              {formatPct(netWorthBreakdown.allocation.carsPct)}
+                            </Table.Td>
+                          </Table.Tr>
+                          <Table.Tr>
+                            <Table.Td>{t("breakdownNetWorthInsurance")}</Table.Td>
+                            <Table.Td>
+                              {formatPct(netWorthBreakdown.allocation.insurancePct)}
+                            </Table.Td>
+                          </Table.Tr>
+                        </Table.Tbody>
+                      </Table>
+                    </Stack>
+                  )}
 
                   <Stack gap="xs">
                     <Text fw={600}>{t("breakdownNetWorthAssets")}</Text>

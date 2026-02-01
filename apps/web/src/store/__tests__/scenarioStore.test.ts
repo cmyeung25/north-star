@@ -236,6 +236,172 @@ describe("position actions", () => {
   });
 });
 
+describe("scenario v2 event asset/liability upserts", () => {
+  const buildV2Scenario = (): Scenario => ({
+    ...buildScenario({
+      id: "scenario-v2",
+      events: [],
+      assets: [],
+      liabilities: [],
+      meta: { schemaVersion: 2 },
+    }),
+  });
+
+  it("upserts housing mortgage assets and liabilities on save", () => {
+    const scenario = buildV2Scenario();
+    useScenarioStore.setState((state) => ({
+      ...state,
+      scenarios: [scenario],
+      activeScenarioId: scenario.id,
+    }));
+
+    const { addEvent } = useScenarioStore.getState();
+    const result = addEvent(
+      {
+        type: "housing",
+        kind: "mortgage",
+        startMonth: "2025-01",
+        purchasePrice: 1000000,
+        downPaymentMode: "percent",
+        downPaymentPercent: 20,
+        mortgageRatePct: 4,
+        mortgageTermYears: 30,
+        propertyAssetId: "asset-home-1",
+        mortgageLiabilityId: "liability-mortgage-1",
+        label: "Primary Home",
+      },
+      scenario.id
+    );
+
+    expect(result.ok).toBe(true);
+
+    const updated = useScenarioStore.getState().scenarios[0];
+    const asset = updated.assets?.find((entry) => entry.id === "asset-home-1");
+    const liability = updated.liabilities?.find(
+      (entry) => entry.id === "liability-mortgage-1"
+    );
+    expect(asset).toMatchObject({
+      id: "asset-home-1",
+      kind: "home",
+      currentValue: 1000000,
+      source: "eventGenerated",
+    });
+    expect(liability).toMatchObject({
+      id: "liability-mortgage-1",
+      kind: "mortgage",
+      principalOutstanding: 800000,
+      annualInterestRatePct: 4,
+      termYears: 30,
+      source: "eventGenerated",
+    });
+  });
+
+  it("upserts loan liabilities on save", () => {
+    const scenario = buildV2Scenario();
+    useScenarioStore.setState((state) => ({
+      ...state,
+      scenarios: [scenario],
+      activeScenarioId: scenario.id,
+    }));
+
+    const { addEvent } = useScenarioStore.getState();
+    const result = addEvent(
+      {
+        type: "loan",
+        loanKind: "personal",
+        startMonth: "2024-06",
+        principal: 50000,
+        annualInterestRatePct: 5,
+        termYears: 5,
+        liabilityId: "liability-loan-1",
+        label: "Personal Loan",
+      },
+      scenario.id
+    );
+
+    expect(result.ok).toBe(true);
+
+    const updated = useScenarioStore.getState().scenarios[0];
+    const liability = updated.liabilities?.find(
+      (entry) => entry.id === "liability-loan-1"
+    );
+    expect(liability).toMatchObject({
+      id: "liability-loan-1",
+      kind: "loan",
+      principalOutstanding: 50000,
+      annualInterestRatePct: 5,
+      termYears: 5,
+      source: "eventGenerated",
+    });
+  });
+
+  it("upserts savings policy assets on save", () => {
+    const scenario = buildV2Scenario();
+    useScenarioStore.setState((state) => ({
+      ...state,
+      scenarios: [scenario],
+      activeScenarioId: scenario.id,
+    }));
+
+    const { addEvent } = useScenarioStore.getState();
+    const result = addEvent(
+      {
+        type: "insurance",
+        mode: "detailed",
+        policies: [
+          {
+            id: "policy-1",
+            policyId: "policy-1",
+            policyAssetId: "asset-policy-1",
+            name: "Savings Policy",
+            kind: "savings",
+            startMonth: "2024-02",
+            premiumMonthly: 1500,
+            cashValue: 12000,
+          },
+        ],
+        label: "Insurance",
+      },
+      scenario.id
+    );
+
+    expect(result.ok).toBe(true);
+
+    const updated = useScenarioStore.getState().scenarios[0];
+    const asset = updated.assets?.find((entry) => entry.id === "asset-policy-1");
+    expect(asset).toMatchObject({
+      id: "asset-policy-1",
+      kind: "policy",
+      currentValue: 12000,
+      source: "eventGenerated",
+    });
+  });
+
+  it("does not create cashflow rules when manually adding assets", () => {
+    const scenario = buildV2Scenario();
+    useScenarioStore.setState((state) => ({
+      ...state,
+      scenarios: [scenario],
+      activeScenarioId: scenario.id,
+    }));
+
+    const { upsertScenarioAssets } = useScenarioStore.getState();
+    upsertScenarioAssets(scenario.id, [
+      {
+        id: "asset-manual-1",
+        kind: "investment",
+        label: "Manual Asset",
+        currentValue: 40000,
+        source: "manual",
+      },
+    ]);
+
+    const updated = useScenarioStore.getState().scenarios[0];
+    expect(updated.events ?? []).toHaveLength(0);
+    expect(updated.assets?.some((asset) => asset.id === "asset-manual-1")).toBe(true);
+  });
+});
+
 describe("scenario v2 events", () => {
   it("creates a v2 scenario skeleton and manages events", () => {
     const { createScenario, addEvent, updateEvent, removeEvent } =
