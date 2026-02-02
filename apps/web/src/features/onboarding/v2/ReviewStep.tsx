@@ -202,7 +202,7 @@ export default function ReviewStep({
         : Number(own.downPaymentAmount ?? 0);
     const loanAmount = Math.max(0, propertyValue - downPaymentAmount);
     const mortgageRate = Number(own.mortgageRatePct ?? 0);
-    const mortgageTerm = Number(own.mortgageTermMonths ?? 0);
+    const mortgageTerm = Number(own.mortgageTermYears ?? 0);
 
     if (
       draft.housing.mode === "own" &&

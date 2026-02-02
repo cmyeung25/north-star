@@ -320,8 +320,14 @@ const buildHousingDraft = ({
       downPaymentAmount: toNumber(existing?.own?.downPaymentAmount),
       mortgageEnabled: existing?.own?.mortgageEnabled ?? true,
       mortgageRatePct: toNumber(existing?.own?.mortgageRatePct ?? 4),
-      mortgageTermMonths: toNumber(existing?.own?.mortgageTermMonths ?? 360),
+      mortgageTermYears: toNumber(
+        existing?.own?.mortgageTermYears ??
+          (existing?.own?.mortgageTermMonths
+            ? existing?.own?.mortgageTermMonths / 12
+            : 30)
+      ),
       mortgagePayment: toNumber(existing?.own?.mortgagePayment),
+      mortgagePaymentSource: existing?.own?.mortgagePaymentSource ?? "estimated",
       fees: Array.isArray(existing?.own?.fees) ? existing?.own?.fees : [],
       ongoingCosts: Array.isArray(existing?.own?.ongoingCosts)
         ? existing?.own?.ongoingCosts
@@ -810,6 +816,12 @@ export default function OnboardingDraftWizard() {
   }, [step]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [step]);
+
+  useEffect(() => {
     latestScenarioIdRef.current = scenarioId;
   }, [scenarioId]);
 
@@ -1166,17 +1178,19 @@ export default function OnboardingDraftWizard() {
 
     if (housing.own.mortgageEnabled) {
       const mortgageRatePct = housing.own.mortgageRatePct ?? NaN;
-      const mortgageTermMonths = housing.own.mortgageTermMonths ?? NaN;
+      const mortgageTermYears = housing.own.mortgageTermYears ?? NaN;
       const mortgagePayment = housing.own.mortgagePayment ?? NaN;
 
       if (!Number.isFinite(mortgageRatePct) || mortgageRatePct < 0) {
         housingErrors.own.mortgageRatePct = t("housingMortgageRateRequired");
       }
-      if (!Number.isFinite(mortgageTermMonths) || mortgageTermMonths <= 0) {
-        housingErrors.own.mortgageTermMonths = t("housingMortgageTermRequired");
+      if (!Number.isFinite(mortgageTermYears) || mortgageTermYears <= 0) {
+        housingErrors.own.mortgageTermYears = t("housingMortgageTermRequired");
       }
-      if (!Number.isFinite(mortgagePayment) || mortgagePayment <= 0) {
-        housingErrors.own.mortgagePayment = t("housingMortgagePaymentRequired");
+      if (housing.own.mortgagePaymentSource === "manual") {
+        if (!Number.isFinite(mortgagePayment) || mortgagePayment <= 0) {
+          housingErrors.own.mortgagePayment = t("housingMortgagePaymentRequired");
+        }
       }
     }
 

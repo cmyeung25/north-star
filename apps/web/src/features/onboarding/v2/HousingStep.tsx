@@ -15,7 +15,9 @@ import {
   Title,
 } from "@mantine/core";
 import { nanoid } from "nanoid";
+import { useEffect } from "react";
 import MonthField from "../../../../components/MonthField";
+import { calcAmortizedPaymentMonthly } from "../../../domain/positions/calculations";
 import type { OnboardingV2DraftHousing } from "../../../domain/onboarding/v2/draftTypes";
 
 export type HousingErrors = {
@@ -28,7 +30,7 @@ export type HousingErrors = {
     propertyValue?: string;
     startMonth?: string;
     mortgageRatePct?: string;
-    mortgageTermMonths?: string;
+    mortgageTermYears?: string;
     mortgagePayment?: string;
     fees: Record<
       string,
@@ -56,33 +58,33 @@ const toNumber = (value: number | string) =>
 const toOptionalNumber = (value: number | string) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
-const estimateMonthlyPayment = ({
-  principal,
-  annualRatePct,
-  termMonths,
-}: {
-  principal: number;
-  annualRatePct: number;
-  termMonths: number;
-}) => {
-  if (!Number.isFinite(principal) || principal <= 0) {
-    return null;
+const resolveLoanAmount = (own: OnboardingV2DraftHousing["own"]) => {
+  const propertyValue = toNumber(own.propertyValue);
+  const downPaymentPercent =
+    own.downPaymentMode === "percent"
+      ? toNumber(own.downPaymentPercent ?? 0)
+      : propertyValue > 0
+        ? (toNumber(own.downPaymentAmount ?? 0) / propertyValue) * 100
+        : 0;
+  const downPaymentAmount =
+    own.downPaymentMode === "percent"
+      ? (propertyValue * downPaymentPercent) / 100
+      : toNumber(own.downPaymentAmount ?? 0);
+  const loanAmount = Math.max(0, propertyValue - downPaymentAmount);
+  return {
+    propertyValue,
+    downPaymentPercent,
+    downPaymentAmount,
+    loanAmount,
+  };
+};
+
+const resolveMortgageTermMonths = (own: OnboardingV2DraftHousing["own"]) => {
+  const termYears = toNumber(own.mortgageTermYears ?? 0);
+  if (!Number.isFinite(termYears) || termYears <= 0) {
+    return 0;
   }
-  if (!Number.isFinite(termMonths) || termMonths <= 0) {
-    return null;
-  }
-  if (!Number.isFinite(annualRatePct) || annualRatePct < 0) {
-    return null;
-  }
-  const monthlyRate = annualRatePct / 100 / 12;
-  if (monthlyRate === 0) {
-    return principal / termMonths;
-  }
-  const denominator = 1 - Math.pow(1 + monthlyRate, -termMonths);
-  if (!Number.isFinite(denominator) || denominator === 0) {
-    return null;
-  }
-  return (principal * monthlyRate) / denominator;
+  return Math.round(termYears * 12);
 };
 
 export default function HousingStep({
@@ -111,13 +113,33 @@ export default function HousingStep({
   };
 
   const updateOwn = (
-    patch: Partial<OnboardingV2DraftHousing["own"]>
+    patch: Partial<OnboardingV2DraftHousing["own"]>,
+    options?: { paymentSource?: "manual" | "estimated" }
   ) => {
+    const nextOwn: OnboardingV2DraftHousing["own"] = {
+      ...housing.own,
+      ...patch,
+    };
+    if (options?.paymentSource) {
+      nextOwn.mortgagePaymentSource = options.paymentSource;
+    }
+    const loanAmount = resolveLoanAmount(nextOwn).loanAmount;
+    const termMonths = resolveMortgageTermMonths(nextOwn);
+    const estimated = calcAmortizedPaymentMonthly(
+      loanAmount,
+      toNumber(nextOwn.mortgageRatePct ?? 0),
+      termMonths
+    );
+    if (nextOwn.mortgagePaymentSource !== "manual") {
+      if (estimated !== null) {
+        nextOwn.mortgagePayment = Math.round(estimated * 100) / 100;
+        nextOwn.mortgagePaymentSource = "estimated";
+      } else {
+        nextOwn.mortgagePaymentSource = "estimated";
+      }
+    }
     updateHousing({
-      own: {
-        ...housing.own,
-        ...patch,
-      },
+      own: nextOwn,
     });
   };
 
@@ -195,30 +217,42 @@ export default function HousingStep({
     });
   };
 
-  const propertyValue = toNumber(housing.own.propertyValue);
-  const downPaymentPercent =
-    housing.own.downPaymentMode === "percent"
-      ? toNumber(housing.own.downPaymentPercent ?? 0)
-      : propertyValue > 0
-        ? (toNumber(housing.own.downPaymentAmount ?? 0) / propertyValue) * 100
-        : 0;
-  const downPaymentAmount =
-    housing.own.downPaymentMode === "percent"
-      ? (propertyValue * downPaymentPercent) / 100
-      : toNumber(housing.own.downPaymentAmount ?? 0);
-  const loanAmount = Math.max(0, propertyValue - downPaymentAmount);
-
-  const estimatedPayment = estimateMonthlyPayment({
-    principal: loanAmount,
-    annualRatePct: toNumber(housing.own.mortgageRatePct ?? 0),
-    termMonths: Math.max(
-      1,
-      Math.round(toNumber(housing.own.mortgageTermMonths ?? 0))
-    ),
-  });
+  const { downPaymentAmount, loanAmount } = resolveLoanAmount(housing.own);
+  const estimatedPayment = calcAmortizedPaymentMonthly(
+    loanAmount,
+    toNumber(housing.own.mortgageRatePct ?? 0),
+    resolveMortgageTermMonths(housing.own)
+  );
   const paymentInput = toNumber(housing.own.mortgagePayment ?? 0);
   const paymentDiff =
     estimatedPayment && paymentInput > 0 ? paymentInput - estimatedPayment : null;
+  const isManualPayment = housing.own.mortgagePaymentSource === "manual";
+
+  useEffect(() => {
+    if (!housing.own.mortgageEnabled) {
+      return;
+    }
+    if (housing.own.mortgagePaymentSource === "manual") {
+      return;
+    }
+    if (estimatedPayment === null) {
+      return;
+    }
+    const roundedEstimate = Math.round(estimatedPayment * 100) / 100;
+    if (Math.round(paymentInput * 100) / 100 === roundedEstimate) {
+      return;
+    }
+    updateOwn(
+      { mortgagePayment: roundedEstimate },
+      { paymentSource: "estimated" }
+    );
+  }, [
+    estimatedPayment,
+    housing.own.mortgageEnabled,
+    housing.own.mortgagePaymentSource,
+    paymentInput,
+    updateOwn,
+  ]);
 
   const rentNetAmount = Math.max(
     0,
@@ -409,36 +443,57 @@ export default function HousingStep({
                         }
                       />
                       <NumberInput
-                        label={t("housingMortgageTermMonths")}
+                        label={t("housingMortgageTermYears")}
                         min={1}
-                        value={housing.own.mortgageTermMonths ?? 0}
-                        error={errors.own.mortgageTermMonths}
+                        value={housing.own.mortgageTermYears ?? 0}
+                        error={errors.own.mortgageTermYears}
                         onChange={(value) =>
-                          updateOwn({ mortgageTermMonths: toNumber(value) })
+                          updateOwn({ mortgageTermYears: toNumber(value) })
                         }
                       />
                     </Group>
-                    <NumberInput
-                      label={t("housingMortgagePayment")}
-                      min={0}
-                      value={housing.own.mortgagePayment ?? 0}
-                      error={errors.own.mortgagePayment}
-                      onChange={(value) =>
-                        updateOwn({ mortgagePayment: toNumber(value) })
-                      }
-                    />
-                    <Text size="xs" c="dimmed">
-                      {t("housingMortgageEstimate", {
-                        amount: Number((estimatedPayment ?? 0).toFixed(0)),
-                      })}
-                    </Text>
-                    {paymentDiff !== null && (
+                    <Stack gap="xs">
                       <Text size="xs" c="dimmed">
-                        {t("housingMortgageDifference", {
-                          diff: Number(paymentDiff.toFixed(0)),
+                        {t("housingMortgageEstimate", {
+                          amount: Number((estimatedPayment ?? 0).toFixed(0)),
                         })}
                       </Text>
-                    )}
+                      <Switch
+                        checked={isManualPayment}
+                        label={t("housingMortgageManualToggle")}
+                        onChange={(event) =>
+                          updateOwn(
+                            {},
+                            {
+                              paymentSource: event.currentTarget.checked
+                                ? "manual"
+                                : "estimated",
+                            }
+                          )
+                        }
+                      />
+                      {isManualPayment && (
+                        <NumberInput
+                          label={t("housingMortgagePayment")}
+                          min={0}
+                          value={housing.own.mortgagePayment ?? 0}
+                          error={errors.own.mortgagePayment}
+                          onChange={(value) =>
+                            updateOwn(
+                              { mortgagePayment: toNumber(value) },
+                              { paymentSource: "manual" }
+                            )
+                          }
+                        />
+                      )}
+                      {paymentDiff !== null && isManualPayment && (
+                        <Text size="xs" c="dimmed">
+                          {t("housingMortgageDifference", {
+                            diff: Number(paymentDiff.toFixed(0)),
+                          })}
+                        </Text>
+                      )}
+                    </Stack>
                   </Stack>
                 )}
               </Stack>
@@ -501,6 +556,40 @@ export default function HousingStep({
                   ))}
                 </Stack>
               )}
+              <Stack gap="xs">
+                <Text size="xs" c="dimmed">
+                  {t("housingFeesPresetTitle")}
+                </Text>
+                <Group gap="xs" wrap="wrap">
+                  {[
+                    t("housingFeePresetStampDuty"),
+                    t("housingFeePresetAgency"),
+                    t("housingFeePresetLegal"),
+                    t("housingFeePresetRenovation"),
+                  ].map((label) => (
+                    <Button
+                      key={label}
+                      variant="light"
+                      size="xs"
+                      onClick={() =>
+                        updateOwn({
+                          fees: [
+                            ...housing.own.fees,
+                            {
+                              id: nanoid(6),
+                              label,
+                              amount: 0,
+                              month: housing.own.startMonth || baseMonth,
+                            },
+                          ],
+                        })
+                      }
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </Group>
+              </Stack>
               <Button variant="light" onClick={addFee}>
                 {t("housingFeesAdd")}
               </Button>
@@ -572,6 +661,41 @@ export default function HousingStep({
                   ))}
                 </Stack>
               )}
+              <Stack gap="xs">
+                <Text size="xs" c="dimmed">
+                  {t("housingOngoingPresetTitle")}
+                </Text>
+                <Group gap="xs" wrap="wrap">
+                  {[
+                    t("housingOngoingPresetManagement"),
+                    t("housingOngoingPresetMaintenance"),
+                    t("housingOngoingPresetInsurance"),
+                    t("housingOngoingPresetRates"),
+                  ].map((label) => (
+                    <Button
+                      key={label}
+                      variant="light"
+                      size="xs"
+                      onClick={() =>
+                        updateOwn({
+                          ongoingCosts: [
+                            ...housing.own.ongoingCosts,
+                            {
+                              id: nanoid(6),
+                              label,
+                              amount: 0,
+                              startMonth: housing.own.startMonth || baseMonth,
+                              endMonth: "",
+                            },
+                          ],
+                        })
+                      }
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </Group>
+              </Stack>
               <Button variant="light" onClick={addCost}>
                 {t("housingOngoingCostsAdd")}
               </Button>
