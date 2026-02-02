@@ -36,6 +36,24 @@ export const computeMonthlyPayment = (
   return (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -termMonths));
 };
 
+export const calcAmortizedPaymentMonthly = (
+  principal: number,
+  annualRatePct: number,
+  termMonths: number
+): number | null => {
+  if (!Number.isFinite(principal) || principal <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(annualRatePct) || annualRatePct < 0) {
+    return null;
+  }
+  if (!Number.isFinite(termMonths) || termMonths <= 0) {
+    return null;
+  }
+  const payment = computeMonthlyPayment(principal, annualRatePct / 100, termMonths);
+  return Number.isFinite(payment) && payment > 0 ? payment : null;
+};
+
 export const buildAmortizationSchedule = (params: {
   principal: number;
   annualRateDecimal: number;

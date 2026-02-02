@@ -18,6 +18,10 @@ import {
   ScenarioEventSchema,
 } from "../domain/scenarioV2/events";
 import {
+  buildEventDeleteImpact,
+  type EventDeleteImpact,
+} from "../domain/scenarioV2/eventDeleteImpact";
+import {
   compileEventToOps,
 } from "../domain/milestoneEvents/compiler";
 import {
@@ -347,6 +351,11 @@ export type ScenarioAssetKind =
   | "policy"
   | "other";
 
+export type ScenarioEntityTemplate =
+  | "housing_mortgage"
+  | "loan"
+  | "insurance_savings";
+
 export type ScenarioAsset = {
   id: string;
   kind: ScenarioAssetKind;
@@ -357,6 +366,8 @@ export type ScenarioAsset = {
   currency?: string;
   startMonth?: string;
   source?: "manual" | "eventGenerated";
+  createdByEventId?: string;
+  createdByTemplate?: ScenarioEntityTemplate;
 };
 
 export type ScenarioLiabilityKind =
@@ -377,6 +388,8 @@ export type ScenarioLiability = {
   termYears?: number;
   startMonth?: string;
   source?: "manual" | "eventGenerated";
+  createdByEventId?: string;
+  createdByTemplate?: ScenarioEntityTemplate;
 };
 
 export type ScenarioPositions = {
@@ -463,8 +476,9 @@ type ScenarioStoreState = {
   ) => { ok: boolean; event?: ScenarioEvent; error?: string };
   removeEvent: (
     eventId: string,
-    scenarioId?: string
-  ) => { ok: boolean; error?: string };
+    scenarioId?: string,
+    options?: { cascade?: boolean }
+  ) => { ok: boolean; error?: string; impact?: EventDeleteImpact | null };
   duplicateEvent: (
     eventId: string,
     scenarioId?: string
@@ -1171,99 +1185,116 @@ const resolveMortgagePrincipal = (event: ScenarioEvent) => {
   return event.purchasePrice;
 };
 
-const buildEventGeneratedAssets = (events: ScenarioEvent[]): ScenarioAsset[] =>
-  events.flatMap<ScenarioAsset>((event) => {
-    if (event.type === "housing" && event.kind === "mortgage") {
-      return [
-        {
-          id: event.propertyAssetId ?? event.id,
-          kind: "home" as const,
-          label: event.label,
-          currentValue: event.purchasePrice,
-          source: "eventGenerated" as const,
-        },
-      ];
-    }
-    if (event.type === "insurance" && event.mode === "detailed") {
-      return (event.policies ?? []).flatMap<ScenarioAsset>((policy) =>
-        policy.kind === "savings"
-          ? [
-              {
-                id: policy.policyAssetId ?? policy.id,
-                kind: "policy" as const,
-                label: policy.name ?? event.label,
-                currentValue: policy.cashValue,
-                source: "eventGenerated" as const,
-              },
-            ]
-          : []
-      );
-    }
-    return [];
-  });
+const buildEventGeneratedAssetsForEvent = (
+  event: ScenarioEvent
+): ScenarioAsset[] => {
+  if (event.type === "housing" && event.kind === "mortgage") {
+    return [
+      {
+        id: event.propertyAssetId ?? event.id,
+        kind: "home" as const,
+        label: event.label,
+        currentValue: event.purchasePrice,
+        source: "eventGenerated" as const,
+        createdByEventId: event.id,
+        createdByTemplate: "housing_mortgage" as const,
+      },
+    ];
+  }
+  if (event.type === "insurance" && event.mode === "detailed") {
+    return (event.policies ?? []).flatMap<ScenarioAsset>((policy) =>
+      policy.kind === "savings"
+        ? [
+            {
+              id: policy.policyAssetId ?? policy.id,
+              kind: "policy" as const,
+              label: policy.name ?? event.label,
+              currentValue: policy.cashValue,
+              source: "eventGenerated" as const,
+              createdByEventId: event.id,
+              createdByTemplate: "insurance_savings" as const,
+            },
+          ]
+        : []
+    );
+  }
+  return [];
+};
 
-const buildEventGeneratedLiabilities = (
-  events: ScenarioEvent[]
-): ScenarioLiability[] =>
-  events.flatMap<ScenarioLiability>((event) => {
-    if (event.type === "housing" && event.kind === "mortgage") {
-      return [
-        {
-          id: event.mortgageLiabilityId ?? event.id,
-          kind: "mortgage" as const,
-          label: event.label,
-          principalOutstanding: resolveMortgagePrincipal(event),
-          annualInterestRatePct: event.mortgageRatePct,
-          termYears: event.mortgageTermYears,
-          startMonth: event.startMonth,
-          source: "eventGenerated" as const,
-        },
-      ];
-    }
-    if (event.type === "loan") {
-      return [
-        {
-          id: event.liabilityId ?? event.id,
-          kind:
-            event.loanKind === "car"
-              ? "carLoan"
-              : event.loanKind === "credit"
-              ? "credit"
-              : event.loanKind === "personal"
-              ? "loan"
-              : "other",
-          label: event.label,
-          principalOutstanding: event.principal,
-          annualInterestRatePct: event.annualInterestRatePct,
-          termYears: event.termYears,
-          startMonth: event.startMonth,
-          source: "eventGenerated" as const,
-        },
-      ];
-    }
-    return [];
-  });
+const buildEventGeneratedLiabilitiesForEvent = (
+  event: ScenarioEvent
+): ScenarioLiability[] => {
+  if (event.type === "housing" && event.kind === "mortgage") {
+    return [
+      {
+        id: event.mortgageLiabilityId ?? event.id,
+        kind: "mortgage" as const,
+        label: event.label,
+        principalOutstanding: resolveMortgagePrincipal(event),
+        annualInterestRatePct: event.mortgageRatePct,
+        termYears: event.mortgageTermYears,
+        startMonth: event.startMonth,
+        source: "eventGenerated" as const,
+        createdByEventId: event.id,
+        createdByTemplate: "housing_mortgage" as const,
+      },
+    ];
+  }
+  if (event.type === "loan") {
+    return [
+      {
+        id: event.liabilityId ?? event.id,
+        kind:
+          event.loanKind === "car"
+            ? "carLoan"
+            : event.loanKind === "credit"
+            ? "credit"
+            : event.loanKind === "personal"
+            ? "loan"
+            : "other",
+        label: event.label,
+        principalOutstanding: event.principal,
+        annualInterestRatePct: event.annualInterestRatePct,
+        termYears: event.termYears,
+        startMonth: event.startMonth,
+        source: "eventGenerated" as const,
+        createdByEventId: event.id,
+        createdByTemplate: "loan" as const,
+      },
+    ];
+  }
+  return [];
+};
 
-const mergeEventGeneratedEntities = ({
+const upsertScenarioEntities = <T extends { id: string }>(
+  existing: T[],
+  incoming: T[]
+) => {
+  if (incoming.length === 0) {
+    return existing;
+  }
+  const mergedById = new Map(existing.map((item) => [item.id, item]));
+  incoming.forEach((item) => {
+    const current = mergedById.get(item.id);
+    mergedById.set(item.id, current ? { ...current, ...item } : item);
+  });
+  return Array.from(mergedById.values());
+};
+
+const upsertEventGeneratedEntities = ({
   existingAssets,
   existingLiabilities,
-  events,
+  event,
 }: {
   existingAssets: ScenarioAsset[];
   existingLiabilities: ScenarioLiability[];
-  events: ScenarioEvent[];
+  event: ScenarioEvent;
 }) => {
-  const eventAssets = buildEventGeneratedAssets(events);
-  const eventLiabilities = buildEventGeneratedLiabilities(events);
-  const eventAssetIds = new Set(eventAssets.map((asset) => asset.id));
-  const eventLiabilityIds = new Set(eventLiabilities.map((liability) => liability.id));
-  const manualAssets = existingAssets.filter((asset) => !eventAssetIds.has(asset.id));
-  const manualLiabilities = existingLiabilities.filter(
-    (liability) => !eventLiabilityIds.has(liability.id)
-  );
+  const eventAssets = buildEventGeneratedAssetsForEvent(event);
+  const eventLiabilities = buildEventGeneratedLiabilitiesForEvent(event);
   return {
-    assets: [...manualAssets, ...eventAssets],
-    liabilities: [...manualLiabilities, ...eventLiabilities],
+    assets: upsertScenarioEntities(existingAssets, eventAssets),
+    liabilities: upsertScenarioEntities(existingLiabilities, eventLiabilities),
   };
 };
 
@@ -2070,6 +2101,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     if (!scenario) {
       return { ok: false, error: "Scenario not found." };
     }
+    const isV2 = scenario.meta?.schemaVersion === 2;
 
     const candidate = {
       ...event,
@@ -2092,11 +2124,16 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         entry.id === resolvedScenarioId
           ? (() => {
               const nextEvents = [...(entry.events ?? []), refined.data];
-              const { assets, liabilities } = mergeEventGeneratedEntities({
-                existingAssets: entry.assets ?? [],
-                existingLiabilities: entry.liabilities ?? [],
-                events: nextEvents,
-              });
+              const { assets, liabilities } = isV2
+                ? upsertEventGeneratedEntities({
+                    existingAssets: entry.assets ?? [],
+                    existingLiabilities: entry.liabilities ?? [],
+                    event: refined.data,
+                  })
+                : {
+                    assets: entry.assets ?? [],
+                    liabilities: entry.liabilities ?? [],
+                  };
               return {
                 ...entry,
                 events: nextEvents,
@@ -2119,11 +2156,36 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     if (!scenario) {
       return { ok: false, error: "Scenario not found." };
     }
+    const isV2 = scenario.meta?.schemaVersion === 2;
 
     const events = scenario.events ?? [];
     const target = events.find((entry) => entry.id === eventId);
     if (!target) {
       return { ok: false, error: "Event not found." };
+    }
+
+    if (
+      target.type === "housing" &&
+      target.kind === "mortgage" &&
+      ("kind" in patch ? patch.kind === "rent" : false) &&
+      (target.propertyAssetId || target.mortgageLiabilityId)
+    ) {
+      return {
+        ok: false,
+        error: "Cannot switch housing mode after linked entities exist.",
+      };
+    }
+
+    if (
+      target.type === "insurance" &&
+      target.mode === "detailed" &&
+      ("mode" in patch ? patch.mode === "quick" : false) &&
+      (target.policies ?? []).some((policy) => policy.policyAssetId)
+    ) {
+      return {
+        ok: false,
+        error: "Cannot switch insurance mode after linked assets exist.",
+      };
     }
 
     const merged = {
@@ -2151,11 +2213,16 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
               const nextEvents = (entry.events ?? []).map((entryEvent) =>
                 entryEvent.id === eventId ? refined.data : entryEvent
               );
-              const { assets, liabilities } = mergeEventGeneratedEntities({
-                existingAssets: entry.assets ?? [],
-                existingLiabilities: entry.liabilities ?? [],
-                events: nextEvents,
-              });
+              const { assets, liabilities } = isV2
+                ? upsertEventGeneratedEntities({
+                    existingAssets: entry.assets ?? [],
+                    existingLiabilities: entry.liabilities ?? [],
+                    event: refined.data,
+                  })
+                : {
+                    assets: entry.assets ?? [],
+                    liabilities: entry.liabilities ?? [],
+                  };
               return {
                 ...entry,
                 events: nextEvents,
@@ -2170,7 +2237,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
     return { ok: true, event: refined.data };
   },
-  removeEvent: (eventId, scenarioId) => {
+  removeEvent: (eventId, scenarioId, options) => {
     const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
     const scenario = get().scenarios.find(
       (entry) => entry.id === resolvedScenarioId
@@ -2179,21 +2246,37 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       return { ok: false, error: "Scenario not found." };
     }
 
-    const existing = scenario.events ?? [];
-    const nextEvents = existing.filter((event) => event.id !== eventId);
-    if (nextEvents.length === existing.length) {
+    const impact = buildEventDeleteImpact(scenario, eventId);
+    if (!impact) {
       return { ok: false, error: "Event not found." };
     }
+
+    const existing = scenario.events ?? [];
+    const nextEvents = existing.filter((event) => event.id !== eventId);
+    const canCascade = impact.safeToCascade;
+    const requestedCascade = options?.cascade ?? canCascade;
+    const shouldCascade = requestedCascade && canCascade;
 
     set((state) => ({
       scenarios: state.scenarios.map((entry) =>
         entry.id === resolvedScenarioId
           ? (() => {
-              const { assets, liabilities } = mergeEventGeneratedEntities({
-                existingAssets: entry.assets ?? [],
-                existingLiabilities: entry.liabilities ?? [],
-                events: nextEvents,
-              });
+              const assets = shouldCascade
+                ? (entry.assets ?? []).filter(
+                    (asset) =>
+                      !impact.impactedAssets.some(
+                        (impacted) => impacted.id === asset.id
+                      )
+                  )
+                : entry.assets ?? [];
+              const liabilities = shouldCascade
+                ? (entry.liabilities ?? []).filter(
+                    (liability) =>
+                      !impact.impactedLiabilities.some(
+                        (impacted) => impacted.id === liability.id
+                      )
+                  )
+                : entry.liabilities ?? [];
               return {
                 ...entry,
                 events: nextEvents,
@@ -2206,7 +2289,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       ),
     }));
 
-    return { ok: true };
+    return { ok: true, impact };
   },
   duplicateEvent: (eventId, scenarioId) => {
     const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
@@ -2216,6 +2299,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     if (!scenario) {
       return { ok: false, error: "Scenario not found." };
     }
+    const isV2 = scenario.meta?.schemaVersion === 2;
 
     const target = (scenario.events ?? []).find((event) => event.id === eventId);
     if (!target) {
@@ -2243,15 +2327,20 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       scenarios: state.scenarios.map((entry) =>
         entry.id === resolvedScenarioId
           ? (() => {
-              const nextEvents = [...(entry.events ?? []), refined.data];
-              const { assets, liabilities } = mergeEventGeneratedEntities({
-                existingAssets: entry.assets ?? [],
-                existingLiabilities: entry.liabilities ?? [],
-                events: nextEvents,
-              });
-              return {
-                ...entry,
-                events: nextEvents,
+            const nextEvents = [...(entry.events ?? []), refined.data];
+            const { assets, liabilities } = isV2
+              ? upsertEventGeneratedEntities({
+                  existingAssets: entry.assets ?? [],
+                  existingLiabilities: entry.liabilities ?? [],
+                  event: refined.data,
+                })
+              : {
+                  assets: entry.assets ?? [],
+                  liabilities: entry.liabilities ?? [],
+                };
+            return {
+              ...entry,
+              events: nextEvents,
                 assets,
                 liabilities,
                 updatedAt: now(),
