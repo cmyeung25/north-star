@@ -14,9 +14,8 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import MonthField from "../../../../components/MonthField";
-import { isValidMonthKey } from "../../../utils/monthKey";
 import type {
   OnboardingV2DraftIncome,
   OnboardingV2DraftMember,
@@ -83,11 +82,6 @@ export default function IncomeStep({
     [members, t]
   );
 
-  const [bonusLabel, setBonusLabel] = useState("");
-  const [bonusAmount, setBonusAmount] = useState<number | "">(0);
-  const [bonusMonth, setBonusMonth] = useState("");
-  const [bonusMemberId, setBonusMemberId] = useState("");
-
   const handleAddIncome = (next: OnboardingV2DraftIncome) => {
     onChange([...incomes, next]);
   };
@@ -132,12 +126,15 @@ export default function IncomeStep({
       fallbackName: t("incomeTemplateCommissionName"),
       memberId: "",
     },
+    {
+      key: "bonusIncome",
+      label: t("incomeTemplateBonus"),
+      fallbackName: t("incomeTemplateBonusName"),
+      memberId: "",
+      frequency: "oneOff" as const,
+      followIncomeGrowth: false,
+    },
   ];
-
-  const canAddBonus =
-    typeof bonusAmount === "number" &&
-    bonusAmount > 0 &&
-    isValidMonthKey(bonusMonth);
 
   return (
     <Stack gap="md">
@@ -158,18 +155,20 @@ export default function IncomeStep({
                   variant="light"
                   size="xs"
                   disabled={!hasMember}
-                  onClick={() => {
-                    const id = `${template.key}-${Date.now()}`;
-                    handleAddIncome({
-                      ...buildBlankIncome({ id, startMonth: baseMonth }),
-                      label: template.fallbackName,
-                      memberId: template.memberId,
-                    });
-                  }}
-                >
-                  {template.label}
-                </Button>
-              );
+                onClick={() => {
+                  const id = `${template.key}-${Date.now()}`;
+                  handleAddIncome({
+                    ...buildBlankIncome({ id, startMonth: baseMonth }),
+                    label: template.fallbackName,
+                    memberId: template.memberId,
+                    frequency: template.frequency ?? "monthly",
+                    followIncomeGrowth: template.followIncomeGrowth ?? true,
+                  });
+                }}
+              >
+                {template.label}
+              </Button>
+            );
             })}
             <Button
               size="xs"
@@ -179,71 +178,6 @@ export default function IncomeStep({
               }}
             >
               {t("incomeAdd")}
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
-          <Group align="center" justify="space-between">
-            <Title order={5}>{t("incomeBonusTitle")}</Title>
-            <Badge variant="light">{t("incomeBonusBadge")}</Badge>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {t("incomeBonusHint")}
-          </Text>
-          <Group grow align="flex-start">
-            <TextInput
-              label={t("incomeBonusLabel")}
-              placeholder={t("incomeBonusLabelPlaceholder")}
-              value={bonusLabel}
-              onChange={(event) => setBonusLabel(event.currentTarget.value)}
-            />
-            <NumberInput
-              label={t("incomeBonusAmount")}
-              min={0}
-              value={bonusAmount}
-              onChange={(value) =>
-                setBonusAmount(typeof value === "number" ? value : "")
-              }
-            />
-          </Group>
-          <Group grow align="flex-start">
-            <MonthField
-              label={t("incomeBonusMonth")}
-              placeholder={t("monthPlaceholder")}
-              value={bonusMonth}
-              onChange={setBonusMonth}
-            />
-            <Select
-              label={t("incomeMember")}
-              data={memberOptions}
-              value={bonusMemberId}
-              onChange={(value) => setBonusMemberId(value ?? "")}
-            />
-          </Group>
-          <Group justify="flex-end">
-            <Button
-              size="xs"
-              disabled={!canAddBonus}
-              onClick={() => {
-                const id = `bonus-${Date.now()}`;
-                handleAddIncome({
-                  ...buildBlankIncome({ id, startMonth: bonusMonth || baseMonth }),
-                  label: bonusLabel.trim() || t("incomeBonusDefaultLabel"),
-                  amount: typeof bonusAmount === "number" ? bonusAmount : 0,
-                  frequency: "oneOff",
-                  memberId: bonusMemberId,
-                  startMonth: bonusMonth,
-                });
-                setBonusLabel("");
-                setBonusAmount(0);
-                setBonusMonth("");
-                setBonusMemberId("");
-              }}
-            >
-              {t("incomeBonusAdd")}
             </Button>
           </Group>
         </Stack>

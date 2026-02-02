@@ -22,7 +22,7 @@ import type {
   OnboardingV2DraftDebtType,
 } from "../../../domain/onboarding/v2/draftTypes";
 import { monthsBetween } from "../../../domain/members/age";
-import { computeMonthlyPayment } from "../../../domain/positions/calculations";
+import { calcAmortizedPaymentMonthly } from "../../../domain/positions/calculations";
 import { isValidMonthKey } from "../../../utils/monthKey";
 
 export type DebtsErrors = {
@@ -102,7 +102,11 @@ const estimateMonthlyPayment = (
   if (!termMonths || termMonths <= 0) {
     return null;
   }
-  return computeMonthlyPayment(principal, debt.interestRatePct / 100, termMonths);
+  return calcAmortizedPaymentMonthly(
+    principal,
+    debt.interestRatePct ?? 0,
+    termMonths
+  );
 };
 
 const computeCarLoanAmounts = (debt: OnboardingV2DraftDebt) => {

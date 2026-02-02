@@ -276,6 +276,7 @@ describe("scenario v2 event asset/liability upserts", () => {
     expect(result.ok).toBe(true);
 
     const updated = useScenarioStore.getState().scenarios[0];
+    const eventId = result.event?.id ?? "";
     const asset = updated.assets?.find((entry) => entry.id === "asset-home-1");
     const liability = updated.liabilities?.find(
       (entry) => entry.id === "liability-mortgage-1"
@@ -285,6 +286,8 @@ describe("scenario v2 event asset/liability upserts", () => {
       kind: "home",
       currentValue: 1000000,
       source: "eventGenerated",
+      createdByEventId: eventId,
+      createdByTemplate: "housing_mortgage",
     });
     expect(liability).toMatchObject({
       id: "liability-mortgage-1",
@@ -293,6 +296,8 @@ describe("scenario v2 event asset/liability upserts", () => {
       annualInterestRatePct: 4,
       termYears: 30,
       source: "eventGenerated",
+      createdByEventId: eventId,
+      createdByTemplate: "housing_mortgage",
     });
   });
 
@@ -322,6 +327,7 @@ describe("scenario v2 event asset/liability upserts", () => {
     expect(result.ok).toBe(true);
 
     const updated = useScenarioStore.getState().scenarios[0];
+    const eventId = result.event?.id ?? "";
     const liability = updated.liabilities?.find(
       (entry) => entry.id === "liability-loan-1"
     );
@@ -332,6 +338,8 @@ describe("scenario v2 event asset/liability upserts", () => {
       annualInterestRatePct: 5,
       termYears: 5,
       source: "eventGenerated",
+      createdByEventId: eventId,
+      createdByTemplate: "loan",
     });
   });
 
@@ -368,12 +376,15 @@ describe("scenario v2 event asset/liability upserts", () => {
     expect(result.ok).toBe(true);
 
     const updated = useScenarioStore.getState().scenarios[0];
+    const eventId = result.event?.id ?? "";
     const asset = updated.assets?.find((entry) => entry.id === "asset-policy-1");
     expect(asset).toMatchObject({
       id: "asset-policy-1",
       kind: "policy",
       currentValue: 12000,
       source: "eventGenerated",
+      createdByEventId: eventId,
+      createdByTemplate: "insurance_savings",
     });
   });
 
@@ -399,6 +410,41 @@ describe("scenario v2 event asset/liability upserts", () => {
     const updated = useScenarioStore.getState().scenarios[0];
     expect(updated.events ?? []).toHaveLength(0);
     expect(updated.assets?.some((asset) => asset.id === "asset-manual-1")).toBe(true);
+  });
+
+  it("cascades delete for safe event-generated entities", () => {
+    const scenario = buildV2Scenario();
+    useScenarioStore.setState((state) => ({
+      ...state,
+      scenarios: [scenario],
+      activeScenarioId: scenario.id,
+    }));
+
+    const { addEvent, removeEvent } = useScenarioStore.getState();
+    const addResult = addEvent(
+      {
+        type: "loan",
+        loanKind: "personal",
+        startMonth: "2024-06",
+        principal: 50000,
+        annualInterestRatePct: 5,
+        termYears: 5,
+        liabilityId: "liability-loan-1",
+        label: "Personal Loan",
+      },
+      scenario.id
+    );
+
+    const eventId = addResult.event?.id ?? "";
+    const removeResult = removeEvent(eventId, scenario.id);
+    expect(removeResult.ok).toBe(true);
+    expect(removeResult.impact?.safeToCascade).toBe(true);
+
+    const updated = useScenarioStore.getState().scenarios[0];
+    expect(updated.events?.some((event) => event.id === eventId)).toBe(false);
+    expect(
+      updated.liabilities?.some((liability) => liability.id === "liability-loan-1")
+    ).toBe(false);
   });
 });
 

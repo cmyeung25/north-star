@@ -453,8 +453,12 @@ const buildHousingChanges = ({
       ? (propertyValue * downPaymentPercent) / 100
       : normalizeAmount(housing.own.downPaymentAmount);
 
-  const mortgageTermMonths = normalizeAmount(housing.own.mortgageTermMonths);
-  const mortgageTermYears = mortgageTermMonths ? mortgageTermMonths / 12 : 0;
+  const mortgageTermYears = normalizeAmount(
+    housing.own.mortgageTermYears ??
+      (housing.own.mortgageTermMonths
+        ? housing.own.mortgageTermMonths / 12
+        : 0)
+  );
 
   if (propertyValue > 0) {
     const principalOutstanding = Math.max(propertyValue - downPaymentAmount, 0);

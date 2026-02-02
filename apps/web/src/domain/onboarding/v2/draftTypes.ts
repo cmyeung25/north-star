@@ -91,7 +91,9 @@ export type OnboardingV2DraftHousingOwn = {
   mortgageEnabled: boolean;
   mortgageRatePct?: number;
   mortgageTermMonths?: number;
+  mortgageTermYears?: number;
   mortgagePayment?: number;
+  mortgagePaymentSource?: "estimated" | "manual";
   fees: OnboardingV2DraftHousingFee[];
   ongoingCosts: OnboardingV2DraftHousingOngoingCost[];
   rental: OnboardingV2DraftHousingRental;
