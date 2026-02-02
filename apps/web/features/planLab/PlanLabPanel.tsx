@@ -362,7 +362,11 @@ const deriveInputsFromScenarioV2 = (params: {
         ? event.month
         : event.startMonth;
     const endMonth =
-      event.type === "cashflow" ? event.endMonth ?? null : event.endMonth ?? null;
+      event.type === "cashflow"
+        ? event.endMonth ?? null
+        : event.type === "housing" || event.type === "insurance"
+        ? event.endMonth ?? null
+        : null;
     const amount =
       event.type === "cashflow"
         ? event.amount
@@ -1560,61 +1564,6 @@ export default function PlanLabPanel({
     };
   }, [scenarioV2Patches]);
 
-  const v2EventLookup = useMemo(
-    () =>
-      new Map(
-        (sandboxScenarioV2.events ?? []).map((event) => [event.id, event])
-      ),
-    [sandboxScenarioV2.events]
-  );
-
-  const editingV2Event = useMemo<ScenarioEvent | null>(() => {
-    if (!editingV2EventId) {
-      return null;
-    }
-    return v2EventLookup.get(editingV2EventId) ?? null;
-  }, [editingV2EventId, v2EventLookup]);
-
-  const editingCashflowEvent =
-    editingV2Event?.type === "cashflow" || editingV2Event?.type === "adjustment"
-      ? editingV2Event
-      : null;
-  const editingHousingEvent =
-    editingV2Event?.type === "housing" ? editingV2Event : null;
-  const editingLoanEvent = editingV2Event?.type === "loan" ? editingV2Event : null;
-  const editingInsuranceEvent =
-    editingV2Event?.type === "insurance" ? editingV2Event : null;
-
-  const handleEditV2Event = useCallback(
-    (eventId: string) => {
-      const event = v2EventLookup.get(eventId);
-      if (!event) {
-        return;
-      }
-      setV2EventDefaultKind(
-        event.type === "cashflow" ? event.kind : "income"
-      );
-      openV2EventDrawer("edit", event.type, eventId);
-    },
-    [openV2EventDrawer, v2EventLookup]
-  );
-
-  const openV2EventDrawer = useCallback(
-    (mode: "create" | "edit", type: ScenarioV2DrawerType, eventId?: string) => {
-      setV2EventDrawerMode(mode);
-      setV2EventDrawerType(type);
-      setEditingV2EventId(eventId ?? null);
-      setV2EventDrawerOpen(true);
-    },
-    []
-  );
-
-  const closeV2EventDrawer = useCallback(() => {
-    setV2EventDrawerOpen(false);
-    setEditingV2EventId(null);
-    setV2EventDrawerType(null);
-  }, []);
-
   const upsertScenarioV2Event = useCallback(
     (event: ScenarioEvent, mode: "create" | "edit") => {
       setScenarioV2Patches((current) => {
@@ -1838,14 +1787,16 @@ export default function PlanLabPanel({
               id: policy.id,
               name: policy.name.trim() || undefined,
               kind: policy.kind,
-              premiumMonthly: policy.premiumMonthly
-                ? Number(policy.premiumMonthly)
-                : undefined,
+              premiumMonthly: Number(policy.premiumMonthly),
               premiumAnnualGrowthPct: policy.premiumAnnualGrowthPct
                 ? Number(policy.premiumAnnualGrowthPct)
                 : undefined,
-              startMonth: policy.startMonth || undefined,
+              startMonth: policy.startMonth,
               endMonth: policy.endMonth || undefined,
+              cashValue: policy.cashValue ? Number(policy.cashValue) : undefined,
+              expectedAnnualReturnPct: policy.expectedAnnualReturnPct
+                ? Number(policy.expectedAnnualReturnPct)
+                : undefined,
               policyId: policy.policyId || undefined,
               policyAssetId: policy.policyAssetId || undefined,
             }))
@@ -1855,6 +1806,231 @@ export default function PlanLabPanel({
     upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
     closeV2EventDrawer();
   };
+
+  const planLabDraft: PlanLabDraft = useMemo(
+    () => ({
+      baselinePatches,
+      experiments,
+      scorecardSettings: {
+        firstBucketTargetAmount:
+          typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : undefined,
+      },
+      additions: {
+        members: draftMembers,
+        budgetRules: draftBudgetRules,
+        events: draftEvents,
+      },
+    }),
+    [
+      baselinePatches,
+      draftBudgetRules,
+      draftEvents,
+      draftMembers,
+      experiments,
+      firstBucketTargetAmount,
+    ]
+  );
+
+  const planSnapshot = useMemo<PlanLabSnapshot>(() => {
+    const cloneSerializable = <T,>(value: T): T =>
+      JSON.parse(JSON.stringify(value)) as T;
+    return {
+      baselinePatches: cloneSerializable(baselinePatches ?? {}),
+      experiments: cloneSerializable(experiments ?? []),
+      scorecardSettings:
+        typeof firstBucketTargetAmount === "number"
+          ? { firstBucketTargetAmount }
+          : undefined,
+    };
+  }, [baselinePatches, experiments, firstBucketTargetAmount]);
+
+  const baselineScenarioSnapshot = useMemo(() => scenario, [scenario]);
+  const sandboxPatches = useMemo(
+    () => buildPlanPatchesFromSnapshot(planSnapshot),
+    [planSnapshot]
+  );
+
+  const sandboxMaterialized = useMemo(() => {
+    if (scenarioIsV2) {
+      return {
+        scenario,
+        eventDefinitions: [],
+        budgetRules,
+        addedMembers: [],
+        addedBudgetRules: [],
+        warnings: [],
+        errors: [],
+      };
+    }
+    return materializePlanLabDraft(scenario, planLabDraft, {
+      scenarioId: scenario.id,
+      budgetRules,
+    });
+  }, [budgetRules, planLabDraft, scenario, scenario.id, scenarioIsV2]);
+  const sandboxEventLibrary = useMemo(
+    () => [...eventLibrary, ...sandboxMaterialized.eventDefinitions],
+    [eventLibrary, sandboxMaterialized.eventDefinitions]
+  );
+  const scenarioV2PatchesKey = useMemo(
+    () => JSON.stringify(scenarioV2Patches),
+    [scenarioV2Patches]
+  );
+  const sandboxScenarioV2 = useMemo(
+    () =>
+      scenarioIsV2
+        ? applyPlanLabScenarioV2Patches(baselineScenarioV2, scenarioV2Patches)
+        : buildScenarioV2FromScenario(
+            sandboxMaterialized.scenario,
+            sandboxEventLibrary
+          ),
+    [
+      baselineScenarioV2,
+      sandboxEventLibrary,
+      sandboxMaterialized.scenario,
+      scenarioIsV2,
+      scenarioV2PatchesKey,
+    ]
+  );
+  const sandboxBudgetRules = useMemo(() => {
+    if (scenarioIsV2) {
+      return budgetRules;
+    }
+    const patches = baselinePatches?.rulePatches ?? {};
+    const updated = budgetRules.map((rule) => {
+      const patch = patches[rule.id];
+      if (!patch) {
+        return rule;
+      }
+      return {
+        ...rule,
+        ...(patch.patch ?? {}),
+        enabled: patch.isDisabled !== undefined ? !patch.isDisabled : rule.enabled,
+        endMonth: patch.endMonth ?? rule.endMonth,
+      };
+    });
+    return [...updated, ...draftBudgetRules];
+  }, [baselinePatches?.rulePatches, budgetRules, draftBudgetRules, scenarioIsV2]);
+  const snapshotPayload = useMemo(
+    () =>
+      buildSnapshotPayload(
+        baselineScenarioV2,
+        sandboxScenarioV2,
+        budgetRules,
+        sandboxBudgetRules
+      ),
+    [baselineScenarioV2, budgetRules, sandboxBudgetRules, sandboxScenarioV2]
+  );
+  const planSnapshotWarnings = useMemo(() => {
+    const warnings = detectDoubleCountingWarnings(baselineScenarioV2, snapshotPayload);
+    if (!hasMeaningfulPatch(snapshotPayload)) {
+      warnings.push(
+        translate(
+          "planLabPlanEmptyWarning",
+          "No event or rule changes detected in this snapshot."
+        )
+      );
+    }
+    return warnings;
+  }, [baselineScenarioV2, snapshotPayload, translate]);
+
+  const planPatchWarnings = useMemo(() => {
+    if (scenarioIsV2) {
+      return [];
+    }
+    const warnings = validatePlanPatches({
+      patches: sandboxPatches,
+      scenario,
+      eventLibrary,
+      budgetRules,
+      members,
+    });
+    return warnings.map((warning) =>
+      warningsT.has(warning.messageKey)
+        ? warningsT(warning.messageKey)
+        : warning.defaultMessage
+    );
+  }, [budgetRules, eventLibrary, members, sandboxPatches, scenario, scenarioIsV2, warningsT]);
+
+  const legacyPlanLabProjection = usePlanLabProjectionWithLedger(
+    scenarioIsV2 ? null : planLabDraft,
+    scenarioIsV2 ? null : baselineScenarioSnapshot,
+    eventLibrary,
+    { members, budgetRules, patches: scenarioIsV2 ? [] : sandboxPatches }
+  );
+  const legacyBaselineProjection = usePlanLabProjectionWithLedger(
+    null,
+    scenarioIsV2 ? null : baselineScenarioSnapshot,
+    eventLibrary,
+    { members, budgetRules, patches: [] }
+  );
+  const v2PlanLabProjection = useProjectionWithLedger(
+    scenarioIsV2 ? (sandboxScenarioV2 as unknown as Scenario) : null,
+    eventLibrary,
+    { members: sandboxScenarioV2.members ?? [], budgetRules: [] }
+  );
+  const v2BaselineProjection = useProjectionWithLedger(
+    scenarioIsV2 ? (baselineScenarioV2 as unknown as Scenario) : null,
+    eventLibrary,
+    { members: baselineScenarioV2.members ?? [], budgetRules: [] }
+  );
+
+  const planLabProjection = scenarioIsV2 ? v2PlanLabProjection : legacyPlanLabProjection;
+  const baselineProjection = scenarioIsV2 ? v2BaselineProjection : legacyBaselineProjection;
+
+  const openV2EventDrawer = useCallback(
+    (mode: "create" | "edit", type: ScenarioV2DrawerType, eventId?: string) => {
+      setV2EventDrawerMode(mode);
+      setV2EventDrawerType(type);
+      setEditingV2EventId(eventId ?? null);
+      setV2EventDrawerOpen(true);
+    },
+    []
+  );
+
+  const closeV2EventDrawer = useCallback(() => {
+    setV2EventDrawerOpen(false);
+    setEditingV2EventId(null);
+    setV2EventDrawerType(null);
+  }, []);
+
+  const v2EventLookup = useMemo(
+    () =>
+      new Map(
+        (sandboxScenarioV2.events ?? []).map((event) => [event.id, event])
+      ),
+    [sandboxScenarioV2.events]
+  );
+
+  const editingV2Event = useMemo<ScenarioEvent | null>(() => {
+    if (!editingV2EventId) {
+      return null;
+    }
+    return v2EventLookup.get(editingV2EventId) ?? null;
+  }, [editingV2EventId, v2EventLookup]);
+
+  const editingCashflowEvent =
+    editingV2Event?.type === "cashflow" || editingV2Event?.type === "adjustment"
+      ? editingV2Event
+      : null;
+  const editingHousingEvent =
+    editingV2Event?.type === "housing" ? editingV2Event : null;
+  const editingLoanEvent = editingV2Event?.type === "loan" ? editingV2Event : null;
+  const editingInsuranceEvent =
+    editingV2Event?.type === "insurance" ? editingV2Event : null;
+
+  const handleEditV2Event = useCallback(
+    (eventId: string) => {
+      const event = v2EventLookup.get(eventId);
+      if (!event) {
+        return;
+      }
+      setV2EventDefaultKind(
+        event.type === "cashflow" ? event.kind : "income"
+      );
+      openV2EventDrawer("edit", event.type, eventId);
+    },
+    [openV2EventDrawer, v2EventLookup]
+  );
 
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
     if (scenarioIsV2) {
@@ -2282,176 +2458,6 @@ export default function PlanLabPanel({
     });
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredItems, groupBy, combinedMembers, categoryLabels, scenarioIsV2]);
-
-  const planLabDraft: PlanLabDraft = useMemo(
-    () => ({
-      baselinePatches,
-      experiments,
-      scorecardSettings: {
-        firstBucketTargetAmount:
-          typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : undefined,
-      },
-      additions: {
-        members: draftMembers,
-        budgetRules: draftBudgetRules,
-        events: draftEvents,
-      },
-    }),
-    [
-      baselinePatches,
-      draftBudgetRules,
-      draftEvents,
-      draftMembers,
-      experiments,
-      firstBucketTargetAmount,
-    ]
-  );
-
-  const planSnapshot = useMemo<PlanLabSnapshot>(() => {
-    const cloneSerializable = <T,>(value: T): T =>
-      JSON.parse(JSON.stringify(value)) as T;
-    return {
-      baselinePatches: cloneSerializable(baselinePatches ?? {}),
-      experiments: cloneSerializable(experiments ?? []),
-      scorecardSettings:
-        typeof firstBucketTargetAmount === "number"
-          ? { firstBucketTargetAmount }
-          : undefined,
-    };
-  }, [baselinePatches, experiments, firstBucketTargetAmount]);
-
-  const baselineScenarioSnapshot = useMemo(() => scenario, [scenario]);
-  const sandboxPatches = useMemo(
-    () => buildPlanPatchesFromSnapshot(planSnapshot),
-    [planSnapshot]
-  );
-
-  const sandboxMaterialized = useMemo(() => {
-    if (scenarioIsV2) {
-      return {
-        scenario,
-        eventDefinitions: [],
-        budgetRules,
-        addedMembers: [],
-        addedBudgetRules: [],
-        warnings: [],
-        errors: [],
-      };
-    }
-    return materializePlanLabDraft(scenario, planLabDraft, {
-      scenarioId: scenario.id,
-      budgetRules,
-    });
-  }, [budgetRules, planLabDraft, scenario, scenario.id, scenarioIsV2]);
-  const sandboxEventLibrary = useMemo(
-    () => [...eventLibrary, ...sandboxMaterialized.eventDefinitions],
-    [eventLibrary, sandboxMaterialized.eventDefinitions]
-  );
-  const scenarioV2PatchesKey = useMemo(
-    () => JSON.stringify(scenarioV2Patches),
-    [scenarioV2Patches]
-  );
-  const sandboxScenarioV2 = useMemo(
-    () =>
-      scenarioIsV2
-        ? applyPlanLabScenarioV2Patches(baselineScenarioV2, scenarioV2Patches)
-        : buildScenarioV2FromScenario(
-            sandboxMaterialized.scenario,
-            sandboxEventLibrary
-          ),
-    [
-      baselineScenarioV2,
-      sandboxEventLibrary,
-      sandboxMaterialized.scenario,
-      scenarioIsV2,
-      scenarioV2PatchesKey,
-    ]
-  );
-  const sandboxBudgetRules = useMemo(() => {
-    if (scenarioIsV2) {
-      return budgetRules;
-    }
-    const patches = baselinePatches?.rulePatches ?? {};
-    const updated = budgetRules.map((rule) => {
-      const patch = patches[rule.id];
-      if (!patch) {
-        return rule;
-      }
-      return {
-        ...rule,
-        ...(patch.patch ?? {}),
-        enabled: patch.isDisabled !== undefined ? !patch.isDisabled : rule.enabled,
-        endMonth: patch.endMonth ?? rule.endMonth,
-      };
-    });
-    return [...updated, ...draftBudgetRules];
-  }, [baselinePatches?.rulePatches, budgetRules, draftBudgetRules, scenarioIsV2]);
-  const snapshotPayload = useMemo(
-    () =>
-      buildSnapshotPayload(
-        baselineScenarioV2,
-        sandboxScenarioV2,
-        budgetRules,
-        sandboxBudgetRules
-      ),
-    [baselineScenarioV2, budgetRules, sandboxBudgetRules, sandboxScenarioV2]
-  );
-  const planSnapshotWarnings = useMemo(() => {
-    const warnings = detectDoubleCountingWarnings(baselineScenarioV2, snapshotPayload);
-    if (!hasMeaningfulPatch(snapshotPayload)) {
-      warnings.push(
-        translate(
-          "planLabPlanEmptyWarning",
-          "No event or rule changes detected in this snapshot."
-        )
-      );
-    }
-    return warnings;
-  }, [baselineScenarioV2, snapshotPayload, translate]);
-
-  const planPatchWarnings = useMemo(() => {
-    if (scenarioIsV2) {
-      return [];
-    }
-    const warnings = validatePlanPatches({
-      patches: sandboxPatches,
-      scenario,
-      eventLibrary,
-      budgetRules,
-      members,
-    });
-    return warnings.map((warning) =>
-      warningsT.has(warning.messageKey)
-        ? warningsT(warning.messageKey)
-        : warning.defaultMessage
-    );
-  }, [budgetRules, eventLibrary, members, sandboxPatches, scenario, scenarioIsV2, warningsT]);
-
-  const legacyPlanLabProjection = usePlanLabProjectionWithLedger(
-    scenarioIsV2 ? null : planLabDraft,
-    scenarioIsV2 ? null : baselineScenarioSnapshot,
-    eventLibrary,
-    { members, budgetRules, patches: scenarioIsV2 ? [] : sandboxPatches }
-  );
-  const legacyBaselineProjection = usePlanLabProjectionWithLedger(
-    null,
-    scenarioIsV2 ? null : baselineScenarioSnapshot,
-    eventLibrary,
-    { members, budgetRules, patches: [] }
-  );
-  const v2PlanLabProjection = useProjectionWithLedger(
-    scenarioIsV2 ? (sandboxScenarioV2 as unknown as Scenario) : null,
-    eventLibrary,
-    { members: sandboxScenarioV2.members ?? [], budgetRules: [] }
-  );
-  const v2BaselineProjection = useProjectionWithLedger(
-    scenarioIsV2 ? (baselineScenarioV2 as unknown as Scenario) : null,
-    eventLibrary,
-    { members: baselineScenarioV2.members ?? [], budgetRules: [] }
-  );
-
-  const planLabProjection = scenarioIsV2 ? v2PlanLabProjection : legacyPlanLabProjection;
-  const baselineProjection = scenarioIsV2 ? v2BaselineProjection : legacyBaselineProjection;
 
   const optionViewModel = useMemo(
     () =>

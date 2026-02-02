@@ -57,6 +57,6 @@ describe("applyPlanLabScenarioV2Patches", () => {
     const input = compileScenarioV2ToProjectionInput(sandbox);
     const projection = computeProjection(input);
     const cashValues = new Set(projection.cashBalance);
-    expect(cashValues.size).toBeGreaterThan(1);
+    expect(cashValues.size > 1).toBe(true);
   });
 });
