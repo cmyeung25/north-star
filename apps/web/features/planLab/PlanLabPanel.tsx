@@ -57,18 +57,30 @@ import type {
 import type {
   BudgetRule,
   Scenario,
+  ScenarioAsset,
+  ScenarioLiability,
   ScenarioMember,
   ScenarioMemberKind,
 } from "../../src/store/scenarioStore";
 import {
   createBudgetRuleId,
   createMemberId,
+  isScenarioV2,
   useScenarioStore,
 } from "../../src/store/scenarioStore";
+import type {
+  AdjustmentEvent,
+  CashflowEvent,
+  HousingEvent,
+  InsuranceEvent,
+  LoanEvent,
+  ScenarioEvent,
+} from "../../src/domain/scenarioV2/events";
 import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
+import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
@@ -116,6 +128,11 @@ import {
 import { buildScenarioV2FromScenario } from "../../src/domain/planLab/scenarioV2Bridge";
 import { detectDoubleCountingWarnings } from "../../src/domain/planLab/guardrails";
 import {
+  applyPlanLabScenarioV2Patches,
+  emptyPlanLabScenarioV2Patches,
+  type PlanLabScenarioV2Patches,
+} from "../../src/domain/planLab/scenarioV2Patches";
+import {
   deletePlanSnapshot,
   duplicatePlanSnapshot,
   listAllPlanSnapshots,
@@ -123,9 +140,26 @@ import {
   renamePlanSnapshot,
   savePlanSnapshot,
 } from "../../src/persistence/planLibrary";
+import CashflowEventDrawer, {
+  type ScenarioEventDraft as CashflowEventDraft,
+} from "../moneyFlow/CashflowEventDrawer";
+import HousingEventDrawer, {
+  type HousingEventDraft,
+} from "../moneyFlow/HousingEventDrawer";
+import LoanEventDrawer, { type LoanEventDraft } from "../moneyFlow/LoanEventDrawer";
+import InsuranceEventDrawer, {
+  type InsuranceEventDraft,
+} from "../moneyFlow/InsuranceEventDrawer";
 
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
+
+type ScenarioV2DrawerType =
+  | "cashflow"
+  | "adjustment"
+  | "housing"
+  | "loan"
+  | "insurance";
 
 type ScenarioItemKind = "event" | "rule" | "position";
 
@@ -136,7 +170,9 @@ type PositionKind =
   | "insurance"
   | "loan"
   | "cash"
-  | "smartInvest";
+  | "smartInvest"
+  | "asset"
+  | "liability";
 
 type ScenarioEditorItem = {
   id: string;
@@ -148,12 +184,16 @@ type ScenarioEditorItem = {
   startMonth?: string;
   endMonth?: string | null;
   enabled: boolean;
+  changed?: boolean;
   risky?: boolean;
   amount?: number | null;
+  eventId?: string;
   eventRefId?: string;
   eventDefinitionId?: string;
   ruleId?: string;
   ruleSource?: "baseline" | "draft";
+  assetId?: string;
+  liabilityId?: string;
   positionKey?: string;
   positionKind?: PositionKind;
   position?: any;
@@ -266,6 +306,157 @@ const buildPositionTitle = (kind: PositionKind, position: any, index: number, la
     return position?.name ?? labels.cash.replace("{index}", String(index + 1));
   }
   return labels.position.replace("{index}", String(index + 1));
+};
+
+const defaultAssetLabel = (asset: ScenarioAsset) =>
+  asset.label ??
+  (asset.kind === "home"
+    ? "住宅"
+    : asset.kind === "investment"
+    ? "投資"
+    : asset.kind === "cash"
+    ? "現金"
+    : asset.kind === "car"
+    ? "車輛"
+    : asset.kind === "policy"
+    ? "保單"
+    : "資產");
+
+const defaultLiabilityLabel = (liability: ScenarioLiability) =>
+  liability.label ??
+  (liability.kind === "mortgage"
+    ? "按揭"
+    : liability.kind === "carLoan"
+    ? "車貸"
+    : liability.kind === "credit"
+    ? "信用卡"
+    : liability.kind === "loan"
+    ? "貸款"
+    : "負債");
+
+const deriveInputsFromScenarioV2 = (params: {
+  scenario: ReturnType<typeof buildScenarioV2FromScenario>;
+  members: ScenarioMember[];
+  rules: BudgetRule[];
+  changed: {
+    events: Set<string>;
+    assets: Set<string>;
+    liabilities: Set<string>;
+    rules: Set<string>;
+    addedEvents: Set<string>;
+  };
+}): ScenarioEditorItem[] => {
+  const { scenario, members, rules, changed } = params;
+  const memberLookup = new Map(members.map((member) => [member.id, member.name]));
+  const items: ScenarioEditorItem[] = [];
+
+  (scenario.events ?? []).forEach((event) => {
+    const memberName = event.memberId ? memberLookup.get(event.memberId) ?? null : null;
+    const title = event.label ?? event.type;
+    const startMonth =
+      event.type === "cashflow"
+        ? event.cadence === "oneOff"
+          ? event.occurrenceMonth
+          : event.startMonth
+        : event.type === "adjustment"
+        ? event.month
+        : event.startMonth;
+    const endMonth =
+      event.type === "cashflow" ? event.endMonth ?? null : event.endMonth ?? null;
+    const amount =
+      event.type === "cashflow"
+        ? event.amount
+        : event.type === "adjustment"
+        ? event.amount
+        : null;
+    items.push({
+      id: `event:${event.id}`,
+      kind: "event",
+      title,
+      category:
+        event.type === "cashflow"
+          ? event.tags?.[0] ?? event.kind
+          : event.type,
+      memberId: event.memberId ?? null,
+      memberName,
+      startMonth: startMonth ?? undefined,
+      endMonth,
+      enabled: true,
+      changed: changed.events.has(event.id),
+      eventId: event.id,
+      eventSource: changed.addedEvents.has(event.id) ? "draft" : "baseline",
+      risky: event.type === "housing" || event.type === "loan",
+      amount,
+    });
+  });
+
+  (scenario.assets ?? []).forEach((asset) => {
+    const memberName = asset.ownerMemberId
+      ? memberLookup.get(asset.ownerMemberId) ?? null
+      : null;
+    items.push({
+      id: `asset:${asset.id}`,
+      kind: "position",
+      title: defaultAssetLabel(asset),
+      category: asset.kind,
+      memberId: asset.ownerMemberId ?? null,
+      memberName,
+      startMonth: asset.startMonth ?? undefined,
+      endMonth: null,
+      enabled: true,
+      changed: changed.assets.has(asset.id),
+      amount: asset.currentValue ?? null,
+      assetId: asset.id,
+      positionKey: asset.id,
+      positionKind: "asset",
+      position: asset,
+    });
+  });
+
+  (scenario.liabilities ?? []).forEach((liability) => {
+    const memberName = liability.ownerMemberId
+      ? memberLookup.get(liability.ownerMemberId) ?? null
+      : null;
+    items.push({
+      id: `liability:${liability.id}`,
+      kind: "position",
+      title: defaultLiabilityLabel(liability),
+      category: liability.kind,
+      memberId: liability.ownerMemberId ?? null,
+      memberName,
+      startMonth: liability.startMonth ?? undefined,
+      endMonth: null,
+      enabled: true,
+      changed: changed.liabilities.has(liability.id),
+      amount: liability.principalOutstanding ?? null,
+      liabilityId: liability.id,
+      positionKey: liability.id,
+      positionKind: "liability",
+      position: liability,
+    });
+  });
+
+  rules.forEach((rule) => {
+    const memberName = rule.memberId ? memberLookup.get(rule.memberId) ?? null : null;
+    items.push({
+      id: `rule:${rule.id}`,
+      kind: "rule",
+      title: rule.name,
+      category: rule.category,
+      memberId: rule.memberId ?? null,
+      memberName,
+      startMonth: rule.startMonth ?? undefined,
+      endMonth: rule.endMonth ?? null,
+      enabled: rule.enabled,
+      changed: changed.rules.has(rule.id),
+      amount: rule.monthlyAmount ?? null,
+      ruleId: rule.id,
+      ruleSource: "baseline",
+      budgetRule: rule,
+    });
+  });
+
+  return items;
 };
 
 type PlanLabRowBadge = {
@@ -441,12 +632,16 @@ export default function PlanLabPanel({
   const [planBId, setPlanBId] = useState<string | null>(null);
   const [planLibrary, setPlanLibrary] = useState<PlanSnapshot[]>([]);
   const [otherPlans, setOtherPlans] = useState<PlanSnapshot[]>([]);
+  const scenarioIsV2 = isScenarioV2(scenario);
   const [baselinePatches, setBaselinePatches] = useState<PlanLabDraft["baselinePatches"]>({
     eventPatches: {},
     rulePatches: {},
     positionPatches: {},
     smartInvestPatch: undefined,
   });
+  const [scenarioV2Patches, setScenarioV2Patches] = useState<PlanLabScenarioV2Patches>(() =>
+    emptyPlanLabScenarioV2Patches()
+  );
   const [draftMembers, setDraftMembers] = useState<ScenarioMember[]>([]);
   const [draftBudgetRules, setDraftBudgetRules] = useState<BudgetRule[]>([]);
   const [draftEvents, setDraftEvents] = useState<PlanLabDraftEventAddition[]>([]);
@@ -463,9 +658,9 @@ export default function PlanLabPanel({
     ""
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterKind, setFilterKind] = useState<"all" | "positions" | "events" | "rules">(
-    "all"
-  );
+  const [filterKind, setFilterKind] = useState<
+    "all" | "positions" | "assets" | "events" | "rules"
+  >("all");
   const [activeOnly, setActiveOnly] = useState(false);
   const [showChangedOnly, setShowChangedOnly] = useState(false);
   const [showRiskyOnly, setShowRiskyOnly] = useState(false);
@@ -500,6 +695,18 @@ export default function PlanLabPanel({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templatePickerCategory, setTemplatePickerCategory] =
     useState<TemplateCategory>("popular");
+  const [v2EventDrawerOpen, setV2EventDrawerOpen] = useState(false);
+  const [v2EventDrawerMode, setV2EventDrawerMode] = useState<"create" | "edit">(
+    "create"
+  );
+  const [v2EventDrawerType, setV2EventDrawerType] =
+    useState<ScenarioV2DrawerType | null>(null);
+  const [editingV2EventId, setEditingV2EventId] = useState<string | null>(null);
+  const [v2EventDefaultKind, setV2EventDefaultKind] =
+    useState<CashflowEvent["kind"]>("income");
+  const [assetDrawerItem, setAssetDrawerItem] = useState<ScenarioAsset | null>(null);
+  const [liabilityDrawerItem, setLiabilityDrawerItem] =
+    useState<ScenarioLiability | null>(null);
 
   const monthInvalidMessage = t("planLabMonthInvalid");
   const drawerStyles = useMemo(
@@ -526,6 +733,15 @@ export default function PlanLabPanel({
     localStorage.setItem("planLabActiveOnly", String(activeOnly));
   }, [activeOnly]);
 
+  useEffect(() => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    if (filterKind === "positions") {
+      setFilterKind("assets");
+    }
+  }, [filterKind, scenarioIsV2]);
+
   const baselineScenarioV2 = useMemo(
     () => buildScenarioV2FromScenario(scenario, eventLibrary),
     [eventLibrary, scenario]
@@ -534,6 +750,23 @@ export default function PlanLabPanel({
     () => computeBaselineFingerprint(baselineScenarioV2, budgetRules),
     [baselineScenarioV2, budgetRules]
   );
+
+  useEffect(() => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    setScenarioV2Patches(emptyPlanLabScenarioV2Patches());
+    setBaselinePatches({
+      eventPatches: {},
+      rulePatches: {},
+      positionPatches: {},
+      smartInvestPatch: undefined,
+    });
+    setDraftMembers([]);
+    setDraftBudgetRules([]);
+    setDraftEvents([]);
+    setExperiments([]);
+  }, [scenario.id, scenarioIsV2]);
 
   const refreshPlanLibrary = useCallback(() => {
     let plans = listPlanSnapshots(scenario.id);
@@ -694,6 +927,9 @@ export default function PlanLabPanel({
     if (groupKey === "member") {
       if (!item.memberId) {
         return translate("planLabGroupUnassigned", "未指定");
+      }
+      if (scenarioIsV2 && item.memberName) {
+        return item.memberName;
       }
       return (
         combinedMembers.find((member) => member.id === item.memberId)?.name ??
@@ -1309,7 +1545,326 @@ export default function PlanLabPanel({
     setEventDrawerOpen(false);
   };
 
+  const scenarioV2Changed = useMemo(() => {
+    const buildSet = (patches: PlanLabScenarioV2Patches[keyof PlanLabScenarioV2Patches]) =>
+      new Set<string>([
+        ...patches.add.map((item) => item.id),
+        ...Object.keys(patches.update),
+      ]);
+    return {
+      events: buildSet(scenarioV2Patches.events),
+      assets: buildSet(scenarioV2Patches.assets),
+      liabilities: buildSet(scenarioV2Patches.liabilities),
+      rules: buildSet(scenarioV2Patches.rules),
+      addedEvents: new Set(scenarioV2Patches.events.add.map((event) => event.id)),
+    };
+  }, [scenarioV2Patches]);
+
+  const v2EventLookup = useMemo(
+    () =>
+      new Map(
+        (sandboxScenarioV2.events ?? []).map((event) => [event.id, event])
+      ),
+    [sandboxScenarioV2.events]
+  );
+
+  const editingV2Event = useMemo<ScenarioEvent | null>(() => {
+    if (!editingV2EventId) {
+      return null;
+    }
+    return v2EventLookup.get(editingV2EventId) ?? null;
+  }, [editingV2EventId, v2EventLookup]);
+
+  const editingCashflowEvent =
+    editingV2Event?.type === "cashflow" || editingV2Event?.type === "adjustment"
+      ? editingV2Event
+      : null;
+  const editingHousingEvent =
+    editingV2Event?.type === "housing" ? editingV2Event : null;
+  const editingLoanEvent = editingV2Event?.type === "loan" ? editingV2Event : null;
+  const editingInsuranceEvent =
+    editingV2Event?.type === "insurance" ? editingV2Event : null;
+
+  const handleEditV2Event = useCallback(
+    (eventId: string) => {
+      const event = v2EventLookup.get(eventId);
+      if (!event) {
+        return;
+      }
+      setV2EventDefaultKind(
+        event.type === "cashflow" ? event.kind : "income"
+      );
+      openV2EventDrawer("edit", event.type, eventId);
+    },
+    [openV2EventDrawer, v2EventLookup]
+  );
+
+  const openV2EventDrawer = useCallback(
+    (mode: "create" | "edit", type: ScenarioV2DrawerType, eventId?: string) => {
+      setV2EventDrawerMode(mode);
+      setV2EventDrawerType(type);
+      setEditingV2EventId(eventId ?? null);
+      setV2EventDrawerOpen(true);
+    },
+    []
+  );
+
+  const closeV2EventDrawer = useCallback(() => {
+    setV2EventDrawerOpen(false);
+    setEditingV2EventId(null);
+    setV2EventDrawerType(null);
+  }, []);
+
+  const upsertScenarioV2Event = useCallback(
+    (event: ScenarioEvent, mode: "create" | "edit") => {
+      setScenarioV2Patches((current) => {
+        const events = current.events;
+        const isDraft = events.add.some((item) => item.id === event.id);
+        const nextAdd = isDraft
+          ? events.add.map((item) => (item.id === event.id ? event : item))
+          : mode === "create"
+          ? [...events.add, event]
+          : events.add;
+        const nextUpdate = { ...events.update };
+        if (!isDraft && mode === "edit") {
+          nextUpdate[event.id] = event;
+        } else {
+          delete nextUpdate[event.id];
+        }
+        const nextRemove = events.remove.filter((id) => id !== event.id);
+        return {
+          ...current,
+          events: {
+            add: nextAdd,
+            update: nextUpdate,
+            remove: nextRemove,
+          },
+        };
+      });
+    },
+    []
+  );
+
+  const removeScenarioV2Event = useCallback((eventId: string) => {
+    setScenarioV2Patches((current) => {
+      const events = current.events;
+      const isDraft = events.add.some((item) => item.id === eventId);
+      const nextAdd = isDraft
+        ? events.add.filter((item) => item.id !== eventId)
+        : events.add;
+      const nextUpdate = { ...events.update };
+      delete nextUpdate[eventId];
+      const nextRemove = isDraft
+        ? events.remove
+        : Array.from(new Set([...events.remove, eventId]));
+      return {
+        ...current,
+        events: {
+          add: nextAdd,
+          update: nextUpdate,
+          remove: nextRemove,
+        },
+      };
+    });
+  }, []);
+
+  const ensureScenarioV2EventId = (eventId?: string) =>
+    eventId ?? `evt_v2_${nanoid(8)}`;
+
+  const handleSaveV2Event = (draft: CashflowEventDraft) => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    if (draft.type === "adjustment") {
+      const payload: AdjustmentEvent = {
+        id: ensureScenarioV2EventId(draft.id),
+        type: "adjustment",
+        label: draft.label.trim() || undefined,
+        kind: draft.kind,
+        amount: Number(draft.amount),
+        month: draft.month,
+        memberId: draft.memberId || undefined,
+        tags: draft.tags && draft.tags.length > 0 ? draft.tags : ["adjustment"],
+      };
+      upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+      closeV2EventDrawer();
+      return;
+    }
+    const payload: CashflowEvent = {
+      id: ensureScenarioV2EventId(draft.id),
+      type: "cashflow",
+      label: draft.label.trim() || undefined,
+      kind: draft.kind,
+      cadence: draft.cadence,
+      amount: Number(draft.amount),
+      startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
+      endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
+      occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
+      everyNMonths: draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
+      memberId: draft.memberId || undefined,
+      tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
+    };
+    upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    closeV2EventDrawer();
+  };
+
+  const handleSaveHousingEvent = (draft: HousingEventDraft) => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    const payload: HousingEvent = {
+      id: ensureScenarioV2EventId(draft.id),
+      type: "housing",
+      label: draft.label.trim() || undefined,
+      kind: draft.kind,
+      startMonth: draft.startMonth,
+      endMonth: draft.endMonth || undefined,
+      rentMonthly: draft.kind === "rent" ? Number(draft.rentMonthly) : undefined,
+      rentAnnualGrowthPct:
+        draft.kind === "rent" && draft.rentAnnualGrowthPct
+          ? Number(draft.rentAnnualGrowthPct)
+          : undefined,
+      purchasePrice: draft.kind === "mortgage" ? Number(draft.purchasePrice) : undefined,
+      downPaymentMode: draft.kind === "mortgage" ? draft.downPaymentMode : undefined,
+      downPaymentPercent:
+        draft.kind === "mortgage" && draft.downPaymentPercent
+          ? Number(draft.downPaymentPercent)
+          : undefined,
+      downPaymentAmount:
+        draft.kind === "mortgage" && draft.downPaymentAmount
+          ? Number(draft.downPaymentAmount)
+          : undefined,
+      mortgageRatePct:
+        draft.kind === "mortgage" ? Number(draft.mortgageRatePct) : undefined,
+      mortgageTermYears:
+        draft.kind === "mortgage" ? Number(draft.mortgageTermYears) : undefined,
+      mortgagePayment:
+        draft.kind === "mortgage" && draft.mortgagePayment
+          ? Number(draft.mortgagePayment)
+          : undefined,
+      mortgagePaymentIsEstimated:
+        draft.kind === "mortgage" && !draft.mortgagePayment ? true : undefined,
+      feesOneOff:
+        draft.kind === "mortgage"
+          ? draft.feesOneOff.map((fee) => ({
+              id: fee.id,
+              label: fee.label.trim() || undefined,
+              amount: Number(fee.amount),
+              month: fee.month,
+            }))
+          : undefined,
+      ongoingCosts:
+        draft.kind === "mortgage"
+          ? draft.ongoingCosts.map((cost) => ({
+              id: cost.id,
+              label: cost.label.trim() || undefined,
+              amount: Number(cost.amount),
+              startMonth: cost.startMonth,
+              endMonth: cost.endMonth || undefined,
+            }))
+          : undefined,
+      rental:
+        draft.kind === "mortgage" && draft.rental.enabled
+          ? {
+              enabled: draft.rental.enabled,
+              rentMonthly: Number(draft.rental.rentMonthly),
+              startMonth: draft.rental.startMonth,
+              endMonth: draft.rental.endMonth || undefined,
+              vacancyRatePct: draft.rental.vacancyRatePct
+                ? Number(draft.rental.vacancyRatePct)
+                : undefined,
+            }
+          : undefined,
+      propertyAssetId: draft.kind === "mortgage" ? draft.propertyAssetId : undefined,
+      mortgageLiabilityId:
+        draft.kind === "mortgage" ? draft.mortgageLiabilityId : undefined,
+      memberId: draft.memberId || undefined,
+    };
+    upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    closeV2EventDrawer();
+  };
+
+  const handleSaveLoanEvent = (draft: LoanEventDraft) => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    const payload: LoanEvent = {
+      id: ensureScenarioV2EventId(draft.id),
+      type: "loan",
+      label: draft.label.trim() || undefined,
+      loanKind: draft.loanKind,
+      startMonth: draft.startMonth,
+      principal: Number(draft.principal),
+      annualInterestRatePct: Number(draft.annualInterestRatePct),
+      termYears: Number(draft.termYears),
+      monthlyPayment: draft.monthlyPayment ? Number(draft.monthlyPayment) : undefined,
+      paymentMethod: draft.paymentMethod,
+      paymentIsEstimated: draft.paymentIsEstimated,
+      purchasePrice: draft.purchasePrice ? Number(draft.purchasePrice) : undefined,
+      downPaymentMode: draft.downPaymentMode,
+      downPaymentPercent: draft.downPaymentPercent
+        ? Number(draft.downPaymentPercent)
+        : undefined,
+      downPaymentAmount: draft.downPaymentAmount
+        ? Number(draft.downPaymentAmount)
+        : undefined,
+      liabilityId: draft.liabilityId,
+      memberId: draft.memberId || undefined,
+    };
+    upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    closeV2EventDrawer();
+  };
+
+  const handleSaveInsuranceEvent = (draft: InsuranceEventDraft) => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    const payload: InsuranceEvent = {
+      id: ensureScenarioV2EventId(draft.id),
+      type: "insurance",
+      label: draft.label.trim() || undefined,
+      mode: draft.mode,
+      startMonth: draft.mode === "quick" ? draft.startMonth : undefined,
+      endMonth: draft.mode === "quick" ? draft.endMonth || undefined : undefined,
+      premiumMonthly:
+        draft.mode === "quick" ? Number(draft.premiumMonthly) : undefined,
+      premiumAnnualGrowthPct:
+        draft.mode === "quick" && draft.premiumAnnualGrowthPct
+          ? Number(draft.premiumAnnualGrowthPct)
+          : undefined,
+      policies:
+        draft.mode === "detailed"
+          ? draft.policies.map((policy) => ({
+              id: policy.id,
+              name: policy.name.trim() || undefined,
+              kind: policy.kind,
+              premiumMonthly: policy.premiumMonthly
+                ? Number(policy.premiumMonthly)
+                : undefined,
+              premiumAnnualGrowthPct: policy.premiumAnnualGrowthPct
+                ? Number(policy.premiumAnnualGrowthPct)
+                : undefined,
+              startMonth: policy.startMonth || undefined,
+              endMonth: policy.endMonth || undefined,
+              policyId: policy.policyId || undefined,
+              policyAssetId: policy.policyAssetId || undefined,
+            }))
+          : undefined,
+      memberId: draft.memberId || undefined,
+    };
+    upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    closeV2EventDrawer();
+  };
+
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
+    if (scenarioIsV2) {
+      return deriveInputsFromScenarioV2({
+        scenario: sandboxScenarioV2,
+        members: sandboxScenarioV2.members ?? [],
+        rules: sandboxBudgetRules,
+        changed: scenarioV2Changed,
+      });
+    }
     const items: ScenarioEditorItem[] = [];
     const combinedEventLibrary = [...eventLibrary, ...draftEventDefinitions];
     const combinedEventRefs = [
@@ -1546,6 +2101,10 @@ export default function PlanLabPanel({
     rulePatches,
     scenario,
     scenarioBudgetRules,
+    scenarioIsV2,
+    sandboxBudgetRules,
+    sandboxScenarioV2,
+    scenarioV2Changed,
     smartInvestLabel,
     smartInvestPatch,
   ]);
@@ -1635,6 +2194,14 @@ export default function PlanLabPanel({
       if (filterKind === "events" && item.kind !== "event") {
         return false;
       }
+      if (filterKind === "assets") {
+        if (item.kind !== "position") {
+          return false;
+        }
+        if (item.positionKind !== "asset" && item.positionKind !== "liability") {
+          return false;
+        }
+      }
       if (filterKind === "rules" && item.kind !== "rule") {
         return false;
       }
@@ -1645,33 +2212,39 @@ export default function PlanLabPanel({
         return false;
       }
       if (showChangedOnly) {
-        if (item.kind === "event" && item.eventDefinitionId) {
-          if (item.eventSource === "draft") {
-            return true;
-          }
-          const patch = eventPatches[item.eventDefinitionId];
-          if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
+        if (scenarioIsV2) {
+          if (!item.changed) {
             return false;
           }
-        }
-        if (item.kind === "rule" && item.ruleId) {
-          if (item.ruleSource === "draft") {
-            return true;
-          }
-          const patch = rulePatches[item.ruleId];
-          if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
-            return false;
-          }
-        }
-        if (item.kind === "position" && item.positionKey) {
-          if (item.positionKind === "smartInvest") {
-            if (!smartInvestPatch || (!smartInvestPatch.isDisabled && !smartInvestPatch.patch)) {
+        } else {
+          if (item.kind === "event" && item.eventDefinitionId) {
+            if (item.eventSource === "draft") {
+              return true;
+            }
+            const patch = eventPatches[item.eventDefinitionId];
+            if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
               return false;
             }
-          } else {
-            const patch = positionPatches[item.positionKey];
-            if (!patch || (!patch.isDisabled && !patch.patch)) {
+          }
+          if (item.kind === "rule" && item.ruleId) {
+            if (item.ruleSource === "draft") {
+              return true;
+            }
+            const patch = rulePatches[item.ruleId];
+            if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
               return false;
+            }
+          }
+          if (item.kind === "position" && item.positionKey) {
+            if (item.positionKind === "smartInvest") {
+              if (!smartInvestPatch || (!smartInvestPatch.isDisabled && !smartInvestPatch.patch)) {
+                return false;
+              }
+            } else {
+              const patch = positionPatches[item.positionKey];
+              if (!patch || (!patch.isDisabled && !patch.patch)) {
+                return false;
+              }
             }
           }
         }
@@ -1690,6 +2263,7 @@ export default function PlanLabPanel({
     filterKind,
     positionPatches,
     rulePatches,
+    scenarioIsV2,
     scenarioItems,
     searchQuery,
     showChangedOnly,
@@ -1707,7 +2281,7 @@ export default function PlanLabPanel({
       groups.get(groupKey)!.push(item);
     });
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredItems, groupBy, combinedMembers, categoryLabels]);
+  }, [filteredItems, groupBy, combinedMembers, categoryLabels, scenarioIsV2]);
 
   const planLabDraft: PlanLabDraft = useMemo(
     () => ({
@@ -1752,24 +2326,51 @@ export default function PlanLabPanel({
     [planSnapshot]
   );
 
-  const sandboxMaterialized = useMemo(
-    () =>
-      materializePlanLabDraft(scenario, planLabDraft, {
-        scenarioId: scenario.id,
+  const sandboxMaterialized = useMemo(() => {
+    if (scenarioIsV2) {
+      return {
+        scenario,
+        eventDefinitions: [],
         budgetRules,
-      }),
-    [budgetRules, planLabDraft, scenario, scenario.id]
-  );
+        addedMembers: [],
+        addedBudgetRules: [],
+        warnings: [],
+        errors: [],
+      };
+    }
+    return materializePlanLabDraft(scenario, planLabDraft, {
+      scenarioId: scenario.id,
+      budgetRules,
+    });
+  }, [budgetRules, planLabDraft, scenario, scenario.id, scenarioIsV2]);
   const sandboxEventLibrary = useMemo(
     () => [...eventLibrary, ...sandboxMaterialized.eventDefinitions],
     [eventLibrary, sandboxMaterialized.eventDefinitions]
   );
+  const scenarioV2PatchesKey = useMemo(
+    () => JSON.stringify(scenarioV2Patches),
+    [scenarioV2Patches]
+  );
   const sandboxScenarioV2 = useMemo(
     () =>
-      buildScenarioV2FromScenario(sandboxMaterialized.scenario, sandboxEventLibrary),
-    [sandboxEventLibrary, sandboxMaterialized.scenario]
+      scenarioIsV2
+        ? applyPlanLabScenarioV2Patches(baselineScenarioV2, scenarioV2Patches)
+        : buildScenarioV2FromScenario(
+            sandboxMaterialized.scenario,
+            sandboxEventLibrary
+          ),
+    [
+      baselineScenarioV2,
+      sandboxEventLibrary,
+      sandboxMaterialized.scenario,
+      scenarioIsV2,
+      scenarioV2PatchesKey,
+    ]
   );
   const sandboxBudgetRules = useMemo(() => {
+    if (scenarioIsV2) {
+      return budgetRules;
+    }
     const patches = baselinePatches?.rulePatches ?? {};
     const updated = budgetRules.map((rule) => {
       const patch = patches[rule.id];
@@ -1784,7 +2385,7 @@ export default function PlanLabPanel({
       };
     });
     return [...updated, ...draftBudgetRules];
-  }, [baselinePatches?.rulePatches, budgetRules, draftBudgetRules]);
+  }, [baselinePatches?.rulePatches, budgetRules, draftBudgetRules, scenarioIsV2]);
   const snapshotPayload = useMemo(
     () =>
       buildSnapshotPayload(
@@ -1809,6 +2410,9 @@ export default function PlanLabPanel({
   }, [baselineScenarioV2, snapshotPayload, translate]);
 
   const planPatchWarnings = useMemo(() => {
+    if (scenarioIsV2) {
+      return [];
+    }
     const warnings = validatePlanPatches({
       patches: sandboxPatches,
       scenario,
@@ -1821,20 +2425,33 @@ export default function PlanLabPanel({
         ? warningsT(warning.messageKey)
         : warning.defaultMessage
     );
-  }, [budgetRules, eventLibrary, members, sandboxPatches, scenario, warningsT]);
+  }, [budgetRules, eventLibrary, members, sandboxPatches, scenario, scenarioIsV2, warningsT]);
 
-  const planLabProjection = usePlanLabProjectionWithLedger(
-    planLabDraft,
-    baselineScenarioSnapshot,
+  const legacyPlanLabProjection = usePlanLabProjectionWithLedger(
+    scenarioIsV2 ? null : planLabDraft,
+    scenarioIsV2 ? null : baselineScenarioSnapshot,
     eventLibrary,
-    { members, budgetRules, patches: sandboxPatches }
+    { members, budgetRules, patches: scenarioIsV2 ? [] : sandboxPatches }
   );
-  const baselineProjection = usePlanLabProjectionWithLedger(
+  const legacyBaselineProjection = usePlanLabProjectionWithLedger(
     null,
-    baselineScenarioSnapshot,
+    scenarioIsV2 ? null : baselineScenarioSnapshot,
     eventLibrary,
     { members, budgetRules, patches: [] }
   );
+  const v2PlanLabProjection = useProjectionWithLedger(
+    scenarioIsV2 ? (sandboxScenarioV2 as unknown as Scenario) : null,
+    eventLibrary,
+    { members: sandboxScenarioV2.members ?? [], budgetRules: [] }
+  );
+  const v2BaselineProjection = useProjectionWithLedger(
+    scenarioIsV2 ? (baselineScenarioV2 as unknown as Scenario) : null,
+    eventLibrary,
+    { members: baselineScenarioV2.members ?? [], budgetRules: [] }
+  );
+
+  const planLabProjection = scenarioIsV2 ? v2PlanLabProjection : legacyPlanLabProjection;
+  const baselineProjection = scenarioIsV2 ? v2BaselineProjection : legacyBaselineProjection;
 
   const optionViewModel = useMemo(
     () =>
@@ -2033,6 +2650,31 @@ export default function PlanLabPanel({
       onRemove: () => void;
       onEdit?: () => void;
     }> = [];
+
+    if (scenarioIsV2) {
+      scenarioV2Patches.events.add.forEach((event) => {
+        controls.push({
+          id: `event-add-${event.id}`,
+          titleLine: event.label ?? event.id,
+          diffLines: [translate("planLabAppliedAddedEvent", "新增事件")],
+          isEnabled: true,
+          onRemove: () => removeScenarioV2Event(event.id),
+          onEdit: () => handleEditV2Event(event.id),
+        });
+      });
+      Object.keys(scenarioV2Patches.events.update).forEach((eventId) => {
+        const updated = v2EventLookup.get(eventId);
+        controls.push({
+          id: `event-update-${eventId}`,
+          titleLine: updated?.label ?? eventId,
+          diffLines: [translate("planLabAppliedUpdated", "已更新")],
+          isEnabled: true,
+          onRemove: () => removeScenarioV2Event(eventId),
+          onEdit: () => handleEditV2Event(eventId),
+        });
+      });
+      return controls;
+    }
 
     draftMembers.forEach((member) => {
       controls.push({
@@ -2546,22 +3188,27 @@ export default function PlanLabPanel({
     locale,
     openEditExperimentDrawer,
     openEditEventDrawer,
+    handleEditV2Event,
     openEditMemberDrawer,
     openEditingItem,
     positionPatches,
     removeDraftBudgetRule,
     removeDraftMember,
+    removeScenarioV2Event,
     removeExperiment,
     rulePatches,
     scenario.baseCurrency,
     scenario.eventRefs,
+    scenarioIsV2,
     scenarioItems,
+    scenarioV2Patches,
     setDraftBudgetRules,
     setDraftEvents,
     smartInvestLabel,
     smartInvestPatch,
     smartInvestTooltip,
     translate,
+    v2EventLookup,
     updateEventPatch,
     updatePositionPatch,
     updateRulePatch,
@@ -2576,6 +3223,7 @@ export default function PlanLabPanel({
       positionPatches: {},
       smartInvestPatch: undefined,
     });
+    setScenarioV2Patches(emptyPlanLabScenarioV2Patches());
     setExperiments([]);
     setDraftMembers([]);
     setDraftBudgetRules([]);
@@ -2589,6 +3237,7 @@ export default function PlanLabPanel({
       positionPatches: {},
       smartInvestPatch: undefined,
     });
+    setScenarioV2Patches(emptyPlanLabScenarioV2Patches());
   };
 
   const handleLoadPlanSnapshot = (plan: PlanSnapshot) => {
@@ -3187,15 +3836,39 @@ export default function PlanLabPanel({
                   </Group>
                   <SegmentedControl
                     size="sm"
-                    data={[
-                      { value: "all", label: translate("planLabFilterAllLabel", "全部") },
-                      {
-                        value: "positions",
-                        label: translate("planLabFilterPositionsLabel", "資產"),
-                      },
-                      { value: "events", label: translate("planLabFilterEventsLabel", "事件") },
-                      { value: "rules", label: translate("planLabFilterRulesLabel", "規則") },
-                    ]}
+                    data={
+                      scenarioIsV2
+                        ? [
+                            {
+                              value: "all",
+                              label: translate("planLabFilterAllLabel", "全部"),
+                            },
+                            {
+                              value: "assets",
+                              label: translate("planLabFilterPositionsLabel", "資產"),
+                            },
+                            {
+                              value: "events",
+                              label: translate("planLabFilterEventsLabel", "事件"),
+                            },
+                            { value: "rules", label: translate("planLabFilterRulesLabel", "規則") },
+                          ]
+                        : [
+                            {
+                              value: "all",
+                              label: translate("planLabFilterAllLabel", "全部"),
+                            },
+                            {
+                              value: "positions",
+                              label: translate("planLabFilterPositionsLabel", "資產"),
+                            },
+                            {
+                              value: "events",
+                              label: translate("planLabFilterEventsLabel", "事件"),
+                            },
+                            { value: "rules", label: translate("planLabFilterRulesLabel", "規則") },
+                          ]
+                    }
                     value={filterKind}
                     onChange={(value) => setFilterKind(value as typeof filterKind)}
                   />
@@ -3225,32 +3898,41 @@ export default function PlanLabPanel({
                           <Accordion variant="separated" radius="md" multiple>
                             {items.map((item) => {
                               const menuItems: PlanLabRowMenuItem[] = [];
-                              if (
-                                (item.kind === "event" && item.eventSource !== "draft") ||
-                                item.kind === "rule"
-                              ) {
-                                menuItems.push({
-                                  label: translate("planLabActionEnd", "設定結束月份"),
-                                  onClick: () => openEditingItem(item, "validity"),
-                                });
-                              }
-                              if (item.kind === "event" && item.eventSource === "draft") {
-                                menuItems.push({
-                                  label: translate("planLabAppliedRemove", "移除"),
-                                  onClick: () =>
-                                    setDraftEvents((current) =>
-                                      current.filter(
-                                        (event) =>
-                                          event.definition.id !== item.eventDefinitionId
-                                      )
-                                    ),
-                                });
-                              }
-                              if (item.kind === "rule" && item.ruleSource === "draft") {
-                                menuItems.push({
-                                  label: translate("planLabAppliedRemove", "移除"),
-                                  onClick: () => removeDraftBudgetRule(item.ruleId ?? item.id),
-                                });
+                              if (scenarioIsV2) {
+                                if (item.kind === "event" && item.eventId) {
+                                  menuItems.push({
+                                    label: translate("planLabAppliedRemove", "移除"),
+                                    onClick: () => removeScenarioV2Event(item.eventId ?? item.id),
+                                  });
+                                }
+                              } else {
+                                if (
+                                  (item.kind === "event" && item.eventSource !== "draft") ||
+                                  item.kind === "rule"
+                                ) {
+                                  menuItems.push({
+                                    label: translate("planLabActionEnd", "設定結束月份"),
+                                    onClick: () => openEditingItem(item, "validity"),
+                                  });
+                                }
+                                if (item.kind === "event" && item.eventSource === "draft") {
+                                  menuItems.push({
+                                    label: translate("planLabAppliedRemove", "移除"),
+                                    onClick: () =>
+                                      setDraftEvents((current) =>
+                                        current.filter(
+                                          (event) =>
+                                            event.definition.id !== item.eventDefinitionId
+                                        )
+                                      ),
+                                  });
+                                }
+                                if (item.kind === "rule" && item.ruleSource === "draft") {
+                                  menuItems.push({
+                                    label: translate("planLabAppliedRemove", "移除"),
+                                    onClick: () => removeDraftBudgetRule(item.ruleId ?? item.id),
+                                  });
+                                }
                               }
                               return (
                                 <PlanLabAccordionRow
@@ -3260,54 +3942,70 @@ export default function PlanLabPanel({
                                   badges={getScenarioItemBadges(item)}
                                   summary={getScenarioItemSummary(item)}
                                   enabled={item.enabled}
-                                  onToggle={() => {
-                                    if (item.kind === "event" && item.eventDefinitionId) {
-                                      if (item.eventSource === "draft") {
-                                        setDraftEvents((current) =>
-                                          current.map((event) =>
-                                            event.definition.id === item.eventDefinitionId
-                                              ? {
-                                                  ...event,
-                                                  ref: {
-                                                    ...event.ref,
-                                                    enabled: !event.ref.enabled,
-                                                  },
-                                                }
-                                              : event
-                                          )
-                                        );
-                                      } else {
-                                        updateEventPatch(item.eventDefinitionId, {
-                                          isDisabled: item.enabled,
-                                        });
-                                      }
-                                    }
-                                    if (item.kind === "rule" && item.ruleId) {
-                                      if (item.ruleSource === "draft") {
-                                        setDraftBudgetRules((current) =>
-                                          current.map((rule) =>
-                                            rule.id === item.ruleId
-                                              ? { ...rule, enabled: !rule.enabled }
-                                              : rule
-                                          )
-                                        );
-                                      } else {
-                                        updateRulePatch(item.ruleId, {
-                                          isDisabled: item.enabled,
-                                        });
-                                      }
-                                    }
-                                    if (item.kind === "position" && item.positionKey) {
-                                      if (item.positionKind === "smartInvest") {
-                                        updateSmartInvestPatch({ isDisabled: item.enabled });
-                                      } else {
-                                        updatePositionPatch(item.positionKey, {
-                                          isDisabled: item.enabled,
-                                        });
-                                      }
-                                    }
-                                  }}
+                                  onToggle={
+                                    scenarioIsV2
+                                      ? undefined
+                                      : () => {
+                                          if (item.kind === "event" && item.eventDefinitionId) {
+                                            if (item.eventSource === "draft") {
+                                              setDraftEvents((current) =>
+                                                current.map((event) =>
+                                                  event.definition.id === item.eventDefinitionId
+                                                    ? {
+                                                        ...event,
+                                                        ref: {
+                                                          ...event.ref,
+                                                          enabled: !event.ref.enabled,
+                                                        },
+                                                      }
+                                                    : event
+                                                )
+                                              );
+                                            } else {
+                                              updateEventPatch(item.eventDefinitionId, {
+                                                isDisabled: item.enabled,
+                                              });
+                                            }
+                                          }
+                                          if (item.kind === "rule" && item.ruleId) {
+                                            if (item.ruleSource === "draft") {
+                                              setDraftBudgetRules((current) =>
+                                                current.map((rule) =>
+                                                  rule.id === item.ruleId
+                                                    ? { ...rule, enabled: !rule.enabled }
+                                                    : rule
+                                                )
+                                              );
+                                            } else {
+                                              updateRulePatch(item.ruleId, {
+                                                isDisabled: item.enabled,
+                                              });
+                                            }
+                                          }
+                                          if (item.kind === "position" && item.positionKey) {
+                                            if (item.positionKind === "smartInvest") {
+                                              updateSmartInvestPatch({ isDisabled: item.enabled });
+                                            } else {
+                                              updatePositionPatch(item.positionKey, {
+                                                isDisabled: item.enabled,
+                                              });
+                                            }
+                                          }
+                                        }
+                                  }
                                   onEdit={() => {
+                                    if (scenarioIsV2) {
+                                      if (item.kind === "event" && item.eventId) {
+                                        handleEditV2Event(item.eventId);
+                                      }
+                                      if (item.positionKind === "asset") {
+                                        setAssetDrawerItem(item.position ?? null);
+                                      }
+                                      if (item.positionKind === "liability") {
+                                        setLiabilityDrawerItem(item.position ?? null);
+                                      }
+                                      return;
+                                    }
                                     if (item.kind === "event" && item.eventSource === "draft") {
                                       const addition = draftEvents.find(
                                         (event) =>
@@ -3351,18 +4049,35 @@ export default function PlanLabPanel({
                     <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
                   </MantineTooltip>
                   <Group gap="xs" wrap="wrap">
-                    <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
-                      {translate("planLabAddMemberAction", "新增成員")}
-                    </Button>
-                    <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
-                      {translate("planLabAddRuleAction", "新增規則")}
-                    </Button>
-                    <Button size="xs" variant="light" onClick={openAddEventDrawer}>
+                    {!scenarioIsV2 && (
+                      <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
+                        {translate("planLabAddMemberAction", "新增成員")}
+                      </Button>
+                    )}
+                    {!scenarioIsV2 && (
+                      <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
+                        {translate("planLabAddRuleAction", "新增規則")}
+                      </Button>
+                    )}
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={
+                        scenarioIsV2
+                          ? () => {
+                              setV2EventDefaultKind("income");
+                              openV2EventDrawer("create", "cashflow");
+                            }
+                          : openAddEventDrawer
+                      }
+                    >
                       {translate("planLabAddEventAction", "新增事件")}
                     </Button>
-                    <Button size="xs" onClick={openAddExperimentDrawer}>
-                      {translate("planLabExperimentsAddAction", "新增實驗")}
-                    </Button>
+                    {!scenarioIsV2 && (
+                      <Button size="xs" onClick={openAddExperimentDrawer}>
+                        {translate("planLabExperimentsAddAction", "新增實驗")}
+                      </Button>
+                    )}
                   </Group>
                 </Group>
                 {experiments.length === 0 ? (
@@ -3908,6 +4623,125 @@ export default function PlanLabPanel({
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
       />
+
+      {scenarioIsV2 && (
+        <>
+          <CashflowEventDrawer
+            opened={
+              v2EventDrawerOpen &&
+              (v2EventDrawerType === "cashflow" || v2EventDrawerType === "adjustment")
+            }
+            mode={v2EventDrawerMode}
+            baseCurrency={scenario.baseCurrency}
+            scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
+            members={sandboxScenarioV2.members ?? []}
+            event={v2EventDrawerMode === "edit" ? editingCashflowEvent : null}
+            defaultKind={v2EventDefaultKind}
+            onClose={closeV2EventDrawer}
+            onSave={handleSaveV2Event}
+          />
+          <HousingEventDrawer
+            opened={v2EventDrawerOpen && v2EventDrawerType === "housing"}
+            mode={v2EventDrawerMode}
+            baseCurrency={scenario.baseCurrency}
+            event={v2EventDrawerMode === "edit" ? editingHousingEvent : null}
+            onClose={closeV2EventDrawer}
+            onSave={handleSaveHousingEvent}
+          />
+          <LoanEventDrawer
+            opened={v2EventDrawerOpen && v2EventDrawerType === "loan"}
+            mode={v2EventDrawerMode}
+            baseCurrency={scenario.baseCurrency}
+            event={v2EventDrawerMode === "edit" ? editingLoanEvent : null}
+            onClose={closeV2EventDrawer}
+            onSave={handleSaveLoanEvent}
+          />
+          <InsuranceEventDrawer
+            opened={v2EventDrawerOpen && v2EventDrawerType === "insurance"}
+            mode={v2EventDrawerMode}
+            baseCurrency={scenario.baseCurrency}
+            event={v2EventDrawerMode === "edit" ? editingInsuranceEvent : null}
+            onClose={closeV2EventDrawer}
+            onSave={handleSaveInsuranceEvent}
+          />
+          <Drawer
+            opened={Boolean(assetDrawerItem)}
+            onClose={() => setAssetDrawerItem(null)}
+            position="right"
+            size="md"
+            title={translate("planLabAssetDrawerTitle", "資產")}
+          >
+            {assetDrawerItem ? (
+              <Stack gap="xs">
+                <Text fw={600}>{defaultAssetLabel(assetDrawerItem)}</Text>
+                <Text size="sm">
+                  {translate("planLabAssetDrawerKind", "類型")}: {assetDrawerItem.kind}
+                </Text>
+                {assetDrawerItem.currentValue != null && (
+                  <Text size="sm">
+                    {translate("planLabAssetDrawerValue", "現值")}:{" "}
+                    {formatCurrency(
+                      assetDrawerItem.currentValue ?? 0,
+                      scenario.baseCurrency,
+                      locale
+                    )}
+                  </Text>
+                )}
+                {assetDrawerItem.startMonth && (
+                  <Text size="sm">
+                    {translate("planLabAssetDrawerStartMonth", "開始月份")}:{" "}
+                    {assetDrawerItem.startMonth}
+                  </Text>
+                )}
+                {assetDrawerItem.notes && (
+                  <Text size="sm">
+                    {translate("planLabAssetDrawerNotes", "備註")}: {assetDrawerItem.notes}
+                  </Text>
+                )}
+              </Stack>
+            ) : null}
+          </Drawer>
+          <Drawer
+            opened={Boolean(liabilityDrawerItem)}
+            onClose={() => setLiabilityDrawerItem(null)}
+            position="right"
+            size="md"
+            title={translate("planLabLiabilityDrawerTitle", "負債")}
+          >
+            {liabilityDrawerItem ? (
+              <Stack gap="xs">
+                <Text fw={600}>{defaultLiabilityLabel(liabilityDrawerItem)}</Text>
+                <Text size="sm">
+                  {translate("planLabLiabilityDrawerKind", "類型")}:{" "}
+                  {liabilityDrawerItem.kind}
+                </Text>
+                {liabilityDrawerItem.principalOutstanding != null && (
+                  <Text size="sm">
+                    {translate("planLabLiabilityDrawerBalance", "餘額")}:{" "}
+                    {formatCurrency(
+                      liabilityDrawerItem.principalOutstanding ?? 0,
+                      scenario.baseCurrency,
+                      locale
+                    )}
+                  </Text>
+                )}
+                {liabilityDrawerItem.startMonth && (
+                  <Text size="sm">
+                    {translate("planLabLiabilityDrawerStartMonth", "開始月份")}:{" "}
+                    {liabilityDrawerItem.startMonth}
+                  </Text>
+                )}
+                {liabilityDrawerItem.notes && (
+                  <Text size="sm">
+                    {translate("planLabLiabilityDrawerNotes", "備註")}:{" "}
+                    {liabilityDrawerItem.notes}
+                  </Text>
+                )}
+              </Stack>
+            ) : null}
+          </Drawer>
+        </>
+      )}
 
       <Drawer
         opened={eventDrawerOpen}
