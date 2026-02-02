@@ -156,6 +156,7 @@ export default function EventCardList({
                     {common("actionDelete")}
                   </Button>
                   <Button
+                    display={"none"}
                     size="xs"
                     variant="subtle"
                     onClick={() => primaryRow && onAdjustEvent(primaryRow)}
