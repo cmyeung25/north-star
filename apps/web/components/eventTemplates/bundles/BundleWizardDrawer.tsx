@@ -23,6 +23,7 @@ import { normalizeMonthStrict } from "../../../src/utils/month";
 import { isValidMonthKey } from "../../../src/utils/monthKey";
 import type { ScenarioEventDraft } from "../../../src/domain/scenarioV2/events";
 import type { TemplateDef } from "../../../src/domain/eventTemplates/types";
+import MonthField from "../../MonthField";
 import {
   buildHomePurchaseBundleEvent,
   buildNewBabyBundleEvents,
@@ -1120,45 +1121,25 @@ export default function BundleWizardDrawer({
                         }))
                       }
                     />
-                    <TextInput
+                    <MonthField
                       label={t("bundleHomeRentalStartMonth")}
-                      placeholder="YYYY-MM"
                       value={homeDraft.rentalStartMonth}
-                      onChange={(event) =>
+                      onChange={(value) =>
                         setHomeDraft((current) => ({
                           ...current,
-                          rentalStartMonth: event.currentTarget.value,
+                          rentalStartMonth: value,
                         }))
                       }
-                      onBlur={(event) => {
-                        const normalized = helperCostMonthNormalize(
-                          event.currentTarget.value
-                        );
-                        setHomeDraft((current) => ({
-                          ...current,
-                          rentalStartMonth: normalized,
-                        }));
-                      }}
                     />
-                    <TextInput
+                    <MonthField
                       label={t("bundleHomeRentalEndMonth")}
-                      placeholder="YYYY-MM"
                       value={homeDraft.rentalEndMonth}
-                      onChange={(event) =>
+                      onChange={(value) =>
                         setHomeDraft((current) => ({
                           ...current,
-                          rentalEndMonth: event.currentTarget.value,
+                          rentalEndMonth: value,
                         }))
                       }
-                      onBlur={(event) => {
-                        const normalized = helperCostMonthNormalize(
-                          event.currentTarget.value
-                        );
-                        setHomeDraft((current) => ({
-                          ...current,
-                          rentalEndMonth: normalized,
-                        }));
-                      }}
                     />
                   </>
                 )}

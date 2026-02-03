@@ -111,6 +111,8 @@ import {
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
+import type { EventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
+import { buildEventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
 import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
 import type { TemplateCategory, TemplateDef } from "../../../src/domain/eventTemplates/types";
 import { buildTemplateDrawerDraftOverrides } from "../../../src/domain/eventTemplates/presets";
@@ -145,6 +147,16 @@ type MoneyClientProps = {
   initialShowOnboardingBanner?: boolean;
   initialShowOnboardingSkipped?: boolean;
 };
+
+const isDerivedFromEvent = (item: {
+  source?: "manual" | "eventGenerated";
+  createdByEventId?: string;
+}) => item.source === "eventGenerated" || Boolean(item.createdByEventId);
+
+const getEventIdFromItem = (
+  item: { createdByEventId?: string },
+  fallbackEventId?: string | null
+) => item.createdByEventId ?? fallbackEventId ?? null;
 
 const tabOrder: MoneyTab[] = [
   "income",
@@ -366,6 +378,7 @@ export default function MoneyClient({
     type: "eventV2" | "asset" | "loan";
     id: string;
     label: string;
+    impact?: EventDeleteImpact | null;
   } | null>(null);
   const [cashflowModal, setCashflowModal] = useState<CashflowModalState>({
     opened: false,
@@ -849,6 +862,7 @@ export default function MoneyClient({
       return;
     }
     setLedgerActionError(null);
+    let savedEventId = draft.id ?? null;
     const payload = {
       type: "housing" as const,
       label: draft.label.trim() || undefined,
@@ -879,7 +893,9 @@ export default function MoneyClient({
           ? Number(draft.mortgagePayment)
           : undefined,
       mortgagePaymentIsEstimated:
-        draft.kind === "mortgage" && !draft.mortgagePayment ? true : undefined,
+        draft.kind === "mortgage"
+          ? draft.mortgagePaymentSource === "estimated"
+          : undefined,
       feesOneOff:
         draft.kind === "mortgage"
           ? draft.feesOneOff.map((fee) => ({
@@ -929,14 +945,19 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventCreateFailed"));
         return;
       }
+      savedEventId = result.event?.id ?? null;
     }
 
     if (payload.kind === "mortgage" && payload.propertyAssetId && payload.mortgageLiabilityId) {
+      const createdByEventId = savedEventId ?? payload.propertyAssetId;
       upsertScenarioAssets(scenarioIdValue, [
         {
           id: payload.propertyAssetId,
           kind: "home",
           label: payload.label,
+          source: "eventGenerated",
+          createdByEventId,
+          createdByTemplate: "housing_mortgage",
         },
       ]);
       upsertScenarioLiabilities(scenarioIdValue, [
@@ -944,6 +965,9 @@ export default function MoneyClient({
           id: payload.mortgageLiabilityId,
           kind: "mortgage",
           label: payload.label,
+          source: "eventGenerated",
+          createdByEventId,
+          createdByTemplate: "housing_mortgage",
         },
       ]);
     }
@@ -1073,17 +1097,26 @@ export default function MoneyClient({
     setEditingV2EventId(null);
     setV2EventDrawerType(null);
   };
-  const handleEditV2Event = (eventId: string) => {
-    if (!scenarioIsV2) {
-      return;
-    }
-    const match = v2ScenarioEvents.find((event) => event.id === eventId);
-    if (!match) {
-      setLedgerActionError(t("ledgerEventMissing"));
-      return;
-    }
-    openV2EventDrawer("edit", match.type, eventId);
-  };
+  const handleEditV2Event = useCallback(
+    (eventId: string) => {
+      if (!scenarioIsV2) {
+        return;
+      }
+      const match = v2ScenarioEvents.find((event) => event.id === eventId);
+      if (!match) {
+        setLedgerActionError(t("ledgerEventMissing"));
+        return;
+      }
+      openV2EventDrawer("edit", match.type, eventId);
+    },
+    [openV2EventDrawer, scenarioIsV2, t, v2ScenarioEvents]
+  );
+  const openEventDrawer = useCallback(
+    (eventId: string) => {
+      handleEditV2Event(eventId);
+    },
+    [handleEditV2Event]
+  );
   const handleDuplicateV2Event = (eventId: string) => {
     if (!scenarioIdValue) {
       return;
@@ -1104,13 +1137,15 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventMissing"));
         return;
       }
+      const impact = scenario ? buildEventDeleteImpact(scenario, eventId) : null;
       setDeleteConfirmation({
         type: "eventV2",
         id: eventId,
         label: match.label ?? t("ledgerRowFallbackLabel"),
+        impact,
       });
     },
-    [scenarioIsV2, t, v2ScenarioEvents]
+    [scenario, scenarioIsV2, t, v2ScenarioEvents]
   );
   const handleAdjustEvent = (row: LedgerRow) => {
     setLedgerActionError(null);
@@ -1154,40 +1189,67 @@ export default function MoneyClient({
     [scenario?.liabilities]
   );
   const assetSourcesById = useMemo(() => {
-    const sources: Record<string, { id: string; label: string }[]> = {};
-    const addSource = (assetId: string | undefined, event: ScenarioEvent, label?: string) => {
+    const sources: Record<
+      string,
+      { id: string; label: string; hasRelatedDebt?: boolean; hasRelatedCashflows?: boolean }[]
+    > = {};
+    const addSource = (
+      assetId: string | undefined,
+      event: ScenarioEvent,
+      options?: { label?: string; hasRelatedDebt?: boolean }
+    ) => {
       if (!assetId) {
         return;
       }
-      const eventLabel = label ?? event.label ?? t("ledgerRowFallbackLabel");
-      sources[assetId] = [...(sources[assetId] ?? []), { id: event.id, label: eventLabel }];
+      const eventLabel = options?.label ?? event.label ?? t("ledgerRowFallbackLabel");
+      const hasRelatedCashflows = (ledgerRowsByEventId.get(event.id) ?? []).length > 0;
+      sources[assetId] = [
+        ...(sources[assetId] ?? []),
+        {
+          id: event.id,
+          label: eventLabel,
+          hasRelatedDebt: options?.hasRelatedDebt,
+          hasRelatedCashflows,
+        },
+      ];
     };
     v2ScenarioEvents.forEach((event) => {
       if (event.type === "housing" && event.kind === "mortgage") {
-        addSource(event.propertyAssetId, event);
+        addSource(event.propertyAssetId, event, {
+          hasRelatedDebt: Boolean(event.mortgageLiabilityId),
+        });
       }
       if (event.type === "insurance" && event.mode === "detailed") {
         (event.policies ?? []).forEach((policy) => {
           if (policy.kind === "savings") {
-            addSource(policy.policyAssetId, event, policy.name ?? event.label);
+            addSource(policy.policyAssetId, event, {
+              label: policy.name ?? event.label,
+              hasRelatedDebt: false,
+            });
           }
         });
       }
     });
     return sources;
-  }, [t, v2ScenarioEvents]);
+  }, [ledgerRowsByEventId, t, v2ScenarioEvents]);
   const liabilitySourcesById = useMemo(() => {
-    const sources: Record<string, { id: string; label: string }[]> = {};
+    const sources: Record<
+      string,
+      { id: string; label: string; hasRelatedDebt?: boolean; hasRelatedCashflows?: boolean }[]
+    > = {};
     const addSource = (
       liabilityId: string | undefined,
-      event: ScenarioEvent,
-      label?: string
+      event: ScenarioEvent
     ) => {
       if (!liabilityId) {
         return;
       }
-      const eventLabel = label ?? event.label ?? t("ledgerRowFallbackLabel");
-      sources[liabilityId] = [...(sources[liabilityId] ?? []), { id: event.id, label: eventLabel }];
+      const eventLabel = event.label ?? t("ledgerRowFallbackLabel");
+      const hasRelatedCashflows = (ledgerRowsByEventId.get(event.id) ?? []).length > 0;
+      sources[liabilityId] = [
+        ...(sources[liabilityId] ?? []),
+        { id: event.id, label: eventLabel, hasRelatedDebt: true, hasRelatedCashflows },
+      ];
     };
     v2ScenarioEvents.forEach((event) => {
       if (event.type === "housing" && event.kind === "mortgage") {
@@ -1198,7 +1260,7 @@ export default function MoneyClient({
       }
     });
     return sources;
-  }, [t, v2ScenarioEvents]);
+  }, [ledgerRowsByEventId, t, v2ScenarioEvents]);
   const assetValueById = useMemo(() => {
     const values = new Map<string, number>();
     v2ScenarioEvents.forEach((event) => {
@@ -1305,6 +1367,13 @@ export default function MoneyClient({
     if (!scenarioIdValue) {
       return;
     }
+    if (isDerivedFromEvent(item)) {
+      const eventId = getEventIdFromItem(item);
+      if (eventId) {
+        handleDeleteV2Event(eventId);
+      }
+      return;
+    }
     const nextAssets = scenarioAssets.filter((asset) => asset.id !== item.id);
     setScenarioAssets(scenarioIdValue, nextAssets);
   };
@@ -1321,6 +1390,13 @@ export default function MoneyClient({
   };
   const handleRemoveLiabilityItem = (item: ScenarioLiability) => {
     if (!scenarioIdValue) {
+      return;
+    }
+    if (isDerivedFromEvent(item)) {
+      const eventId = getEventIdFromItem(item);
+      if (eventId) {
+        handleDeleteV2Event(eventId);
+      }
       return;
     }
     const nextLiabilities = scenarioLiabilities.filter(
@@ -1495,7 +1571,7 @@ export default function MoneyClient({
     
     switch (type) {
       case "eventV2":
-        removeEvent(id, scenarioIdValue);
+        removeEvent(id, scenarioIdValue, { cascade: true });
         break;
       case "asset":
         // Determine asset type from the homes, cars, investments, insurances lists
@@ -2095,7 +2171,7 @@ export default function MoneyClient({
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
               onAdjustEvent={handleAdjustEvent}
@@ -2126,7 +2202,7 @@ export default function MoneyClient({
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
               onAdjustEvent={handleAdjustEvent}
@@ -2154,7 +2230,7 @@ export default function MoneyClient({
               sourceEventsByAssetId={assetSourcesById}
               onUpsert={handleUpsertAssetItem}
               onDelete={handleRemoveAssetItem}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
               openEditId={openAssetEditId}
               onOpenEditHandled={() => setOpenAssetEditId(null)}
             />
@@ -2210,7 +2286,7 @@ export default function MoneyClient({
               sourceEventsByLiabilityId={liabilitySourcesById}
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
               openEditId={openLiabilityEditId}
               onOpenEditHandled={() => setOpenLiabilityEditId(null)}
             />
@@ -2748,6 +2824,72 @@ export default function MoneyClient({
               <Text>
                 {t("deleteConfirmation", { label: deleteConfirmation?.label ?? "" })}
               </Text>
+              {deleteConfirmation?.type === "eventV2" && deleteConfirmation.impact && (
+                <Stack gap="sm">
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("deleteImpactAssetsTitle")}
+                    </Text>
+                    {deleteConfirmation.impact.impactedAssets.length > 0 ? (
+                      deleteConfirmation.impact.impactedAssets.map((asset) => (
+                        <Text size="sm" key={asset.id}>
+                          • {asset.label ?? t("assetUntitled")}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("deleteImpactNone")}
+                      </Text>
+                    )}
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("deleteImpactLiabilitiesTitle")}
+                    </Text>
+                    {deleteConfirmation.impact.impactedLiabilities.length > 0 ? (
+                      deleteConfirmation.impact.impactedLiabilities.map((liability) => (
+                        <Text size="sm" key={liability.id}>
+                          • {liability.label ?? t("liabilityUntitled")}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("deleteImpactNone")}
+                      </Text>
+                    )}
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("deleteImpactCashflowsTitle")}
+                    </Text>
+                    {deleteConfirmation.impact.ledger.topRows.length > 0 ? (
+                      deleteConfirmation.impact.ledger.topRows.map((row, index) => (
+                        <Group key={`${row.sourceEventId}-${index}`} justify="space-between">
+                          <Text size="sm">
+                            {row.label ?? t("ledgerRowFallbackLabel")} · {row.month}
+                          </Text>
+                          <Text size="sm" fw={500}>
+                            {formatCurrency(
+                              row.amount,
+                              scenario?.baseCurrency ?? "USD",
+                              locale
+                            )}
+                          </Text>
+                        </Group>
+                      ))
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("deleteImpactNone")}
+                      </Text>
+                    )}
+                  </Stack>
+                </Stack>
+              )}
+              {deleteConfirmation?.type === "eventV2" && !deleteConfirmation.impact && (
+                <Text size="sm" c="dimmed">
+                  {t("deleteImpactUnavailable")}
+                </Text>
+              )}
               <Group justify="flex-end" gap="sm">
                 <Button
                   variant="subtle"

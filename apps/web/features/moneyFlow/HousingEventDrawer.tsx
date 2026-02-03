@@ -58,6 +58,7 @@ export type HousingEventDraft = {
   mortgageRatePct: string;
   mortgageTermYears: string;
   mortgagePayment: string;
+  mortgagePaymentSource: "estimated" | "manual";
   feesOneOff: HousingFeeDraft[];
   ongoingCosts: HousingOngoingCostDraft[];
   rental: HousingRentalDraft;
@@ -135,6 +136,7 @@ const buildDraft = (event: HousingEvent | null): HousingEventDraft => {
       mortgageRatePct: "",
       mortgageTermYears: "",
       mortgagePayment: "",
+      mortgagePaymentSource: "estimated",
       feesOneOff: [],
       ongoingCosts: [],
       rental: {
@@ -179,6 +181,10 @@ const buildDraft = (event: HousingEvent | null): HousingEventDraft => {
     mortgagePayment: Number.isFinite(event.mortgagePayment)
       ? String(event.mortgagePayment)
       : "",
+    mortgagePaymentSource:
+      event.mortgagePaymentIsEstimated === false && Number.isFinite(event.mortgagePayment)
+        ? "manual"
+        : "estimated",
     feesOneOff: buildFeesDraft(event.feesOneOff),
     ongoingCosts: buildOngoingDraft(event.ongoingCosts),
     rental: buildRentalDraft(event.rental),
@@ -229,6 +235,43 @@ export default function HousingEventDrawer({
     annualRateDecimal,
     termMonths
   );
+  const roundedEstimatedPayment = Number.isFinite(estimatedPayment)
+    ? Math.round(estimatedPayment * 100) / 100
+    : 0;
+  const isManualPayment = draft.mortgagePaymentSource === "manual";
+  const isEditingExistingKind = mode === "edit" && Boolean(event?.id);
+
+  useEffect(() => {
+    if (draft.kind !== "mortgage" || draft.mortgagePaymentSource !== "estimated") {
+      return;
+    }
+    if (!Number.isFinite(estimatedPayment) || estimatedPayment <= 0) {
+      if (draft.mortgagePayment === "") {
+        return;
+      }
+      setDraft((current) =>
+        current.mortgagePaymentSource === "estimated"
+          ? { ...current, mortgagePayment: "" }
+          : current
+      );
+      return;
+    }
+    const nextPayment = String(roundedEstimatedPayment);
+    if (draft.mortgagePayment === nextPayment) {
+      return;
+    }
+    setDraft((current) =>
+      current.mortgagePaymentSource === "estimated"
+        ? { ...current, mortgagePayment: nextPayment }
+        : current
+    );
+  }, [
+    draft.kind,
+    draft.mortgagePayment,
+    draft.mortgagePaymentSource,
+    estimatedPayment,
+    roundedEstimatedPayment,
+  ]);
 
   const handleFeeChange = (id: string, patch: Partial<HousingFeeDraft>) => {
     setDraft((current) => ({
@@ -359,6 +402,7 @@ export default function HousingEventDrawer({
             { value: "mortgage", label: t("housingKindMortgage") },
           ]}
           value={draft.kind}
+          disabled={isEditingExistingKind}
           onChange={(value) =>
             setDraft((current) => ({
               ...current,
@@ -366,6 +410,11 @@ export default function HousingEventDrawer({
             }))
           }
         />
+        {isEditingExistingKind && (
+          <Text size="xs" c="dimmed">
+            {t("housingKindLockedHint")}
+          </Text>
+        )}
         <MonthField
           label={t("ledgerEventStartMonth")}
           value={draft.startMonth}
@@ -461,7 +510,7 @@ export default function HousingEventDrawer({
               />
               <NumberInput
                 label={t("housingLoanAmountLabel")}
-                value={Number.isFinite(resolvedDownPayment) ? resolvedDownPayment : 0}
+                value={Number.isFinite(principal) ? principal : 0}
                 disabled
               />
             </Group>
@@ -499,6 +548,7 @@ export default function HousingEventDrawer({
               label={t("housingMonthlyPaymentLabel")}
               value={draft.mortgagePayment ? Number(draft.mortgagePayment) : ""}
               min={0}
+              disabled={!isManualPayment}
               onChange={(value) =>
                 setDraft((current) => ({
                   ...current,
@@ -508,9 +558,21 @@ export default function HousingEventDrawer({
             />
             <Text size="sm" c="dimmed">
               {t("housingEstimatedPaymentLabel", {
-                amount: estimatedPayment.toFixed(2),
+                amount: roundedEstimatedPayment.toFixed(2),
               })}
             </Text>
+            <Switch
+              checked={isManualPayment}
+              label={t("housingOverridePaymentToggle")}
+              onChange={(eventValue) =>
+                setDraft((current) => ({
+                  ...current,
+                  mortgagePaymentSource: eventValue.currentTarget.checked
+                    ? "manual"
+                    : "estimated",
+                }))
+              }
+            />
 
             <Divider label={t("assetPurchaseFeesTitle")} />
             <Stack gap="sm">

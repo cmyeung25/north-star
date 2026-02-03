@@ -18,6 +18,7 @@ import {
   resolveEventCardAmount,
   resolveEventCardEndMonth,
   resolveEventCardStartMonth,
+  resolveEventMonthlyImpact,
 } from "./eventCardUtils";
 
 type EventCardListProps = {
@@ -111,6 +112,9 @@ export default function EventCardList({
         const displayRows = showAll ? rows : rows.slice(0, ledgerPreviewLimit);
         const hasMoreRows = rows.length > ledgerPreviewLimit;
         const primaryRow = rows[0];
+        const impact = resolveEventMonthlyImpact(rows);
+        const hasIncomeImpact = Boolean(impact && impact.income > 0);
+        const hasExpenseImpact = Boolean(impact && impact.expense > 0);
 
         return (
           <Card key={event.id} withBorder radius="md" padding="md">
@@ -121,14 +125,41 @@ export default function EventCardList({
                   <Text size="sm" c="dimmed">
                     {t("eventCardCadence", { cadence: cadenceLabel })}
                   </Text>
-                  <Text size="sm" c="dimmed">
-                    {t("eventCardAmount", {
-                      amount:
-                        amount !== null
-                          ? formatCurrency(amount, baseCurrency, locale)
-                          : t("amountUnset"),
-                    })}
-                  </Text>
+                  {impact ? (
+                    <>
+                      {hasIncomeImpact && (
+                        <Text size="sm" c="dimmed">
+                          {t("eventCardMonthlyIncome", {
+                            amount: formatCurrency(impact.income, baseCurrency, locale),
+                          })}
+                        </Text>
+                      )}
+                      {hasExpenseImpact && (
+                        <Text size="sm" c="dimmed">
+                          {t("eventCardMonthlyExpense", {
+                            amount: formatCurrency(impact.expense, baseCurrency, locale),
+                          })}
+                        </Text>
+                      )}
+                      <Text size="sm" c="dimmed">
+                        {t("eventCardMonthlyNet", {
+                          amount:
+                            hasIncomeImpact || hasExpenseImpact
+                              ? formatCurrency(impact.net, baseCurrency, locale)
+                              : t("amountUnset"),
+                        })}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      {t("eventCardMonthlyNet", {
+                        amount:
+                          amount !== null
+                            ? formatCurrency(amount, baseCurrency, locale)
+                            : t("amountUnset"),
+                      })}
+                    </Text>
+                  )}
                   <Text size="sm" c="dimmed">
                     {t("eventCardMonths", {
                       startMonth: startMonth ?? t("amountUnset"),

@@ -21,6 +21,8 @@ import type { ScenarioAsset, ScenarioAssetKind } from "../../src/store/scenarioS
 type AssetSourceEvent = {
   id: string;
   label: string;
+  hasRelatedDebt?: boolean;
+  hasRelatedCashflows?: boolean;
 };
 
 type ScenarioAssetDraft = {
@@ -154,7 +156,11 @@ export default function ScenarioAssetManager({
       return;
     }
     const match = items.find((item) => item.id === openEditId) ?? null;
-    if (match && (sourceEventsByAssetId[match.id]?.length ?? 0) === 0) {
+    const isDerived =
+      match?.source === "eventGenerated" ||
+      Boolean(match?.createdByEventId) ||
+      (sourceEventsByAssetId[match?.id ?? ""]?.length ?? 0) > 0;
+    if (match && !isDerived) {
       openDrawer(match);
     }
     onOpenEditHandled?.();
@@ -196,10 +202,21 @@ export default function ScenarioAssetManager({
         <Stack gap="sm">
           {filteredItems.map((item) => {
             const sources = sourceEventsByAssetId[item.id] ?? [];
+            const isDerived =
+              item.source === "eventGenerated" ||
+              Boolean(item.createdByEventId) ||
+              sources.length > 0;
             const valueLabel = Number.isFinite(item.currentValue ?? Number.NaN)
               ? formatCurrency(item.currentValue ?? 0, item.currency ?? baseCurrency, locale)
               : t("assetValueUnset");
-            const canEdit = sources.length === 0;
+            const canEdit = !isDerived;
+            const primarySource = sources[0];
+            const eventId = primarySource?.id ?? item.createdByEventId ?? null;
+            const handleEditEvent = () => {
+              if (eventId) {
+                onEditEvent?.(eventId);
+              }
+            };
             return (
               <Card key={item.id} withBorder radius="md" padding="sm">
                 <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -208,28 +225,24 @@ export default function ScenarioAssetManager({
                     <Text size="xs" c="dimmed">
                       {typeLabel(item.kind)} · {valueLabel}
                     </Text>
-                    {sources.length > 0 && (
+                    {isDerived && (
                       <Stack gap={4}>
                         <Text size="xs" c="dimmed">
-                          {t("assetSourceEvents")}
+                          {t("eventSourceLabel")}
                         </Text>
                         <Group gap="xs">
-                          {sources.slice(0, 2).map((source) => (
-                            <Button
-                              key={source.id}
-                              size="xs"
-                              variant="light"
-                              onClick={() => onEditEvent?.(source.id)}
-                            >
-                              {source.label}
+                          <Button size="xs" variant="light" onClick={handleEditEvent}>
+                            {t("eventRelationEvent")}
+                          </Button>
+                          {primarySource?.hasRelatedDebt && (
+                            <Button size="xs" variant="light" onClick={handleEditEvent}>
+                              {t("eventRelationDebt")}
                             </Button>
-                          ))}
-                          {sources.length > 2 && (
-                            <Text size="xs" c="dimmed">
-                              {t("assetSourceEventsMore", {
-                                count: sources.length - 2,
-                              })}
-                            </Text>
+                          )}
+                          {primarySource?.hasRelatedCashflows && (
+                            <Button size="xs" variant="light" onClick={handleEditEvent}>
+                              {t("eventRelationCashflows")}
+                            </Button>
                           )}
                         </Group>
                       </Stack>
@@ -254,8 +267,8 @@ export default function ScenarioAssetManager({
                       <Button
                         size="xs"
                         variant="light"
-                        onClick={() => sources[0] && onEditEvent?.(sources[0].id)}
-                        disabled={sources.length === 0}
+                        onClick={handleEditEvent}
+                        disabled={!eventId}
                       >
                         {t("eventGeneratedEdit")}
                       </Button>
