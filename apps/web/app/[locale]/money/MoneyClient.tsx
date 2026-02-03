@@ -96,6 +96,9 @@ import LoanEventDrawer, {
 import InsuranceEventDrawer, {
   type InsuranceEventDraft,
 } from "../../../features/moneyFlow/InsuranceEventDrawer";
+import MortgageDetailDrawer, {
+  type MortgageDetailTab,
+} from "../../../features/moneyFlow/MortgageDetailDrawer";
 import ScenarioAssetManager from "../../../features/assets/ScenarioAssetManager";
 import ScenarioLiabilityManager from "../../../features/liabilities/ScenarioLiabilityManager";
 import type {
@@ -177,6 +180,9 @@ type MoneyAddAction =
   | "insurance"
   | "car"
   | "loan";
+
+type CreationIntent = "plan" | "item";
+type CreationItemCategory = "income" | "expenses" | "assets" | "liabilities";
 
 export default function MoneyClient({
   scenarioId,
@@ -301,6 +307,9 @@ export default function MoneyClient({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templatePickerCategory, setTemplatePickerCategory] =
     useState<TemplateCategory>("popular");
+  const [templatePickerIntent, setTemplatePickerIntent] = useState<CreationIntent | null>(null);
+  const [templatePickerItemCategory, setTemplatePickerItemCategory] =
+    useState<CreationItemCategory | null>(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
@@ -311,6 +320,10 @@ export default function MoneyClient({
     useState<Partial<LoanEventDraft> | null>(null);
   const [templateInsuranceDraft, setTemplateInsuranceDraft] =
     useState<Partial<InsuranceEventDraft> | null>(null);
+  const [mortgageDetail, setMortgageDetail] = useState<{
+    eventId: string;
+    tab: MortgageDetailTab;
+  } | null>(null);
   const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
   const [adjustmentDraft, setAdjustmentDraft] = useState<{
     row: LedgerRow;
@@ -776,9 +789,21 @@ export default function MoneyClient({
     setTemplateInsuranceDraft(null);
   }, []);
 
-  const openTemplatePicker = useCallback((category: TemplateCategory) => {
-    setTemplatePickerCategory(category);
-    setTemplatePickerOpen(true);
+  const openCreationDrawer = useCallback(
+    (options?: {
+      intent?: CreationIntent | null;
+      itemCategory?: CreationItemCategory | null;
+      templateCategory?: TemplateCategory;
+    }) => {
+      setTemplatePickerCategory(options?.templateCategory ?? "popular");
+      setTemplatePickerIntent(options?.intent ?? null);
+      setTemplatePickerItemCategory(options?.itemCategory ?? null);
+      setTemplatePickerOpen(true);
+    },
+    []
+  );
+  const openMortgageDetails = useCallback((eventId: string, tab: MortgageDetailTab) => {
+    setMortgageDetail({ eventId, tab });
   }, []);
 
   const handleTemplateSelect = useCallback(
@@ -831,14 +856,18 @@ export default function MoneyClient({
 
   const handleAddCashflowEvent = useCallback(
     (kind: "income" | "expense") => {
-      openTemplatePicker(kind === "income" ? "income" : "expenses");
+      openCreationDrawer({
+        intent: "item",
+        itemCategory: kind === "income" ? "income" : "expenses",
+        templateCategory: kind === "income" ? "income" : "expenses",
+      });
     },
-    [openTemplatePicker]
+    [openCreationDrawer]
   );
 
   const handleFabAdd = useCallback(() => {
-    openTemplatePicker(activeTemplateCategory);
-  }, [activeTemplateCategory, openTemplatePicker]);
+    openCreationDrawer({ templateCategory: activeTemplateCategory });
+  }, [activeTemplateCategory, openCreationDrawer]);
 
   const handleSaveV2Event = (draft: ScenarioEventDraft) => {
     if (!scenarioIdValue) {
@@ -1241,10 +1270,46 @@ export default function MoneyClient({
     () => scenario?.liabilities ?? [],
     [scenario?.liabilities]
   );
+  const mortgageDetailEvent = useMemo(() => {
+    if (!mortgageDetail) {
+      return null;
+    }
+    const match = v2ScenarioEvents.find((event) => event.id === mortgageDetail.eventId);
+    if (match?.type !== "housing" || match.kind !== "mortgage") {
+      return null;
+    }
+    return match;
+  }, [mortgageDetail, v2ScenarioEvents]);
+  const mortgageDetailAsset = useMemo(() => {
+    if (!mortgageDetailEvent?.propertyAssetId) {
+      return null;
+    }
+    return (
+      scenarioAssets.find((asset) => asset.id === mortgageDetailEvent.propertyAssetId) ??
+      null
+    );
+  }, [mortgageDetailEvent?.propertyAssetId, scenarioAssets]);
+  const mortgageDetailLiability = useMemo(() => {
+    if (!mortgageDetailEvent?.mortgageLiabilityId) {
+      return null;
+    }
+    return (
+      scenarioLiabilities.find(
+        (liability) => liability.id === mortgageDetailEvent.mortgageLiabilityId
+      ) ?? null
+    );
+  }, [mortgageDetailEvent?.mortgageLiabilityId, scenarioLiabilities]);
   const assetSourcesById = useMemo(() => {
     const sources: Record<
       string,
-      { id: string; label: string; hasRelatedDebt?: boolean; hasRelatedCashflows?: boolean }[]
+      {
+        id: string;
+        label: string;
+        hasRelatedDebt?: boolean;
+        hasRelatedCashflows?: boolean;
+        eventType?: string;
+        eventKind?: string;
+      }[]
     > = {};
     const addSource = (
       assetId: string | undefined,
@@ -1263,6 +1328,8 @@ export default function MoneyClient({
           label: eventLabel,
           hasRelatedDebt: options?.hasRelatedDebt,
           hasRelatedCashflows,
+          eventType: event.type,
+          eventKind: "kind" in event ? event.kind : undefined,
         },
       ];
     };
@@ -1288,7 +1355,14 @@ export default function MoneyClient({
   const liabilitySourcesById = useMemo(() => {
     const sources: Record<
       string,
-      { id: string; label: string; hasRelatedDebt?: boolean; hasRelatedCashflows?: boolean }[]
+      {
+        id: string;
+        label: string;
+        hasRelatedDebt?: boolean;
+        hasRelatedCashflows?: boolean;
+        eventType?: string;
+        eventKind?: string;
+      }[]
     > = {};
     const addSource = (
       liabilityId: string | undefined,
@@ -1301,7 +1375,14 @@ export default function MoneyClient({
       const hasRelatedCashflows = (ledgerRowsByEventId.get(event.id) ?? []).length > 0;
       sources[liabilityId] = [
         ...(sources[liabilityId] ?? []),
-        { id: event.id, label: eventLabel, hasRelatedDebt: true, hasRelatedCashflows },
+        {
+          id: event.id,
+          label: eventLabel,
+          hasRelatedDebt: true,
+          hasRelatedCashflows,
+          eventType: event.type,
+          eventKind: "kind" in event ? event.kind : undefined,
+        },
       ];
     };
     v2ScenarioEvents.forEach((event) => {
@@ -1597,6 +1678,15 @@ export default function MoneyClient({
       setAssetDetails(null);
     }
   }, [homes, cars, investments, insurances, loans, assetDetails, scenarioIdValue]);
+
+  useEffect(() => {
+    if (!mortgageDetail) {
+      return;
+    }
+    if (!mortgageDetailEvent) {
+      setMortgageDetail(null);
+    }
+  }, [mortgageDetail, mortgageDetailEvent]);
 
   // Close editing drawers if the edited item was deleted
   useEffect(() => {
@@ -2169,6 +2259,7 @@ export default function MoneyClient({
                   </Text>
                 )}
               </Stack>
+              <Button onClick={() => openCreationDrawer()}>{t("addCta")}</Button>
             </Group>
             {showPlaceholderBanner && (
               <Card withBorder radius="md" padding="md">
@@ -2361,6 +2452,14 @@ export default function MoneyClient({
               onUpsert={handleUpsertAssetItem}
               onDelete={handleRemoveAssetItem}
               onEditEvent={openEventDrawer}
+              onOpenMortgageDetails={openMortgageDetails}
+              onAddItem={() =>
+                openCreationDrawer({
+                  intent: "item",
+                  itemCategory: "assets",
+                  templateCategory: "assets",
+                })
+              }
               openEditId={openAssetEditId}
               onOpenEditHandled={() => setOpenAssetEditId(null)}
             />
@@ -2417,6 +2516,14 @@ export default function MoneyClient({
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
               onEditEvent={openEventDrawer}
+              onOpenMortgageDetails={openMortgageDetails}
+              onAddItem={() =>
+                openCreationDrawer({
+                  intent: "item",
+                  itemCategory: "liabilities",
+                  templateCategory: "loans",
+                })
+              }
               openEditId={openLiabilityEditId}
               onOpenEditHandled={() => setOpenLiabilityEditId(null)}
             />
@@ -2656,9 +2763,32 @@ export default function MoneyClient({
         </Stack>
       </Drawer>
 
+      <MortgageDetailDrawer
+        opened={Boolean(mortgageDetail)}
+        onClose={() => setMortgageDetail(null)}
+        onEdit={
+          mortgageDetailEvent
+            ? () => {
+                openV2EventDrawer("edit", "housing", mortgageDetailEvent.id);
+                setMortgageDetail(null);
+              }
+            : undefined
+        }
+        event={mortgageDetailEvent}
+        asset={mortgageDetailAsset}
+        liability={mortgageDetailLiability}
+        baseCurrency={scenario?.baseCurrency ?? "USD"}
+        locale={locale}
+        defaultTab={mortgageDetail?.tab ?? "overview"}
+        currentMonth={currentProjectionMonth}
+      />
+
       <TemplatePickerDrawer
         opened={templatePickerOpen}
         defaultCategory={templatePickerCategory}
+        showIntentScreen
+        defaultIntent={templatePickerIntent}
+        defaultItemCategory={templatePickerItemCategory}
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
       />

@@ -1233,6 +1233,14 @@
     "milestoneApply": "Apply",
     "templatePickerTitle": "Choose a template",
     "templatePickerHint": "Pick a template to prefill the right event drawer.",
+    "addCta": "+ Add",
+    "createIntentHint": "What do you want to add?",
+    "createIntentPlanTitle": "Create a plan",
+    "createIntentPlanDesc": "Use a life-event wizard to generate a bundled plan.",
+    "createIntentItemTitle": "Add an item",
+    "createIntentItemDesc": "Add a single income, expense, asset, or liability item.",
+    "createIntentPlanHint": "Choose a life-event plan template.",
+    "createIntentItemHint": "Pick a category and template for a single item.",
     "templatePickerSearchPlaceholder": "Search templates",
     "templatePickerEmpty": "No templates found.",
     "templatePickerTabPopular": "Popular",
@@ -1244,6 +1252,34 @@
     "templatePickerTabInsurance": "Insurance",
     "templatePickerTabAssets": "Assets",
     "templatePickerTabAdjustments": "Adjustments",
+    "mortgageDetailTitle": "Mortgage details",
+    "mortgageDetailTabOverview": "Overview",
+    "mortgageDetailTabLiability": "Liability",
+    "mortgageDetailTabCashflow": "Cashflow",
+    "mortgageDetailStartMonth": "Start month",
+    "mortgageDetailPropertyValue": "Property value",
+    "mortgageDetailDownPayment": "Down payment",
+    "mortgageDetailLoanAmount": "Loan amount",
+    "mortgageDetailRate": "Rate (%)",
+    "mortgageDetailTerm": "Term (years)",
+    "mortgageDetailMonthlyPayment": "Monthly payment",
+    "mortgageDetailAssetLabel": "Linked asset",
+    "mortgageDetailOutstanding": "Outstanding balance",
+    "mortgageDetailAnnualInterest": "Annual interest",
+    "mortgageDetailAnnualPrincipal": "Annual principal",
+    "mortgageDetailTotalInterest": "Total interest",
+    "mortgageDetailLiabilityLabel": "Linked liability",
+    "mortgageDetailScheduleTitle": "Amortization schedule",
+    "mortgageDetailScheduleEmpty": "No amortization data available.",
+    "mortgageDetailScheduleMonth": "Month",
+    "mortgageDetailScheduleOpening": "Opening balance",
+    "mortgageDetailSchedulePrincipal": "Principal",
+    "mortgageDetailScheduleInterest": "Interest",
+    "mortgageDetailScheduleClosing": "Closing balance",
+    "mortgageDetailCashflowHint": "Review the monthly cashflow related to this mortgage.",
+    "mortgageDetailCashflowEmpty": "No cashflow items found.",
+    "mortgageDetailRentalIncome": "Rental income",
+    "mortgageDetailOngoingCostFallback": "Ongoing cost",
     "templateChipCashflow": "Affects cashflow",
     "templateChipNetWorth": "Affects net worth",
     "templateChipRequiresLiability": "Requires liability",
@@ -1365,8 +1401,8 @@
         "desc": "Large one-off expense at a specific month."
       },
       "mortgage_home_purchase": {
-        "name": "Mortgage home purchase",
-        "desc": "Buy a home with mortgage payments and fees."
+        "name": "Quick mortgage add",
+        "desc": "Add a mortgage liability with optional rental income and fees."
       },
       "housing_fees_rates": {
         "name": "Housing fees & rates",
@@ -1397,8 +1433,8 @@
         "desc": "Bundle delivery, childcare, helper, and schooling costs."
       },
       "life_home_purchase": {
-        "name": "Home purchase bundle",
-        "desc": "Create a mortgage purchase event with fees and rental options."
+        "name": "Home purchase plan",
+        "desc": "Create a bundled plan with asset, liability, and cashflow items."
       }
     },
     "timelineTitle": "One-off / Timeline",
