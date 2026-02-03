@@ -642,7 +642,7 @@ export default function BundleWizardDrawer({
                   onChange={(event) =>
                     setNewBabyDraft((current) => ({
                       ...current,
-                      helperEnabled: event.currentTarget.checked,
+                      helperEnabled: event?.currentTarget?.checked ?? false,
                     }))
                   }
                 />
@@ -683,7 +683,7 @@ export default function BundleWizardDrawer({
                   onChange={(event) =>
                     setNewBabyDraft((current) => ({
                       ...current,
-                      schoolingEnabled: event.currentTarget.checked,
+                      schoolingEnabled: event?.currentTarget?.checked ?? false,
                     }))
                   }
                 />
@@ -1092,7 +1092,7 @@ export default function BundleWizardDrawer({
                   onChange={(event) =>
                     setHomeDraft((current) => ({
                       ...current,
-                      rentalEnabled: event.currentTarget.checked,
+                      rentalEnabled: event?.currentTarget?.checked ?? false,
                     }))
                   }
                 />
