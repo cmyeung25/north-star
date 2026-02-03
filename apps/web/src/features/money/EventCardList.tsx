@@ -2,10 +2,12 @@
 
 import React from "react";
 import {
+  ActionIcon,
   Badge,
   Button,
   Card,
   Group,
+  Menu,
   Stack,
   Text,
 } from "@mantine/core";
@@ -171,30 +173,27 @@ export default function EventCardList({
                   <Button size="xs" variant="light" onClick={() => onEditEvent(event.id)}>
                     {common("actionEdit")}
                   </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() => onDuplicateEvent(event.id)}
-                  >
-                    {common("actionDuplicate")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="red"
-                    onClick={() => onDeleteEvent(event.id)}
-                  >
-                    {common("actionDelete")}
-                  </Button>
-                  <Button
-                    display={"none"}
-                    size="xs"
-                    variant="subtle"
-                    onClick={() => primaryRow && onAdjustEvent(primaryRow)}
-                    disabled={!primaryRow}
-                  >
-                    {common("actionAdjust")}
-                  </Button>
+                  <Menu position="bottom-end" withinPortal>
+                    <Menu.Target>
+                      <ActionIcon variant="subtle" size="sm" aria-label={common("actionMore")}>
+                        ⋯
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => onDuplicateEvent(event.id)}>
+                        {common("actionDuplicate")}
+                      </Menu.Item>
+                      <Menu.Item
+                        disabled={!primaryRow}
+                        onClick={() => primaryRow && onAdjustEvent(primaryRow)}
+                      >
+                        {common("actionAdjust")}
+                      </Menu.Item>
+                      <Menu.Item color="red" onClick={() => onDeleteEvent(event.id)}>
+                        {common("actionDelete")}
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
                 </Group>
               </Group>
 

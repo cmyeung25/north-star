@@ -1,6 +1,7 @@
 "use client";
 
 import { Stack } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { useTranslations } from "next-intl";
 import MonthRangePicker from "./MonthRangePicker";
 import MoneyDashboardPanel from "./MoneyDashboardPanel";
@@ -33,8 +34,10 @@ export default function RightPaneDashboard({
   netCashflowSeries,
   onRangeChange,
   onOpenBreakdown,
+  showCharts = true,
 }: RightPaneDashboardProps) {
   const t = useTranslations("overview");
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   return (
     <Stack gap="md">
@@ -44,6 +47,15 @@ export default function RightPaneDashboard({
         label={t("breakdownRangeLabel")}
         fromLabel={t("breakdownRangeFrom")}
         toLabel={t("breakdownRangeTo")}
+        quickActionLabels={
+          isMobile
+            ? {
+                previous: t("breakdownRangePrevMonth"),
+                current: t("breakdownRangeCurrentMonth"),
+                next: t("breakdownRangeNextMonth"),
+              }
+            : undefined
+        }
         onChange={onRangeChange}
       />
       <MoneyDashboardPanel
@@ -56,6 +68,7 @@ export default function RightPaneDashboard({
         cashSeries={cashSeries}
         netWorthSeries={netWorthSeries}
         netCashflowSeries={netCashflowSeries}
+        showCharts={showCharts}
         onOpenBreakdown={onOpenBreakdown}
       />
     </Stack>
