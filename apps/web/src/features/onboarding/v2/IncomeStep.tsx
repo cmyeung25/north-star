@@ -38,6 +38,15 @@ type IncomeStepProps = {
   t: (key: string, values?: Record<string, number>) => string;
 };
 
+type IncomeTemplate = {
+  key: string;
+  label: string;
+  fallbackName: string;
+  memberId: string;
+  frequency?: OnboardingV2IncomeFrequency;
+  followIncomeGrowth?: boolean;
+};
+
 const frequencyOptions: { value: OnboardingV2IncomeFrequency; label: string }[] =
   [
     { value: "monthly", label: "Monthly" },
@@ -101,7 +110,7 @@ export default function IncomeStep({
     onChange(incomes.filter((income) => income.id !== incomeId));
   };
 
-  const templateButtons = [
+  const primaryTemplates: IncomeTemplate[] = [
     {
       key: "selfSalary",
       label: t("incomeTemplateSelfSalary"),
@@ -126,6 +135,8 @@ export default function IncomeStep({
       fallbackName: t("incomeTemplateCommissionName"),
       memberId: "",
     },
+  ];
+  const addonTemplates: IncomeTemplate[] = [
     {
       key: "bonusIncome",
       label: t("incomeTemplateBonus"),
@@ -145,7 +156,7 @@ export default function IncomeStep({
             {t("incomeHint")}
           </Text>
           <Group gap="sm" wrap="wrap">
-            {templateButtons.map((template) => {
+            {primaryTemplates.map((template) => {
               const hasMember =
                 template.memberId === "" ||
                 members.some((member) => member.id === template.memberId);
@@ -168,7 +179,7 @@ export default function IncomeStep({
               >
                 {template.label}
               </Button>
-            );
+              );
             })}
             <Button
               size="xs"
@@ -179,6 +190,34 @@ export default function IncomeStep({
             >
               {t("incomeAdd")}
             </Button>
+          </Group>
+          <Divider label={t("incomeAddonsTitle")} />
+          <Group gap="sm" wrap="wrap">
+            {addonTemplates.map((template) => {
+              const hasMember =
+                template.memberId === "" ||
+                members.some((member) => member.id === template.memberId);
+              return (
+                <Button
+                  key={template.key}
+                  variant="light"
+                  size="xs"
+                  disabled={!hasMember}
+                  onClick={() => {
+                    const id = `${template.key}-${Date.now()}`;
+                    handleAddIncome({
+                      ...buildBlankIncome({ id, startMonth: baseMonth }),
+                      label: template.fallbackName,
+                      memberId: template.memberId,
+                      frequency: template.frequency ?? "monthly",
+                      followIncomeGrowth: template.followIncomeGrowth ?? true,
+                    });
+                  }}
+                >
+                  {template.label}
+                </Button>
+              );
+            })}
           </Group>
         </Stack>
       </Card>
