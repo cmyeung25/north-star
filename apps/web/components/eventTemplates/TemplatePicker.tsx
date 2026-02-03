@@ -17,6 +17,8 @@ import { listTemplates } from "../../src/domain/eventTemplates/registry";
 type TemplatePickerProps = {
   opened?: boolean;
   defaultCategory?: TemplateCategory;
+  categoryFilter?: TemplateCategory | "all";
+  showCategoryTabs?: boolean;
   onSelect: (template: TemplateDef) => void;
   filterTemplates?: (template: TemplateDef) => boolean;
 };
@@ -77,6 +79,8 @@ const resolveCategoryLabel = (
 export default function TemplatePicker({
   opened = true,
   defaultCategory = "popular",
+  categoryFilter,
+  showCategoryTabs = true,
   onSelect,
   filterTemplates,
 }: TemplatePickerProps) {
@@ -101,12 +105,15 @@ export default function TemplatePicker({
       if (filterTemplates && !filterTemplates(template)) {
         return false;
       }
-      if (activeCategory === "popular") {
-        if (!template.categories.includes("popular")) {
+      const resolvedCategory = categoryFilter ?? activeCategory;
+      if (resolvedCategory !== "all") {
+        if (resolvedCategory === "popular") {
+          if (!template.categories.includes("popular")) {
+            return false;
+          }
+        } else if (!template.categories.includes(resolvedCategory)) {
           return false;
         }
-      } else if (!template.categories.includes(activeCategory)) {
-        return false;
       }
       if (!query) {
         return true;
@@ -115,7 +122,7 @@ export default function TemplatePicker({
       const desc = t(`templates.${template.id}.desc`).toLowerCase();
       return name.includes(query) || desc.includes(query);
     });
-  }, [activeCategory, filterTemplates, search, t, templates]);
+  }, [activeCategory, categoryFilter, filterTemplates, search, t, templates]);
 
   return (
     <Stack gap="sm">
@@ -124,20 +131,22 @@ export default function TemplatePicker({
         value={search}
         onChange={(event) => setSearch(event.currentTarget.value)}
       />
-      <Tabs
-        value={activeCategory}
-        onChange={(value) =>
-          setActiveCategory((value as TemplateCategory) ?? "popular")
-        }
-      >
-        <Tabs.List>
-          {categoryOrder.map((category) => (
-            <Tabs.Tab value={category} key={category}>
-              {resolveCategoryLabel(t, category)}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs>
+      {showCategoryTabs && (
+        <Tabs
+          value={activeCategory}
+          onChange={(value) =>
+            setActiveCategory((value as TemplateCategory) ?? "popular")
+          }
+        >
+          <Tabs.List>
+            {categoryOrder.map((category) => (
+              <Tabs.Tab value={category} key={category}>
+                {resolveCategoryLabel(t, category)}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      )}
       {filteredTemplates.length === 0 ? (
         <Text size="sm" c="dimmed">
           {t("templatePickerEmpty")}

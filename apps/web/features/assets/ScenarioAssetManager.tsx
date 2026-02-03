@@ -12,7 +12,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { nanoid } from "nanoid";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 import { formatCurrency } from "../../lib/i18n";
 import { useEntityDraft } from "../../src/hooks/useEntityDraft";
@@ -23,6 +23,8 @@ type AssetSourceEvent = {
   label: string;
   hasRelatedDebt?: boolean;
   hasRelatedCashflows?: boolean;
+  eventType?: string;
+  eventKind?: string;
 };
 
 type ScenarioAssetDraft = {
@@ -50,6 +52,8 @@ type ScenarioAssetManagerProps = {
   onUpsert: (item: ScenarioAsset) => void;
   onDelete: (item: ScenarioAsset) => void;
   onEditEvent?: (eventId: string) => void;
+  onOpenMortgageDetails?: (eventId: string, tab: "overview" | "liability" | "cashflow") => void;
+  onAddItem?: () => void;
   openEditId?: string | null;
   onOpenEditHandled?: () => void;
 };
@@ -62,6 +66,8 @@ export default function ScenarioAssetManager({
   onUpsert,
   onDelete,
   onEditEvent,
+  onOpenMortgageDetails,
+  onAddItem,
   openEditId,
   onOpenEditHandled,
 }: ScenarioAssetManagerProps) {
@@ -191,7 +197,9 @@ export default function ScenarioAssetManager({
             onChange={(event) => setSearch(event.currentTarget?.value ?? "")}
           />
         </Group>
-        <Button onClick={() => openDrawer(null)}>{t("assetManagerAdd")}</Button>
+        <Button onClick={() => (onAddItem ? onAddItem() : openDrawer(null))}>
+          {t("assetManagerAdd")}
+        </Button>
       </Group>
 
       {filteredItems.length === 0 ? (
@@ -212,13 +220,42 @@ export default function ScenarioAssetManager({
             const canEdit = !isDerived;
             const primarySource = sources[0];
             const eventId = primarySource?.id ?? item.createdByEventId ?? null;
+            const isMortgage =
+              primarySource?.eventType === "housing" &&
+              primarySource?.eventKind === "mortgage";
             const handleEditEvent = () => {
               if (eventId) {
                 onEditEvent?.(eventId);
               }
             };
+            const handleOpenMortgageDetails = (tab: "overview" | "liability" | "cashflow") => {
+              if (!eventId) {
+                return;
+              }
+              if (isMortgage) {
+                onOpenMortgageDetails?.(eventId, tab);
+              } else {
+                handleEditEvent();
+              }
+            };
+            const handleCardClick = (event: MouseEvent<HTMLDivElement>) => {
+              if (!isMortgage) {
+                return;
+              }
+              if ((event.target as HTMLElement).closest("button")) {
+                return;
+              }
+              handleOpenMortgageDetails("overview");
+            };
             return (
-              <Card key={item.id} withBorder radius="md" padding="sm">
+              <Card
+                key={item.id}
+                withBorder
+                radius="md"
+                padding="sm"
+                onClick={isMortgage ? handleCardClick : undefined}
+                style={isMortgage ? { cursor: "pointer" } : undefined}
+              >
                 <Group justify="space-between" align="flex-start" wrap="wrap">
                   <Stack gap={4}>
                     <Text fw={600}>{item.label ?? t("assetUntitled")}</Text>
@@ -231,16 +268,28 @@ export default function ScenarioAssetManager({
                           {t("eventSourceLabel")}
                         </Text>
                         <Group gap="xs">
-                          <Button size="xs" variant="light" onClick={handleEditEvent}>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => handleOpenMortgageDetails("overview")}
+                          >
                             {t("eventRelationEvent")}
                           </Button>
                           {primarySource?.hasRelatedDebt && (
-                            <Button size="xs" variant="light" onClick={handleEditEvent}>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => handleOpenMortgageDetails("liability")}
+                            >
                               {t("eventRelationDebt")}
                             </Button>
                           )}
                           {primarySource?.hasRelatedCashflows && (
-                            <Button size="xs" variant="light" onClick={handleEditEvent}>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => handleOpenMortgageDetails("cashflow")}
+                            >
                               {t("eventRelationCashflows")}
                             </Button>
                           )}
@@ -264,14 +313,25 @@ export default function ScenarioAssetManager({
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={handleEditEvent}
-                        disabled={!eventId}
-                      >
-                        {t("eventGeneratedEdit")}
-                      </Button>
+                      <Group gap="xs">
+                        {isMortgage && (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => handleOpenMortgageDetails("overview")}
+                          >
+                            {common("actionDetails")}
+                          </Button>
+                        )}
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={handleEditEvent}
+                          disabled={!eventId}
+                        >
+                          {t("eventGeneratedEdit")}
+                        </Button>
+                      </Group>
                     )}
                   </Group>
                 </Group>
