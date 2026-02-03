@@ -17,6 +17,7 @@ type MoneyDashboardPanelProps = {
   cashSeries: number[];
   netWorthSeries: number[];
   netCashflowSeries: number[];
+  showCharts?: boolean;
   onOpenBreakdown: (focus?: "cashflow" | "networth") => void;
 };
 
@@ -58,10 +59,12 @@ export default function MoneyDashboardPanel({
   cashSeries,
   netWorthSeries,
   netCashflowSeries,
+  showCharts = true,
   onOpenBreakdown,
 }: MoneyDashboardPanelProps) {
   const t = useTranslations("overview");
   const nav = useTranslations("nav");
+  const common = useTranslations("common");
   const locale = useLocale();
   const formatValue = (value: number | null) =>
     value === null ? "--" : formatCurrency(value, currency, locale);
@@ -146,40 +149,49 @@ export default function MoneyDashboardPanel({
                 key={metric.key}
                 withBorder
                 radius="md"
-                padding="sm"
+                padding={showCharts ? "sm" : "xs"}
                 component="button"
                 type="button"
                 onClick={metric.onClick}
                 style={{ textAlign: "left", cursor: "pointer" }}
               >
-                <Stack gap={4}>
-                  <Text size="sm" fw={600}>
-                    {metric.label}
-                  </Text>
-                  <Text size="lg" fw={600}>
+                <Stack gap={showCharts ? 4 : 2}>
+                  <Group justify="space-between" align="center">
+                    <Text size="sm" fw={600}>
+                      {metric.label}
+                    </Text>
+                    {!showCharts && (
+                      <Text size="xs" c="dimmed">
+                        {common("actionDetails")}
+                      </Text>
+                    )}
+                  </Group>
+                  <Text size={showCharts ? "lg" : "md"} fw={600}>
                     {formatValue(metric.value)}
                   </Text>
-                  <div style={{ width: "100%", height: 140 }}>
-                    <ResponsiveContainer>
-                      <LineChart data={metric.series}>
-                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                        <YAxis hide />
-                        <Tooltip
-                          formatter={(value) =>
-                            formatValue(typeof value === "number" ? value : Number(value))
-                          }
-                          labelFormatter={(label: string) => label}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke={metric.color}
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {showCharts && (
+                    <div style={{ width: "100%", height: 140 }}>
+                      <ResponsiveContainer>
+                        <LineChart data={metric.series}>
+                          <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                          <YAxis hide />
+                          <Tooltip
+                            formatter={(value) =>
+                              formatValue(typeof value === "number" ? value : Number(value))
+                            }
+                            labelFormatter={(label: string) => label}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="value"
+                            stroke={metric.color}
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </Stack>
               </Card>
             ))}

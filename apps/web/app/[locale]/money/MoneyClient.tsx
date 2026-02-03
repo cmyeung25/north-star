@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ActionIcon,
+  Badge,
   Button,
   Card,
   Drawer,
@@ -8,6 +10,7 @@ import {
   Modal,
   Notification,
   NumberInput,
+  ScrollArea,
   SegmentedControl,
   Select,
   Stack,
@@ -15,6 +18,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -194,6 +198,7 @@ export default function MoneyClient({
   const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
   const locale = useLocale();
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const router = useRouter();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
@@ -408,6 +413,22 @@ export default function MoneyClient({
     setActiveTab(resolvedTab);
   }, [resolvedTab]);
 
+  const activeTemplateCategory = useMemo<TemplateCategory>(() => {
+    switch (activeTab) {
+      case "income":
+        return "income";
+      case "expenses":
+        return "expenses";
+      case "assets":
+        return "assets";
+      case "liabilities":
+        return "loans";
+      case "inputs":
+      default:
+        return "popular";
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     if (projectionMonths.length === 0) {
       if (breakdownMonth !== null) {
@@ -487,6 +508,34 @@ export default function MoneyClient({
       filterEventsByLedgerImpact(v2ScenarioEvents, ledgerRowsByEventId, "expense"),
     [ledgerRowsByEventId, v2ScenarioEvents]
   );
+  const derivedIncomeItems = useMemo(() => {
+    return v2ScenarioEvents.flatMap((event) => {
+      if (event.type !== "housing") {
+        return [];
+      }
+      const rows = ledgerRowsByEventId.get(event.id) ?? [];
+      const incomeRows = rows.filter(
+        (row) => row.kind === "income" || (!row.kind && row.amount > 0)
+      );
+      if (incomeRows.length === 0) {
+        return [];
+      }
+      const latestRow = incomeRows.reduce<LedgerRow | null>((current, row) => {
+        if (!current) {
+          return row;
+        }
+        return compareMonthKey(row.month, current.month) > 0 ? row : current;
+      }, null);
+      return [
+        {
+          id: `${event.id}-rental-income`,
+          sourceEventId: event.id,
+          sourceLabel: event.label ?? t("ledgerRowFallbackLabel"),
+          amount: latestRow?.amount ?? null,
+        },
+      ];
+    });
+  }, [ledgerRowsByEventId, t, v2ScenarioEvents]);
   const editingV2Event = useMemo<ScenarioEvent | null>(() => {
     if (!editingV2EventId) {
       return null;
@@ -786,6 +835,10 @@ export default function MoneyClient({
     },
     [openTemplatePicker]
   );
+
+  const handleFabAdd = useCallback(() => {
+    openTemplatePicker(activeTemplateCategory);
+  }, [activeTemplateCategory, openTemplatePicker]);
 
   const handleSaveV2Event = (draft: ScenarioEventDraft) => {
     if (!scenarioIdValue) {
@@ -2096,16 +2149,25 @@ export default function MoneyClient({
 
 
   return (
-    <Stack gap="xl">
+    <Stack
+      gap="xl"
+      style={
+        isMobile
+          ? { paddingBottom: "calc(72px + env(safe-area-inset-bottom))" }
+          : undefined
+      }
+    >
       <TwoPaneLayout
         left={
           <Stack gap="xl">
-            <Group justify="space-between" align="flex-start" wrap="wrap">
-              <Stack gap={4}>
-                <Title order={2}>{t("title")}</Title>
-                <Text size="sm" c="dimmed">
-                  {t("subtitle")}
-                </Text>
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <Stack gap={2}>
+                <Title order={isMobile ? 3 : 2}>{t("title")}</Title>
+                {!isMobile && (
+                  <Text size="sm" c="dimmed">
+                    {t("subtitle")}
+                  </Text>
+                )}
               </Stack>
             </Group>
             {showPlaceholderBanner && (
@@ -2143,13 +2205,35 @@ export default function MoneyClient({
               </Card>
             )}
             <Tabs value={activeTab} onChange={(value) => setActiveTab(value as MoneyTab)}>
-              <Tabs.List>
-                <Tabs.Tab value="income">{t("incomeTitle")}</Tabs.Tab>
-                <Tabs.Tab value="expenses">{t("expensesTitle")}</Tabs.Tab>
-                <Tabs.Tab value="assets">{t("assetsTitle")}</Tabs.Tab>
-                <Tabs.Tab value="liabilities">{t("liabilitiesTitle")}</Tabs.Tab>
-                <Tabs.Tab value="inputs">{t("inputsTitle")}</Tabs.Tab>
-              </Tabs.List>
+              {isMobile ? (
+                <ScrollArea scrollbarSize={4} offsetScrollbars>
+                  <Tabs.List style={{ flexWrap: "nowrap" }}>
+                    <Tabs.Tab value="income" style={{ minHeight: 44 }}>
+                      {t("incomeTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="expenses" style={{ minHeight: 44 }}>
+                      {t("expensesTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="assets" style={{ minHeight: 44 }}>
+                      {t("assetsTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="liabilities" style={{ minHeight: 44 }}>
+                      {t("liabilitiesTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="inputs" style={{ minHeight: 44 }}>
+                      {t("inputsTitle")}
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </ScrollArea>
+              ) : (
+                <Tabs.List>
+                  <Tabs.Tab value="income">{t("incomeTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="expenses">{t("expensesTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="assets">{t("assetsTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="liabilities">{t("liabilitiesTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="inputs">{t("inputsTitle")}</Tabs.Tab>
+                </Tabs.List>
+              )}
 
         <Tabs.Panel value="income" pt="md">
           <Stack gap="md">
@@ -2157,14 +2241,58 @@ export default function MoneyClient({
               <Text size="sm" c="dimmed">
                 {t("incomeDescription")}
               </Text>
-              <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("income")}>
-                {t("eventCardAddEvent")}
-              </Button>
+              {!isMobile && (
+                <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("income")}>
+                  {t("eventCardAddEvent")}
+                </Button>
+              )}
             </Group>
             {ledgerActionError && (
               <Text size="sm" c="red">
                 {ledgerActionError}
               </Text>
+            )}
+            {derivedIncomeItems.length > 0 && (
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {t("derivedIncomeSectionTitle")}
+                </Text>
+                {derivedIncomeItems.map((item) => (
+                  <Card key={item.id} withBorder radius="md" padding="sm">
+                    <Stack gap={6}>
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Text fw={600}>{t("derivedIncomeLabel")}</Text>
+                        <Text fw={600}>
+                          {item.amount !== null
+                            ? formatCurrency(
+                                item.amount,
+                                scenario?.baseCurrency ?? "USD",
+                                locale
+                              )
+                            : t("amountUnset")}
+                        </Text>
+                      </Group>
+                      <Group gap="xs" align="center" wrap="wrap">
+                        <Text size="xs" c="dimmed">
+                          {t("derivedIncomeSourceLabel")}
+                        </Text>
+                        <Badge
+                          variant="light"
+                          component="button"
+                          type="button"
+                          onClick={() => openEventDrawer(item.sourceEventId)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          {item.sourceLabel}
+                        </Badge>
+                        <Text size="xs" c="dimmed">
+                          {t("derivedIncomeLockedHint")}
+                        </Text>
+                      </Group>
+                    </Stack>
+                  </Card>
+                ))}
+              </Stack>
             )}
             <EventCardList
               events={incomeEvents}
@@ -2188,9 +2316,11 @@ export default function MoneyClient({
               <Text size="sm" c="dimmed">
                 {t("expensesDescription")}
               </Text>
-              <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("expense")}>
-                {t("eventCardAddEvent")}
-              </Button>
+              {!isMobile && (
+                <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("expense")}>
+                  {t("eventCardAddEvent")}
+                </Button>
+              )}
             </Group>
             {ledgerActionError && (
               <Text size="sm" c="red">
@@ -2356,7 +2486,7 @@ export default function MoneyClient({
             cashSeries={cashSeries}
             netWorthSeries={netWorthSeries}
             netCashflowSeries={netCashflowSeries}
-            showCharts={false}
+            showCharts={!isMobile}
             onRangeChange={(range) => {
               setBreakdownMonthRange(range);
               setBreakdownMonth(range.toMonth ?? null);
@@ -2373,6 +2503,28 @@ export default function MoneyClient({
           />
         }
       />
+
+      {isMobile && (
+        <div
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: "calc(72px + env(safe-area-inset-bottom) + 16px)",
+            zIndex: 200,
+          }}
+        >
+          <ActionIcon
+            size={56}
+            radius="xl"
+            variant="filled"
+            color="indigo"
+            onClick={handleFabAdd}
+            aria-label={t("eventCardAddEvent")}
+          >
+            +
+          </ActionIcon>
+        </div>
+      )}
 
       <Drawer
         opened={Boolean(assetDetails)}
