@@ -19,6 +19,7 @@ import {
   SegmentedControl,
   Select,
   SimpleGrid,
+  Skeleton,
   Stack,
   Switch,
   Tabs,
@@ -31,7 +32,12 @@ import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
-import { monthIndex, type EventGroup, type EventType } from "@north-star/engine";
+import {
+  computeProjection,
+  monthIndex,
+  type EventGroup,
+  type EventType,
+} from "@north-star/engine";
 import {
   Line,
   LineChart,
@@ -82,7 +88,10 @@ import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
-import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
+import {
+  computeProjectionWithSmartInvest,
+  useProjectionWithLedger,
+} from "../../src/engine/useProjectionWithLedger";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
@@ -122,6 +131,7 @@ import {
   buildPlanPatchesFromSnapshot,
   validatePlanPatches,
 } from "../../src/domain/planLab/planPatches";
+import { applyPlanPatches } from "../../src/domain/planLab/applyPlanPatches";
 import {
   buildSnapshotPayload,
   computeBaselineFingerprint,
@@ -134,6 +144,7 @@ import {
   emptyPlanLabScenarioV2Patches,
   type PlanLabScenarioV2Patches,
 } from "../../src/domain/planLab/scenarioV2Patches";
+import { compileScenarioV2ToProjectionInput } from "../../src/engine/scenarioV2Compiler";
 import {
   deletePlanSnapshot,
   duplicatePlanSnapshot,
@@ -209,6 +220,41 @@ type ScenarioEditorItem = {
 type PlanLabDraftEventAddition = {
   definition: EventDefinition;
   ref: ScenarioEventRef;
+};
+
+type DriverCandidate =
+  | {
+      id: string;
+      itemId: string;
+      label: string;
+      type:
+        | "eventPatch"
+        | "rulePatch"
+        | "positionPatch"
+        | "smartInvestPatch"
+        | "draftEvent"
+        | "draftRule"
+        | "experiment";
+      refId?: string;
+      ruleId?: string;
+      positionKey?: string;
+      experimentId?: string;
+      eventDefinitionId?: string;
+    }
+  | {
+      id: string;
+      itemId: string;
+      label: string;
+      type: "scenarioV2";
+      patchSet: "events" | "assets" | "liabilities" | "rules";
+      entityId: string;
+    };
+
+type DriverAttribution = {
+  id: string;
+  itemId: string;
+  label: string;
+  minCashDelta: number | null;
 };
 
 type PlanLabPanelProps = {
@@ -485,8 +531,10 @@ type PlanLabAccordionRowProps = {
   enabled?: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
+  onSelect?: () => void;
   menuItems?: PlanLabRowMenuItem[];
   panel?: ReactNode;
+  highlighted?: boolean;
 };
 
 const PlanLabAccordionRow = memo(function PlanLabAccordionRow({
@@ -497,12 +545,29 @@ const PlanLabAccordionRow = memo(function PlanLabAccordionRow({
   enabled,
   onToggle,
   onEdit,
+  onSelect,
   menuItems,
   panel,
+  highlighted,
 }: PlanLabAccordionRowProps) {
   return (
-    <Accordion.Item value={id}>
-      <Accordion.Control>
+    <Accordion.Item
+      value={id}
+      id={id}
+      style={
+        highlighted
+          ? {
+              outline: "2px solid #12b886",
+              boxShadow: "0 0 0 3px rgba(18, 184, 134, 0.15)",
+            }
+          : undefined
+      }
+    >
+      <Accordion.Control
+        onClick={() => {
+          onSelect?.();
+        }}
+      >
         <Group justify="space-between" align="center" wrap="nowrap" w="100%">
           <Stack gap={4} miw={0}>
             <Text fw={600} size="sm" lineClamp={1}>
@@ -595,6 +660,15 @@ const useDebouncedValue = <T,>(value: T, delayMs = 200) => {
   return debounced;
 };
 
+const hasEventPatchChange = (patch?: { isDisabled?: boolean; endMonth?: string; patch?: any }) =>
+  Boolean(patch && (patch.isDisabled || patch.endMonth || patch.patch));
+
+const hasRulePatchChange = (patch?: { isDisabled?: boolean; endMonth?: string; patch?: any }) =>
+  Boolean(patch && (patch.isDisabled || patch.endMonth || patch.patch));
+
+const hasPositionPatchChange = (patch?: { isDisabled?: boolean; patch?: any }) =>
+  Boolean(patch && (patch.isDisabled || patch.patch));
+
 export default function PlanLabPanel({
   scenario,
   eventLibrary,
@@ -681,6 +755,14 @@ export default function PlanLabPanel({
   >("all");
   const [activeOnly, setActiveOnly] = useState(false);
   const [groupBy, setGroupBy] = useState<"category" | "member" | "timeline">("category");
+  const [impactViewItemId, setImpactViewItemId] = useState<string | null>(null);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [driverAttributions, setDriverAttributions] = useState<DriverAttribution[]>([]);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const attributionCacheRef = useRef<Map<string, number | null>>(new Map());
+  const attributionRunIdRef = useRef(0);
+  const attributionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
   const [editingFocus, setEditingFocus] = useState<"validity" | null>(null);
@@ -1915,6 +1997,7 @@ export default function PlanLabPanel({
     () => JSON.stringify(scenarioV2Patches),
     [scenarioV2Patches]
   );
+  const debouncedScenarioV2Patches = useDebouncedValue(scenarioV2Patches, 250);
   const sandboxScenarioV2 = useMemo(
     () =>
       scenarioIsV2
@@ -2526,6 +2609,194 @@ export default function PlanLabPanel({
     [locale, scenario.baseCurrency, translate]
   );
 
+  const isLegacyItemChanged = useCallback(
+    (item: ScenarioEditorItem) => {
+      if (item.kind === "event" && item.eventDefinitionId) {
+        if (item.eventSource === "draft") {
+          return true;
+        }
+        return hasEventPatchChange(eventPatches[item.eventDefinitionId]);
+      }
+      if (item.kind === "rule" && item.ruleId) {
+        if (item.ruleSource === "draft") {
+          return true;
+        }
+        return hasRulePatchChange(rulePatches[item.ruleId]);
+      }
+      if (item.kind === "position" && item.positionKey) {
+        if (item.positionKind === "smartInvest") {
+          return hasPositionPatchChange(smartInvestPatch);
+        }
+        return hasPositionPatchChange(positionPatches[item.positionKey]);
+      }
+      return false;
+    },
+    [eventPatches, positionPatches, rulePatches, smartInvestPatch]
+  );
+
+  const allDriverCandidates = useMemo(() => {
+    const candidates: DriverCandidate[] = [];
+    if (scenarioIsV2) {
+      scenarioItems.forEach((item) => {
+        if (!item.changed) {
+          return;
+        }
+        if (item.kind === "event" && item.eventId) {
+          candidates.push({
+            id: `v2-event-${item.eventId}`,
+            itemId: item.id,
+            label: item.title,
+            type: "scenarioV2",
+            patchSet: "events",
+            entityId: item.eventId,
+          });
+        }
+        if (item.kind === "position") {
+          if (item.positionKind === "asset" && item.assetId) {
+            candidates.push({
+              id: `v2-asset-${item.assetId}`,
+              itemId: item.id,
+              label: item.title,
+              type: "scenarioV2",
+              patchSet: "assets",
+              entityId: item.assetId,
+            });
+          }
+          if (item.positionKind === "liability" && item.liabilityId) {
+            candidates.push({
+              id: `v2-liability-${item.liabilityId}`,
+              itemId: item.id,
+              label: item.title,
+              type: "scenarioV2",
+              patchSet: "liabilities",
+              entityId: item.liabilityId,
+            });
+          }
+        }
+        if (item.kind === "rule" && item.ruleId) {
+          candidates.push({
+            id: `v2-rule-${item.ruleId}`,
+            itemId: item.id,
+            label: item.title,
+            type: "scenarioV2",
+            patchSet: "rules",
+            entityId: item.ruleId,
+          });
+        }
+      });
+      return candidates;
+    }
+
+    scenarioItems.forEach((item) => {
+      if (!isLegacyItemChanged(item)) {
+        return;
+      }
+      if (item.kind === "event" && item.eventDefinitionId) {
+        if (item.eventSource === "draft") {
+          candidates.push({
+            id: `draft-event-${item.eventDefinitionId}`,
+            itemId: item.id,
+            label: item.title,
+            type: "draftEvent",
+            eventDefinitionId: item.eventDefinitionId,
+          });
+          return;
+        }
+        candidates.push({
+          id: `event-patch-${item.eventDefinitionId}`,
+          itemId: item.id,
+          label: item.title,
+          type: "eventPatch",
+          eventDefinitionId: item.eventDefinitionId,
+        });
+      }
+      if (item.kind === "rule" && item.ruleId) {
+        if (item.ruleSource === "draft") {
+          candidates.push({
+            id: `draft-rule-${item.ruleId}`,
+            itemId: item.id,
+            label: item.title,
+            type: "draftRule",
+            ruleId: item.ruleId,
+          });
+          return;
+        }
+        candidates.push({
+          id: `rule-patch-${item.ruleId}`,
+          itemId: item.id,
+          label: item.title,
+          type: "rulePatch",
+          ruleId: item.ruleId,
+        });
+      }
+      if (item.kind === "position" && item.positionKey) {
+        if (item.positionKind === "smartInvest") {
+          candidates.push({
+            id: `smart-invest-${item.positionKey}`,
+            itemId: item.id,
+            label: item.title,
+            type: "smartInvestPatch",
+            positionKey: item.positionKey,
+          });
+          return;
+        }
+        candidates.push({
+          id: `position-patch-${item.positionKey}`,
+          itemId: item.id,
+          label: item.title,
+          type: "positionPatch",
+          positionKey: item.positionKey,
+        });
+      }
+    });
+
+    experiments.forEach((experiment) => {
+      if (experiment.isEnabled === false) {
+        return;
+      }
+      const label =
+        experimentTypeOptions.find((option) => option.value === experiment.type)?.label ??
+        translate("planLabExperimentFallback", "實驗");
+      candidates.push({
+        id: `experiment-${experiment.id}`,
+        itemId: `experiment-${experiment.id}`,
+        label,
+        type: "experiment",
+        experimentId: experiment.id,
+      });
+    });
+
+    return candidates;
+  }, [
+    experimentTypeOptions,
+    experiments,
+    isLegacyItemChanged,
+    scenarioIsV2,
+    scenarioItems,
+    translate,
+  ]);
+
+  const attributionLimit = 10;
+  const topDriversLimit = 5;
+  const attributionDelayMs = 400;
+
+  const attributionCandidates = useMemo(() => {
+    const limited = allDriverCandidates.slice(0, attributionLimit);
+    if (!impactViewItemId) {
+      return limited;
+    }
+    if (limited.some((candidate) => candidate.itemId === impactViewItemId)) {
+      return limited;
+    }
+    const selected = allDriverCandidates.find(
+      (candidate) => candidate.itemId === impactViewItemId
+    );
+    if (!selected) {
+      return limited;
+    }
+    return [...limited.slice(1), selected];
+  }, [allDriverCandidates, attributionLimit, impactViewItemId]);
+
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return scenarioItems.filter((item) => {
@@ -2666,6 +2937,13 @@ export default function PlanLabPanel({
     () => computePlanLabKpis(planLabProjection.projection, firstBucketTargetValue),
     [firstBucketTargetValue, planLabProjection.projection]
   );
+  const currentMinCashValue = optionKpis?.minCash?.value ?? null;
+  const overlayAttributionKey = useMemo(() => {
+    if (scenarioIsV2) {
+      return JSON.stringify({ scenarioV2Patches: debouncedScenarioV2Patches });
+    }
+    return JSON.stringify({ draft: debouncedPlanLabDraft });
+  }, [debouncedPlanLabDraft, debouncedScenarioV2Patches, scenarioIsV2]);
 
   const chartData = useMemo(() => {
     const baseline =
@@ -2763,6 +3041,39 @@ export default function PlanLabPanel({
     },
     [baselineProjection.projection?.baseMonth]
   );
+
+  const highlightItem = useCallback((itemId: string) => {
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+    setHighlightedItemId(itemId);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedItemId(null);
+    }, 1800);
+  }, []);
+
+  const scrollToItem = useCallback((itemId: string) => {
+    const element = document.getElementById(itemId);
+    if (!element) {
+      return;
+    }
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
+  const handleDriverClick = useCallback(
+    (itemId: string) => {
+      if (listTab !== "changed") {
+        setListTab("changed");
+      }
+      setTimeout(() => scrollToItem(itemId), 80);
+      highlightItem(itemId);
+    },
+    [highlightItem, listTab, scrollToItem]
+  );
+
+  const handleImpactViewSelect = useCallback((itemId: string) => {
+    setImpactViewItemId(itemId);
+  }, []);
 
   const kpiCards = useMemo(() => {
     const notAvailable = translate("planLabKpiNotAvailable", "—");
@@ -2869,6 +3180,241 @@ export default function PlanLabPanel({
     scenario.baseCurrency,
     translate,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      if (attributionTimerRef.current) {
+        clearTimeout(attributionTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!planLabProjection.projection || currentMinCashValue === null) {
+      setDriverAttributions([]);
+      setDriversLoading(false);
+      return;
+    }
+    if (attributionCandidates.length === 0) {
+      setDriverAttributions([]);
+      setDriversLoading(false);
+      return;
+    }
+    if (attributionTimerRef.current) {
+      clearTimeout(attributionTimerRef.current);
+    }
+    setDriversLoading(true);
+    const runId = attributionRunIdRef.current + 1;
+    attributionRunIdRef.current = runId;
+
+    attributionTimerRef.current = setTimeout(() => {
+      const computeLegacyDraftVariant = (candidate: DriverCandidate): PlanLabDraft => {
+        const nextDraft = JSON.parse(
+          JSON.stringify(debouncedPlanLabDraft)
+        ) as PlanLabDraft;
+        if (!nextDraft.baselinePatches) {
+          nextDraft.baselinePatches = {};
+        }
+        if (!nextDraft.additions) {
+          nextDraft.additions = {};
+        }
+        if (candidate.type === "eventPatch" && candidate.eventDefinitionId) {
+          if (nextDraft.baselinePatches.eventPatches) {
+            const { [candidate.eventDefinitionId]: _, ...rest } =
+              nextDraft.baselinePatches.eventPatches;
+            nextDraft.baselinePatches.eventPatches = rest;
+          }
+        }
+        if (candidate.type === "rulePatch" && candidate.ruleId) {
+          if (nextDraft.baselinePatches.rulePatches) {
+            const { [candidate.ruleId]: _, ...rest } =
+              nextDraft.baselinePatches.rulePatches;
+            nextDraft.baselinePatches.rulePatches = rest;
+          }
+        }
+        if (candidate.type === "positionPatch" && candidate.positionKey) {
+          if (nextDraft.baselinePatches.positionPatches) {
+            const { [candidate.positionKey]: _, ...rest } =
+              nextDraft.baselinePatches.positionPatches;
+            nextDraft.baselinePatches.positionPatches = rest;
+          }
+        }
+        if (candidate.type === "smartInvestPatch") {
+          nextDraft.baselinePatches.smartInvestPatch = undefined;
+        }
+        if (candidate.type === "draftEvent" && candidate.eventDefinitionId) {
+          nextDraft.additions.events = (nextDraft.additions.events ?? []).filter(
+            (event) => event.definition.id !== candidate.eventDefinitionId
+          );
+        }
+        if (candidate.type === "draftRule" && candidate.ruleId) {
+          nextDraft.additions.budgetRules = (nextDraft.additions.budgetRules ?? []).filter(
+            (rule) => rule.id !== candidate.ruleId
+          );
+        }
+        if (candidate.type === "experiment" && candidate.experimentId) {
+          nextDraft.experiments = (nextDraft.experiments ?? []).filter(
+            (experiment) => experiment.id !== candidate.experimentId
+          );
+        }
+        return nextDraft;
+      };
+
+      const removeScenarioV2Patch = (
+        patches: PlanLabScenarioV2Patches,
+        patchSet: "events" | "assets" | "liabilities" | "rules",
+        entityId: string
+      ): PlanLabScenarioV2Patches => {
+        const next = {
+          ...patches,
+          [patchSet]: {
+            ...patches[patchSet],
+            add: patches[patchSet].add.filter((entry) => entry.id !== entityId),
+            update: { ...patches[patchSet].update },
+            remove: patches[patchSet].remove.filter((entry) => entry !== entityId),
+          },
+        };
+        if (next[patchSet].update[entityId]) {
+          delete next[patchSet].update[entityId];
+        }
+        return next;
+      };
+
+      const computeMinCashDelta = (candidate: DriverCandidate) => {
+        if (scenarioIsV2 && candidate.type === "scenarioV2") {
+          const nextPatches = removeScenarioV2Patch(
+            debouncedScenarioV2Patches,
+            candidate.patchSet,
+            candidate.entityId
+          );
+          const nextScenario = applyPlanLabScenarioV2Patches(
+            baselineScenarioV2,
+            nextPatches
+          );
+          const projection = computeProjection(
+            compileScenarioV2ToProjectionInput(nextScenario)
+          );
+          const kpis = computePlanLabKpis(projection, firstBucketTargetValue);
+          const nextValue = kpis?.minCash?.value ?? null;
+          if (nextValue === null) {
+            return null;
+          }
+          return currentMinCashValue - nextValue;
+        }
+
+        const nextDraft = computeLegacyDraftVariant(candidate);
+        const snapshot: PlanLabSnapshot = {
+          baselinePatches: nextDraft.baselinePatches,
+          experiments: nextDraft.experiments,
+          scorecardSettings: nextDraft.scorecardSettings,
+        };
+        const patches = buildPlanPatchesFromSnapshot(snapshot);
+        const applyResult = applyPlanPatches({
+          scenario,
+          snapshot,
+          patches,
+          eventLibrary,
+          budgetRules,
+          members,
+        });
+        const combinedEventLibrary = [
+          ...eventLibrary,
+          ...applyResult.eventDefinitions,
+        ];
+        const { projection } = computeProjectionWithSmartInvest(
+          applyResult.scenario,
+          combinedEventLibrary,
+          { members: applyResult.members, budgetRules: applyResult.budgetRules }
+        );
+        const kpis = computePlanLabKpis(projection, firstBucketTargetValue);
+        const nextValue = kpis?.minCash?.value ?? null;
+        if (nextValue === null) {
+          return null;
+        }
+        return currentMinCashValue - nextValue;
+      };
+
+      const runAttribution = async () => {
+        const results: DriverAttribution[] = [];
+        for (const candidate of attributionCandidates) {
+          const cacheKey = `${overlayAttributionKey}:${candidate.id}:minCash`;
+          let delta: number | null = null;
+          if (attributionCacheRef.current.has(cacheKey)) {
+            delta = attributionCacheRef.current.get(cacheKey) ?? null;
+          } else {
+            delta = computeMinCashDelta(candidate);
+            attributionCacheRef.current.set(cacheKey, delta);
+          }
+          results.push({
+            id: candidate.id,
+            itemId: candidate.itemId,
+            label: candidate.label,
+            minCashDelta: delta,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        if (attributionRunIdRef.current !== runId) {
+          return;
+        }
+        setDriverAttributions(results);
+        setDriversLoading(false);
+      };
+
+      void runAttribution();
+    }, attributionDelayMs);
+
+    return () => {
+      if (attributionTimerRef.current) {
+        clearTimeout(attributionTimerRef.current);
+      }
+    };
+  }, [
+    attributionCandidates,
+    attributionDelayMs,
+    baselineScenarioV2,
+    budgetRules,
+    currentMinCashValue,
+    debouncedPlanLabDraft,
+    debouncedScenarioV2Patches,
+    eventLibrary,
+    firstBucketTargetValue,
+    members,
+    overlayAttributionKey,
+    planLabProjection.projection,
+    scenario,
+    scenarioIsV2,
+  ]);
+
+  const driverAttributionLookup = useMemo(
+    () => new Map(driverAttributions.map((entry) => [entry.itemId, entry])),
+    [driverAttributions]
+  );
+
+  const topDrivers = useMemo(() => {
+    const sortable = driverAttributions.filter(
+      (entry) => typeof entry.minCashDelta === "number"
+    );
+    return sortable
+      .sort((a, b) => Math.abs(b.minCashDelta ?? 0) - Math.abs(a.minCashDelta ?? 0))
+      .slice(0, topDriversLimit);
+  }, [driverAttributions, topDriversLimit]);
+
+  const formatMinCashDelta = useCallback(
+    (value: number | null) => {
+      if (value === null) {
+        return "—";
+      }
+      const formatted = formatCurrency(Math.abs(value), scenario.baseCurrency, locale);
+      if (value === 0) {
+        return `±${formatted}`;
+      }
+      return `${value > 0 ? "+" : "-"}${formatted}`;
+    },
+    [locale, scenario.baseCurrency]
+  );
 
   const experimentTypeOptions = useMemo(
     () => [
@@ -4266,6 +4812,10 @@ export default function PlanLabPanel({
                           <Accordion variant="separated" radius="md" multiple>
                             {items.map((item) => {
                               const menuItems: PlanLabRowMenuItem[] = [];
+                              menuItems.push({
+                                label: translate("planLabViewImpact", "查看影響"),
+                                onClick: () => handleImpactViewSelect(item.id),
+                              });
                               if (scenarioIsV2) {
                                 if (item.kind === "event" && item.eventId) {
                                   menuItems.push({
@@ -4310,6 +4860,8 @@ export default function PlanLabPanel({
                                   badges={getScenarioItemBadges(item)}
                                   summary={getScenarioItemSummary(item)}
                                   enabled={item.enabled}
+                                  highlighted={highlightedItemId === item.id}
+                                  onSelect={() => handleImpactViewSelect(item.id)}
                                   onToggle={
                                     scenarioIsV2
                                       ? undefined
@@ -4493,6 +5045,11 @@ export default function PlanLabPanel({
                             }
                             const menuItems: PlanLabRowMenuItem[] = [
                               {
+                                label: translate("planLabViewImpact", "查看影響"),
+                                onClick: () =>
+                                  handleImpactViewSelect(`experiment-${experiment.id}`),
+                              },
+                              {
                                 label: translate("planLabActionDuplicate", "複製"),
                                 onClick: () => duplicateExperiment(experiment),
                               },
@@ -4509,6 +5066,12 @@ export default function PlanLabPanel({
                                 badges={badges}
                                 summary={getExperimentSummary(experiment)}
                                 enabled={experiment.isEnabled !== false}
+                                highlighted={
+                                  highlightedItemId === `experiment-${experiment.id}`
+                                }
+                                onSelect={() =>
+                                  handleImpactViewSelect(`experiment-${experiment.id}`)
+                                }
                                 onToggle={() =>
                                   updateExperiment(experiment.id, {
                                     isEnabled: experiment.isEnabled === false,
@@ -4746,6 +5309,113 @@ export default function PlanLabPanel({
                         </Card>
                       ))}
                     </SimpleGrid>
+                  )}
+                </Stack>
+              </Card>
+
+              <Card withBorder radius="md" padding="md">
+                <Stack gap="sm">
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>
+                      {impactViewItemId
+                        ? translate("planLabItemImpactTitle", "此項目影響")
+                        : translate("planLabTopDriversTitle", "差異原因 / Top Drivers")}
+                    </Text>
+                    {impactViewItemId && (
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => setImpactViewItemId(null)}
+                      >
+                        {translate("planLabBackToOverall", "返回整體")}
+                      </Button>
+                    )}
+                  </Group>
+
+                  {impactViewItemId ? (
+                    (() => {
+                      const isCandidate = allDriverCandidates.some(
+                        (candidate) => candidate.itemId === impactViewItemId
+                      );
+                      const impactItem =
+                        allDriverCandidates.find(
+                          (candidate) => candidate.itemId === impactViewItemId
+                        ) ??
+                        scenarioItems.find((item) => item.id === impactViewItemId);
+                      const impactAttribution =
+                        impactViewItemId &&
+                        driverAttributionLookup.get(impactViewItemId);
+                      if (!impactItem || !isCandidate) {
+                        return (
+                          <Text size="sm" c="dimmed">
+                            {translate(
+                              "planLabImpactUnavailable",
+                              "此項目未列入差異原因計算。"
+                            )}
+                          </Text>
+                        );
+                      }
+                      return (
+                        <Stack gap="xs">
+                          <Text size="sm" fw={600}>
+                            {"label" in impactItem ? impactItem.label : impactItem.title}
+                          </Text>
+                          {driversLoading ? (
+                            <Skeleton height={18} radius="sm" />
+                          ) : impactAttribution ? (
+                            <Group justify="space-between" align="center">
+                              <Text size="sm">
+                                {translate("planLabDriverMinCashLabel", "最低現金")}
+                              </Text>
+                              <Badge variant="light" color="gray">
+                                {formatMinCashDelta(impactAttribution.minCashDelta)}
+                              </Badge>
+                            </Group>
+                          ) : (
+                            <Text size="sm" c="dimmed">
+                              {translate("planLabImpactLoading", "正在計算影響…")}
+                            </Text>
+                          )}
+                        </Stack>
+                      );
+                    })()
+                  ) : driversLoading ? (
+                    <Stack gap="xs">
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <Skeleton key={`driver-skeleton-${index}`} height={48} radius="sm" />
+                      ))}
+                    </Stack>
+                  ) : topDrivers.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      {translate("planLabTopDriversEmpty", "尚無差異原因可顯示。")}
+                    </Text>
+                  ) : (
+                    <Stack gap="xs">
+                      {topDrivers.map((driver) => (
+                        <Paper
+                          key={driver.id}
+                          withBorder
+                          radius="md"
+                          p="xs"
+                          onClick={() => handleDriverClick(driver.itemId)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <Group justify="space-between" align="center" wrap="nowrap">
+                            <Stack gap={4} miw={0}>
+                              <Text size="sm" fw={600} lineClamp={1}>
+                                {driver.label}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {translate("planLabDriverMinCashLabel", "最低現金")}
+                              </Text>
+                            </Stack>
+                            <Badge variant="light" color="gray">
+                              {formatMinCashDelta(driver.minCashDelta)}
+                            </Badge>
+                          </Group>
+                        </Paper>
+                      ))}
+                    </Stack>
                   )}
                 </Stack>
               </Card>
