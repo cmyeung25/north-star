@@ -14,12 +14,14 @@ import {
   Notification,
   NumberInput,
   Paper,
+  Popover,
   ScrollArea,
   SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
   Switch,
+  Tabs,
   Text,
   TextInput,
   Title,
@@ -29,7 +31,7 @@ import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
-import type { EventGroup, EventType } from "@north-star/engine";
+import { monthIndex, type EventGroup, type EventType } from "@north-star/engine";
 import {
   Line,
   LineChart,
@@ -84,7 +86,7 @@ import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedge
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
-import { computeFirstBucket } from "../../src/domain/planLab/computeFirstBucket";
+import { computePlanLabKpis } from "../../src/domain/planLab/kpis";
 import {
   computeCashRiskScorecard,
   computeBufferThresholdFromLedger,
@@ -582,6 +584,17 @@ const PlanLabAccordionRow = memo(function PlanLabAccordionRow({
   );
 });
 
+const useDebouncedValue = <T,>(value: T, delayMs = 200) => {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timeout);
+  }, [delayMs, value]);
+
+  return debounced;
+};
+
 export default function PlanLabPanel({
   scenario,
   eventLibrary,
@@ -662,12 +675,11 @@ export default function PlanLabPanel({
     ""
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [listTab, setListTab] = useState<"changed" | "all" | "risky">("changed");
   const [filterKind, setFilterKind] = useState<
     "all" | "positions" | "assets" | "events" | "rules"
   >("all");
   const [activeOnly, setActiveOnly] = useState(false);
-  const [showChangedOnly, setShowChangedOnly] = useState(false);
-  const [showRiskyOnly, setShowRiskyOnly] = useState(false);
   const [groupBy, setGroupBy] = useState<"category" | "member" | "timeline">("category");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
@@ -713,6 +725,8 @@ export default function PlanLabPanel({
     useState<ScenarioLiability | null>(null);
 
   const monthInvalidMessage = t("planLabMonthInvalid");
+  const showChangedOnly = listTab === "changed";
+  const showRiskyOnly = listTab === "risky";
   const drawerStyles = useMemo(
     () => ({
       body: {
@@ -842,6 +856,15 @@ export default function PlanLabPanel({
   const defaultPlanName = translate("planLabPlanDefaultName", "方案 {index}", {
     index: planCount + 1,
   });
+  const statusPillLabel = useMemo(() => {
+    if (mode === "compare") {
+      return translate("planLabStatusCompare", "比較模式");
+    }
+    if (activePlanId) {
+      return translate("planLabStatusLoaded", "已載入方案");
+    }
+    return translate("planLabStatusDraft", "沙盒草稿");
+  }, [activePlanId, mode, translate]);
 
   useEffect(() => {
     if (plans.length === 0) {
@@ -1564,6 +1587,22 @@ export default function PlanLabPanel({
     };
   }, [scenarioV2Patches]);
 
+  const hasScenarioV2Edits = useMemo(() => {
+    const patchSets = [
+      scenarioV2Patches.events,
+      scenarioV2Patches.assets,
+      scenarioV2Patches.liabilities,
+      scenarioV2Patches.members,
+      scenarioV2Patches.rules,
+    ];
+    return patchSets.some(
+      (patch) =>
+        patch.add.length > 0 ||
+        patch.remove.length > 0 ||
+        Object.keys(patch.update).length > 0
+    );
+  }, [scenarioV2Patches]);
+
   const upsertScenarioV2Event = useCallback(
     (event: ScenarioEvent, mode: "create" | "edit") => {
       setScenarioV2Patches((current) => {
@@ -1830,6 +1869,7 @@ export default function PlanLabPanel({
       firstBucketTargetAmount,
     ]
   );
+  const debouncedPlanLabDraft = useDebouncedValue(planLabDraft, 200);
 
   const planSnapshot = useMemo<PlanLabSnapshot>(() => {
     const cloneSerializable = <T,>(value: T): T =>
@@ -1891,6 +1931,7 @@ export default function PlanLabPanel({
       scenarioV2PatchesKey,
     ]
   );
+  const debouncedSandboxScenarioV2 = useDebouncedValue(sandboxScenarioV2, 200);
   const sandboxBudgetRules = useMemo(() => {
     if (scenarioIsV2) {
       return budgetRules;
@@ -1920,6 +1961,29 @@ export default function PlanLabPanel({
       ),
     [baselineScenarioV2, budgetRules, sandboxBudgetRules, sandboxScenarioV2]
   );
+  const hasPlanSnapshotChanges = useMemo(
+    () => buildPlanPatchesFromSnapshot(planSnapshot).length > 0,
+    [planSnapshot]
+  );
+  const hasDraftAdditions =
+    draftMembers.length > 0 || draftBudgetRules.length > 0 || draftEvents.length > 0;
+  const hasUnsavedChanges = useMemo(() => {
+    if (scenarioIsV2) {
+      return hasMeaningfulPatch(snapshotPayload) || hasScenarioV2Edits;
+    }
+    return (
+      hasPlanSnapshotChanges ||
+      hasDraftAdditions ||
+      typeof firstBucketTargetAmount === "number"
+    );
+  }, [
+    firstBucketTargetAmount,
+    hasDraftAdditions,
+    hasPlanSnapshotChanges,
+    hasScenarioV2Edits,
+    scenarioIsV2,
+    snapshotPayload,
+  ]);
   const planSnapshotWarnings = useMemo(() => {
     const warnings = detectDoubleCountingWarnings(baselineScenarioV2, snapshotPayload);
     if (!hasMeaningfulPatch(snapshotPayload)) {
@@ -1952,7 +2016,7 @@ export default function PlanLabPanel({
   }, [budgetRules, eventLibrary, members, sandboxPatches, scenario, scenarioIsV2, warningsT]);
 
   const legacyPlanLabProjection = usePlanLabProjectionWithLedger(
-    scenarioIsV2 ? null : planLabDraft,
+    scenarioIsV2 ? null : debouncedPlanLabDraft,
     scenarioIsV2 ? null : baselineScenarioSnapshot,
     eventLibrary,
     { members, budgetRules, patches: scenarioIsV2 ? [] : sandboxPatches }
@@ -1964,7 +2028,7 @@ export default function PlanLabPanel({
     { members, budgetRules, patches: [] }
   );
   const v2PlanLabProjection = useProjectionWithLedger(
-    scenarioIsV2 ? (sandboxScenarioV2 as unknown as Scenario) : null,
+    scenarioIsV2 ? (debouncedSandboxScenarioV2 as unknown as Scenario) : null,
     eventLibrary,
     { members: sandboxScenarioV2.members ?? [], budgetRules: [] }
   );
@@ -2285,9 +2349,110 @@ export default function PlanLabPanel({
     smartInvestPatch,
   ]);
 
+  const getScenarioItemChangeBadge = useCallback(
+    (item: ScenarioEditorItem): PlanLabRowBadge | null => {
+      if (scenarioIsV2) {
+        const patchSets = {
+          event: scenarioV2Patches.events,
+          asset: scenarioV2Patches.assets,
+          liability: scenarioV2Patches.liabilities,
+          rule: scenarioV2Patches.rules,
+        };
+        const patchKey =
+          item.kind === "event"
+            ? "event"
+            : item.kind === "rule"
+            ? "rule"
+            : item.positionKind === "asset"
+            ? "asset"
+            : item.positionKind === "liability"
+            ? "liability"
+            : null;
+        if (patchKey) {
+          const patchSet = patchSets[patchKey];
+          const id =
+            item.eventId ??
+            item.ruleId ??
+            item.assetId ??
+            item.liabilityId ??
+            item.positionKey ??
+            "";
+          if (patchSet.remove.includes(id)) {
+            return { label: translate("planLabBadgeRemoved", "刪除"), color: "red" };
+          }
+          if (patchSet.add.some((entry) => entry.id === id)) {
+            return { label: translate("planLabBadgeAdded", "新增"), color: "teal" };
+          }
+          if (patchSet.update[id]) {
+            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+          }
+        }
+      } else {
+        if (item.kind === "event") {
+          if (item.eventSource === "draft") {
+            return { label: translate("planLabBadgeAdded", "新增"), color: "teal" };
+          }
+          const patch = item.eventDefinitionId ? eventPatches[item.eventDefinitionId] : null;
+          if (patch?.isDisabled) {
+            return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+          }
+          if (patch?.patch || patch?.endMonth || patch?.isDisabled !== undefined) {
+            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+          }
+        }
+        if (item.kind === "rule") {
+          if (item.ruleSource === "draft") {
+            return { label: translate("planLabBadgeAdded", "新增"), color: "teal" };
+          }
+          const patch = item.ruleId ? rulePatches[item.ruleId] : null;
+          if (patch?.isDisabled) {
+            return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+          }
+          if (patch?.patch || patch?.endMonth || patch?.isDisabled !== undefined) {
+            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+          }
+        }
+        if (item.kind === "position") {
+          const patch =
+            item.positionKind === "smartInvest"
+              ? smartInvestPatch
+              : item.positionKey
+              ? positionPatches[item.positionKey]
+              : null;
+          if (patch?.isDisabled) {
+            return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+          }
+          if (patch?.patch || patch?.isDisabled !== undefined) {
+            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+          }
+        }
+      }
+      if (!item.enabled) {
+        return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+      }
+      return null;
+    },
+    [
+      eventPatches,
+      positionPatches,
+      rulePatches,
+      scenarioIsV2,
+      scenarioV2Patches.assets,
+      scenarioV2Patches.events,
+      scenarioV2Patches.liabilities,
+      scenarioV2Patches.rules,
+      smartInvestPatch,
+      translate,
+    ]
+  );
+
   const getScenarioItemBadges = useCallback(
     (item: ScenarioEditorItem): PlanLabRowBadge[] => {
       const badges: PlanLabRowBadge[] = [];
+      const changeBadge = getScenarioItemChangeBadge(item);
+      if (changeBadge) {
+        badges.push(changeBadge);
+      }
       const categoryLabel = categoryLabels[item.category] ?? item.category;
       if (categoryLabel) {
         badges.push({ label: categoryLabel });
@@ -2295,15 +2460,12 @@ export default function PlanLabPanel({
       if (item.memberName) {
         badges.push({ label: item.memberName, color: "gray" });
       }
-      if (!item.enabled) {
-        badges.push({ label: translate("planLabBadgeDisabled", "已停用"), color: "red" });
-      }
       if (item.endMonth) {
         badges.push({ label: translate("planLabBadgeEnded", "已結束"), color: "yellow" });
       }
       return badges;
     },
-    [categoryLabels, translate]
+    [categoryLabels, getScenarioItemChangeBadge, translate]
   );
 
   const getScenarioItemSummary = useCallback(
@@ -2496,20 +2658,14 @@ export default function PlanLabPanel({
 
   const firstBucketTargetValue =
     typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : null;
-  const firstBucketResult = useMemo(
-    () => computeFirstBucket(planLabProjection.projection, firstBucketTargetValue),
+  const baselineKpis = useMemo(
+    () => computePlanLabKpis(baselineProjection.projection, firstBucketTargetValue),
+    [baselineProjection.projection, firstBucketTargetValue]
+  );
+  const optionKpis = useMemo(
+    () => computePlanLabKpis(planLabProjection.projection, firstBucketTargetValue),
     [firstBucketTargetValue, planLabProjection.projection]
   );
-  const baselineFirstBucketResult = useMemo(
-    () => computeFirstBucket(baselineProjection.projection, firstBucketTargetValue),
-    [firstBucketTargetValue, baselineProjection.projection]
-  );
-  const optionBucketIndex = firstBucketResult?.achievedIndex;
-  const baselineBucketIndex = baselineFirstBucketResult?.achievedIndex;
-  const firstBucketDeltaMonths =
-    optionBucketIndex != null && baselineBucketIndex != null
-      ? baselineBucketIndex - optionBucketIndex
-      : null;
 
   const chartData = useMemo(() => {
     const baseline =
@@ -2542,6 +2698,177 @@ export default function PlanLabPanel({
       bufferThreshold,
     });
   }, [optionSeries.cash, planLabProjection.ledger, planLabProjection.months]);
+
+  const targetPresetOptions = useMemo(() => {
+    const netWorthSeries = baselineProjection.projection?.netWorth ?? [];
+    const baselineEndNetWorth = netWorthSeries[netWorthSeries.length - 1];
+    if (!Number.isFinite(baselineEndNetWorth) || baselineEndNetWorth <= 0) {
+      return [];
+    }
+    const multipliers = [0.5, 1, 1.5, 2];
+    const rawValues = multipliers.map((multiplier) =>
+      Math.round((baselineEndNetWorth ?? 0) * multiplier)
+    );
+    const roundedValues = Array.from(
+      new Set(rawValues.map((value) => Math.round(value / 10000) * 10000))
+    ).filter((value) => value > 0);
+    return roundedValues.map((value) => ({
+      value: String(value),
+      label: formatCurrency(value, scenario.baseCurrency, locale),
+    }));
+  }, [baselineProjection.projection, locale, scenario.baseCurrency]);
+
+  const targetSelectValue = useMemo(() => {
+    if (typeof firstBucketTargetAmount !== "number") {
+      return null;
+    }
+    const preset = targetPresetOptions.find(
+      (option) => Number(option.value) === firstBucketTargetAmount
+    );
+    return preset ? preset.value : null;
+  }, [firstBucketTargetAmount, targetPresetOptions]);
+
+  const formatMonthLabel = useCallback(
+    (month: string | null | undefined, fallback: string) =>
+      month ? t("monthLabel", { month }) : fallback,
+    [t]
+  );
+
+  const formatDeltaCurrency = useCallback(
+    (baselineValue: number | null, currentValue: number | null) => {
+      if (baselineValue === null || currentValue === null) {
+        return null;
+      }
+      const delta = currentValue - baselineValue;
+      const formatted = formatCurrency(Math.abs(delta), scenario.baseCurrency, locale);
+      if (delta === 0) {
+        return `±${formatted}`;
+      }
+      return `${delta > 0 ? "+" : "-"}${formatted}`;
+    },
+    [locale, scenario.baseCurrency]
+  );
+
+  const formatDeltaMonths = useCallback(
+    (baselineMonth: string | null, currentMonth: string | null) => {
+      const baseMonth = baselineProjection.projection?.baseMonth;
+      if (!baseMonth || !baselineMonth || !currentMonth) {
+        return null;
+      }
+      const delta = monthIndex(baseMonth, currentMonth) - monthIndex(baseMonth, baselineMonth);
+      if (delta === 0) {
+        return "0";
+      }
+      return `${delta > 0 ? "+" : ""}${delta}`;
+    },
+    [baselineProjection.projection?.baseMonth]
+  );
+
+  const kpiCards = useMemo(() => {
+    const notAvailable = translate("planLabKpiNotAvailable", "—");
+    const targetNotReached = translate("planLabScorecardTargetNotReached", "未達標");
+    const negativeNotReached = translate("planLabKpiNegativeEmpty", "未轉負");
+
+    const minCashBaseline = baselineKpis?.minCash?.value ?? null;
+    const minCashCurrent = optionKpis?.minCash?.value ?? null;
+    const minCashDelta = formatDeltaCurrency(minCashBaseline, minCashCurrent);
+
+    const minCashBaselineLabel = baselineKpis?.minCash
+      ? `${formatCurrency(minCashBaseline ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
+          baselineKpis.minCash.month,
+          notAvailable
+        )}`
+      : notAvailable;
+    const minCashCurrentLabel = optionKpis?.minCash
+      ? `${formatCurrency(minCashCurrent ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
+          optionKpis.minCash.month,
+          notAvailable
+        )}`
+      : notAvailable;
+
+    const negativeBaselineLabel = formatMonthLabel(
+      baselineKpis?.firstNegativeCashMonth ?? null,
+      negativeNotReached
+    );
+    const negativeCurrentLabel = formatMonthLabel(
+      optionKpis?.firstNegativeCashMonth ?? null,
+      negativeNotReached
+    );
+    const negativeDelta = formatDeltaMonths(
+      baselineKpis?.firstNegativeCashMonth ?? null,
+      optionKpis?.firstNegativeCashMonth ?? null
+    );
+
+    const endNetWorthBaseline = baselineKpis?.endNetWorth ?? null;
+    const endNetWorthCurrent = optionKpis?.endNetWorth ?? null;
+    const endNetWorthDelta = formatDeltaCurrency(endNetWorthBaseline, endNetWorthCurrent);
+
+    const endNetWorthBaselineLabel =
+      endNetWorthBaseline !== null
+        ? formatCurrency(endNetWorthBaseline, scenario.baseCurrency, locale)
+        : notAvailable;
+    const endNetWorthCurrentLabel =
+      endNetWorthCurrent !== null
+        ? formatCurrency(endNetWorthCurrent, scenario.baseCurrency, locale)
+        : notAvailable;
+
+    const targetBaselineLabel = formatMonthLabel(
+      baselineKpis?.targetMonth ?? null,
+      targetNotReached
+    );
+    const targetCurrentLabel = formatMonthLabel(
+      optionKpis?.targetMonth ?? null,
+      targetNotReached
+    );
+    const targetDelta = formatDeltaMonths(
+      baselineKpis?.targetMonth ?? null,
+      optionKpis?.targetMonth ?? null
+    );
+
+    return [
+      {
+        key: "minCash",
+        label: translate("planLabKpiMinCash", "最低現金結餘"),
+        baseline: minCashBaselineLabel,
+        current: minCashCurrentLabel,
+        delta: minCashDelta,
+        deltaUnit: null,
+      },
+      {
+        key: "negativeCash",
+        label: translate("planLabKpiNegativeCash", "現金轉負最早月份"),
+        baseline: negativeBaselineLabel,
+        current: negativeCurrentLabel,
+        delta: negativeDelta,
+        deltaUnit: translate("planLabKpiMonthsUnit", "個月"),
+      },
+      {
+        key: "endNetWorth",
+        label: translate("planLabKpiEndNetWorth", "期末淨資產"),
+        baseline: endNetWorthBaselineLabel,
+        current: endNetWorthCurrentLabel,
+        delta: endNetWorthDelta,
+        deltaUnit: null,
+      },
+      {
+        key: "targetMonth",
+        label: translate("planLabKpiTargetMonth", "目標達標月份"),
+        baseline: targetBaselineLabel,
+        current: targetCurrentLabel,
+        delta: targetDelta,
+        deltaUnit: translate("planLabKpiMonthsUnit", "個月"),
+      },
+    ];
+  }, [
+    baselineKpis,
+    formatDeltaCurrency,
+    formatDeltaMonths,
+    formatMonthLabel,
+    locale,
+    optionKpis,
+    scenario.baseCurrency,
+    translate,
+  ]);
 
   const experimentTypeOptions = useMemo(
     () => [
@@ -3699,36 +4026,43 @@ export default function PlanLabPanel({
       <Card withBorder radius="md" padding="md">
         <Group justify="space-between" align="center" wrap="wrap">
           <Stack gap={2}>
-            <Group gap="xs" align="center">
+            <Group gap="xs" align="center" wrap="wrap">
               <Title order={3}>{t("planLabTitle")}</Title>
               <Badge color="blue" variant="light">
                 {t("planLabPreviewBadge")}
               </Badge>
+              <Badge color="gray" variant="light">
+                {statusPillLabel}
+              </Badge>
+              {hasUnsavedChanges && (
+                <Badge color="orange" variant="light">
+                  ● {translate("planLabDirtyLabel", "未儲存")}
+                </Badge>
+              )}
             </Group>
             <Text size="sm" c="dimmed">
               {t("planLabSubtitle")}
             </Text>
           </Stack>
+          <SegmentedControl
+            size="xs"
+            data={[
+              {
+                value: "edit",
+                label: translate("planLabModeEdit", "Edit"),
+              },
+              {
+                value: "compare",
+                label: translate("planLabModeCompare", "Compare"),
+              },
+            ]}
+            value={mode}
+            onChange={(value) => setMode(value as "edit" | "compare")}
+          />
           <Group gap="xs" wrap="wrap">
-            <SegmentedControl
-              size="xs"
-              data={[
-                {
-                  value: "edit",
-                  label: translate("planLabModeEdit", "Edit"),
-                },
-                {
-                  value: "compare",
-                  label: translate("planLabModeCompare", "Compare"),
-                },
-              ]}
-              value={mode}
-              onChange={(value) => setMode(value as "edit" | "compare")}
-            />
             {mode === "edit" && (
               <Button
                 size="sm"
-                variant="light"
                 onClick={() => {
                   setSavePlanNotes(undefined);
                   setSavePlanTags(undefined);
@@ -3795,99 +4129,127 @@ export default function PlanLabPanel({
                       onChange={(event) => setSearchQuery(event.currentTarget.value)}
                       style={{ flex: 1, minWidth: 220 }}
                     />
-                    <Group gap="xs" wrap="wrap">
-                      <MantineTooltip
-                        label={translate(
-                          "planLabFilterActiveTooltip",
-                          "只顯示已啟用的項目。"
-                        )}
-                        withArrow
-                      >
-                        <Switch
-                          size="sm"
-                          label={translate("planLabFilterActiveLabel", "只顯示啟用")}
-                          checked={activeOnly}
-                          onChange={(event) => setActiveOnly(event.currentTarget.checked)}
-                        />
-                      </MantineTooltip>
-                      <MantineTooltip
-                        label={translate(
-                          "planLabFilterChangedTooltip",
-                          "只顯示已修改或停用的項目。"
-                        )}
-                        withArrow
-                      >
-                        <Switch
-                          size="sm"
-                          label={translate("planLabFilterChangedLabel", "只顯示已變更")}
-                          checked={showChangedOnly}
-                          onChange={(event) => setShowChangedOnly(event.currentTarget.checked)}
-                        />
-                      </MantineTooltip>
-                      <MantineTooltip
-                        label={translate(
-                          "planLabFilterRiskyTooltip",
-                          "只顯示可能影響風險的項目（如房屋）。"
-                        )}
-                        withArrow
-                      >
-                        <Switch
-                          size="sm"
-                          label={translate("planLabFilterRiskyLabel", "只顯示高風險")}
-                          checked={showRiskyOnly}
-                          onChange={(event) => setShowRiskyOnly(event.currentTarget.checked)}
-                        />
-                      </MantineTooltip>
-                    </Group>
+                    <Popover position="bottom-end" withArrow shadow="md">
+                      <Popover.Target>
+                        <Button size="sm" variant="light">
+                          {translate("planLabFilterPopoverLabel", "篩選")}
+                        </Button>
+                      </Popover.Target>
+                      <Popover.Dropdown>
+                        <Stack gap="sm">
+                          <MantineTooltip
+                            label={translate(
+                              "planLabFilterActiveTooltip",
+                              "只顯示已啟用的項目。"
+                            )}
+                            withArrow
+                          >
+                            <Switch
+                              size="sm"
+                              label={translate("planLabFilterActiveLabel", "只顯示啟用")}
+                              checked={activeOnly}
+                              onChange={(event) => setActiveOnly(event.currentTarget.checked)}
+                            />
+                          </MantineTooltip>
+                          <Stack gap={4}>
+                            <Text size="xs" fw={600}>
+                              {translate("planLabFilterKindLabel", "分類")}
+                            </Text>
+                            <SegmentedControl
+                              size="sm"
+                              data={
+                                scenarioIsV2
+                                  ? [
+                                      {
+                                        value: "all",
+                                        label: translate("planLabFilterAllLabel", "全部"),
+                                      },
+                                      {
+                                        value: "assets",
+                                        label: translate(
+                                          "planLabFilterPositionsLabel",
+                                          "資產"
+                                        ),
+                                      },
+                                      {
+                                        value: "events",
+                                        label: translate("planLabFilterEventsLabel", "事件"),
+                                      },
+                                      {
+                                        value: "rules",
+                                        label: translate("planLabFilterRulesLabel", "規則"),
+                                      },
+                                    ]
+                                  : [
+                                      {
+                                        value: "all",
+                                        label: translate("planLabFilterAllLabel", "全部"),
+                                      },
+                                      {
+                                        value: "positions",
+                                        label: translate(
+                                          "planLabFilterPositionsLabel",
+                                          "資產"
+                                        ),
+                                      },
+                                      {
+                                        value: "events",
+                                        label: translate("planLabFilterEventsLabel", "事件"),
+                                      },
+                                      {
+                                        value: "rules",
+                                        label: translate("planLabFilterRulesLabel", "規則"),
+                                      },
+                                    ]
+                              }
+                              value={filterKind}
+                              onChange={(value) => setFilterKind(value as typeof filterKind)}
+                            />
+                          </Stack>
+                          <Stack gap={4}>
+                            <Text size="xs" fw={600}>
+                              {translate("planLabGroupLabel", "分組")}
+                            </Text>
+                            <SegmentedControl
+                              size="sm"
+                              data={[
+                                {
+                                  value: "category",
+                                  label: translate("planLabGroupCategoryLabel", "分類"),
+                                },
+                                {
+                                  value: "member",
+                                  label: translate("planLabGroupMemberLabel", "成員"),
+                                },
+                                {
+                                  value: "timeline",
+                                  label: translate("planLabGroupTimelineLabel", "時間"),
+                                },
+                              ]}
+                              value={groupBy}
+                              onChange={(value) => setGroupBy(value as typeof groupBy)}
+                            />
+                          </Stack>
+                        </Stack>
+                      </Popover.Dropdown>
+                    </Popover>
                   </Group>
-                  <SegmentedControl
-                    size="sm"
-                    data={
-                      scenarioIsV2
-                        ? [
-                            {
-                              value: "all",
-                              label: translate("planLabFilterAllLabel", "全部"),
-                            },
-                            {
-                              value: "assets",
-                              label: translate("planLabFilterPositionsLabel", "資產"),
-                            },
-                            {
-                              value: "events",
-                              label: translate("planLabFilterEventsLabel", "事件"),
-                            },
-                            { value: "rules", label: translate("planLabFilterRulesLabel", "規則") },
-                          ]
-                        : [
-                            {
-                              value: "all",
-                              label: translate("planLabFilterAllLabel", "全部"),
-                            },
-                            {
-                              value: "positions",
-                              label: translate("planLabFilterPositionsLabel", "資產"),
-                            },
-                            {
-                              value: "events",
-                              label: translate("planLabFilterEventsLabel", "事件"),
-                            },
-                            { value: "rules", label: translate("planLabFilterRulesLabel", "規則") },
-                          ]
-                    }
-                    value={filterKind}
-                    onChange={(value) => setFilterKind(value as typeof filterKind)}
-                  />
-                  <SegmentedControl
-                    size="sm"
-                    data={[
-                      { value: "category", label: translate("planLabGroupCategoryLabel", "分類") },
-                      { value: "member", label: translate("planLabGroupMemberLabel", "成員") },
-                      { value: "timeline", label: translate("planLabGroupTimelineLabel", "時間") },
-                    ]}
-                    value={groupBy}
-                    onChange={(value) => setGroupBy(value as typeof groupBy)}
-                  />
+                  <Tabs
+                    value={listTab}
+                    onChange={(value) => value && setListTab(value as typeof listTab)}
+                  >
+                    <Tabs.List>
+                      <Tabs.Tab value="changed">
+                        {translate("planLabTabChanged", "已變更")}
+                      </Tabs.Tab>
+                      <Tabs.Tab value="all">
+                        {translate("planLabTabAll", "全部")}
+                      </Tabs.Tab>
+                      <Tabs.Tab value="risky">
+                        {translate("planLabTabRisky", "高風險")}
+                      </Tabs.Tab>
+                    </Tabs.List>
+                  </Tabs>
                 </Stack>
                 {groupedItems.length === 0 ? (
                   <Text size="sm" c="dimmed">
@@ -4042,232 +4404,279 @@ export default function PlanLabPanel({
               </Stack>
             </Paper>
 
-            <Paper withBorder radius="lg" p="md">
-              <Stack gap="xs">
-                <Group justify="space-between" align="center" wrap="wrap">
-                  <MantineTooltip
-                    label={translate(
-                      "planLabExperimentsTooltip",
-                      "新增假設來觀察財務走勢變化。"
-                    )}
-                    withArrow
-                  >
+            <Accordion variant="separated" radius="lg" defaultValue="experiments">
+              <Accordion.Item value="experiments">
+                <Accordion.Control>
+                  <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
-                  </MantineTooltip>
-                  <Group gap="xs" wrap="wrap">
-                    {!scenarioIsV2 && (
-                      <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
-                        {translate("planLabAddMemberAction", "新增成員")}
-                      </Button>
-                    )}
-                    {!scenarioIsV2 && (
-                      <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
-                        {translate("planLabAddRuleAction", "新增規則")}
-                      </Button>
-                    )}
-                    <Button
-                      size="xs"
-                      variant="light"
-                      onClick={
-                        scenarioIsV2
-                          ? () => {
-                              setV2EventDefaultKind("income");
-                              openV2EventDrawer("create", "cashflow");
-                            }
-                          : openAddEventDrawer
-                      }
-                    >
-                      {translate("planLabAddEventAction", "新增事件")}
-                    </Button>
-                    {!scenarioIsV2 && (
-                      <Button size="xs" onClick={openAddExperimentDrawer}>
-                        {translate("planLabExperimentsAddAction", "新增實驗")}
-                      </Button>
-                    )}
+                    <Badge variant="light" color="blue">
+                      {experiments.length}
+                    </Badge>
                   </Group>
-                </Group>
-                {experiments.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    {t("planLabExperimentsEmpty")}
-                  </Text>
-                ) : (
-                  <ScrollArea.Autosize mah={320} offsetScrollbars>
-                    <Accordion variant="separated" radius="md" multiple>
-                      {experiments.map((experiment) => {
-                        const label =
-                          experimentTypeOptions.find(
-                            (option) => option.value === experiment.type
-                          )?.label ?? translate("planLabExperimentFallback", "實驗");
-                        const badges: PlanLabRowBadge[] = [
-                          { label: translate("planLabBadgeExperiment", "實驗"), color: "blue" },
-                        ];
-                        if (experiment.isEnabled === false) {
-                          badges.push({
-                            label: translate("planLabBadgeDisabled", "已停用"),
-                            color: "red",
-                          });
-                        }
-                        const menuItems: PlanLabRowMenuItem[] = [
-                          {
-                            label: translate("planLabActionDuplicate", "複製"),
-                            onClick: () => duplicateExperiment(experiment),
-                          },
-                          {
-                            label: translate("planLabAppliedRemove", "移除"),
-                            onClick: () => removeExperiment(experiment.id),
-                          },
-                        ];
-                        return (
-                          <PlanLabAccordionRow
-                            key={experiment.id}
-                            id={`experiment-${experiment.id}`}
-                            title={label}
-                            badges={badges}
-                            summary={getExperimentSummary(experiment)}
-                            enabled={experiment.isEnabled !== false}
-                            onToggle={() =>
-                              updateExperiment(experiment.id, {
-                                isEnabled: experiment.isEnabled === false,
-                              })
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <MantineTooltip
+                        label={translate(
+                          "planLabExperimentsTooltip",
+                          "新增假設來觀察財務走勢變化。"
+                        )}
+                        withArrow
+                      >
+                        <Text size="sm" fw={600}>
+                          {translate("planLabControlsTitle", "控制項")}
+                        </Text>
+                      </MantineTooltip>
+                      <Group gap="xs" wrap="wrap">
+                        {!scenarioIsV2 && (
+                          <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
+                            {translate("planLabAddMemberAction", "新增成員")}
+                          </Button>
+                        )}
+                        {!scenarioIsV2 && (
+                          <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
+                            {translate("planLabAddRuleAction", "新增規則")}
+                          </Button>
+                        )}
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={
+                            scenarioIsV2
+                              ? () => {
+                                  setV2EventDefaultKind("income");
+                                  openV2EventDrawer("create", "cashflow");
+                                }
+                              : openAddEventDrawer
+                          }
+                        >
+                          {translate("planLabAddEventAction", "新增事件")}
+                        </Button>
+                        {!scenarioIsV2 && (
+                          <Button size="xs" onClick={openAddExperimentDrawer}>
+                            {translate("planLabExperimentsAddAction", "新增實驗")}
+                          </Button>
+                        )}
+                      </Group>
+                    </Group>
+                    {experiments.length === 0 ? (
+                      <Stack gap="xs">
+                        <Text size="sm" c="dimmed">
+                          {t("planLabExperimentsEmpty")}
+                        </Text>
+                        {!scenarioIsV2 && (
+                          <Button size="xs" onClick={openAddExperimentDrawer}>
+                            {translate("planLabExperimentsAddAction", "新增實驗")}
+                          </Button>
+                        )}
+                      </Stack>
+                    ) : (
+                      <ScrollArea.Autosize mah={320} offsetScrollbars>
+                        <Accordion variant="separated" radius="md" multiple>
+                          {experiments.map((experiment) => {
+                            const label =
+                              experimentTypeOptions.find(
+                                (option) => option.value === experiment.type
+                              )?.label ?? translate("planLabExperimentFallback", "實驗");
+                            const badges: PlanLabRowBadge[] = [
+                              {
+                                label: translate("planLabBadgeExperiment", "實驗"),
+                                color: "blue",
+                              },
+                            ];
+                            if (experiment.isEnabled === false) {
+                              badges.push({
+                                label: translate("planLabBadgeDisabled", "已停用"),
+                                color: "red",
+                              });
                             }
-                            onEdit={() => openEditExperimentDrawer(experiment)}
-                            menuItems={menuItems}
-                            panel={
-                              <Text size="xs" c="dimmed">
-                                {getExperimentSummary(experiment)}
-                              </Text>
-                            }
-                          />
-                        );
-                      })}
-                    </Accordion>
-                  </ScrollArea.Autosize>
-                )}
-              </Stack>
-            </Paper>
-
-            <Paper withBorder radius="lg" p="md">
-              <Stack gap="xs">
-                <Group justify="space-between" align="center" wrap="wrap">
-                  <MantineTooltip
-                    label={translate(
-                      "planLabAppliedControlsTooltip",
-                      "快速檢視目前啟用的改動，並可逐一關閉。"
-                    )}
-                    withArrow
-                  >
-                    <Text fw={600}>
-                      {t("planLabAppliedControlsTitle")} ({appliedControls.length})
-                    </Text>
-                  </MantineTooltip>
-                  <Group gap="xs" wrap="wrap">
-                    <Switch
-                      size="xs"
-                      label={translate("planLabFilterChangedLabel", "只看已修改")}
-                      checked={showChangedOnly}
-                      onChange={(event) => setShowChangedOnly(event.currentTarget.checked)}
-                    />
-                    <Button size="xs" variant="light" onClick={handleResetBaseline}>
-                      {translate("planLabAppliedRevertBaseline", "還原基準調整")}
-                    </Button>
-                    <Button size="xs" variant="light" onClick={handleResetAllControls}>
-                      {translate("planLabAppliedResetAll", "全部重設")}
-                    </Button>
-                  </Group>
-                </Group>
-                {appliedControls.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    {t("planLabAppliedControlsEmpty")}
-                  </Text>
-                ) : (
-                  <ScrollArea.Autosize mah={240} offsetScrollbars>
-                    <Stack gap="xs">
-                      {appliedControls.map((control) => {
-                        const content = (
-                          <Paper key={control.id} withBorder radius="md" p="xs">
-                            <Group
-                              justify="space-between"
-                              align="flex-start"
-                              wrap="nowrap"
-                            >
-                              <Stack gap={4} style={{ flex: 1 }}>
-                                <Text size="sm" fw={600}>
-                                  {control.titleLine}
-                                </Text>
-                                {control.diffLines.map((line, index) => (
-                                  <Text key={`${control.id}-diff-${index}`} size="xs" c="dimmed">
-                                    {line}
+                            const menuItems: PlanLabRowMenuItem[] = [
+                              {
+                                label: translate("planLabActionDuplicate", "複製"),
+                                onClick: () => duplicateExperiment(experiment),
+                              },
+                              {
+                                label: translate("planLabAppliedRemove", "移除"),
+                                onClick: () => removeExperiment(experiment.id),
+                              },
+                            ];
+                            return (
+                              <PlanLabAccordionRow
+                                key={experiment.id}
+                                id={`experiment-${experiment.id}`}
+                                title={label}
+                                badges={badges}
+                                summary={getExperimentSummary(experiment)}
+                                enabled={experiment.isEnabled !== false}
+                                onToggle={() =>
+                                  updateExperiment(experiment.id, {
+                                    isEnabled: experiment.isEnabled === false,
+                                  })
+                                }
+                                onEdit={() => openEditExperimentDrawer(experiment)}
+                                menuItems={menuItems}
+                                panel={
+                                  <Text size="xs" c="dimmed">
+                                    {getExperimentSummary(experiment)}
                                   </Text>
-                                ))}
-                              </Stack>
-                              <Group gap="xs" wrap="nowrap">
-                                {control.onToggle && (
-                                  <Switch
-                                    size="xs"
-                                    checked={control.isEnabled}
-                                    onChange={() => control.onToggle?.()}
-                                  />
-                                )}
-                                {control.onEdit && (
-                                  <Button
-                                    size="xs"
-                                    variant="subtle"
-                                    onClick={() => control.onEdit?.()}
-                                  >
-                                    {translate("planLabAppliedEdit", "編輯")}
-                                  </Button>
-                                )}
-                                <ActionIcon
-                                  size="sm"
-                                  variant="subtle"
-                                  onClick={() => control.onRemove()}
-                                >
-                                  <Text size="xs">×</Text>
-                                </ActionIcon>
-                              </Group>
-                            </Group>
-                          </Paper>
-                        );
-                        if (control.tooltip) {
-                          return (
-                            <MantineTooltip key={control.id} label={control.tooltip} withArrow>
-                              {content}
-                            </MantineTooltip>
-                          );
-                        }
-                        return content;
-                      })}
-                    </Stack>
-                  </ScrollArea.Autosize>
-                )}
-              </Stack>
-            </Paper>
+                                }
+                              />
+                            );
+                          })}
+                        </Accordion>
+                      </ScrollArea.Autosize>
+                    )}
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
 
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="xs">
-                <WarningsPanel
-                  warnings={planLabProjection.projectionWarnings}
-                  title={projectionWarningsTitle}
-                  defaultOpen={false}
-                />
-                <Text fw={600}>{t("planLabWarningsTitle")}</Text>
-                {saveWarnings.length === 0 && !saveError && (
-                  <Text size="sm" c="dimmed">
-                    {t("planLabWarningsPlaceholder")}
-                  </Text>
-                )}
-                {saveWarnings.map((warning) => (
-                  <Text key={warning} size="sm" c="orange">
-                    {warning}
-                  </Text>
-                ))}
-                {saveError && (
-                  <Text size="sm" c="red">
-                    {saveError}
-                  </Text>
-                )}
-              </Stack>
-            </Card>
+              <Accordion.Item value="applied-controls">
+                <Accordion.Control>
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{t("planLabAppliedControlsTitle")}</Text>
+                    <Badge variant="light" color="blue">
+                      {appliedControls.length}
+                    </Badge>
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <MantineTooltip
+                        label={translate(
+                          "planLabAppliedControlsTooltip",
+                          "快速檢視目前啟用的改動，並可逐一關閉。"
+                        )}
+                        withArrow
+                      >
+                        <Text size="sm" fw={600}>
+                          {translate("planLabAppliedSummary", "已套用改動")}
+                        </Text>
+                      </MantineTooltip>
+                      <Group gap="xs" wrap="wrap">
+                        <Button size="xs" variant="light" onClick={handleResetBaseline}>
+                          {translate("planLabAppliedRevertBaseline", "還原基準調整")}
+                        </Button>
+                        <Button size="xs" variant="light" onClick={handleResetAllControls}>
+                          {translate("planLabAppliedResetAll", "全部重設")}
+                        </Button>
+                      </Group>
+                    </Group>
+                    {appliedControls.length === 0 ? (
+                      <Text size="sm" c="dimmed">
+                        {t("planLabAppliedControlsEmpty")}
+                      </Text>
+                    ) : (
+                      <ScrollArea.Autosize mah={240} offsetScrollbars>
+                        <Stack gap="xs">
+                          {appliedControls.map((control) => {
+                            const content = (
+                              <Paper key={control.id} withBorder radius="md" p="xs">
+                                <Group
+                                  justify="space-between"
+                                  align="flex-start"
+                                  wrap="nowrap"
+                                >
+                                  <Stack gap={4} style={{ flex: 1 }}>
+                                    <Text size="sm" fw={600}>
+                                      {control.titleLine}
+                                    </Text>
+                                    {control.diffLines.map((line, index) => (
+                                      <Text
+                                        key={`${control.id}-diff-${index}`}
+                                        size="xs"
+                                        c="dimmed"
+                                      >
+                                        {line}
+                                      </Text>
+                                    ))}
+                                  </Stack>
+                                  <Group gap="xs" wrap="nowrap">
+                                    {control.onToggle && (
+                                      <Switch
+                                        size="xs"
+                                        checked={control.isEnabled}
+                                        onChange={() => control.onToggle?.()}
+                                      />
+                                    )}
+                                    {control.onEdit && (
+                                      <Button
+                                        size="xs"
+                                        variant="subtle"
+                                        onClick={() => control.onEdit?.()}
+                                      >
+                                        {translate("planLabAppliedEdit", "編輯")}
+                                      </Button>
+                                    )}
+                                    <ActionIcon
+                                      size="sm"
+                                      variant="subtle"
+                                      onClick={() => control.onRemove()}
+                                    >
+                                      <Text size="xs">×</Text>
+                                    </ActionIcon>
+                                  </Group>
+                                </Group>
+                              </Paper>
+                            );
+                            if (control.tooltip) {
+                              return (
+                                <MantineTooltip
+                                  key={control.id}
+                                  label={control.tooltip}
+                                  withArrow
+                                >
+                                  {content}
+                                </MantineTooltip>
+                              );
+                            }
+                            return content;
+                          })}
+                        </Stack>
+                      </ScrollArea.Autosize>
+                    )}
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+
+              <Accordion.Item value="warnings">
+                <Accordion.Control>
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{t("planLabWarningsTitle")}</Text>
+                    {(saveWarnings.length > 0 || saveError) && (
+                      <Badge variant="light" color="orange">
+                        {saveWarnings.length + (saveError ? 1 : 0)}
+                      </Badge>
+                    )}
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <WarningsPanel
+                      warnings={planLabProjection.projectionWarnings}
+                      title={projectionWarningsTitle}
+                      defaultOpen={false}
+                    />
+                    {saveWarnings.length === 0 && !saveError && (
+                      <Text size="sm" c="dimmed">
+                        {t("planLabWarningsPlaceholder")}
+                      </Text>
+                    )}
+                    {saveWarnings.map((warning) => (
+                      <Text key={warning} size="sm" c="orange">
+                        {warning}
+                      </Text>
+                    ))}
+                    {saveError && (
+                      <Text size="sm" c="red">
+                        {saveError}
+                      </Text>
+                    )}
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
           </Stack>
         </Grid.Col>
 
@@ -4276,103 +4685,68 @@ export default function PlanLabPanel({
             <Stack gap="lg">
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
-                  <Text fw={600}>{t("planLabScorecardTitle")}</Text>
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{translate("planLabKpiPanelTitle", "Impact KPIs")}</Text>
+                    <Badge variant="light" color={hasUnsavedChanges ? "orange" : "gray"}>
+                      {hasUnsavedChanges
+                        ? translate("planLabDirtyLabel", "未儲存")
+                        : translate("planLabKpiBaselineLabel", "基準")}
+                    </Badge>
+                  </Group>
                   <Stack gap="xs">
-                    <Text fw={600}>{t("planLabScorecardFirstBucketTitle")}</Text>
+                    <Select
+                      label={translate("planLabKpiTargetLabel", "目標淨資產")}
+                      placeholder={translate("planLabScorecardTargetPrompt", "設定目標")}
+                      data={targetPresetOptions}
+                      value={targetSelectValue}
+                      clearable
+                      onChange={(value) => {
+                        if (!value) {
+                          setFirstBucketTargetAmount("");
+                          return;
+                        }
+                        const numeric = Number(value);
+                        setFirstBucketTargetAmount(Number.isFinite(numeric) ? numeric : "");
+                      }}
+                    />
                     <NumberInput
-                      label={t("planLabScorecardTargetAmount")}
+                      label={translate("planLabScorecardTargetAmount", "目標金額")}
                       value={firstBucketTargetAmount}
                       min={0}
                       onChange={(value) =>
                         setFirstBucketTargetAmount(typeof value === "number" ? value : "")
                       }
                     />
-                    {firstBucketTargetValue === null ? (
-                      <Text size="sm" c="dimmed">
-                        {t("planLabScorecardTargetPrompt")}
-                      </Text>
-                    ) : !planLabProjection.projection ? (
-                      <Text size="sm" c="dimmed">
-                        {t("planLabScorecardDisabled")}
-                      </Text>
-                    ) : (
-                      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
-                        <Card withBorder radius="md" padding="sm">
-                          <Stack gap={4}>
-                            <Text size="sm" fw={600}>
-                              {t("planLabScorecardAchievedMonth")}
-                            </Text>
-                            {firstBucketResult?.achievedMonth ? (
-                              <Text size="sm">
-                                {t("monthLabel", {
-                                  month: firstBucketResult.achievedMonth,
-                                })}
-                              </Text>
-                            ) : (
-                              <Text size="sm" c="dimmed">
-                                {t("planLabScorecardTargetNotReached")}
-                              </Text>
-                            )}
-                          </Stack>
-                        </Card>
-                        <Card withBorder radius="md" padding="sm">
-                          <Stack gap={4}>
-                            <Text size="sm" fw={600}>
-                              {t("planLabScorecardMinCash")}
-                            </Text>
-                            {firstBucketResult?.achievedMonth ? (
-                              <>
-                                <Text size="sm">
-                                  {formatCurrency(
-                                    firstBucketResult.minCash.value,
-                                    scenario.baseCurrency,
-                                    locale
-                                  )}
-                                </Text>
-                                {firstBucketResult.minCash.month && (
-                                  <Text size="xs" c="dimmed">
-                                    {t("monthLabel", {
-                                      month: firstBucketResult.minCash.month,
-                                    })}
-                                  </Text>
-                                )}
-                              </>
-                            ) : (
-                              <Text size="sm" c="dimmed">
-                                {t("planLabScorecardValueUnavailable")}
-                              </Text>
-                            )}
-                          </Stack>
-                        </Card>
-                        <Card withBorder radius="md" padding="sm">
-                          <Stack gap={4}>
-                            <Text size="sm" fw={600}>
-                              {t("planLabScorecardDeltaLabel")}
-                            </Text>
-                            {firstBucketDeltaMonths === null ? (
-                              <Text size="sm" c="dimmed">
-                                {t("planLabScorecardDeltaUnavailable")}
-                              </Text>
-                            ) : firstBucketDeltaMonths === 0 ? (
-                              <Text size="sm">{t("planLabScorecardDeltaSame")}</Text>
-                            ) : firstBucketDeltaMonths > 0 ? (
-                              <Text size="sm">
-                                {t("planLabScorecardDeltaFaster", {
-                                  months: firstBucketDeltaMonths,
-                                })}
-                              </Text>
-                            ) : (
-                              <Text size="sm">
-                                {t("planLabScorecardDeltaSlower", {
-                                  months: Math.abs(firstBucketDeltaMonths),
-                                })}
-                              </Text>
-                            )}
-                          </Stack>
-                        </Card>
-                      </SimpleGrid>
-                    )}
                   </Stack>
+                  {!planLabProjection.projection ? (
+                    <Text size="sm" c="dimmed">
+                      {t("planLabScorecardDisabled")}
+                    </Text>
+                  ) : (
+                    <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                      {kpiCards.map((card) => (
+                        <Card key={card.key} withBorder radius="md" padding="sm">
+                          <Stack gap={4}>
+                            <Group justify="space-between" align="center" wrap="nowrap">
+                              <Text size="sm" fw={600}>
+                                {card.label}
+                              </Text>
+                              {card.delta && (
+                                <Badge variant="light" color="gray">
+                                  Δ {card.delta}
+                                  {card.deltaUnit ? ` ${card.deltaUnit}` : ""}
+                                </Badge>
+                              )}
+                            </Group>
+                            <Text fw={600}>{card.current}</Text>
+                            <Text size="xs" c="dimmed">
+                              {translate("planLabKpiBaselineLabel", "基準")}：{card.baseline}
+                            </Text>
+                          </Stack>
+                        </Card>
+                      ))}
+                    </SimpleGrid>
+                  )}
                 </Stack>
               </Card>
 
@@ -4419,8 +4793,9 @@ export default function PlanLabPanel({
                         <Line
                           type="monotone"
                           dataKey="baseline"
-                          stroke="#228be6"
+                          stroke="#adb5bd"
                           strokeWidth={2}
+                          strokeDasharray="6 4"
                           dot={false}
                           name={t("planLabBaselineLabel")}
                         />
