@@ -2,6 +2,13 @@ import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { compareMonthKey } from "../../utils/monthKey";
 
+export type EventMonthlyImpact = {
+  income: number;
+  expense: number;
+  net: number;
+  month: string | null;
+};
+
 export const resolveEventCardAmount = (event: ScenarioEvent): number | null => {
   switch (event.type) {
     case "cashflow":
@@ -24,6 +31,45 @@ export const resolveEventCardAmount = (event: ScenarioEvent): number | null => {
     default:
       return null;
   }
+};
+
+export const resolveEventMonthlyImpact = (
+  rows: LedgerRow[]
+): EventMonthlyImpact | null => {
+  if (!rows || rows.length === 0) {
+    return null;
+  }
+  const latestMonth = rows.reduce<string | null>((current, row) => {
+    if (!row.month) {
+      return current;
+    }
+    if (!current) {
+      return row.month;
+    }
+    return compareMonthKey(row.month, current) > 0 ? row.month : current;
+  }, null);
+  if (!latestMonth) {
+    return null;
+  }
+  const totals = rows
+    .filter((row) => row.month === latestMonth)
+    .reduce(
+      (acc, row) => {
+        if (row.kind === "income" || (!row.kind && row.amount >= 0)) {
+          acc.income += Math.abs(row.amount);
+        } else {
+          acc.expense += Math.abs(row.amount);
+        }
+        return acc;
+      },
+      { income: 0, expense: 0 }
+    );
+  return {
+    income: totals.income,
+    expense: totals.expense,
+    net: totals.income - totals.expense,
+    month: latestMonth,
+  };
 };
 
 export const resolveEventCardStartMonth = (event: ScenarioEvent): string | null => {

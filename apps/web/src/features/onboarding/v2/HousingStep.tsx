@@ -15,7 +15,7 @@ import {
   Title,
 } from "@mantine/core";
 import { nanoid } from "nanoid";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import MonthField from "../../../../components/MonthField";
 import { calcAmortizedPaymentMonthly } from "../../../domain/positions/calculations";
 import type { OnboardingV2DraftHousing } from "../../../domain/onboarding/v2/draftTypes";
@@ -94,54 +94,61 @@ export default function HousingStep({
   onChange,
   t,
 }: HousingStepProps) {
-  const updateHousing = (patch: Partial<OnboardingV2DraftHousing>) => {
-    onChange({
-      ...housing,
-      ...patch,
-    });
-  };
-
-  const updateRent = (
-    patch: Partial<OnboardingV2DraftHousing["rent"]>
-  ) => {
-    updateHousing({
-      rent: {
-        ...housing.rent,
+  const updateHousing = useCallback(
+    (patch: Partial<OnboardingV2DraftHousing>) => {
+      onChange({
+        ...housing,
         ...patch,
-      },
-    });
-  };
+      });
+    },
+    [housing, onChange]
+  );
 
-  const updateOwn = (
-    patch: Partial<OnboardingV2DraftHousing["own"]>,
-    options?: { paymentSource?: "manual" | "estimated" }
-  ) => {
-    const nextOwn: OnboardingV2DraftHousing["own"] = {
-      ...housing.own,
-      ...patch,
-    };
-    if (options?.paymentSource) {
-      nextOwn.mortgagePaymentSource = options.paymentSource;
-    }
-    const loanAmount = resolveLoanAmount(nextOwn).loanAmount;
-    const termMonths = resolveMortgageTermMonths(nextOwn);
-    const estimated = calcAmortizedPaymentMonthly(
-      loanAmount,
-      toNumber(nextOwn.mortgageRatePct ?? 0),
-      termMonths
-    );
-    if (nextOwn.mortgagePaymentSource !== "manual") {
-      if (estimated !== null) {
-        nextOwn.mortgagePayment = Math.round(estimated * 100) / 100;
-        nextOwn.mortgagePaymentSource = "estimated";
-      } else {
-        nextOwn.mortgagePaymentSource = "estimated";
+  const updateRent = useCallback(
+    (patch: Partial<OnboardingV2DraftHousing["rent"]>) => {
+      updateHousing({
+        rent: {
+          ...housing.rent,
+          ...patch,
+        },
+      });
+    },
+    [housing.rent, updateHousing]
+  );
+
+  const updateOwn = useCallback(
+    (
+      patch: Partial<OnboardingV2DraftHousing["own"]>,
+      options?: { paymentSource?: "manual" | "estimated" }
+    ) => {
+      const nextOwn: OnboardingV2DraftHousing["own"] = {
+        ...housing.own,
+        ...patch,
+      };
+      if (options?.paymentSource) {
+        nextOwn.mortgagePaymentSource = options.paymentSource;
       }
-    }
-    updateHousing({
-      own: nextOwn,
-    });
-  };
+      const loanAmount = resolveLoanAmount(nextOwn).loanAmount;
+      const termMonths = resolveMortgageTermMonths(nextOwn);
+      const estimated = calcAmortizedPaymentMonthly(
+        loanAmount,
+        toNumber(nextOwn.mortgageRatePct ?? 0),
+        termMonths
+      );
+      if (nextOwn.mortgagePaymentSource !== "manual") {
+        if (estimated !== null) {
+          nextOwn.mortgagePayment = Math.round(estimated * 100) / 100;
+          nextOwn.mortgagePaymentSource = "estimated";
+        } else {
+          nextOwn.mortgagePaymentSource = "estimated";
+        }
+      }
+      updateHousing({
+        own: nextOwn,
+      });
+    },
+    [housing.own, updateHousing]
+  );
 
   const updateFee = (
     id: string,
@@ -161,6 +168,20 @@ export default function HousingStep({
         {
           id: nanoid(6),
           label: "",
+          amount: 0,
+          month: housing.own.startMonth || baseMonth,
+        },
+      ],
+    });
+  };
+
+  const addFeePreset = (label: string) => {
+    updateOwn({
+      fees: [
+        ...housing.own.fees,
+        {
+          id: nanoid(6),
+          label,
           amount: 0,
           month: housing.own.startMonth || baseMonth,
         },
@@ -192,6 +213,21 @@ export default function HousingStep({
         {
           id: nanoid(6),
           label: "",
+          amount: 0,
+          startMonth: housing.own.startMonth || baseMonth,
+          endMonth: "",
+        },
+      ],
+    });
+  };
+
+  const addOngoingCostPreset = (label: string) => {
+    updateOwn({
+      ongoingCosts: [
+        ...housing.own.ongoingCosts,
+        {
+          id: nanoid(6),
+          label,
           amount: 0,
           startMonth: housing.own.startMonth || baseMonth,
           endMonth: "",
@@ -571,19 +607,7 @@ export default function HousingStep({
                       key={label}
                       variant="light"
                       size="xs"
-                      onClick={() =>
-                        updateOwn({
-                          fees: [
-                            ...housing.own.fees,
-                            {
-                              id: nanoid(6),
-                              label,
-                              amount: 0,
-                              month: housing.own.startMonth || baseMonth,
-                            },
-                          ],
-                        })
-                      }
+                      onClick={() => addFeePreset(label)}
                     >
                       {label}
                     </Button>
@@ -676,20 +700,7 @@ export default function HousingStep({
                       key={label}
                       variant="light"
                       size="xs"
-                      onClick={() =>
-                        updateOwn({
-                          ongoingCosts: [
-                            ...housing.own.ongoingCosts,
-                            {
-                              id: nanoid(6),
-                              label,
-                              amount: 0,
-                              startMonth: housing.own.startMonth || baseMonth,
-                              endMonth: "",
-                            },
-                          ],
-                        })
-                      }
+                      onClick={() => addOngoingCostPreset(label)}
                     >
                       {label}
                     </Button>

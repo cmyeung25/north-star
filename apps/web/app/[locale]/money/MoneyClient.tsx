@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ActionIcon,
+  Badge,
   Button,
   Card,
   Drawer,
@@ -8,6 +10,7 @@ import {
   Modal,
   Notification,
   NumberInput,
+  ScrollArea,
   SegmentedControl,
   Select,
   Stack,
@@ -15,6 +18,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -92,6 +96,9 @@ import LoanEventDrawer, {
 import InsuranceEventDrawer, {
   type InsuranceEventDraft,
 } from "../../../features/moneyFlow/InsuranceEventDrawer";
+import MortgageDetailDrawer, {
+  type MortgageDetailTab,
+} from "../../../features/moneyFlow/MortgageDetailDrawer";
 import ScenarioAssetManager from "../../../features/assets/ScenarioAssetManager";
 import ScenarioLiabilityManager from "../../../features/liabilities/ScenarioLiabilityManager";
 import type {
@@ -111,6 +118,8 @@ import {
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
+import type { EventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
+import { buildEventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
 import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
 import type { TemplateCategory, TemplateDef } from "../../../src/domain/eventTemplates/types";
 import { buildTemplateDrawerDraftOverrides } from "../../../src/domain/eventTemplates/presets";
@@ -146,6 +155,16 @@ type MoneyClientProps = {
   initialShowOnboardingSkipped?: boolean;
 };
 
+const isDerivedFromEvent = (item: {
+  source?: "manual" | "eventGenerated";
+  createdByEventId?: string;
+}) => item.source === "eventGenerated" || Boolean(item.createdByEventId);
+
+const getEventIdFromItem = (
+  item: { createdByEventId?: string },
+  fallbackEventId?: string | null
+) => item.createdByEventId ?? fallbackEventId ?? null;
+
 const tabOrder: MoneyTab[] = [
   "income",
   "expenses",
@@ -161,6 +180,9 @@ type MoneyAddAction =
   | "insurance"
   | "car"
   | "loan";
+
+type CreationIntent = "plan" | "item";
+type CreationItemCategory = "income" | "expenses" | "assets" | "liabilities";
 
 export default function MoneyClient({
   scenarioId,
@@ -182,6 +204,7 @@ export default function MoneyClient({
   const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
   const locale = useLocale();
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const router = useRouter();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
@@ -284,6 +307,9 @@ export default function MoneyClient({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templatePickerCategory, setTemplatePickerCategory] =
     useState<TemplateCategory>("popular");
+  const [templatePickerIntent, setTemplatePickerIntent] = useState<CreationIntent | null>(null);
+  const [templatePickerItemCategory, setTemplatePickerItemCategory] =
+    useState<CreationItemCategory | null>(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
@@ -294,6 +320,10 @@ export default function MoneyClient({
     useState<Partial<LoanEventDraft> | null>(null);
   const [templateInsuranceDraft, setTemplateInsuranceDraft] =
     useState<Partial<InsuranceEventDraft> | null>(null);
+  const [mortgageDetail, setMortgageDetail] = useState<{
+    eventId: string;
+    tab: MortgageDetailTab;
+  } | null>(null);
   const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
   const [adjustmentDraft, setAdjustmentDraft] = useState<{
     row: LedgerRow;
@@ -366,6 +396,7 @@ export default function MoneyClient({
     type: "eventV2" | "asset" | "loan";
     id: string;
     label: string;
+    impact?: EventDeleteImpact | null;
   } | null>(null);
   const [cashflowModal, setCashflowModal] = useState<CashflowModalState>({
     opened: false,
@@ -394,6 +425,22 @@ export default function MoneyClient({
   useEffect(() => {
     setActiveTab(resolvedTab);
   }, [resolvedTab]);
+
+  const activeTemplateCategory = useMemo<TemplateCategory>(() => {
+    switch (activeTab) {
+      case "income":
+        return "income";
+      case "expenses":
+        return "expenses";
+      case "assets":
+        return "assets";
+      case "liabilities":
+        return "loans";
+      case "inputs":
+      default:
+        return "popular";
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (projectionMonths.length === 0) {
@@ -474,6 +521,34 @@ export default function MoneyClient({
       filterEventsByLedgerImpact(v2ScenarioEvents, ledgerRowsByEventId, "expense"),
     [ledgerRowsByEventId, v2ScenarioEvents]
   );
+  const derivedIncomeItems = useMemo(() => {
+    return v2ScenarioEvents.flatMap((event) => {
+      if (event.type !== "housing") {
+        return [];
+      }
+      const rows = ledgerRowsByEventId.get(event.id) ?? [];
+      const incomeRows = rows.filter(
+        (row) => row.kind === "income" || (!row.kind && row.amount > 0)
+      );
+      if (incomeRows.length === 0) {
+        return [];
+      }
+      const latestRow = incomeRows.reduce<LedgerRow | null>((current, row) => {
+        if (!current) {
+          return row;
+        }
+        return compareMonthKey(row.month, current.month) > 0 ? row : current;
+      }, null);
+      return [
+        {
+          id: `${event.id}-rental-income`,
+          sourceEventId: event.id,
+          sourceLabel: event.label ?? t("ledgerRowFallbackLabel"),
+          amount: latestRow?.amount ?? null,
+        },
+      ];
+    });
+  }, [ledgerRowsByEventId, t, v2ScenarioEvents]);
   const editingV2Event = useMemo<ScenarioEvent | null>(() => {
     if (!editingV2EventId) {
       return null;
@@ -714,9 +789,21 @@ export default function MoneyClient({
     setTemplateInsuranceDraft(null);
   }, []);
 
-  const openTemplatePicker = useCallback((category: TemplateCategory) => {
-    setTemplatePickerCategory(category);
-    setTemplatePickerOpen(true);
+  const openCreationDrawer = useCallback(
+    (options?: {
+      intent?: CreationIntent | null;
+      itemCategory?: CreationItemCategory | null;
+      templateCategory?: TemplateCategory;
+    }) => {
+      setTemplatePickerCategory(options?.templateCategory ?? "popular");
+      setTemplatePickerIntent(options?.intent ?? null);
+      setTemplatePickerItemCategory(options?.itemCategory ?? null);
+      setTemplatePickerOpen(true);
+    },
+    []
+  );
+  const openMortgageDetails = useCallback((eventId: string, tab: MortgageDetailTab) => {
+    setMortgageDetail({ eventId, tab });
   }, []);
 
   const handleTemplateSelect = useCallback(
@@ -769,10 +856,18 @@ export default function MoneyClient({
 
   const handleAddCashflowEvent = useCallback(
     (kind: "income" | "expense") => {
-      openTemplatePicker(kind === "income" ? "income" : "expenses");
+      openCreationDrawer({
+        intent: "item",
+        itemCategory: kind === "income" ? "income" : "expenses",
+        templateCategory: kind === "income" ? "income" : "expenses",
+      });
     },
-    [openTemplatePicker]
+    [openCreationDrawer]
   );
+
+  const handleFabAdd = useCallback(() => {
+    openCreationDrawer({ templateCategory: activeTemplateCategory });
+  }, [activeTemplateCategory, openCreationDrawer]);
 
   const handleSaveV2Event = (draft: ScenarioEventDraft) => {
     if (!scenarioIdValue) {
@@ -849,6 +944,7 @@ export default function MoneyClient({
       return;
     }
     setLedgerActionError(null);
+    let savedEventId = draft.id ?? null;
     const payload = {
       type: "housing" as const,
       label: draft.label.trim() || undefined,
@@ -879,7 +975,9 @@ export default function MoneyClient({
           ? Number(draft.mortgagePayment)
           : undefined,
       mortgagePaymentIsEstimated:
-        draft.kind === "mortgage" && !draft.mortgagePayment ? true : undefined,
+        draft.kind === "mortgage"
+          ? draft.mortgagePaymentSource === "estimated"
+          : undefined,
       feesOneOff:
         draft.kind === "mortgage"
           ? draft.feesOneOff.map((fee) => ({
@@ -929,14 +1027,19 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventCreateFailed"));
         return;
       }
+      savedEventId = result.event?.id ?? null;
     }
 
     if (payload.kind === "mortgage" && payload.propertyAssetId && payload.mortgageLiabilityId) {
+      const createdByEventId = savedEventId ?? payload.propertyAssetId;
       upsertScenarioAssets(scenarioIdValue, [
         {
           id: payload.propertyAssetId,
           kind: "home",
           label: payload.label,
+          source: "eventGenerated",
+          createdByEventId,
+          createdByTemplate: "housing_mortgage",
         },
       ]);
       upsertScenarioLiabilities(scenarioIdValue, [
@@ -944,6 +1047,9 @@ export default function MoneyClient({
           id: payload.mortgageLiabilityId,
           kind: "mortgage",
           label: payload.label,
+          source: "eventGenerated",
+          createdByEventId,
+          createdByTemplate: "housing_mortgage",
         },
       ]);
     }
@@ -1073,17 +1179,26 @@ export default function MoneyClient({
     setEditingV2EventId(null);
     setV2EventDrawerType(null);
   };
-  const handleEditV2Event = (eventId: string) => {
-    if (!scenarioIsV2) {
-      return;
-    }
-    const match = v2ScenarioEvents.find((event) => event.id === eventId);
-    if (!match) {
-      setLedgerActionError(t("ledgerEventMissing"));
-      return;
-    }
-    openV2EventDrawer("edit", match.type, eventId);
-  };
+  const handleEditV2Event = useCallback(
+    (eventId: string) => {
+      if (!scenarioIsV2) {
+        return;
+      }
+      const match = v2ScenarioEvents.find((event) => event.id === eventId);
+      if (!match) {
+        setLedgerActionError(t("ledgerEventMissing"));
+        return;
+      }
+      openV2EventDrawer("edit", match.type, eventId);
+    },
+    [openV2EventDrawer, scenarioIsV2, t, v2ScenarioEvents]
+  );
+  const openEventDrawer = useCallback(
+    (eventId: string) => {
+      handleEditV2Event(eventId);
+    },
+    [handleEditV2Event]
+  );
   const handleDuplicateV2Event = (eventId: string) => {
     if (!scenarioIdValue) {
       return;
@@ -1104,13 +1219,15 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventMissing"));
         return;
       }
+      const impact = scenario ? buildEventDeleteImpact(scenario, eventId) : null;
       setDeleteConfirmation({
         type: "eventV2",
         id: eventId,
         label: match.label ?? t("ledgerRowFallbackLabel"),
+        impact,
       });
     },
-    [scenarioIsV2, t, v2ScenarioEvents]
+    [scenario, scenarioIsV2, t, v2ScenarioEvents]
   );
   const handleAdjustEvent = (row: LedgerRow) => {
     setLedgerActionError(null);
@@ -1153,41 +1270,120 @@ export default function MoneyClient({
     () => scenario?.liabilities ?? [],
     [scenario?.liabilities]
   );
+  const mortgageDetailEvent = useMemo(() => {
+    if (!mortgageDetail) {
+      return null;
+    }
+    const match = v2ScenarioEvents.find((event) => event.id === mortgageDetail.eventId);
+    if (match?.type !== "housing" || match.kind !== "mortgage") {
+      return null;
+    }
+    return match;
+  }, [mortgageDetail, v2ScenarioEvents]);
+  const mortgageDetailAsset = useMemo(() => {
+    if (!mortgageDetailEvent?.propertyAssetId) {
+      return null;
+    }
+    return (
+      scenarioAssets.find((asset) => asset.id === mortgageDetailEvent.propertyAssetId) ??
+      null
+    );
+  }, [mortgageDetailEvent?.propertyAssetId, scenarioAssets]);
+  const mortgageDetailLiability = useMemo(() => {
+    if (!mortgageDetailEvent?.mortgageLiabilityId) {
+      return null;
+    }
+    return (
+      scenarioLiabilities.find(
+        (liability) => liability.id === mortgageDetailEvent.mortgageLiabilityId
+      ) ?? null
+    );
+  }, [mortgageDetailEvent?.mortgageLiabilityId, scenarioLiabilities]);
   const assetSourcesById = useMemo(() => {
-    const sources: Record<string, { id: string; label: string }[]> = {};
-    const addSource = (assetId: string | undefined, event: ScenarioEvent, label?: string) => {
+    const sources: Record<
+      string,
+      {
+        id: string;
+        label: string;
+        hasRelatedDebt?: boolean;
+        hasRelatedCashflows?: boolean;
+        eventType?: string;
+        eventKind?: string;
+      }[]
+    > = {};
+    const addSource = (
+      assetId: string | undefined,
+      event: ScenarioEvent,
+      options?: { label?: string; hasRelatedDebt?: boolean }
+    ) => {
       if (!assetId) {
         return;
       }
-      const eventLabel = label ?? event.label ?? t("ledgerRowFallbackLabel");
-      sources[assetId] = [...(sources[assetId] ?? []), { id: event.id, label: eventLabel }];
+      const eventLabel = options?.label ?? event.label ?? t("ledgerRowFallbackLabel");
+      const hasRelatedCashflows = (ledgerRowsByEventId.get(event.id) ?? []).length > 0;
+      sources[assetId] = [
+        ...(sources[assetId] ?? []),
+        {
+          id: event.id,
+          label: eventLabel,
+          hasRelatedDebt: options?.hasRelatedDebt,
+          hasRelatedCashflows,
+          eventType: event.type,
+          eventKind: "kind" in event ? event.kind : undefined,
+        },
+      ];
     };
     v2ScenarioEvents.forEach((event) => {
       if (event.type === "housing" && event.kind === "mortgage") {
-        addSource(event.propertyAssetId, event);
+        addSource(event.propertyAssetId, event, {
+          hasRelatedDebt: Boolean(event.mortgageLiabilityId),
+        });
       }
       if (event.type === "insurance" && event.mode === "detailed") {
         (event.policies ?? []).forEach((policy) => {
           if (policy.kind === "savings") {
-            addSource(policy.policyAssetId, event, policy.name ?? event.label);
+            addSource(policy.policyAssetId, event, {
+              label: policy.name ?? event.label,
+              hasRelatedDebt: false,
+            });
           }
         });
       }
     });
     return sources;
-  }, [t, v2ScenarioEvents]);
+  }, [ledgerRowsByEventId, t, v2ScenarioEvents]);
   const liabilitySourcesById = useMemo(() => {
-    const sources: Record<string, { id: string; label: string }[]> = {};
+    const sources: Record<
+      string,
+      {
+        id: string;
+        label: string;
+        hasRelatedDebt?: boolean;
+        hasRelatedCashflows?: boolean;
+        eventType?: string;
+        eventKind?: string;
+      }[]
+    > = {};
     const addSource = (
       liabilityId: string | undefined,
-      event: ScenarioEvent,
-      label?: string
+      event: ScenarioEvent
     ) => {
       if (!liabilityId) {
         return;
       }
-      const eventLabel = label ?? event.label ?? t("ledgerRowFallbackLabel");
-      sources[liabilityId] = [...(sources[liabilityId] ?? []), { id: event.id, label: eventLabel }];
+      const eventLabel = event.label ?? t("ledgerRowFallbackLabel");
+      const hasRelatedCashflows = (ledgerRowsByEventId.get(event.id) ?? []).length > 0;
+      sources[liabilityId] = [
+        ...(sources[liabilityId] ?? []),
+        {
+          id: event.id,
+          label: eventLabel,
+          hasRelatedDebt: true,
+          hasRelatedCashflows,
+          eventType: event.type,
+          eventKind: "kind" in event ? event.kind : undefined,
+        },
+      ];
     };
     v2ScenarioEvents.forEach((event) => {
       if (event.type === "housing" && event.kind === "mortgage") {
@@ -1198,7 +1394,7 @@ export default function MoneyClient({
       }
     });
     return sources;
-  }, [t, v2ScenarioEvents]);
+  }, [ledgerRowsByEventId, t, v2ScenarioEvents]);
   const assetValueById = useMemo(() => {
     const values = new Map<string, number>();
     v2ScenarioEvents.forEach((event) => {
@@ -1305,6 +1501,13 @@ export default function MoneyClient({
     if (!scenarioIdValue) {
       return;
     }
+    if (isDerivedFromEvent(item)) {
+      const eventId = getEventIdFromItem(item);
+      if (eventId) {
+        handleDeleteV2Event(eventId);
+      }
+      return;
+    }
     const nextAssets = scenarioAssets.filter((asset) => asset.id !== item.id);
     setScenarioAssets(scenarioIdValue, nextAssets);
   };
@@ -1321,6 +1524,13 @@ export default function MoneyClient({
   };
   const handleRemoveLiabilityItem = (item: ScenarioLiability) => {
     if (!scenarioIdValue) {
+      return;
+    }
+    if (isDerivedFromEvent(item)) {
+      const eventId = getEventIdFromItem(item);
+      if (eventId) {
+        handleDeleteV2Event(eventId);
+      }
       return;
     }
     const nextLiabilities = scenarioLiabilities.filter(
@@ -1469,6 +1679,15 @@ export default function MoneyClient({
     }
   }, [homes, cars, investments, insurances, loans, assetDetails, scenarioIdValue]);
 
+  useEffect(() => {
+    if (!mortgageDetail) {
+      return;
+    }
+    if (!mortgageDetailEvent) {
+      setMortgageDetail(null);
+    }
+  }, [mortgageDetail, mortgageDetailEvent]);
+
   // Close editing drawers if the edited item was deleted
   useEffect(() => {
     if (editingHomeId && !homes.some((h) => h.id === editingHomeId)) {
@@ -1495,7 +1714,7 @@ export default function MoneyClient({
     
     switch (type) {
       case "eventV2":
-        removeEvent(id, scenarioIdValue);
+        removeEvent(id, scenarioIdValue, { cascade: true });
         break;
       case "asset":
         // Determine asset type from the homes, cars, investments, insurances lists
@@ -2020,17 +2239,27 @@ export default function MoneyClient({
 
 
   return (
-    <Stack gap="xl">
+    <Stack
+      gap="xl"
+      style={
+        isMobile
+          ? { paddingBottom: "calc(72px + env(safe-area-inset-bottom))" }
+          : undefined
+      }
+    >
       <TwoPaneLayout
         left={
           <Stack gap="xl">
-            <Group justify="space-between" align="flex-start" wrap="wrap">
-              <Stack gap={4}>
-                <Title order={2}>{t("title")}</Title>
-                <Text size="sm" c="dimmed">
-                  {t("subtitle")}
-                </Text>
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <Stack gap={2}>
+                <Title order={isMobile ? 3 : 2}>{t("title")}</Title>
+                {!isMobile && (
+                  <Text size="sm" c="dimmed">
+                    {t("subtitle")}
+                  </Text>
+                )}
               </Stack>
+              <Button onClick={() => openCreationDrawer()}>{t("addCta")}</Button>
             </Group>
             {showPlaceholderBanner && (
               <Card withBorder radius="md" padding="md">
@@ -2067,13 +2296,35 @@ export default function MoneyClient({
               </Card>
             )}
             <Tabs value={activeTab} onChange={(value) => setActiveTab(value as MoneyTab)}>
-              <Tabs.List>
-                <Tabs.Tab value="income">{t("incomeTitle")}</Tabs.Tab>
-                <Tabs.Tab value="expenses">{t("expensesTitle")}</Tabs.Tab>
-                <Tabs.Tab value="assets">{t("assetsTitle")}</Tabs.Tab>
-                <Tabs.Tab value="liabilities">{t("liabilitiesTitle")}</Tabs.Tab>
-                <Tabs.Tab value="inputs">{t("inputsTitle")}</Tabs.Tab>
-              </Tabs.List>
+              {isMobile ? (
+                <ScrollArea scrollbarSize={4} offsetScrollbars>
+                  <Tabs.List style={{ flexWrap: "nowrap" }}>
+                    <Tabs.Tab value="income" style={{ minHeight: 44 }}>
+                      {t("incomeTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="expenses" style={{ minHeight: 44 }}>
+                      {t("expensesTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="assets" style={{ minHeight: 44 }}>
+                      {t("assetsTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="liabilities" style={{ minHeight: 44 }}>
+                      {t("liabilitiesTitle")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="inputs" style={{ minHeight: 44 }}>
+                      {t("inputsTitle")}
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </ScrollArea>
+              ) : (
+                <Tabs.List>
+                  <Tabs.Tab value="income">{t("incomeTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="expenses">{t("expensesTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="assets">{t("assetsTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="liabilities">{t("liabilitiesTitle")}</Tabs.Tab>
+                  <Tabs.Tab value="inputs">{t("inputsTitle")}</Tabs.Tab>
+                </Tabs.List>
+              )}
 
         <Tabs.Panel value="income" pt="md">
           <Stack gap="md">
@@ -2081,21 +2332,65 @@ export default function MoneyClient({
               <Text size="sm" c="dimmed">
                 {t("incomeDescription")}
               </Text>
-              <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("income")}>
-                {t("eventCardAddEvent")}
-              </Button>
+              {!isMobile && (
+                <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("income")}>
+                  {t("eventCardAddEvent")}
+                </Button>
+              )}
             </Group>
             {ledgerActionError && (
               <Text size="sm" c="red">
                 {ledgerActionError}
               </Text>
             )}
+            {derivedIncomeItems.length > 0 && (
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {t("derivedIncomeSectionTitle")}
+                </Text>
+                {derivedIncomeItems.map((item) => (
+                  <Card key={item.id} withBorder radius="md" padding="sm">
+                    <Stack gap={6}>
+                      <Group justify="space-between" align="center" wrap="wrap">
+                        <Text fw={600}>{t("derivedIncomeLabel")}</Text>
+                        <Text fw={600}>
+                          {item.amount !== null
+                            ? formatCurrency(
+                                item.amount,
+                                scenario?.baseCurrency ?? "USD",
+                                locale
+                              )
+                            : t("amountUnset")}
+                        </Text>
+                      </Group>
+                      <Group gap="xs" align="center" wrap="wrap">
+                        <Text size="xs" c="dimmed">
+                          {t("derivedIncomeSourceLabel")}
+                        </Text>
+                        <Badge
+                          variant="light"
+                          component="button"
+                          type="button"
+                          onClick={() => openEventDrawer(item.sourceEventId)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          {item.sourceLabel}
+                        </Badge>
+                        <Text size="xs" c="dimmed">
+                          {t("derivedIncomeLockedHint")}
+                        </Text>
+                      </Group>
+                    </Stack>
+                  </Card>
+                ))}
+              </Stack>
+            )}
             <EventCardList
               events={incomeEvents}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
               onAdjustEvent={handleAdjustEvent}
@@ -2112,9 +2407,11 @@ export default function MoneyClient({
               <Text size="sm" c="dimmed">
                 {t("expensesDescription")}
               </Text>
-              <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("expense")}>
-                {t("eventCardAddEvent")}
-              </Button>
+              {!isMobile && (
+                <Button size="xs" variant="light" onClick={() => handleAddCashflowEvent("expense")}>
+                  {t("eventCardAddEvent")}
+                </Button>
+              )}
             </Group>
             {ledgerActionError && (
               <Text size="sm" c="red">
@@ -2126,7 +2423,7 @@ export default function MoneyClient({
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
               onAdjustEvent={handleAdjustEvent}
@@ -2154,7 +2451,15 @@ export default function MoneyClient({
               sourceEventsByAssetId={assetSourcesById}
               onUpsert={handleUpsertAssetItem}
               onDelete={handleRemoveAssetItem}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
+              onOpenMortgageDetails={openMortgageDetails}
+              onAddItem={() =>
+                openCreationDrawer({
+                  intent: "item",
+                  itemCategory: "assets",
+                  templateCategory: "assets",
+                })
+              }
               openEditId={openAssetEditId}
               onOpenEditHandled={() => setOpenAssetEditId(null)}
             />
@@ -2210,7 +2515,15 @@ export default function MoneyClient({
               sourceEventsByLiabilityId={liabilitySourcesById}
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
-              onEditEvent={handleEditV2Event}
+              onEditEvent={openEventDrawer}
+              onOpenMortgageDetails={openMortgageDetails}
+              onAddItem={() =>
+                openCreationDrawer({
+                  intent: "item",
+                  itemCategory: "liabilities",
+                  templateCategory: "loans",
+                })
+              }
               openEditId={openLiabilityEditId}
               onOpenEditHandled={() => setOpenLiabilityEditId(null)}
             />
@@ -2280,7 +2593,7 @@ export default function MoneyClient({
             cashSeries={cashSeries}
             netWorthSeries={netWorthSeries}
             netCashflowSeries={netCashflowSeries}
-            showCharts={false}
+            showCharts={!isMobile}
             onRangeChange={(range) => {
               setBreakdownMonthRange(range);
               setBreakdownMonth(range.toMonth ?? null);
@@ -2297,6 +2610,28 @@ export default function MoneyClient({
           />
         }
       />
+
+      {isMobile && (
+        <div
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: "calc(72px + env(safe-area-inset-bottom) + 16px)",
+            zIndex: 200,
+          }}
+        >
+          <ActionIcon
+            size={56}
+            radius="xl"
+            variant="filled"
+            color="indigo"
+            onClick={handleFabAdd}
+            aria-label={t("eventCardAddEvent")}
+          >
+            +
+          </ActionIcon>
+        </div>
+      )}
 
       <Drawer
         opened={Boolean(assetDetails)}
@@ -2428,9 +2763,32 @@ export default function MoneyClient({
         </Stack>
       </Drawer>
 
+      <MortgageDetailDrawer
+        opened={Boolean(mortgageDetail)}
+        onClose={() => setMortgageDetail(null)}
+        onEdit={
+          mortgageDetailEvent
+            ? () => {
+                openV2EventDrawer("edit", "housing", mortgageDetailEvent.id);
+                setMortgageDetail(null);
+              }
+            : undefined
+        }
+        event={mortgageDetailEvent}
+        asset={mortgageDetailAsset}
+        liability={mortgageDetailLiability}
+        baseCurrency={scenario?.baseCurrency ?? "USD"}
+        locale={locale}
+        defaultTab={mortgageDetail?.tab ?? "overview"}
+        currentMonth={currentProjectionMonth}
+      />
+
       <TemplatePickerDrawer
         opened={templatePickerOpen}
         defaultCategory={templatePickerCategory}
+        showIntentScreen
+        defaultIntent={templatePickerIntent}
+        defaultItemCategory={templatePickerItemCategory}
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
       />
@@ -2748,6 +3106,72 @@ export default function MoneyClient({
               <Text>
                 {t("deleteConfirmation", { label: deleteConfirmation?.label ?? "" })}
               </Text>
+              {deleteConfirmation?.type === "eventV2" && deleteConfirmation.impact && (
+                <Stack gap="sm">
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("deleteImpactAssetsTitle")}
+                    </Text>
+                    {deleteConfirmation.impact.impactedAssets.length > 0 ? (
+                      deleteConfirmation.impact.impactedAssets.map((asset) => (
+                        <Text size="sm" key={asset.id}>
+                          • {asset.label ?? t("assetUntitled")}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("deleteImpactNone")}
+                      </Text>
+                    )}
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("deleteImpactLiabilitiesTitle")}
+                    </Text>
+                    {deleteConfirmation.impact.impactedLiabilities.length > 0 ? (
+                      deleteConfirmation.impact.impactedLiabilities.map((liability) => (
+                        <Text size="sm" key={liability.id}>
+                          • {liability.label ?? t("liabilityUntitled")}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("deleteImpactNone")}
+                      </Text>
+                    )}
+                  </Stack>
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t("deleteImpactCashflowsTitle")}
+                    </Text>
+                    {deleteConfirmation.impact.ledger.topRows.length > 0 ? (
+                      deleteConfirmation.impact.ledger.topRows.map((row, index) => (
+                        <Group key={`${row.sourceEventId}-${index}`} justify="space-between">
+                          <Text size="sm">
+                            {row.label ?? t("ledgerRowFallbackLabel")} · {row.month}
+                          </Text>
+                          <Text size="sm" fw={500}>
+                            {formatCurrency(
+                              row.amount,
+                              scenario?.baseCurrency ?? "USD",
+                              locale
+                            )}
+                          </Text>
+                        </Group>
+                      ))
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("deleteImpactNone")}
+                      </Text>
+                    )}
+                  </Stack>
+                </Stack>
+              )}
+              {deleteConfirmation?.type === "eventV2" && !deleteConfirmation.impact && (
+                <Text size="sm" c="dimmed">
+                  {t("deleteImpactUnavailable")}
+                </Text>
+              )}
               <Group justify="flex-end" gap="sm">
                 <Button
                   variant="subtle"

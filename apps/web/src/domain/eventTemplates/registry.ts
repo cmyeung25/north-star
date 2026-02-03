@@ -75,7 +75,7 @@ export const templateRegistry: TemplateDef[] = [
   },
   {
     id: "mortgage_home_purchase",
-    categories: ["popular", "housing", "assets"],
+    categories: ["popular", "housing", "loans"],
     drawerType: "housing",
     chips: ["affectsCashflow", "affectsNetWorth", "requiresLiability"],
   },

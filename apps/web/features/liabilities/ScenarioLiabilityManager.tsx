@@ -12,7 +12,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { nanoid } from "nanoid";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useEntityDraft } from "../../src/hooks/useEntityDraft";
 import type {
@@ -23,6 +23,10 @@ import type {
 type LiabilitySourceEvent = {
   id: string;
   label: string;
+  hasRelatedDebt?: boolean;
+  hasRelatedCashflows?: boolean;
+  eventType?: string;
+  eventKind?: string;
 };
 
 type ScenarioLiabilityDraft = {
@@ -60,6 +64,8 @@ type ScenarioLiabilityManagerProps = {
   onUpsert: (item: ScenarioLiability) => void;
   onDelete: (item: ScenarioLiability) => void;
   onEditEvent?: (eventId: string) => void;
+  onOpenMortgageDetails?: (eventId: string, tab: "overview" | "liability" | "cashflow") => void;
+  onAddItem?: () => void;
   openEditId?: string | null;
   onOpenEditHandled?: () => void;
 };
@@ -70,6 +76,8 @@ export default function ScenarioLiabilityManager({
   onUpsert,
   onDelete,
   onEditEvent,
+  onOpenMortgageDetails,
+  onAddItem,
   openEditId,
   onOpenEditHandled,
 }: ScenarioLiabilityManagerProps) {
@@ -180,7 +188,11 @@ export default function ScenarioLiabilityManager({
       return;
     }
     const match = items.find((item) => item.id === openEditId) ?? null;
-    if (match && (sourceEventsByLiabilityId[match.id]?.length ?? 0) === 0) {
+    const isDerived =
+      match?.source === "eventGenerated" ||
+      Boolean(match?.createdByEventId) ||
+      (sourceEventsByLiabilityId[match?.id ?? ""]?.length ?? 0) > 0;
+    if (match && !isDerived) {
       openDrawer(match);
     }
     onOpenEditHandled?.();
@@ -210,7 +222,9 @@ export default function ScenarioLiabilityManager({
             onChange={(event) => setSearch(event.currentTarget?.value ?? "")}
           />
         </Group>
-        <Button onClick={() => openDrawer(null)}>{t("liabilityManagerAdd")}</Button>
+        <Button onClick={() => (onAddItem ? onAddItem() : openDrawer(null))}>
+          {t("liabilityManagerAdd")}
+        </Button>
       </Group>
 
       {filteredItems.length === 0 ? (
@@ -221,9 +235,49 @@ export default function ScenarioLiabilityManager({
         <Stack gap="sm">
           {filteredItems.map((item) => {
             const sources = sourceEventsByLiabilityId[item.id] ?? [];
-            const canEdit = sources.length === 0;
+            const isDerived =
+              item.source === "eventGenerated" ||
+              Boolean(item.createdByEventId) ||
+              sources.length > 0;
+            const canEdit = !isDerived;
+            const primarySource = sources[0];
+            const eventId = primarySource?.id ?? item.createdByEventId ?? null;
+            const isMortgage =
+              primarySource?.eventType === "housing" &&
+              primarySource?.eventKind === "mortgage";
+            const handleEditEvent = () => {
+              if (eventId) {
+                onEditEvent?.(eventId);
+              }
+            };
+            const handleOpenMortgageDetails = (tab: "overview" | "liability" | "cashflow") => {
+              if (!eventId) {
+                return;
+              }
+              if (isMortgage) {
+                onOpenMortgageDetails?.(eventId, tab);
+              } else {
+                handleEditEvent();
+              }
+            };
+            const handleCardClick = (event: MouseEvent<HTMLDivElement>) => {
+              if (!isMortgage) {
+                return;
+              }
+              if ((event.target as HTMLElement).closest("button")) {
+                return;
+              }
+              handleOpenMortgageDetails("liability");
+            };
             return (
-              <Card key={item.id} withBorder radius="md" padding="sm">
+              <Card
+                key={item.id}
+                withBorder
+                radius="md"
+                padding="sm"
+                onClick={isMortgage ? handleCardClick : undefined}
+                style={isMortgage ? { cursor: "pointer" } : undefined}
+              >
                 <Group justify="space-between" align="flex-start" wrap="wrap">
                   <Stack gap={4}>
                     <Text fw={600}>{item.label ?? t("liabilityUntitled")}</Text>
@@ -243,28 +297,36 @@ export default function ScenarioLiabilityManager({
                         term: item.termYears !== undefined ? item.termYears : "--",
                       })}
                     </Text>
-                    {sources.length > 0 && (
+                    {isDerived && (
                       <Stack gap={4}>
                         <Text size="xs" c="dimmed">
-                          {t("liabilitySourceEvents")}
+                          {t("eventSourceLabel")}
                         </Text>
                         <Group gap="xs">
-                          {sources.slice(0, 2).map((source) => (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => handleOpenMortgageDetails("overview")}
+                          >
+                            {t("eventRelationEvent")}
+                          </Button>
+                          {primarySource?.hasRelatedDebt && (
                             <Button
-                              key={source.id}
                               size="xs"
                               variant="light"
-                              onClick={() => onEditEvent?.(source.id)}
+                              onClick={() => handleOpenMortgageDetails("liability")}
                             >
-                              {source.label}
+                              {t("eventRelationDebt")}
                             </Button>
-                          ))}
-                          {sources.length > 2 && (
-                            <Text size="xs" c="dimmed">
-                              {t("liabilitySourceEventsMore", {
-                                count: sources.length - 2,
-                              })}
-                            </Text>
+                          )}
+                          {primarySource?.hasRelatedCashflows && (
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => handleOpenMortgageDetails("cashflow")}
+                            >
+                              {t("eventRelationCashflows")}
+                            </Button>
                           )}
                         </Group>
                       </Stack>
@@ -286,14 +348,25 @@ export default function ScenarioLiabilityManager({
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() => sources[0] && onEditEvent?.(sources[0].id)}
-                        disabled={sources.length === 0}
-                      >
-                        {t("eventGeneratedEdit")}
-                      </Button>
+                      <Group gap="xs">
+                        {isMortgage && (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => handleOpenMortgageDetails("liability")}
+                          >
+                            {common("actionDetails")}
+                          </Button>
+                        )}
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={handleEditEvent}
+                          disabled={!eventId}
+                        >
+                          {t("eventGeneratedEdit")}
+                        </Button>
+                      </Group>
                     )}
                   </Group>
                 </Group>

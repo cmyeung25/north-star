@@ -86,7 +86,7 @@ test.describe("money v2 ledger", () => {
 
     await expect(page.getByText("Salary")).toBeVisible();
 
-    await page.getByRole("button", { name: "View ledger impact" }).first().click();
+    await page.getByRole("button", { name: "View calculation details" }).first().click();
     await expect(page.getByText(baseMonth)).toBeVisible();
 
     await page.getByRole("button", { name: "Edit" }).first().click();
@@ -94,17 +94,20 @@ test.describe("money v2 ledger", () => {
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(/1,200/)).toBeVisible();
 
-    await page.getByRole("button", { name: "Duplicate" }).first().click();
+    await page.getByRole("button", { name: "More" }).first().click();
+    await page.getByRole("menuitem", { name: "Duplicate" }).click();
     await expect(page.getByText("Salary (Copy)")).toBeVisible();
 
-    await page.getByRole("button", { name: "Delete" }).last().click();
+    await page.getByRole("button", { name: "More" }).last().click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Delete" })
       .click();
     await expect(page.getByText("Salary (Copy)")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Adjust" }).first().click();
+    await page.getByRole("button", { name: "More" }).first().click();
+    await page.getByRole("menuitem", { name: "Adjust" }).click();
     await page.getByLabel("Adjustment amount").fill("50");
     await page.getByRole("button", { name: "Create adjustment" }).click();
     await expect(page.getByText("Adjustment")).toBeVisible();

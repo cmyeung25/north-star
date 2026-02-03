@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  ActionIcon,
   AppShell,
   Button,
   Container,
   Group,
   MantineProvider,
+  Menu,
   Stack,
   Text,
   createTheme,
@@ -199,35 +201,78 @@ export default function Providers({ children }: { children: ReactNode }) {
         padding="md"
       >
         <AppShell.Header>
-          <Group h="100%" px="md" justify="space-between">
-            <Text fw={600} size="lg">
-              {t("appName")}
-            </Text>
-            <Group gap="xs" align="center">
-              <ScenarioSwitcher />
-              <Button
-                component={Link}
-                href="/plan-lab"
-                size="xs"
-                variant="light"
-              >
-                {nav("planLab")}
-              </Button>
-              <Text size="xs" c="dimmed">
-                {statusLabel}
+          {isDesktop ? (
+            <Group h="100%" px="md" justify="space-between">
+              <Text fw={600} size="lg">
+                {t("appName")}
               </Text>
-              <Button
-                component={Link}
-                href="/people#sync"
-                size="xs"
-                variant="subtle"
-                disabled={!isFirebaseConfigured && !isSignedIn}
-              >
-                {actionLabel}
-              </Button>
-              <LanguageSwitcher />
+              <Group gap="xs" align="center">
+                <ScenarioSwitcher />
+                <Button
+                  component={Link}
+                  href="/plan-lab"
+                  size="xs"
+                  variant="light"
+                >
+                  {nav("planLab")}
+                </Button>
+                <Text size="xs" c="dimmed">
+                  {statusLabel}
+                </Text>
+                <Button
+                  component={Link}
+                  href="/people#sync"
+                  size="xs"
+                  variant="subtle"
+                  disabled={!isFirebaseConfigured && !isSignedIn}
+                >
+                  {actionLabel}
+                </Button>
+                <LanguageSwitcher />
+              </Group>
             </Group>
-          </Group>
+          ) : (
+            <Group h="100%" px="md" justify="space-between">
+              <Text fw={600} size="lg">
+                {t("appName")}
+              </Text>
+              <Menu position="bottom-end" withinPortal>
+                <Menu.Target>
+                  <ActionIcon variant="subtle" size="lg" aria-label={t("actionMore")}>
+                    ⋯
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Stack gap="xs" px="xs" py="xs">
+                    <ScenarioSwitcher />
+                    <Button
+                      component={Link}
+                      href="/plan-lab"
+                      size="xs"
+                      variant="light"
+                      fullWidth
+                    >
+                      {nav("planLab")}
+                    </Button>
+                    <Text size="xs" c="dimmed">
+                      {statusLabel}
+                    </Text>
+                    <Button
+                      component={Link}
+                      href="/people#sync"
+                      size="xs"
+                      variant="subtle"
+                      disabled={!isFirebaseConfigured && !isSignedIn}
+                      fullWidth
+                    >
+                      {actionLabel}
+                    </Button>
+                    <LanguageSwitcher />
+                  </Stack>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+          )}
         </AppShell.Header>
 
         {isDesktop && !isOnboarding && (

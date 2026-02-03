@@ -2,10 +2,12 @@
 
 import React from "react";
 import {
+  ActionIcon,
   Badge,
   Button,
   Card,
   Group,
+  Menu,
   Stack,
   Text,
 } from "@mantine/core";
@@ -18,6 +20,7 @@ import {
   resolveEventCardAmount,
   resolveEventCardEndMonth,
   resolveEventCardStartMonth,
+  resolveEventMonthlyImpact,
 } from "./eventCardUtils";
 
 type EventCardListProps = {
@@ -111,6 +114,9 @@ export default function EventCardList({
         const displayRows = showAll ? rows : rows.slice(0, ledgerPreviewLimit);
         const hasMoreRows = rows.length > ledgerPreviewLimit;
         const primaryRow = rows[0];
+        const impact = resolveEventMonthlyImpact(rows);
+        const hasIncomeImpact = Boolean(impact && impact.income > 0);
+        const hasExpenseImpact = Boolean(impact && impact.expense > 0);
 
         return (
           <Card key={event.id} withBorder radius="md" padding="md">
@@ -121,14 +127,41 @@ export default function EventCardList({
                   <Text size="sm" c="dimmed">
                     {t("eventCardCadence", { cadence: cadenceLabel })}
                   </Text>
-                  <Text size="sm" c="dimmed">
-                    {t("eventCardAmount", {
-                      amount:
-                        amount !== null
-                          ? formatCurrency(amount, baseCurrency, locale)
-                          : t("amountUnset"),
-                    })}
-                  </Text>
+                  {impact ? (
+                    <>
+                      {hasIncomeImpact && (
+                        <Text size="sm" c="dimmed">
+                          {t("eventCardMonthlyIncome", {
+                            amount: formatCurrency(impact.income, baseCurrency, locale),
+                          })}
+                        </Text>
+                      )}
+                      {hasExpenseImpact && (
+                        <Text size="sm" c="dimmed">
+                          {t("eventCardMonthlyExpense", {
+                            amount: formatCurrency(impact.expense, baseCurrency, locale),
+                          })}
+                        </Text>
+                      )}
+                      <Text size="sm" c="dimmed">
+                        {t("eventCardMonthlyNet", {
+                          amount:
+                            hasIncomeImpact || hasExpenseImpact
+                              ? formatCurrency(impact.net, baseCurrency, locale)
+                              : t("amountUnset"),
+                        })}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      {t("eventCardMonthlyNet", {
+                        amount:
+                          amount !== null
+                            ? formatCurrency(amount, baseCurrency, locale)
+                            : t("amountUnset"),
+                      })}
+                    </Text>
+                  )}
                   <Text size="sm" c="dimmed">
                     {t("eventCardMonths", {
                       startMonth: startMonth ?? t("amountUnset"),
@@ -140,30 +173,27 @@ export default function EventCardList({
                   <Button size="xs" variant="light" onClick={() => onEditEvent(event.id)}>
                     {common("actionEdit")}
                   </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() => onDuplicateEvent(event.id)}
-                  >
-                    {common("actionDuplicate")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="red"
-                    onClick={() => onDeleteEvent(event.id)}
-                  >
-                    {common("actionDelete")}
-                  </Button>
-                  <Button
-                    display={"none"}
-                    size="xs"
-                    variant="subtle"
-                    onClick={() => primaryRow && onAdjustEvent(primaryRow)}
-                    disabled={!primaryRow}
-                  >
-                    {common("actionAdjust")}
-                  </Button>
+                  <Menu position="bottom-end" withinPortal>
+                    <Menu.Target>
+                      <ActionIcon variant="subtle" size="sm" aria-label={common("actionMore")}>
+                        ⋯
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => onDuplicateEvent(event.id)}>
+                        {common("actionDuplicate")}
+                      </Menu.Item>
+                      <Menu.Item
+                        disabled={!primaryRow}
+                        onClick={() => primaryRow && onAdjustEvent(primaryRow)}
+                      >
+                        {common("actionAdjust")}
+                      </Menu.Item>
+                      <Menu.Item color="red" onClick={() => onDeleteEvent(event.id)}>
+                        {common("actionDelete")}
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
                 </Group>
               </Group>
 

@@ -23,6 +23,7 @@ import { normalizeMonthStrict } from "../../../src/utils/month";
 import { isValidMonthKey } from "../../../src/utils/monthKey";
 import type { ScenarioEventDraft } from "../../../src/domain/scenarioV2/events";
 import type { TemplateDef } from "../../../src/domain/eventTemplates/types";
+import MonthField from "../../MonthField";
 import {
   buildHomePurchaseBundleEvent,
   buildNewBabyBundleEvents,
@@ -587,15 +588,14 @@ export default function BundleWizardDrawer({
             <Text size="sm" c="dimmed">
               {t("bundleNewBabyIntro")}
             </Text>
-            <TextInput
+            <MonthField
               label={t("bundleNewBabyBirthMonth")}
-              placeholder="YYYY-MM"
               value={newBabyDraft.birthMonth}
               error={errors.birthMonth}
-              onChange={(event) =>
+              onChange={(value) =>
                 setNewBabyDraft((current) => ({
                   ...current,
-                  birthMonth: event.currentTarget.value,
+                  birthMonth: value,
                 }))
               }
               onBlur={(event) => {
@@ -714,15 +714,14 @@ export default function BundleWizardDrawer({
                         }))
                       }
                     />
-                    <TextInput
+                    <MonthField
                       label={t("bundleNewBabySchoolingStartMonth")}
-                      placeholder="YYYY-MM"
                       value={newBabyDraft.schoolingStartMonth}
                       error={errors.schoolingStartMonth}
-                      onChange={(event) =>
+                      onChange={(value) =>
                         setNewBabyDraft((current) => ({
                           ...current,
-                          schoolingStartMonth: event.currentTarget.value,
+                          schoolingStartMonth: value,
                         }))
                       }
                       onBlur={(event) => {
@@ -745,15 +744,14 @@ export default function BundleWizardDrawer({
             <Text size="sm" c="dimmed">
               {t("bundleHomeIntro")}
             </Text>
-            <TextInput
+            <MonthField
               label={t("bundleHomeStartMonth")}
-              placeholder="YYYY-MM"
               value={homeDraft.startMonth}
               error={errors.startMonth}
-              onChange={(event) =>
+              onChange={(value) =>
                 setHomeDraft((current) => ({
                   ...current,
-                  startMonth: event.currentTarget.value,
+                  startMonth: value,
                 }))
               }
               onBlur={(event) => {
@@ -951,13 +949,10 @@ export default function BundleWizardDrawer({
                             updateFees(fee.id, { amount: Number(value) || 0 })
                           }
                         />
-                        <TextInput
+                        <MonthField
                           label={t("bundleFeeMonth")}
-                          placeholder="YYYY-MM"
                           value={fee.month}
-                          onChange={(event) =>
-                            updateFees(fee.id, { month: event.currentTarget.value })
-                          }
+                          onChange={(value) => updateFees(fee.id, { month: value })}
                           onBlur={(event) =>
                             updateFees(fee.id, {
                               month: helperCostMonthNormalize(event.currentTarget.value),
@@ -1029,13 +1024,12 @@ export default function BundleWizardDrawer({
                             })
                           }
                         />
-                        <TextInput
+                        <MonthField
                           label={t("bundleOngoingStartMonth")}
-                          placeholder="YYYY-MM"
                           value={cost.startMonth}
-                          onChange={(event) =>
+                          onChange={(value) =>
                             updateOngoingCosts(cost.id, {
-                              startMonth: event.currentTarget.value,
+                              startMonth: value,
                             })
                           }
                           onBlur={(event) =>
@@ -1046,13 +1040,12 @@ export default function BundleWizardDrawer({
                             })
                           }
                         />
-                        <TextInput
+                        <MonthField
                           label={t("bundleOngoingEndMonth")}
-                          placeholder="YYYY-MM"
                           value={cost.endMonth}
-                          onChange={(event) =>
+                          onChange={(value) =>
                             updateOngoingCosts(cost.id, {
-                              endMonth: event.currentTarget.value,
+                              endMonth: value,
                             })
                           }
                           onBlur={(event) =>
@@ -1120,45 +1113,25 @@ export default function BundleWizardDrawer({
                         }))
                       }
                     />
-                    <TextInput
+                    <MonthField
                       label={t("bundleHomeRentalStartMonth")}
-                      placeholder="YYYY-MM"
                       value={homeDraft.rentalStartMonth}
-                      onChange={(event) =>
+                      onChange={(value) =>
                         setHomeDraft((current) => ({
                           ...current,
-                          rentalStartMonth: event.currentTarget.value,
+                          rentalStartMonth: value,
                         }))
                       }
-                      onBlur={(event) => {
-                        const normalized = helperCostMonthNormalize(
-                          event.currentTarget.value
-                        );
-                        setHomeDraft((current) => ({
-                          ...current,
-                          rentalStartMonth: normalized,
-                        }));
-                      }}
                     />
-                    <TextInput
+                    <MonthField
                       label={t("bundleHomeRentalEndMonth")}
-                      placeholder="YYYY-MM"
                       value={homeDraft.rentalEndMonth}
-                      onChange={(event) =>
+                      onChange={(value) =>
                         setHomeDraft((current) => ({
                           ...current,
-                          rentalEndMonth: event.currentTarget.value,
+                          rentalEndMonth: value,
                         }))
                       }
-                      onBlur={(event) => {
-                        const normalized = helperCostMonthNormalize(
-                          event.currentTarget.value
-                        );
-                        setHomeDraft((current) => ({
-                          ...current,
-                          rentalEndMonth: normalized,
-                        }));
-                      }}
                     />
                   </>
                 )}
