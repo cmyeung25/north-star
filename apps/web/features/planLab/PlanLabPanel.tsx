@@ -28,7 +28,15 @@ import {
   Title,
   Tooltip as MantineTooltip,
 } from "@mantine/core";
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
