@@ -127,6 +127,7 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
 import { SavePlanModal } from "./SavePlanModal";
+import { PlanCompareMode } from "./PlanCompareMode";
 import {
   buildPlanPatchesFromSnapshot,
   validatePlanPatches,
@@ -147,7 +148,6 @@ import {
 import { compileScenarioV2ToProjectionInput } from "../../src/engine/scenarioV2Compiler";
 import {
   deletePlanSnapshot,
-  duplicatePlanSnapshot,
   listAllPlanSnapshots,
   listPlanSnapshots,
   renamePlanSnapshot,
@@ -719,6 +719,8 @@ export default function PlanLabPanel({
   const [planToast, setPlanToast] = useState<string | null>(null);
   const planToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [comparePlanAId, setComparePlanAId] = useState<string | null>(null);
+  const [comparePlanBId, setComparePlanBId] = useState<string | null>(null);
   const [planLibrary, setPlanLibrary] = useState<PlanSnapshot[]>([]);
   const [otherPlans, setOtherPlans] = useState<PlanSnapshot[]>([]);
   const scenarioIsV2 = isScenarioV2(scenario);
@@ -875,6 +877,7 @@ export default function PlanLabPanel({
         savePlanSnapshot({
           id: plan.id,
           scenarioId: legacy.sourceScenarioId ?? scenario.id,
+          baselineScenarioId: legacy.sourceScenarioId ?? scenario.id,
           name: plan.name,
           createdAt: plan.createdAt,
           updatedAt: plan.updatedAt,
@@ -933,6 +936,7 @@ export default function PlanLabPanel({
   const baselineSmartInvestPolicy = scenario.assumptions.smartInvest;
   const plans = planLibrary;
   const planCount = plans.length;
+  const currentPlanId = "planlab-current";
   const defaultPlanName = translate("planLabPlanDefaultName", "方案 {index}", {
     index: planCount + 1,
   });
@@ -957,6 +961,14 @@ export default function PlanLabPanel({
       setActivePlanId(null);
     }
   }, [activePlanId, plans]);
+
+  useEffect(() => {
+    if (mode !== "compare") {
+      return;
+    }
+    setComparePlanAId((current) => current ?? currentPlanId);
+    setComparePlanBId((current) => current ?? "baseline");
+  }, [currentPlanId, mode]);
   const combinedMembers = useMemo(
     () => [...members, ...draftMembers],
     [members, draftMembers]
@@ -2029,6 +2041,27 @@ export default function PlanLabPanel({
       ),
     [baselineScenarioV2, budgetRules, sandboxBudgetRules, sandboxScenarioV2]
   );
+  const currentComparePlan = useMemo<PlanSnapshot>(
+    () => ({
+      id: currentPlanId,
+      scenarioId: scenario.id,
+      baselineScenarioId: scenario.id,
+      name: translate("planLabCompareCurrentLabel", "Current draft"),
+      createdAt: 0,
+      updatedAt: 0,
+      baselineFingerprint,
+      payload: snapshotPayload,
+      snapshot: planSnapshot,
+    }),
+    [
+      baselineFingerprint,
+      currentPlanId,
+      planSnapshot,
+      scenario.id,
+      snapshotPayload,
+      translate,
+    ]
+  );
   const hasPlanSnapshotChanges = useMemo(
     () => buildPlanPatchesFromSnapshot(planSnapshot).length > 0,
     [planSnapshot]
@@ -2064,6 +2097,26 @@ export default function PlanLabPanel({
     }
     return warnings;
   }, [baselineScenarioV2, snapshotPayload, translate]);
+
+  const activePlan = useMemo(
+    () => plans.find((plan) => plan.id === activePlanId) ?? null,
+    [activePlanId, plans]
+  );
+  const activePlanBaselineMismatch = Boolean(
+    activePlan && activePlan.baselineFingerprint !== baselineFingerprint
+  );
+  const guardrailWarnings = useMemo(() => {
+    const warnings = [...planSnapshotWarnings];
+    if (activePlanBaselineMismatch) {
+      warnings.push(
+        translate(
+          "planLabPlanBaselineChangedWarning",
+          "Baseline has changed since this plan was saved; results may differ."
+        )
+      );
+    }
+    return warnings;
+  }, [activePlanBaselineMismatch, planSnapshotWarnings, translate]);
 
   const planPatchWarnings = useMemo(() => {
     if (scenarioIsV2) {
@@ -4171,7 +4224,7 @@ export default function PlanLabPanel({
   };
 
   const handleLoadPlanSnapshot = (plan: PlanSnapshot) => {
-    if (plan.scenarioId !== scenario.id) {
+    if (plan.baselineScenarioId !== scenario.id) {
       setPlanToast(
         translate(
           "planLabPlanScenarioMismatchToast",
@@ -4207,6 +4260,7 @@ export default function PlanLabPanel({
     const nextPlan: PlanSnapshot = {
       id: nanoid(),
       scenarioId: scenario.id,
+      baselineScenarioId: scenario.id,
       name: values.name,
       notes: values.notes,
       tags: values.tags,
@@ -4253,7 +4307,17 @@ export default function PlanLabPanel({
   };
 
   const handleDuplicatePlan = (plan: Plan) => {
-    duplicatePlanSnapshot(plan);
+    const timestamp = Date.now();
+    const duplicateName = translate("planLabPlanDuplicateName", "{name} (copy)", {
+      name: plan.name,
+    });
+    savePlanSnapshot({
+      ...plan,
+      id: nanoid(),
+      name: duplicateName,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
     refreshPlanLibrary();
     setPlanToast(translate("planLabPlanDuplicatedToast", "Plan duplicated."));
   };
@@ -4269,6 +4333,34 @@ export default function PlanLabPanel({
   const handleRenamePlan = (plan: Plan, name: string) => {
     renamePlanSnapshot(plan.scenarioId, plan.id, name);
     refreshPlanLibrary();
+  };
+
+  const handleSetPlanA = (plan: Plan) => {
+    if (plan.baselineScenarioId !== scenario.id) {
+      setPlanToast(
+        translate(
+          "planLabPlanScenarioMismatchToast",
+          "This plan belongs to another scenario and cannot be loaded here."
+        )
+      );
+      return;
+    }
+    setComparePlanAId(plan.id);
+    setMode("compare");
+  };
+
+  const handleSetPlanB = (plan: Plan) => {
+    if (plan.baselineScenarioId !== scenario.id) {
+      setPlanToast(
+        translate(
+          "planLabPlanScenarioMismatchToast",
+          "This plan belongs to another scenario and cannot be loaded here."
+        )
+      );
+      return;
+    }
+    setComparePlanBId(plan.id);
+    setMode("compare");
   };
 
   const handleSave = () => {
@@ -4690,6 +4782,31 @@ export default function PlanLabPanel({
       <Card withBorder radius="md" padding="sm">
         <Text size="sm">{t("planLabSandboxBanner")}</Text>
       </Card>
+
+      {mode === "compare" && (
+        <PlanCompareMode
+          scenario={scenario}
+          plans={plans}
+          currentPlan={currentComparePlan}
+          planAId={comparePlanAId}
+          planBId={comparePlanBId}
+          onPlanAChange={setComparePlanAId}
+          onPlanBChange={setComparePlanBId}
+          onSwapPlans={() => {
+            setComparePlanAId(comparePlanBId);
+            setComparePlanBId(comparePlanAId);
+          }}
+          onLoadPlan={handleLoadPlanSnapshot}
+          baselineFingerprint={baselineFingerprint}
+          displayMode={displayMode}
+          deflateSeries={deflateSeries}
+          locale={locale}
+          eventLibrary={eventLibrary}
+          members={members}
+          budgetRules={budgetRules}
+          translate={translate}
+        />
+      )}
 
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 7 }}>
@@ -5251,9 +5368,9 @@ export default function PlanLabPanel({
                 <Accordion.Control>
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{t("planLabWarningsTitle")}</Text>
-                    {(saveWarnings.length > 0 || saveError) && (
+                    {(guardrailWarnings.length > 0 || saveWarnings.length > 0 || saveError) && (
                       <Badge variant="light" color="orange">
-                        {saveWarnings.length + (saveError ? 1 : 0)}
+                        {guardrailWarnings.length + saveWarnings.length + (saveError ? 1 : 0)}
                       </Badge>
                     )}
                   </Group>
@@ -5265,11 +5382,18 @@ export default function PlanLabPanel({
                       title={projectionWarningsTitle}
                       defaultOpen={false}
                     />
-                    {saveWarnings.length === 0 && !saveError && (
+                    {guardrailWarnings.length === 0 &&
+                      saveWarnings.length === 0 &&
+                      !saveError && (
                       <Text size="sm" c="dimmed">
                         {t("planLabWarningsPlaceholder")}
                       </Text>
                     )}
+                    {guardrailWarnings.map((warning) => (
+                      <Text key={warning} size="sm" c="orange">
+                        {warning}
+                      </Text>
+                    ))}
                     {saveWarnings.map((warning) => (
                       <Text key={warning} size="sm" c="orange">
                         {warning}
@@ -5582,6 +5706,14 @@ export default function PlanLabPanel({
         translate={translate}
         onLoadPlan={(plan) => {
           handleLoadPlanSnapshot(plan);
+          setPlanLibraryOpen(false);
+        }}
+        onSetPlanA={(plan) => {
+          handleSetPlanA(plan);
+          setPlanLibraryOpen(false);
+        }}
+        onSetPlanB={(plan) => {
+          handleSetPlanB(plan);
           setPlanLibraryOpen(false);
         }}
         onDuplicatePlan={handleDuplicatePlan}

@@ -6,6 +6,15 @@ export const PLAN_LIBRARY_KEY = "northstar.planlab.library.v2";
 const isBrowser =
   typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 
+type PersistedPlanSnapshot = Omit<PlanSnapshot, "baselineScenarioId"> & {
+  baselineScenarioId?: string;
+};
+
+const normalizePlanSnapshot = (plan: PersistedPlanSnapshot): PlanSnapshot => ({
+  ...plan,
+  baselineScenarioId: plan.baselineScenarioId ?? plan.scenarioId,
+});
+
 const readLibrary = (): Record<string, PlanSnapshot[]> => {
   if (!isBrowser) {
     return {};
@@ -15,8 +24,12 @@ const readLibrary = (): Record<string, PlanSnapshot[]> => {
     return {};
   }
   try {
-    const parsed = JSON.parse(raw) as Record<string, PlanSnapshot[]>;
-    return parsed ?? {};
+    const parsed = JSON.parse(raw) as Record<string, PersistedPlanSnapshot[]>;
+    const normalized: Record<string, PlanSnapshot[]> = {};
+    Object.entries(parsed ?? {}).forEach(([scenarioId, plans]) => {
+      normalized[scenarioId] = (plans ?? []).map(normalizePlanSnapshot);
+    });
+    return normalized;
   } catch {
     return {};
   }
