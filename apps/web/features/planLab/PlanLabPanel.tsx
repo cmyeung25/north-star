@@ -1101,8 +1101,15 @@ export default function PlanLabPanel({
               value: "rules",
               label: translate("planLabFilterRulesLabel", "規則"),
             },
-          ],
+        ],
     [scenarioIsV2, translate]
+  );
+  const filterKindValue = useMemo(
+    () =>
+      filterKindOptions.some((option) => option.value === filterKind)
+        ? filterKind
+        : filterKindOptions[0]?.value ?? filterKind,
+    [filterKind, filterKindOptions]
   );
   const groupByOptions = useMemo(
     () => [
@@ -4964,7 +4971,7 @@ export default function PlanLabPanel({
                             <SegmentedControl
                               size="sm"
                               data={filterKindOptions}
-                              value={filterKind}
+                              value={filterKindValue}
                               onChange={(value) => setFilterKind(value as typeof filterKind)}
                             />
                           </Stack>
