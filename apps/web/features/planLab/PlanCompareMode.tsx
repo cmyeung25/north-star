@@ -40,7 +40,6 @@ type TranslateFn = (
 type PlanCompareModeProps = {
   scenario: Scenario;
   plans: Plan[];
-  currentPlan?: Plan | null;
   planAId: string | null;
   planBId: string | null;
   onPlanAChange: (id: string | null) => void;
@@ -118,7 +117,6 @@ const getMaxDrawdown = (series: Array<{ value: number }>) => {
 export const PlanCompareMode = ({
   scenario,
   plans,
-  currentPlan,
   planAId,
   planBId,
   onPlanAChange,
@@ -138,7 +136,6 @@ export const PlanCompareMode = ({
     () => ({
       id: "baseline",
       scenarioId: scenario.id,
-      baselineScenarioId: scenario.id,
       name: translate("planLabCompareBaselineLabel", "Baseline"),
       createdAt: 0,
       updatedAt: 0,
@@ -153,9 +150,6 @@ export const PlanCompareMode = ({
     if (!id) {
       return null;
     }
-    if (currentPlan && id === currentPlan.id) {
-      return currentPlan;
-    }
     if (id === baselineOption.id) {
       return baselineOption;
     }
@@ -165,28 +159,18 @@ export const PlanCompareMode = ({
   const planA = resolvePlan(planAId);
   const planB = resolvePlan(planBId);
   const options = [
-    ...(currentPlan ? [{ value: currentPlan.id, label: currentPlan.name }] : []),
     { value: baselineOption.id, label: baselineOption.name },
-    ...plans.map((plan) => ({
-      value: plan.id,
-      label: plan.name,
-      disabled: plan.baselineScenarioId !== scenario.id,
-    })),
+    ...plans.map((plan) => ({ value: plan.id, label: plan.name })),
   ];
   const baselineScenarioV2 = useMemo(
     () => buildScenarioV2FromScenario(scenario, eventLibrary),
     [eventLibrary, scenario]
   );
 
-  const planACompatible = planA ? planA.baselineScenarioId === scenario.id : true;
-  const planBCompatible = planB ? planB.baselineScenarioId === scenario.id : true;
-  const safePlanA = planACompatible ? planA : null;
-  const safePlanB = planBCompatible ? planB : null;
-
   const { planA: planAState, planB: planBState } = usePlanCompareProjections({
     scenario,
-    planA: safePlanA,
-    planB: safePlanB,
+    planA,
+    planB,
     eventLibrary,
     members,
     budgetRules,
@@ -210,11 +194,11 @@ export const PlanCompareMode = ({
   ]);
 
   const diffSummary = useMemo(() => {
-    if (!safePlanA || !safePlanB) {
+    if (!planA || !planB) {
       return [];
     }
-    return diffPlanSnapshots(safePlanA, safePlanB, translate);
-  }, [safePlanA, safePlanB, translate]);
+    return diffPlanSnapshots(planA, planB, translate);
+  }, [planA, planB, translate]);
 
   const baselineMismatch =
     (planA?.baselineFingerprint &&
@@ -224,14 +208,12 @@ export const PlanCompareMode = ({
 
   const isLoading = planAState.status === "loading" || planBState.status === "loading";
   const planADoubleWarnings = useMemo(
-    () =>
-      safePlanA ? detectDoubleCountingWarnings(baselineScenarioV2, safePlanA.payload) : [],
-    [baselineScenarioV2, safePlanA]
+    () => (planA ? detectDoubleCountingWarnings(baselineScenarioV2, planA.payload) : []),
+    [baselineScenarioV2, planA]
   );
   const planBDoubleWarnings = useMemo(
-    () =>
-      safePlanB ? detectDoubleCountingWarnings(baselineScenarioV2, safePlanB.payload) : [],
-    [baselineScenarioV2, safePlanB]
+    () => (planB ? detectDoubleCountingWarnings(baselineScenarioV2, planB.payload) : []),
+    [baselineScenarioV2, planB]
   );
 
   return (
@@ -255,26 +237,16 @@ export const PlanCompareMode = ({
               <Button
                 size="xs"
                 variant="light"
-                onClick={() =>
-                  planA &&
-                  planA.id !== baselineOption.id &&
-                  planACompatible &&
-                  onLoadPlan(planA)
-                }
-                disabled={!planA || planA.id === baselineOption.id || !planACompatible}
+                onClick={() => planA && planA.id !== baselineOption.id && onLoadPlan(planA)}
+                disabled={!planA || planA.id === baselineOption.id}
               >
                 {translate("planLabCompareLoadA", "Load A into editor")}
               </Button>
               <Button
                 size="xs"
                 variant="light"
-                onClick={() =>
-                  planB &&
-                  planB.id !== baselineOption.id &&
-                  planBCompatible &&
-                  onLoadPlan(planB)
-                }
-                disabled={!planB || planB.id === baselineOption.id || !planBCompatible}
+                onClick={() => planB && planB.id !== baselineOption.id && onLoadPlan(planB)}
+                disabled={!planB || planB.id === baselineOption.id}
               >
                 {translate("planLabCompareLoadB", "Load B into editor")}
               </Button>
@@ -301,20 +273,6 @@ export const PlanCompareMode = ({
               {translate(
                 "planLabBaselineMismatchDetail",
                 "One or both plans were saved against an older baseline scenario."
-              )}
-            </Alert>
-          )}
-          {(!planACompatible || !planBCompatible) && (
-            <Alert
-              color="yellow"
-              title={translate(
-                "planLabScenarioMismatchTitle",
-                "Scenario mismatch"
-              )}
-            >
-              {translate(
-                "planLabScenarioMismatchDetail",
-                "This plan belongs to another scenario and cannot be compared here."
               )}
             </Alert>
           )}
@@ -380,14 +338,14 @@ export const PlanCompareMode = ({
           <Stack gap="sm">
             <Text fw={600}>{translate("planLabCompareScorecard", "Scorecard")}</Text>
             {isLoading && <Skeleton height={120} />}
-            {!isLoading && (!safePlanA || !safePlanB) && (
+            {!isLoading && (!planA || !planB) && (
               <Text size="sm" c="dimmed">
                 {translate("planLabCompareEmpty", "Select two plans to compare.")}
               </Text>
             )}
-            {!isLoading && safePlanA && safePlanB && (
+            {!isLoading && planA && planB && (
               <Stack gap="sm">
-                {[{ label: "A", plan: safePlanA, state: planAState }, { label: "B", plan: safePlanB, state: planBState }].map(
+                {[{ label: "A", plan: planA, state: planAState }, { label: "B", plan: planB, state: planBState }].map(
                   ({ label, plan, state }) => {
                     const projection = state.result?.projection ?? null;
                     const minCash = projection ? getMinCash(projection) : null;
@@ -493,7 +451,7 @@ export const PlanCompareMode = ({
           <Stack gap="sm">
             <Text fw={600}>{translate("planLabCompareChart", "Plan comparison chart")}</Text>
             {isLoading && <Skeleton height={220} />}
-            {!isLoading && safePlanA && safePlanB && (
+            {!isLoading && planA && planB && (
               <div style={{ width: "100%", height: 220 }}>
                 <ResponsiveContainer>
                   <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
@@ -516,7 +474,7 @@ export const PlanCompareMode = ({
                       stroke="#4c6ef5"
                       strokeWidth={2}
                       dot={false}
-                      name={safePlanA?.name ?? "A"}
+                      name={planA?.name ?? "A"}
                     />
                     <Line
                       type="monotone"
@@ -524,13 +482,13 @@ export const PlanCompareMode = ({
                       stroke="#12b886"
                       strokeWidth={2}
                       dot={false}
-                      name={safePlanB?.name ?? "B"}
+                      name={planB?.name ?? "B"}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
-            {!isLoading && (!safePlanA || !safePlanB) && (
+            {!isLoading && (!planA || !planB) && (
               <Text size="sm" c="dimmed">
                 {translate("planLabCompareEmpty", "Select two plans to compare.")}
               </Text>
