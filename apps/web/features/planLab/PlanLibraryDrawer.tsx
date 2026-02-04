@@ -46,6 +46,8 @@ type PlanLibraryDrawerProps = {
   budgetRules: BudgetRule[];
   translate: TranslateFn;
   onLoadPlan: (plan: Plan) => void;
+  onSetPlanA: (plan: Plan) => void;
+  onSetPlanB: (plan: Plan) => void;
   onDuplicatePlan: (plan: Plan) => void;
   onRenamePlan: (plan: Plan, name: string) => void;
   onDeletePlan: (plan: Plan) => void;
@@ -99,6 +101,8 @@ export const PlanLibraryDrawer = ({
   budgetRules,
   translate,
   onLoadPlan,
+  onSetPlanA,
+  onSetPlanB,
   onDuplicatePlan,
   onRenamePlan,
   onDeletePlan,
@@ -110,7 +114,7 @@ export const PlanLibraryDrawer = ({
       ...plans,
       ...otherPlans.map((plan) => ({ ...plan, name: `${plan.name}` })),
     ];
-    return combined.sort((a, b) => b.updatedAt - a.updatedAt);
+    return combined.sort((a, b) => b.createdAt - a.createdAt);
   }, [otherPlans, plans]);
 
   useEffect(() => {
@@ -119,7 +123,7 @@ export const PlanLibraryDrawer = ({
     }
     const pending = sortedPlans
       .slice(0, 5)
-      .filter((plan) => !metrics[plan.id] && plan.scenarioId === scenario.id);
+      .filter((plan) => !metrics[plan.id] && plan.baselineScenarioId === scenario.id);
     if (pending.length === 0) {
       return;
     }
@@ -157,9 +161,9 @@ export const PlanLibraryDrawer = ({
           </Text>
         )}
         {sortedPlans.map((plan) => {
-          const metric = metrics[plan.id];
-          const badgeColor = metric?.status === "bust" ? "red" : "teal";
-          const isCompatible = plan.scenarioId === scenario.id;
+      const metric = metrics[plan.id];
+      const badgeColor = metric?.status === "bust" ? "red" : "teal";
+          const isCompatible = plan.baselineScenarioId === scenario.id;
           const baselineMismatch = plan.baselineFingerprint !== baselineFingerprint;
           return (
             <Card key={plan.id} withBorder radius="md" padding="sm">
@@ -196,6 +200,12 @@ export const PlanLibraryDrawer = ({
                   <Menu.Dropdown>
                       <Menu.Item onClick={() => onLoadPlan(plan)} disabled={!isCompatible}>
                         {translate("planLabPlanLoad", "Load into editor")}
+                      </Menu.Item>
+                      <Menu.Item onClick={() => onSetPlanA(plan)} disabled={!isCompatible}>
+                        {translate("planLabPlanSetA", "Set as Plan A")}
+                      </Menu.Item>
+                      <Menu.Item onClick={() => onSetPlanB(plan)} disabled={!isCompatible}>
+                        {translate("planLabPlanSetB", "Set as Plan B")}
                       </Menu.Item>
                       <Menu.Item
                         onClick={() => {
