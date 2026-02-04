@@ -45,7 +45,6 @@ import {
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
-  type TooltipProps,
 } from "recharts";
 import type {
   PlanLabDraft,
@@ -127,6 +126,7 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
 import { SavePlanModal } from "./SavePlanModal";
+import { PlanCompareMode } from "./PlanCompareMode";
 import {
   buildPlanPatchesFromSnapshot,
   validatePlanPatches,
@@ -719,6 +719,8 @@ export default function PlanLabPanel({
   const [planToast, setPlanToast] = useState<string | null>(null);
   const planToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [planAId, setPlanAId] = useState<string | null>(null);
+  const [planBId, setPlanBId] = useState<string | null>(null);
   const [planLibrary, setPlanLibrary] = useState<PlanSnapshot[]>([]);
   const [otherPlans, setOtherPlans] = useState<PlanSnapshot[]>([]);
   const scenarioIsV2 = isScenarioV2(scenario);
@@ -948,15 +950,28 @@ export default function PlanLabPanel({
 
   useEffect(() => {
     if (plans.length === 0) {
+      if (planAId) {
+        setPlanAId(null);
+      }
+      if (planBId) {
+        setPlanBId(null);
+      }
       if (activePlanId) {
         setActivePlanId(null);
       }
       return;
     }
+    const validPlanIds = new Set(plans.map((plan) => plan.id));
+    if (!planAId || (!validPlanIds.has(planAId) && planAId !== "baseline")) {
+      setPlanAId("baseline");
+    }
+    if (!planBId || (!validPlanIds.has(planBId) && planBId !== "baseline")) {
+      setPlanBId(plans[0]?.id ?? "baseline");
+    }
     if (activePlanId && !plans.some((plan) => plan.id === activePlanId)) {
       setActivePlanId(null);
     }
-  }, [activePlanId, plans]);
+  }, [activePlanId, planAId, planBId, plans]);
   const combinedMembers = useMemo(
     () => [...members, ...draftMembers],
     [members, draftMembers]
@@ -2619,74 +2634,6 @@ export default function PlanLabPanel({
     [eventPatches, positionPatches, rulePatches, smartInvestPatch]
   );
 
-  const experimentTypeOptions = useMemo(
-    () => [
-      {
-        value: "oneOffExpense",
-        label: translate("planLabExperimentOneOff", "一次性支出"),
-      },
-      {
-        value: "rangeExpense",
-        label: translate("planLabExperimentRange", "期間支出"),
-      },
-      {
-        value: "homeBuy",
-        label: translate("planLabExperimentHomeBuy", "置業"),
-      },
-      {
-        value: "carPlan",
-        label: translate("planLabExperimentCarPlan", "汽車方案"),
-      },
-      {
-        value: "incomeAdjust",
-        label: translate("planLabExperimentIncomeAdjust", "收入調整"),
-      },
-      {
-        value: "travelAnnual",
-        label: translate("planLabExperimentTravelAnnual", "年度旅遊"),
-      },
-      {
-        value: "smartInvestAdjust",
-        label: translate("planLabExperimentSmartInvestAdjust", "智能投資調整"),
-      },
-    ],
-    [translate]
-  );
-
-  const experimentTypeCards = useMemo(
-    () => [
-      {
-        type: "oneOffExpense" as PlanLabExperimentType,
-        label: translate("planLabExperimentCardWedding", "婚禮"),
-      },
-      {
-        type: "rangeExpense" as PlanLabExperimentType,
-        label: translate("planLabExperimentCardBaby", "育兒"),
-      },
-      {
-        type: "travelAnnual" as PlanLabExperimentType,
-        label: translate("planLabExperimentCardTravel", "旅遊"),
-      },
-      {
-        type: "homeBuy" as PlanLabExperimentType,
-        label: translate("planLabExperimentCardHome", "置業"),
-      },
-      {
-        type: "incomeAdjust" as PlanLabExperimentType,
-        label: translate("planLabExperimentCardIncome", "收入"),
-      },
-      {
-        type: "carPlan" as PlanLabExperimentType,
-        label: translate("planLabExperimentCardCar", "汽車"),
-      },
-      {
-        type: "smartInvestAdjust" as PlanLabExperimentType,
-        label: translate("planLabExperimentCardInvest", "投資"),
-      },
-    ],
-    [translate]
-  );
-
   const allDriverCandidates = useMemo(() => {
     const candidates: DriverCandidate[] = [];
     if (scenarioIsV2) {
@@ -2990,9 +2937,6 @@ export default function PlanLabPanel({
     () => computePlanLabKpis(planLabProjection.projection, firstBucketTargetValue),
     [firstBucketTargetValue, planLabProjection.projection]
   );
-  const compareSeriesReady = Boolean(
-    baselineProjection.projection && planLabProjection.projection
-  );
   const currentMinCashValue = optionKpis?.minCash?.value ?? null;
   const overlayAttributionKey = useMemo(() => {
     if (scenarioIsV2) {
@@ -3016,13 +2960,6 @@ export default function PlanLabPanel({
           : optionSeries.netWorth;
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
-
-  const compareLabelA = translate("planLabCompareLabelA", "A");
-  const compareLabelB = translate("planLabCompareLabelB", "B");
-  const compareBadgeLabel = translate("planLabCompareBadgeLabel", "A/B");
-  const chartBaselineLabel =
-    mode === "compare" ? compareLabelB : t("planLabBaselineLabel");
-  const chartOptionLabel = mode === "compare" ? compareLabelA : t("planLabOptionLabel");
 
   // Compute cash risk scorecard metrics
   const cashRiskScorecard = useMemo(() => {
@@ -3088,62 +3025,6 @@ export default function PlanLabPanel({
       return `${delta > 0 ? "+" : "-"}${formatted}`;
     },
     [locale, scenario.baseCurrency]
-  );
-
-  const formatChartValue = useCallback(
-    (value: number | null) =>
-      value === null ? "—" : formatCurrency(Number(value), undefined, locale),
-    [locale]
-  );
-
-  const renderChartTooltip = useCallback(
-    ({ active, payload, label }: TooltipProps<number, string>) => {
-      if (!active || !payload || payload.length === 0) {
-        return null;
-      }
-      const baselineEntry = payload.find((entry) => entry.dataKey === "baseline");
-      const optionEntry = payload.find((entry) => entry.dataKey === "option");
-      const baselineValue =
-        typeof baselineEntry?.value === "number" ? baselineEntry.value : null;
-      const optionValue = typeof optionEntry?.value === "number" ? optionEntry.value : null;
-      const deltaLabel =
-        mode === "compare"
-          ? translate("planLabCompareDeltaLabel", "Δ (A-B)")
-          : translate("planLabDeltaLabel", "Δ");
-      const deltaValue = formatDeltaCurrency(baselineValue, optionValue);
-      return (
-        <div style={{ background: "white", border: "1px solid #dee2e6", padding: 8 }}>
-          <Stack gap={4}>
-            <Text size="xs" fw={600}>
-              {label ? t("monthLabel", { month: label }) : "—"}
-            </Text>
-            <Group justify="space-between" align="center" wrap="nowrap">
-              <Text size="xs">{chartOptionLabel}</Text>
-              <Text size="xs">{formatChartValue(optionValue)}</Text>
-            </Group>
-            <Group justify="space-between" align="center" wrap="nowrap">
-              <Text size="xs">{chartBaselineLabel}</Text>
-              <Text size="xs">{formatChartValue(baselineValue)}</Text>
-            </Group>
-            {deltaValue && (
-              <Group justify="space-between" align="center" wrap="nowrap">
-                <Text size="xs">{deltaLabel}</Text>
-                <Text size="xs">{deltaValue}</Text>
-              </Group>
-            )}
-          </Stack>
-        </div>
-      );
-    },
-    [
-      chartBaselineLabel,
-      chartOptionLabel,
-      formatChartValue,
-      formatDeltaCurrency,
-      mode,
-      t,
-      translate,
-    ]
   );
 
   const formatDeltaMonths = useCallback(
@@ -3533,6 +3414,74 @@ export default function PlanLabPanel({
       return `${value > 0 ? "+" : "-"}${formatted}`;
     },
     [locale, scenario.baseCurrency]
+  );
+
+  const experimentTypeOptions = useMemo(
+    () => [
+      {
+        value: "oneOffExpense",
+        label: translate("planLabExperimentOneOff", "一次性支出"),
+      },
+      {
+        value: "rangeExpense",
+        label: translate("planLabExperimentRange", "期間支出"),
+      },
+      {
+        value: "homeBuy",
+        label: translate("planLabExperimentHomeBuy", "置業"),
+      },
+      {
+        value: "carPlan",
+        label: translate("planLabExperimentCarPlan", "汽車方案"),
+      },
+      {
+        value: "incomeAdjust",
+        label: translate("planLabExperimentIncomeAdjust", "收入調整"),
+      },
+      {
+        value: "travelAnnual",
+        label: translate("planLabExperimentTravelAnnual", "年度旅遊"),
+      },
+      {
+        value: "smartInvestAdjust",
+        label: translate("planLabExperimentSmartInvestAdjust", "智能投資調整"),
+      },
+    ],
+    [translate]
+  );
+
+  const experimentTypeCards = useMemo(
+    () => [
+      {
+        type: "oneOffExpense" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardWedding", "婚禮"),
+      },
+      {
+        type: "rangeExpense" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardBaby", "育兒"),
+      },
+      {
+        type: "travelAnnual" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardTravel", "旅遊"),
+      },
+      {
+        type: "homeBuy" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardHome", "置業"),
+      },
+      {
+        type: "incomeAdjust" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardIncome", "收入"),
+      },
+      {
+        type: "carPlan" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardCar", "汽車"),
+      },
+      {
+        type: "smartInvestAdjust" as PlanLabExperimentType,
+        label: translate("planLabExperimentCardInvest", "投資"),
+      },
+    ],
+    [translate]
   );
 
   const formatDiffValue = useCallback(
@@ -4261,6 +4210,12 @@ export default function PlanLabPanel({
   const handleDeletePlan = (plan: Plan) => {
     deletePlanSnapshot(plan.scenarioId, plan.id);
     refreshPlanLibrary();
+    if (planAId === plan.id) {
+      setPlanAId(null);
+    }
+    if (planBId === plan.id) {
+      setPlanBId(null);
+    }
     if (activePlanId === plan.id) {
       setActivePlanId(null);
     }
@@ -4691,7 +4646,8 @@ export default function PlanLabPanel({
         <Text size="sm">{t("planLabSandboxBanner")}</Text>
       </Card>
 
-      <Grid gutter="lg">
+      {mode === "edit" ? (
+        <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Stack gap="xs">
             <Paper withBorder radius="lg" p="md">
@@ -5295,11 +5251,9 @@ export default function PlanLabPanel({
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{translate("planLabKpiPanelTitle", "Impact KPIs")}</Text>
                     <Badge variant="light" color={hasUnsavedChanges ? "orange" : "gray"}>
-                      {mode === "compare"
-                        ? compareBadgeLabel
-                        : hasUnsavedChanges
-                          ? translate("planLabDirtyLabel", "未儲存")
-                          : translate("planLabKpiBaselineLabel", "基準")}
+                      {hasUnsavedChanges
+                        ? translate("planLabDirtyLabel", "未儲存")
+                        : translate("planLabKpiBaselineLabel", "基準")}
                     </Badge>
                   </Group>
                   <Stack gap="xs">
@@ -5327,46 +5281,10 @@ export default function PlanLabPanel({
                       }
                     />
                   </Stack>
-                  {mode === "compare" && !compareSeriesReady ? (
-                    <Skeleton height={180} radius="sm" />
-                  ) : !planLabProjection.projection ? (
+                  {!planLabProjection.projection ? (
                     <Text size="sm" c="dimmed">
                       {t("planLabScorecardDisabled")}
                     </Text>
-                  ) : mode === "compare" ? (
-                    <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                      {kpiCards.map((card) => (
-                        <Card key={card.key} withBorder radius="md" padding="sm">
-                          <Stack gap={6}>
-                            <Group justify="space-between" align="center" wrap="nowrap">
-                              <Text size="sm" fw={600}>
-                                {card.label}
-                              </Text>
-                              {card.delta && (
-                                <Badge variant="light" color="gray">
-                                  Δ {card.delta}
-                                  {card.deltaUnit ? ` ${card.deltaUnit}` : ""}
-                                </Badge>
-                              )}
-                            </Group>
-                            <SimpleGrid cols={2} spacing="xs">
-                              <Stack gap={2}>
-                                <Text size="xs" c="dimmed">
-                                  {compareLabelA}
-                                </Text>
-                                <Text fw={600}>{card.current}</Text>
-                              </Stack>
-                              <Stack gap={2}>
-                                <Text size="xs" c="dimmed">
-                                  {compareLabelB}
-                                </Text>
-                                <Text fw={600}>{card.baseline}</Text>
-                              </Stack>
-                            </SimpleGrid>
-                          </Stack>
-                        </Card>
-                      ))}
-                    </SimpleGrid>
                   ) : (
                     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
                       {kpiCards.map((card) => (
@@ -5525,48 +5443,72 @@ export default function PlanLabPanel({
                       onChange={(value) => setChartType(value as ChartType)}
                     />
                   </Group>
-                  {mode === "compare" && !compareSeriesReady ? (
-                    <Skeleton height={260} radius="sm" />
-                  ) : (
-                    <div style={{ width: "100%", height: 260 }}>
-                      <ResponsiveContainer>
-                        <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
-                          <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                          <YAxis
-                            tick={{ fontSize: 10 }}
-                            width={72}
-                            tickFormatter={(value) =>
-                              formatCurrency(Number(value), undefined, locale)
-                            }
-                          />
-                          <RechartsTooltip content={renderChartTooltip} />
-                          <Line
-                            type="monotone"
-                            dataKey="baseline"
-                            stroke="#adb5bd"
-                            strokeWidth={2}
-                            strokeDasharray="6 4"
-                            dot={false}
-                            name={chartBaselineLabel}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="option"
-                            stroke="#12b886"
-                            strokeWidth={2}
-                            dot={false}
-                            name={chartOptionLabel}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
+                  <div style={{ width: "100%", height: 260 }}>
+                    <ResponsiveContainer>
+                      <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
+                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                        <YAxis
+                          tick={{ fontSize: 10 }}
+                          width={72}
+                          tickFormatter={(value) =>
+                            formatCurrency(Number(value), undefined, locale)
+                          }
+                        />
+                        <RechartsTooltip
+                          formatter={(value) =>
+                            formatCurrency(Number(value), undefined, locale)
+                          }
+                          labelFormatter={(label) => t("monthLabel", { month: label })}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="baseline"
+                          stroke="#adb5bd"
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                          dot={false}
+                          name={t("planLabBaselineLabel")}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="option"
+                          stroke="#12b886"
+                          strokeWidth={2}
+                          dot={false}
+                          name={t("planLabOptionLabel")}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
                 </Stack>
               </Card>
             </Stack>
           </div>
         </Grid.Col>
         </Grid>
+      ) : (
+        <PlanCompareMode
+          scenario={scenario}
+          plans={plans}
+          planAId={planAId}
+          planBId={planBId}
+          onPlanAChange={setPlanAId}
+          onPlanBChange={setPlanBId}
+          onSwapPlans={() => {
+            setPlanAId(planBId);
+            setPlanBId(planAId);
+          }}
+        onLoadPlan={(plan) => handleLoadPlanSnapshot(plan)}
+        baselineFingerprint={baselineFingerprint}
+        displayMode={displayMode}
+        deflateSeries={deflateSeries}
+        locale={locale}
+          eventLibrary={eventLibrary}
+          members={members}
+          budgetRules={budgetRules}
+          translate={translate}
+        />
+      )}
 
       <PlanLibraryDrawer
         opened={planLibraryOpen}
@@ -5582,6 +5524,16 @@ export default function PlanLabPanel({
         translate={translate}
         onLoadPlan={(plan) => {
           handleLoadPlanSnapshot(plan);
+          setPlanLibraryOpen(false);
+        }}
+        onSetPlanA={(plan) => {
+          setPlanAId(plan.id);
+          setMode("compare");
+          setPlanLibraryOpen(false);
+        }}
+        onSetPlanB={(plan) => {
+          setPlanBId(plan.id);
+          setMode("compare");
           setPlanLibraryOpen(false);
         }}
         onDuplicatePlan={handleDuplicatePlan}

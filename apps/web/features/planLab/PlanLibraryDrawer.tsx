@@ -46,6 +46,8 @@ type PlanLibraryDrawerProps = {
   budgetRules: BudgetRule[];
   translate: TranslateFn;
   onLoadPlan: (plan: Plan) => void;
+  onSetPlanA: (plan: Plan) => void;
+  onSetPlanB: (plan: Plan) => void;
   onDuplicatePlan: (plan: Plan) => void;
   onRenamePlan: (plan: Plan, name: string) => void;
   onDeletePlan: (plan: Plan) => void;
@@ -99,6 +101,8 @@ export const PlanLibraryDrawer = ({
   budgetRules,
   translate,
   onLoadPlan,
+  onSetPlanA,
+  onSetPlanB,
   onDuplicatePlan,
   onRenamePlan,
   onDeletePlan,
@@ -196,6 +200,12 @@ export const PlanLibraryDrawer = ({
                   <Menu.Dropdown>
                       <Menu.Item onClick={() => onLoadPlan(plan)} disabled={!isCompatible}>
                         {translate("planLabPlanLoad", "Load into editor")}
+                      </Menu.Item>
+                      <Menu.Item onClick={() => onSetPlanA(plan)} disabled={!isCompatible}>
+                        {translate("planLabPlanSetA", "Set as Plan A")}
+                      </Menu.Item>
+                      <Menu.Item onClick={() => onSetPlanB(plan)} disabled={!isCompatible}>
+                        {translate("planLabPlanSetB", "Set as Plan B")}
                       </Menu.Item>
                       <Menu.Item
                         onClick={() => {
