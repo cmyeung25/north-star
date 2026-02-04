@@ -47,16 +47,6 @@ export const usePlanCompareProjections = ({
     status: "idle",
     result: null,
   });
-  const updatePlanAState = (next: PlanCompareEntry) => {
-    setPlanAState((current) =>
-      current.status === next.status && current.result === next.result ? current : next
-    );
-  };
-  const updatePlanBState = (next: PlanCompareEntry) => {
-    setPlanBState((current) =>
-      current.status === next.status && current.result === next.result ? current : next
-    );
-  };
 
   const scenarioId = scenario?.id ?? null;
   const scenarioVersion = scenario?.version;
@@ -72,18 +62,18 @@ export const usePlanCompareProjections = ({
 
   useEffect(() => {
     if (!scenario || !planA) {
-      updatePlanAState({ status: "idle", result: null });
+      setPlanAState({ status: "idle", result: null });
       return;
     }
     const cached = cacheRef.current.get(planAKey);
     if (cached) {
-      updatePlanAState({
+      setPlanAState({
         status: cached.errors.length > 0 ? "error" : "ready",
         result: cached,
       });
       return;
     }
-    updatePlanAState({ status: "loading", result: null });
+    setPlanAState({ status: "loading", result: null });
     const handle = setTimeout(() => {
       const result = getProjectionForPlanSnapshot(
         planA,
@@ -93,7 +83,7 @@ export const usePlanCompareProjections = ({
         budgetRules
       );
       cacheRef.current.set(planAKey, result);
-      updatePlanAState({
+      setPlanAState({
         status: result.errors.length > 0 ? "error" : "ready",
         result,
       });
@@ -111,18 +101,18 @@ export const usePlanCompareProjections = ({
 
   useEffect(() => {
     if (!scenario || !planB) {
-      updatePlanBState({ status: "idle", result: null });
+      setPlanBState({ status: "idle", result: null });
       return;
     }
     const cached = cacheRef.current.get(planBKey);
     if (cached) {
-      updatePlanBState({
+      setPlanBState({
         status: cached.errors.length > 0 ? "error" : "ready",
         result: cached,
       });
       return;
     }
-    updatePlanBState({ status: "loading", result: null });
+    setPlanBState({ status: "loading", result: null });
     const handle = setTimeout(() => {
       const result = getProjectionForPlanSnapshot(
         planB,
@@ -132,7 +122,7 @@ export const usePlanCompareProjections = ({
         budgetRules
       );
       cacheRef.current.set(planBKey, result);
-      updatePlanBState({
+      setPlanBState({
         status: result.errors.length > 0 ? "error" : "ready",
         result,
       });
