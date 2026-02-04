@@ -195,7 +195,6 @@ export type PlanPatch = {
 export type PlanSnapshot = {
   id: string;
   scenarioId: string;
-  baselineScenarioId: string;
   name: string;
   notes?: string;
   tags?: string[];
