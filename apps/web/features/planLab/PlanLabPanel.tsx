@@ -28,7 +28,15 @@ import {
   Title,
   Tooltip as MantineTooltip,
 } from "@mantine/core";
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
@@ -963,6 +971,19 @@ export default function PlanLabPanel({
     }
     return translate("planLabStatusDraft", "沙盒草稿");
   }, [activePlanId, mode, translate]);
+  const modeOptions = useMemo(
+    () => [
+      {
+        value: "edit",
+        label: translate("planLabModeEdit", "Edit"),
+      },
+      {
+        value: "compare",
+        label: translate("planLabModeCompare", "Compare"),
+      },
+    ],
+    [translate]
+  );
 
   useEffect(() => {
     if (plans.length === 0) {
@@ -1040,6 +1061,71 @@ export default function PlanLabPanel({
       eldercare: translate("planLabRuleCategoryEldercare", "長者照顧"),
       petcare: translate("planLabRuleCategoryPetcare", "寵物照顧"),
     }),
+    [translate]
+  );
+  const filterKindOptions = useMemo(
+    () =>
+      scenarioIsV2
+        ? [
+            {
+              value: "all",
+              label: translate("planLabFilterAllLabel", "全部"),
+            },
+            {
+              value: "assets",
+              label: translate("planLabFilterPositionsLabel", "資產"),
+            },
+            {
+              value: "events",
+              label: translate("planLabFilterEventsLabel", "事件"),
+            },
+            {
+              value: "rules",
+              label: translate("planLabFilterRulesLabel", "規則"),
+            },
+          ]
+        : [
+            {
+              value: "all",
+              label: translate("planLabFilterAllLabel", "全部"),
+            },
+            {
+              value: "positions",
+              label: translate("planLabFilterPositionsLabel", "資產"),
+            },
+            {
+              value: "events",
+              label: translate("planLabFilterEventsLabel", "事件"),
+            },
+            {
+              value: "rules",
+              label: translate("planLabFilterRulesLabel", "規則"),
+            },
+        ],
+    [scenarioIsV2, translate]
+  );
+  const filterKindValue = useMemo(
+    () =>
+      filterKindOptions.some((option) => option.value === filterKind)
+        ? filterKind
+        : filterKindOptions[0]?.value ?? filterKind,
+    [filterKind, filterKindOptions]
+  );
+  const groupByOptions = useMemo(
+    () => [
+      {
+        value: "category",
+        label: translate("planLabGroupCategoryLabel", "分類"),
+      },
+      {
+        value: "member",
+        label: translate("planLabGroupMemberLabel", "成員"),
+      },
+      {
+        value: "timeline",
+        label: translate("planLabGroupTimelineLabel", "時間"),
+      },
+    ],
     [translate]
   );
 
@@ -3090,6 +3176,14 @@ export default function PlanLabPanel({
   const chartBaselineLabel =
     mode === "compare" ? compareLabelB : t("planLabBaselineLabel");
   const chartOptionLabel = mode === "compare" ? compareLabelA : t("planLabOptionLabel");
+  const chartTypeOptions = useMemo(
+    () => [
+      { value: "netWorth", label: t("planLabChartNetWorth") },
+      { value: "cash", label: t("planLabChartCash") },
+      { value: "netCashflow", label: t("planLabChartNetCashflow") },
+    ],
+    [t]
+  );
 
   // Compute cash risk scorecard metrics
   const cashRiskScorecard = useMemo(() => {
@@ -4610,6 +4704,13 @@ export default function PlanLabPanel({
       });
     }
   }, [editingFocus, editingItem]);
+  const ruleBasisOptions = useMemo(
+    () => [
+      { value: "age", label: translate("planLabRuleAgeBandLabel", "年齡區間") },
+      { value: "month", label: translate("planLabRuleMonthRangeLabel", "月份範圍") },
+    ],
+    [translate]
+  );
 
   const handleRuleSave = () => {
     if (!ruleDraft) {
@@ -4743,16 +4844,7 @@ export default function PlanLabPanel({
           </Stack>
           <SegmentedControl
             size="xs"
-            data={[
-              {
-                value: "edit",
-                label: translate("planLabModeEdit", "Edit"),
-              },
-              {
-                value: "compare",
-                label: translate("planLabModeCompare", "Compare"),
-              },
-            ]}
+            data={modeOptions}
             value={mode}
             onChange={(value) => setMode(value as "edit" | "compare")}
           />
@@ -4878,52 +4970,8 @@ export default function PlanLabPanel({
                             </Text>
                             <SegmentedControl
                               size="sm"
-                              data={
-                                scenarioIsV2
-                                  ? [
-                                      {
-                                        value: "all",
-                                        label: translate("planLabFilterAllLabel", "全部"),
-                                      },
-                                      {
-                                        value: "assets",
-                                        label: translate(
-                                          "planLabFilterPositionsLabel",
-                                          "資產"
-                                        ),
-                                      },
-                                      {
-                                        value: "events",
-                                        label: translate("planLabFilterEventsLabel", "事件"),
-                                      },
-                                      {
-                                        value: "rules",
-                                        label: translate("planLabFilterRulesLabel", "規則"),
-                                      },
-                                    ]
-                                  : [
-                                      {
-                                        value: "all",
-                                        label: translate("planLabFilterAllLabel", "全部"),
-                                      },
-                                      {
-                                        value: "positions",
-                                        label: translate(
-                                          "planLabFilterPositionsLabel",
-                                          "資產"
-                                        ),
-                                      },
-                                      {
-                                        value: "events",
-                                        label: translate("planLabFilterEventsLabel", "事件"),
-                                      },
-                                      {
-                                        value: "rules",
-                                        label: translate("planLabFilterRulesLabel", "規則"),
-                                      },
-                                    ]
-                              }
-                              value={filterKind}
+                              data={filterKindOptions}
+                              value={filterKindValue}
                               onChange={(value) => setFilterKind(value as typeof filterKind)}
                             />
                           </Stack>
@@ -4933,20 +4981,7 @@ export default function PlanLabPanel({
                             </Text>
                             <SegmentedControl
                               size="sm"
-                              data={[
-                                {
-                                  value: "category",
-                                  label: translate("planLabGroupCategoryLabel", "分類"),
-                                },
-                                {
-                                  value: "member",
-                                  label: translate("planLabGroupMemberLabel", "成員"),
-                                },
-                                {
-                                  value: "timeline",
-                                  label: translate("planLabGroupTimelineLabel", "時間"),
-                                },
-                              ]}
+                              data={groupByOptions}
                               value={groupBy}
                               onChange={(value) => setGroupBy(value as typeof groupBy)}
                             />
@@ -5654,11 +5689,7 @@ export default function PlanLabPanel({
                     <Text fw={600}>{t("planLabPreviewTitle")}</Text>
                     <SegmentedControl
                       size="xs"
-                      data={[
-                        { value: "netWorth", label: t("planLabChartNetWorth") },
-                        { value: "cash", label: t("planLabChartCash") },
-                        { value: "netCashflow", label: t("planLabChartNetCashflow") },
-                      ]}
+                      data={chartTypeOptions}
                       value={chartType}
                       onChange={(value) => setChartType(value as ChartType)}
                     />
@@ -6513,10 +6544,7 @@ export default function PlanLabPanel({
                 {translate("planLabDrawerSectionValidity", "有效期限")}
               </Text>
               <SegmentedControl
-                data={[
-                  { value: "age", label: translate("planLabRuleAgeBandLabel", "年齡區間") },
-                  { value: "month", label: translate("planLabRuleMonthRangeLabel", "月份範圍") },
-                ]}
+                data={ruleBasisOptions}
                 value={ruleBasis}
                 onChange={(value) => {
                   setRuleBasis(value as "age" | "month");
