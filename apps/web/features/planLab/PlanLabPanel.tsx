@@ -820,31 +820,17 @@ export default function PlanLabPanel({
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
+    const stored = localStorage.getItem("planLabActiveOnly");
+    if (stored === "true") {
+      setActiveOnly(true);
     }
-    try {
-      const stored = window.localStorage.getItem("planLabActiveOnly");
-      if (stored === "true") {
-        setActiveOnly(true);
-      }
-      if (stored === "false") {
-        setActiveOnly(false);
-      }
-    } catch {
-      // Ignore storage access errors (e.g. blocked localStorage).
+    if (stored === "false") {
+      setActiveOnly(false);
     }
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    try {
-      window.localStorage.setItem("planLabActiveOnly", String(activeOnly));
-    } catch {
-      // Ignore storage access errors (e.g. blocked localStorage).
-    }
+    localStorage.setItem("planLabActiveOnly", String(activeOnly));
   }, [activeOnly]);
 
   useEffect(() => {
