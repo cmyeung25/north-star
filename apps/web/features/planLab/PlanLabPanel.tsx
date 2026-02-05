@@ -4759,21 +4759,6 @@ export default function PlanLabPanel({
               {t("planLabSubtitle")}
             </Text>
           </Stack>
-          <SegmentedControl
-            size="sm"
-            data={[
-              {
-                value: "edit",
-                label: translate("planLabModeEdit", "Edit"),
-              },
-              {
-                value: "compare",
-                label: translate("planLabModeCompare", "Compare"),
-              },
-            ]}
-            value={mode}
-            onChange={(value) => setMode(value as "edit" | "compare")}
-          />
           <Group gap="xs" wrap="wrap">
             {mode === "edit" && (
               <Button
@@ -4816,11 +4801,27 @@ export default function PlanLabPanel({
                 </Button>
               </MantineTooltip>
             )}
+            <SegmentedControl
+              size="sm"
+              data={[
+                {
+                  value: "edit",
+                  label: translate("planLabModeEdit", "Edit"),
+                },
+                {
+                  value: "compare",
+                  label: translate("planLabModeCompare", "Compare"),
+                },
+              ]}
+              value={mode}
+              onChange={(value) => setMode(value as "edit" | "compare")}
+            />
           </Group>
+
         </Group>
       </Card>
 
-      <Card withBorder radius="md" padding="md" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+      <Card display={"none"} withBorder radius="md" padding="md" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
         <Text size="sm">{t("planLabSandboxBanner")}</Text>
       </Card>
 
