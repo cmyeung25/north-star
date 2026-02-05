@@ -1601,41 +1601,51 @@ export default function SettingsClient({
                                   : formatAgeYears(endAge)}
                               </Text>
                             </Group>
-                            <Stack gap="xs">
-                              <Text fw={600}>{membersText("applyScopeTitle")}</Text>
-                              <Text size="xs" c="dimmed">
-                                {membersText("applyScopeHelper")}
-                              </Text>
-                              {renderApplyScope(
-                                normalizeApplyScope(member.applyScope),
-                                (next) => setMemberApplyScope(member.id, next),
-                                membersText("applyScopeHint")
-                              )}
-                            </Stack>
-                            <Stack gap="xs">
-                              <Group justify="space-between" align="center">
-                                <Text fw={600}>{membersText("milestonesTitle")}</Text>
-                                <Button
-                                  size="xs"
-                                  variant="light"
-                                  onClick={() =>
-                                    updateMemberMilestones(member.id, (current) => [
-                                      ...current,
-                                      {
-                                        id: createMilestoneId(),
-                                        kind: "custom",
-                                        label: membersText("milestoneCustomDefault"),
-                                        applyScope: { scope: "all" },
-                                      },
-                                    ])
-                                  }
-                                >
-                                  {membersText("addMilestone")}
-                                </Button>
-                              </Group>
-                              <Text size="xs" c="dimmed">
-                                {membersText("milestonesHelper")}
-                              </Text>
+                            <Accordion variant="contained" radius="md">
+                              <Accordion.Item value="legacy-fields">
+                                <Accordion.Control>
+                                  {membersText("legacySectionTitle")}
+                                </Accordion.Control>
+                                <Accordion.Panel>
+                                  <Stack gap="xs">
+                                    <Text size="xs" c="dimmed">
+                                      {membersText("legacySectionNote")}
+                                    </Text>
+                                    <Stack gap="xs">
+                                      <Text fw={600}>{membersText("applyScopeTitle")}</Text>
+                                      <Text size="xs" c="dimmed">
+                                        {membersText("applyScopeHelper")}
+                                      </Text>
+                                      {renderApplyScope(
+                                        normalizeApplyScope(member.applyScope),
+                                        (next) => setMemberApplyScope(member.id, next),
+                                        membersText("applyScopeHint")
+                                      )}
+                                    </Stack>
+                                    <Stack gap="xs">
+                                      <Group justify="space-between" align="center">
+                                        <Text fw={600}>{membersText("milestonesTitle")}</Text>
+                                        <Button
+                                          size="xs"
+                                          variant="light"
+                                          onClick={() =>
+                                            updateMemberMilestones(member.id, (current) => [
+                                              ...current,
+                                              {
+                                                id: createMilestoneId(),
+                                                kind: "custom",
+                                                label: membersText("milestoneCustomDefault"),
+                                                applyScope: { scope: "all" },
+                                              },
+                                            ])
+                                          }
+                                        >
+                                          {membersText("addMilestone")}
+                                        </Button>
+                                      </Group>
+                                      <Text size="xs" c="dimmed">
+                                        {membersText("milestonesHelper")}
+                                      </Text>
                               {member.birthMonth && (
                                 <Card withBorder radius="md" padding="sm">
                                   <Group justify="space-between" align="center">
@@ -1908,7 +1918,11 @@ export default function SettingsClient({
                                     </Card>
                                   );
                                 })}
-                            </Stack>
+                                    </Stack>
+                                  </Stack>
+                                </Accordion.Panel>
+                              </Accordion.Item>
+                            </Accordion>
                             <Stack gap="xs">
                               <Group justify="space-between" align="center">
                                 <Text fw={600}>

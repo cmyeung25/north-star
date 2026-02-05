@@ -2066,7 +2066,9 @@
     "memberBudgetEmpty": "尚未有成員專屬預算規則。",
     "householdBudgetTitle": "家庭預算規則",
     "addHouseholdRule": "新增家庭規則",
-    "householdBudgetEmpty": "尚未有家庭規則。"
+    "householdBudgetEmpty": "尚未有家庭規則。",
+    "legacySectionTitle": "進階／舊版功能",
+    "legacySectionNote": "這些欄位為相容性保留，暫未影響預測結果。"
   },
   "budgetRules": {
     "title": "預算規則",

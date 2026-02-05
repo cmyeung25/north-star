@@ -151,6 +151,91 @@ const normalizeDraftMembers = (members: OnboardingV2DraftMember[]) => {
   return ordered;
 };
 
+const PRIMARY_PLACEHOLDER_NAMES = new Set(["主要成員", "本人"]);
+
+const isPlaceholderPrimaryMember = (member: ScenarioMember) => {
+  if (member.kind !== "person") {
+    return false;
+  }
+  const normalizedName = member.name.trim();
+  if (!PRIMARY_PLACEHOLDER_NAMES.has(normalizedName)) {
+    return false;
+  }
+  if (member.birthMonth || typeof member.ageAtBaseMonth === "number") {
+    return false;
+  }
+  return (member.milestones ?? []).length === 0;
+};
+
+const ensureSinglePrimaryMember = ({
+  members,
+  primaryMemberId,
+}: {
+  members: ScenarioMember[];
+  primaryMemberId: string;
+}) => {
+  const seen = new Set<string>();
+  const deduped = [...members]
+    .reverse()
+    .filter((member) => {
+      if (seen.has(member.id)) {
+        return false;
+      }
+      seen.add(member.id);
+      return true;
+    })
+    .reverse();
+
+  return deduped.filter((member) => {
+    if (member.id === primaryMemberId) {
+      return true;
+    }
+    if (member.id === "self") {
+      return false;
+    }
+    return !isPlaceholderPrimaryMember(member);
+  });
+};
+
+const resolvePrimaryMemberId = ({
+  existingMembers,
+  normalizedMembers,
+}: {
+  existingMembers: ScenarioMember[];
+  normalizedMembers: OnboardingV2DraftMember[];
+}) => {
+  if (existingMembers.some((member) => member.id === "self")) {
+    return "self";
+  }
+
+  const placeholderPrimaryMember = existingMembers.find(isPlaceholderPrimaryMember);
+  if (placeholderPrimaryMember) {
+    return placeholderPrimaryMember.id;
+  }
+
+  const draftPrimary = normalizedMembers.find((member) => member.id === "self");
+  if (!draftPrimary) {
+    return "self";
+  }
+
+  const draftName = draftPrimary.name?.trim();
+  const draftBirthMonth = normalizeMonth(draftPrimary.birthMonth);
+  const matchingPrimary = existingMembers.find((member) => {
+    if (isOnboardingMemberId(member.id) || member.kind !== "person") {
+      return false;
+    }
+    if (draftName && member.name.trim() !== draftName) {
+      return false;
+    }
+    if (draftBirthMonth && member.birthMonth !== draftBirthMonth) {
+      return false;
+    }
+    return Boolean(draftName || draftBirthMonth);
+  });
+
+  return matchingPrimary?.id ?? "self";
+};
+
 const buildIncomeEvents = ({
   incomes,
   scenarioId,
@@ -910,10 +995,15 @@ export const applyOnboardingV2DraftToScenarioV2 = (
   scenario: Scenario
 ): Scenario => {
   const scenarioId = scenario.id;
+  const existingMembers = scenario.members ?? [];
   const normalizedMembers = normalizeDraftMembers(draft.household.members);
+  const primaryMemberId = resolvePrimaryMemberId({
+    existingMembers,
+    normalizedMembers,
+  });
   const applyScope = buildApplyScope(scenarioId);
   const members: ScenarioMember[] = normalizedMembers.map((member) => ({
-    id: member.id,
+    id: member.id === "self" ? primaryMemberId : member.id,
     name: member.name?.trim() || fallbackMemberName(member),
     kind: member.role === "pet" ? ("pet" as const) : ("person" as const),
     birthMonth: normalizeMonth(member.birthMonth),
@@ -993,11 +1083,13 @@ export const applyOnboardingV2DraftToScenarioV2 = (
     baseMonth: baseMonth ?? scenario.assumptions.baseMonth ?? null,
   };
 
-  const existingMembers = scenario.members ?? [];
-  const nextMembers = [
+  const nextMembers = ensureSinglePrimaryMember({
+    members: [
     ...existingMembers.filter((member) => !isOnboardingMemberId(member.id)),
     ...members,
-  ];
+    ],
+    primaryMemberId,
+  });
   const nextAssets = buildMergedList(
     scenario.assets,
     [...assetEntries, ...housingChanges.assets, ...insuranceChanges.assets],
