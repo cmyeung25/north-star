@@ -4738,15 +4738,15 @@ export default function PlanLabPanel({
           {templatePlanUnsupportedNotice}
         </Notification>
       )}
-      <Card withBorder radius="md" padding="md">
+      <Card withBorder radius="md" padding="lg" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
         <Group justify="space-between" align="center" wrap="wrap">
           <Stack gap={2}>
             <Group gap="xs" align="center" wrap="wrap">
               <Title order={3}>{t("planLabTitle")}</Title>
-              <Badge color="blue" variant="light">
+              <Badge color="ice" variant="light">
                 {t("planLabPreviewBadge")}
               </Badge>
-              <Badge color="gray" variant="light">
+              <Badge color="neutral" variant="light">
                 {statusPillLabel}
               </Badge>
               {hasUnsavedChanges && (
@@ -4760,7 +4760,7 @@ export default function PlanLabPanel({
             </Text>
           </Stack>
           <SegmentedControl
-            size="xs"
+            size="sm"
             data={[
               {
                 value: "edit",
@@ -4778,6 +4778,7 @@ export default function PlanLabPanel({
             {mode === "edit" && (
               <Button
                 size="sm"
+                color="aurora"
                 onClick={() => {
                   setSavePlanNotes(undefined);
                   setSavePlanTags(undefined);
@@ -4790,14 +4791,14 @@ export default function PlanLabPanel({
             {mode === "edit" && (
               <Button
                 size="sm"
-                variant="light"
+                variant="outline"
                 onClick={handleUpdatePlan}
                 disabled={!activePlanId}
               >
                 {translate("planLabUpdatePlan", "Update plan")}
               </Button>
             )}
-            <Button size="sm" variant="light" onClick={() => setPlanLibraryOpen(true)}>
+            <Button size="sm" variant="subtle" onClick={() => setPlanLibraryOpen(true)}>
               {translate("planLabPlansButton", "Plans ({count})", {
                 count: planCount,
               })}
@@ -4810,7 +4811,7 @@ export default function PlanLabPanel({
                 )}
                 withArrow
               >
-                <Button size="sm" variant="light" onClick={handleSave}>
+                <Button size="sm" variant="outline" onClick={handleSave}>
                   {translate("planLabSaveScenario", "保存到情境")}
                 </Button>
               </MantineTooltip>
@@ -4819,7 +4820,7 @@ export default function PlanLabPanel({
         </Group>
       </Card>
 
-      <Card withBorder radius="md" padding="sm">
+      <Card withBorder radius="md" padding="md" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
         <Text size="sm">{t("planLabSandboxBanner")}</Text>
       </Card>
 
@@ -5531,7 +5532,7 @@ export default function PlanLabPanel({
         <Grid.Col span={{ base: 12, md: 6 }}>
           <div style={{ position: "sticky", top: 88 }}>
             <Stack gap="lg">
-              <Card withBorder radius="md" padding="md">
+              <Card withBorder radius="md" padding="lg" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                 <Stack gap="sm">
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{translate("planLabKpiPanelTitle", "Impact KPIs")}</Text>
@@ -5592,9 +5593,9 @@ export default function PlanLabPanel({
                               })
                             : translate("planLabKpiBaselineLabel", "基準");
                         return (
-                          <Card key={card.key} withBorder radius="md" padding="sm">
+                          <Paper key={card.key} withBorder radius="md" p="md" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                             <Stack gap={6}>
-                              <Text size="sm" fw={600}>
+                              <Text size="sm" fw={600} c="dimmed">
                                 {card.label}
                               </Text>
                               <SimpleGrid cols={2} spacing="lg">
@@ -5604,6 +5605,7 @@ export default function PlanLabPanel({
                                   </Text>
                                   <Text
                                     fw={700}
+                                    size="xl"
                                     style={{
                                       fontVariantNumeric: "tabular-nums",
                                       whiteSpace: "pre-line",
@@ -5620,6 +5622,7 @@ export default function PlanLabPanel({
                                   </Text>
                                   <Text
                                     fw={700}
+                                    size="xl"
                                     ta="right"
                                     style={{
                                       fontVariantNumeric: "tabular-nums",
@@ -5652,7 +5655,7 @@ export default function PlanLabPanel({
                                 </Text>
                               )}
                             </Stack>
-                          </Card>
+                          </Paper>
                         );
                       })}
                     </SimpleGrid>
