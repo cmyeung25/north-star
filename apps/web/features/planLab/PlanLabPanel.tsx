@@ -4942,14 +4942,7 @@ export default function PlanLabPanel({
                         <Button
                           size="xs"
                           variant="light"
-                          onClick={
-                            scenarioIsV2
-                              ? () => {
-                                  setV2EventDefaultKind("income");
-                                  openV2EventDrawer("create", "cashflow");
-                                }
-                              : openAddEventDrawer
-                          }
+                          onClick={openAddEventDrawer}
                         >
                           {translate("planLabAddEventAction", "新增事件")}
                         </Button>
