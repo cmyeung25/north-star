@@ -11,7 +11,7 @@ import {
   Center,
 } from "@mantine/core";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "../lib/i18n";
 import type { CashRiskScorecardResult } from "../src/domain/planLab/scorecard/cashRisk";
 
@@ -32,19 +32,10 @@ export const PlanLabCashRiskScorecard = ({
   locale,
 }: PlanLabCashRiskScorecardProps) => {
   const t = useTranslations("overview");
-
-  if (!result.minCash) {
-    return (
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
-          <Text fw={600}>{t("planLabCashRiskTitle")}</Text>
-          <Text size="sm" c="dimmed">
-            {t("planLabCashRiskUnavailable")}
-          </Text>
-        </Stack>
-      </Card>
-    );
-  }
+  const translate = useCallback(
+    (key: string, fallback: string) => (t.has(key) ? t(key) : fallback),
+    [t]
+  );
 
   const severeFlagContent = result.flags.belowZero ? (
     <>
@@ -100,7 +91,8 @@ export const PlanLabCashRiskScorecard = ({
     return { color: "green", label: t("planLabCashRiskHealthy") };
   }, [result.flags.belowBuffer, result.flags.belowZero, t]);
 
-  const shouldDefaultOpen = result.minCash.amount < 0;
+  const minCashAmount = result.minCash?.amount ?? null;
+  const shouldDefaultOpen = typeof minCashAmount === "number" && minCashAmount < 0;
   const [detailOpen, setDetailOpen] = useState(shouldDefaultOpen);
 
   useEffect(() => {
@@ -108,6 +100,19 @@ export const PlanLabCashRiskScorecard = ({
       setDetailOpen(true);
     }
   }, [shouldDefaultOpen]);
+
+  if (!result.minCash) {
+    return (
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Text fw={600}>{t("planLabCashRiskTitle")}</Text>
+          <Text size="sm" c="dimmed">
+            {t("planLabCashRiskUnavailable")}
+          </Text>
+        </Stack>
+      </Card>
+    );
+  }
 
   return (
     <Card withBorder radius="md" padding="md">
@@ -120,7 +125,7 @@ export const PlanLabCashRiskScorecard = ({
         </Group>
         <Group justify="space-between" align="center" wrap="wrap">
           <Text size="sm" c="dimmed">
-            {t("planLabCashRiskDetailCta", "查看風險明細")}
+            {translate("planLabCashRiskDetailCta", "查看風險明細")}
           </Text>
           <Button
             size="xs"
@@ -128,8 +133,8 @@ export const PlanLabCashRiskScorecard = ({
             onClick={() => setDetailOpen((current) => !current)}
           >
             {detailOpen
-              ? t("planLabCashRiskDetailCollapse", "收起")
-              : t("planLabCashRiskDetailExpand", "展開")}
+              ? translate("planLabCashRiskDetailCollapse", "收起")
+              : translate("planLabCashRiskDetailExpand", "展開")}
           </Button>
         </Group>
         <Collapse in={detailOpen}>
