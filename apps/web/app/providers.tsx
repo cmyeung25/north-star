@@ -3,11 +3,13 @@
 import {
   ActionIcon,
   AppShell,
+  Badge,
   Button,
   Container,
   Group,
   MantineProvider,
   Menu,
+  NavLink,
   Stack,
   Text,
 } from "@mantine/core";
@@ -82,6 +84,8 @@ export default function Providers({ children }: { children: ReactNode }) {
     ? t("statusSignedIn", { mode: autoSyncEnabled ? t("statusOn") : t("statusOff") })
     : t("statusLocalMode");
   const actionLabel = isSignedIn ? t("syncSettings") : t("signInToSync");
+  const shellBg = "var(--mantine-color-polar-9)";
+  const shellActive = "rgba(238, 244, 255, 0.16)";
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -190,7 +194,13 @@ export default function Providers({ children }: { children: ReactNode }) {
         footer={!isDesktop ? { height: 72 } : undefined}
         padding="md"
       >
-        <AppShell.Header>
+        <AppShell.Header
+          style={{
+            background: shellBg,
+            color: "var(--mantine-color-gray-0)",
+            borderColor: "rgba(238, 244, 255, 0.12)",
+          }}
+        >
           {isDesktop ? (
             <Group h="100%" px="md" justify="space-between">
               <Text fw={600} size="lg">
@@ -202,22 +212,30 @@ export default function Providers({ children }: { children: ReactNode }) {
                   component={Link}
                   href="/plan-lab"
                   size="xs"
-                  variant="light"
+                  color="aurora"
                 >
                   {nav("planLab")}
                 </Button>
-                <Text size="xs" c="dimmed">
-                  {statusLabel}
-                </Text>
-                <Button
-                  component={Link}
-                  href="/people#sync"
-                  size="xs"
-                  variant="subtle"
-                  disabled={!isFirebaseConfigured && !isSignedIn}
-                >
-                  {actionLabel}
-                </Button>
+                <Group gap={6}>
+                  <Text size="xs" c="gray.2">
+                    {isSignedIn ? t("statusSignedIn", { mode: autoSyncEnabled ? t("statusOn") : t("statusOff") }) : t("statusLocalMode")}
+                  </Text>
+                  <Badge size="sm" color={isSignedIn ? "aurora" : "ice"} variant="filled">
+                    {isSignedIn ? (autoSyncEnabled ? t("statusOn") : t("statusOff")) : t("statusOff")}
+                  </Badge>
+                </Group>
+                {!isSignedIn && (
+                  <Button
+                    component={Link}
+                    href="/people#sync"
+                    size="xs"
+                    variant="outline"
+                    disabled={!isFirebaseConfigured}
+                    color="gray"
+                  >
+                    {actionLabel}
+                  </Button>
+                )}
                 <LanguageSwitcher />
               </Group>
             </Group>
@@ -228,7 +246,7 @@ export default function Providers({ children }: { children: ReactNode }) {
               </Text>
               <Menu position="bottom-end" withinPortal>
                 <Menu.Target>
-                  <ActionIcon variant="subtle" size="lg" aria-label={t("actionMore")}>
+                  <ActionIcon variant="subtle" color="gray" size="lg" aria-label={t("actionMore")}>
                     ⋯
                   </ActionIcon>
                 </Menu.Target>
@@ -239,24 +257,31 @@ export default function Providers({ children }: { children: ReactNode }) {
                       component={Link}
                       href="/plan-lab"
                       size="xs"
-                      variant="light"
+                      color="aurora"
                       fullWidth
                     >
                       {nav("planLab")}
                     </Button>
-                    <Text size="xs" c="dimmed">
-                      {statusLabel}
-                    </Text>
-                    <Button
-                      component={Link}
-                      href="/people#sync"
-                      size="xs"
-                      variant="subtle"
-                      disabled={!isFirebaseConfigured && !isSignedIn}
-                      fullWidth
-                    >
-                      {actionLabel}
-                    </Button>
+                    <Group gap={6} align="center">
+                      <Text size="xs" c="dimmed">
+                        {statusLabel}
+                      </Text>
+                      <Badge size="sm" color={isSignedIn ? "aurora" : "ice"} variant="filled">
+                        {isSignedIn ? (autoSyncEnabled ? t("statusOn") : t("statusOff")) : t("statusOff")}
+                      </Badge>
+                    </Group>
+                    {!isSignedIn && (
+                      <Button
+                        component={Link}
+                        href="/people#sync"
+                        size="xs"
+                        variant="outline"
+                        disabled={!isFirebaseConfigured}
+                        fullWidth
+                      >
+                        {actionLabel}
+                      </Button>
+                    )}
                     <LanguageSwitcher />
                   </Stack>
                 </Menu.Dropdown>
@@ -266,18 +291,36 @@ export default function Providers({ children }: { children: ReactNode }) {
         </AppShell.Header>
 
         {isDesktop && !isOnboarding && (
-          <AppShell.Navbar p="md">
+          <AppShell.Navbar
+            p="md"
+            style={{
+              background: shellBg,
+              color: "var(--mantine-color-gray-0)",
+              borderColor: "rgba(238, 244, 255, 0.12)",
+            }}
+          >
             <Stack gap="xs">
               {navItems.map((item) => (
-                <Button
+                <NavLink
                   key={item.href}
                   component={Link}
                   href={item.href}
-                  variant={normalizedPathname === item.href ? "light" : "subtle"}
-                  justify="flex-start"
-                >
-                  {item.label}
-                </Button>
+                  label={item.label}
+                  active={normalizedPathname === item.href}
+                  styles={{
+                    root: {
+                      color: "var(--mantine-color-gray-0)",
+                      borderLeft: normalizedPathname === item.href
+                        ? "3px solid var(--mantine-color-aurora-5)"
+                        : "3px solid transparent",
+                      borderRadius: "8px",
+                      backgroundColor: normalizedPathname === item.href ? shellActive : "transparent",
+                      "&:hover": {
+                        backgroundColor: "rgba(238, 244, 255, 0.1)",
+                      },
+                    },
+                  }}
+                />
               ))}
             </Stack>
           </AppShell.Navbar>
