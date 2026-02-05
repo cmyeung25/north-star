@@ -19,6 +19,7 @@ import {
   ScrollArea,
   SegmentedControl,
   Select,
+  Skeleton,
   SimpleGrid,
   Stack,
   Switch,
@@ -92,7 +93,10 @@ import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
-import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
+import {
+  computeProjectionWithSmartInvest,
+  useProjectionWithLedger,
+} from "../../src/engine/useProjectionWithLedger";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
@@ -132,6 +136,7 @@ import {
   buildPlanPatchesFromSnapshot,
   validatePlanPatches,
 } from "../../src/domain/planLab/planPatches";
+import { applyPlanPatches } from "../../src/domain/planLab/applyPlanPatches";
 import {
   buildSnapshotPayload,
   computeBaselineFingerprint,
@@ -234,6 +239,26 @@ type PlanLabPanelProps = {
     netCashflow: TimeSeriesPoint[];
   };
 };
+type PlanLabDriverSource = "event" | "rule" | "position" | "experiment";
+
+type PlanLabTopDriver = {
+  id: string;
+  itemId: string;
+  source: PlanLabDriverSource;
+  title: string;
+  contribution: number;
+};
+
+type PlanLabChangedDriverCandidate = {
+  id: string;
+  source: PlanLabDriverSource;
+  title: string;
+};
+
+const MAX_TOP_DRIVER_CANDIDATES = 8;
+const TOP_DRIVER_COUNT = 5;
+const TOP_DRIVER_DEBOUNCE_MS = 300;
+
 
 const mergeSeries = (baseline: TimeSeriesPoint[], option: TimeSeriesPoint[]) => {
   const monthSet = new Set<string>();
@@ -622,6 +647,48 @@ const useDebouncedValue = <T,>(value: T, delayMs = 200) => {
 
   return debounced;
 };
+const hashString = (input: string) => {
+  let hash = 5381;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 33) ^ input.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const buildTopDriverCacheKey = (signature: string, candidateId: string) =>
+  `${signature}:${candidateId}:minCash`;
+
+const normalizeTopDrivers = (drivers: PlanLabTopDriver[]) =>
+  drivers
+    .map((driver) => ({
+      ...driver,
+      contribution: Number(driver.contribution.toFixed(2)),
+    }))
+    .sort((left, right) => Math.abs(right.contribution) - Math.abs(left.contribution))
+    .slice(0, TOP_DRIVER_COUNT);
+
+const areTopDriversEqual = (
+  left: PlanLabTopDriver[],
+  right: PlanLabTopDriver[]
+) => {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((driver, index) => {
+    const candidate = right[index];
+    if (!candidate) {
+      return false;
+    }
+    return (
+      driver.id === candidate.id &&
+      driver.itemId === candidate.itemId &&
+      driver.title === candidate.title &&
+      driver.source === candidate.source &&
+      driver.contribution === candidate.contribution
+    );
+  });
+};
+
 
 export default function PlanLabPanel({
   scenario,
@@ -757,18 +824,23 @@ export default function PlanLabPanel({
   const showRiskyOnly = listTab === "risky";
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const [topDriversLoading, setTopDriversLoading] = useState(false);
+  const [topDrivers, setTopDrivers] = useState<PlanLabTopDriver[]>([]);
+  const attributionGenerationRef = useRef(0);
+  const attributionCacheRef = useRef(new Map<string, number>());
 
   const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
     itemRefs.current.set(id, node);
   }, []);
 
   const handleLocateItem = useCallback((id: string) => {
+    setListTab((current) => (current === "changed" ? current : "changed"));
     const node = itemRefs.current.get(id);
     if (!node) {
       return;
     }
     node.scrollIntoView({ behavior: "smooth", block: "center" });
-    setHighlightedItemId(id);
+    setHighlightedItemId((current) => (current === id ? current : id));
   }, []);
 
   useEffect(() => {
@@ -2722,6 +2794,266 @@ export default function PlanLabPanel({
     () => computePlanLabKpis(planLabProjection.projection, firstBucketTargetValue),
     [firstBucketTargetValue, planLabProjection.projection]
   );
+
+  const changedDriverCandidates = useMemo<PlanLabChangedDriverCandidate[]>(() => {
+    const changedItems = scenarioItems.filter(
+      (item) => getScenarioItemChangeStatus(item) !== null
+    );
+    const mapped = changedItems.map((item) => {
+      const source: PlanLabDriverSource =
+        item.kind === "event"
+          ? "event"
+          : item.kind === "rule"
+          ? "rule"
+          : item.kind === "position"
+          ? "position"
+          : "experiment";
+      return {
+        id: item.id,
+        source,
+        title: item.title,
+      };
+    });
+    return mapped.slice(0, MAX_TOP_DRIVER_CANDIDATES);
+  }, [getScenarioItemChangeStatus, scenarioItems]);
+
+  const changedDriverIds = useMemo(
+    () => changedDriverCandidates.map((candidate) => candidate.id),
+    [changedDriverCandidates]
+  );
+
+  const topDriverOverlaySignature = useMemo(() => {
+    if (scenarioIsV2) {
+      return hashString(
+        [
+          "v2",
+          scenario.id,
+          snapshotPayload.eventsPatch.add.map((event) => event.id).sort().join("|"),
+          snapshotPayload.eventsPatch.update.map((entry) => entry.id).sort().join("|"),
+          snapshotPayload.eventsPatch.remove.slice().sort().join("|"),
+          (snapshotPayload.rulesPatch?.add ?? []).map((rule) => rule.id).sort().join("|"),
+          (snapshotPayload.rulesPatch?.update ?? []).map((entry) => entry.id).sort().join("|"),
+          (snapshotPayload.rulesPatch?.remove ?? []).slice().sort().join("|"),
+          changedDriverIds.join("|"),
+        ].join("::")
+      );
+    }
+    return hashString(
+      [
+        "legacy",
+        scenario.id,
+        sandboxPatches.length,
+        changedDriverIds.join("|"),
+      ].join("::")
+    );
+  }, [
+    changedDriverIds,
+    sandboxPatches.length,
+    scenario.id,
+    scenarioIsV2,
+    snapshotPayload.eventsPatch.add,
+    snapshotPayload.eventsPatch.remove,
+    snapshotPayload.eventsPatch.update,
+    snapshotPayload.rulesPatch?.add,
+    snapshotPayload.rulesPatch?.remove,
+    snapshotPayload.rulesPatch?.update,
+  ]);
+
+  useEffect(() => {
+    const baseMinCash = baselineKpis?.minCash?.value;
+    const currentMinCash = optionKpis?.minCash?.value;
+    if (
+      !planLabProjection.projection ||
+      typeof baseMinCash !== "number" ||
+      typeof currentMinCash !== "number" ||
+      changedDriverCandidates.length === 0
+    ) {
+      setTopDrivers((current) => (current.length === 0 ? current : []));
+      setTopDriversLoading(false);
+      return;
+    }
+
+    const generation = attributionGenerationRef.current + 1;
+    attributionGenerationRef.current = generation;
+    setTopDriversLoading(true);
+
+    const timeout = setTimeout(() => {
+      const nextDrivers: PlanLabTopDriver[] = [];
+      const currentDelta = currentMinCash - baseMinCash;
+
+      changedDriverCandidates.forEach((candidate) => {
+        const cacheKey = buildTopDriverCacheKey(topDriverOverlaySignature, candidate.id);
+        const cached = attributionCacheRef.current.get(cacheKey);
+        if (typeof cached === "number") {
+          nextDrivers.push({
+            id: candidate.id,
+            itemId: candidate.id,
+            source: candidate.source,
+            title: candidate.title,
+            contribution: cached,
+          });
+          return;
+        }
+
+        let variantMinCash: number | null = null;
+
+        if (scenarioIsV2) {
+          const nextPatches: PlanLabScenarioV2Patches = {
+            events: {
+              add: [...scenarioV2Patches.events.add],
+              update: { ...scenarioV2Patches.events.update },
+              remove: [...scenarioV2Patches.events.remove],
+            },
+            assets: {
+              add: [...scenarioV2Patches.assets.add],
+              update: { ...scenarioV2Patches.assets.update },
+              remove: [...scenarioV2Patches.assets.remove],
+            },
+            liabilities: {
+              add: [...scenarioV2Patches.liabilities.add],
+              update: { ...scenarioV2Patches.liabilities.update },
+              remove: [...scenarioV2Patches.liabilities.remove],
+            },
+            members: {
+              add: [...scenarioV2Patches.members.add],
+              update: { ...scenarioV2Patches.members.update },
+              remove: [...scenarioV2Patches.members.remove],
+            },
+            rules: {
+              add: [...scenarioV2Patches.rules.add],
+              update: { ...scenarioV2Patches.rules.update },
+              remove: [...scenarioV2Patches.rules.remove],
+            },
+          };
+
+          const [kind, rawId] = candidate.id.split(":");
+          if (kind === "event") {
+            nextPatches.events.add = nextPatches.events.add.filter((item) => item.id !== rawId);
+            delete nextPatches.events.update[rawId];
+            nextPatches.events.remove = nextPatches.events.remove.filter((id) => id !== rawId);
+          }
+          if (kind === "rule") {
+            nextPatches.rules.add = nextPatches.rules.add.filter((item) => item.id !== rawId);
+            delete nextPatches.rules.update[rawId];
+            nextPatches.rules.remove = nextPatches.rules.remove.filter((id) => id !== rawId);
+          }
+          if (kind === "asset") {
+              const id = rawId;
+              nextPatches.assets.add = nextPatches.assets.add.filter((item) => item.id !== id);
+              delete nextPatches.assets.update[id];
+              nextPatches.assets.remove = nextPatches.assets.remove.filter((entry) => entry !== id);
+            }
+            if (kind === "liability") {
+              const id = rawId;
+              nextPatches.liabilities.add = nextPatches.liabilities.add.filter((item) => item.id !== id);
+              delete nextPatches.liabilities.update[id];
+              nextPatches.liabilities.remove = nextPatches.liabilities.remove.filter((entry) => entry !== id);
+          }
+
+          const variantScenarioV2 = applyPlanLabScenarioV2Patches(
+            baselineScenarioV2,
+            nextPatches
+          );
+          const variantProjection = computeProjectionWithSmartInvest(
+            variantScenarioV2 as unknown as Scenario,
+            eventLibrary,
+            {
+              members: variantScenarioV2.members ?? [],
+              budgetRules: [],
+            }
+          ).projection;
+          variantMinCash = computePlanLabKpis(
+            variantProjection,
+            firstBucketTargetValue
+          )?.minCash?.value ?? null;
+        } else {
+          const variantSnapshot: PlanLabSnapshot = {
+            baselinePatches: {
+              eventPatches: { ...(planSnapshot.baselinePatches?.eventPatches ?? {}) },
+              rulePatches: { ...(planSnapshot.baselinePatches?.rulePatches ?? {}) },
+              positionPatches: { ...(planSnapshot.baselinePatches?.positionPatches ?? {}) },
+              smartInvestPatch: planSnapshot.baselinePatches?.smartInvestPatch,
+            },
+            experiments: [...(planSnapshot.experiments ?? [])],
+            scorecardSettings: planSnapshot.scorecardSettings,
+          };
+
+          const [kind, rawId] = candidate.id.split(":");
+          if (kind === "event") {
+            delete variantSnapshot.baselinePatches?.eventPatches?.[rawId];
+          }
+          if (kind === "rule") {
+            delete variantSnapshot.baselinePatches?.rulePatches?.[rawId];
+          }
+          if (kind === "position") {
+            delete variantSnapshot.baselinePatches?.positionPatches?.[rawId];
+          }
+          if (kind === "experiment") {
+            const experimentId = rawId.replace("experiment-", "");
+            variantSnapshot.experiments = variantSnapshot.experiments?.filter(
+              (experiment) => experiment.id !== experimentId
+            );
+          }
+
+          const applyResult = applyPlanPatches({
+            scenario,
+            snapshot: variantSnapshot,
+            patches: buildPlanPatchesFromSnapshot(variantSnapshot),
+            eventLibrary,
+            budgetRules,
+            members,
+          });
+          const variantProjection = computeProjectionWithSmartInvest(
+            applyResult.scenario,
+            [...eventLibrary, ...applyResult.eventDefinitions],
+            {
+              members: applyResult.members,
+              budgetRules: applyResult.budgetRules,
+            }
+          ).projection;
+          variantMinCash =
+            computePlanLabKpis(variantProjection, firstBucketTargetValue)?.minCash?.value ?? null;
+        }
+
+        const contribution =
+          typeof variantMinCash === "number" ? currentDelta - (variantMinCash - baseMinCash) : 0;
+        attributionCacheRef.current.set(cacheKey, contribution);
+        nextDrivers.push({
+          id: candidate.id,
+          itemId: candidate.id,
+          source: candidate.source,
+          title: candidate.title,
+          contribution,
+        });
+      });
+
+      if (attributionGenerationRef.current !== generation) {
+        return;
+      }
+      const normalized = normalizeTopDrivers(nextDrivers);
+      setTopDrivers((current) => (areTopDriversEqual(current, normalized) ? current : normalized));
+      setTopDriversLoading(false);
+    }, TOP_DRIVER_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [
+    baselineKpis?.minCash?.value,
+    baselineScenarioV2,
+    budgetRules,
+    changedDriverCandidates,
+    eventLibrary,
+    firstBucketTargetValue,
+    members,
+    optionKpis?.minCash?.value,
+    planLabProjection.projection,
+    planSnapshot,
+    scenario,
+    scenarioIsV2,
+    scenarioV2Patches,
+    topDriverOverlaySignature,
+  ]);
 
   const chartData = useMemo(() => {
     const baseline =
@@ -4905,6 +5237,52 @@ export default function PlanLabPanel({
                         );
                       })}
                     </SimpleGrid>
+                  )}
+                </Stack>
+              </Card>
+
+              <Card withBorder radius="md" padding="md">
+                <Stack gap="sm">
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{translate("planLabTopDriversTitle", "Top Drivers / 差異原因")}</Text>
+                    <Badge variant="light" color="blue">
+                      {topDrivers.length}
+                    </Badge>
+                  </Group>
+                  {topDriversLoading && topDrivers.length === 0 ? (
+                    <Stack gap="xs">
+                      <Skeleton height={18} radius="sm" />
+                      <Skeleton height={18} radius="sm" />
+                      <Skeleton height={18} radius="sm" />
+                    </Stack>
+                  ) : topDrivers.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      {translate("planLabTopDriversEmpty", "暫無可分析改動")}
+                    </Text>
+                  ) : (
+                    <Stack gap="xs">
+                      {topDrivers.map((driver) => (
+                        <Button
+                          key={driver.id}
+                          variant="subtle"
+                          justify="space-between"
+                          onClick={() => handleLocateItem(driver.itemId)}
+                        >
+                          <Text size="sm">{driver.title}</Text>
+                          <Badge
+                            variant="light"
+                            color={driver.contribution >= 0 ? "teal" : "red"}
+                          >
+                            {driver.contribution >= 0 ? "+" : ""}
+                            {formatCurrency(
+                              driver.contribution,
+                              scenario.baseCurrency,
+                              locale
+                            )}
+                          </Badge>
+                        </Button>
+                      ))}
+                    </Stack>
                   )}
                 </Stack>
               </Card>
