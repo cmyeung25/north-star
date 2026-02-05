@@ -4,6 +4,7 @@ import {
   Accordion,
   ActionIcon,
   Badge,
+  Box,
   Button,
   Card,
   Checkbox,
@@ -27,7 +28,16 @@ import {
   Title,
   Tooltip as MantineTooltip,
 } from "@mantine/core";
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
@@ -483,106 +493,124 @@ type PlanLabAccordionRowProps = {
   badges: PlanLabRowBadge[];
   summary?: string;
   enabled?: boolean;
+  highlighted?: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
   menuItems?: PlanLabRowMenuItem[];
   panel?: ReactNode;
 };
 
-const PlanLabAccordionRow = memo(function PlanLabAccordionRow({
-  id,
-  title,
-  badges,
-  summary,
-  enabled,
-  onToggle,
-  onEdit,
-  menuItems,
-  panel,
-}: PlanLabAccordionRowProps) {
-  return (
-    <Accordion.Item value={id}>
-      <Accordion.Control>
-        <Group justify="space-between" align="center" wrap="nowrap" w="100%">
-          <Stack gap={4} miw={0}>
-            <Text fw={600} size="sm" lineClamp={1}>
-              {title}
-            </Text>
-            <Group gap={4} wrap="wrap">
-              {badges.map((badge) => (
-                <Badge
-                  key={`${id}-${badge.label}`}
-                  size="xs"
-                  variant="light"
-                  color={badge.color}
-                >
-                  {badge.label}
-                </Badge>
-              ))}
-            </Group>
-          </Stack>
-          <Text size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
-            {summary ?? "—"}
-          </Text>
-          <Group gap="xs" wrap="nowrap">
-            {onToggle && (
-              <Switch
-                size="sm"
-                checked={Boolean(enabled)}
-                onClick={(event) => event.stopPropagation()}
-                onChange={(event) => {
-                  event.stopPropagation();
-                  onToggle();
-                }}
-              />
-            )}
-            {onEdit && (
-              <ActionIcon
-                size="sm"
-                variant="light"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onEdit();
-                }}
-              >
-                <Text size="sm">✎</Text>
-              </ActionIcon>
-            )}
-            {menuItems && menuItems.length > 0 && (
-              <Menu withinPortal position="bottom-end">
-                <Menu.Target>
+const PlanLabAccordionRow = memo(
+  forwardRef<HTMLDivElement, PlanLabAccordionRowProps>(function PlanLabAccordionRow(
+    {
+      id,
+      title,
+      badges,
+      summary,
+      enabled,
+      highlighted,
+      onToggle,
+      onEdit,
+      menuItems,
+      panel,
+    },
+    ref
+  ) {
+    return (
+      <Box
+        ref={ref}
+        style={{
+          borderRadius: 12,
+          outline: highlighted ? "2px solid rgba(18, 184, 134, 0.7)" : "none",
+          outlineOffset: 2,
+        }}
+      >
+        <Accordion.Item value={id}>
+          <Accordion.Control>
+            <Group justify="space-between" align="center" wrap="nowrap" w="100%">
+              <Stack gap={4} miw={0}>
+                <Text fw={600} size="sm" lineClamp={1}>
+                  {title}
+                </Text>
+                <Group gap={4} wrap="wrap">
+                  {badges.map((badge) => (
+                    <Badge
+                      key={`${id}-${badge.label}`}
+                      size="xs"
+                      variant="light"
+                      color={badge.color}
+                    >
+                      {badge.label}
+                    </Badge>
+                  ))}
+                </Group>
+              </Stack>
+              <Text size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
+                {summary ?? "—"}
+              </Text>
+              <Group gap="xs" wrap="nowrap">
+                {onToggle && (
+                  <Switch
+                    size="sm"
+                    checked={Boolean(enabled)}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      onToggle();
+                    }}
+                  />
+                )}
+                {onEdit && (
                   <ActionIcon
                     size="sm"
                     variant="light"
-                    onClick={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEdit();
+                    }}
                   >
-                    <Text size="sm">⋯</Text>
+                    <Text size="sm">✎</Text>
                   </ActionIcon>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  {menuItems.map((item) => (
-                    <Menu.Item
-                      key={`${id}-${item.label}`}
-                      leftSection={item.icon}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        item.onClick();
-                      }}
-                      disabled={item.disabled}
-                    >
-                      {item.label}
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
-            )}
-          </Group>
-        </Group>
-      </Accordion.Control>
-      {panel && <Accordion.Panel>{panel}</Accordion.Panel>}
-    </Accordion.Item>
-  );
-});
+                )}
+                {menuItems && menuItems.length > 0 && (
+                  <Menu withinPortal position="bottom-end">
+                    <Menu.Target>
+                      <ActionIcon
+                        size="sm"
+                        variant="light"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Text size="sm">⋯</Text>
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      {menuItems.map((item) => (
+                        <Menu.Item
+                          key={`${id}-${item.label}`}
+                          leftSection={item.icon}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            item.onClick();
+                          }}
+                          disabled={item.disabled}
+                        >
+                          {item.label}
+                        </Menu.Item>
+                      ))}
+                    </Menu.Dropdown>
+                  </Menu>
+                )}
+              </Group>
+            </Group>
+          </Accordion.Control>
+          {panel && <Accordion.Panel>{panel}</Accordion.Panel>}
+        </Accordion.Item>
+      </Box>
+    );
+  })
+);
+
+PlanLabAccordionRow.displayName = "PlanLabAccordionRow";
 
 const useDebouncedValue = <T,>(value: T, delayMs = 200) => {
   const [debounced, setDebounced] = useState(value);
@@ -727,6 +755,29 @@ export default function PlanLabPanel({
   const monthInvalidMessage = t("planLabMonthInvalid");
   const showChangedOnly = listTab === "changed";
   const showRiskyOnly = listTab === "risky";
+  const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+
+  const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
+    itemRefs.current.set(id, node);
+  }, []);
+
+  const handleLocateItem = useCallback((id: string) => {
+    const node = itemRefs.current.get(id);
+    if (!node) {
+      return;
+    }
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedItemId(id);
+  }, []);
+
+  useEffect(() => {
+    if (!highlightedItemId) {
+      return;
+    }
+    const timeout = setTimeout(() => setHighlightedItemId(null), 2000);
+    return () => clearTimeout(timeout);
+  }, [highlightedItemId]);
   const drawerStyles = useMemo(
     () => ({
       body: {
@@ -2349,8 +2400,10 @@ export default function PlanLabPanel({
     smartInvestPatch,
   ]);
 
-  const getScenarioItemChangeBadge = useCallback(
-    (item: ScenarioEditorItem): PlanLabRowBadge | null => {
+  const getScenarioItemChangeStatus = useCallback(
+    (
+      item: ScenarioEditorItem
+    ): "added" | "updated" | "disabled" | "removed" | null => {
       if (scenarioIsV2) {
         const patchSets = {
           event: scenarioV2Patches.events,
@@ -2378,38 +2431,40 @@ export default function PlanLabPanel({
             item.positionKey ??
             "";
           if (patchSet.remove.includes(id)) {
-            return { label: translate("planLabBadgeRemoved", "刪除"), color: "red" };
+            return "removed";
           }
           if (patchSet.add.some((entry) => entry.id === id)) {
-            return { label: translate("planLabBadgeAdded", "新增"), color: "teal" };
+            return "added";
           }
           if (patchSet.update[id]) {
-            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+            return "updated";
           }
         }
       } else {
         if (item.kind === "event") {
           if (item.eventSource === "draft") {
-            return { label: translate("planLabBadgeAdded", "新增"), color: "teal" };
+            return "added";
           }
-          const patch = item.eventDefinitionId ? eventPatches[item.eventDefinitionId] : null;
+          const patch = item.eventDefinitionId
+            ? eventPatches[item.eventDefinitionId]
+            : null;
           if (patch?.isDisabled) {
-            return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+            return "disabled";
           }
-          if (patch?.patch || patch?.endMonth || patch?.isDisabled !== undefined) {
-            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+          if (patch?.patch || patch?.endMonth) {
+            return "updated";
           }
         }
         if (item.kind === "rule") {
           if (item.ruleSource === "draft") {
-            return { label: translate("planLabBadgeAdded", "新增"), color: "teal" };
+            return "added";
           }
           const patch = item.ruleId ? rulePatches[item.ruleId] : null;
           if (patch?.isDisabled) {
-            return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+            return "disabled";
           }
-          if (patch?.patch || patch?.endMonth || patch?.isDisabled !== undefined) {
-            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+          if (patch?.patch || patch?.endMonth) {
+            return "updated";
           }
         }
         if (item.kind === "position") {
@@ -2420,15 +2475,12 @@ export default function PlanLabPanel({
               ? positionPatches[item.positionKey]
               : null;
           if (patch?.isDisabled) {
-            return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+            return "disabled";
           }
-          if (patch?.patch || patch?.isDisabled !== undefined) {
-            return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+          if (patch?.patch) {
+            return "updated";
           }
         }
-      }
-      if (!item.enabled) {
-        return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
       }
       return null;
     },
@@ -2442,8 +2494,27 @@ export default function PlanLabPanel({
       scenarioV2Patches.liabilities,
       scenarioV2Patches.rules,
       smartInvestPatch,
-      translate,
     ]
+  );
+
+  const getScenarioItemChangeBadge = useCallback(
+    (item: ScenarioEditorItem): PlanLabRowBadge | null => {
+      const status = getScenarioItemChangeStatus(item);
+      if (!status) {
+        return null;
+      }
+      if (status === "removed") {
+        return { label: translate("planLabBadgeRemoved", "刪除"), color: "red" };
+      }
+      if (status === "added") {
+        return { label: translate("planLabBadgeAdded", "新增"), color: "teal" };
+      }
+      if (status === "disabled") {
+        return { label: translate("planLabBadgeDisabled", "停用"), color: "red" };
+      }
+      return { label: translate("planLabBadgeUpdated", "修改"), color: "yellow" };
+    },
+    [getScenarioItemChangeStatus, translate]
   );
 
   const getScenarioItemBadges = useCallback(
@@ -2549,43 +2620,8 @@ export default function PlanLabPanel({
       if (activeOnly && !item.enabled) {
         return false;
       }
-      if (showChangedOnly) {
-        if (scenarioIsV2) {
-          if (!item.changed) {
-            return false;
-          }
-        } else {
-          if (item.kind === "event" && item.eventDefinitionId) {
-            if (item.eventSource === "draft") {
-              return true;
-            }
-            const patch = eventPatches[item.eventDefinitionId];
-            if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
-              return false;
-            }
-          }
-          if (item.kind === "rule" && item.ruleId) {
-            if (item.ruleSource === "draft") {
-              return true;
-            }
-            const patch = rulePatches[item.ruleId];
-            if (!patch || (!patch.isDisabled && !patch.endMonth && !patch.patch)) {
-              return false;
-            }
-          }
-          if (item.kind === "position" && item.positionKey) {
-            if (item.positionKind === "smartInvest") {
-              if (!smartInvestPatch || (!smartInvestPatch.isDisabled && !smartInvestPatch.patch)) {
-                return false;
-              }
-            } else {
-              const patch = positionPatches[item.positionKey];
-              if (!patch || (!patch.isDisabled && !patch.patch)) {
-                return false;
-              }
-            }
-          }
-        }
+      if (showChangedOnly && !getScenarioItemChangeStatus(item)) {
+        return false;
       }
       if (showRiskyOnly && !item.risky) {
         return false;
@@ -2597,19 +2633,17 @@ export default function PlanLabPanel({
     });
   }, [
     activeOnly,
-    eventPatches,
     filterKind,
-    positionPatches,
-    rulePatches,
+    getScenarioItemChangeStatus,
     scenarioIsV2,
     scenarioItems,
     searchQuery,
     showChangedOnly,
     showRiskyOnly,
-    smartInvestPatch,
   ]);
 
   const groupedItems = useMemo(() => {
+    const prioritizeChanges = listTab === "all";
     const groups = new Map<string, ScenarioEditorItem[]>();
     filteredItems.forEach((item) => {
       const groupKey = getGroupLabel(groupBy, item);
@@ -2618,8 +2652,30 @@ export default function PlanLabPanel({
       }
       groups.get(groupKey)!.push(item);
     });
-    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredItems, groupBy, combinedMembers, categoryLabels, scenarioIsV2]);
+    return Array.from(groups.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([group, items]) => {
+        const sortedItems = [...items].sort((left, right) => {
+          if (prioritizeChanges) {
+            const leftChanged = Boolean(getScenarioItemChangeStatus(left));
+            const rightChanged = Boolean(getScenarioItemChangeStatus(right));
+            if (leftChanged !== rightChanged) {
+              return leftChanged ? -1 : 1;
+            }
+          }
+          return left.title.localeCompare(right.title);
+        });
+        return [group, sortedItems] as [string, ScenarioEditorItem[]];
+      });
+  }, [
+    filteredItems,
+    getScenarioItemChangeStatus,
+    groupBy,
+    listTab,
+    combinedMembers,
+    categoryLabels,
+    scenarioIsV2,
+  ]);
 
   const optionViewModel = useMemo(
     () =>
@@ -2734,39 +2790,71 @@ export default function PlanLabPanel({
     [t]
   );
 
+  type DeltaDisplay = {
+    display: string;
+    direction: "up" | "down" | "flat";
+  };
+
   const formatDeltaCurrency = useCallback(
-    (baselineValue: number | null, currentValue: number | null) => {
+    (baselineValue: number | null, currentValue: number | null): DeltaDisplay | null => {
       if (baselineValue === null || currentValue === null) {
         return null;
       }
       const delta = currentValue - baselineValue;
       const formatted = formatCurrency(Math.abs(delta), scenario.baseCurrency, locale);
       if (delta === 0) {
-        return `±${formatted}`;
+        return { display: `±${formatted}`, direction: "flat" };
       }
-      return `${delta > 0 ? "+" : "-"}${formatted}`;
+      return {
+        display: `${delta > 0 ? "+" : "-"}${formatted}`,
+        direction: delta > 0 ? "up" : "down",
+      };
     },
     [locale, scenario.baseCurrency]
   );
 
   const formatDeltaMonths = useCallback(
-    (baselineMonth: string | null, currentMonth: string | null) => {
+    (baselineMonth: string | null, currentMonth: string | null): DeltaDisplay | null => {
       const baseMonth = baselineProjection.projection?.baseMonth;
       if (!baseMonth || !baselineMonth || !currentMonth) {
         return null;
       }
       const delta = monthIndex(baseMonth, currentMonth) - monthIndex(baseMonth, baselineMonth);
       if (delta === 0) {
-        return "0";
+        return { display: "0", direction: "flat" };
       }
-      return `${delta > 0 ? "+" : ""}${delta}`;
+      return {
+        display: `${delta > 0 ? "+" : ""}${delta}`,
+        direction: delta > 0 ? "up" : "down",
+      };
     },
     [baselineProjection.projection?.baseMonth]
+  );
+
+  const formatDeltaDisplay = useCallback(
+    (delta: DeltaDisplay | null, unit: string | null) => {
+      if (!delta) {
+        return null;
+      }
+      const arrow =
+        delta.direction === "up" ? "▲" : delta.direction === "down" ? "▼" : "●";
+      return `${arrow} ${delta.display}${unit ? ` ${unit}` : ""}`;
+    },
+    []
   );
 
   const kpiCards = useMemo(() => {
     const notAvailable = translate("planLabKpiNotAvailable", "—");
     const targetNotReached = translate("planLabScorecardTargetNotReached", "未達標");
+    const targetNotSet = translate("planLabScorecardTargetNotSet", "尚未設定目標");
+    const targetNotSetHint = translate(
+      "planLabScorecardTargetNotSetHint",
+      "請先設定目標金額，系統才會計算達標月份。"
+    );
+    const targetNotReachedHint = translate(
+      "planLabScorecardTargetNotReachedHint",
+      "目前未達標，建議調整目標或改善現金流。"
+    );
     const negativeNotReached = translate("planLabKpiNegativeEmpty", "未轉負");
 
     const minCashBaseline = baselineKpis?.minCash?.value ?? null;
@@ -2812,18 +2900,23 @@ export default function PlanLabPanel({
         ? formatCurrency(endNetWorthCurrent, scenario.baseCurrency, locale)
         : notAvailable;
 
-    const targetBaselineLabel = formatMonthLabel(
-      baselineKpis?.targetMonth ?? null,
-      targetNotReached
-    );
-    const targetCurrentLabel = formatMonthLabel(
-      optionKpis?.targetMonth ?? null,
-      targetNotReached
-    );
-    const targetDelta = formatDeltaMonths(
-      baselineKpis?.targetMonth ?? null,
-      optionKpis?.targetMonth ?? null
-    );
+    const targetConfigured = typeof firstBucketTargetValue === "number";
+    const targetBaselineMonth = baselineKpis?.targetMonth ?? null;
+    const targetCurrentMonth = optionKpis?.targetMonth ?? null;
+    const targetBaselineLabel = targetConfigured
+      ? formatMonthLabel(targetBaselineMonth, targetNotReached)
+      : notAvailable;
+    const targetCurrentLabel = targetConfigured
+      ? formatMonthLabel(targetCurrentMonth, targetNotReached)
+      : targetNotSet;
+    const targetDelta = targetConfigured
+      ? formatDeltaMonths(targetBaselineMonth, targetCurrentMonth)
+      : null;
+    const targetHelper = !targetConfigured
+      ? targetNotSetHint
+      : targetCurrentMonth
+      ? undefined
+      : targetNotReachedHint;
 
     return [
       {
@@ -2857,6 +2950,7 @@ export default function PlanLabPanel({
         current: targetCurrentLabel,
         delta: targetDelta,
         deltaUnit: translate("planLabKpiMonthsUnit", "個月"),
+        helper: targetHelper,
       },
     ];
   }, [
@@ -2864,6 +2958,7 @@ export default function PlanLabPanel({
     formatDeltaCurrency,
     formatDeltaMonths,
     formatMonthLabel,
+    firstBucketTargetValue,
     locale,
     optionKpis,
     scenario.baseCurrency,
@@ -2982,6 +3077,7 @@ export default function PlanLabPanel({
       onToggle?: () => void;
       onRemove: () => void;
       onEdit?: () => void;
+      onLocate?: () => void;
     }> = [];
 
     if (scenarioIsV2) {
@@ -2992,6 +3088,7 @@ export default function PlanLabPanel({
           diffLines: [translate("planLabAppliedAddedEvent", "新增事件")],
           isEnabled: true,
           onRemove: () => removeScenarioV2Event(event.id),
+          onLocate: () => handleLocateItem(`event:${event.id}`),
           onEdit: () => handleEditV2Event(event.id),
         });
       });
@@ -3003,6 +3100,7 @@ export default function PlanLabPanel({
           diffLines: [translate("planLabAppliedUpdated", "已更新")],
           isEnabled: true,
           onRemove: () => removeScenarioV2Event(eventId),
+          onLocate: () => handleLocateItem(`event:${eventId}`),
           onEdit: () => handleEditV2Event(eventId),
         });
       });
@@ -3016,6 +3114,7 @@ export default function PlanLabPanel({
         diffLines: [translate("planLabAppliedAddedMember", "新增成員")],
         isEnabled: true,
         onRemove: () => removeDraftMember(member.id),
+        onLocate: () => openEditMemberDrawer(member),
         onEdit: () => openEditMemberDrawer(member),
       });
     });
@@ -3034,6 +3133,7 @@ export default function PlanLabPanel({
             )
           ),
         onRemove: () => removeDraftBudgetRule(rule.id),
+        onLocate: () => handleLocateItem(`rule:${rule.id}`),
         onEdit: () => {
           const item = scenarioItems.find((entry) => entry.ruleId === rule.id);
           if (item) {
@@ -3072,6 +3172,7 @@ export default function PlanLabPanel({
           setDraftEvents((current) =>
             current.filter((entry) => entry.definition.id !== event.definition.id)
           ),
+        onLocate: () => handleLocateItem(`event:${event.definition.id}`),
         onEdit: () => openEditEventDrawer(event),
       });
     });
@@ -3149,6 +3250,7 @@ export default function PlanLabPanel({
         isEnabled: nextEnabled,
         onToggle: () => updateEventPatch(refId, { isDisabled: !nextEnabled }),
         onRemove: () => removePatch("event", refId),
+        onLocate: () => handleLocateItem(`event:${refId}`),
         onEdit: item ? () => openEditingItem(item) : undefined,
       });
     });
@@ -3214,6 +3316,7 @@ export default function PlanLabPanel({
         isEnabled: nextEnabled,
         onToggle: () => updateRulePatch(ruleId, { isDisabled: !nextEnabled }),
         onRemove: () => removePatch("rule", ruleId),
+        onLocate: () => handleLocateItem(`rule:${ruleId}`),
         onEdit: item ? () => openEditingItem(item) : undefined,
       });
     });
@@ -3267,6 +3370,7 @@ export default function PlanLabPanel({
         isEnabled: !patch.isDisabled,
         onToggle: () => updatePositionPatch(key, { isDisabled: !patch.isDisabled }),
         onRemove: () => removePatch("position", key),
+        onLocate: () => handleLocateItem(`position:${key}`),
         onEdit: item ? () => openEditingItem(item) : undefined,
       });
     });
@@ -3345,6 +3449,7 @@ export default function PlanLabPanel({
         onToggle: () =>
           updateSmartInvestPatch({ isDisabled: patchedPolicy.enabled }),
         onRemove: () => removePatch("position", "smartInvest"),
+        onLocate: () => handleLocateItem("position:smartInvest"),
         onEdit: () => {
           const item = scenarioItems.find(
             (entry) => entry.positionKind === "smartInvest"
@@ -3501,6 +3606,7 @@ export default function PlanLabPanel({
             isEnabled: experiment.isEnabled === false,
           }),
         onRemove: () => removeExperiment(experiment.id),
+        onLocate: () => handleLocateItem(`experiment-${experiment.id}`),
         onEdit: () => openEditExperimentDrawer(experiment),
       });
     });
@@ -3518,6 +3624,7 @@ export default function PlanLabPanel({
     formatSmartInvestContributionLabel,
     formatSmartInvestReserveLabel,
     getScenarioItemSummary,
+    handleLocateItem,
     locale,
     openEditExperimentDrawer,
     openEditEventDrawer,
@@ -4088,9 +4195,17 @@ export default function PlanLabPanel({
               })}
             </Button>
             {mode === "edit" && (
-              <Button size="sm" variant="light" onClick={handleSave}>
-                {t("planLabSave")}
-              </Button>
+              <MantineTooltip
+                label={translate(
+                  "planLabSaveScenarioTooltip",
+                  "將目前沙盒變更套用至情境"
+                )}
+                withArrow
+              >
+                <Button size="sm" variant="light" onClick={handleSave}>
+                  {translate("planLabSaveScenario", "保存到情境")}
+                </Button>
+              </MantineTooltip>
             )}
           </Group>
         </Group>
@@ -4306,10 +4421,12 @@ export default function PlanLabPanel({
                                 <PlanLabAccordionRow
                                   key={item.id}
                                   id={item.id}
+                                  ref={(node) => registerItemRef(item.id, node)}
                                   title={item.title}
                                   badges={getScenarioItemBadges(item)}
                                   summary={getScenarioItemSummary(item)}
                                   enabled={item.enabled}
+                                  highlighted={highlightedItemId === item.id}
                                   onToggle={
                                     scenarioIsV2
                                       ? undefined
@@ -4505,10 +4622,16 @@ export default function PlanLabPanel({
                               <PlanLabAccordionRow
                                 key={experiment.id}
                                 id={`experiment-${experiment.id}`}
+                                ref={(node) =>
+                                  registerItemRef(`experiment-${experiment.id}`, node)
+                                }
                                 title={label}
                                 badges={badges}
                                 summary={getExperimentSummary(experiment)}
                                 enabled={experiment.isEnabled !== false}
+                                highlighted={
+                                  highlightedItemId === `experiment-${experiment.id}`
+                                }
                                 onToggle={() =>
                                   updateExperiment(experiment.id, {
                                     isEnabled: experiment.isEnabled === false,
@@ -4551,7 +4674,8 @@ export default function PlanLabPanel({
                         withArrow
                       >
                         <Text size="sm" fw={600}>
-                          {translate("planLabAppliedSummary", "已套用改動")}
+                          {translate("planLabAppliedSummary", "已套用改動")} (
+                          {appliedControls.length})
                         </Text>
                       </MantineTooltip>
                       <Group gap="xs" wrap="wrap">
@@ -4609,13 +4733,22 @@ export default function PlanLabPanel({
                                         {translate("planLabAppliedEdit", "編輯")}
                                       </Button>
                                     )}
-                                    <ActionIcon
-                                      size="sm"
+                                    <Button
+                                      size="xs"
                                       variant="subtle"
+                                      onClick={() => control.onLocate?.()}
+                                      disabled={!control.onLocate}
+                                    >
+                                      {translate("planLabAppliedLocate", "定位")}
+                                    </Button>
+                                    <Button
+                                      size="xs"
+                                      variant="light"
+                                      color="red"
                                       onClick={() => control.onRemove()}
                                     >
-                                      <Text size="xs">×</Text>
-                                    </ActionIcon>
+                                      {translate("planLabAppliedRevert", "復原")}
+                                    </Button>
                                   </Group>
                                 </Group>
                               </Paper>
@@ -4724,27 +4857,53 @@ export default function PlanLabPanel({
                     </Text>
                   ) : (
                     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                      {kpiCards.map((card) => (
-                        <Card key={card.key} withBorder radius="md" padding="sm">
-                          <Stack gap={4}>
-                            <Group justify="space-between" align="center" wrap="nowrap">
+                      {kpiCards.map((card) => {
+                        const deltaDisplay = formatDeltaDisplay(
+                          card.delta ?? null,
+                          card.deltaUnit
+                        );
+                        const deltaColor =
+                          card.delta?.direction === "up"
+                            ? "teal"
+                            : card.delta?.direction === "down"
+                            ? "red"
+                            : "gray";
+                        return (
+                          <Card key={card.key} withBorder radius="md" padding="sm">
+                            <Stack gap={6}>
                               <Text size="sm" fw={600}>
                                 {card.label}
                               </Text>
-                              {card.delta && (
-                                <Badge variant="light" color="gray">
-                                  Δ {card.delta}
-                                  {card.deltaUnit ? ` ${card.deltaUnit}` : ""}
-                                </Badge>
+                              <Stack gap={2}>
+                                <Text size="xs" c="dimmed">
+                                  {translate("planLabKpiCurrentLabel", "當前")}
+                                </Text>
+                                <Text fw={700}>{card.current}</Text>
+                              </Stack>
+                              <Group justify="space-between" align="center" wrap="wrap">
+                                <Text size="xs" c="dimmed">
+                                  {translate("planLabKpiBaselineLabel", "基準")}：
+                                  {card.baseline}
+                                </Text>
+                                {deltaDisplay ? (
+                                  <Badge variant="light" color={deltaColor}>
+                                    Δ {deltaDisplay}
+                                  </Badge>
+                                ) : (
+                                  <Text size="xs" c="dimmed">
+                                    Δ —
+                                  </Text>
+                                )}
+                              </Group>
+                              {card.helper && (
+                                <Text size="xs" c="dimmed">
+                                  {card.helper}
+                                </Text>
                               )}
-                            </Group>
-                            <Text fw={600}>{card.current}</Text>
-                            <Text size="xs" c="dimmed">
-                              {translate("planLabKpiBaselineLabel", "基準")}：{card.baseline}
-                            </Text>
-                          </Stack>
-                        </Card>
-                      ))}
+                            </Stack>
+                          </Card>
+                        );
+                      })}
                     </SimpleGrid>
                   )}
                 </Stack>
