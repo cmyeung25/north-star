@@ -25,7 +25,7 @@ body {
 
 body {
   margin: 0;
-  background: var(--mantine-color-polar-0);
-  color: var(--mantine-color-neutral-9);
+  background: #F8FAFC;
+  color: #0F172A;
   line-height: 1.5;
 }

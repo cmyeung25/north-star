@@ -85,7 +85,7 @@ export default function Providers({ children }: { children: ReactNode }) {
     : t("statusLocalMode");
   const actionLabel = isSignedIn ? t("syncSettings") : t("signInToSync");
   const shellBg = "var(--mantine-color-polar-9)";
-  const shellActive = "rgba(238, 244, 255, 0.16)";
+  const shellActive = "rgba(221, 231, 255, 0.18)";
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -198,7 +198,7 @@ export default function Providers({ children }: { children: ReactNode }) {
           style={{
             background: shellBg,
             color: "var(--mantine-color-gray-0)",
-            borderColor: "rgba(238, 244, 255, 0.12)",
+            borderColor: "var(--mantine-color-polar-8)",
           }}
         >
           {isDesktop ? (
@@ -220,7 +220,7 @@ export default function Providers({ children }: { children: ReactNode }) {
                   <Text size="xs" c="gray.2">
                     {isSignedIn ? t("statusSignedIn", { mode: autoSyncEnabled ? t("statusOn") : t("statusOff") }) : t("statusLocalMode")}
                   </Text>
-                  <Badge size="sm" color={isSignedIn ? "aurora" : "ice"} variant="filled">
+                  <Badge size="sm" color="ice" variant="light">
                     {isSignedIn ? (autoSyncEnabled ? t("statusOn") : t("statusOff")) : t("statusOff")}
                   </Badge>
                 </Group>
@@ -263,10 +263,10 @@ export default function Providers({ children }: { children: ReactNode }) {
                       {nav("planLab")}
                     </Button>
                     <Group gap={6} align="center">
-                      <Text size="xs" c="dimmed">
+                      <Text size="xs" c="gray.3">
                         {statusLabel}
                       </Text>
-                      <Badge size="sm" color={isSignedIn ? "aurora" : "ice"} variant="filled">
+                      <Badge size="sm" color="ice" variant="light">
                         {isSignedIn ? (autoSyncEnabled ? t("statusOn") : t("statusOff")) : t("statusOff")}
                       </Badge>
                     </Group>
@@ -296,7 +296,7 @@ export default function Providers({ children }: { children: ReactNode }) {
             style={{
               background: shellBg,
               color: "var(--mantine-color-gray-0)",
-              borderColor: "rgba(238, 244, 255, 0.12)",
+              borderColor: "var(--mantine-color-polar-8)",
             }}
           >
             <Stack gap="xs">
@@ -311,12 +311,12 @@ export default function Providers({ children }: { children: ReactNode }) {
                     root: {
                       color: "var(--mantine-color-gray-0)",
                       borderLeft: normalizedPathname === item.href
-                        ? "3px solid var(--mantine-color-aurora-5)"
+                        ? "3px solid var(--mantine-color-aurora-6)"
                         : "3px solid transparent",
-                      borderRadius: "8px",
+                      borderRadius: "var(--mantine-radius-md)",
                       backgroundColor: normalizedPathname === item.href ? shellActive : "transparent",
                       "&:hover": {
-                        backgroundColor: "rgba(238, 244, 255, 0.1)",
+                        backgroundColor: "var(--mantine-color-polar-8)",
                       },
                     },
                   }}
@@ -327,14 +327,18 @@ export default function Providers({ children }: { children: ReactNode }) {
         )}
 
         {!isDesktop && !isOnboarding &&  (
-          <AppShell.Footer p="xs" ref={footerRef}>
+          <AppShell.Footer p="xs" ref={footerRef} style={{ borderTop: "1px solid var(--mantine-color-polar-8)", background: "var(--mantine-color-polar-9)" }}>
             <Group grow>
               {navItems.map((item) => (
                 <Button
                   key={item.href}
                   component={Link}
                   href={item.href}
-                  variant={normalizedPathname === item.href ? "light" : "subtle"}
+                  variant="subtle"
+                  c="gray.1"
+                  style={normalizedPathname === item.href
+                    ? { borderTop: "2px solid var(--mantine-color-aurora-6)", background: "rgba(221, 231, 255, 0.18)" }
+                    : { borderTop: "2px solid transparent" }}
                 >
                   {item.label}
                 </Button>

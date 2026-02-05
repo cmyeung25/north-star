@@ -1,42 +1,53 @@
-import { Button, Card, Drawer, Modal, Table, createTheme, rem } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Card,
+  Drawer,
+  Modal,
+  Paper,
+  SegmentedControl,
+  Table,
+  createTheme,
+  rem,
+} from "@mantine/core";
 
 const aurora = [
-  "#E8FFF8",
-  "#CFFFEF",
-  "#A7FCE0",
-  "#7AF6D0",
-  "#4BECC0",
-  "#2FE1B1",
+  "#F4FFFB",
+  "#E9FFF7",
+  "#D6FFF0",
+  "#B6F7E4",
+  "#86EAD2",
+  "#4FDCC0",
   "#23D5AB",
-  "#17B894",
-  "#0E8F72",
+  "#13B892",
+  "#0D8E71",
   "#06624D",
  ] as const;
 
 const polar = [
-  "#EEF4FF",
-  "#D9E5FF",
-  "#B5CBFF",
-  "#8AAEFF",
-  "#5F90FF",
-  "#3D74FF",
-  "#245AE6",
-  "#1744B3",
-  "#102F80",
+  "#F2F6FF",
+  "#DDE7FF",
+  "#B8CBFF",
+  "#8EABFF",
+  "#6B8FFF",
+  "#4A74FF",
+  "#2F5EEB",
+  "#2148B8",
+  "#17348A",
   "#0B1B3A",
  ] as const;
 
 const ice = [
-  "#EAF8FF",
-  "#D5F1FF",
-  "#A9E3FF",
-  "#7DD5FF",
-  "#53C8FF",
-  "#2DBBFF",
-  "#5BC0EB",
-  "#2C9BC3",
-  "#1B6F8B",
-  "#0E4254",
+  "#F2FBFF",
+  "#E3F6FF",
+  "#C7EDFF",
+  "#A3E0FF",
+  "#79D1FF",
+  "#4FC0F2",
+  "#33AEE0",
+  "#248BB4",
+  "#1A6786",
+  "#0F3D52",
  ] as const;
 
 const neutral = [
@@ -54,6 +65,7 @@ const neutral = [
 
 export const aurinTheme = createTheme({
   primaryColor: "aurora",
+  primaryShade: 6,
   colors: {
     aurora,
     polar,
@@ -131,6 +143,7 @@ export const aurinTheme = createTheme({
       styles: (theme, props) => ({
         root: {
           fontWeight: 600,
+          paddingInline: rem(14),
           ...(props.variant === "filled"
             ? {
                 color: "#052E16",
@@ -150,6 +163,34 @@ export const aurinTheme = createTheme({
         },
       }),
     }),
+    Badge: Badge.extend({
+      defaultProps: {
+        radius: "xl",
+      },
+      styles: (theme, props) => ({
+        root: {
+          ...(props.variant === "light" && props.color === "aurora"
+            ? {
+                backgroundColor: theme.colors.aurora[1],
+                color: theme.colors.aurora[8],
+              }
+            : {}),
+        },
+      }),
+    }),
+    Paper: Paper.extend({
+      defaultProps: {
+        withBorder: true,
+        radius: "md",
+        shadow: "xs",
+      },
+      styles: () => ({
+        root: {
+          borderColor: "#E2E8F0",
+          backgroundColor: "#FFFFFF",
+        },
+      }),
+    }),
     Card: Card.extend({
       defaultProps: {
         radius: "md",
@@ -161,6 +202,24 @@ export const aurinTheme = createTheme({
         root: {
           borderColor: "#E2E8F0",
           backgroundColor: "#FFFFFF",
+        },
+      }),
+    }),
+    SegmentedControl: SegmentedControl.extend({
+      defaultProps: {
+        radius: "md",
+        size: "sm",
+      },
+      styles: (theme) => ({
+        root: {
+          backgroundColor: theme.colors.neutral[1],
+        },
+        indicator: {
+          boxShadow: "none",
+          border: `1px solid ${theme.colors.neutral[2]}`,
+        },
+        label: {
+          fontWeight: 600,
         },
       }),
     }),
