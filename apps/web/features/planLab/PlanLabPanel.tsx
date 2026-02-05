@@ -718,6 +718,7 @@ export default function PlanLabPanel({
   initialMode,
 }: PlanLabPanelProps) {
   const t = useTranslations("overview");
+  const moneyT = useTranslations("money");
   const warningsT = useTranslations();
   const timeline = useTranslations("timeline");
   const locale = useLocale();
@@ -1587,7 +1588,7 @@ export default function PlanLabPanel({
       setBundleWizardOpen(true);
       return;
     }
-    const label = t(`templates.${template.id}.name`);
+    const label = moneyT(`templates.${template.id}.name`);
     const draftOverrides = buildTemplateDrawerDraftOverrides(template.id, {
       baseMonth: scenario.assumptions.baseMonth,
       label,
@@ -3467,13 +3468,13 @@ export default function PlanLabPanel({
     const minCashA = optionKpis?.minCash?.value ?? null;
     const minCashB = baselineKpis?.minCash?.value ?? null;
     const minCashAValue = optionKpis?.minCash
-      ? `${formatCurrency(minCashA ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
+      ? `${formatCurrency(minCashA ?? 0, scenario.baseCurrency, locale)}\n${formatMonthLabel(
           optionKpis.minCash.month,
           notAvailable
         )}`
       : notAvailable;
     const minCashBValue = baselineKpis?.minCash
-      ? `${formatCurrency(minCashB ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
+      ? `${formatCurrency(minCashB ?? 0, scenario.baseCurrency, locale)}\n${formatMonthLabel(
           baselineKpis.minCash.month,
           notAvailable
         )}`
@@ -4824,7 +4825,7 @@ export default function PlanLabPanel({
 
       {(
         <Grid gutter="lg">
-        <Grid.Col span={{ base: 12, md: 7 }}>
+        <Grid.Col span={{ base: 12, md: 6 }}>
           <Stack gap="xs">
             <Paper withBorder radius="lg" p="md">
               <Stack gap="xs">
@@ -5527,7 +5528,7 @@ export default function PlanLabPanel({
           </Stack>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 5 }}>
+        <Grid.Col span={{ base: 12, md: 6 }}>
           <div style={{ position: "sticky", top: 88 }}>
             <Stack gap="lg">
               <Card withBorder radius="md" padding="md">
@@ -5570,7 +5571,7 @@ export default function PlanLabPanel({
                       {t("planLabScorecardDisabled")}
                     </Text>
                   ) : (
-                    <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                    <SimpleGrid cols={{ base: 1, md: 1 }} spacing="sm">
                       {kpiCards.map((card) => {
                         const deltaColor =
                           card.delta?.direction === "up"
@@ -5605,9 +5606,9 @@ export default function PlanLabPanel({
                                     fw={700}
                                     style={{
                                       fontVariantNumeric: "tabular-nums",
-                                      whiteSpace: "nowrap",
+                                      whiteSpace: "pre-line",
                                       overflow: "hidden",
-                                      textOverflow: "ellipsis",
+                                      // textOverflow: "ellipsis",
                                     }}
                                   >
                                     {card.valueA}
@@ -5622,9 +5623,9 @@ export default function PlanLabPanel({
                                     ta="right"
                                     style={{
                                       fontVariantNumeric: "tabular-nums",
-                                      whiteSpace: "nowrap",
+                                      whiteSpace: "pre-line",
                                       overflow: "hidden",
-                                      textOverflow: "ellipsis",
+                                      // textOverflow: "ellipsis",
                                     }}
                                   >
                                     {card.valueB}
