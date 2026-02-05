@@ -10,7 +10,6 @@ import {
   Menu,
   Stack,
   Text,
-  createTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { usePathname, useRouter } from "next/navigation";
@@ -35,17 +34,8 @@ import {
   desktopToolbarHeight,
 } from "../components/DesktopBottomToolbar";
 import { Link } from "../src/i18n/navigation";
+import { aurinTheme } from "./theme/aurinTheme";
 
-const theme = createTheme({
-  primaryColor: "indigo",
-  fontFamily: "Inter, system-ui, -apple-system, sans-serif",
-  radius: {
-    sm: "8px",
-    md: "12px",
-    lg: "16px",
-  },
-  defaultRadius: "md",
-});
 
 const stripLocalePrefix = (pathname: string, locale: string) => {
   if (!pathname.startsWith(`/${locale}`)) {
@@ -193,7 +183,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   }, [authState.status, authState.user, autoSyncEnabled]);
 
   return (
-    <MantineProvider theme={theme}>
+    <MantineProvider theme={aurinTheme}>
       <AppShell
         header={{ height: 64 }}
         navbar={isDesktop ? { width: 220, breakpoint: 0 } : undefined}
