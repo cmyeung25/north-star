@@ -757,12 +757,20 @@ export default function PlanLabPanel({
 
   const translate = useCallback(
     (
-    key: string,
-    fallback: string,
-    values?: Record<string, string | number>
-    ) => (t.has(key) ? t(key, values) : fallback),
+      key: string,
+      fallback: string,
+      values?: Record<string, string | number>
+    ) => {
+      if (t.has(key)) return t(key, values);
+      if (!values) return fallback;
+      return fallback.replace(/\{(\w+)\}/g, (_, name) => {
+        const v = values[name as string];
+        return v === undefined || v === null ? `{${name}}` : String(v);
+      });
+    },
     [t]
   );
+
 
   const smartInvestLabel = translate(
     "planLabSmartInvestLabel",
@@ -1731,7 +1739,7 @@ export default function PlanLabPanel({
           "已新增「{title}」（{count}項）",
           {
             title: experimentTitle,
-            count: String(newItemIds.length),
+            count: newItemIds.length,
           }
         )
       );
@@ -5273,7 +5281,7 @@ export default function PlanLabPanel({
                               "已新增「{title}」（{count}項）" ,
                               {
                                 title: bundleExperimentCta.title,
-                                count: String(bundleExperimentCta.itemCount),
+                                count: bundleExperimentCta.itemCount,
                               }
                             )}
                           </Text>
@@ -5372,7 +5380,7 @@ export default function PlanLabPanel({
                                   summary={translate(
                                     "planLabExperimentGroupCount",
                                     "{count}項",
-                                    { count: String(group.itemIds.length) }
+                                    { count: group.itemIds.length }
                                   )}
                                   enabled={group.isEnabled}
                                   onToggle={() => toggleExperimentGroup(group.experimentId)}
@@ -5385,7 +5393,7 @@ export default function PlanLabPanel({
                                     <Stack gap={6}>
                                       <Text size="xs" c="dimmed">
                                         {translate("planLabExperimentGroupCount", "{count}項", {
-                                          count: String(group.itemIds.length),
+                                          count: group.itemIds.length,
                                         })}
                                       </Text>
                                       <Text size="xs" fw={500}>
