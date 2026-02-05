@@ -88,7 +88,9 @@ import type {
   InsuranceEvent,
   LoanEvent,
   ScenarioEvent,
+  ScenarioEventDraft as ScenarioV2EventDraft,
 } from "../../src/domain/scenarioV2/events";
+import { ScenarioEventSchema } from "../../src/domain/scenarioV2/events";
 import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
@@ -108,6 +110,7 @@ import {
 import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
 import TemplatePickerDrawer from "../../components/eventTemplates/TemplatePickerDrawer";
 import type { TemplateCategory, TemplateDef } from "../../src/domain/eventTemplates/types";
+import BundleWizardDrawer from "../../components/eventTemplates/bundles/BundleWizardDrawer";
 import { buildTemplateDrawerDraftOverrides } from "../../src/domain/eventTemplates/presets";
 import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import TimelineEventForm, { type TimelineEventFormResult } from "../../components/timeline/TimelineEventForm";
@@ -817,6 +820,8 @@ export default function PlanLabPanel({
   const [templatePickerItemCategory, setTemplatePickerItemCategory] =
     useState<CreationItemCategory | null>(null);
   const [templatePlanUnsupportedNotice, setTemplatePlanUnsupportedNotice] = useState<string | null>(null);
+  const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
+  const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
     useState<Partial<CashflowEventDraft> | null>(null);
   const [templateHousingDraft, setTemplateHousingDraft] =
@@ -1534,9 +1539,9 @@ export default function PlanLabPanel({
 
   const handleTemplateSelect = (template: TemplateDef) => {
     if (template.isBundle) {
-      setTemplatePlanUnsupportedNotice(
-        translate("planLabTemplatePlanComingSoon", "此模板暫未支援 Plan Lab（Coming soon）")
-      );
+      setTemplatePlanUnsupportedNotice(null);
+      setBundleTemplate(template);
+      setBundleWizardOpen(true);
       return;
     }
     const label = t(`templates.${template.id}.name`);
@@ -1573,6 +1578,50 @@ export default function PlanLabPanel({
       return;
     }
   };
+
+  const handleApplyBundleEvents = useCallback(
+    (events: ScenarioV2EventDraft[]) => {
+      if (!scenarioIsV2 || events.length === 0) {
+        return { ok: false, error: translate("bundleApplyFailed", "Failed to create plan bundle.") };
+      }
+      const parsedEvents = events
+        .map((event) => {
+          const candidate = {
+            ...event,
+            id: event.id ?? `evt_v2_bundle_${nanoid(8)}`,
+          };
+          const parsed = ScenarioEventSchema.safeParse(candidate);
+          if (!parsed.success) {
+            return null;
+          }
+          return parsed.data;
+        })
+        .filter((event): event is ScenarioEvent => Boolean(event));
+      if (parsedEvents.length !== events.length) {
+        return { ok: false, error: translate("bundleApplyFailed", "Failed to create plan bundle.") };
+      }
+
+      setScenarioV2Patches((current) => ({
+        ...current,
+        events: {
+          add: [...current.events.add, ...parsedEvents],
+          update: current.events.update,
+          remove: current.events.remove.filter(
+            (id) => !parsedEvents.some((event) => event.id === id)
+          ),
+        },
+      }));
+
+      const firstEventId = parsedEvents[0]?.id;
+      setBundleWizardOpen(false);
+      setBundleTemplate(null);
+      if (firstEventId) {
+        handleLocateItem(`event:${firstEventId}`);
+      }
+      return { ok: true };
+    },
+    [handleLocateItem, scenarioIsV2, translate]
+  );
 
   const isChildDraft = useMemo(() => {
     if (!memberDraft || memberDraft.kind !== "person") {
@@ -5572,6 +5621,21 @@ export default function PlanLabPanel({
           </Stack>
         )}
       </Drawer>
+
+      <BundleWizardDrawer
+        opened={bundleWizardOpen}
+        template={bundleTemplate}
+        scenarioId={scenario.id}
+        baseMonth={scenario.assumptions.baseMonth}
+        baseCurrency={scenario.baseCurrency}
+        scenarioEvents={sandboxScenarioV2.events ?? []}
+        onClose={() => {
+          setBundleWizardOpen(false);
+          setBundleTemplate(null);
+        }}
+        onApplyEvents={handleApplyBundleEvents}
+        allowInlineEdit={false}
+      />
 
       <TemplatePickerDrawer
         opened={templatePickerOpen}
