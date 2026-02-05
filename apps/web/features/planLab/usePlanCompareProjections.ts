@@ -25,9 +25,10 @@ type UsePlanCompareProjectionsParams = {
 const buildCacheKey = (
   scenarioId: string | null,
   scenarioVersion: number | undefined,
-  planId: string | null
+  projectionRangeSignature: string,
+  plan: Plan | null
 ) =>
-  `${scenarioId ?? "none"}:${scenarioVersion ?? 0}:${planId ?? "none"}`;
+  `${scenarioId ?? "none"}:${scenarioVersion ?? 0}:${projectionRangeSignature}:${plan?.id ?? "none"}:${plan?.updatedAt ?? plan?.createdAt ?? 0}`;
 
 export const usePlanCompareProjections = ({
   scenario,
@@ -50,14 +51,15 @@ export const usePlanCompareProjections = ({
 
   const scenarioId = scenario?.id ?? null;
   const scenarioVersion = scenario?.version;
+  const projectionRangeSignature = `${scenario?.assumptions.baseMonth ?? "none"}:${scenario?.assumptions.horizonMonths ?? 0}`;
 
   const planAKey = useMemo(
-    () => buildCacheKey(scenarioId, scenarioVersion, planA?.id ?? null),
-    [scenarioId, scenarioVersion, planA?.id]
+    () => buildCacheKey(scenarioId, scenarioVersion, projectionRangeSignature, planA),
+    [planA, projectionRangeSignature, scenarioId, scenarioVersion]
   );
   const planBKey = useMemo(
-    () => buildCacheKey(scenarioId, scenarioVersion, planB?.id ?? null),
-    [scenarioId, scenarioVersion, planB?.id]
+    () => buildCacheKey(scenarioId, scenarioVersion, projectionRangeSignature, planB),
+    [planB, projectionRangeSignature, scenarioId, scenarioVersion]
   );
 
   useEffect(() => {

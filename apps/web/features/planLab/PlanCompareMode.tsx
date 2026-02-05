@@ -46,7 +46,7 @@ type PlanCompareModeProps = {
   onPlanBChange: (id: string | null) => void;
   onSwapPlans: () => void;
   onLoadPlan: (plan: Plan) => void;
-  baselineFingerprint: string;
+  baselineSignature: string;
   displayMode: "nominal" | "real";
   deflateSeries: (series: Array<{ month: string; value: number }>) => Array<{
     month: string;
@@ -123,7 +123,7 @@ export const PlanCompareMode = ({
   onPlanBChange,
   onSwapPlans,
   onLoadPlan,
-  baselineFingerprint,
+  baselineSignature,
   displayMode,
   deflateSeries,
   locale,
@@ -135,15 +135,15 @@ export const PlanCompareMode = ({
   const baselineOption: Plan = useMemo(
     () => ({
       id: "baseline",
-      scenarioId: scenario.id,
+      baselineScenarioId: scenario.id,
       name: translate("planLabCompareBaselineLabel", "Baseline"),
       createdAt: 0,
       updatedAt: 0,
-      baselineFingerprint,
+      baselineSignature,
       payload: emptySnapshotPayload(),
       snapshot: {},
     }),
-    [baselineFingerprint, scenario.id, translate]
+    [baselineSignature, scenario.id, translate]
   );
 
   const resolvePlan = (id: string | null) => {
@@ -201,10 +201,10 @@ export const PlanCompareMode = ({
   }, [planA, planB, translate]);
 
   const baselineMismatch =
-    (planA?.baselineFingerprint &&
-      planA.baselineFingerprint !== baselineFingerprint) ||
-    (planB?.baselineFingerprint &&
-      planB.baselineFingerprint !== baselineFingerprint);
+    (planA?.baselineSignature &&
+      planA.baselineSignature !== baselineSignature) ||
+    (planB?.baselineSignature &&
+      planB.baselineSignature !== baselineSignature);
 
   const isLoading = planAState.status === "loading" || planBState.status === "loading";
   const planADoubleWarnings = useMemo(

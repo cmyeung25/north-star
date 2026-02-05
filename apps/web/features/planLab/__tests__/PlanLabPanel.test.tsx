@@ -97,7 +97,7 @@ describe("PlanLabPanel", () => {
     expect(() => renderPlanLab()).not.toThrow();
   });
 
-  it("PlanLab compare mode renders without infinite loop", () => {
+  it("PlanLab compare with snapshot renders without infinite loop", () => {
     const html = renderPlanLab("compare");
 
     expect(html).toContain("Impact KPIs");

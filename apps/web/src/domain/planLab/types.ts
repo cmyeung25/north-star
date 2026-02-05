@@ -194,15 +194,19 @@ export type PlanPatch = {
 
 export type PlanSnapshot = {
   id: string;
-  scenarioId: string;
+  baselineScenarioId: string;
   name: string;
   notes?: string;
   tags?: string[];
   createdAt: number;
-  updatedAt: number;
-  baselineFingerprint: string;
+  updatedAt?: number;
+  baselineSignature?: string;
   payload: PlanLabSnapshotPayload;
   snapshot: PlanLabSnapshot;
+  /** @deprecated legacy field kept for backward compatibility. */
+  scenarioId?: string;
+  /** @deprecated legacy field kept for backward compatibility. */
+  baselineFingerprint?: string;
 };
 
 export type Plan = PlanSnapshot;
