@@ -5526,20 +5526,41 @@ export default function PlanLabPanel({
                               <Text size="sm" fw={600}>
                                 {card.label}
                               </Text>
-                              <Group grow align="flex-start" wrap="nowrap">
-                                <Stack gap={2}>
+                              <SimpleGrid cols={2} spacing="lg">
+                                <Stack gap={2} style={{ minWidth: 0 }} data-testid="kpi-current">
                                   <Text size="xs" c="dimmed">
                                     {labelA}
                                   </Text>
-                                  <Text fw={700}>{card.valueA}</Text>
+                                  <Text
+                                    fw={700}
+                                    style={{
+                                      fontVariantNumeric: "tabular-nums",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                    }}
+                                  >
+                                    {card.valueA}
+                                  </Text>
                                 </Stack>
-                                <Stack gap={2}>
+                                <Stack gap={2} style={{ minWidth: 0 }} data-testid="kpi-baseline">
                                   <Text size="xs" c="dimmed">
                                     {labelB}
                                   </Text>
-                                  <Text fw={700}>{card.valueB}</Text>
+                                  <Text
+                                    fw={700}
+                                    ta="right"
+                                    style={{
+                                      fontVariantNumeric: "tabular-nums",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                    }}
+                                  >
+                                    {card.valueB}
+                                  </Text>
                                 </Stack>
-                              </Group>
+                              </SimpleGrid>
                               <Group justify="space-between" align="center" wrap="wrap">
                                 <Text size="xs" c="dimmed">
                                   {mode === "compare" ? "Δ (A-B)" : "Δ"}
