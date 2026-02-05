@@ -92,10 +92,7 @@ import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
-import {
-  computeProjectionWithSmartInvest,
-  useProjectionWithLedger,
-} from "../../src/engine/useProjectionWithLedger";
+import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
@@ -222,16 +219,6 @@ type ScenarioEditorItem = {
 type PlanLabDraftEventAddition = {
   definition: EventDefinition;
   ref: ScenarioEventRef;
-};
-
-type TopDriverCandidate = {
-  id: string;
-  itemId: string;
-  label: string;
-};
-
-type TopDriverResult = TopDriverCandidate & {
-  contribution: number;
 };
 
 type PlanLabPanelProps = {
@@ -625,18 +612,6 @@ const PlanLabAccordionRow = memo(
 
 PlanLabAccordionRow.displayName = "PlanLabAccordionRow";
 
-
-
-const TOP_DRIVER_LIMIT = 10;
-const TOP_DRIVER_RESULT_SIZE = 5;
-const TOP_DRIVER_DEBOUNCE_MS = 300;
-
-const cloneSerializable = <T,>(value: T): T =>
-  JSON.parse(JSON.stringify(value)) as T;
-
-const computeMinCashValue = (projection: ReturnType<typeof computePlanLabKpis>) =>
-  projection?.minCash?.value ?? null;
-
 const useDebouncedValue = <T,>(value: T, delayMs = 200) => {
   const [debounced, setDebounced] = useState(value);
 
@@ -782,12 +757,6 @@ export default function PlanLabPanel({
   const showRiskyOnly = listTab === "risky";
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
-  const [pendingLocateItemId, setPendingLocateItemId] = useState<string | null>(null);
-  const [topDrivers, setTopDrivers] = useState<TopDriverResult[]>([]);
-  const [topDriversLoading, setTopDriversLoading] = useState(false);
-  const [driverView, setDriverView] = useState<"overall" | "item">("overall");
-  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
-  const attributionCacheRef = useRef(new Map<string, number>());
 
   const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
     itemRefs.current.set(id, node);
@@ -809,17 +778,6 @@ export default function PlanLabPanel({
     const timeout = setTimeout(() => setHighlightedItemId(null), 2000);
     return () => clearTimeout(timeout);
   }, [highlightedItemId]);
-  useEffect(() => {
-    if (!pendingLocateItemId) {
-      return;
-    }
-    setListTab("changed");
-    const timeout = setTimeout(() => {
-      handleLocateItem(pendingLocateItemId);
-      setPendingLocateItemId(null);
-    }, 80);
-    return () => clearTimeout(timeout);
-  }, [handleLocateItem, pendingLocateItemId]);
   const drawerStyles = useMemo(
     () => ({
       body: {
@@ -1661,7 +1619,6 @@ export default function PlanLabPanel({
       );
     } else {
       setDraftEvents((current) => [...current, { definition: nextDefinition, ref: nextRef }]);
-      setPendingLocateItemId(`event:${nextDefinition.id}`);
     }
     setEventDrawerOpen(false);
   };
@@ -1699,9 +1656,6 @@ export default function PlanLabPanel({
 
   const upsertScenarioV2Event = useCallback(
     (event: ScenarioEvent, mode: "create" | "edit") => {
-      if (mode === "create") {
-        setPendingLocateItemId(`event:${event.id}`);
-      }
       setScenarioV2Patches((current) => {
         const events = current.events;
         const isDraft = events.add.some((item) => item.id === event.id);
@@ -1969,6 +1923,8 @@ export default function PlanLabPanel({
   const debouncedPlanLabDraft = useDebouncedValue(planLabDraft, 200);
 
   const planSnapshot = useMemo<PlanLabSnapshot>(() => {
+    const cloneSerializable = <T,>(value: T): T =>
+      JSON.parse(JSON.stringify(value)) as T;
     return {
       baselinePatches: cloneSerializable(baselinePatches ?? {}),
       experiments: cloneSerializable(experiments ?? []),
@@ -3700,300 +3656,6 @@ export default function PlanLabPanel({
     experimentTypeOptions,
   ]);
 
-  const topDriverCandidates = useMemo<TopDriverCandidate[]>(() => {
-    const candidates: TopDriverCandidate[] = [];
-    const itemTitleLookup = new Map(scenarioItems.map((item) => [item.id, item.title]));
-
-    if (scenarioIsV2) {
-      scenarioV2Patches.events.add.forEach((event) => {
-        candidates.push({
-          id: `v2:eventAdd:${event.id}`,
-          itemId: `event:${event.id}`,
-          label: event.label ?? itemTitleLookup.get(`event:${event.id}`) ?? event.id,
-        });
-      });
-      Object.keys(scenarioV2Patches.events.update).forEach((eventId) => {
-        candidates.push({
-          id: `v2:eventUpdate:${eventId}`,
-          itemId: `event:${eventId}`,
-          label: itemTitleLookup.get(`event:${eventId}`) ?? eventId,
-        });
-      });
-    } else {
-      draftEvents.forEach((event) => {
-        candidates.push({
-          id: `legacy:draftEvent:${event.definition.id}`,
-          itemId: `event:${event.definition.id}`,
-          label: event.definition.title,
-        });
-      });
-      draftBudgetRules.forEach((rule) => {
-        candidates.push({
-          id: `legacy:draftRule:${rule.id}`,
-          itemId: `rule:${rule.id}`,
-          label: rule.name,
-        });
-      });
-      experiments.forEach((experiment) => {
-        const label =
-          experimentTypeOptions.find((option) => option.value === experiment.type)?.label ??
-          translate("planLabExperimentFallback", "實驗");
-        candidates.push({
-          id: `legacy:experiment:${experiment.id}`,
-          itemId: `experiment-${experiment.id}`,
-          label,
-        });
-      });
-      Object.keys(eventPatches).forEach((refId) => {
-        const itemId = `event:${refId}`;
-        candidates.push({
-          id: `legacy:eventPatch:${refId}`,
-          itemId,
-          label: itemTitleLookup.get(itemId) ?? refId,
-        });
-      });
-      Object.keys(rulePatches).forEach((ruleId) => {
-        const itemId = `rule:${ruleId}`;
-        candidates.push({
-          id: `legacy:rulePatch:${ruleId}`,
-          itemId,
-          label: itemTitleLookup.get(itemId) ?? ruleId,
-        });
-      });
-      Object.keys(positionPatches).forEach((key) => {
-        const itemId = `position:${key}`;
-        candidates.push({
-          id: `legacy:positionPatch:${key}`,
-          itemId,
-          label: itemTitleLookup.get(itemId) ?? key,
-        });
-      });
-      if (smartInvestPatch) {
-        candidates.push({
-          id: "legacy:smartInvestPatch",
-          itemId: "position:smartInvest",
-          label: smartInvestLabel,
-        });
-      }
-    }
-
-    const deduped = new Map<string, TopDriverCandidate>();
-    candidates.forEach((candidate) => {
-      if (!deduped.has(candidate.id)) {
-        deduped.set(candidate.id, candidate);
-      }
-    });
-    return Array.from(deduped.values()).slice(0, TOP_DRIVER_LIMIT);
-  }, [
-    draftBudgetRules,
-    draftEvents,
-    draftMembers,
-    eventPatches,
-    experiments,
-    experimentTypeOptions,
-    positionPatches,
-    rulePatches,
-    scenarioIsV2,
-    scenarioItems,
-    scenarioV2Patches.events.add,
-    scenarioV2Patches.events.update,
-    smartInvestLabel,
-    smartInvestPatch,
-    translate,
-  ]);
-
-  const attributionSignature = useMemo(
-    () =>
-      JSON.stringify({
-        scenarioId: scenario.id,
-        scenarioIsV2,
-        baselinePatches,
-        draftEvents,
-        draftBudgetRules,
-        draftMembers,
-        experiments,
-        scenarioV2Patches,
-        kpiType: "minCash",
-      }),
-    [
-      baselinePatches,
-      draftBudgetRules,
-      draftEvents,
-      draftMembers,
-      experiments,
-      scenario.id,
-      scenarioIsV2,
-      scenarioV2Patches,
-    ]
-  );
-  const debouncedAttributionSignature = useDebouncedValue(
-    attributionSignature,
-    TOP_DRIVER_DEBOUNCE_MS
-  );
-
-  useEffect(() => {
-    const currentMinCash = computeMinCashValue(optionKpis);
-    if (currentMinCash === null || topDriverCandidates.length === 0) {
-      setTopDrivers([]);
-      setTopDriversLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setTopDriversLoading(true);
-
-    const run = async () => {
-      const results: TopDriverResult[] = [];
-      for (const candidate of topDriverCandidates) {
-        if (cancelled) {
-          return;
-        }
-        const cacheKey = `${debouncedAttributionSignature}|${candidate.id}|minCash`;
-        const cached = attributionCacheRef.current.get(cacheKey);
-        if (typeof cached === "number") {
-          results.push({ ...candidate, contribution: cached });
-          continue;
-        }
-
-        let variantMinCash: number | null = null;
-
-        if (scenarioIsV2) {
-          const nextPatches = cloneSerializable(scenarioV2Patches);
-          if (candidate.id.startsWith("v2:eventAdd:")) {
-            const eventId = candidate.id.replace("v2:eventAdd:", "");
-            nextPatches.events.add = nextPatches.events.add.filter((entry) => entry.id !== eventId);
-          } else if (candidate.id.startsWith("v2:eventUpdate:")) {
-            const eventId = candidate.id.replace("v2:eventUpdate:", "");
-            delete nextPatches.events.update[eventId];
-          }
-          const variantScenarioV2 = applyPlanLabScenarioV2Patches(baselineScenarioV2, nextPatches);
-          const variantProjection = computeProjectionWithSmartInvest(
-            variantScenarioV2 as unknown as Scenario,
-            eventLibrary,
-            { members: variantScenarioV2.members ?? [], budgetRules: [] }
-          ).projection;
-          variantMinCash = computePlanLabKpis(variantProjection)?.minCash?.value ?? null;
-        } else {
-          const variantDraft = cloneSerializable(planLabDraft);
-          if (candidate.id.startsWith("legacy:draftEvent:")) {
-            const eventId = candidate.id.replace("legacy:draftEvent:", "");
-            variantDraft.additions = {
-              ...(variantDraft.additions ?? {}),
-              events: (variantDraft.additions?.events ?? []).filter(
-                (entry) => entry.definition.id !== eventId
-              ),
-            };
-          } else if (candidate.id.startsWith("legacy:draftRule:")) {
-            const ruleId = candidate.id.replace("legacy:draftRule:", "");
-            variantDraft.additions = {
-              ...(variantDraft.additions ?? {}),
-              budgetRules: (variantDraft.additions?.budgetRules ?? []).filter(
-                (entry) => entry.id !== ruleId
-              ),
-            };
-          } else if (candidate.id.startsWith("legacy:experiment:")) {
-            const experimentId = candidate.id.replace("legacy:experiment:", "");
-            variantDraft.experiments = (variantDraft.experiments ?? []).filter(
-              (entry) => entry.id !== experimentId
-            );
-          } else if (candidate.id.startsWith("legacy:eventPatch:")) {
-            const refId = candidate.id.replace("legacy:eventPatch:", "");
-            if (variantDraft.baselinePatches?.eventPatches) {
-              delete variantDraft.baselinePatches.eventPatches[refId];
-            }
-          } else if (candidate.id.startsWith("legacy:rulePatch:")) {
-            const ruleId = candidate.id.replace("legacy:rulePatch:", "");
-            if (variantDraft.baselinePatches?.rulePatches) {
-              delete variantDraft.baselinePatches.rulePatches[ruleId];
-            }
-          } else if (candidate.id.startsWith("legacy:positionPatch:")) {
-            const positionId = candidate.id.replace("legacy:positionPatch:", "");
-            if (variantDraft.baselinePatches?.positionPatches) {
-              delete variantDraft.baselinePatches.positionPatches[positionId];
-            }
-          } else if (candidate.id === "legacy:smartInvestPatch") {
-            if (variantDraft.baselinePatches) {
-              variantDraft.baselinePatches.smartInvestPatch = undefined;
-            }
-          }
-
-          const variantMaterialized = materializePlanLabDraft(scenario, variantDraft, {
-            scenarioId: scenario.id,
-            budgetRules,
-          });
-          const variantEventLibrary = [
-            ...eventLibrary,
-            ...variantMaterialized.eventDefinitions,
-          ];
-          const variantProjection = computeProjectionWithSmartInvest(
-            variantMaterialized.scenario,
-            variantEventLibrary,
-            { members, budgetRules: variantMaterialized.budgetRules }
-          ).projection;
-          variantMinCash = computePlanLabKpis(variantProjection)?.minCash?.value ?? null;
-        }
-
-        if (variantMinCash !== null) {
-          const contribution = currentMinCash - variantMinCash;
-          attributionCacheRef.current.set(cacheKey, contribution);
-          results.push({ ...candidate, contribution });
-        }
-
-        await Promise.resolve();
-      }
-
-      if (cancelled) {
-        return;
-      }
-
-      setTopDrivers(
-        results
-          .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
-          .slice(0, TOP_DRIVER_RESULT_SIZE)
-      );
-      setTopDriversLoading(false);
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    baselineScenarioV2,
-    budgetRules,
-    debouncedAttributionSignature,
-    eventLibrary,
-    members,
-    optionKpis,
-    planLabDraft,
-    scenario,
-    scenario.id,
-    scenarioIsV2,
-    scenarioV2Patches,
-    topDriverCandidates,
-  ]);
-
-  const selectedDriver = useMemo(
-    () => topDrivers.find((driver) => driver.id === selectedDriverId) ?? null,
-    [selectedDriverId, topDrivers]
-  );
-
-  const topDriverByItemId = useMemo(
-    () => new Map(topDrivers.map((driver) => [driver.itemId, driver])),
-    [topDrivers]
-  );
-
-  useEffect(() => {
-    if (!selectedDriverId) {
-      return;
-    }
-    if (!topDrivers.some((driver) => driver.id === selectedDriverId)) {
-      setSelectedDriverId(null);
-      setDriverView("overall");
-    }
-  }, [selectedDriverId, topDrivers]);
-
   const handleResetAllControls = () => {
     setBaselinePatches({
       eventPatches: {},
@@ -4755,16 +4417,6 @@ export default function PlanLabPanel({
                                   });
                                 }
                               }
-                              const driverForItem = topDriverByItemId.get(item.id);
-                              if (driverForItem) {
-                                menuItems.push({
-                                  label: translate("planLabViewItemImpact", "查看影響"),
-                                  onClick: () => {
-                                    setSelectedDriverId(driverForItem.id);
-                                    setDriverView("item");
-                                  },
-                                });
-                              }
                               return (
                                 <PlanLabAccordionRow
                                   key={item.id}
@@ -5264,88 +4916,6 @@ export default function PlanLabPanel({
                   locale={locale}
                 />
               )}
-
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="sm">
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <Text fw={600}>{translate("planLabTopDriversTitle", "Top Drivers／差異原因")}</Text>
-                    {driverView === "item" ? (
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        onClick={() => {
-                          setDriverView("overall");
-                          setSelectedDriverId(null);
-                        }}
-                      >
-                        {translate("planLabTopDriversBack", "返回整體")}
-                      </Button>
-                    ) : (
-                      <Badge variant="light" color="gray">
-                        Min Cash
-                      </Badge>
-                    )}
-                  </Group>
-                  {driverView === "item" ? (
-                    selectedDriver ? (
-                      <Paper withBorder radius="md" p="sm">
-                        <Stack gap={6}>
-                          <Text fw={600}>{selectedDriver.label}</Text>
-                          <Text size="sm" c="dimmed">
-                            {translate("planLabTopDriversItemImpactLabel", "此項目對最低現金影響")}
-                          </Text>
-                          <Text fw={700} c={selectedDriver.contribution < 0 ? "red" : "teal"}>
-                            {selectedDriver.contribution < 0 ? "▼" : "▲"} {formatCurrency(Math.abs(selectedDriver.contribution), scenario.baseCurrency, locale)}
-                          </Text>
-                        </Stack>
-                      </Paper>
-                    ) : (
-                      <Text size="sm" c="dimmed">
-                        {translate("planLabTopDriversLoadingItem", "影響計算中…")}
-                      </Text>
-                    )
-                  ) : topDriversLoading ? (
-                    <Stack gap="xs">
-                      {Array.from({ length: 3 }).map((_, index) => (
-                        <Paper key={`driver-skeleton-${index}`} withBorder radius="md" p="sm">
-                          <Text size="sm" c="dimmed">{translate("planLabTopDriversLoading", "計算中…")}</Text>
-                        </Paper>
-                      ))}
-                    </Stack>
-                  ) : topDrivers.length === 0 ? (
-                    <Text size="sm" c="dimmed">
-                      {translate("planLabTopDriversEmpty", "尚未有可解釋的改動。")}
-                    </Text>
-                  ) : (
-                    <Stack gap="xs">
-                      {topDrivers.map((driver) => (
-                        <Paper
-                          key={driver.id}
-                          withBorder
-                          radius="md"
-                          p="sm"
-                          style={{ cursor: "pointer" }}
-                          onClick={() => {
-                            setListTab("changed");
-                            handleLocateItem(driver.itemId);
-                            setSelectedDriverId(driver.id);
-                            setDriverView("item");
-                          }}
-                        >
-                          <Group justify="space-between" align="center" wrap="nowrap">
-                            <Text size="sm" fw={600} lineClamp={1}>
-                              {driver.label}
-                            </Text>
-                            <Badge variant="light" color={driver.contribution < 0 ? "red" : "teal"}>
-                              Min Cash {driver.contribution < 0 ? "▼" : "▲"} {formatCurrency(Math.abs(driver.contribution), scenario.baseCurrency, locale)}
-                            </Badge>
-                          </Group>
-                        </Paper>
-                      ))}
-                    </Stack>
-                  )}
-                </Stack>
-              </Card>
 
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
