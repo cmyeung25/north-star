@@ -40,7 +40,11 @@ type BundleWizardDrawerProps = {
   baseCurrency: string;
   scenarioEvents: ScenarioEventDraft[];
   onClose: () => void;
-  onOpenEventDrawer: (type: ScenarioEventDraft["type"], eventId: string) => void;
+  onOpenEventDrawer?: (type: ScenarioEventDraft["type"], eventId: string) => void;
+  onApplyEvents?: (
+    events: ScenarioEventDraft[]
+  ) => Promise<{ ok: boolean; error?: string }> | { ok: boolean; error?: string };
+  allowInlineEdit?: boolean;
 };
 
 type FeeDraft = {
@@ -159,6 +163,8 @@ export default function BundleWizardDrawer({
   scenarioEvents,
   onClose,
   onOpenEventDrawer,
+  onApplyEvents,
+  allowInlineEdit = true,
 }: BundleWizardDrawerProps) {
   const t = useTranslations("money");
   const validation = useTranslations("validation");
@@ -325,16 +331,53 @@ export default function BundleWizardDrawer({
     t,
   ]);
 
-  const handleApply = () => {
+  const getEventTypeLabel = (event: ScenarioEventDraft) => {
+    if (event.type === "cashflow") {
+      return event.kind === "income" ? t("incomeTitle") : t("expensesTitle");
+    }
+    if (event.type === "housing") {
+      return t("housingTitle");
+    }
+    if (event.type === "loan") {
+      return t("liabilitiesTitle");
+    }
+    if (event.type === "insurance") {
+      return t("assetsTitle");
+    }
+    return t("bundleEventFallback");
+  };
+
+  const getEventMonthLabel = (event: ScenarioEventDraft) => {
+    if ("occurrenceMonth" in event && event.occurrenceMonth) {
+      return event.occurrenceMonth;
+    }
+    if ("startMonth" in event && event.startMonth) {
+      return event.startMonth;
+    }
+    return "-";
+  };
+
+  const handleApply = async () => {
     if (!scenarioId) {
-      return;
+      if (!onApplyEvents) {
+        return;
+      }
     }
     setActionError(null);
     const drafts = previewEvents.filter(
       (event) => event.id && !createdEventIds.has(event.id)
     );
+    if (onApplyEvents) {
+      const result = await onApplyEvents(drafts);
+      if (!result.ok) {
+        setActionError(result.error ?? t("bundleApplyFailed"));
+        return;
+      }
+      onClose();
+      return;
+    }
     for (const event of drafts) {
-      const result = addEvent(event, scenarioId);
+      const result = addEvent(event, scenarioId ?? undefined);
       if (!result.ok) {
         setActionError(t("bundleApplyFailed"));
         return;
@@ -344,12 +387,15 @@ export default function BundleWizardDrawer({
   };
 
   const handleEdit = (event: ScenarioEventDraft) => {
+    if (!allowInlineEdit || !onOpenEventDrawer) {
+      return;
+    }
     if (!scenarioId || !event.id) {
       return;
     }
     const eventId = event.id;
     if (!createdEventIds.has(eventId)) {
-      const result = addEvent(event, scenarioId);
+      const result = addEvent(event, scenarioId ?? undefined);
       if (!result.ok) {
         setActionError(t("bundleApplyFailed"));
         return;
@@ -1163,18 +1209,23 @@ export default function BundleWizardDrawer({
                   <Card key={event.id ?? index} withBorder radius="md" padding="sm">
                     <Stack gap={6}>
                       <Text fw={600}>{event.label ?? t("bundleEventFallback")}</Text>
+                      <Text size="sm" c="dimmed">
+                        {getEventTypeLabel(event)} · {getEventMonthLabel(event)}
+                      </Text>
                       {"amount" in event && (
                         <Text size="sm" c="dimmed">
                           {formatCurrency(event.amount, baseCurrency, locale)}
                         </Text>
                       )}
-                      <Button
-                        variant="light"
-                        size="xs"
-                        onClick={() => handleEdit(event)}
-                      >
-                        {t("bundleEdit")}
-                      </Button>
+                      {allowInlineEdit && (
+                        <Button
+                          variant="light"
+                          size="xs"
+                          onClick={() => handleEdit(event)}
+                        >
+                          {t("bundleEdit")}
+                        </Button>
+                      )}
                     </Stack>
                   </Card>
                 ))}

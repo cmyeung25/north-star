@@ -71,3 +71,22 @@ test("PlanLab opens template wizard from Experiment add button", async ({ page }
   await expect(page.getByText(/建立計劃|createIntentPlanTitle/i)).toBeVisible();
   await expect(page.getByText(/新增項目|createIntentItemTitle/i)).toBeVisible();
 });
+
+
+test("PlanLab plan template opens life event wizard", async ({ page }) => {
+  page.on("pageerror", (error) => {
+    throw error;
+  });
+
+  await page.goto(`/${locale}/plan-lab`);
+  await expect(page.getByRole("heading", { name: "Plan Lab" })).toBeVisible();
+
+  await page.getByRole("button", { name: /新增事件|Add event/i }).click();
+  await page.getByText(/建立計劃|createIntentPlanTitle|Create a plan/i).click();
+  await page.getByText(/新生兒計劃|New baby/i).click();
+
+  await expect(page.getByText(/人生事件組合|bundleWizardTitle|Life-event bundle/i)).toBeVisible();
+  await expect(page.getByText(/基本資料|bundleStepBasics|Basics/i)).toBeVisible();
+  await expect(page.getByText(/選項|bundleStepOptions|Options/i)).toBeVisible();
+  await expect(page.getByText(/預覽|bundleStepReview|Review/i)).toBeVisible();
+});
