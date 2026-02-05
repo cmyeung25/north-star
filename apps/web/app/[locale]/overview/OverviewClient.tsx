@@ -8,7 +8,6 @@ import {
   Group,
   Menu,
   MultiSelect,
-  ScrollArea,
   SegmentedControl,
   SimpleGrid,
   Stack,
@@ -41,7 +40,7 @@ import NetCashflowChart from "../../../features/overview/components/NetCashflowC
 import NetWorthChart from "../../../features/overview/components/NetWorthChart";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
-import type { RiskLevel, TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
+import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import {
   projectionToOverviewViewModel,
@@ -69,24 +68,13 @@ import { Link } from "../../../src/i18n/navigation";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
 import { appliesToScenario } from "../../../src/domain/applyScope";
 import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
-import { normalizeMonthStrict } from "../../../src/utils/month";
 import { useUiStore } from "../../../src/store/uiStore";
 import { isInvestmentCashflow } from "../../../src/domain/ledger/cashflowFilters";
+import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
+import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
 
 type OverviewClientProps = {
   scenarioId?: string;
-};
-
-// type OverviewKpis = {
-//   lowestMonthlyBalance: number;
-//   runwayMonths: number;
-//   riskLevel: RiskLevel;
-// };
-
-const riskBadgeColor: Record<RiskLevel, string> = {
-  Low: "green",
-  Medium: "yellow",
-  High: "red",
 };
 
 export default function OverviewClient({ scenarioId }: OverviewClientProps) {
@@ -126,6 +114,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
   const [riskDetailOpen, setRiskDetailOpen] = useState(false);
   const [cashflowView, setCashflowView] = useState<"all" | "operational">("all");
+  const [primaryChartTab, setPrimaryChartTab] = useState<"cash" | "netWorth" | "netCashflow">("cash");
   const [fullscreenChart, setFullscreenChart] = useState<{
     type: FullScreenChartType;
     data: TimeSeriesPoint[];
@@ -283,122 +272,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         : [],
     [eventLibrary, selectedScenario]
   );
-  const assetMarkers = useMemo(() => {
-    if (!selectedScenario) {
-      return [];
-    }
-    const markers: Array<{ id: string; label: string; month: string; kind: string }> = [];
-    const pushMarker = (id: string, label: string, month?: string) => {
-      if (!month) {
-        return;
-      }
-      const normalized = normalizeMonthStrict(month);
-      if (!normalized.ok) {
-        return;
-      }
-      markers.push({ id, label, month: normalized.month, kind: "asset" });
-    };
-    const homes =
-      selectedScenario.positions?.homes ??
-      (selectedScenario.positions?.home ? [selectedScenario.positions.home] : []);
-    const cars = selectedScenario.positions?.cars ?? [];
-    const investments = selectedScenario.positions?.investments ?? [];
-
-    homes.forEach((home, index) => {
-      pushMarker(
-        `home-buy-${index}`,
-        t("timelineAssetBuyHome", { index: index + 1 }),
-        home.purchaseMonth
-      );
-      pushMarker(
-        `home-sell-${index}`,
-        t("timelineAssetSellHome", { index: index + 1 }),
-        home.sellMonth
-      );
-    });
-
-    cars.forEach((car, index) => {
-      pushMarker(
-        `car-buy-${index}`,
-        t("timelineAssetBuyCar", { index: index + 1 }),
-        car.purchaseMonth
-      );
-      pushMarker(
-        `car-sell-${index}`,
-        t("timelineAssetSellCar", { index: index + 1 }),
-        car.sellMonth
-      );
-    });
-
-    investments.forEach((investment, index) => {
-      pushMarker(
-        `investment-buy-${index}`,
-        t("timelineAssetBuyInvestment", { index: index + 1 }),
-        investment.startMonth
-      );
-    });
-
-    return markers;
-  }, [selectedScenario, t]);
-  const timelineStripMarkers = useMemo(() => {
-    const markers: Array<{ id: string; label: string; month: string; kind: string }> = [];
-    const baseMonth = projection?.baseMonth ?? months[0];
-    if (baseMonth) {
-      markers.push({
-        id: "now",
-        label: t("timelineNow"),
-        month: baseMonth,
-        kind: "now",
-      });
-    }
-
-    milestoneMarkers.forEach((marker) => {
-      markers.push({
-        id: marker.id,
-        label: t("timelineMarkerLabel", {
-          label: marker.label,
-          name: marker.memberName,
-        }),
-        month: marker.month,
-        kind: "milestone",
-      });
-    });
-
-    timelineEvents.forEach((event) => {
-      if (!event.startMonth) {
-        return;
-      }
-      markers.push({
-        id: event.id,
-        label: event.name,
-        month: event.startMonth,
-        kind: "event",
-      });
-    });
-
-    assetMarkers.forEach((marker) => {
-      markers.push(marker);
-    });
-
-    return markers
-      .filter((marker) => marker.month)
-      .sort((a, b) => {
-        const aIndex = monthIndexLookup.get(a.month) ?? Number.MAX_SAFE_INTEGER;
-        const bIndex = monthIndexLookup.get(b.month) ?? Number.MAX_SAFE_INTEGER;
-        if (aIndex === bIndex) {
-          return a.label.localeCompare(b.label);
-        }
-        return aIndex - bIndex;
-      });
-  }, [
-    assetMarkers,
-    milestoneMarkers,
-    monthIndexLookup,
-    months,
-    projection?.baseMonth,
-    t,
-    timelineEvents,
-  ]);
   const memberLookup = useMemo(
     () =>
       Object.fromEntries(
@@ -644,54 +517,80 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     return buildScenarioUrl("/plan-lab", selectedScenario.id);
   }, [selectedScenario]);
 
+  const dashboardMetrics = useMemo(
+    () => computeDashboardMetrics(projection, projectionNetCashflowByMonth, ledgerByMonth),
+    [ledgerByMonth, projection, projectionNetCashflowByMonth]
+  );
+
+  const nextKeyEvent = useMemo(
+    () =>
+      getNextKeyEvent({
+        events: timelineEvents,
+        milestones: milestoneMarkers,
+        baseMonth: projection?.baseMonth ?? months[0] ?? null,
+      }),
+    [milestoneMarkers, months, projection?.baseMonth, timelineEvents]
+  );
+
   if (!selectedScenario) {
     return null;
   }
 
   const showCompare = viewMode === "compare";
-  const hasEnabledEvents =
-    buildScenarioTimelineEvents(selectedScenario, eventLibrary).filter(
-      (event) => event.enabled
-    ).length > 0;
-
-  const runwayValueLabel = (() => {
-    if (!runwaySimulation || runwaySimulation.months === null) {
-      return t("kpiRunwayUnavailable");
+  const tf = (key: string, fallback: string, values?: Record<string, string | number>) => {
+    try {
+      return t(key as never, values as never);
+    } catch {
+      return fallback;
     }
-    if (runwaySimulation.isCapped) {
-      return t("kpiRunwayCapped", { months: runwaySimulation.horizonMonths });
-    }
-    return t("kpiRunwayValue", { months: runwaySimulation.months });
-  })();
+  };
 
   const kpiItems = [
     {
-      label: t("kpiLowestBalance"),
-      value: formatCurrency(
-        overviewViewModel?.kpis.lowestMonthlyBalance ?? 0,
-        selectedScenario.baseCurrency,
-        locale
-      ),
-      helper: t("kpiLowestBalanceHelper"),
-      onDetails: projection
-        ? () => openBreakdown(breakdownMonth ?? months[0])
-        : undefined,
-      detailsLabel: t("breakdownCta"),
+      label: tf("kpi12mMinCash", "12M 最低現金結餘"),
+      value: dashboardMetrics.minCash12m
+        ? `${formatCurrency(dashboardMetrics.minCash12m.value, selectedScenario.baseCurrency, locale)} · ${dashboardMetrics.minCash12m.month}`
+        : tf("emptyValue", "--"),
+      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
     },
     {
-      label: t("kpiRunway"),
-      value: runwayValueLabel,
-      helper: t("kpiRunwayHelper"),
-      onDetails: projection ? () => setRunwayDetailOpen(true) : undefined,
-      detailsLabel: t("runwayDetailCta"),
+      label: tf("kpi12mDeficitMonths", "12M 負現金流月份數"),
+      value: `${dashboardMetrics.deficitMonthsCount12m} / 12`,
+      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
     },
     {
-      label: t("kpiRisk"),
-      value: common(`risk${riskAssessment?.level ?? "Medium"}`),
-      badgeLabel: common(`risk${riskAssessment?.level ?? "Medium"}`),
-      badgeColor: riskBadgeColor[riskAssessment?.level ?? "Medium"],
-      onDetails: projection ? () => setRiskDetailOpen(true) : undefined,
-      detailsLabel: t("riskDetailCta"),
+      label: tf("kpi12mAvgNetCashflow", "12M 平均每月淨現金流"),
+      value: `${formatCurrency(dashboardMetrics.avgNetCashflow12m ?? 0, selectedScenario.baseCurrency, locale)} / ${tf("month", "月")}`,
+      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+    },
+    {
+      label: tf("kpiCashRunway", "現金 runway（月）"),
+      value: dashboardMetrics.cashRunwayMonths === null
+        ? tf("kpiRunwayUnavailable", "未有資料")
+        : tf("kpiRunwayMonths", `${dashboardMetrics.cashRunwayMonths.toFixed(1)} 個月`, { months: dashboardMetrics.cashRunwayMonths.toFixed(1) }),
+      helper: tf("kpiRunwayProxy", "以 12M 平均支出估算"),
+    },
+    {
+      label: tf("kpiFirstMillionMonth", "第一桶金達標月份"),
+      value: dashboardMetrics.firstMillionMonth ?? tf("notReached", "未達標"),
+      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+    },
+    {
+      label: tf("kpiAvgNonSalaryIncome", "非工資收入（12M 平均）"),
+      value: formatCurrency(dashboardMetrics.avgNonSalaryIncome12m ?? 0, selectedScenario.baseCurrency, locale),
+      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+    },
+    {
+      label: tf("kpiAvgFunBudget", "每月可自由支出（12M 平均）"),
+      value: formatCurrency(dashboardMetrics.avgFunBudget12m ?? 0, selectedScenario.baseCurrency, locale),
+      helper: tf("kpiAvgFunBudgetHint", "MVP 以平均月淨現金流作 proxy"),
+    },
+    {
+      label: tf("kpiRiskLevelDerived", "風險等級"),
+      value: dashboardMetrics.riskLevel === "red" ? tf("riskRed", "紅") : tf("riskGreen", "綠"),
+      badgeLabel: dashboardMetrics.riskLevel === "red" ? tf("riskHigh", "高") : tf("riskLow", "低"),
+      badgeColor: dashboardMetrics.riskLevel === "red" ? "red" : "green",
+      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
     },
   ];
 
@@ -736,9 +635,17 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     openBreakdown(month);
   };
 
-  const visibleTimelineMarkers = timelineStripMarkers.sort((a, b) => a.month.localeCompare(b.month)).slice(0, 10);
-  const timelineOverflowCount = timelineStripMarkers.length - visibleTimelineMarkers.length;
   const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
+  const moneyHubHref = buildScenarioUrl("/money", selectedScenario.id);
+  const peopleHubHref = buildScenarioUrl("/people", selectedScenario.id);
+  const completenessItems = [
+    { key: "income", label: tf("completenessIncome", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: moneyHubHref },
+    { key: "expenses", label: tf("completenessExpenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: moneyHubHref },
+    { key: "assets", label: tf("completenessAssets", "資產"), done: Boolean(selectedScenario.positions?.homes?.length || selectedScenario.positions?.cars?.length || selectedScenario.positions?.investments?.length), href: moneyHubHref },
+    { key: "liabilities", label: tf("completenessLiabilities", "負債"), done: Boolean(selectedScenario.positions?.loans?.length), href: moneyHubHref },
+    { key: "members", label: tf("completenessMembers", "成員"), done: scenarioMembers.length > 0, href: peopleHubHref },
+    { key: "rules", label: tf("completenessRules", "規則"), done: budgetRules.length > 0, href: moneyHubHref },
+  ];
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
       <Stack gap="sm">
@@ -836,62 +743,56 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         </Stack>
       </Stack>
 
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
-          <Group justify="space-between" align="center" wrap="wrap">
-            <div>
-              <Text fw={600}>{t("timelineStripTitle")}</Text>
-              <Text size="xs" c="dimmed">
-                {t("timelineStripSubtitle")}
-              </Text>
-            </div>
-            <Button
-              component={Link}
-              href={moneyTimelineHref}
-              size="xs"
-              variant="light"
-            >
-              {t("timelineStripCta")}
-            </Button>
-          </Group>
-          {visibleTimelineMarkers.length > 0 ? (
-            <Stack gap={4}>
-              <ScrollArea type="auto" offsetScrollbars>
-                <Group gap="sm" wrap="nowrap" align="flex-start">
-                  {visibleTimelineMarkers.map((marker) => (
-                    <Stack key={marker.id} gap={4} align="center">
-                      <Badge
-                        color={
-                          marker.kind === "now"
-                            ? "blue"
-                            : marker.kind === "milestone"
-                              ? "teal"
-                              : "grape"
-                        }
-                        variant={marker.kind === "now" ? "filled" : "light"}
-                      >
-                        {marker.label}
-                      </Badge>
-                      <Text size="xs" c="dimmed">
-                        {marker.month}
-                      </Text>
-                    </Stack>
+      {!showCompare && (
+        <Card withBorder radius="md" padding="md">
+          <Stack gap="md">
+            <Group justify="space-between" align="flex-start" wrap="wrap">
+              <div>
+                <Text fw={700}>{tf("healthSummaryTitle", "財務健康總覽")}</Text>
+                <Text size="xs" c="dimmed">{tf("healthSummarySubtitle", "口徑統一為未來 12 個月")}</Text>
+              </div>
+              <Group gap="xs">
+                <Button component={Link} href={planLabFamilyEntryHref}>{tf("planLabFamilyEntryCta", "打開 Plan Lab")}</Button>
+                <Button component={Link} href={moneyHubHref} variant="light">{tf("completeDataCta", "補齊資料")}</Button>
+              </Group>
+            </Group>
+            {isDesktop ? (
+              <SimpleGrid cols={4} spacing="sm">
+                {kpiItems.map((item) => (
+                  <KpiCard key={item.label} {...item} />
+                ))}
+              </SimpleGrid>
+            ) : (
+              <KpiCarousel items={kpiItems} />
+            )}
+            <Card withBorder radius="md" padding="sm">
+              <Stack gap={6}>
+                <Text fw={600} size="sm">{tf("completenessTitle", "資料完整度")}</Text>
+                <Group gap="xs" wrap="wrap">
+                  {completenessItems.map((item) => (
+                    <Button key={item.key} component={Link} href={item.href} variant="light" size="xs">
+                      {item.done ? "✔" : "✖"} {item.label}
+                    </Button>
                   ))}
                 </Group>
-              </ScrollArea>
-              {timelineOverflowCount > 0 && (
-                <Text size="xs" c="dimmed">
-                  {t("timelineStripMore", { count: timelineOverflowCount })}
-                </Text>
-              )}
-            </Stack>
-          ) : (
-            <Text size="xs" c="dimmed">
-              {t("timelineStripEmpty")}
-            </Text>
-          )}
-        </Stack>
-      </Card>
+              </Stack>
+            </Card>
+            <Card withBorder radius="md" padding="sm">
+              <Stack gap={6}>
+                <Text fw={600} size="sm">{tf("nextKeyEventTitle", "下一個關鍵點")}</Text>
+                {nextKeyEvent ? (
+                  <Text size="sm">{nextKeyEvent.label} · {nextKeyEvent.month}</Text>
+                ) : (
+                  <Stack gap="xs" align="flex-start">
+                    <Text size="sm" c="dimmed">{tf("nextKeyEventEmpty", "你未設定重要事件（例如旅行/結婚/入市/預產），新增一個即可看到風險變化。")}</Text>
+                    <Button component={Link} href={moneyTimelineHref} size="xs">{tf("addEventsCta", "新增事件")}</Button>
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+          </Stack>
+        </Card>
+      )}
 
       {showCompare ? (
         <Stack gap="md">
@@ -966,218 +867,70 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           </Card>
         </Stack>
       ) : (
-        <>
-          {isDesktop ? (
-            <SimpleGrid cols={3} spacing="md">
-              {kpiItems.map((item) => (
-                <KpiCard key={item.label} {...item} />
-              ))}
-            </SimpleGrid>
-          ) : (
-            <KpiCarousel items={kpiItems} />
-          )}
-
-          {isDesktop ? (
-            <SimpleGrid cols={3} spacing="md">
-              <CashBalanceChart
-                data={cashSeries}
-                markers={milestoneMarkers}
-                title={t("cashBalanceTitle")}
-                onClick={
-                  projection
-                    ? () =>
-                        setFullscreenChart({
-                          type: "cash",
-                          data: cashSeries,
-                          markers: milestoneMarkers,
-                        })
-                    : undefined
-                }
-              />
-              <NetWorthChart
-                data={netWorthSeries}
-                markers={milestoneMarkers}
-                title={t("netWorthTitle")}
-                onClick={
-                  projection
-                    ? () =>
-                        setFullscreenChart({
-                          type: "netWorth",
-                          data: netWorthSeries,
-                          markers: milestoneMarkers,
-                        })
-                    : undefined
-                }
-              />
-              <NetCashflowChart
-                data={displayedNetCashflowSeries}
-                markers={milestoneMarkers}
-                title={t("netCashflowTitle")}
-                headerRight={
-                  <SegmentedControl
-                    size="xs"
-                    data={[
-                      { value: "all", label: t("cashflowFilterAll") },
-                      { value: "operational", label: t("cashflowFilterOperational") },
-                    ]}
-                    value={cashflowView}
-                    onChange={(value) => setCashflowView(value as "all" | "operational")}
-                  />
-                }
-                onClick={
-                  projection
-                    ? () =>
-                        setFullscreenChart({
-                          type: "netCashflow",
-                          data: displayedNetCashflowSeries,
-                          markers: milestoneMarkers,
-                        })
-                    : undefined
-                }
-              />
-            </SimpleGrid>
-          ) : (
-            <Stack gap="md">
-              <CashBalanceChart
-                data={cashSeries}
-                markers={milestoneMarkers}
-                title={t("cashBalanceTitle")}
-                onClick={
-                  projection
-                    ? () =>
-                        setFullscreenChart({
-                          type: "cash",
-                          data: cashSeries,
-                          markers: milestoneMarkers,
-                        })
-                    : undefined
-                }
-              />
-              <Accordion variant="separated" radius="md">
-                <Accordion.Item value="net-worth">
-                  <Accordion.Control>{t("netWorthTitle")}</Accordion.Control>
-                  <Accordion.Panel>
-                    <NetWorthChart
-                      data={netWorthSeries}
-                      markers={milestoneMarkers}
-                      onClick={
-                        projection
-                          ? () =>
-                              setFullscreenChart({
-                                type: "netWorth",
-                                data: netWorthSeries,
-                                markers: milestoneMarkers,
-                              })
-                          : undefined
-                      }
-                    />
-                  </Accordion.Panel>
-                </Accordion.Item>
-                <Accordion.Item value="net-cashflow">
-                  <Accordion.Control>{t("netCashflowTitle")}</Accordion.Control>
-                  <Accordion.Panel>
-                    <NetCashflowChart
-                      data={displayedNetCashflowSeries}
-                      markers={milestoneMarkers}
-                      headerRight={
-                        <SegmentedControl
-                          size="xs"
-                          data={[
-                            { value: "all", label: t("cashflowFilterAll") },
-                            { value: "operational", label: t("cashflowFilterOperational") },
-                          ]}
-                          value={cashflowView}
-                          onChange={(value) =>
-                            setCashflowView(value as "all" | "operational")
-                          }
-                        />
-                      }
-                      onClick={
-                        projection
-                          ? () =>
-                              setFullscreenChart({
-                                type: "netCashflow",
-                                data: displayedNetCashflowSeries,
-                                markers: milestoneMarkers,
-                              })
-                          : undefined
-                      }
-                    />
-                  </Accordion.Panel>
-                </Accordion.Item>
-              </Accordion>
-            </Stack>
-          )}
-        </>
+        <Card withBorder radius="md" padding="md">
+          <Stack gap="sm">
+            <Group justify="space-between" align="center" wrap="wrap">
+              <Text fw={600}>{tf("primaryChartTitle", "主要圖表")}</Text>
+              <Group gap="xs">
+                <SegmentedControl
+                  size="xs"
+                  data={[
+                    { value: "cash", label: tf("cashBalanceTitle", "現金") },
+                    { value: "netWorth", label: tf("netWorthTitle", "淨資產") },
+                    { value: "netCashflow", label: tf("netCashflowTitle", "淨現金流") },
+                  ]}
+                  value={primaryChartTab}
+                  onChange={(value) => setPrimaryChartTab(value as "cash" | "netWorth" | "netCashflow")}
+                />
+                <SegmentedControl
+                  size="xs"
+                  data={[
+                    { value: "all", label: t("cashflowFilterAll") },
+                    { value: "operational", label: t("cashflowFilterOperational") },
+                  ]}
+                  value={cashflowView}
+                  onChange={(value) => setCashflowView(value as "all" | "operational")}
+                />
+              </Group>
+            </Group>
+            {primaryChartTab === "cash" ? (
+              <CashBalanceChart data={cashSeries} markers={milestoneMarkers} title={tf("cashBalanceTitle", "現金")} />
+            ) : primaryChartTab === "netWorth" ? (
+              <NetWorthChart data={netWorthSeries} markers={milestoneMarkers} title={tf("netWorthTitle", "淨資產")} />
+            ) : (
+              <NetCashflowChart data={displayedNetCashflowSeries} markers={milestoneMarkers} title={tf("netCashflowTitle", "淨現金流")} />
+            )}
+            <Text size="xs" c="dimmed">{tf("chartToggleHint", "「包含投資/不計投資」目前先影響圖表，KPI 口徑將在後續版本同步。")}</Text>
+          </Stack>
+        </Card>
       )}
 
       {!showCompare && (
         <>
-          <Card withBorder radius="md" padding="md">
-            <Stack gap="sm">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <div>
-                  <Title order={5}>{t("planLabFamilyEntryTitle")}</Title>
-                  <Text size="sm" c="dimmed">
-                    {t("planLabFamilyEntryHint")}
-                  </Text>
-                </div>
-                <Button component={Link} href={planLabFamilyEntryHref}>
-                  {t("planLabFamilyEntryCta")}
-                </Button>
-              </Group>
-            </Stack>
-          </Card>
-          {!hasEnabledEvents && (
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm" align="flex-start">
-                <Text size="sm">{t("emptyTimeline")}</Text>
-                <Button
-                  component={Link}
-                  href={moneyTimelineHref}
-                  size="xs"
-                >
-                  {t("addEventsCta")}
-                </Button>
-              </Stack>
-            </Card>
-          )}
-
-          <AutoSnapshotsCard
-            snapshots={autoSnapshots}
-            currency={selectedScenario.baseCurrency}
-            onSelectMonth={handleSelectSnapshot}
-          />
+          <Accordion variant="separated" radius="md" defaultValue="snapshot">
+            <Accordion.Item value="snapshot">
+              <Accordion.Control>{tf("projectionSnapshotTitle", "投影快照")}</Accordion.Control>
+              <Accordion.Panel>
+                <AutoSnapshotsCard
+                  snapshots={autoSnapshots}
+                  currency={selectedScenario.baseCurrency}
+                  onSelectMonth={handleSelectSnapshot}
+                />
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
-                  <Text fw={600}>{t("moneySummaryTitle")}</Text>
-                  <Button
-                    component={Link}
-                    href={buildScenarioUrl("/money", selectedScenario.id)}
-                    size="xs"
-                    variant="light"
-                  >
-                    {t("moneySummaryCta")}
-                  </Button>
+                  <Text fw={600}>{tf("quickLinksMoneyTitle", "金錢摘要（Quick Links）")}</Text>
+                  <Button component={Link} href={moneyHubHref} size="xs" variant="light">{t("moneySummaryCta")}</Button>
                 </Group>
                 <SimpleGrid cols={2} spacing="xs">
-                  {[
-                    { key: "income", label: t("moneySummaryIncome") },
-                    { key: "expenses", label: t("moneySummaryExpenses") },
-                    { key: "assets", label: t("moneySummaryAssets") },
-                    { key: "liabilities", label: t("moneySummaryLiabilities") },
-                  ].map((item) => (
+                  {[{ key: "income", count: Object.values(ledgerByMonth).flat().filter((item) => item.amount > 0).length }, { key: "expenses", count: Object.values(ledgerByMonth).flat().filter((item) => item.amount < 0).length }, { key: "assets", count: (selectedScenario.positions?.homes?.length ?? 0) + (selectedScenario.positions?.cars?.length ?? 0) + (selectedScenario.positions?.investments?.length ?? 0) }, { key: "liabilities", count: selectedScenario.positions?.loans?.length ?? 0 }].map((item) => (
                     <Card key={item.key} withBorder radius="md" padding="xs">
-                      <Stack gap={2}>
-                        <Text size="sm" fw={600}>
-                          {item.label}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {t("moneySummaryHint")}
-                        </Text>
-                      </Stack>
+                      <Text size="sm" fw={600}>{item.key}</Text>
+                      <Text size="xs" c="dimmed">{item.count}</Text>
                     </Card>
                   ))}
                 </SimpleGrid>
@@ -1187,38 +940,19 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
-                  <Text fw={600}>{t("peopleSummaryTitle")}</Text>
-                  <Button
-                    component={Link}
-                    href={buildScenarioUrl("/people", selectedScenario.id)}
-                    size="xs"
-                    variant="light"
-                  >
-                    {t("peopleSummaryCta")}
-                  </Button>
+                  <Text fw={600}>{tf("quickLinksPeopleTitle", "成員摘要（Quick Links）")}</Text>
+                  <Button component={Link} href={peopleHubHref} size="xs" variant="light">{t("peopleSummaryCta")}</Button>
                 </Group>
-                <Stack gap={4}>
-                  <Text size="sm">
-                    {t("peopleSummaryMembers", { count: scenarioMembers.length })}
-                  </Text>
-                  {upcomingMilestones.length > 0 ? (
-                    <Stack gap={2}>
-                      {upcomingMilestones.map((marker) => (
-                        <Text key={marker.id} size="xs" c="dimmed">
-                          {t("peopleSummaryMilestone", {
-                            label: marker.label,
-                            name: marker.memberName,
-                            month: marker.month,
-                          })}
-                        </Text>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Text size="xs" c="dimmed">
-                      {t("peopleSummaryEmpty")}
-                    </Text>
-                  )}
-                </Stack>
+                <Text size="sm">{t("peopleSummaryMembers", { count: scenarioMembers.length })}</Text>
+                {upcomingMilestones.length > 0 ? (
+                  <Stack gap={2}>
+                    {upcomingMilestones.map((marker) => (
+                      <Text key={marker.id} size="xs" c="dimmed">{marker.label} · {marker.month}</Text>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Text size="xs" c="dimmed">{t("peopleSummaryEmpty")}</Text>
+                )}
               </Stack>
             </Card>
           </SimpleGrid>
