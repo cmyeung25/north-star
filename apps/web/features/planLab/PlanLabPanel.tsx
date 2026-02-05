@@ -108,7 +108,7 @@ import {
 import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
 import TemplatePickerDrawer from "../../components/eventTemplates/TemplatePickerDrawer";
 import type { TemplateCategory, TemplateDef } from "../../src/domain/eventTemplates/types";
-import { buildTimelineDefinitionFromTemplate } from "../../src/domain/eventTemplates/presets";
+import { buildTemplateDrawerDraftOverrides } from "../../src/domain/eventTemplates/presets";
 import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
 import TimelineEventForm, { type TimelineEventFormResult } from "../../components/timeline/TimelineEventForm";
 import { getEventMeta } from "../../src/events/eventCatalog";
@@ -157,7 +157,8 @@ import {
   savePlanSnapshot,
 } from "../../src/persistence/planLibrary";
 import CashflowEventDrawer, {
-  type ScenarioEventDraft as CashflowEventDraft,
+  type CashflowEventDraft,
+  type ScenarioEventDraft as PlanLabScenarioEventDraft,
 } from "../moneyFlow/CashflowEventDrawer";
 import HousingEventDrawer, {
   type HousingEventDraft,
@@ -225,6 +226,9 @@ type PlanLabDraftEventAddition = {
   definition: EventDefinition;
   ref: ScenarioEventRef;
 };
+
+type CreationIntent = "plan" | "item";
+type CreationItemCategory = "income" | "expenses" | "assets" | "liabilities";
 
 type PlanLabPanelProps = {
   scenario: Scenario;
@@ -808,6 +812,19 @@ export default function PlanLabPanel({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templatePickerCategory, setTemplatePickerCategory] =
     useState<TemplateCategory>("popular");
+  const [templatePickerIntent, setTemplatePickerIntent] =
+    useState<CreationIntent | null>(null);
+  const [templatePickerItemCategory, setTemplatePickerItemCategory] =
+    useState<CreationItemCategory | null>(null);
+  const [templatePlanUnsupportedNotice, setTemplatePlanUnsupportedNotice] = useState<string | null>(null);
+  const [templateCashflowDraft, setTemplateCashflowDraft] =
+    useState<Partial<CashflowEventDraft> | null>(null);
+  const [templateHousingDraft, setTemplateHousingDraft] =
+    useState<Partial<HousingEventDraft> | null>(null);
+  const [templateLoanDraft, setTemplateLoanDraft] =
+    useState<Partial<LoanEventDraft> | null>(null);
+  const [templateInsuranceDraft, setTemplateInsuranceDraft] =
+    useState<Partial<InsuranceEventDraft> | null>(null);
   const [v2EventDrawerOpen, setV2EventDrawerOpen] = useState(false);
   const [v2EventDrawerMode, setV2EventDrawerMode] = useState<"create" | "edit">(
     "create"
@@ -1500,6 +1517,9 @@ export default function PlanLabPanel({
 
   const openAddEventDrawer = () => {
     setTemplatePickerCategory("popular");
+    setTemplatePickerIntent(null);
+    setTemplatePickerItemCategory(null);
+    setTemplatePlanUnsupportedNotice(null);
     setTemplatePickerOpen(true);
   };
 
@@ -1513,17 +1533,45 @@ export default function PlanLabPanel({
   };
 
   const handleTemplateSelect = (template: TemplateDef) => {
-    const definition = buildTimelineDefinitionFromTemplate(template.id, timeline, {
-      baseCurrency: scenario.baseCurrency,
+    if (template.isBundle) {
+      setTemplatePlanUnsupportedNotice(
+        translate("planLabTemplatePlanComingSoon", "此模板暫未支援 Plan Lab（Coming soon）")
+      );
+      return;
+    }
+    const label = t(`templates.${template.id}.name`);
+    const draftOverrides = buildTemplateDrawerDraftOverrides(template.id, {
       baseMonth: scenario.assumptions.baseMonth,
-      memberId: scenarioMembers[0]?.id,
+      label,
     });
-    setEventDrawerMode("add");
-    setEventDraftGroup(getEventMeta(definition.type).group as EventGroup);
-    setEventDraftType(definition.type);
-    setEventDraftDefinition(definition);
-    setEventDraftRef(createScenarioEventRef(definition.id));
-    setEventDrawerOpen(true);
+
+    setTemplatePlanUnsupportedNotice(null);
+    setTemplateCashflowDraft(null);
+    setTemplateHousingDraft(null);
+    setTemplateLoanDraft(null);
+    setTemplateInsuranceDraft(null);
+
+    if (draftOverrides.drawerType === "cashflow") {
+      setV2EventDefaultKind(draftOverrides.cashflow?.kind ?? "income");
+      setTemplateCashflowDraft(draftOverrides.cashflow ?? null);
+      openV2EventDrawer("create", "cashflow");
+      return;
+    }
+    if (draftOverrides.drawerType === "housing") {
+      setTemplateHousingDraft(draftOverrides.housing ?? null);
+      openV2EventDrawer("create", "housing");
+      return;
+    }
+    if (draftOverrides.drawerType === "loan") {
+      setTemplateLoanDraft(draftOverrides.loan ?? null);
+      openV2EventDrawer("create", "loan");
+      return;
+    }
+    if (draftOverrides.drawerType === "insurance") {
+      setTemplateInsuranceDraft(draftOverrides.insurance ?? null);
+      openV2EventDrawer("create", "insurance");
+      return;
+    }
   };
 
   const isChildDraft = useMemo(() => {
@@ -1784,7 +1832,7 @@ export default function PlanLabPanel({
   const ensureScenarioV2EventId = (eventId?: string) =>
     eventId ?? `evt_v2_${nanoid(8)}`;
 
-  const handleSaveV2Event = (draft: CashflowEventDraft) => {
+  const handleSaveV2Event = (draft: PlanLabScenarioEventDraft) => {
     if (!scenarioIsV2) {
       return;
     }
@@ -2197,6 +2245,10 @@ export default function PlanLabPanel({
     setV2EventDrawerOpen(false);
     setEditingV2EventId(null);
     setV2EventDrawerType(null);
+    setTemplateCashflowDraft(null);
+    setTemplateHousingDraft(null);
+    setTemplateLoanDraft(null);
+    setTemplateInsuranceDraft(null);
   }, []);
 
   const v2EventLookup = useMemo(
@@ -4456,6 +4508,11 @@ export default function PlanLabPanel({
           {planToast}
         </Notification>
       )}
+      {templatePlanUnsupportedNotice && (
+        <Notification color="yellow" onClose={() => setTemplatePlanUnsupportedNotice(null)}>
+          {templatePlanUnsupportedNotice}
+        </Notification>
+      )}
       <Card withBorder radius="md" padding="md">
         <Group justify="space-between" align="center" wrap="wrap">
           <Stack gap={2}>
@@ -5526,8 +5583,13 @@ export default function PlanLabPanel({
       <TemplatePickerDrawer
         opened={templatePickerOpen}
         defaultCategory={templatePickerCategory}
-        filterTemplates={(template) => !template.isBundle}
-        onClose={() => setTemplatePickerOpen(false)}
+        showIntentScreen
+        defaultIntent={templatePickerIntent}
+        defaultItemCategory={templatePickerItemCategory}
+        onClose={() => {
+          setTemplatePickerOpen(false);
+          setTemplatePlanUnsupportedNotice(null);
+        }}
         onSelect={handleTemplateSelect}
       />
 
@@ -5544,6 +5606,7 @@ export default function PlanLabPanel({
             members={sandboxScenarioV2.members ?? []}
             event={v2EventDrawerMode === "edit" ? editingCashflowEvent : null}
             defaultKind={v2EventDefaultKind}
+            initialCashflowDraft={templateCashflowDraft ?? undefined}
             onClose={closeV2EventDrawer}
             onSave={handleSaveV2Event}
           />
@@ -5552,6 +5615,7 @@ export default function PlanLabPanel({
             mode={v2EventDrawerMode}
             baseCurrency={scenario.baseCurrency}
             event={v2EventDrawerMode === "edit" ? editingHousingEvent : null}
+            initialDraft={templateHousingDraft ?? undefined}
             onClose={closeV2EventDrawer}
             onSave={handleSaveHousingEvent}
           />
@@ -5560,6 +5624,7 @@ export default function PlanLabPanel({
             mode={v2EventDrawerMode}
             baseCurrency={scenario.baseCurrency}
             event={v2EventDrawerMode === "edit" ? editingLoanEvent : null}
+            initialDraft={templateLoanDraft ?? undefined}
             onClose={closeV2EventDrawer}
             onSave={handleSaveLoanEvent}
           />
@@ -5568,6 +5633,7 @@ export default function PlanLabPanel({
             mode={v2EventDrawerMode}
             baseCurrency={scenario.baseCurrency}
             event={v2EventDrawerMode === "edit" ? editingInsuranceEvent : null}
+            initialDraft={templateInsuranceDraft ?? undefined}
             onClose={closeV2EventDrawer}
             onSave={handleSaveInsuranceEvent}
           />
