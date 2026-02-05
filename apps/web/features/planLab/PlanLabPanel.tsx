@@ -178,6 +178,7 @@ import {
   filterScenarioV2PatchesByExperimentGroups,
   resolveExperimentGroupTitle,
   resolveSingleItemExperimentTitle,
+  type PlanLabExperimentRemovedItemMeta,
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
 
@@ -257,6 +258,14 @@ type PlanLabPanelProps = {
     netCashflow: TimeSeriesPoint[];
   };
   initialMode?: "edit" | "compare";
+};
+
+type PlanLabToast = {
+  id: string;
+  color: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 type PlanLabDriverSource = "event" | "rule" | "position" | "experiment";
 
@@ -854,6 +863,8 @@ export default function PlanLabPanel({
   const [savePlanTags, setSavePlanTags] = useState<string[] | undefined>(undefined);
   const [planToast, setPlanToast] = useState<string | null>(null);
   const planToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [experimentToast, setExperimentToast] = useState<PlanLabToast | null>(null);
+  const experimentToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [planAId, setPlanAId] = useState<string | null>(null);
   const [planBId, setPlanBId] = useState<string | null>(null);
@@ -939,6 +950,7 @@ export default function PlanLabPanel({
   >(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
   const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null);
+  const [undoRemovalRevision, setUndoRemovalRevision] = useState(0);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
     useState<Partial<CashflowEventDraft> | null>(null);
@@ -1108,6 +1120,24 @@ export default function PlanLabPanel({
       }
     };
   }, [planToast]);
+
+  useEffect(() => {
+    if (!experimentToast) {
+      return;
+    }
+    if (experimentToastTimeoutRef.current) {
+      clearTimeout(experimentToastTimeoutRef.current);
+    }
+    experimentToastTimeoutRef.current = setTimeout(() => {
+      setExperimentToast(null);
+      experimentToastTimeoutRef.current = null;
+    }, 8000);
+    return () => {
+      if (experimentToastTimeoutRef.current) {
+        clearTimeout(experimentToastTimeoutRef.current);
+      }
+    };
+  }, [experimentToast, undoRemovalRevision]);
 
   const eventPatches = baselinePatches?.eventPatches ?? {};
   const rulePatches = baselinePatches?.rulePatches ?? {};
@@ -2476,6 +2506,91 @@ export default function PlanLabPanel({
     });
     return map;
   }, [scenarioV2PatchesKey]);
+
+  const buildRemovedItemMeta = useCallback(
+    (itemId: string): PlanLabExperimentRemovedItemMeta => {
+      const fallbackType = itemId.split(":")[0] || "item";
+      const source = patchItemLookup.get(itemId);
+      return {
+        label: source?.label,
+        type: source?.type ?? fallbackType,
+        amount: source?.amount,
+        startMonth: source?.startMonth,
+      };
+    },
+    [patchItemLookup]
+  );
+
+  const removeItemFromExperimentGroup = useCallback(
+    (experimentId: string, itemId: string) => {
+      const removedAt = Date.now();
+      const meta = buildRemovedItemMeta(itemId);
+      let removed = false;
+      setExperimentGroups((current) =>
+        current.map((group) => {
+          if (group.experimentId !== experimentId) {
+            return group;
+          }
+          if (!group.itemIds.includes(itemId)) {
+            return group;
+          }
+          const alreadyRemoved = group.removedItems?.some((item) => item.itemId === itemId);
+          if (alreadyRemoved) {
+            return group;
+          }
+          removed = true;
+          return {
+            ...group,
+            removedItems: [...(group.removedItems ?? []), { itemId, removedAt, meta }],
+          };
+        })
+      );
+      if (!removed) {
+        return;
+      }
+      const label = meta.label ?? itemId;
+      const undoRemoval = () => {
+        setExperimentGroups((current) =>
+          current.map((group) =>
+            group.experimentId === experimentId
+              ? {
+                  ...group,
+                  removedItems: (group.removedItems ?? []).filter(
+                    (item) => item.itemId !== itemId
+                  ),
+                }
+              : group
+          )
+        );
+        setExperimentToast(null);
+        setUndoRemovalRevision((value) => value + 1);
+      };
+      setExperimentToast({
+        id: `${experimentId}:${itemId}:${removedAt}`,
+        color: "orange",
+        message: translate("planLabExperimentItemRemovedToast", "已從實驗移除：{label}", {
+          label,
+        }),
+        actionLabel: translate("planLabUndo", "復原"),
+        onAction: undoRemoval,
+      });
+    },
+    [buildRemovedItemMeta, translate]
+  );
+
+  const restoreItemToExperimentGroup = useCallback((experimentId: string, itemId: string) => {
+    setExperimentGroups((current) =>
+      current.map((group) =>
+        group.experimentId === experimentId
+          ? {
+              ...group,
+              removedItems: (group.removedItems ?? []).filter((item) => item.itemId !== itemId),
+            }
+          : group
+      )
+    );
+  }, []);
+
   const pendingRemoveGroup = useMemo(
     () =>
       confirmRemoveGroupId
@@ -4926,6 +5041,21 @@ export default function PlanLabPanel({
           {planToast}
         </Notification>
       )}
+      {experimentToast && (
+        <Notification
+          color={experimentToast.color}
+          onClose={() => setExperimentToast(null)}
+        >
+          <Group justify="space-between" align="center" wrap="wrap">
+            <Text size="sm">{experimentToast.message}</Text>
+            {experimentToast.actionLabel && experimentToast.onAction && (
+              <Button size="compact-xs" variant="light" onClick={experimentToast.onAction}>
+                {experimentToast.actionLabel}
+              </Button>
+            )}
+          </Group>
+        </Notification>
+      )}
       {templatePlanUnsupportedNotice && (
         <Notification color="yellow" onClose={() => setTemplatePlanUnsupportedNotice(null)}>
           {templatePlanUnsupportedNotice}
@@ -5459,6 +5589,9 @@ export default function PlanLabPanel({
                           {(scenarioIsV2 ? experimentGroups : experiments).map((experiment) => {
                             if (scenarioIsV2) {
                               const group = experiment as PlanLabExperimentGroup;
+                              const removedItems = group.removedItems ?? [];
+                              const removedSet = new Set(removedItems.map((item) => item.itemId));
+                              const activeItemIds = group.itemIds.filter((itemId) => !removedSet.has(itemId));
                               const badges: PlanLabRowBadge[] = [
                                 {
                                   label: translate("planLabBadgeExperiment", "實驗"),
@@ -5483,7 +5616,7 @@ export default function PlanLabPanel({
                                   summary={translate(
                                     "planLabExperimentGroupCount",
                                     "{count}項",
-                                    { count: group.itemIds.length }
+                                    { count: activeItemIds.length }
                                   )}
                                   enabled={group.isEnabled}
                                   onToggle={() => toggleExperimentGroup(group.experimentId)}
@@ -5496,14 +5629,14 @@ export default function PlanLabPanel({
                                     <Stack gap={6}>
                                       <Text size="xs" c="dimmed">
                                         {translate("planLabExperimentGroupCount", "{count}項", {
-                                          count: group.itemIds.length,
+                                          count: activeItemIds.length,
                                         })}
                                       </Text>
                                       <Text size="xs" fw={500}>
                                         {translate("planLabExperimentIncludesItems", "包含項目")}
                                       </Text>
                                       <Stack gap={4}>
-                                        {group.itemIds.slice(0, 3).map((itemId) => {
+                                        {activeItemIds.slice(0, 3).map((itemId) => {
                                           const item = patchItemLookup.get(itemId);
                                           const label = item?.label?.trim() || "—";
                                           const type = item?.type ?? "—";
@@ -5524,15 +5657,83 @@ export default function PlanLabPanel({
                                               <Text size="xs" c="dimmed">
                                                 {startMonth}
                                               </Text>
+                                              <Button
+                                                size="compact-xs"
+                                                variant="subtle"
+                                                color="red"
+                                                onClick={() =>
+                                                  removeItemFromExperimentGroup(
+                                                    group.experimentId,
+                                                    itemId
+                                                  )
+                                                }
+                                              >
+                                                {translate("planLabAppliedRemove", "移除")}
+                                              </Button>
                                             </Group>
                                           );
                                         })}
-                                        {group.itemIds.length > 3 && (
+                                        {activeItemIds.length > 3 && (
                                           <Text size="xs" c="dimmed">
-                                            +{group.itemIds.length - 3}
+                                            +{activeItemIds.length - 3}
                                           </Text>
                                         )}
                                       </Stack>
+                                      {removedItems.length > 0 && (
+                                        <>
+                                          <Text size="xs" fw={500} mt={4}>
+                                            {translate("planLabRemovedItems", "已移除項目")}
+                                          </Text>
+                                          <Stack gap={4}>
+                                            {removedItems.map((removedItem) => {
+                                              const amountText =
+                                                typeof removedItem.meta.amount === "number"
+                                                  ? formatCurrency(
+                                                      removedItem.meta.amount,
+                                                      "HKD",
+                                                      locale
+                                                    )
+                                                  : null;
+                                              return (
+                                                <Group
+                                                  key={`${group.experimentId}-${removedItem.itemId}-removed`}
+                                                  gap={6}
+                                                  wrap="wrap"
+                                                >
+                                                  <Text size="xs">
+                                                    {removedItem.meta.label?.trim() || removedItem.itemId}
+                                                  </Text>
+                                                  <Badge size="xs" variant="light" color="gray">
+                                                    {removedItem.meta.type}
+                                                  </Badge>
+                                                  {amountText && (
+                                                    <Text size="xs" c="dimmed">
+                                                      {amountText}
+                                                    </Text>
+                                                  )}
+                                                  {removedItem.meta.startMonth && (
+                                                    <Text size="xs" c="dimmed">
+                                                      {removedItem.meta.startMonth}
+                                                    </Text>
+                                                  )}
+                                                  <Button
+                                                    size="compact-xs"
+                                                    variant="subtle"
+                                                    onClick={() =>
+                                                      restoreItemToExperimentGroup(
+                                                        group.experimentId,
+                                                        removedItem.itemId
+                                                      )
+                                                    }
+                                                  >
+                                                    {translate("planLabRestore", "恢復")}
+                                                  </Button>
+                                                </Group>
+                                              );
+                                            })}
+                                          </Stack>
+                                        </>
+                                      )}
                                     </Stack>
                                   }
                                 />
