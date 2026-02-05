@@ -217,6 +217,8 @@ type ScenarioEditorItem = {
   changed?: boolean;
   risky?: boolean;
   amount?: number | null;
+  frequency?: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths" | "schedule";
+  intervalMonths?: number | null;
   eventId?: string;
   eventRefId?: string;
   eventDefinitionId?: string;
@@ -275,6 +277,55 @@ type PlanLabChangedDriverCandidate = {
 const MAX_TOP_DRIVER_CANDIDATES = 8;
 const TOP_DRIVER_COUNT = 5;
 const TOP_DRIVER_DEBOUNCE_MS = 300;
+
+export const GROUP_LABEL: Record<string, string> = {
+  income: "收入",
+  expense: "支出",
+  expenses: "支出",
+  asset: "資產",
+  assets: "資產",
+  liability: "負債",
+  liabilities: "負債",
+  cash: "現金",
+  housing: "住房",
+  mortgage: "按揭",
+};
+
+export const buildScenarioItemMetaParts = ({
+  item,
+  currency,
+  locale,
+  frequencyLabels,
+  householdLabel,
+}: {
+  item: ScenarioEditorItem;
+  currency: string;
+  locale: string;
+  frequencyLabels: Record<NonNullable<ScenarioEditorItem["frequency"]>, string>;
+  householdLabel: string;
+}) => {
+  const parts: string[] = [];
+  if (item.frequency) {
+    if (item.frequency === "everyNMonths" && item.intervalMonths && item.intervalMonths > 0) {
+      parts.push(`每 ${item.intervalMonths} 個月`);
+    } else {
+      parts.push(frequencyLabels[item.frequency]);
+    }
+  }
+  if (typeof item.amount === "number") {
+    parts.push(formatCurrency(item.amount, currency, locale));
+  }
+  if (item.startMonth || item.endMonth) {
+    const start = item.startMonth ?? "—";
+    parts.push(item.endMonth ? `${start} 至 ${item.endMonth}` : `${start} 起`);
+  }
+  if (item.memberName) {
+    parts.push(item.memberName);
+  } else if (item.memberId) {
+    parts.push(item.memberId === "household" ? householdLabel : item.memberId);
+  }
+  return parts;
+};
 
 
 const mergeSeries = (baseline: TimeSeriesPoint[], option: TimeSeriesPoint[]) => {
@@ -445,6 +496,11 @@ const deriveInputsFromScenarioV2 = (params: {
       eventSource: changed.addedEvents.has(event.id) ? "draft" : "baseline",
       risky: event.type === "housing" || event.type === "loan",
       amount,
+      frequency: event.type === "cashflow" ? event.cadence : undefined,
+      intervalMonths:
+        event.type === "cashflow" && event.cadence === "everyNMonths"
+          ? event.everyNMonths ?? null
+          : null,
     });
   });
 
@@ -541,6 +597,7 @@ type PlanLabAccordionRowProps = {
   title: string;
   badges: PlanLabRowBadge[];
   summary?: string;
+  meta?: string;
   enabled?: boolean;
   highlighted?: boolean;
   onToggle?: () => void;
@@ -557,6 +614,7 @@ const PlanLabAccordionRow = memo(
       title,
       badges,
       summary,
+      meta,
       enabled,
       highlighted,
       onToggle,
@@ -583,6 +641,11 @@ const PlanLabAccordionRow = memo(
                 <Text fw={600} size="sm" lineClamp={1}>
                   {title}
                 </Text>
+                {meta ? (
+                  <Text size="xs" c="dimmed" lineClamp={2}>
+                    {meta}
+                  </Text>
+                ) : null}
                 <Group gap={4} wrap="wrap">
                   {badges.map((badge) => (
                     <Badge
@@ -596,9 +659,11 @@ const PlanLabAccordionRow = memo(
                   ))}
                 </Group>
               </Stack>
-              <Text size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
-                {summary ?? "—"}
-              </Text>
+              {typeof summary === "string" ? (
+                <Text size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
+                  {summary || "—"}
+                </Text>
+              ) : null}
               <Group gap="xs" wrap="nowrap">
                 {onToggle && (
                   <Switch
@@ -1168,7 +1233,9 @@ export default function PlanLabPanel({
     if (groupKey === "timeline") {
       return item.startMonth ?? translate("planLabGroupNoDate", "未設定月份");
     }
-    return categoryLabels[item.category] ?? item.category;
+    const normalizedKey = item.category?.toLowerCase();
+    const mappedLabel = normalizedKey ? GROUP_LABEL[normalizedKey] : undefined;
+    return mappedLabel ?? categoryLabels[item.category] ?? item.category;
   };
 
   const formatSmartInvestReserveLabel = useCallback(
@@ -2658,6 +2725,18 @@ export default function PlanLabPanel({
         eventRule: rule,
         eventOverrides: view.ref.overrides,
         eventSource: draftEventIds.has(view.definition.id) ? "draft" : "baseline",
+        amount:
+          typeof rule.monthlyAmount === "number"
+            ? rule.monthlyAmount
+            : typeof rule.oneTimeAmount === "number"
+            ? rule.oneTimeAmount
+            : null,
+        frequency:
+          rule.mode === "schedule"
+            ? "schedule"
+            : typeof rule.oneTimeAmount === "number"
+            ? "oneOff"
+            : "monthly",
       });
     });
 
@@ -2980,7 +3059,9 @@ export default function PlanLabPanel({
       if (changeBadge) {
         badges.push(changeBadge);
       }
-      const categoryLabel = categoryLabels[item.category] ?? item.category;
+      const normalizedCategory = item.category?.toLowerCase();
+      const mappedCategoryLabel = normalizedCategory ? GROUP_LABEL[normalizedCategory] : undefined;
+      const categoryLabel = mappedCategoryLabel ?? categoryLabels[item.category] ?? item.category;
       if (categoryLabel) {
         badges.push({ label: categoryLabel });
       }
@@ -2995,20 +3076,40 @@ export default function PlanLabPanel({
     [categoryLabels, getScenarioItemChangeBadge, translate]
   );
 
+  const frequencyLabels = useMemo<Record<NonNullable<ScenarioEditorItem["frequency"]>, string>>(
+    () => ({
+      monthly: translate("planLabFrequencyMonthly", "每月"),
+      quarterly: translate("planLabFrequencyQuarterly", "每季"),
+      yearly: translate("planLabFrequencyYearly", "每年"),
+      oneOff: translate("planLabFrequencyOneOff", "一次性"),
+      everyNMonths: translate("planLabFrequencyEveryNMonths", "每 N 個月"),
+      schedule: translate("planLabFrequencySchedule", "排程"),
+    }),
+    [translate]
+  );
+
+  const scenarioItemMetaById = useMemo(() => {
+    const map = new Map<string, string>();
+    scenarioItems.forEach((item) => {
+      const meta = buildScenarioItemMetaParts({
+        item,
+        currency: scenario.baseCurrency,
+        locale,
+        frequencyLabels,
+        householdLabel: translate("planLabMemberHousehold", "家庭"),
+      })
+        .filter(Boolean)
+        .join(" • ");
+      if (meta) {
+        map.set(item.id, meta);
+      }
+    });
+    return map;
+  }, [frequencyLabels, locale, scenario.baseCurrency, scenarioItems, translate]);
+
   const getScenarioItemSummary = useCallback(
-    (item: ScenarioEditorItem) => {
-      const parts: string[] = [];
-      if (typeof item.amount === "number") {
-        parts.push(formatCurrency(item.amount, scenario.baseCurrency, locale));
-      }
-      if (item.startMonth || item.endMonth) {
-        const start = item.startMonth ?? "—";
-        const end = item.endMonth ? ` → ${item.endMonth}` : "";
-        parts.push(`${start}${end}`);
-      }
-      return parts.join(" · ");
-    },
-    [locale, scenario.baseCurrency]
+    (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id) ?? "",
+    [scenarioItemMetaById]
   );
 
   const getExperimentSummary = useCallback(
@@ -5128,7 +5229,7 @@ export default function PlanLabPanel({
                                   ref={(node) => registerItemRef(item.id, node)}
                                   title={item.title}
                                   badges={getScenarioItemBadges(item)}
-                                  summary={getScenarioItemSummary(item)}
+                                  meta={getScenarioItemSummary(item)}
                                   enabled={item.enabled}
                                   highlighted={highlightedItemId === item.id}
                                   onToggle={
