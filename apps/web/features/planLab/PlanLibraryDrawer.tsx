@@ -37,7 +37,7 @@ type PlanLibraryDrawerProps = {
   opened: boolean;
   onClose: () => void;
   scenario: Scenario;
-  baselineFingerprint: string;
+  baselineSignature: string;
   plans: Plan[];
   otherPlans: Plan[];
   locale: string;
@@ -92,7 +92,7 @@ export const PlanLibraryDrawer = ({
   opened,
   onClose,
   scenario,
-  baselineFingerprint,
+  baselineSignature,
   plans,
   otherPlans,
   locale,
@@ -114,7 +114,7 @@ export const PlanLibraryDrawer = ({
       ...plans,
       ...otherPlans.map((plan) => ({ ...plan, name: `${plan.name}` })),
     ];
-    return combined.sort((a, b) => b.updatedAt - a.updatedAt);
+    return combined.sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt));
   }, [otherPlans, plans]);
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export const PlanLibraryDrawer = ({
     }
     const pending = sortedPlans
       .slice(0, 5)
-      .filter((plan) => !metrics[plan.id] && plan.scenarioId === scenario.id);
+      .filter((plan) => !metrics[plan.id] && plan.baselineScenarioId === scenario.id);
     if (pending.length === 0) {
       return;
     }
@@ -163,8 +163,8 @@ export const PlanLibraryDrawer = ({
         {sortedPlans.map((plan) => {
           const metric = metrics[plan.id];
           const badgeColor = metric?.status === "bust" ? "red" : "teal";
-          const isCompatible = plan.scenarioId === scenario.id;
-          const baselineMismatch = plan.baselineFingerprint !== baselineFingerprint;
+          const isCompatible = plan.baselineScenarioId === scenario.id;
+          const baselineMismatch = plan.baselineSignature !== baselineSignature;
           return (
             <Card key={plan.id} withBorder radius="md" padding="sm">
               <Stack gap="xs">
@@ -173,7 +173,7 @@ export const PlanLibraryDrawer = ({
                     <Text fw={600}>{plan.name}</Text>
                     <Text size="xs" c="dimmed">
                     {translate("planLabPlanUpdatedAt", "Updated {date}", {
-                      date: new Date(plan.updatedAt).toLocaleDateString(locale),
+                      date: new Date(plan.updatedAt ?? plan.createdAt).toLocaleDateString(locale),
                     })}
                   </Text>
                   {plan.notes && (

@@ -888,7 +888,7 @@ export default function PlanLabPanel({
     () => buildScenarioV2FromScenario(scenario, eventLibrary),
     [eventLibrary, scenario]
   );
-  const baselineFingerprint = useMemo(
+  const baselineSignature = useMemo(
     () => computeBaselineFingerprint(baselineScenarioV2, budgetRules),
     [baselineScenarioV2, budgetRules]
   );
@@ -918,11 +918,11 @@ export default function PlanLabPanel({
         const legacy = plan as Plan & { sourceScenarioId?: string };
         savePlanSnapshot({
           id: plan.id,
-          scenarioId: legacy.sourceScenarioId ?? scenario.id,
+          baselineScenarioId: legacy.sourceScenarioId ?? scenario.id,
           name: plan.name,
           createdAt: plan.createdAt,
           updatedAt: plan.updatedAt,
-          baselineFingerprint,
+          baselineSignature,
           payload: buildSnapshotPayload(
             baselineScenarioV2,
             baselineScenarioV2,
@@ -935,9 +935,9 @@ export default function PlanLabPanel({
       plans = listPlanSnapshots(scenario.id);
     }
     setPlanLibrary(plans);
-    setOtherPlans(listAllPlanSnapshots().filter((plan) => plan.scenarioId !== scenario.id));
+    setOtherPlans(listAllPlanSnapshots().filter((plan) => plan.baselineScenarioId !== scenario.id));
   }, [
-    baselineFingerprint,
+    baselineSignature,
     baselineScenarioV2,
     budgetRules,
     scenario.id,
@@ -3989,7 +3989,7 @@ export default function PlanLabPanel({
   };
 
   const handleLoadPlanSnapshot = (plan: PlanSnapshot) => {
-    if (plan.scenarioId !== scenario.id) {
+    if (plan.baselineScenarioId !== scenario.id) {
       setPlanToast(
         translate(
           "planLabPlanScenarioMismatchToast",
@@ -4024,13 +4024,13 @@ export default function PlanLabPanel({
     const snapshot = JSON.parse(JSON.stringify(planSnapshot)) as PlanLabSnapshot;
     const nextPlan: PlanSnapshot = {
       id: nanoid(),
-      scenarioId: scenario.id,
+      baselineScenarioId: scenario.id,
       name: values.name,
       notes: values.notes,
       tags: values.tags,
       createdAt: timestamp,
       updatedAt: timestamp,
-      baselineFingerprint,
+      baselineSignature,
       payload: snapshotPayload,
       snapshot,
     };
@@ -4062,7 +4062,7 @@ export default function PlanLabPanel({
       notes: savePlanNotes ?? existing.notes,
       tags: savePlanTags ?? existing.tags,
       updatedAt: timestamp,
-      baselineFingerprint,
+      baselineSignature,
       payload: snapshotPayload,
       snapshot,
     });
@@ -4077,7 +4077,7 @@ export default function PlanLabPanel({
   };
 
   const handleDeletePlan = (plan: Plan) => {
-    deletePlanSnapshot(plan.scenarioId, plan.id);
+    deletePlanSnapshot(plan.baselineScenarioId, plan.id);
     refreshPlanLibrary();
     if (planAId === plan.id) {
       setPlanAId(null);
@@ -4091,7 +4091,7 @@ export default function PlanLabPanel({
   };
 
   const handleRenamePlan = (plan: Plan, name: string) => {
-    renamePlanSnapshot(plan.scenarioId, plan.id, name);
+    renamePlanSnapshot(plan.baselineScenarioId, plan.id, name);
     refreshPlanLibrary();
   };
 
@@ -5352,7 +5352,7 @@ export default function PlanLabPanel({
         opened={planLibraryOpen}
         onClose={() => setPlanLibraryOpen(false)}
         scenario={scenario}
-        baselineFingerprint={baselineFingerprint}
+        baselineSignature={baselineSignature}
         plans={plans}
         otherPlans={otherPlans}
         locale={locale}
