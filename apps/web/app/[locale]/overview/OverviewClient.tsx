@@ -65,6 +65,7 @@ import {
 } from "../../../src/store/scenarioStore";
 import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
+import { safeT } from "../../../src/i18n/safeT";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
 import { appliesToScenario } from "../../../src/domain/applyScope";
 import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
@@ -82,6 +83,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const router = useRouter();
   const locale = useLocale();
   const t = useTranslations("overview");
+  const tDashboard = useTranslations("overview.dashboard");
   const common = useTranslations("common");
   const exportT = useTranslations("export");
   const searchParams = useSearchParams();
@@ -537,60 +539,55 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   }
 
   const showCompare = viewMode === "compare";
-  const tf = (key: string, fallback: string, values?: Record<string, string | number>) => {
-    try {
-      return t(key as never, values as never);
-    } catch {
-      return fallback;
-    }
-  };
+  const sd = (key: string, fallback: string, values?: Record<string, string | number>) =>
+    safeT(tDashboard, key, fallback, values);
 
   const kpiItems = [
     {
-      label: tf("kpi12mMinCash", "12M 最低現金結餘"),
+      label: sd("kpi.minCash", "最低現金結餘"),
       value: dashboardMetrics.minCash12m
         ? `${formatCurrency(dashboardMetrics.minCash12m.value, selectedScenario.baseCurrency, locale)} · ${dashboardMetrics.minCash12m.month}`
-        : tf("emptyValue", "--"),
-      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+        : sd("common.emptyValue", "--"),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
     },
     {
-      label: tf("kpi12mDeficitMonths", "12M 負現金流月份數"),
+      label: sd("kpi.deficitMonths", "負現金流月份"),
       value: `${dashboardMetrics.deficitMonthsCount12m} / 12`,
-      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
     },
     {
-      label: tf("kpi12mAvgNetCashflow", "12M 平均每月淨現金流"),
-      value: `${formatCurrency(dashboardMetrics.avgNetCashflow12m ?? 0, selectedScenario.baseCurrency, locale)} / ${tf("month", "月")}`,
-      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+      label: sd("kpi.avgNetCashflow", "平均每月淨現金流"),
+      value: `${formatCurrency(dashboardMetrics.avgNetCashflow12m ?? 0, selectedScenario.baseCurrency, locale)} / ${sd("common.month", "月")}`,
+      helper: sd("kpi.scope12m", "未來 12 個月"),
     },
     {
-      label: tf("kpiCashRunway", "現金 runway（月）"),
+      label: sd("kpi.cashRunway", "可支撐月數"),
       value: dashboardMetrics.cashRunwayMonths === null
-        ? tf("kpiRunwayUnavailable", "未有資料")
-        : tf("kpiRunwayMonths", `${dashboardMetrics.cashRunwayMonths.toFixed(1)} 個月`, { months: dashboardMetrics.cashRunwayMonths.toFixed(1) }),
-      helper: tf("kpiRunwayProxy", "以 12M 平均支出估算"),
+        ? sd("kpi.runwayUnavailable", "未有資料")
+        : sd("kpi.runwayMonths", `${dashboardMetrics.cashRunwayMonths.toFixed(1)} 個月`, { months: dashboardMetrics.cashRunwayMonths.toFixed(1) }),
+      helper: sd("kpi.runwayProxyHint", "以平均必要支出估算。"),
     },
     {
-      label: tf("kpiFirstMillionMonth", "第一桶金達標月份"),
-      value: dashboardMetrics.firstMillionMonth ?? tf("notReached", "未達標"),
-      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+      label: sd("kpi.firstMillionMonth", "第一桶金"),
+      value: dashboardMetrics.firstMillionMonth ?? sd("kpi.notReached", "未達標"),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
     },
     {
-      label: tf("kpiAvgNonSalaryIncome", "非工資收入（12M 平均）"),
+      label: sd("kpi.avgNonSalaryIncome", "非工資收入（平均）"),
       value: formatCurrency(dashboardMetrics.avgNonSalaryIncome12m ?? 0, selectedScenario.baseCurrency, locale),
-      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
     },
     {
-      label: tf("kpiAvgFunBudget", "每月可自由支出（12M 平均）"),
+      label: sd("kpi.avgFunBudget", "每月可自由支出（平均）"),
       value: formatCurrency(dashboardMetrics.avgFunBudget12m ?? 0, selectedScenario.baseCurrency, locale),
-      helper: tf("kpiAvgFunBudgetHint", "MVP 以平均月淨現金流作 proxy"),
+      helper: sd("kpi.avgFunBudgetHint", "以平均月淨現金流作 proxy"),
     },
     {
-      label: tf("kpiRiskLevelDerived", "風險等級"),
-      value: dashboardMetrics.riskLevel === "red" ? tf("riskRed", "紅") : tf("riskGreen", "綠"),
-      badgeLabel: dashboardMetrics.riskLevel === "red" ? tf("riskHigh", "高") : tf("riskLow", "低"),
+      label: sd("kpi.riskLevel", "風險等級"),
+      value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "高") : sd("kpi.riskLow", "低"),
+      badgeLabel: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "高") : sd("kpi.riskLow", "低"),
       badgeColor: dashboardMetrics.riskLevel === "red" ? "red" : "green",
-      helper: tf("kpi12mScope", "口徑：未來 12 個月"),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
     },
   ];
 
@@ -639,12 +636,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const moneyHubHref = buildScenarioUrl("/money", selectedScenario.id);
   const peopleHubHref = buildScenarioUrl("/people", selectedScenario.id);
   const completenessItems = [
-    { key: "income", label: tf("completenessIncome", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: moneyHubHref },
-    { key: "expenses", label: tf("completenessExpenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: moneyHubHref },
-    { key: "assets", label: tf("completenessAssets", "資產"), done: Boolean(selectedScenario.positions?.homes?.length || selectedScenario.positions?.cars?.length || selectedScenario.positions?.investments?.length), href: moneyHubHref },
-    { key: "liabilities", label: tf("completenessLiabilities", "負債"), done: Boolean(selectedScenario.positions?.loans?.length), href: moneyHubHref },
-    { key: "members", label: tf("completenessMembers", "成員"), done: scenarioMembers.length > 0, href: peopleHubHref },
-    { key: "rules", label: tf("completenessRules", "規則"), done: budgetRules.length > 0, href: moneyHubHref },
+    { key: "income", label: sd("completeness.income", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: moneyHubHref },
+    { key: "expenses", label: sd("completeness.expenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: moneyHubHref },
+    { key: "assets", label: sd("completeness.assets", "資產"), done: Boolean(selectedScenario.positions?.homes?.length || selectedScenario.positions?.cars?.length || selectedScenario.positions?.investments?.length), href: moneyHubHref },
+    { key: "liabilities", label: sd("completeness.liabilities", "負債"), done: Boolean(selectedScenario.positions?.loans?.length), href: moneyHubHref },
+    { key: "members", label: sd("completeness.members", "成員"), done: scenarioMembers.length > 0, href: peopleHubHref },
+    { key: "rules", label: sd("completeness.rules", "規則"), done: budgetRules.length > 0, href: moneyHubHref },
   ];
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
@@ -748,12 +745,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           <Stack gap="md">
             <Group justify="space-between" align="flex-start" wrap="wrap">
               <div>
-                <Text fw={700}>{tf("healthSummaryTitle", "財務健康總覽")}</Text>
-                <Text size="xs" c="dimmed">{tf("healthSummarySubtitle", "口徑統一為未來 12 個月")}</Text>
+                <Text fw={700}>{sd("healthSummary.title", "財務健康總覽")}</Text>
+                <Text size="xs" c="dimmed">{sd("healthSummary.subtitle", "以未來 12 個月投影評估風險與可承受度。")}</Text>
               </div>
               <Group gap="xs">
-                <Button component={Link} href={planLabFamilyEntryHref}>{tf("planLabFamilyEntryCta", "打開 Plan Lab")}</Button>
-                <Button component={Link} href={moneyHubHref} variant="light">{tf("completeDataCta", "補齊資料")}</Button>
+                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開 Plan Lab")}</Button>
+                <Button component={Link} href={moneyHubHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
               </Group>
             </Group>
             {isDesktop ? (
@@ -767,10 +764,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             )}
             <Card withBorder radius="md" padding="sm">
               <Stack gap={6}>
-                <Text fw={600} size="sm">{tf("completenessTitle", "資料完整度")}</Text>
+                <Text fw={600} size="sm">{sd("completeness.title", "資料完整度")}</Text>
                 <Group gap="xs" wrap="wrap">
                   {completenessItems.map((item) => (
-                    <Button key={item.key} component={Link} href={item.href} variant="light" size="xs">
+                    <Button key={sd(`completeness.${item.key}`, item.key)} component={Link} href={item.href} variant="light" size="xs">
                       {item.done ? "✔" : "✖"} {item.label}
                     </Button>
                   ))}
@@ -779,13 +776,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             </Card>
             <Card withBorder radius="md" padding="sm">
               <Stack gap={6}>
-                <Text fw={600} size="sm">{tf("nextKeyEventTitle", "下一個關鍵點")}</Text>
+                <Text fw={600} size="sm">{sd("nextKeyEvent.title", "下一個關鍵點")}</Text>
                 {nextKeyEvent ? (
                   <Text size="sm">{nextKeyEvent.label} · {nextKeyEvent.month}</Text>
                 ) : (
                   <Stack gap="xs" align="flex-start">
-                    <Text size="sm" c="dimmed">{tf("nextKeyEventEmpty", "你未設定重要事件（例如旅行/結婚/入市/預產），新增一個即可看到風險變化。")}</Text>
-                    <Button component={Link} href={moneyTimelineHref} size="xs">{tf("addEventsCta", "新增事件")}</Button>
+                    <Text size="sm" c="dimmed">{sd("nextKeyEvent.empty", "你未設定重要事件（例如旅行／結婚／入市／預產）。新增一個即可看到風險變化。")}</Text>
+                    <Button component={Link} href={moneyTimelineHref} size="xs">{sd("nextKeyEvent.addEvent", "新增事件")}</Button>
                   </Stack>
                 )}
               </Stack>
@@ -870,14 +867,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         <Card withBorder radius="md" padding="md">
           <Stack gap="sm">
             <Group justify="space-between" align="center" wrap="wrap">
-              <Text fw={600}>{tf("primaryChartTitle", "主要圖表")}</Text>
+              <Text fw={600}>{sd("chart.title", "預覽圖表")}</Text>
               <Group gap="xs">
                 <SegmentedControl
                   size="xs"
                   data={[
-                    { value: "cash", label: tf("cashBalanceTitle", "現金") },
-                    { value: "netWorth", label: tf("netWorthTitle", "淨資產") },
-                    { value: "netCashflow", label: tf("netCashflowTitle", "淨現金流") },
+                    { value: "cash", label: sd("chart.tabs.cash", "現金結餘") },
+                    { value: "netWorth", label: sd("chart.tabs.netWorth", "資產淨值") },
+                    { value: "netCashflow", label: sd("chart.tabs.netCashflow", "淨現金流") },
                   ]}
                   value={primaryChartTab}
                   onChange={(value) => setPrimaryChartTab(value as "cash" | "netWorth" | "netCashflow")}
@@ -894,13 +891,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </Group>
             </Group>
             {primaryChartTab === "cash" ? (
-              <CashBalanceChart data={cashSeries} markers={milestoneMarkers} title={tf("cashBalanceTitle", "現金")} />
+              <CashBalanceChart data={cashSeries} markers={milestoneMarkers} title={sd("chart.tabs.cash", "現金結餘")} />
             ) : primaryChartTab === "netWorth" ? (
-              <NetWorthChart data={netWorthSeries} markers={milestoneMarkers} title={tf("netWorthTitle", "淨資產")} />
+              <NetWorthChart data={netWorthSeries} markers={milestoneMarkers} title={sd("chart.tabs.netWorth", "資產淨值")} />
             ) : (
-              <NetCashflowChart data={displayedNetCashflowSeries} markers={milestoneMarkers} title={tf("netCashflowTitle", "淨現金流")} />
+              <NetCashflowChart data={displayedNetCashflowSeries} markers={milestoneMarkers} title={sd("chart.tabs.netCashflow", "淨現金流")} />
             )}
-            <Text size="xs" c="dimmed">{tf("chartToggleHint", "「包含投資/不計投資」目前先影響圖表，KPI 口徑將在後續版本同步。")}</Text>
+            <Text size="xs" c="dimmed">{sd("chart.toggleHint", "切換不同視角以查看現金壓力與資產走勢。")}</Text>
           </Stack>
         </Card>
       )}
@@ -909,7 +906,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         <>
           <Accordion variant="separated" radius="md" defaultValue="snapshot">
             <Accordion.Item value="snapshot">
-              <Accordion.Control>{tf("projectionSnapshotTitle", "投影快照")}</Accordion.Control>
+              <Accordion.Control>{sd("snapshot.title", "投影快照")}</Accordion.Control>
               <Accordion.Panel>
                 <AutoSnapshotsCard
                   snapshots={autoSnapshots}
@@ -923,13 +920,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
-                  <Text fw={600}>{tf("quickLinksMoneyTitle", "金錢摘要（Quick Links）")}</Text>
+                  <Text fw={600}>{sd("quickLinks.moneyTitle", "金錢摘要")}</Text>
                   <Button component={Link} href={moneyHubHref} size="xs" variant="light">{t("moneySummaryCta")}</Button>
                 </Group>
                 <SimpleGrid cols={2} spacing="xs">
                   {[{ key: "income", count: Object.values(ledgerByMonth).flat().filter((item) => item.amount > 0).length }, { key: "expenses", count: Object.values(ledgerByMonth).flat().filter((item) => item.amount < 0).length }, { key: "assets", count: (selectedScenario.positions?.homes?.length ?? 0) + (selectedScenario.positions?.cars?.length ?? 0) + (selectedScenario.positions?.investments?.length ?? 0) }, { key: "liabilities", count: selectedScenario.positions?.loans?.length ?? 0 }].map((item) => (
                     <Card key={item.key} withBorder radius="md" padding="xs">
-                      <Text size="sm" fw={600}>{item.key}</Text>
+                      <Text size="sm" fw={600}>{sd(`completeness.${item.key}`, item.key)}</Text>
                       <Text size="xs" c="dimmed">{item.count}</Text>
                     </Card>
                   ))}
@@ -940,7 +937,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
-                  <Text fw={600}>{tf("quickLinksPeopleTitle", "成員摘要（Quick Links）")}</Text>
+                  <Text fw={600}>{sd("quickLinks.peopleTitle", "成員摘要")}</Text>
                   <Button component={Link} href={peopleHubHref} size="xs" variant="light">{t("peopleSummaryCta")}</Button>
                 </Group>
                 <Text size="sm">{t("peopleSummaryMembers", { count: scenarioMembers.length })}</Text>
