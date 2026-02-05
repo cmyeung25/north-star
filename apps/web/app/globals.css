@@ -1,6 +1,15 @@
 :root {
   color-scheme: light;
   --bottom-nav-height: 0px;
+  --aur-primary-900: #0b1b3a;
+  --aur-accent-500: #23d5ab;
+  --aur-info-500: #5bc0eb;
+  --aur-border-200: #e2e8f0;
+  --aur-surface-50: #f8fafc;
+  --aur-card-0: #ffffff;
+  --aur-text-title: #0f172a;
+  --aur-text-body: #334155;
+  --aur-text-muted: #64748b;
 }
 
 *,
@@ -9,9 +18,14 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100%;
-  background: var(--mantine-color-gray-0);
-  color: var(--mantine-color-dark-9);
+  background: var(--mantine-color-polar-0);
+  color: var(--mantine-color-neutral-9);
+  line-height: 1.5;
 }
