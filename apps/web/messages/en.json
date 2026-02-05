@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "North Star",
-    "appDescription": "Mobile-first PWA financial planning for life stages.",
+    "appName": "AURIN",
+    "appDescription": "Aurin illuminates your financial decisions with the clarity of the Northern Lights, designed for financial planning across life stages.",
     "statusSignedIn": "Signed in · Auto-sync {mode}",
     "statusOn": "on",
     "statusOff": "off",

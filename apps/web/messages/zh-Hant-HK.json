@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "北極星",
-    "appDescription": "以行動裝置為主的 PWA 人生階段理財規劃。",
+    "appName": "AURIN",
+    "appDescription": "Aurin 以極光般的清晰，照亮你的理財決策之路，專為人生不同階段的財務規劃而設計。",
     "statusSignedIn": "已登入 · 自動同步 {mode}",
     "statusOn": "開啟",
     "statusOff": "關閉",
@@ -114,7 +114,7 @@
     "timeline": "時間線",
     "stress": "壓力測試",
     "settings": "設定",
-    "planLab": "Plan Lab"
+    "planLab": "情景實驗室"
   },
   "toolbar": {
     "addButton": "＋新增",
