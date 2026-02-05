@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Divider,
   Drawer,
   Group,
@@ -42,7 +43,8 @@ type BundleWizardDrawerProps = {
   onClose: () => void;
   onOpenEventDrawer?: (type: ScenarioEventDraft["type"], eventId: string) => void;
   onApplyEvents?: (
-    events: ScenarioEventDraft[]
+    events: ScenarioEventDraft[],
+    options?: { packAsExperiment?: boolean; experimentTitle?: string }
   ) => Promise<{ ok: boolean; error?: string }> | { ok: boolean; error?: string };
   allowInlineEdit?: boolean;
 };
@@ -177,6 +179,7 @@ export default function BundleWizardDrawer({
     () => new Set()
   );
   const [actionError, setActionError] = useState<string | null>(null);
+  const [packAsExperiment, setPackAsExperiment] = useState(true);
 
   const defaultMonth = baseMonth && isValidMonthKey(baseMonth) ? baseMonth : "";
 
@@ -229,6 +232,7 @@ export default function BundleWizardDrawer({
     setActionError(null);
     setPreviewEvents([]);
     setCreatedEventIds(new Set());
+    setPackAsExperiment(true);
     setNewBabyDraft((current) => ({
       ...current,
       birthMonth: defaultMonth || current.birthMonth,
@@ -368,7 +372,10 @@ export default function BundleWizardDrawer({
       (event) => event.id && !createdEventIds.has(event.id)
     );
     if (onApplyEvents) {
-      const result = await onApplyEvents(drafts);
+      const result = await onApplyEvents(drafts, {
+        packAsExperiment,
+        experimentTitle: template?.id,
+      });
       if (!result.ok) {
         setActionError(result.error ?? t("bundleApplyFailed"));
         return;
@@ -1236,6 +1243,11 @@ export default function BundleWizardDrawer({
                 {actionError}
               </Alert>
             )}
+            <Checkbox
+              checked={packAsExperiment}
+              onChange={(event) => setPackAsExperiment(event.currentTarget.checked)}
+              label={t("bundlePackAsExperiment")}
+            />
           </Stack>
         )}
 
