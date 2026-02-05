@@ -166,6 +166,7 @@ import LoanEventDrawer, { type LoanEventDraft } from "../moneyFlow/LoanEventDraw
 import InsuranceEventDrawer, {
   type InsuranceEventDraft,
 } from "../moneyFlow/InsuranceEventDrawer";
+import { buildPlanLabEventFromCashflowDraft } from "./planLabCashflowAdapter";
 
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
@@ -1787,37 +1788,54 @@ export default function PlanLabPanel({
     if (!scenarioIsV2) {
       return;
     }
-    if (draft.type === "adjustment") {
-      const payload: AdjustmentEvent = {
-        id: ensureScenarioV2EventId(draft.id),
-        type: "adjustment",
-        label: draft.label.trim() || undefined,
-        kind: draft.kind,
-        amount: Number(draft.amount),
-        month: draft.month,
-        memberId: draft.memberId || undefined,
-        tags: draft.tags && draft.tags.length > 0 ? draft.tags : ["adjustment"],
-      };
-      upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    if (draft.id) {
+      if (draft.type === "adjustment") {
+        const payload: AdjustmentEvent = {
+          id: ensureScenarioV2EventId(draft.id),
+          type: "adjustment",
+          label: draft.label.trim() || undefined,
+          kind: draft.kind,
+          amount: Number(draft.amount),
+          month: draft.month,
+          memberId: draft.memberId || undefined,
+          tags: draft.tags && draft.tags.length > 0 ? draft.tags : ["adjustment"],
+        };
+        upsertScenarioV2Event(payload, "edit");
+      } else {
+        const payload: CashflowEvent = {
+          id: ensureScenarioV2EventId(draft.id),
+          type: "cashflow",
+          label: draft.label.trim() || undefined,
+          kind: draft.kind,
+          cadence: draft.cadence,
+          amount: Number(draft.amount),
+          startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
+          endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
+          occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
+          everyNMonths:
+            draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
+          memberId: draft.memberId || undefined,
+          tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
+        };
+        upsertScenarioV2Event(payload, "edit");
+      }
       closeV2EventDrawer();
+      handleLocateItem(`event:${draft.id}`);
       return;
     }
-    const payload: CashflowEvent = {
-      id: ensureScenarioV2EventId(draft.id),
-      type: "cashflow",
-      label: draft.label.trim() || undefined,
-      kind: draft.kind,
-      cadence: draft.cadence,
-      amount: Number(draft.amount),
-      startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
-      endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
-      occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
-      everyNMonths: draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
-      memberId: draft.memberId || undefined,
-      tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
-    };
-    upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+
+    const addition = buildPlanLabEventFromCashflowDraft({
+      draft,
+      baseCurrency: scenario.baseCurrency,
+      baseMonth: scenario.assumptions.baseMonth ?? null,
+      horizonMonths: scenario.assumptions.horizonMonths,
+    });
+    if (!addition) {
+      return;
+    }
+    setDraftEvents((current) => [...current, addition]);
     closeV2EventDrawer();
+    handleLocateItem(`event:${addition.definition.id}`);
   };
 
   const handleSaveHousingEvent = (draft: HousingEventDraft) => {
