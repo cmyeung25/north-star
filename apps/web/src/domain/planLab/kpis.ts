@@ -1,4 +1,4 @@
-import type { ProjectionResult } from "@north-star/engine";
+import { monthIndex, type ProjectionResult } from "@north-star/engine";
 import { computeFirstBucket } from "./computeFirstBucket";
 
 export type PlanLabKpiMetrics = {
@@ -9,6 +9,13 @@ export type PlanLabKpiMetrics = {
   firstNegativeCashMonth: string | null;
   endNetWorth: number | null;
   targetMonth: string | null;
+};
+
+export type PlanLabKpiDiff = {
+  minCash: number | null;
+  firstNegativeCashMonth: number | null;
+  endNetWorth: number | null;
+  targetMonth: number | null;
 };
 
 export const computePlanLabKpis = (
@@ -43,5 +50,35 @@ export const computePlanLabKpis = (
     firstNegativeCashMonth,
     endNetWorth,
     targetMonth,
+  };
+};
+
+export const diffPlanLabKpis = (
+  kpiA: PlanLabKpiMetrics | null,
+  kpiB: PlanLabKpiMetrics | null,
+  baseMonth: string | null
+): PlanLabKpiDiff => {
+  const monthDelta = (a: string | null, b: string | null) => {
+    if (!baseMonth || !a || !b) {
+      return null;
+    }
+    return monthIndex(baseMonth, a) - monthIndex(baseMonth, b);
+  };
+
+  const numberDelta = (a: number | null | undefined, b: number | null | undefined) => {
+    if (typeof a !== "number" || typeof b !== "number") {
+      return null;
+    }
+    return a - b;
+  };
+
+  return {
+    minCash: numberDelta(kpiA?.minCash?.value, kpiB?.minCash?.value),
+    firstNegativeCashMonth: monthDelta(
+      kpiA?.firstNegativeCashMonth ?? null,
+      kpiB?.firstNegativeCashMonth ?? null
+    ),
+    endNetWorth: numberDelta(kpiA?.endNetWorth, kpiB?.endNetWorth),
+    targetMonth: monthDelta(kpiA?.targetMonth ?? null, kpiB?.targetMonth ?? null),
   };
 };
