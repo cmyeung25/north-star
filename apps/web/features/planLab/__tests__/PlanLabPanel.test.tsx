@@ -103,4 +103,15 @@ describe("PlanLabPanel", () => {
     expect(html).toContain("Impact KPIs");
     expect(() => renderPlanLab("compare")).not.toThrow();
   });
+
+  it("renders KPI current and baseline values in separate containers", () => {
+    const html = renderPlanLab("compare");
+
+    const currentContainerCount = (html.match(/data-testid="kpi-current"/g) ?? []).length;
+    const baselineContainerCount = (html.match(/data-testid="kpi-baseline"/g) ?? []).length;
+
+    expect(currentContainerCount > 0).toBe(true);
+    expect(baselineContainerCount > 0).toBe(true);
+    expect(currentContainerCount).toBe(baselineContainerCount);
+  });
 });
