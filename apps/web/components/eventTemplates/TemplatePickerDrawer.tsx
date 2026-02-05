@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Card, Drawer, Group, SegmentedControl, Stack, Text } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import type { TemplateCategory, TemplateDef } from "../../src/domain/eventTemplates/types";
@@ -78,13 +79,15 @@ export default function TemplatePickerDrawer({
 
   const showBackButton = showIntentScreen && intent !== null;
   const drawerTitle = t("templatePickerTitle");
+  const isMobile = useMediaQuery("(max-width: 48em)");
 
   return (
     <Drawer
       opened={opened}
       onClose={onClose}
-      position="right"
-      size="lg"
+      position={isMobile ? "bottom" : "right"}
+      size={isMobile ? "88dvh" : "lg"}
+      radius={isMobile ? "lg" : undefined}
       title={drawerTitle}
     >
       <Stack gap="sm">
