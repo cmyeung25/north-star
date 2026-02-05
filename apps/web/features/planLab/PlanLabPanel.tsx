@@ -171,6 +171,13 @@ import InsuranceEventDrawer, {
   type InsuranceEventDraft,
 } from "../moneyFlow/InsuranceEventDrawer";
 import { buildPlanLabEventFromCashflowDraft } from "./planLabCashflowAdapter";
+import {
+  collectPatchItemIds,
+  collectUngroupedPatchItemIds,
+  filterScenarioV2PatchesByExperimentGroups,
+  removeExperimentGroupItemsFromPatches,
+  type PlanLabExperimentGroup,
+} from "./experimentGroups";
 
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
@@ -763,6 +770,7 @@ export default function PlanLabPanel({
   const [scenarioV2Patches, setScenarioV2Patches] = useState<PlanLabScenarioV2Patches>(() =>
     emptyPlanLabScenarioV2Patches()
   );
+  const [experimentGroups, setExperimentGroups] = useState<PlanLabExperimentGroup[]>([]);
   const [draftMembers, setDraftMembers] = useState<ScenarioMember[]>([]);
   const [draftBudgetRules, setDraftBudgetRules] = useState<BudgetRule[]>([]);
   const [draftEvents, setDraftEvents] = useState<PlanLabDraftEventAddition[]>([]);
@@ -820,6 +828,9 @@ export default function PlanLabPanel({
   const [templatePickerItemCategory, setTemplatePickerItemCategory] =
     useState<CreationItemCategory | null>(null);
   const [templatePlanUnsupportedNotice, setTemplatePlanUnsupportedNotice] = useState<string | null>(null);
+  const [bundleExperimentCta, setBundleExperimentCta] = useState<
+    { title: string; itemCount: number; itemIds: string[] } | null
+  >(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
@@ -931,6 +942,8 @@ export default function PlanLabPanel({
     setDraftBudgetRules([]);
     setDraftEvents([]);
     setExperiments([]);
+    setExperimentGroups([]);
+    setBundleExperimentCta(null);
   }, [scenario.id, scenarioIsV2]);
 
   const refreshPlanLibrary = useCallback(() => {
@@ -1403,6 +1416,27 @@ export default function PlanLabPanel({
     setExperiments((current) => current.filter((experiment) => experiment.id !== id));
   };
 
+  const toggleExperimentGroup = useCallback((experimentId: string) => {
+    setExperimentGroups((current) =>
+      current.map((group) =>
+        group.experimentId === experimentId
+          ? { ...group, isEnabled: !group.isEnabled }
+          : group
+      )
+    );
+  }, []);
+
+  const deleteExperimentGroup = useCallback((experimentId: string) => {
+    setExperimentGroups((current) => {
+      const target = current.find((group) => group.experimentId === experimentId);
+      if (!target) {
+        return current;
+      }
+      setScenarioV2Patches((patches) => removeExperimentGroupItemsFromPatches(patches, target));
+      return current.filter((group) => group.experimentId !== experimentId);
+    });
+  }, []);
+
   const removeDraftMember = (memberId: string) => {
     setDraftMembers((current) =>
       current.filter((member) => member.id !== memberId)
@@ -1579,11 +1613,31 @@ export default function PlanLabPanel({
     }
   };
 
+  const createExperimentGroup = useCallback((title: string, itemIds: string[]) => {
+    if (itemIds.length === 0) {
+      return;
+    }
+    setExperimentGroups((current) => [
+      ...current,
+      {
+        experimentId: `exp_group_${nanoid(8)}`,
+        title,
+        isEnabled: true,
+        itemIds,
+        createdAt: Date.now(),
+      },
+    ]);
+  }, []);
+
   const handleApplyBundleEvents = useCallback(
-    (events: ScenarioV2EventDraft[]) => {
+    (
+      events: ScenarioV2EventDraft[],
+      options?: { packAsExperiment?: boolean; experimentTitle?: string }
+    ) => {
       if (!scenarioIsV2 || events.length === 0) {
         return { ok: false, error: translate("bundleApplyFailed", "Failed to create plan bundle.") };
       }
+      const prevIds = new Set(collectPatchItemIds(scenarioV2Patches));
       const parsedEvents = events
         .map((event) => {
           const candidate = {
@@ -1601,16 +1655,45 @@ export default function PlanLabPanel({
         return { ok: false, error: translate("bundleApplyFailed", "Failed to create plan bundle.") };
       }
 
-      setScenarioV2Patches((current) => ({
-        ...current,
+      const nextPatches: PlanLabScenarioV2Patches = {
+        ...scenarioV2Patches,
         events: {
-          add: [...current.events.add, ...parsedEvents],
-          update: current.events.update,
-          remove: current.events.remove.filter(
+          add: [...scenarioV2Patches.events.add, ...parsedEvents],
+          update: scenarioV2Patches.events.update,
+          remove: scenarioV2Patches.events.remove.filter(
             (id) => !parsedEvents.some((event) => event.id === id)
           ),
         },
-      }));
+      };
+      setScenarioV2Patches(nextPatches);
+      const nextIds = collectPatchItemIds(nextPatches);
+      const newItemIds = nextIds.filter((itemId) => !prevIds.has(itemId));
+
+      const shouldPack = options?.packAsExperiment !== false;
+      const experimentTitle =
+        options?.experimentTitle?.trim() ||
+        translate("planLabBundleExperimentFallback", "人生事件組合");
+
+      if (shouldPack) {
+        createExperimentGroup(experimentTitle, newItemIds);
+      } else {
+        setBundleExperimentCta({
+          title: experimentTitle,
+          itemCount: newItemIds.length,
+          itemIds: newItemIds,
+        });
+      }
+
+      setPlanToast(
+        translate(
+          "planLabBundleAppliedToast",
+          "已新增「{title}」（{count}項）",
+          {
+            title: experimentTitle,
+            count: String(newItemIds.length),
+          }
+        )
+      );
 
       const firstEventId = parsedEvents[0]?.id;
       setBundleWizardOpen(false);
@@ -1620,7 +1703,13 @@ export default function PlanLabPanel({
       }
       return { ok: true };
     },
-    [handleLocateItem, scenarioIsV2, translate]
+    [
+      createExperimentGroup,
+      handleLocateItem,
+      scenarioIsV2,
+      scenarioV2Patches,
+      translate,
+    ]
   );
 
   const isChildDraft = useMemo(() => {
@@ -2154,10 +2243,36 @@ export default function PlanLabPanel({
     () => JSON.stringify(scenarioV2Patches),
     [scenarioV2Patches]
   );
+  const experimentGroupsKey = useMemo(
+    () => JSON.stringify(experimentGroups),
+    [experimentGroups]
+  );
+  const projectionScenarioV2Patches = useMemo(
+    () => filterScenarioV2PatchesByExperimentGroups(scenarioV2Patches, experimentGroups),
+    [experimentGroupsKey, scenarioV2PatchesKey]
+  );
+  const projectionScenarioV2PatchesKey = useMemo(
+    () => JSON.stringify(projectionScenarioV2Patches),
+    [projectionScenarioV2Patches]
+  );
+  const ungroupedPatchItemIds = useMemo(
+    () => collectUngroupedPatchItemIds(scenarioV2Patches, experimentGroups),
+    [experimentGroupsKey, scenarioV2PatchesKey]
+  );
+  const packageUngroupedItemsAsExperiment = useCallback(() => {
+    if (ungroupedPatchItemIds.length === 0) {
+      return;
+    }
+    createExperimentGroup(
+      translate("planLabUngroupedExperimentTitle", "已新增項目"),
+      ungroupedPatchItemIds
+    );
+    setBundleExperimentCta(null);
+  }, [createExperimentGroup, translate, ungroupedPatchItemIds]);
   const sandboxScenarioV2 = useMemo(
     () =>
       scenarioIsV2
-        ? applyPlanLabScenarioV2Patches(baselineScenarioV2, scenarioV2Patches)
+        ? applyPlanLabScenarioV2Patches(baselineScenarioV2, projectionScenarioV2Patches)
         : buildScenarioV2FromScenario(
             sandboxMaterialized.scenario,
             sandboxEventLibrary
@@ -2166,8 +2281,9 @@ export default function PlanLabPanel({
       baselineScenarioV2,
       sandboxEventLibrary,
       sandboxMaterialized.scenario,
+      projectionScenarioV2Patches,
+      projectionScenarioV2PatchesKey,
       scenarioIsV2,
-      scenarioV2PatchesKey,
     ]
   );
   const debouncedSandboxScenarioV2 = useDebouncedValue(sandboxScenarioV2, 200);
@@ -4092,6 +4208,8 @@ export default function PlanLabPanel({
     });
     setScenarioV2Patches(emptyPlanLabScenarioV2Patches());
     setExperiments([]);
+    setExperimentGroups([]);
+    setBundleExperimentCta(null);
     setDraftMembers([]);
     setDraftBudgetRules([]);
     setDraftEvents([]);
@@ -4105,6 +4223,8 @@ export default function PlanLabPanel({
       smartInvestPatch: undefined,
     });
     setScenarioV2Patches(emptyPlanLabScenarioV2Patches());
+    setExperimentGroups([]);
+    setBundleExperimentCta(null);
   };
 
   const handleLoadPlanSnapshot = (plan: PlanSnapshot) => {
@@ -4959,7 +5079,7 @@ export default function PlanLabPanel({
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{t("planLabExperimentsTitle")}</Text>
                     <Badge variant="light" color="blue">
-                      {experiments.length}
+                      {scenarioIsV2 ? experimentGroups.length : experiments.length}
                     </Badge>
                   </Group>
                 </Accordion.Control>
@@ -5002,12 +5122,64 @@ export default function PlanLabPanel({
                         )}
                       </Group>
                     </Group>
-                    {experiments.length === 0 ? (
+                    {scenarioIsV2 && bundleExperimentCta ? (
+                      <Notification color="teal" onClose={() => setBundleExperimentCta(null)}>
+                        <Group justify="space-between" align="center" wrap="wrap">
+                          <Text size="sm">
+                            {translate(
+                              "planLabBundleCta",
+                              "已新增「{title}」（{count}項）" ,
+                              {
+                                title: bundleExperimentCta.title,
+                                count: String(bundleExperimentCta.itemCount),
+                              }
+                            )}
+                          </Text>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                              createExperimentGroup(
+                                bundleExperimentCta.title,
+                                bundleExperimentCta.itemIds
+                              );
+                              setBundleExperimentCta(null);
+                            }}
+                          >
+                            {translate("planLabPackAsExperimentAction", "打包成實驗")}
+                          </Button>
+                        </Group>
+                      </Notification>
+                    ) : null}
+                    {(scenarioIsV2 ? experimentGroups.length === 0 : experiments.length === 0) ? (
                       <Stack gap="xs">
                         <Text size="sm" c="dimmed">
-                          {t("planLabExperimentsEmpty")}
+                          {scenarioIsV2
+                            ? translate(
+                                "planLabExperimentsEmptyRich",
+                                "實驗用嚟建立可開關/可調參數嘅測試。你而家新增咗項目，但未建立實驗。"
+                              )
+                            : t("planLabExperimentsEmpty")}
                         </Text>
-                        {!scenarioIsV2 && (
+                        {scenarioIsV2 ? (
+                          <Group gap="xs">
+                            <Button size="xs" onClick={openAddEventDrawer}>
+                              {translate("planLabCreateExperimentAction", "建立實驗")}
+                            </Button>
+                            {ungroupedPatchItemIds.length > 0 && (
+                              <Button
+                                size="xs"
+                                variant="light"
+                                onClick={packageUngroupedItemsAsExperiment}
+                              >
+                                {translate(
+                                  "planLabPackUngroupedAction",
+                                  "將已新增項目打包成實驗"
+                                )}
+                              </Button>
+                            )}
+                          </Group>
+                        ) : (
                           <Button size="xs" onClick={openAddExperimentDrawer}>
                             {translate("planLabExperimentsAddAction", "新增實驗")}
                           </Button>
@@ -5016,10 +5188,57 @@ export default function PlanLabPanel({
                     ) : (
                       <ScrollArea.Autosize mah={320} offsetScrollbars>
                         <Accordion variant="separated" radius="md" multiple>
-                          {experiments.map((experiment) => {
+                          {(scenarioIsV2 ? experimentGroups : experiments).map((experiment) => {
+                            if (scenarioIsV2) {
+                              const group = experiment as PlanLabExperimentGroup;
+                              const badges: PlanLabRowBadge[] = [
+                                {
+                                  label: translate("planLabBadgeExperiment", "實驗"),
+                                  color: "blue",
+                                },
+                              ];
+                              if (!group.isEnabled) {
+                                badges.push({
+                                  label: translate("planLabBadgeDisabled", "已停用"),
+                                  color: "red",
+                                });
+                              }
+                              return (
+                                <PlanLabAccordionRow
+                                  key={group.experimentId}
+                                  id={`experiment-group-${group.experimentId}`}
+                                  ref={(node) =>
+                                    registerItemRef(`experiment-group-${group.experimentId}`, node)
+                                  }
+                                  title={group.title}
+                                  badges={badges}
+                                  summary={translate(
+                                    "planLabExperimentGroupCount",
+                                    "{count}項",
+                                    { count: String(group.itemIds.length) }
+                                  )}
+                                  enabled={group.isEnabled}
+                                  onToggle={() => toggleExperimentGroup(group.experimentId)}
+                                  menuItems={[
+                                    {
+                                      label: translate("planLabAppliedRemove", "移除"),
+                                      onClick: () => deleteExperimentGroup(group.experimentId),
+                                    },
+                                  ]}
+                                  panel={
+                                    <Text size="xs" c="dimmed">
+                                      {translate("planLabExperimentGroupCount", "{count}項", {
+                                        count: String(group.itemIds.length),
+                                      })}
+                                    </Text>
+                                  }
+                                />
+                              );
+                            }
+                            const legacyExperiment = experiment as PlanLabExperiment;
                             const label =
                               experimentTypeOptions.find(
-                                (option) => option.value === experiment.type
+                                (option) => option.value === legacyExperiment.type
                               )?.label ?? translate("planLabExperimentFallback", "實驗");
                             const badges: PlanLabRowBadge[] = [
                               {
@@ -5027,7 +5246,7 @@ export default function PlanLabPanel({
                                 color: "blue",
                               },
                             ];
-                            if (experiment.isEnabled === false) {
+                            if (legacyExperiment.isEnabled === false) {
                               badges.push({
                                 label: translate("planLabBadgeDisabled", "已停用"),
                                 color: "red",
@@ -5036,37 +5255,37 @@ export default function PlanLabPanel({
                             const menuItems: PlanLabRowMenuItem[] = [
                               {
                                 label: translate("planLabActionDuplicate", "複製"),
-                                onClick: () => duplicateExperiment(experiment),
+                                onClick: () => duplicateExperiment(legacyExperiment),
                               },
                               {
                                 label: translate("planLabAppliedRemove", "移除"),
-                                onClick: () => removeExperiment(experiment.id),
+                                onClick: () => removeExperiment(legacyExperiment.id),
                               },
                             ];
                             return (
                               <PlanLabAccordionRow
-                                key={experiment.id}
-                                id={`experiment-${experiment.id}`}
+                                key={legacyExperiment.id}
+                                id={`experiment-${legacyExperiment.id}`}
                                 ref={(node) =>
-                                  registerItemRef(`experiment-${experiment.id}`, node)
+                                  registerItemRef(`experiment-${legacyExperiment.id}`, node)
                                 }
                                 title={label}
                                 badges={badges}
-                                summary={getExperimentSummary(experiment)}
-                                enabled={experiment.isEnabled !== false}
+                                summary={getExperimentSummary(legacyExperiment)}
+                                enabled={legacyExperiment.isEnabled !== false}
                                 highlighted={
-                                  highlightedItemId === `experiment-${experiment.id}`
+                                  highlightedItemId === `experiment-${legacyExperiment.id}`
                                 }
                                 onToggle={() =>
-                                  updateExperiment(experiment.id, {
-                                    isEnabled: experiment.isEnabled === false,
+                                  updateExperiment(legacyExperiment.id, {
+                                    isEnabled: legacyExperiment.isEnabled === false,
                                   })
                                 }
-                                onEdit={() => openEditExperimentDrawer(experiment)}
+                                onEdit={() => openEditExperimentDrawer(legacyExperiment)}
                                 menuItems={menuItems}
                                 panel={
                                   <Text size="xs" c="dimmed">
-                                    {getExperimentSummary(experiment)}
+                                    {getExperimentSummary(legacyExperiment)}
                                   </Text>
                                 }
                               />
