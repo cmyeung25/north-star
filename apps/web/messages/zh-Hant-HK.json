@@ -894,7 +894,73 @@
     "planLabRecommendedBabyPlus6": "生育月份 +6",
     "planLabRecommendedRentPlus1000": "租金 +1000",
     "planLabControlsTitle": "實驗控制",
-    "planLabScorecardFamilyOnly": "Scorecard 只適用於家庭起步實驗。"
+    "planLabScorecardFamilyOnly": "Scorecard 只適用於家庭起步實驗。",
+    "dashboard": {
+      "healthSummary": {
+        "title": "財務健康總覽",
+        "subtitle": "以未來 12 個月投影評估風險與可承受度。"
+      },
+      "cta": {
+        "openPlanLab": "打開 Plan Lab",
+        "completeData": "補齊資料"
+      },
+      "kpi": {
+        "scope12m": "未來 12 個月",
+        "minCash": "最低現金結餘",
+        "deficitMonths": "負現金流月份",
+        "avgNetCashflow": "平均每月淨現金流",
+        "cashRunway": "可支撐月數",
+        "runwayUnavailable": "未有資料",
+        "runwayMonths": "{months} 個月",
+        "runwayProxyHint": "以平均必要支出估算。",
+        "firstMillionMonth": "第一桶金",
+        "notReached": "未達標",
+        "avgNonSalaryIncome": "非工資收入（平均）",
+        "avgFunBudget": "每月可自由支出（平均）",
+        "avgFunBudgetHint": "以平均月淨現金流作 proxy",
+        "riskLevel": "風險等級",
+        "riskLow": "低",
+        "riskMedium": "中",
+        "riskHigh": "高"
+      },
+      "common": {
+        "emptyValue": "--",
+        "month": "月"
+      },
+      "completeness": {
+        "title": "資料完整度",
+        "income": "收入",
+        "expenses": "支出",
+        "assets": "資產",
+        "liabilities": "負債",
+        "members": "成員",
+        "rules": "規則"
+      },
+      "nextKeyEvent": {
+        "title": "下一個關鍵點",
+        "empty": "你未設定重要事件（例如旅行／結婚／入市／預產）。新增一個即可看到風險變化。",
+        "addEvent": "新增事件"
+      },
+      "chart": {
+        "title": "預覽圖表",
+        "tabs": {
+          "cash": "現金結餘",
+          "netWorth": "資產淨值",
+          "netCashflow": "淨現金流"
+        },
+        "toggleHint": "切換不同視角以查看現金壓力與資產走勢。"
+      },
+      "snapshot": {
+        "title": "投影快照",
+        "subtitle": "自動顯示 5/10/15/20/30 年後的投影摘要。"
+      },
+      "quickLinks": {
+        "moneyTitle": "金錢摘要",
+        "peopleTitle": "成員摘要",
+        "goMoney": "進入金錢專區",
+        "goPeople": "進入成員專區"
+      }
+    }
   },
   "money": {
     "title": "金錢專區",

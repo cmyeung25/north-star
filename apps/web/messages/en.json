@@ -882,7 +882,73 @@
     "planLabRecommendedBabyPlus6": "Baby month +6",
     "planLabRecommendedRentPlus1000": "Rent +1000",
     "planLabControlsTitle": "Experiment controls",
-    "planLabScorecardFamilyOnly": "Scorecard is available for Family Launch experiments."
+    "planLabScorecardFamilyOnly": "Scorecard is available for Family Launch experiments.",
+    "dashboard": {
+      "healthSummary": {
+        "title": "Financial Health Summary",
+        "subtitle": "Assess risk and resilience using a 12-month forward projection."
+      },
+      "cta": {
+        "openPlanLab": "Open Plan Lab",
+        "completeData": "Complete data"
+      },
+      "kpi": {
+        "scope12m": "Next 12 months",
+        "minCash": "Minimum cash balance",
+        "deficitMonths": "Deficit cashflow months",
+        "avgNetCashflow": "Average monthly net cashflow",
+        "cashRunway": "Cash runway",
+        "runwayUnavailable": "Unavailable",
+        "runwayMonths": "{months} months",
+        "runwayProxyHint": "Estimated from average essential spending.",
+        "firstMillionMonth": "First million month",
+        "notReached": "Not reached",
+        "avgNonSalaryIncome": "Non-salary income (avg)",
+        "avgFunBudget": "Monthly discretionary budget (avg)",
+        "avgFunBudgetHint": "Using average monthly net cashflow as proxy",
+        "riskLevel": "Risk level",
+        "riskLow": "Low",
+        "riskMedium": "Medium",
+        "riskHigh": "High"
+      },
+      "common": {
+        "emptyValue": "--",
+        "month": "month"
+      },
+      "completeness": {
+        "title": "Data completeness",
+        "income": "Income",
+        "expenses": "Expenses",
+        "assets": "Assets",
+        "liabilities": "Liabilities",
+        "members": "Members",
+        "rules": "Rules"
+      },
+      "nextKeyEvent": {
+        "title": "Next key event",
+        "empty": "You have not set an important event yet (e.g. travel, marriage, home purchase, due date). Add one to see risk shifts.",
+        "addEvent": "Add event"
+      },
+      "chart": {
+        "title": "Preview chart",
+        "tabs": {
+          "cash": "Cash balance",
+          "netWorth": "Net worth",
+          "netCashflow": "Net cashflow"
+        },
+        "toggleHint": "Switch perspectives to inspect cash pressure and asset trends."
+      },
+      "snapshot": {
+        "title": "Projection snapshot",
+        "subtitle": "Automatically shows projection summaries at 5/10/15/20/30 years."
+      },
+      "quickLinks": {
+        "moneyTitle": "Money summary",
+        "peopleTitle": "People summary",
+        "goMoney": "Go to Money",
+        "goPeople": "Go to People"
+      }
+    }
   },
   "money": {
     "title": "Money hub",
