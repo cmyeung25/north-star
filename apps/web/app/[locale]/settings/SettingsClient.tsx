@@ -178,15 +178,14 @@ export default function SettingsClient({
   const [milestoneMonthErrors, setMilestoneMonthErrors] = useState<
     Record<string, string | null>
   >({});
-  const resolvedTabOrder = useMemo<SettingsTabKey[]>(
-    () =>
-      tabOrder ?? [
-        "data",
-        "global",
-        "members",
-        "budget",
-        "other",
-      ],
+  const resolvedTabOrder = useMemo<SettingsTabKey[]>(() =>
+    ((tabOrder ?? [
+      "data",
+      "global",
+      "members",
+      "budget",
+      "other",
+    ]) as SettingsTabKey[]).filter((k) => k !== "budget") as SettingsTabKey[],
     [tabOrder]
   );
   const [activeTab, setActiveTab] = useState<SettingsTabKey>(defaultTab);
@@ -607,17 +606,25 @@ export default function SettingsClient({
       return;
     }
     hasHandledInitialAction.current = true;
-    setActiveTab("budget");
+    if (resolvedTabOrder.includes("budget")) {
+      setActiveTab("budget");
+    } else {
+      setActiveTab(defaultTab);
+    }
     handleCreateBudgetRule();
-  }, [handleCreateBudgetRule, initialAction]);
+  }, [handleCreateBudgetRule, initialAction, resolvedTabOrder, defaultTab]);
 
   useEffect(() => {
     if (!initialRuleId) {
       return;
     }
-    setActiveTab("budget");
+    if (resolvedTabOrder.includes("budget")) {
+      setActiveTab("budget");
+    } else {
+      setActiveTab(defaultTab);
+    }
     setExpandedBudgetRuleId(initialRuleId);
-  }, [initialRuleId]);
+  }, [initialRuleId, resolvedTabOrder, defaultTab]);
 
   const isSignedIn = authState.status === "signed-in" && authState.user;
   const cloudHasData = (cloudSummary?.scenarioCount ?? 0) > 0;
@@ -1923,7 +1930,7 @@ export default function SettingsClient({
                                 </Accordion.Panel>
                               </Accordion.Item>
                             </Accordion>
-                            <Stack gap="xs">
+                            <Stack gap="xs" display={"none"}>
                               <Group justify="space-between" align="center">
                                 <Text fw={600}>
                                   {membersText("memberBudgetTitle")}
@@ -1994,7 +2001,7 @@ export default function SettingsClient({
                     );
                   })}
                 </Accordion>
-                <Card withBorder radius="md" padding="md">
+                <Card withBorder radius="md" padding="md" display={"none"}>
                   <Stack gap="xs">
                     <Group justify="space-between" align="center">
                       <Text fw={600}>{membersText("householdBudgetTitle")}</Text>

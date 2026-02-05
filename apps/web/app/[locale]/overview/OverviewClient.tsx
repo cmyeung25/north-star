@@ -568,7 +568,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       helper: sd("kpi.runwayProxyHint", "以平均必要支出估算。"),
     },
     {
-      label: sd("kpi.firstMillionMonth", "第一桶金"),
+      label: sd("kpi.firstMillionMonth", "第一桶金 (1百萬)"),
       value: dashboardMetrics.firstMillionMonth ?? sd("kpi.notReached", "未達標"),
       helper: sd("kpi.scope12m", "未來 12 個月"),
     },
@@ -749,7 +749,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 <Text size="xs" c="dimmed">{sd("healthSummary.subtitle", "以未來 12 個月投影評估風險與可承受度。")}</Text>
               </div>
               <Group gap="xs">
-                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開 Plan Lab")}</Button>
+                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開情景實驗室")}</Button>
                 <Button component={Link} href={moneyHubHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
               </Group>
             </Group>
@@ -762,7 +762,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             ) : (
               <KpiCarousel items={kpiItems} />
             )}
-            <Card withBorder radius="md" padding="sm">
+            <Card withBorder radius="md" padding="sm" display={"none"}>
               <Stack gap={6}>
                 <Text fw={600} size="sm">{sd("completeness.title", "資料完整度")}</Text>
                 <Group gap="xs" wrap="wrap">
@@ -916,8 +916,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-            <Card withBorder radius="md" padding="md">
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" >
+            <Card withBorder radius="md" padding="md" display={"none"}>
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
                   <Text fw={600}>{sd("quickLinks.moneyTitle", "金錢摘要")}</Text>

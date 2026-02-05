@@ -2400,7 +2400,7 @@ export default function MoneyClient({
 
         <Tabs.Panel value="expenses" pt="md">
           <Stack gap="md">
-            <Card withBorder radius="md" padding="md">
+            <Card withBorder radius="md" padding="md" display={"none"}>
               <Text size="sm">{t("expenseGuidance")}</Text>
             </Card>
             <Group justify="space-between" align="center" wrap="wrap">
@@ -2538,11 +2538,11 @@ export default function MoneyClient({
             <SegmentedControl
               value={inputsFilter}
               onChange={(value) =>
-                setInputsFilter(value as "all" | "rules" | "assets" | "events")
+                setInputsFilter(value as "all" | "assets" | "events")
               }
               data={[
                 { value: "all", label: t("inputsFilterAll") },
-                { value: "rules", label: t("inputsFilterRules") },
+                // { value: "rules", label: t("inputsFilterRules") },
                 { value: "assets", label: t("inputsFilterAssets") },
                 { value: "events", label: t("inputsFilterEvents") },
               ]}
