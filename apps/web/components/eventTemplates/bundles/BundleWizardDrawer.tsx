@@ -372,9 +372,10 @@ export default function BundleWizardDrawer({
       (event) => event.id && !createdEventIds.has(event.id)
     );
     if (onApplyEvents) {
+      const experimentTitle = template ? t(`templates.${template.id}.name`) : undefined;
       const result = await onApplyEvents(drafts, {
         packAsExperiment,
-        experimentTitle: template?.id,
+        experimentTitle,
       });
       if (!result.ok) {
         setActionError(result.error ?? t("bundleApplyFailed"));

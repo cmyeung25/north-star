@@ -176,6 +176,7 @@ import {
   collectUngroupedPatchItemIds,
   filterScenarioV2PatchesByExperimentGroups,
   removeExperimentGroupItemsFromPatches,
+  resolveExperimentGroupTitle,
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
 
@@ -1621,7 +1622,7 @@ export default function PlanLabPanel({
       ...current,
       {
         experimentId: `exp_group_${nanoid(8)}`,
-        title,
+        title: resolveExperimentGroupTitle(title),
         isEnabled: true,
         itemIds,
         createdAt: Date.now(),
@@ -5210,7 +5211,7 @@ export default function PlanLabPanel({
                                   ref={(node) =>
                                     registerItemRef(`experiment-group-${group.experimentId}`, node)
                                   }
-                                  title={group.title}
+                                  title={resolveExperimentGroupTitle(group.title)}
                                   badges={badges}
                                   summary={translate(
                                     "planLabExperimentGroupCount",
