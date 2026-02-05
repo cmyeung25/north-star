@@ -56,3 +56,18 @@ test.describe("plan lab snapshots", () => {
     await expect(page.getByText(/Diff summary|差異摘要/i)).toBeVisible();
   });
 });
+
+test("PlanLab opens template wizard from Experiment add button", async ({ page }) => {
+  page.on("pageerror", (error) => {
+    throw error;
+  });
+
+  await page.goto(`/${locale}/plan-lab`);
+  await expect(page.getByRole("heading", { name: "Plan Lab" })).toBeVisible();
+
+  await page.getByRole("button", { name: /新增事件|Add event/i }).click();
+
+  await expect(page.getByText(/選擇模板|templatePickerTitle/i)).toBeVisible();
+  await expect(page.getByText(/建立計劃|createIntentPlanTitle/i)).toBeVisible();
+  await expect(page.getByText(/新增項目|createIntentItemTitle/i)).toBeVisible();
+});
