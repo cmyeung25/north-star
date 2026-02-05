@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  collectUngroupedPatchItemIds,
+  filterScenarioV2PatchesByExperimentGroups,
   createSingleItemExperimentGroup,
   resolveExperimentGroupTitle,
   resolveSingleItemExperimentTitle,
 } from "../experimentGroups";
+import type { PlanLabScenarioV2Patches } from "../../../src/domain/planLab/scenarioV2Patches";
 
 describe("resolveExperimentGroupTitle", () => {
   it("uses localized fallback for known template ids", () => {
@@ -42,5 +45,47 @@ describe("single item experiment helpers", () => {
       itemIds: ["events:evt_1"],
       createdAt: 123,
     });
+  });
+});
+
+describe("removed experiment items", () => {
+  const patches: PlanLabScenarioV2Patches = {
+    events: { add: [{ id: "evt_1", type: "adjustment", kind: "cash", amount: 1000, month: "2025-01" }], update: {}, remove: [] },
+    assets: { add: [{ id: "asset_1", kind: "other", label: "Asset", currentValue: 100000 }], update: {}, remove: [] },
+    liabilities: { add: [], update: {}, remove: [] },
+    members: { add: [], update: {}, remove: [] },
+    rules: { add: [], update: {}, remove: [] },
+  };
+
+  it("excludes removed item ids from projection filtering", () => {
+    const filtered = filterScenarioV2PatchesByExperimentGroups(patches, [
+      {
+        experimentId: "exp_1",
+        title: "Test",
+        isEnabled: true,
+        itemIds: ["events:evt_1", "assets:asset_1"],
+        removedItems: [{ itemId: "events:evt_1", removedAt: 123, meta: { type: "income" } }],
+        createdAt: 1,
+      },
+    ]);
+
+    expect(filtered.events.add).toHaveLength(0);
+    expect(filtered.assets.add).toHaveLength(1);
+  });
+
+  it("treats removed item ids as ungrouped candidates", () => {
+    const ungrouped = collectUngroupedPatchItemIds(patches, [
+      {
+        experimentId: "exp_1",
+        title: "Test",
+        isEnabled: true,
+        itemIds: ["events:evt_1", "assets:asset_1"],
+        removedItems: [{ itemId: "events:evt_1", removedAt: 123, meta: { type: "income" } }],
+        createdAt: 1,
+      },
+    ]);
+
+    expect(ungrouped).toContain("events:evt_1");
+    expect(ungrouped).not.toContain("assets:asset_1");
   });
 });

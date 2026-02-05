@@ -5,7 +5,31 @@ export type PlanLabExperimentGroup = {
   title: string;
   isEnabled: boolean;
   itemIds: string[];
+  removedItems?: PlanLabExperimentRemovedItem[];
   createdAt: number;
+};
+
+export type PlanLabExperimentRemovedItemMeta = {
+  label?: string | null;
+  type: string;
+  amount?: number | null;
+  startMonth?: string | null;
+  endMonth?: string | null;
+  memberName?: string | null;
+};
+
+export type PlanLabExperimentRemovedItem = {
+  itemId: string;
+  removedAt: number;
+  meta: PlanLabExperimentRemovedItemMeta;
+};
+
+const getActiveGroupItemIds = (group: PlanLabExperimentGroup): string[] => {
+  if (!group.removedItems || group.removedItems.length === 0) {
+    return group.itemIds;
+  }
+  const removed = new Set(group.removedItems.map((item) => item.itemId));
+  return group.itemIds.filter((itemId) => !removed.has(itemId));
 };
 
 const EXPERIMENT_TITLE_FALLBACKS: Record<string, string> = {
@@ -55,7 +79,7 @@ export const collectUngroupedPatchItemIds = (
   patches: PlanLabScenarioV2Patches,
   groups: PlanLabExperimentGroup[]
 ): string[] => {
-  const grouped = new Set(groups.flatMap((group) => group.itemIds));
+  const grouped = new Set(groups.flatMap((group) => getActiveGroupItemIds(group)));
   return collectPatchItemIds(patches).filter((itemId) => !grouped.has(itemId));
 };
 
@@ -72,9 +96,13 @@ export const filterScenarioV2PatchesByExperimentGroups = (
   groups: PlanLabExperimentGroup[]
 ): PlanLabScenarioV2Patches => {
   const disabled = new Set(
-    groups.filter((group) => group.isEnabled === false).flatMap((group) => group.itemIds)
+    groups
+      .filter((group) => group.isEnabled === false)
+      .flatMap((group) => getActiveGroupItemIds(group))
   );
-  if (disabled.size === 0) {
+  const removed = new Set(groups.flatMap((group) => group.removedItems?.map((item) => item.itemId) ?? []));
+  const excluded = new Set([...disabled, ...removed]);
+  if (excluded.size === 0) {
     return patches;
   }
 
@@ -88,19 +116,19 @@ export const filterScenarioV2PatchesByExperimentGroups = (
   };
 
   filtered.events.add = filtered.events.add.filter(
-    (item) => !disabled.has(buildItemId("events", item.id))
+    (item) => !excluded.has(buildItemId("events", item.id))
   );
   filtered.assets.add = filtered.assets.add.filter(
-    (item) => !disabled.has(buildItemId("assets", item.id))
+    (item) => !excluded.has(buildItemId("assets", item.id))
   );
   filtered.liabilities.add = filtered.liabilities.add.filter(
-    (item) => !disabled.has(buildItemId("liabilities", item.id))
+    (item) => !excluded.has(buildItemId("liabilities", item.id))
   );
   filtered.members.add = filtered.members.add.filter(
-    (item) => !disabled.has(buildItemId("members", item.id))
+    (item) => !excluded.has(buildItemId("members", item.id))
   );
   filtered.rules.add = filtered.rules.add.filter(
-    (item) => !disabled.has(buildItemId("rules", item.id))
+    (item) => !excluded.has(buildItemId("rules", item.id))
   );
 
   return filtered;
