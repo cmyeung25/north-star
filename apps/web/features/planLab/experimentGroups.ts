@@ -8,6 +8,35 @@ export type PlanLabExperimentGroup = {
   createdAt: number;
 };
 
+const EXPERIMENT_TITLE_FALLBACKS: Record<string, string> = {
+  life_home_purchase: "置業買樓",
+  life_new_baby: "新生兒計劃",
+};
+
+const looksLikeInternalId = (value: string) => /[_:]/.test(value);
+
+const humanizeId = (value: string): string =>
+  value
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+
+export const resolveExperimentGroupTitle = (title?: string | null): string => {
+  const trimmed = title?.trim();
+  if (!trimmed) {
+    return "未命名實驗";
+  }
+  if (EXPERIMENT_TITLE_FALLBACKS[trimmed]) {
+    return EXPERIMENT_TITLE_FALLBACKS[trimmed];
+  }
+  if (looksLikeInternalId(trimmed)) {
+    const humanized = humanizeId(trimmed);
+    return humanized || "未命名實驗";
+  }
+  return trimmed;
+};
+
 type PatchEntity = keyof PlanLabScenarioV2Patches;
 
 const ENTITY_ORDER: PatchEntity[] = ["events", "assets", "liabilities", "members", "rules"];
