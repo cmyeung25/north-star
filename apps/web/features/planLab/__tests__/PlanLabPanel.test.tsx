@@ -3,7 +3,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
-import PlanLabPanel from "../PlanLabPanel";
+import PlanLabPanel, { GROUP_LABEL, buildScenarioItemMetaParts } from "../PlanLabPanel";
 import type { EventDefinition } from "../../../src/domain/events/types";
 import type { Scenario } from "../../../src/store/scenarioStore";
 
@@ -113,5 +113,42 @@ describe("PlanLabPanel", () => {
     expect(currentContainerCount > 0).toBe(true);
     expect(baselineContainerCount > 0).toBe(true);
     expect(currentContainerCount).toBe(baselineContainerCount);
+  });
+
+  it("maps income/expense group labels to localized text", () => {
+    expect(GROUP_LABEL.income).toBe("收入");
+    expect(GROUP_LABEL.expense).toBe("支出");
+  });
+
+  it("builds meta line without undefined/null placeholders", () => {
+    const meta = buildScenarioItemMetaParts({
+      item: {
+        id: "event:salary",
+        kind: "event",
+        title: "Salary",
+        category: "income",
+        enabled: true,
+        amount: 5000,
+        frequency: "monthly",
+        startMonth: "2026-02",
+        memberName: "家庭",
+      },
+      currency: "HKD",
+      locale: "zh-HK",
+      frequencyLabels: {
+        monthly: "每月",
+        quarterly: "每季",
+        yearly: "每年",
+        oneOff: "一次性",
+        everyNMonths: "每 N 個月",
+        schedule: "排程",
+      },
+      householdLabel: "家庭",
+    }).join(" • ");
+
+    expect(meta).toContain("每月");
+    expect(meta).toContain("2026-02 起");
+    expect(meta).not.toContain("undefined");
+    expect(meta).not.toContain("null");
   });
 });
