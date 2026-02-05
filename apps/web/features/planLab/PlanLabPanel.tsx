@@ -14,6 +14,7 @@ import {
   Menu,
   Notification,
   NumberInput,
+  Modal,
   Paper,
   Popover,
   ScrollArea,
@@ -175,7 +176,6 @@ import {
   collectUngroupedPatchItemIds,
   createSingleItemExperimentGroup,
   filterScenarioV2PatchesByExperimentGroups,
-  removeExperimentGroupItemsFromPatches,
   resolveExperimentGroupTitle,
   resolveSingleItemExperimentTitle,
   type PlanLabExperimentGroup,
@@ -529,6 +529,13 @@ type PlanLabRowMenuItem = {
   disabled?: boolean;
 };
 
+type PlanLabRowAction = {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  color?: string;
+};
+
 type PlanLabAccordionRowProps = {
   id: string;
   title: string;
@@ -538,6 +545,7 @@ type PlanLabAccordionRowProps = {
   highlighted?: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
+  primaryAction?: PlanLabRowAction;
   menuItems?: PlanLabRowMenuItem[];
   panel?: ReactNode;
 };
@@ -553,6 +561,7 @@ const PlanLabAccordionRow = memo(
       highlighted,
       onToggle,
       onEdit,
+      primaryAction,
       menuItems,
       panel,
     },
@@ -613,6 +622,20 @@ const PlanLabAccordionRow = memo(
                   >
                     <Text size="sm">✎</Text>
                   </ActionIcon>
+                )}
+                {primaryAction && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color={primaryAction.color}
+                    disabled={primaryAction.disabled}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      primaryAction.onClick();
+                    }}
+                  >
+                    {primaryAction.label}
+                  </Button>
                 )}
                 {menuItems && menuItems.length > 0 && (
                   <Menu withinPortal position="bottom-end">
@@ -842,6 +865,7 @@ export default function PlanLabPanel({
     } | null
   >(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
+  const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
     useState<Partial<CashflowEventDraft> | null>(null);
@@ -1437,14 +1461,9 @@ export default function PlanLabPanel({
   }, []);
 
   const deleteExperimentGroup = useCallback((experimentId: string) => {
-    setExperimentGroups((current) => {
-      const target = current.find((group) => group.experimentId === experimentId);
-      if (!target) {
-        return current;
-      }
-      setScenarioV2Patches((patches) => removeExperimentGroupItemsFromPatches(patches, target));
-      return current.filter((group) => group.experimentId !== experimentId);
-    });
+    setExperimentGroups((current) =>
+      current.filter((group) => group.experimentId !== experimentId)
+    );
   }, []);
 
   const removeDraftMember = (memberId: string) => {
@@ -2325,6 +2344,71 @@ export default function PlanLabPanel({
     );
     setBundleExperimentCta(null);
   }, [createExperimentGroup, translate, ungroupedPatchItemIds]);
+  const patchItemLookup = useMemo(() => {
+    const map = new Map<string, { label?: string | null; type: string; amount?: number | null; startMonth?: string | null }>();
+    scenarioV2Patches.events.add.forEach((event) => {
+      const itemType = event.type === "cashflow" && event.kind === "income" ? "income" : "expense";
+      const startMonth =
+        event.type === "cashflow"
+          ? event.cadence === "oneOff"
+            ? event.occurrenceMonth
+            : event.startMonth
+          : event.type === "adjustment"
+          ? event.month
+          : event.startMonth;
+      const amount =
+        event.type === "cashflow"
+          ? event.amount
+          : event.type === "adjustment"
+          ? event.amount
+          : undefined;
+      map.set(`events:${event.id}`, {
+        label: event.label,
+        type: itemType,
+        amount,
+        startMonth,
+      });
+    });
+    scenarioV2Patches.assets.add.forEach((asset) => {
+      map.set(`assets:${asset.id}`, {
+        label: asset.label,
+        type: "asset",
+        amount: asset.currentValue,
+        startMonth: asset.startMonth,
+      });
+    });
+    scenarioV2Patches.liabilities.add.forEach((liability) => {
+      map.set(`liabilities:${liability.id}`, {
+        label: liability.label,
+        type: "liability",
+        amount: liability.principalOutstanding,
+        startMonth: liability.startMonth,
+      });
+    });
+    scenarioV2Patches.rules.add.forEach((rule) => {
+      map.set(`rules:${rule.id}`, {
+        label: rule.name,
+        type: "expense",
+        amount: rule.monthlyAmount,
+        startMonth: rule.startMonth,
+      });
+    });
+    scenarioV2Patches.members.add.forEach((member) => {
+      map.set(`members:${member.id}`, {
+        label: member.name,
+        type: "expense",
+      });
+    });
+    return map;
+  }, [scenarioV2PatchesKey]);
+  const pendingRemoveGroup = useMemo(
+    () =>
+      confirmRemoveGroupId
+        ? experimentGroups.find((group) => group.experimentId === confirmRemoveGroupId) ?? null
+        : null,
+    [confirmRemoveGroupId, experimentGroupsKey]
+  );
+  const pendingRemoveGroupCount = pendingRemoveGroup?.itemIds?.length ?? 0;
   const sandboxScenarioV2 = useMemo(
     () =>
       scenarioIsV2
@@ -5292,18 +5376,53 @@ export default function PlanLabPanel({
                                   )}
                                   enabled={group.isEnabled}
                                   onToggle={() => toggleExperimentGroup(group.experimentId)}
-                                  menuItems={[
-                                    {
-                                      label: translate("planLabAppliedRemove", "移除"),
-                                      onClick: () => deleteExperimentGroup(group.experimentId),
-                                    },
-                                  ]}
+                                  primaryAction={{
+                                    label: translate("planLabAppliedRemove", "移除"),
+                                    onClick: () => setConfirmRemoveGroupId(group.experimentId),
+                                    color: "red",
+                                  }}
                                   panel={
-                                    <Text size="xs" c="dimmed">
-                                      {translate("planLabExperimentGroupCount", "{count}項", {
-                                        count: String(group.itemIds.length),
-                                      })}
-                                    </Text>
+                                    <Stack gap={6}>
+                                      <Text size="xs" c="dimmed">
+                                        {translate("planLabExperimentGroupCount", "{count}項", {
+                                          count: String(group.itemIds.length),
+                                        })}
+                                      </Text>
+                                      <Text size="xs" fw={500}>
+                                        {translate("planLabExperimentIncludesItems", "包含項目")}
+                                      </Text>
+                                      <Stack gap={4}>
+                                        {group.itemIds.slice(0, 3).map((itemId) => {
+                                          const item = patchItemLookup.get(itemId);
+                                          const label = item?.label?.trim() || "—";
+                                          const type = item?.type ?? "—";
+                                          const amountText =
+                                            typeof item?.amount === "number"
+                                              ? formatCurrency(item.amount, "HKD", locale)
+                                              : "—";
+                                          const startMonth = item?.startMonth?.trim() || "—";
+                                          return (
+                                            <Group key={`${group.experimentId}-${itemId}`} gap={6} wrap="wrap">
+                                              <Text size="xs">{label}</Text>
+                                              <Badge size="xs" variant="light" color="gray">
+                                                {type}
+                                              </Badge>
+                                              <Text size="xs" c="dimmed">
+                                                {amountText}
+                                              </Text>
+                                              <Text size="xs" c="dimmed">
+                                                {startMonth}
+                                              </Text>
+                                            </Group>
+                                          );
+                                        })}
+                                        {group.itemIds.length > 3 && (
+                                          <Text size="xs" c="dimmed">
+                                            +{group.itemIds.length - 3}
+                                          </Text>
+                                        )}
+                                      </Stack>
+                                    </Stack>
                                   }
                                 />
                               );
@@ -7054,6 +7173,42 @@ export default function PlanLabPanel({
           </Stack>
         )}
       </Drawer>
+      <Modal
+        opened={Boolean(pendingRemoveGroup)}
+        onClose={() => setConfirmRemoveGroupId(null)}
+        title={translate(
+          "planLabRemoveExperimentConfirmTitle",
+          "移除實驗「{experimentTitle}」？",
+          { experimentTitle: resolveExperimentGroupTitle(pendingRemoveGroup?.title) }
+        )}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            {translate(
+              "planLabRemoveExperimentConfirmBody",
+              "此操作會解除打包並移除實驗開關，但會保留 {count} 個項目於 Plan Lab。",
+              { count: String(pendingRemoveGroupCount) }
+            )}
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmRemoveGroupId(null)}>
+              {translate("planLabActionCancel", "取消")}
+            </Button>
+            <Button
+              color="red"
+              onClick={() => {
+                if (pendingRemoveGroup) {
+                  deleteExperimentGroup(pendingRemoveGroup.experimentId);
+                }
+                setConfirmRemoveGroupId(null);
+              }}
+            >
+              {translate("planLabAppliedRemove", "移除")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
