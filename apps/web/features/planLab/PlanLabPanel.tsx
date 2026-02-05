@@ -4838,11 +4838,11 @@ export default function PlanLabPanel({
               <Badge color="ice" variant="light">
                 {t("planLabPreviewBadge")}
               </Badge>
-              <Badge color="neutral" variant="light">
+              <Badge color="ice" variant="light">
                 {statusPillLabel}
               </Badge>
               {hasUnsavedChanges && (
-                <Badge color="orange" variant="light">
+                <Badge color="warning" variant="light">
                   ● {translate("planLabDirtyLabel", "未儲存")}
                 </Badge>
               )}
@@ -4869,13 +4869,14 @@ export default function PlanLabPanel({
               <Button
                 size="sm"
                 variant="outline"
+                color="polar"
                 onClick={handleUpdatePlan}
                 disabled={!activePlanId}
               >
                 {translate("planLabUpdatePlan", "Update plan")}
               </Button>
             )}
-            <Button size="sm" variant="subtle" onClick={() => setPlanLibraryOpen(true)}>
+            <Button size="sm" variant="subtle" color="polar" onClick={() => setPlanLibraryOpen(true)}>
               {translate("planLabPlansButton", "Plans ({count})", {
                 count: planCount,
               })}
@@ -4888,13 +4889,14 @@ export default function PlanLabPanel({
                 )}
                 withArrow
               >
-                <Button size="sm" variant="outline" onClick={handleSave}>
+                <Button size="sm" variant="outline" color="polar" onClick={handleSave}>
                   {translate("planLabSaveScenario", "保存到情境")}
                 </Button>
               </MantineTooltip>
             )}
             <SegmentedControl
               size="sm"
+              radius="md"
               data={[
                 {
                   value: "edit",
