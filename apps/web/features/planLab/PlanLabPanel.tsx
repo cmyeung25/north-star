@@ -3183,9 +3183,6 @@ export default function PlanLabPanel({
       if (item.memberName) {
         badges.push({ label: item.memberName, color: "gray" });
       }
-      if (item.endMonth) {
-        badges.push({ label: translate("planLabBadgeEnded", "已結束"), color: "yellow" });
-      }
       return badges;
     },
     [categoryLabels, getScenarioItemChangeBadge, translate]

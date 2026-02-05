@@ -156,6 +156,11 @@ const normalizeMonthValue = (value: string) => {
   return { value, error: "invalid" };
 };
 
+const normalizeAmount = (value: number | string | null | undefined) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
 export default function BundleWizardDrawer({
   opened,
   template,
@@ -421,12 +426,12 @@ export default function BundleWizardDrawer({
         const input: NewBabyPlanInput = {
           birthMonth: newBabyDraft.birthMonth,
           deliveryCost: newBabyDraft.deliveryCost,
-          childcareMonthly: newBabyDraft.childcareMonthly,
+          childcareMonthly: normalizeAmount(newBabyDraft.childcareMonthly),
           helperEnabled: newBabyDraft.helperEnabled,
-          helperMonthly: newBabyDraft.helperMonthly,
-          agencyFee: newBabyDraft.agencyFee,
+          helperMonthly: normalizeAmount(newBabyDraft.helperMonthly),
+          agencyFee: normalizeAmount(newBabyDraft.agencyFee),
           schoolingEnabled: newBabyDraft.schoolingEnabled,
-          schoolingAmount: newBabyDraft.schoolingAmount,
+          schoolingAmount: normalizeAmount(newBabyDraft.schoolingAmount),
           schoolingCadence: newBabyDraft.schoolingCadence,
           schoolingStartMonth: newBabyDraft.schoolingStartMonth,
         };
@@ -504,9 +509,6 @@ export default function BundleWizardDrawer({
         monthResult.error === "empty"
           ? t("bundleMonthRequired")
           : validation("useYearMonth");
-    }
-    if (newBabyDraft.childcareMonthly <= 0) {
-      errors.childcareMonthly = t("bundleAmountRequired");
     }
     if (newBabyDraft.helperEnabled && newBabyDraft.helperMonthly <= 0) {
       errors.helperMonthly = t("bundleAmountRequired");
@@ -675,7 +677,6 @@ export default function BundleWizardDrawer({
               label={t("bundleNewBabyChildcareMonthly")}
               min={0}
               value={newBabyDraft.childcareMonthly}
-              error={errors.childcareMonthly}
               onChange={(value) =>
                 setNewBabyDraft((current) => ({
                   ...current,
@@ -693,12 +694,27 @@ export default function BundleWizardDrawer({
                 <Switch
                   checked={newBabyDraft.helperEnabled}
                   label={t("bundleNewBabyHelperToggle")}
-                  onChange={(event) =>
-                    setNewBabyDraft((current) => ({
-                      ...current,
-                      helperEnabled: event?.currentTarget?.checked ?? false,
-                    }))
-                  }
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setNewBabyDraft((current) =>
+                      checked
+                        ? { ...current, helperEnabled: true }
+                        : {
+                            ...current,
+                            helperEnabled: false,
+                            helperMonthly: 0,
+                            agencyFee: 0,
+                          }
+                    );
+                    if (!checked) {
+                      setErrors((current) => {
+                        if (!current.helperMonthly) {
+                          return current;
+                        }
+                        return { ...current, helperMonthly: undefined };
+                      });
+                    }
+                  }}
                 />
                 {newBabyDraft.helperEnabled && (
                   <>
@@ -734,12 +750,30 @@ export default function BundleWizardDrawer({
                 <Switch
                   checked={newBabyDraft.schoolingEnabled}
                   label={t("bundleNewBabySchoolingToggle")}
-                  onChange={(event) =>
-                    setNewBabyDraft((current) => ({
-                      ...current,
-                      schoolingEnabled: event?.currentTarget?.checked ?? false,
-                    }))
-                  }
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setNewBabyDraft((current) =>
+                      checked
+                        ? { ...current, schoolingEnabled: true }
+                        : {
+                            ...current,
+                            schoolingEnabled: false,
+                            schoolingAmount: 0,
+                          }
+                    );
+                    if (!checked) {
+                      setErrors((current) => {
+                        if (!current.schoolingAmount && !current.schoolingStartMonth) {
+                          return current;
+                        }
+                        return {
+                          ...current,
+                          schoolingAmount: undefined,
+                          schoolingStartMonth: undefined,
+                        };
+                      });
+                    }
+                  }}
                 />
                 {newBabyDraft.schoolingEnabled && (
                   <>
