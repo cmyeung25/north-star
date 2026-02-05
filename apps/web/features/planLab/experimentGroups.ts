@@ -166,3 +166,26 @@ export const removeExperimentGroupItemsFromPatches = (
 
   return next;
 };
+
+const normalizeSingleItemLabel = (label?: string | null): string | null => {
+  const trimmed = label?.trim();
+  return trimmed ? trimmed : null;
+};
+
+export const resolveSingleItemExperimentTitle = (label?: string | null): string => {
+  const normalizedLabel = normalizeSingleItemLabel(label);
+  return normalizedLabel ? `實驗：${normalizedLabel}` : "實驗：單一項目";
+};
+
+export const createSingleItemExperimentGroup = (params: {
+  experimentId: string;
+  itemId: string;
+  itemLabel?: string | null;
+  createdAt?: number;
+}): PlanLabExperimentGroup => ({
+  experimentId: params.experimentId,
+  title: resolveSingleItemExperimentTitle(params.itemLabel),
+  isEnabled: true,
+  itemIds: [params.itemId],
+  createdAt: params.createdAt ?? Date.now(),
+});

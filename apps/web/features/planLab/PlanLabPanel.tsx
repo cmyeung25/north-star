@@ -170,13 +170,14 @@ import LoanEventDrawer, { type LoanEventDraft } from "../moneyFlow/LoanEventDraw
 import InsuranceEventDrawer, {
   type InsuranceEventDraft,
 } from "../moneyFlow/InsuranceEventDrawer";
-import { buildPlanLabEventFromCashflowDraft } from "./planLabCashflowAdapter";
 import {
   collectPatchItemIds,
   collectUngroupedPatchItemIds,
+  createSingleItemExperimentGroup,
   filterScenarioV2PatchesByExperimentGroups,
   removeExperimentGroupItemsFromPatches,
   resolveExperimentGroupTitle,
+  resolveSingleItemExperimentTitle,
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
 
@@ -830,7 +831,14 @@ export default function PlanLabPanel({
     useState<CreationItemCategory | null>(null);
   const [templatePlanUnsupportedNotice, setTemplatePlanUnsupportedNotice] = useState<string | null>(null);
   const [bundleExperimentCta, setBundleExperimentCta] = useState<
-    { title: string; itemCount: number; itemIds: string[] } | null
+    {
+      title: string;
+      itemCount: number;
+      itemIds: string[];
+      source: "bundle" | "single";
+      primaryItemId?: string;
+      primaryItemLabel?: string;
+    } | null
   >(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
@@ -1630,6 +1638,17 @@ export default function PlanLabPanel({
     ]);
   }, []);
 
+  const showSingleItemPackPrompt = useCallback((itemId: string, itemLabel?: string | null) => {
+    setBundleExperimentCta({
+      source: "single",
+      title: resolveSingleItemExperimentTitle(itemLabel),
+      itemCount: 1,
+      itemIds: [itemId],
+      primaryItemId: itemId,
+      primaryItemLabel: itemLabel ?? undefined,
+    });
+  }, []);
+
   const handleApplyBundleEvents = useCallback(
     (
       events: ScenarioV2EventDraft[],
@@ -1679,6 +1698,7 @@ export default function PlanLabPanel({
         createExperimentGroup(experimentTitle, newItemIds);
       } else {
         setBundleExperimentCta({
+          source: "bundle",
           title: experimentTitle,
           itemCount: newItemIds.length,
           itemIds: newItemIds,
@@ -2011,18 +2031,43 @@ export default function PlanLabPanel({
       return;
     }
 
-    const addition = buildPlanLabEventFromCashflowDraft({
-      draft,
-      baseCurrency: scenario.baseCurrency,
-      baseMonth: scenario.assumptions.baseMonth ?? null,
-      horizonMonths: scenario.assumptions.horizonMonths,
-    });
-    if (!addition) {
+    const createdEventId = ensureScenarioV2EventId(draft.id);
+    if (draft.type === "adjustment") {
+      const payload: AdjustmentEvent = {
+        id: createdEventId,
+        type: "adjustment",
+        label: draft.label.trim() || undefined,
+        kind: draft.kind,
+        amount: Number(draft.amount),
+        month: draft.month,
+        memberId: draft.memberId || undefined,
+        tags: draft.tags && draft.tags.length > 0 ? draft.tags : ["adjustment"],
+      };
+      upsertScenarioV2Event(payload, "create");
+      showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+      closeV2EventDrawer();
+      handleLocateItem(`event:${payload.id}`);
       return;
     }
-    setDraftEvents((current) => [...current, addition]);
+
+    const payload: CashflowEvent = {
+      id: createdEventId,
+      type: "cashflow",
+      label: draft.label.trim() || undefined,
+      kind: draft.kind,
+      cadence: draft.cadence,
+      amount: Number(draft.amount),
+      startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
+      endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
+      occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
+      everyNMonths: draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
+      memberId: draft.memberId || undefined,
+      tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
+    };
+    upsertScenarioV2Event(payload, "create");
+    showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
     closeV2EventDrawer();
-    handleLocateItem(`event:${addition.definition.id}`);
+    handleLocateItem(`event:${payload.id}`);
   };
 
   const handleSaveHousingEvent = (draft: HousingEventDraft) => {
@@ -2098,6 +2143,9 @@ export default function PlanLabPanel({
       memberId: draft.memberId || undefined,
     };
     upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    if (!draft.id) {
+      showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+    }
     closeV2EventDrawer();
   };
 
@@ -2129,6 +2177,9 @@ export default function PlanLabPanel({
       memberId: draft.memberId || undefined,
     };
     upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    if (!draft.id) {
+      showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+    }
     closeV2EventDrawer();
   };
 
@@ -2172,6 +2223,9 @@ export default function PlanLabPanel({
       memberId: draft.memberId || undefined,
     };
     upsertScenarioV2Event(payload, draft.id ? "edit" : "create");
+    if (!draft.id) {
+      showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+    }
     closeV2EventDrawer();
   };
 
@@ -5140,10 +5194,25 @@ export default function PlanLabPanel({
                             size="xs"
                             variant="light"
                             onClick={() => {
-                              createExperimentGroup(
-                                bundleExperimentCta.title,
-                                bundleExperimentCta.itemIds
-                              );
+                              const singleItemId = bundleExperimentCta.primaryItemId;
+                              if (
+                                bundleExperimentCta.source === "single" &&
+                                typeof singleItemId === "string"
+                              ) {
+                                setExperimentGroups((current) => [
+                                  ...current,
+                                  createSingleItemExperimentGroup({
+                                    experimentId: `exp_group_${nanoid(8)}`,
+                                    itemId: singleItemId,
+                                    itemLabel: bundleExperimentCta.primaryItemLabel,
+                                  }),
+                                ]);
+                              } else {
+                                createExperimentGroup(
+                                  bundleExperimentCta.title,
+                                  bundleExperimentCta.itemIds
+                                );
+                              }
                               setBundleExperimentCta(null);
                             }}
                           >
