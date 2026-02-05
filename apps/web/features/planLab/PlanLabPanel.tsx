@@ -100,7 +100,7 @@ import {
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
-import { computePlanLabKpis } from "../../src/domain/planLab/kpis";
+import { computePlanLabKpis, diffPlanLabKpis } from "../../src/domain/planLab/kpis";
 import {
   computeCashRiskScorecard,
   computeBufferThresholdFromLedger,
@@ -131,7 +131,6 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
 import { SavePlanModal } from "./SavePlanModal";
-import { PlanCompareMode } from "./PlanCompareMode";
 import {
   buildPlanPatchesFromSnapshot,
   validatePlanPatches,
@@ -238,6 +237,7 @@ type PlanLabPanelProps = {
     netWorth: TimeSeriesPoint[];
     netCashflow: TimeSeriesPoint[];
   };
+  initialMode?: "edit" | "compare";
 };
 type PlanLabDriverSource = "event" | "rule" | "position" | "experiment";
 
@@ -698,6 +698,7 @@ export default function PlanLabPanel({
   displayMode,
   deflateSeries,
   baselineSeries,
+  initialMode,
 }: PlanLabPanelProps) {
   const t = useTranslations("overview");
   const warningsT = useTranslations();
@@ -732,7 +733,7 @@ export default function PlanLabPanel({
   );
 
   const [chartType, setChartType] = useState<ChartType>("netWorth");
-  const [mode, setMode] = useState<"edit" | "compare">("edit");
+  const [mode, setMode] = useState<"edit" | "compare">(initialMode ?? "edit");
   const [planLibraryOpen, setPlanLibraryOpen] = useState(false);
   const [savePlanOpen, setSavePlanOpen] = useState(false);
   const [savePlanNotes, setSavePlanNotes] = useState<string | undefined>(undefined);
@@ -3127,52 +3128,36 @@ export default function PlanLabPanel({
     direction: "up" | "down" | "flat";
   };
 
-  const formatDeltaCurrency = useCallback(
-    (baselineValue: number | null, currentValue: number | null): DeltaDisplay | null => {
-      if (baselineValue === null || currentValue === null) {
-        return null;
-      }
-      const delta = currentValue - baselineValue;
-      const formatted = formatCurrency(Math.abs(delta), scenario.baseCurrency, locale);
-      if (delta === 0) {
-        return { display: `±${formatted}`, direction: "flat" };
-      }
-      return {
-        display: `${delta > 0 ? "+" : "-"}${formatted}`,
-        direction: delta > 0 ? "up" : "down",
-      };
-    },
-    [locale, scenario.baseCurrency]
-  );
-
-  const formatDeltaMonths = useCallback(
-    (baselineMonth: string | null, currentMonth: string | null): DeltaDisplay | null => {
-      const baseMonth = baselineProjection.projection?.baseMonth;
-      if (!baseMonth || !baselineMonth || !currentMonth) {
-        return null;
-      }
-      const delta = monthIndex(baseMonth, currentMonth) - monthIndex(baseMonth, baselineMonth);
-      if (delta === 0) {
-        return { display: "0", direction: "flat" };
-      }
-      return {
-        display: `${delta > 0 ? "+" : ""}${delta}`,
-        direction: delta > 0 ? "up" : "down",
-      };
-    },
-    [baselineProjection.projection?.baseMonth]
+  const kpiDiff = useMemo(
+    () =>
+      diffPlanLabKpis(
+        optionKpis,
+        baselineKpis,
+        baselineProjection.projection?.baseMonth ?? null
+      ),
+    [baselineKpis, baselineProjection.projection?.baseMonth, optionKpis]
   );
 
   const formatDeltaDisplay = useCallback(
-    (delta: DeltaDisplay | null, unit: string | null) => {
-      if (!delta) {
+    (deltaValue: number | null, unit: string | null) => {
+      if (typeof deltaValue !== "number") {
         return null;
       }
-      const arrow =
-        delta.direction === "up" ? "▲" : delta.direction === "down" ? "▼" : "●";
-      return `${arrow} ${delta.display}${unit ? ` ${unit}` : ""}`;
+      const direction: DeltaDisplay["direction"] =
+        deltaValue > 0 ? "up" : deltaValue < 0 ? "down" : "flat";
+      const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "●";
+      const absValue = Math.abs(deltaValue);
+      const valueDisplay =
+        unit === null
+          ? formatCurrency(absValue, scenario.baseCurrency, locale)
+          : String(absValue);
+      const sign = deltaValue > 0 ? "+" : deltaValue < 0 ? "-" : "±";
+      return {
+        direction,
+        display: `${arrow} ${sign}${valueDisplay}${unit ? ` ${unit}` : ""}`,
+      };
     },
-    []
+    [locale, scenario.baseCurrency]
   );
 
   const kpiCards = useMemo(() => {
@@ -3189,64 +3174,51 @@ export default function PlanLabPanel({
     );
     const negativeNotReached = translate("planLabKpiNegativeEmpty", "未轉負");
 
-    const minCashBaseline = baselineKpis?.minCash?.value ?? null;
-    const minCashCurrent = optionKpis?.minCash?.value ?? null;
-    const minCashDelta = formatDeltaCurrency(minCashBaseline, minCashCurrent);
-
-    const minCashBaselineLabel = baselineKpis?.minCash
-      ? `${formatCurrency(minCashBaseline ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
-          baselineKpis.minCash.month,
-          notAvailable
-        )}`
-      : notAvailable;
-    const minCashCurrentLabel = optionKpis?.minCash
-      ? `${formatCurrency(minCashCurrent ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
+    const minCashA = optionKpis?.minCash?.value ?? null;
+    const minCashB = baselineKpis?.minCash?.value ?? null;
+    const minCashAValue = optionKpis?.minCash
+      ? `${formatCurrency(minCashA ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
           optionKpis.minCash.month,
           notAvailable
         )}`
       : notAvailable;
+    const minCashBValue = baselineKpis?.minCash
+      ? `${formatCurrency(minCashB ?? 0, scenario.baseCurrency, locale)} · ${formatMonthLabel(
+          baselineKpis.minCash.month,
+          notAvailable
+        )}`
+      : notAvailable;
 
-    const negativeBaselineLabel = formatMonthLabel(
-      baselineKpis?.firstNegativeCashMonth ?? null,
-      negativeNotReached
-    );
-    const negativeCurrentLabel = formatMonthLabel(
+    const negativeAValue = formatMonthLabel(
       optionKpis?.firstNegativeCashMonth ?? null,
       negativeNotReached
     );
-    const negativeDelta = formatDeltaMonths(
+    const negativeBValue = formatMonthLabel(
       baselineKpis?.firstNegativeCashMonth ?? null,
-      optionKpis?.firstNegativeCashMonth ?? null
+      negativeNotReached
     );
 
-    const endNetWorthBaseline = baselineKpis?.endNetWorth ?? null;
-    const endNetWorthCurrent = optionKpis?.endNetWorth ?? null;
-    const endNetWorthDelta = formatDeltaCurrency(endNetWorthBaseline, endNetWorthCurrent);
-
-    const endNetWorthBaselineLabel =
-      endNetWorthBaseline !== null
-        ? formatCurrency(endNetWorthBaseline, scenario.baseCurrency, locale)
+    const endNetWorthA = optionKpis?.endNetWorth ?? null;
+    const endNetWorthB = baselineKpis?.endNetWorth ?? null;
+    const endNetWorthAValue =
+      endNetWorthA !== null
+        ? formatCurrency(endNetWorthA, scenario.baseCurrency, locale)
         : notAvailable;
-    const endNetWorthCurrentLabel =
-      endNetWorthCurrent !== null
-        ? formatCurrency(endNetWorthCurrent, scenario.baseCurrency, locale)
+    const endNetWorthBValue =
+      endNetWorthB !== null
+        ? formatCurrency(endNetWorthB, scenario.baseCurrency, locale)
         : notAvailable;
 
     const targetConfigured = typeof firstBucketTargetValue === "number";
-    const targetBaselineMonth = baselineKpis?.targetMonth ?? null;
-    const targetCurrentMonth = optionKpis?.targetMonth ?? null;
-    const targetBaselineLabel = targetConfigured
-      ? formatMonthLabel(targetBaselineMonth, targetNotReached)
-      : notAvailable;
-    const targetCurrentLabel = targetConfigured
-      ? formatMonthLabel(targetCurrentMonth, targetNotReached)
+    const targetAValue = targetConfigured
+      ? formatMonthLabel(optionKpis?.targetMonth ?? null, targetNotReached)
       : targetNotSet;
-    const targetDelta = targetConfigured
-      ? formatDeltaMonths(targetBaselineMonth, targetCurrentMonth)
-      : null;
+    const targetBValue = targetConfigured
+      ? formatMonthLabel(baselineKpis?.targetMonth ?? null, targetNotReached)
+      : notAvailable;
     const targetHelper = !targetConfigured
       ? targetNotSetHint
-      : targetCurrentMonth
+      : optionKpis?.targetMonth
       ? undefined
       : targetNotReachedHint;
 
@@ -3254,43 +3226,47 @@ export default function PlanLabPanel({
       {
         key: "minCash",
         label: translate("planLabKpiMinCash", "最低現金結餘"),
-        baseline: minCashBaselineLabel,
-        current: minCashCurrentLabel,
-        delta: minCashDelta,
-        deltaUnit: null,
+        valueA: minCashAValue,
+        valueB: minCashBValue,
+        delta: formatDeltaDisplay(kpiDiff.minCash, null),
       },
       {
         key: "negativeCash",
         label: translate("planLabKpiNegativeCash", "現金轉負最早月份"),
-        baseline: negativeBaselineLabel,
-        current: negativeCurrentLabel,
-        delta: negativeDelta,
-        deltaUnit: translate("planLabKpiMonthsUnit", "個月"),
+        valueA: negativeAValue,
+        valueB: negativeBValue,
+        delta: formatDeltaDisplay(
+          kpiDiff.firstNegativeCashMonth,
+          translate("planLabKpiMonthsUnit", "個月")
+        ),
       },
       {
         key: "endNetWorth",
         label: translate("planLabKpiEndNetWorth", "期末淨資產"),
-        baseline: endNetWorthBaselineLabel,
-        current: endNetWorthCurrentLabel,
-        delta: endNetWorthDelta,
-        deltaUnit: null,
+        valueA: endNetWorthAValue,
+        valueB: endNetWorthBValue,
+        delta: formatDeltaDisplay(kpiDiff.endNetWorth, null),
       },
       {
         key: "targetMonth",
         label: translate("planLabKpiTargetMonth", "目標達標月份"),
-        baseline: targetBaselineLabel,
-        current: targetCurrentLabel,
-        delta: targetDelta,
-        deltaUnit: translate("planLabKpiMonthsUnit", "個月"),
+        valueA: targetAValue,
+        valueB: targetBValue,
+        delta: targetConfigured
+          ? formatDeltaDisplay(
+              kpiDiff.targetMonth,
+              translate("planLabKpiMonthsUnit", "個月")
+            )
+          : null,
         helper: targetHelper,
       },
     ];
   }, [
     baselineKpis,
-    formatDeltaCurrency,
-    formatDeltaMonths,
-    formatMonthLabel,
     firstBucketTargetValue,
+    formatDeltaDisplay,
+    formatMonthLabel,
+    kpiDiff,
     locale,
     optionKpis,
     scenario.baseCurrency,
@@ -4547,7 +4523,7 @@ export default function PlanLabPanel({
         <Text size="sm">{t("planLabSandboxBanner")}</Text>
       </Card>
 
-      {mode === "edit" ? (
+      {(
         <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Stack gap="xs">
@@ -5190,40 +5166,55 @@ export default function PlanLabPanel({
                   ) : (
                     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
                       {kpiCards.map((card) => {
-                        const deltaDisplay = formatDeltaDisplay(
-                          card.delta ?? null,
-                          card.deltaUnit
-                        );
                         const deltaColor =
                           card.delta?.direction === "up"
                             ? "teal"
                             : card.delta?.direction === "down"
                             ? "red"
                             : "gray";
+                        const labelA =
+                          mode === "compare"
+                            ? translate("planLabComparePlanLabel", "Plan {label}", {
+                                label: "A",
+                              })
+                            : translate("planLabKpiCurrentLabel", "當前");
+                        const labelB =
+                          mode === "compare"
+                            ? translate("planLabComparePlanLabel", "Plan {label}", {
+                                label: "B",
+                              })
+                            : translate("planLabKpiBaselineLabel", "基準");
                         return (
                           <Card key={card.key} withBorder radius="md" padding="sm">
                             <Stack gap={6}>
                               <Text size="sm" fw={600}>
                                 {card.label}
                               </Text>
-                              <Stack gap={2}>
-                                <Text size="xs" c="dimmed">
-                                  {translate("planLabKpiCurrentLabel", "當前")}
-                                </Text>
-                                <Text fw={700}>{card.current}</Text>
-                              </Stack>
+                              <Group grow align="flex-start" wrap="nowrap">
+                                <Stack gap={2}>
+                                  <Text size="xs" c="dimmed">
+                                    {labelA}
+                                  </Text>
+                                  <Text fw={700}>{card.valueA}</Text>
+                                </Stack>
+                                <Stack gap={2}>
+                                  <Text size="xs" c="dimmed">
+                                    {labelB}
+                                  </Text>
+                                  <Text fw={700}>{card.valueB}</Text>
+                                </Stack>
+                              </Group>
                               <Group justify="space-between" align="center" wrap="wrap">
                                 <Text size="xs" c="dimmed">
-                                  {translate("planLabKpiBaselineLabel", "基準")}：
-                                  {card.baseline}
+                                  {mode === "compare" ? "Δ (A-B)" : "Δ"}
                                 </Text>
-                                {deltaDisplay ? (
+                                {card.delta ? (
                                   <Badge variant="light" color={deltaColor}>
-                                    Δ {deltaDisplay}
+                                    {card.delta.display}
                                   </Badge>
                                 ) : (
                                   <Text size="xs" c="dimmed">
-                                    Δ —
+                                    —
                                   </Text>
                                 )}
                               </Group>
@@ -5334,7 +5325,7 @@ export default function PlanLabPanel({
                           strokeWidth={2}
                           strokeDasharray="6 4"
                           dot={false}
-                          name={t("planLabBaselineLabel")}
+                          name={mode === "compare" ? "B" : t("planLabBaselineLabel")}
                         />
                         <Line
                           type="monotone"
@@ -5342,7 +5333,7 @@ export default function PlanLabPanel({
                           stroke="#12b886"
                           strokeWidth={2}
                           dot={false}
-                          name={t("planLabOptionLabel")}
+                          name={mode === "compare" ? "A" : t("planLabOptionLabel")}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -5353,29 +5344,9 @@ export default function PlanLabPanel({
           </div>
         </Grid.Col>
         </Grid>
-      ) : (
-        <PlanCompareMode
-          scenario={scenario}
-          plans={plans}
-          planAId={planAId}
-          planBId={planBId}
-          onPlanAChange={setPlanAId}
-          onPlanBChange={setPlanBId}
-          onSwapPlans={() => {
-            setPlanAId(planBId);
-            setPlanBId(planAId);
-          }}
-        onLoadPlan={(plan) => handleLoadPlanSnapshot(plan)}
-        baselineFingerprint={baselineFingerprint}
-        displayMode={displayMode}
-        deflateSeries={deflateSeries}
-        locale={locale}
-          eventLibrary={eventLibrary}
-          members={members}
-          budgetRules={budgetRules}
-          translate={translate}
-        />
       )}
+
+
 
       <PlanLibraryDrawer
         opened={planLibraryOpen}
