@@ -2042,7 +2042,9 @@
     "memberBudgetEmpty": "No member-specific budget rules yet.",
     "householdBudgetTitle": "Household budget rules",
     "addHouseholdRule": "Add household rule",
-    "householdBudgetEmpty": "No household rules yet."
+    "householdBudgetEmpty": "No household rules yet.",
+    "legacySectionTitle": "Advanced / legacy fields",
+    "legacySectionNote": "These fields are kept for compatibility and do not currently affect projection results."
   },
   "budgetRules": {
     "title": "Budget rules",

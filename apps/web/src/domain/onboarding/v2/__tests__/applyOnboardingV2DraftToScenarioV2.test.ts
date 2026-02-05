@@ -308,4 +308,76 @@ describe("applyOnboardingV2DraftToScenarioV2", () => {
       result.assets?.some((asset) => asset.id === policy?.policyAssetId)
     ).toBe(true);
   });
+
+  it("updates seeded placeholder primary member instead of creating duplicate", () => {
+    const draft = buildDraft({
+      household: {
+        members: [
+          {
+            id: "self",
+            role: "self",
+            name: "Alex",
+            birthMonth: "1990-02",
+          },
+        ],
+      },
+    });
+    const scenarioWithPlaceholder: Scenario = {
+      ...baseScenario,
+      members: [
+        {
+          id: "member-placeholder",
+          name: "主要成員",
+          kind: "person",
+          applyScope: { scope: "all" },
+          milestones: [],
+        },
+      ],
+    };
+
+    const result = applyOnboardingV2DraftToScenarioV2(draft, scenarioWithPlaceholder);
+
+    expect(result.members).toHaveLength(1);
+    expect(result.members?.[0]).toMatchObject({
+      id: "member-placeholder",
+      name: "Alex",
+      birthMonth: "1990-02",
+      kind: "person",
+    });
+  });
+
+  it("is idempotent when applying onboarding draft multiple times", () => {
+    const draft = buildDraft({
+      household: {
+        members: [
+          {
+            id: "self",
+            role: "self",
+            name: "Alex",
+            birthMonth: "1990-02",
+          },
+        ],
+      },
+    });
+    const scenarioWithPlaceholder: Scenario = {
+      ...baseScenario,
+      members: [
+        {
+          id: "member-placeholder",
+          name: "主要成員",
+          kind: "person",
+          applyScope: { scope: "all" },
+          milestones: [],
+        },
+      ],
+    };
+
+    const once = applyOnboardingV2DraftToScenarioV2(draft, scenarioWithPlaceholder);
+    const twice = applyOnboardingV2DraftToScenarioV2(draft, once);
+
+    expect(once.members).toHaveLength(1);
+    expect(twice.members).toHaveLength(1);
+    expect(twice.members?.[0]?.id).toBe("member-placeholder");
+    expect(twice.members?.[0]?.name).toBe("Alex");
+  });
 });
