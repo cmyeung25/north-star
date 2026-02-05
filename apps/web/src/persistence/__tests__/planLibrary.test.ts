@@ -53,7 +53,7 @@ const buildSnapshot = (): PlanSnapshot => ({
 describe("planLibrary storage", () => {
   beforeEach(() => {
     localStorageMock.clear();
-    vi.resetModules();
+    (vi as unknown as { resetModules: () => void }).resetModules();
   });
 
   it("PlanLab snapshots persist and load", async () => {
