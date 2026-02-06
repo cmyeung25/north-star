@@ -333,6 +333,22 @@ export const buildScenarioItemMetaParts = ({
   } else if (item.memberId) {
     parts.push(item.memberId === "household" ? householdLabel : item.memberId);
   }
+  if (item.positionKind === "asset") {
+    const currentValue = item.position?.currentValue;
+    if (typeof currentValue === "number") {
+      parts.push(`現值 ${formatCurrency(currentValue, currency, locale)}`);
+    }
+  }
+  if (item.positionKind === "liability") {
+    const outstanding = item.position?.principalOutstanding;
+    const rate = item.position?.annualInterestRatePct;
+    if (typeof outstanding === "number") {
+      parts.push(`結餘 ${formatCurrency(outstanding, currency, locale)}`);
+    }
+    if (typeof rate === "number") {
+      parts.push(`利率 ${rate}%`);
+    }
+  }
   return parts;
 };
 
@@ -527,7 +543,9 @@ const deriveInputsFromScenarioV2 = (params: {
       startMonth: asset.startMonth ?? undefined,
       endMonth: null,
       enabled: true,
-      changed: changed.assets.has(asset.id),
+      changed:
+        changed.assets.has(asset.id) ||
+        (asset.createdByEventId ? changed.addedEvents.has(asset.createdByEventId) : false),
       amount: asset.currentValue ?? null,
       assetId: asset.id,
       positionKey: asset.id,
@@ -550,7 +568,11 @@ const deriveInputsFromScenarioV2 = (params: {
       startMonth: liability.startMonth ?? undefined,
       endMonth: null,
       enabled: true,
-      changed: changed.liabilities.has(liability.id),
+      changed:
+        changed.liabilities.has(liability.id) ||
+        (liability.createdByEventId
+          ? changed.addedEvents.has(liability.createdByEventId)
+          : false),
       amount: liability.principalOutstanding ?? null,
       liabilityId: liability.id,
       positionKey: liability.id,
@@ -950,6 +972,7 @@ export default function PlanLabPanel({
   >(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
   const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null);
+  const [confirmRemoveExperimentId, setConfirmRemoveExperimentId] = useState<string | null>(null);
   const [undoRemovalRevision, setUndoRemovalRevision] = useState(0);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
@@ -2599,6 +2622,13 @@ export default function PlanLabPanel({
     [confirmRemoveGroupId, experimentGroupsKey]
   );
   const pendingRemoveGroupCount = pendingRemoveGroup?.itemIds?.length ?? 0;
+  const pendingRemoveExperiment = useMemo(
+    () =>
+      confirmRemoveExperimentId
+        ? experiments.find((experiment) => experiment.id === confirmRemoveExperimentId) ?? null
+        : null,
+    [confirmRemoveExperimentId, experiments]
+  );
   const sandboxScenarioV2 = useMemo(
     () =>
       scenarioIsV2
@@ -5611,8 +5641,8 @@ export default function PlanLabPanel({
                                   title={resolveExperimentGroupTitle(group.title)}
                                   badges={badges}
                                   summary={translate(
-                                    "planLabExperimentGroupCount",
-                                    "{count}項",
+                                    "planLabExperimentConnectedCount",
+                                    "已連接 {count} 個事件",
                                     { count: activeItemIds.length }
                                   )}
                                   enabled={group.isEnabled}
@@ -5625,9 +5655,15 @@ export default function PlanLabPanel({
                                   panel={
                                     <Stack gap={6}>
                                       <Text size="xs" c="dimmed">
-                                        {translate("planLabExperimentGroupCount", "{count}項", {
-                                          count: activeItemIds.length,
-                                        })}
+                                        {translate(
+                                          "planLabExperimentDiffSummary",
+                                          "變更摘要：+{added} / -{removed} / ~{modified}",
+                                          {
+                                            added: String(activeItemIds.length),
+                                            removed: String(removedItems.length),
+                                            modified: "0",
+                                          }
+                                        )}
                                       </Text>
                                       <Text size="xs" fw={500}>
                                         {translate("planLabExperimentIncludesItems", "包含項目")}
@@ -5753,16 +5789,6 @@ export default function PlanLabPanel({
                                 color: "red",
                               });
                             }
-                            const menuItems: PlanLabRowMenuItem[] = [
-                              {
-                                label: translate("planLabActionDuplicate", "複製"),
-                                onClick: () => duplicateExperiment(legacyExperiment),
-                              },
-                              {
-                                label: translate("planLabAppliedRemove", "移除"),
-                                onClick: () => removeExperiment(legacyExperiment.id),
-                              },
-                            ];
                             return (
                               <PlanLabAccordionRow
                                 key={legacyExperiment.id}
@@ -5783,7 +5809,11 @@ export default function PlanLabPanel({
                                   })
                                 }
                                 onEdit={() => openEditExperimentDrawer(legacyExperiment)}
-                                menuItems={menuItems}
+                                primaryAction={{
+                                  label: translate("planLabAppliedRemove", "移除"),
+                                  onClick: () => setConfirmRemoveExperimentId(legacyExperiment.id),
+                                  color: "red",
+                                }}
                                 panel={
                                   <Text size="xs" c="dimmed">
                                     {getExperimentSummary(legacyExperiment)}
@@ -7483,6 +7513,44 @@ export default function PlanLabPanel({
         )}
       </Drawer>
       <Modal
+        opened={Boolean(pendingRemoveExperiment)}
+        onClose={() => setConfirmRemoveExperimentId(null)}
+        title={translate("planLabRemoveExperimentConfirmTitle", "移除實驗「{experimentTitle}」？", {
+          experimentTitle: pendingRemoveExperiment
+            ? (
+                experimentTypeOptions.find((option) => option.value === pendingRemoveExperiment.type)
+                  ?.label ?? translate("planLabExperimentFallback", "實驗")
+              )
+            : translate("planLabExperimentFallback", "實驗"),
+        })}
+      >
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            {translate(
+              "planLabRemoveLegacyExperimentConfirmBody",
+              "此操作會移除實驗，並撤銷其套用變更。"
+            )}
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmRemoveExperimentId(null)}>
+              {translate("planLabCancel", "取消")}
+            </Button>
+            <Button
+              color="red"
+              onClick={() => {
+                if (pendingRemoveExperiment) {
+                  removeExperiment(pendingRemoveExperiment.id);
+                }
+                setConfirmRemoveExperimentId(null);
+              }}
+            >
+              {translate("planLabAppliedRemove", "移除")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
         opened={Boolean(pendingRemoveGroup)}
         onClose={() => setConfirmRemoveGroupId(null)}
         title={translate(
@@ -7496,7 +7564,7 @@ export default function PlanLabPanel({
           <Text size="sm">
             {translate(
               "planLabRemoveExperimentConfirmBody",
-              "此操作會解除打包並移除實驗開關，但會保留 {count} 個項目於 Plan Lab。",
+              "此操作會移除實驗，並撤銷其套用的 {count} 個變更項目。",
               { count: String(pendingRemoveGroupCount) }
             )}
           </Text>
@@ -7508,6 +7576,61 @@ export default function PlanLabPanel({
               color="red"
               onClick={() => {
                 if (pendingRemoveGroup) {
+                  pendingRemoveGroup.itemIds.forEach((itemId) => {
+                    const [kind, id] = itemId.split(":");
+                    if (!id) {
+                      return;
+                    }
+                    if (kind === "event") {
+                      removeScenarioV2Event(id);
+                      return;
+                    }
+                    setScenarioV2Patches((current) => {
+                      const nextPatches: PlanLabScenarioV2Patches = {
+                        events: {
+                          add: [...current.events.add],
+                          update: { ...current.events.update },
+                          remove: [...current.events.remove],
+                        },
+                        assets: {
+                          add: [...current.assets.add],
+                          update: { ...current.assets.update },
+                          remove: [...current.assets.remove],
+                        },
+                        liabilities: {
+                          add: [...current.liabilities.add],
+                          update: { ...current.liabilities.update },
+                          remove: [...current.liabilities.remove],
+                        },
+                        members: {
+                          add: [...current.members.add],
+                          update: { ...current.members.update },
+                          remove: [...current.members.remove],
+                        },
+                        rules: {
+                          add: [...current.rules.add],
+                          update: { ...current.rules.update },
+                          remove: [...current.rules.remove],
+                        },
+                      };
+                      if (kind === "asset") {
+                        nextPatches.assets.add = nextPatches.assets.add.filter((item) => item.id !== id);
+                        delete nextPatches.assets.update[id];
+                        nextPatches.assets.remove = nextPatches.assets.remove.filter((entry) => entry !== id);
+                      }
+                      if (kind === "liability") {
+                        nextPatches.liabilities.add = nextPatches.liabilities.add.filter((item) => item.id !== id);
+                        delete nextPatches.liabilities.update[id];
+                        nextPatches.liabilities.remove = nextPatches.liabilities.remove.filter((entry) => entry !== id);
+                      }
+                      if (kind === "rule") {
+                        nextPatches.rules.add = nextPatches.rules.add.filter((item) => item.id !== id);
+                        delete nextPatches.rules.update[id];
+                        nextPatches.rules.remove = nextPatches.rules.remove.filter((entry) => entry !== id);
+                      }
+                      return nextPatches;
+                    });
+                  });
                   deleteExperimentGroup(pendingRemoveGroup.experimentId);
                 }
                 setConfirmRemoveGroupId(null);
