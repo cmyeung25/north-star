@@ -569,8 +569,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     },
     {
       label: sd("kpi.firstMillionMonth", "第一桶金 (1百萬)"),
-      value: dashboardMetrics.firstMillionMonth ?? sd("kpi.notReached", "未達標"),
-      helper: sd("kpi.scope12m", "未來 12 個月"),
+      value: dashboardMetrics.firstMillionMonth ?? sd("kpi.notReachedWithinHorizon", "未達標（在 {years} 年內）", { years: Math.round((globalHorizonMonths ?? 0) / 12) }),
+      helper: dashboardMetrics.firstMillionMonth
+        ? sd("kpi.scopeHorizon", "以全期投影（至 {endMonth}）", { endMonth: dashboardMetrics.endMonth ?? "--" })
+        : sd("kpi.scopeHorizon", "以全期投影（至 {endMonth}）", { endMonth: dashboardMetrics.endMonth ?? "--" }),
     },
     {
       label: sd("kpi.avgNonSalaryIncome", "非工資收入（平均）"),
@@ -634,14 +636,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
   const moneyHubHref = buildScenarioUrl("/money", selectedScenario.id);
+  const moneyInputsHref = `${moneyHubHref}&tab=inputs`;
   const peopleHubHref = buildScenarioUrl("/people", selectedScenario.id);
   const completenessItems = [
-    { key: "income", label: sd("completeness.income", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: moneyHubHref },
-    { key: "expenses", label: sd("completeness.expenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: moneyHubHref },
-    { key: "assets", label: sd("completeness.assets", "資產"), done: Boolean(selectedScenario.positions?.homes?.length || selectedScenario.positions?.cars?.length || selectedScenario.positions?.investments?.length), href: moneyHubHref },
-    { key: "liabilities", label: sd("completeness.liabilities", "負債"), done: Boolean(selectedScenario.positions?.loans?.length), href: moneyHubHref },
+    { key: "income", label: sd("completeness.income", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: `${moneyHubHref}&tab=income` },
+    { key: "expenses", label: sd("completeness.expenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: `${moneyHubHref}&tab=expenses` },
+    { key: "assets", label: sd("completeness.assets", "資產"), done: Boolean(selectedScenario.positions?.homes?.length || selectedScenario.positions?.cars?.length || selectedScenario.positions?.investments?.length), href: `${moneyHubHref}&tab=assets` },
+    { key: "liabilities", label: sd("completeness.liabilities", "負債"), done: Boolean(selectedScenario.positions?.loans?.length), href: `${moneyHubHref}&tab=liabilities` },
     { key: "members", label: sd("completeness.members", "成員"), done: scenarioMembers.length > 0, href: peopleHubHref },
-    { key: "rules", label: sd("completeness.rules", "規則"), done: budgetRules.length > 0, href: moneyHubHref },
+    { key: "rules", label: sd("completeness.rules", "規則"), done: budgetRules.length > 0, href: `${moneyHubHref}&tab=inputs` },
   ];
   return (
     <Stack gap="xl" pb={isDesktop ? undefined : 120}>
@@ -750,7 +753,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </div>
               <Group gap="xs">
                 <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開情景實驗室")}</Button>
-                <Button component={Link} href={moneyHubHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
+                <Button component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
               </Group>
             </Group>
             {isDesktop ? (
@@ -762,7 +765,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             ) : (
               <KpiCarousel items={kpiItems} />
             )}
-            <Card withBorder radius="md" padding="sm" display={"none"}>
+            <Card withBorder radius="md" padding="sm">
               <Stack gap={6}>
                 <Text fw={600} size="sm">{sd("completeness.title", "資料完整度")}</Text>
                 <Group gap="xs" wrap="wrap">
