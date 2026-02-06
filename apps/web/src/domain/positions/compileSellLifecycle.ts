@@ -1,5 +1,10 @@
 import { monthIndex } from "@north-star/engine";
-import type { CarPosition, HomePosition, Scenario } from "../../store/scenarioStore";
+import type {
+  CarPosition,
+  HomePosition,
+  Scenario,
+  ScenarioAssumptions,
+} from "../../store/scenarioStore";
 import { buildAmortizationSchedule } from "./calculations";
 import { normalizeMonthStrict } from "../../utils/month";
 
@@ -52,7 +57,27 @@ const computeOutstandingBalance = (params: {
   return row ? row.closingBalance : 0;
 };
 
-const buildHomeSellEntries = (home: HomePosition, homeId: string) => {
+const resolveHomeAppreciationPct = (
+  home: HomePosition,
+  assumptions: ScenarioAssumptions
+) =>
+  home.appreciationMode === "GLOBAL"
+    ? assumptions.propertyAppreciationPct ?? home.annualAppreciationPct
+    : home.annualAppreciationPct;
+
+const resolveCarDepreciationPct = (
+  car: CarPosition,
+  assumptions: ScenarioAssumptions
+) =>
+  car.depreciationMode === "GLOBAL"
+    ? Math.abs(assumptions.carDepreciationRatePct ?? car.annualDepreciationRatePct ?? 0)
+    : car.annualDepreciationRatePct ?? 0;
+
+const buildHomeSellEntries = (
+  home: HomePosition,
+  homeId: string,
+  assumptions: ScenarioAssumptions
+) => {
   const sellMonthRaw = home.sellMonth;
   if (!sellMonthRaw) {
     return [];
@@ -82,7 +107,7 @@ const buildHomeSellEntries = (home: HomePosition, homeId: string) => {
       : home.purchasePrice ?? 0;
   const valueAtSellMonth = computeValueAtMonth(
     baseValue,
-    (home.annualAppreciationPct ?? 0) / 100,
+    resolveHomeAppreciationPct(home, assumptions) / 100,
     startMonth,
     sellMonth
   );
@@ -152,7 +177,11 @@ const buildHomeSellEntries = (home: HomePosition, homeId: string) => {
   return entries;
 };
 
-const buildCarSellEntries = (car: CarPosition, carId: string) => {
+const buildCarSellEntries = (
+  car: CarPosition,
+  carId: string,
+  assumptions: ScenarioAssumptions
+) => {
   const sellMonthRaw = car.sellMonth;
   if (!sellMonthRaw) {
     return [];
@@ -172,7 +201,7 @@ const buildCarSellEntries = (car: CarPosition, carId: string) => {
   const purchaseMonth = normalizedPurchaseMonth.month;
   const valueAtSellMonth = computeValueAtMonth(
     car.purchasePrice ?? 0,
-    (car.annualDepreciationRatePct ?? 0) / 100,
+    resolveCarDepreciationPct(car, assumptions) / 100,
     purchaseMonth,
     sellMonth
   );
@@ -226,15 +255,16 @@ const buildCarSellEntries = (car: CarPosition, carId: string) => {
 
 export const compileSellLifecycle = (scenario: Scenario): SellCashflowEntry[] => {
   const entries: SellCashflowEntry[] = [];
+  const assumptions = scenario.assumptions;
   const homes = scenario.positions?.homes ?? (scenario.positions?.home ? [scenario.positions.home] : []);
   homes.forEach((home, index) => {
     const homeId = (home as { id?: string }).id ?? `home-${index + 1}`;
-    entries.push(...buildHomeSellEntries(home, homeId));
+    entries.push(...buildHomeSellEntries(home, homeId, assumptions));
   });
 
   scenario.positions?.cars?.forEach((car, index) => {
     const carId = car.id ?? `car-${index + 1}`;
-    entries.push(...buildCarSellEntries(car, carId));
+    entries.push(...buildCarSellEntries(car, carId, assumptions));
   });
 
   return entries;

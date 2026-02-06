@@ -247,6 +247,17 @@ export default function MoneyClient({
     () => (scenario ? buildScenarioEventViews(scenario, eventLibrary) : []),
     [eventLibrary, scenario]
   );
+  const resolveCarDepreciationRatePct = useCallback(
+    (car: CarPositionDraft) =>
+      car.depreciationMode === "GLOBAL"
+        ? Math.abs(
+            scenario?.assumptions.carDepreciationRatePct ??
+              car.annualDepreciationRatePct ??
+              0
+          )
+        : car.annualDepreciationRatePct ?? 0,
+    [scenario?.assumptions.carDepreciationRatePct]
+  );
   const [dismissedPlaceholderBanner, setDismissedPlaceholderBanner] = useState(false);
   const showPlaceholderBanner =
     !dismissedPlaceholderBanner && (initialShowOnboardingBanner || initialShowOnboardingSkipped);
@@ -2143,11 +2154,12 @@ export default function MoneyClient({
       }
 
       // Build value schedule (depreciation)
-      if (car.annualDepreciationRatePct !== undefined) {
+      const depreciationRatePct = resolveCarDepreciationRatePct(car);
+      if (depreciationRatePct !== undefined) {
         valueRows.push(
           ...buildValueSchedule({
             baseValue: car.purchasePrice ?? 0,
-            annualAppreciationDecimal: -(car.annualDepreciationRatePct ?? 0) / 100,
+            annualAppreciationDecimal: -depreciationRatePct / 100,
             startMonth: car.purchaseMonth ?? baseMonth ?? "",
             months: horizonMonths,
           })

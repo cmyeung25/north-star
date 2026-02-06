@@ -1,7 +1,8 @@
-import type { Scenario } from "../../store/scenarioStore";
+import type { Scenario, ScenarioAssumptions } from "../../store/scenarioStore";
 import { normalizeEvent } from "../../features/timeline/schema";
 import { buildDerivedEvents } from "../../insurance/templates";
 import type { TimelineEvent } from "../../features/timeline/schema";
+import { DEFAULT_GROWTH_MODE } from "../growthMode";
 import type {
   EventDefinition,
   EventRule,
@@ -26,12 +27,37 @@ export const resolveEventRule = (
   };
 };
 
+const resolveGlobalGrowthPct = (
+  definition: EventDefinition,
+  assumptions?: ScenarioAssumptions
+) => {
+  if (!assumptions) {
+    return 0;
+  }
+  if (definition.type === "rent" || definition.incomeSubtype === "rental") {
+    return assumptions.rentAnnualGrowthPct ?? 0;
+  }
+  if (definition.incomeSubtype === "interest") {
+    return assumptions.cashYieldPct ?? 0;
+  }
+  return 0;
+};
+
 export const buildTimelineEventFromDefinition = (
   definition: EventDefinition,
   ref: ScenarioEventRef,
-  options: { baseCurrency: string; fallbackMonth?: string | null }
+  options: {
+    baseCurrency: string;
+    fallbackMonth?: string | null;
+    assumptions?: ScenarioAssumptions;
+  }
 ): TimelineEvent => {
   const rule = resolveEventRule(definition, ref);
+  const assumptions = options.assumptions;
+  const annualGrowthPct =
+    rule.growthMode === "GLOBAL"
+      ? resolveGlobalGrowthPct(definition, assumptions)
+      : Number(rule.annualGrowthPct ?? 0);
 
   return normalizeEvent(
     {
@@ -43,7 +69,8 @@ export const buildTimelineEventFromDefinition = (
       enabled: ref.enabled,
       monthlyAmount: Number(rule.monthlyAmount ?? 0),
       oneTimeAmount: Number(rule.oneTimeAmount ?? 0),
-      annualGrowthPct: Number(rule.annualGrowthPct ?? 0),
+      annualGrowthPct,
+      growthMode: rule.growthMode,
       currency: definition.currency ?? options.baseCurrency,
       memberId: definition.memberId,
       incomeSubtype: definition.incomeSubtype,
@@ -96,6 +123,7 @@ export const buildScenarioTimelineEvents = (
       buildTimelineEventFromDefinition(view.definition, view.ref, {
         baseCurrency,
         fallbackMonth,
+        assumptions: scenario.assumptions,
       })
     );
 
@@ -126,6 +154,7 @@ export const buildDefinitionFromTimelineEvent = (
     monthlyAmount: Math.abs(event.monthlyAmount ?? 0),
     oneTimeAmount: Math.abs(event.oneTimeAmount ?? 0),
     annualGrowthPct: event.annualGrowthPct ?? 0,
+    growthMode: event.growthMode ?? resolveDefaultGrowthMode(event),
   },
   currency: event.currency,
   memberId: event.memberId,
@@ -134,3 +163,10 @@ export const buildDefinitionFromTimelineEvent = (
   templateId: event.templateId,
   templateParams: event.templateParams,
 });
+
+const resolveDefaultGrowthMode = (event: TimelineEvent) =>
+  event.type === "rent" ||
+  event.incomeSubtype === "rental" ||
+  event.incomeSubtype === "interest"
+    ? DEFAULT_GROWTH_MODE
+    : undefined;

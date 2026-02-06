@@ -29,6 +29,7 @@ export const TimelineEventSchema = z.object({
   monthlyAmount: z.number().default(0),
   oneTimeAmount: z.number().default(0),
   annualGrowthPct: z.number().default(0),
+  growthMode: z.enum(["GLOBAL", "CUSTOM"]).optional(),
   currency: z.string().default(defaultCurrency),
   memberId: z.string().optional(),
   incomeSubtype: z
@@ -93,6 +94,7 @@ export const normalizeEvent = (
     monthlyAmount: Number(event.monthlyAmount ?? 0),
     oneTimeAmount: Number(event.oneTimeAmount ?? 0),
     annualGrowthPct: clampAnnualGrowthPct(Number(event.annualGrowthPct ?? 0)),
+    growthMode: event.growthMode,
     currency: event.currency ?? options.baseCurrency ?? defaultCurrency,
     memberId: event.memberId,
     incomeSubtype: event.incomeSubtype,

@@ -13,7 +13,9 @@ import type {
   InsurancePosition,
   InvestmentPosition,
   LoanPosition,
+  RentalDetails,
   Scenario,
+  ScenarioAssumptions,
   ScenarioMember,
   BudgetRule,
 } from "../store/scenarioStore";
@@ -1013,6 +1015,28 @@ export const mapScenarioToEngineInput = (
       });
     });
   }
+
+  const resolveHomeAppreciationPct = (home: HomePosition, assumptions: ScenarioAssumptions) =>
+    home.appreciationMode === "GLOBAL"
+      ? assumptions.propertyAppreciationPct ?? home.annualAppreciationPct
+      : home.annualAppreciationPct;
+
+  const resolveRentalGrowthPct = (
+    rental: RentalDetails | undefined,
+    assumptions: ScenarioAssumptions
+  ) => {
+    if (!rental) {
+      return 0;
+    }
+    return rental.rentGrowthMode === "GLOBAL"
+      ? assumptions.rentAnnualGrowthPct ?? rental.rentAnnualGrowthPct ?? 0
+      : rental.rentAnnualGrowthPct ?? 0;
+  };
+
+  const resolveCarDepreciationPct = (car: CarPosition, assumptions: ScenarioAssumptions) =>
+    car.depreciationMode === "GLOBAL"
+      ? Math.abs(assumptions.carDepreciationRatePct ?? car.annualDepreciationRatePct ?? 0)
+      : car.annualDepreciationRatePct ?? 0;
   const mappedHomes =
     validatedHomes.length > 0
       ? validatedHomes.map((home) => {
@@ -1024,7 +1048,8 @@ export const mapScenarioToEngineInput = (
                 rentMonthly: rentalDetails.rentMonthly,
                 rentStartMonth: rentalDetails.rentStartMonth,
                 rentEndMonth: rentalDetails.rentEndMonth ?? undefined,
-                rentAnnualGrowth: (rentalDetails.rentAnnualGrowthPct ?? 0) / 100,
+                rentAnnualGrowth:
+                  resolveRentalGrowthPct(rentalDetails, scenario.assumptions) / 100,
                 vacancyRate: (rentalDetails.vacancyRatePct ?? 0) / 100,
               }
             : undefined;
@@ -1036,7 +1061,8 @@ export const mapScenarioToEngineInput = (
               mode,
               purchasePrice: home.purchasePrice ?? home.existing.marketValue,
               sellMonth: home.sellMonth,
-              annualAppreciation: home.annualAppreciationPct / 100,
+              annualAppreciation:
+                resolveHomeAppreciationPct(home, scenario.assumptions) / 100,
               feesOneTime: home.feesOneTime,
               holdingCostMonthly: home.holdingCostMonthly ?? 0,
               holdingCostAnnualGrowth: (home.holdingCostAnnualGrowthPct ?? 0) / 100,
@@ -1086,7 +1112,8 @@ export const mapScenarioToEngineInput = (
             downPayment,
             purchaseMonth: home.purchaseMonth ?? baseMonth,
             sellMonth: home.sellMonth,
-            annualAppreciation: home.annualAppreciationPct / 100,
+            annualAppreciation:
+              resolveHomeAppreciationPct(home, scenario.assumptions) / 100,
             feesOneTime: home.feesOneTime,
             holdingCostMonthly: home.holdingCostMonthly ?? 0,
             holdingCostAnnualGrowth: (home.holdingCostAnnualGrowthPct ?? 0) / 100,
@@ -1229,7 +1256,8 @@ export const mapScenarioToEngineInput = (
             purchaseMonth,
             purchasePrice: car.purchasePrice,
             downPayment: car.downPayment,
-            annualDepreciationRate: (car.annualDepreciationRatePct ?? 0) / 100,
+            annualDepreciationRate:
+              resolveCarDepreciationPct(car, scenario.assumptions) / 100,
             holdingCostMonthly: car.holdingCostMonthly,
             holdingCostAnnualGrowth: (car.holdingCostAnnualGrowthPct ?? 0) / 100,
             loan,

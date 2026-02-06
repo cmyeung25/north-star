@@ -48,6 +48,7 @@ const rentalSchema = z
       .min(0, "validation.rentGrowthMin")
       .max(100, "validation.rentGrowthMax")
       .optional(),
+    rentGrowthMode: z.enum(["GLOBAL", "CUSTOM"]).optional(),
     vacancyRatePct: z
       .number()
       .min(0, "validation.vacancyRateMin")
@@ -74,6 +75,7 @@ export const HomePositionSchema = z
       .number({ required_error: "validation.annualAppreciationRequired" })
       .min(-100, "validation.annualAppreciationMin")
       .max(100, "validation.annualAppreciationMax"),
+    appreciationMode: z.enum(["GLOBAL", "CUSTOM"]).optional(),
     mortgageRatePct: z
       .number()
       .min(0, "validation.mortgageRateMin")
@@ -197,6 +199,7 @@ export const CarPositionSchema = z
       .number({ required_error: "validation.annualDepreciationRequired" })
       .min(0, "validation.annualDepreciationMin")
       .max(100, "validation.annualDepreciationMax"),
+    depreciationMode: z.enum(["GLOBAL", "CUSTOM"]).optional(),
     holdingCostMonthly: z
       .number({ required_error: "validation.holdingCostMonthlyRequired" })
       .min(0, "validation.holdingCostMonthlyMin"),
