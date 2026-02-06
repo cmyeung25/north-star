@@ -20,6 +20,9 @@ interface AssumptionsStepProps {
 const normalizeInput = (value: string | number) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+const normalizeRequiredInput = (value: string | number, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
 export default function AssumptionsStep({
   assumptions,
   errors,
@@ -86,48 +89,72 @@ export default function AssumptionsStep({
               <Group grow align="flex-start">
                 <NumberInput
                   label={t("assumptionRentGrowth")}
+                  description={t("assumptionRentGrowthImpact")}
                   value={assumptions.rentGrowthPct ?? ""}
                   min={-10}
                   max={100}
                   step={0.1}
                   suffix="%"
                   onChange={(value) =>
-                    onChange({ rentGrowthPct: normalizeInput(value) })
+                    onChange({
+                      rentGrowthPct: normalizeRequiredInput(
+                        value,
+                        assumptions.rentGrowthPct ?? 0
+                      ),
+                    })
                   }
                 />
                 <NumberInput
                   label={t("assumptionPropertyAppreciation")}
+                  description={t("assumptionPropertyAppreciationImpact")}
                   value={assumptions.propertyAppreciationPct ?? ""}
                   min={-50}
                   max={100}
                   step={0.1}
                   suffix="%"
                   onChange={(value) =>
-                    onChange({ propertyAppreciationPct: normalizeInput(value) })
+                    onChange({
+                      propertyAppreciationPct: normalizeRequiredInput(
+                        value,
+                        assumptions.propertyAppreciationPct ?? 0
+                      ),
+                    })
                   }
                 />
               </Group>
               <Group grow align="flex-start">
                 <NumberInput
                   label={t("assumptionCarDepreciation")}
+                  description={t("assumptionCarDepreciationImpact")}
                   value={assumptions.carDepreciationPct ?? ""}
-                  min={0}
+                  min={-100}
                   max={100}
                   step={0.1}
                   suffix="%"
                   onChange={(value) =>
-                    onChange({ carDepreciationPct: normalizeInput(value) })
+                    onChange({
+                      carDepreciationPct: normalizeRequiredInput(
+                        value,
+                        assumptions.carDepreciationPct ?? 0
+                      ),
+                    })
                   }
                 />
                 <NumberInput
                   label={t("assumptionCashYield")}
+                  description={t("assumptionCashYieldImpact")}
                   value={assumptions.cashYieldPct ?? ""}
                   min={-10}
                   max={100}
                   step={0.1}
                   suffix="%"
                   onChange={(value) =>
-                    onChange({ cashYieldPct: normalizeInput(value) })
+                    onChange({
+                      cashYieldPct: normalizeRequiredInput(
+                        value,
+                        assumptions.cashYieldPct ?? 0
+                      ),
+                    })
                   }
                 />
               </Group>

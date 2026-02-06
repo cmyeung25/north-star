@@ -37,6 +37,7 @@ import type { Plan } from "../domain/planLab/types";
 import type { EventType } from "../features/timeline/schema";
 import type { SmartInvestPolicy } from "../domain/smartInvest/types";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../domain/constants";
+import { DEFAULT_GROWTH_MODE, type GrowthMode } from "../domain/growthMode";
 import {
   buildEventRuleOverrides,
   type DuplicateCluster,
@@ -187,6 +188,7 @@ export type RentalDetails = {
   rentStartMonth: string;
   rentEndMonth?: string | null;
   rentAnnualGrowthPct?: number;
+  rentGrowthMode?: GrowthMode;
   vacancyRatePct?: number;
 };
 
@@ -213,6 +215,7 @@ export type HomePosition = {
   downPayment?: number;
   purchaseMonth?: string;
   annualAppreciationPct: number;
+  appreciationMode?: GrowthMode;
   mortgageRatePct?: number;
   mortgageTermYears?: number;
   feesOneTime?: number;
@@ -303,6 +306,7 @@ export type CarPosition = {
   purchasePrice: number;
   downPayment: number;
   annualDepreciationRatePct: number;
+  depreciationMode?: GrowthMode;
   holdingCostMonthly: number;
   holdingCostAnnualGrowthPct: number;
   purchaseFees?: AssetPurchaseFee[];
@@ -900,6 +904,7 @@ const buildEventDefinitionFromMoneyItem = (
   const nextDefinitionId = createEventDefinitionId();
   const nextTitle = item.notes?.trim() || item.category;
   const nextType = item.category as EventType;
+  const growthMode = nextType === "rent" ? DEFAULT_GROWTH_MODE : undefined;
   return {
     id: nextDefinitionId,
     title: nextTitle,
@@ -912,6 +917,7 @@ const buildEventDefinitionFromMoneyItem = (
       monthlyAmount: item.cadence === "recurring" ? item.amount : 0,
       oneTimeAmount: item.cadence === "oneOff" ? item.amount : 0,
       annualGrowthPct: item.cadence === "oneOff" ? 0 : DEFAULT_ANNUAL_GROWTH_PCT,
+      growthMode,
     },
     currency: item.currency ?? baseCurrency,
     memberId: item.memberId,
@@ -964,6 +970,7 @@ const applyAssetItemUpsertToPositions = (
         purchasePrice: item.currentValue ?? 0,
         downPayment: 0,
         annualAppreciationPct: 0,
+        appreciationMode: DEFAULT_GROWTH_MODE,
         holdingCostMonthly: 0,
         holdingCostAnnualGrowthPct: 0,
       }),
@@ -981,6 +988,7 @@ const applyAssetItemUpsertToPositions = (
             rentMonthly: item.rental.rentAmountMonthly,
             rentStartMonth: item.rental.rentStartMonth,
             rentEndMonth: item.rental.rentEndMonth ?? null,
+            rentGrowthMode: existing?.rental?.rentGrowthMode ?? DEFAULT_GROWTH_MODE,
           }
         : existing?.rental,
       source,
@@ -1059,6 +1067,7 @@ const applyAssetItemUpsertToPositions = (
       purchasePrice: item.currentValue ?? 0,
       downPayment: 0,
       annualDepreciationRatePct: 0,
+      depreciationMode: DEFAULT_GROWTH_MODE,
       holdingCostMonthly: 0,
       holdingCostAnnualGrowthPct: 0,
     }),

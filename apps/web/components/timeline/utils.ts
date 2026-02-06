@@ -36,6 +36,7 @@ import {
   type LoanPositionDraft,
 } from "../../src/store/scenarioStore";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
+import { DEFAULT_GROWTH_MODE } from "../../src/domain/growthMode";
 import type {
   EventDefinition,
   ScenarioEventRef,
@@ -215,6 +216,14 @@ type CreateEventOptions = {
   memberId?: string;
 };
 
+const resolveDefaultGrowthMode = (
+  type: EventType,
+  incomeSubtype?: "salary" | "bonus" | "freelance" | "rental" | "dividend" | "interest" | "other"
+) =>
+  type === "rent" || incomeSubtype === "rental" || incomeSubtype === "interest"
+    ? DEFAULT_GROWTH_MODE
+    : undefined;
+
 export const createEventDefinitionFromTemplate = (
   type: EventType,
   t: Translator,
@@ -223,6 +232,7 @@ export const createEventDefinitionFromTemplate = (
   const label = getEventLabel(t, type);
   const defaults = templateDefaults[type];
   const startMonth = getDefaultStartMonth(options.baseMonth);
+  const incomeSubtype = type === "salary" ? "salary" : undefined;
   const insuranceTemplate =
     type === "insurance_product" ? getInsuranceTemplate() : null;
   const templateParams = insuranceTemplate
@@ -241,10 +251,11 @@ export const createEventDefinitionFromTemplate = (
       monthlyAmount: defaults.monthlyAmount,
       oneTimeAmount: defaults.oneTimeAmount,
       annualGrowthPct: defaults.annualGrowthPct,
+      growthMode: resolveDefaultGrowthMode(type, incomeSubtype),
     },
     currency: options.baseCurrency ?? defaultCurrency,
     memberId: options.memberId,
-    incomeSubtype: type === "salary" ? "salary" : undefined,
+    incomeSubtype,
     templateId: insuranceTemplate?.id,
     templateParams,
   };
@@ -288,6 +299,7 @@ export const createHomePositionFromTemplate = (
     purchasePrice: 8_000_000,
     downPayment: 2_400_000,
     annualAppreciationPct: DEFAULT_ANNUAL_GROWTH_PCT,
+    appreciationMode: DEFAULT_GROWTH_MODE,
     mortgageRatePct: 0,
     mortgageTermYears: 30,
     feesOneTime: 0,
@@ -308,6 +320,7 @@ export const createCarPositionFromTemplate = (
     purchasePrice: 0,
     downPayment: 0,
     annualDepreciationRatePct: 0,
+    depreciationMode: DEFAULT_GROWTH_MODE,
     holdingCostMonthly: 0,
     holdingCostAnnualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
     purchaseFees: [],

@@ -1,4 +1,5 @@
 import type { EventType, IncomeSubtype } from "../../features/timeline/schema";
+import type { GrowthMode } from "../growthMode";
 
 export type EventRuleScheduleEntry = {
   month: string;
@@ -23,6 +24,7 @@ export type EventRule = {
   monthlyAmount?: number;
   oneTimeAmount?: number;
   annualGrowthPct?: number;
+  growthMode?: GrowthMode;
   schedule?: EventRuleScheduleEntry[];
   salarySteps?: SalaryStep[];
 };
@@ -69,6 +71,7 @@ export type EventRuleOverrides = Partial<
     | "monthlyAmount"
     | "oneTimeAmount"
     | "annualGrowthPct"
+    | "growthMode"
     | "mode"
     | "schedule"
   >

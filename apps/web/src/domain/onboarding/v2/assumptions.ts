@@ -21,7 +21,10 @@ const DEFAULT_INVESTMENT_RETURN_PCTS: Record<InvestmentAssetClass, number> = {
   fund: 5,
   crypto: 8,
 };
-const DEFAULT_CAR_DEPRECIATION_PCT = 0;
+const DEFAULT_RENT_GROWTH_PCT = 2;
+const DEFAULT_PROPERTY_APPRECIATION_PCT = 2;
+const DEFAULT_CAR_DEPRECIATION_PCT = -12;
+const DEFAULT_CASH_YIELD_PCT = 2;
 
 const normalizeNumber = (value: unknown): number | null => {
   const numeric = typeof value === "number" ? value : Number(value);
@@ -73,14 +76,17 @@ export const buildOnboardingAssumptionsDraft = (
     inflationPct,
     incomeGrowthPct,
     investmentReturnPct,
-    rentGrowthPct: normalizeOptionalNumber(assumptions?.rentAnnualGrowthPct),
+    rentGrowthPct:
+      normalizeOptionalNumber(assumptions?.rentAnnualGrowthPct) ??
+      DEFAULT_RENT_GROWTH_PCT,
     propertyAppreciationPct: normalizeOptionalNumber(
       assumptions?.propertyAppreciationPct
-    ),
+    ) ?? DEFAULT_PROPERTY_APPRECIATION_PCT,
     carDepreciationPct: normalizeOptionalNumber(
       assumptions?.carDepreciationRatePct
-    ),
-    cashYieldPct: normalizeOptionalNumber(assumptions?.cashYieldPct),
+    ) ?? DEFAULT_CAR_DEPRECIATION_PCT,
+    cashYieldPct:
+      normalizeOptionalNumber(assumptions?.cashYieldPct) ?? DEFAULT_CASH_YIELD_PCT,
     taxInputMode: assumptions?.taxInputMode ?? null,
   };
 };
@@ -102,24 +108,15 @@ export const mergeOnboardingAssumptionsDraft = (
     incomeGrowthPct,
     investmentReturnPct,
     rentGrowthPct:
-      override?.rentGrowthPct === null
-        ? null
-        : normalizeOptionalNumber(override?.rentGrowthPct) ??
-          fallback.rentGrowthPct,
+      normalizeOptionalNumber(override?.rentGrowthPct) ?? fallback.rentGrowthPct,
     propertyAppreciationPct:
-      override?.propertyAppreciationPct === null
-        ? null
-        : normalizeOptionalNumber(override?.propertyAppreciationPct) ??
-          fallback.propertyAppreciationPct,
+      normalizeOptionalNumber(override?.propertyAppreciationPct) ??
+      fallback.propertyAppreciationPct,
     carDepreciationPct:
-      override?.carDepreciationPct === null
-        ? null
-        : normalizeOptionalNumber(override?.carDepreciationPct) ??
-          fallback.carDepreciationPct,
+      normalizeOptionalNumber(override?.carDepreciationPct) ??
+      fallback.carDepreciationPct,
     cashYieldPct:
-      override?.cashYieldPct === null
-        ? null
-        : normalizeOptionalNumber(override?.cashYieldPct) ?? fallback.cashYieldPct,
+      normalizeOptionalNumber(override?.cashYieldPct) ?? fallback.cashYieldPct,
     taxInputMode: override?.taxInputMode ?? fallback.taxInputMode,
   };
 };
