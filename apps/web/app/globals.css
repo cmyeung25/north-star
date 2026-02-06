@@ -50,3 +50,12 @@ body {
   overscroll-behavior: contain;
   padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
+
+.mantine-Drawer-content,
+.mantine-Modal-content,
+.mantine-Drawer-body,
+.mantine-Modal-body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
