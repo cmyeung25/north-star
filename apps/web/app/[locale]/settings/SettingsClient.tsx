@@ -79,6 +79,11 @@ import {
   isPersistedSalaryStepMilestone,
 } from "../../../src/domain/members/salaryStepMilestones";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../../src/domain/constants";
+import {
+  DEFAULT_PLANNING_HORIZON_YEARS,
+  PLANNING_HORIZON_YEARS,
+  resolvePlanningHorizonMonths,
+} from "../../../src/domain/assumptions/planningHorizon";
 import { buildDefaultsForNewMember } from "../../../src/domain/onboarding/buildDefaultsForNewMember";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
@@ -120,11 +125,10 @@ export default function SettingsClient({
   const timelineText = useTranslations("timeline");
   const errors = useTranslations("errors");
   const validation = useTranslations("validation");
-  const horizonOptions = [
-    { value: "120", label: t("horizon10y") },
-    { value: "240", label: t("horizon20y") },
-    { value: "360", label: t("horizon30y") },
-  ];
+  const horizonOptions = PLANNING_HORIZON_YEARS.map((years) => ({
+    value: String(resolvePlanningHorizonMonths(years)),
+    label: t(`horizonYears${years}`),
+  }));
   const baseMonthHelper = t("baseMonthHelper");
   const authState = useAuthState();
   const scenarioIdFromQuery = scenarioId ?? null;
@@ -847,7 +851,7 @@ export default function SettingsClient({
     (option) => Number(option.value) === horizonMonths
   )
     ? String(horizonMonths)
-    : "240";
+    : String(resolvePlanningHorizonMonths(DEFAULT_PLANNING_HORIZON_YEARS));
   const horizonEndMonth =
     baseMonth && horizonMonths > 0
       ? buildMonthRange(baseMonth, horizonMonths).at(-1) ?? null
