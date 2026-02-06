@@ -31,7 +31,11 @@ export const emptyPlanLabScenarioV2Patches = (): PlanLabScenarioV2Patches => ({
 
 const synthesizeAssetsFromEvents = (events: ScenarioEvent[] | undefined): ScenarioAsset[] =>
   (events ?? []).flatMap((event) => {
-    if (event.type !== "housing" || event.kind !== "mortgage") {
+    if (event.type !== "housing") {
+      return [];
+    }
+    const purchasePrice = event.purchasePrice ?? 0;
+    if (!Number.isFinite(purchasePrice) || purchasePrice <= 0) {
       return [];
     }
     return [
@@ -40,7 +44,7 @@ const synthesizeAssetsFromEvents = (events: ScenarioEvent[] | undefined): Scenar
         kind: "home" as const,
         label: event.label,
         ownerMemberId: event.memberId,
-        currentValue: event.purchasePrice,
+        currentValue: purchasePrice,
         startMonth: event.startMonth,
         source: "eventGenerated" as const,
         createdByEventId: event.id,

@@ -61,6 +61,11 @@ import {
   buildOnboardingAssumptionsDraft,
   mergeOnboardingAssumptionsDraft,
 } from "../../domain/onboarding/v2/assumptions";
+import {
+  DEFAULT_PLANNING_HORIZON_YEARS,
+  PLANNING_HORIZON_YEARS,
+  isPlanningHorizonYears,
+} from "../../domain/assumptions/planningHorizon";
 
 const steps = [
   "profile",
@@ -94,7 +99,7 @@ type OnboardingTelemetryEvent = {
   action?: "save" | "later";
 };
 
-type HorizonYears = 3 | 5 | 10;
+type HorizonYears = (typeof PLANNING_HORIZON_YEARS)[number];
 
 type DraftProfileState = {
   baseCurrency: string;
@@ -306,7 +311,7 @@ const buildHousingDraft = ({
     mode: existing?.mode === "own" ? "own" : "rent",
     rent: {
       amount: toNumber(existing?.rent?.amount),
-      noPayment: existing?.rent?.noPayment ?? false,
+      noPayment: existing?.rent?.noPayment ?? true,
       startMonth: existing?.rent?.startMonth ?? baseMonth,
       endMonth: existing?.rent?.endMonth ?? "",
       rentGrowthPct: toOptional(existing?.rent?.rentGrowthPct),
@@ -571,7 +576,7 @@ const getInitialDraftState = ({
     profile: {
       baseCurrency,
       startMonth: "",
-      horizonYears: 5,
+      horizonYears: DEFAULT_PLANNING_HORIZON_YEARS,
     },
     household: {
       hasPartner: false,
@@ -609,12 +614,9 @@ const getInitialDraftState = ({
       baseCurrency:
         parsed.profile?.baseCurrency?.trim() || fallback.profile.baseCurrency,
       startMonth: parsed.profile?.startMonth ?? fallback.profile.startMonth,
-      horizonYears:
-        parsed.profile?.horizonYears === 3 ||
-        parsed.profile?.horizonYears === 5 ||
-        parsed.profile?.horizonYears === 10
-          ? parsed.profile.horizonYears
-          : fallback.profile.horizonYears,
+      horizonYears: isPlanningHorizonYears(parsed.profile?.horizonYears)
+        ? parsed.profile.horizonYears
+        : fallback.profile.horizonYears,
     };
     const household: DraftHouseholdState = {
       hasPartner: parsed.household?.hasPartner ?? fallback.household.hasPartner,
@@ -799,6 +801,7 @@ export default function OnboardingDraftWizard() {
   const hasStartedRef = useRef(false);
   const initialStepRef = useRef(step);
   const isMountedRef = useRef(true);
+  const hasAutoAddedIncomeRef = useRef(false);
 
   useEffect(() => {
     if (!isDev) {
@@ -806,6 +809,7 @@ export default function OnboardingDraftWizard() {
     }
     setTelemetryEvents(loadTelemetryEvents());
   }, []);
+
 
   useEffect(() => {
     return () => {
@@ -944,6 +948,39 @@ export default function OnboardingDraftWizard() {
 
   const selfMember = household.members.find((member) => member.id === "self");
   const selfBirthMonth = selfMember?.birthMonth ?? "";
+
+  useEffect(() => {
+    if (hasAutoAddedIncomeRef.current) {
+      return;
+    }
+    if (incomes.length > 0) {
+      hasAutoAddedIncomeRef.current = true;
+      return;
+    }
+    const startMonth = profile.startMonth || resolvedBaseMonth;
+    if (!startMonth) {
+      return;
+    }
+    setIncomes([
+      {
+        id: `income-self-${nanoid(6)}`,
+        label: t("incomeTemplateSelfSalaryName"),
+        amount: 30000,
+        frequency: "monthly",
+        startMonth,
+        endMonth: "",
+        memberId: selfMember?.id ?? "self",
+        followIncomeGrowth: true,
+      },
+    ]);
+    hasAutoAddedIncomeRef.current = true;
+  }, [
+    incomes.length,
+    profile.startMonth,
+    resolvedBaseMonth,
+    selfMember?.id,
+    t,
+  ]);
 
   const profileErrors = {
     birthMonth: !selfBirthMonth
@@ -1282,7 +1319,7 @@ export default function OnboardingDraftWizard() {
     car: {},
   };
 
-  if (!Number.isFinite(assets.cash.amount) || assets.cash.amount <= 0) {
+  if (!Number.isFinite(assets.cash.amount) || assets.cash.amount < 0) {
     assetsErrors.cash.amount = t("assetsCashAmountRequired");
   }
 
@@ -1795,12 +1832,17 @@ export default function OnboardingDraftWizard() {
                         horizonYears: Number(value) as HorizonYears,
                       }))
                     }
-                    data={[
-                      { label: t("horizonYears3"), value: "3" },
-                      { label: t("horizonYears5"), value: "5" },
-                      { label: t("horizonYears10"), value: "10" },
-                    ]}
+                    data={PLANNING_HORIZON_YEARS.map((years) => ({
+                      label: t(`horizonYears${years}`),
+                      value: String(years),
+                    }))}
                   />
+                  <Text size="xs" c="dimmed">
+                    {t("horizonYearsHint", {
+                      years: profile.horizonYears,
+                      defaultYears: DEFAULT_PLANNING_HORIZON_YEARS,
+                    })}
+                  </Text>
                   <MonthField
                     label={t("startMonth")}
                     placeholder={t("monthPlaceholder")}

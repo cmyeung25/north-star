@@ -6,17 +6,20 @@ import {
   Card,
   Group,
   List,
+  Paper,
   SimpleGrid,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { useLocale } from "next-intl";
 import type { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { computeProjection } from "@north-star/engine";
 import { useRouter } from "next/navigation";
 import type { Scenario } from "../../../store/scenarioStore";
+import { resolvePlanningHorizonMonths } from "../../../domain/assumptions/planningHorizon";
 import {
   compileScenarioV2ToLedger,
   compileScenarioV2ToProjectionInput,
@@ -47,15 +50,7 @@ type DataQualityFlag = {
   onAction: () => void;
 };
 
-const resolveHorizonMonths = (years: number) => {
-  if (years === 3) {
-    return 36;
-  }
-  if (years === 10) {
-    return 120;
-  }
-  return 60;
-};
+const resolveHorizonMonths = (years: number) => resolvePlanningHorizonMonths(years);
 
 const stepIndex = {
   profile: 0,
@@ -85,6 +80,7 @@ export default function ReviewStep({
 }: ReviewStepProps) {
   const locale = useLocale();
   const router = useRouter();
+  const isMobile = useMediaQuery("(max-width: 47.99em)");
 
   const horizonMonths = useMemo(() => resolveHorizonMonths(horizonYears), [horizonYears]);
   const scenarioForProjection = useMemo(() => {
@@ -447,14 +443,38 @@ export default function ReviewStep({
           <Text size="sm" c="dimmed">
             {t("resultHint")}
           </Text>
-          <Group align="center" wrap="wrap">
-            <Button onClick={onApplyDraft} disabled={!canApplyDraft}>
-              {t("saveCta")}
-            </Button>
-            <Button variant="default" onClick={onApplyLater}>
-              {t("laterCta")}
-            </Button>
-          </Group>
+          {isMobile ? (
+            <Paper
+              withBorder
+              radius="md"
+              p="sm"
+              style={{
+                position: "sticky",
+                bottom: 0,
+                zIndex: 5,
+                background: "var(--aur-card-0, #ffffff)",
+                paddingBottom: "calc(12px + env(safe-area-inset-bottom))",
+              }}
+            >
+              <Stack gap="xs">
+                <Button onClick={onApplyDraft} disabled={!canApplyDraft} fullWidth>
+                  {t("saveCta")}
+                </Button>
+                <Button variant="default" onClick={onApplyLater} fullWidth>
+                  {t("laterCta")}
+                </Button>
+              </Stack>
+            </Paper>
+          ) : (
+            <Group align="center" wrap="wrap">
+              <Button onClick={onApplyDraft} disabled={!canApplyDraft}>
+                {t("saveCta")}
+              </Button>
+              <Button variant="default" onClick={onApplyLater}>
+                {t("laterCta")}
+              </Button>
+            </Group>
+          )}
           <Text size="xs" c="dimmed">
             {t("saveHint")}
           </Text>

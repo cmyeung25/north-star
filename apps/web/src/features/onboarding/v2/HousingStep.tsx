@@ -388,6 +388,9 @@ export default function HousingStep({
               <Text size="sm" c="dimmed">
                 {t("housingOwnHint")}
               </Text>
+              <Text size="xs" c="dimmed">
+                {t("housingOwnOnboardingHint")}
+              </Text>
               <Group grow align="flex-start">
                 <NumberInput
                   label={t("housingPropertyValue")}

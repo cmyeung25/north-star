@@ -24,6 +24,10 @@ import MonthField from "../../../../components/MonthField";
 import { getCurrentMonth } from "../utils";
 import { isValidMonthKey } from "../../../utils/monthKey";
 import type { OnboardingV2DraftLivingSpend } from "../../../domain/onboarding/v2/draftTypes";
+import {
+  type PlanningHorizonYears,
+  resolvePlanningHorizonMonths,
+} from "../../../domain/assumptions/planningHorizon";
 
 type LivingSpendErrors = {
   fixed: Partial<{ amount: string; startMonth: string; endMonth: string }>;
@@ -38,21 +42,14 @@ type LivingSpendErrors = {
 type LivingSpendStepProps = {
   livingSpend: OnboardingV2DraftLivingSpend;
   baseMonth: string;
-  horizonYears: 3 | 5 | 10;
+  horizonYears: PlanningHorizonYears;
   errors: LivingSpendErrors;
   onChange: (next: OnboardingV2DraftLivingSpend) => void;
   t: (key: string, values?: Record<string, number>) => string;
 };
 
-const resolveHorizonMonths = (years: 3 | 5 | 10) => {
-  if (years === 3) {
-    return 36;
-  }
-  if (years === 10) {
-    return 120;
-  }
-  return 60;
-};
+const resolveHorizonMonths = (years: PlanningHorizonYears) =>
+  resolvePlanningHorizonMonths(years);
 
 const toNumber = (value: number | string) =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;

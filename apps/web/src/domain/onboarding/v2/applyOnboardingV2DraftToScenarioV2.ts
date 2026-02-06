@@ -1,4 +1,5 @@
 import { defaultCurrency } from "../../../../lib/i18n";
+import { resolvePlanningHorizonMonths } from "../../assumptions/planningHorizon";
 import { addMonths, monthsBetween } from "../../members/age";
 import type {
   Scenario,
@@ -32,16 +33,6 @@ export const ONBOARDING_V2_PREFIX = "onboarding-v2";
 const ONBOARDING_MEMBER_ID = /^(self|partner|child-\d+|pet-\d+)$/;
 
 export const isOnboardingMemberId = (id: string) => ONBOARDING_MEMBER_ID.test(id);
-
-const resolveHorizonMonths = (years?: number) => {
-  if (years === 3) {
-    return 36;
-  }
-  if (years === 10) {
-    return 120;
-  }
-  return 60;
-};
 
 const normalizeCurrency = (currency?: string) => {
   const trimmed = currency?.trim();
@@ -1026,7 +1017,7 @@ export const applyOnboardingV2DraftToScenarioV2 = (
     draft.profile.baseCurrency ?? scenario.baseCurrency
   );
   const baseMonth = startMonth ?? normalizeMonth(scenario.assumptions.baseMonth ?? "");
-  const horizonMonths = resolveHorizonMonths(draft.profile.horizonYears);
+  const horizonMonths = resolvePlanningHorizonMonths(draft.profile.horizonYears);
   const horizonEnd =
     baseMonth && Number.isFinite(horizonMonths)
       ? addMonths(baseMonth, Math.max(horizonMonths - 1, 0))
