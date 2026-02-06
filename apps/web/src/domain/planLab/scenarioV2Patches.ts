@@ -29,6 +29,72 @@ export const emptyPlanLabScenarioV2Patches = (): PlanLabScenarioV2Patches => ({
   rules: { add: [], update: {}, remove: [] },
 });
 
+const synthesizeAssetsFromEvents = (events: ScenarioEvent[] | undefined): ScenarioAsset[] =>
+  (events ?? []).flatMap((event) => {
+    if (event.type !== "housing" || event.kind !== "mortgage") {
+      return [];
+    }
+    return [
+      {
+        id: event.propertyAssetId ?? event.id,
+        kind: "home" as const,
+        label: event.label,
+        ownerMemberId: event.memberId,
+        currentValue: event.purchasePrice,
+        startMonth: event.startMonth,
+        source: "eventGenerated" as const,
+        createdByEventId: event.id,
+        createdByTemplate: "housing_mortgage" as const,
+      },
+    ];
+  });
+
+const synthesizeLiabilitiesFromEvents = (
+  events: ScenarioEvent[] | undefined
+): ScenarioLiability[] =>
+  (events ?? []).flatMap((event) => {
+    if (event.type !== "housing" || event.kind !== "mortgage") {
+      return [];
+    }
+    const principal = Math.max(
+      0,
+      (event.purchasePrice ?? 0) -
+        (event.downPaymentAmount ??
+          ((event.purchasePrice ?? 0) * (event.downPaymentPercent ?? 0)) / 100)
+    );
+    return [
+      {
+        id: event.mortgageLiabilityId ?? event.id,
+        kind: "mortgage" as const,
+        label: event.label,
+        ownerMemberId: event.memberId,
+        principalOutstanding: principal || undefined,
+        annualInterestRatePct: event.mortgageRatePct,
+        termYears: event.mortgageTermYears,
+        startMonth: event.startMonth,
+        source: "eventGenerated" as const,
+        createdByEventId: event.id,
+        createdByTemplate: "housing_mortgage" as const,
+      },
+    ];
+  });
+
+const mergeUniqueById = <T extends { id: string }>(
+  base: T[] | undefined,
+  extras: T[]
+): T[] => {
+  const merged = [...(base ?? [])];
+  const ids = new Set(merged.map((item) => item.id));
+  extras.forEach((item) => {
+    if (ids.has(item.id)) {
+      return;
+    }
+    ids.add(item.id);
+    merged.push(item);
+  });
+  return merged;
+};
+
 const applyPatchSet = <T extends { id: string }>(
   base: T[] | undefined,
   patch: ScenarioV2PatchSet<T>
@@ -63,10 +129,19 @@ const applyPatchSet = <T extends { id: string }>(
 export const applyPlanLabScenarioV2Patches = (
   scenario: ScenarioV2,
   patches: PlanLabScenarioV2Patches
-): ScenarioV2 => ({
-  ...scenario,
-  events: applyPatchSet(scenario.events, patches.events),
-  assets: applyPatchSet(scenario.assets, patches.assets),
-  liabilities: applyPatchSet(scenario.liabilities, patches.liabilities),
-  members: applyPatchSet(scenario.members, patches.members),
-});
+): ScenarioV2 => {
+  const nextEvents = applyPatchSet(scenario.events, patches.events);
+  const explicitAssets = applyPatchSet(scenario.assets, patches.assets);
+  const explicitLiabilities = applyPatchSet(scenario.liabilities, patches.liabilities);
+
+  const synthesizedAssets = synthesizeAssetsFromEvents(nextEvents);
+  const synthesizedLiabilities = synthesizeLiabilitiesFromEvents(nextEvents);
+
+  return {
+    ...scenario,
+    events: nextEvents,
+    assets: mergeUniqueById(explicitAssets, synthesizedAssets),
+    liabilities: mergeUniqueById(explicitLiabilities, synthesizedLiabilities),
+    members: applyPatchSet(scenario.members, patches.members),
+  };
+};

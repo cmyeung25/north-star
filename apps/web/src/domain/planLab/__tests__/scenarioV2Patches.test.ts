@@ -59,4 +59,30 @@ describe("applyPlanLabScenarioV2Patches", () => {
     const cashValues = new Set(projection.cashBalance);
     expect(cashValues.size > 1).toBe(true);
   });
+
+
+  it("adds synthesized housing asset/liability for mortgage events in sandbox", () => {
+    const baseline = buildScenario();
+    const patches = emptyPlanLabScenarioV2Patches();
+    patches.events.add.push({
+      id: "event-home-1",
+      type: "housing",
+      kind: "mortgage",
+      label: "Home Purchase",
+      startMonth: "2024-03",
+      purchasePrice: 500000,
+      downPaymentAmount: 100000,
+      mortgageRatePct: 3.2,
+      mortgageTermYears: 30,
+    });
+
+    const sandbox = applyPlanLabScenarioV2Patches(baseline, patches);
+    expect(sandbox.assets?.some((asset) => asset.createdByEventId === "event-home-1")).toBe(true);
+    expect(
+      sandbox.liabilities?.some((liability) => liability.createdByEventId === "event-home-1")
+    ).toBe(true);
+
+    const input = compileScenarioV2ToProjectionInput(sandbox);
+    expect(input.positions?.homes?.some((home) => home.id === "event-home-1")).toBe(true);
+  });
 });
