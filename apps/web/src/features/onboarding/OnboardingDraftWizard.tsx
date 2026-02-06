@@ -788,6 +788,8 @@ export default function OnboardingDraftWizard() {
   const [insurance, setInsurance] = useState<OnboardingV2DraftInsurance>(
     initialState.insurance
   );
+  const [stepValidationAttempted, setStepValidationAttempted] = useState<Record<number, boolean>>({});
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<string | null>(null);
   const [telemetryEvents, setTelemetryEvents] = useState<OnboardingTelemetryEvent[]>(
     []
   );
@@ -901,6 +903,7 @@ export default function OnboardingDraftWizard() {
       insurance,
     };
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    setLastAutoSavedAt(new Date().toISOString());
   }, [
     assumptions,
     assets,
@@ -1524,6 +1527,7 @@ export default function OnboardingDraftWizard() {
     !hasDebtsErrors &&
     !hasInsuranceErrors;
   const canApply = canProceed && scenarioIsV2;
+  const shouldShowStepErrors = stepValidationAttempted[step] === true;
 
   const draft = useMemo<OnboardingV2Draft>(
     () => ({
@@ -1560,6 +1564,7 @@ export default function OnboardingDraftWizard() {
   }, [draft, scenario, scenarioId]);
 
   const handleNext = () => {
+    setStepValidationAttempted((current) => ({ ...current, [step]: true }));
     if (step === 0 && hasProfileError) {
       return;
     }
@@ -1697,9 +1702,14 @@ export default function OnboardingDraftWizard() {
           <Text size="xs" c="dimmed">
             {t("baseMonthLabel", { month: resolvedBaseMonth })}
           </Text>
-          <Badge color="orange" variant="light">
-            {t("draftBadge")}
-          </Badge>
+          <Group gap="xs">
+            <Badge color="orange" variant="light">
+              {t("draftBadge")}
+            </Badge>
+            <Badge color="teal" variant="light">
+              {lastAutoSavedAt ? `已自動儲存 · ${new Date(lastAutoSavedAt).toLocaleTimeString()}` : ""}
+            </Badge>
+          </Group>
         </Group>
       </Stack>
 
@@ -1752,7 +1762,7 @@ export default function OnboardingDraftWizard() {
                     label={t("birthMonth")}
                     placeholder={t("monthPlaceholder")}
                     value={selfBirthMonth}
-                    error={profileErrors.birthMonth || undefined}
+                    error={shouldShowStepErrors ? profileErrors.birthMonth || undefined : undefined}
                     onChange={(value) =>
                       setHousehold((current) => ({
                         ...current,
@@ -1769,7 +1779,7 @@ export default function OnboardingDraftWizard() {
                     data={currencyOptions}
                     searchable
                     value={profile.baseCurrency}
-                    error={profileErrors.baseCurrency || undefined}
+                    error={shouldShowStepErrors ? profileErrors.baseCurrency || undefined : undefined}
                     onChange={(value) =>
                       setProfile((current) => ({
                         ...current,
@@ -1795,7 +1805,7 @@ export default function OnboardingDraftWizard() {
                     label={t("startMonth")}
                     placeholder={t("monthPlaceholder")}
                     value={profile.startMonth}
-                    error={profileErrors.startMonth || undefined}
+                    error={shouldShowStepErrors ? profileErrors.startMonth || undefined : undefined}
                     onChange={(value) =>
                       setProfile((current) => ({
                         ...current,
@@ -1894,7 +1904,7 @@ export default function OnboardingDraftWizard() {
                               label={t("memberBirthMonth")}
                               placeholder={t("monthPlaceholder")}
                               value={member.birthMonth}
-                              error={memberMonthErrors[member.id]}
+                              error={shouldShowStepErrors ? memberMonthErrors[member.id] : undefined}
                               onChange={(value) =>
                                 setHousehold((current) => ({
                                   ...current,
@@ -1921,7 +1931,7 @@ export default function OnboardingDraftWizard() {
             content: (
               <AssumptionsStep
                 assumptions={assumptions}
-                errors={assumptionsErrors}
+                errors={shouldShowStepErrors ? assumptionsErrors : {}}
                 onChange={(patch) =>
                   setAssumptions((current) => ({ ...current, ...patch }))
                 }
@@ -1937,7 +1947,7 @@ export default function OnboardingDraftWizard() {
                 incomes={incomes}
                 members={household.members}
                 baseMonth={profile.startMonth || resolvedBaseMonth}
-                errors={incomeErrors}
+                errors={shouldShowStepErrors ? incomeErrors : {}}
                 onChange={setIncomes}
                 t={t}
               />
@@ -1951,7 +1961,7 @@ export default function OnboardingDraftWizard() {
                 livingSpend={livingSpend}
                 baseMonth={profile.startMonth || resolvedBaseMonth}
                 horizonYears={profile.horizonYears}
-                errors={livingSpendErrors}
+                errors={shouldShowStepErrors ? livingSpendErrors : { fixed: {}, travel: {}, tax: {}, otherFixed: {} }}
                 onChange={setLivingSpend}
                 t={t}
               />
@@ -2038,18 +2048,7 @@ export default function OnboardingDraftWizard() {
             </Button>
             <Button
               onClick={handleNext}
-              disabled={
-                step === steps.length - 1 ||
-                (step === 0 && hasProfileError) ||
-                (step === 1 && hasMemberMonthErrors) ||
-                (step === 2 && hasAssumptionErrors) ||
-                (step === 3 && hasIncomeErrors) ||
-                (step === 4 && hasLivingSpendErrors) ||
-                (step === 5 && hasHousingErrors) ||
-                (step === 6 && hasAssetsErrors) ||
-                (step === 7 && hasDebtsErrors) ||
-                (step === 8 && hasInsuranceErrors)
-              }
+              disabled={step === steps.length - 1}
             >
               {t("next")}
             </Button>

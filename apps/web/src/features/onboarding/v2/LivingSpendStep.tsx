@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Accordion,
   Badge,
   Button,
   Card,
@@ -170,16 +171,20 @@ export default function LivingSpendStep({
           <Text size="sm" c="dimmed">
             {t("livingSpendHint")}
           </Text>
+          <Badge variant="light" color="blue">
+            核心（1 分鐘）
+          </Badge>
           <Group grow align="flex-start">
             <NumberInput
-              label={t("livingFixedAmount")}
+              label={`${t("livingFixedAmount")}（必填）`}
               min={0}
-              value={livingSpend.fixed.amount}
+              value={livingSpend.fixed.amount === 0 ? "" : livingSpend.fixed.amount}
+              placeholder="例如：15,000"
               error={errors.fixed.amount}
               onChange={(value) => updateFixed({ amount: toNumber(value) })}
             />
             <MonthField
-              label={t("livingFixedStartMonth")}
+              label={`${t("livingFixedStartMonth")}（必填）`}
               placeholder={t("monthPlaceholder")}
               value={livingSpend.fixed.startMonth ?? ""}
               error={errors.fixed.startMonth}
@@ -187,29 +192,11 @@ export default function LivingSpendStep({
             />
           </Group>
           <MonthField
-            label={t("livingFixedEndMonth")}
+            label={`${t("livingFixedEndMonth")}（可選）`}
             placeholder={t("monthPlaceholder")}
             value={livingSpend.fixed.endMonth ?? ""}
             error={errors.fixed.endMonth}
             onChange={(value) => updateFixed({ endMonth: value })}
-          />
-        </Stack>
-      </Card>
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
-          <Group align="center" justify="space-between">
-            <Title order={5}>{t("livingVariableTitle")}</Title>
-            <Badge variant="light">{t("livingOptional")}</Badge>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {t("livingVariableHint")}
-          </Text>
-          <NumberInput
-            label={t("livingVariableAmount")}
-            min={0}
-            value={livingSpend.variable.amount}
-            onChange={(value) => updateVariable({ amount: toNumber(value) })}
           />
         </Stack>
       </Card>
@@ -224,28 +211,50 @@ export default function LivingSpendStep({
             {t("livingCategoryHint")}
           </Text>
           <Switch
-            label={t("livingCategoryToggle")}
+            label={`${t("livingCategoryToggle")}（可選）`}
             checked={livingSpend.categoryBreakdown.enabled}
             onChange={(event) =>
               updateCategoryBreakdown({ enabled: event.currentTarget.checked })
             }
           />
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            {categoryFields.map((field) => (
-              <NumberInput
-                key={field.key}
-                label={field.label}
-                min={0}
-                value={livingSpend.categoryBreakdown.categories[field.key]}
-                disabled={!livingSpend.categoryBreakdown.enabled}
-                onChange={(value) =>
-                  updateCategoryAmount(field.key, toNumber(value))
-                }
-              />
-            ))}
-          </SimpleGrid>
         </Stack>
       </Card>
+
+      <Accordion variant="separated">
+        <Accordion.Item value="advanced">
+          <Accordion.Control>進階設定（可選，不填會使用預設）</Accordion.Control>
+          <Accordion.Panel>
+            <Stack gap="md">
+              <Card withBorder radius="md" padding="md">
+                <Stack gap="sm">
+                  <Group align="center" justify="space-between">
+                    <Title order={5}>{t("livingVariableTitle")}</Title>
+                    <Badge variant="light">{t("livingOptional")}</Badge>
+                  </Group>
+                  <Text size="sm" c="dimmed">
+                    {t("livingVariableHint")}
+                  </Text>
+                  <NumberInput
+                    label={`${t("livingVariableAmount")}（可選）`}
+                    min={0}
+                    value={livingSpend.variable.amount === 0 ? "" : livingSpend.variable.amount}
+                    onChange={(value) => updateVariable({ amount: toNumber(value) })}
+                  />
+                </Stack>
+              </Card>
+
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                {categoryFields.map((field) => (
+                  <NumberInput
+                    key={field.key}
+                    label={`${field.label}（可選）`}
+                    min={0}
+                    value={livingSpend.categoryBreakdown.categories[field.key]}
+                    disabled={!livingSpend.categoryBreakdown.enabled}
+                    onChange={(value) => updateCategoryAmount(field.key, toNumber(value))}
+                  />
+                ))}
+              </SimpleGrid>
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
@@ -362,6 +371,10 @@ export default function LivingSpendStep({
           )}
         </Stack>
       </Card>
+            </Stack>
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
