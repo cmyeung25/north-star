@@ -287,6 +287,30 @@ export default function ReviewStep({
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
+          <Text fw={600}>總覽</Text>
+          {[
+            { key: "profile", label: t("step.profile"), step: stepIndex.profile },
+            { key: "household", label: t("step.household"), step: stepIndex.household },
+            { key: "assumptions", label: t("step.assumptions"), step: stepIndex.assumptions },
+            { key: "income", label: t("step.income"), step: stepIndex.income },
+            { key: "living", label: t("step.livingSpend"), step: stepIndex.livingSpend },
+            { key: "housing", label: t("step.housing"), step: stepIndex.housing },
+            { key: "assets", label: t("step.assets"), step: stepIndex.assets },
+            { key: "debts", label: t("step.debts"), step: stepIndex.debts },
+            { key: "insurance", label: t("step.insurance"), step: stepIndex.insurance },
+          ].map((entry) => (
+            <Group key={entry.key} justify="space-between">
+              <Text size="sm">{entry.label}</Text>
+              <Button variant="subtle" size="compact-sm" onClick={() => onJumpToStep(entry.step)}>
+                編輯
+              </Button>
+            </Group>
+          ))}
+        </Stack>
+      </Card>
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <Stack gap={2}>
               <Text fw={600}>{t("summaryTitle")}</Text>

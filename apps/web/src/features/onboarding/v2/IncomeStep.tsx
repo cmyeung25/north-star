@@ -14,7 +14,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import MonthField from "../../../../components/MonthField";
 import type {
   OnboardingV2DraftIncome,
@@ -80,6 +80,7 @@ export default function IncomeStep({
   onChange,
   t,
 }: IncomeStepProps) {
+  const [lastAddedLabel, setLastAddedLabel] = useState<string>("");
   const memberOptions = useMemo(
     () => [
       { value: "", label: t("incomeMemberOptional") },
@@ -93,6 +94,7 @@ export default function IncomeStep({
 
   const handleAddIncome = (next: OnboardingV2DraftIncome) => {
     onChange([...incomes, next]);
+    setLastAddedLabel(next.label || t("incomeItemTitle"));
   };
 
   const handleUpdateIncome = (
@@ -155,6 +157,9 @@ export default function IncomeStep({
           <Text size="sm" c="dimmed">
             {t("incomeHint")}
           </Text>
+          {lastAddedLabel ? (
+            <Badge color="teal" variant="light">已新增收入：{lastAddedLabel}</Badge>
+          ) : null}
           <Group gap="sm" wrap="wrap">
             {primaryTemplates.map((template) => {
               const hasMember =
@@ -253,7 +258,7 @@ export default function IncomeStep({
                   </Group>
                   <Group grow align="flex-start">
                     <TextInput
-                      label={t("incomeName")}
+                      label={`${t("incomeName")}（必填）`}
                       placeholder={t("incomeNamePlaceholder")}
                       value={income.label}
                       error={incomeErrors.label}
@@ -264,9 +269,10 @@ export default function IncomeStep({
                       }
                     />
                     <NumberInput
-                      label={t("incomeAmount")}
+                      label={`${t("incomeAmount")}（必填）`}
                       min={0}
-                      value={income.amount}
+                      value={income.amount === 0 ? "" : income.amount}
+                      placeholder="例如：30,000"
                       error={incomeErrors.amount}
                       onChange={(value) =>
                         handleUpdateIncome(income.id, {
@@ -304,7 +310,7 @@ export default function IncomeStep({
                   </Text>
                   <Group grow align="flex-start">
                     <MonthField
-                      label={t("incomeStartMonth")}
+                      label={`${t("incomeStartMonth")}（必填）`}
                       placeholder={t("monthPlaceholder")}
                       value={income.startMonth ?? ""}
                       error={incomeErrors.startMonth}
@@ -315,7 +321,7 @@ export default function IncomeStep({
                       }
                     />
                     <MonthField
-                      label={t("incomeEndMonth")}
+                      label={`${t("incomeEndMonth")}（可選）`}
                       placeholder={t("monthPlaceholder")}
                       value={income.endMonth ?? ""}
                       error={incomeErrors.endMonth}

@@ -151,7 +151,7 @@ const normalizeDraftMembers = (members: OnboardingV2DraftMember[]) => {
   return ordered;
 };
 
-const PRIMARY_PLACEHOLDER_NAMES = new Set(["主要成員", "本人"]);
+const PRIMARY_PLACEHOLDER_NAMES = new Set(["主要成員", "本人", "你", "您", "我"]);
 
 const isPlaceholderPrimaryMember = (member: ScenarioMember) => {
   if (member.kind !== "person") {
