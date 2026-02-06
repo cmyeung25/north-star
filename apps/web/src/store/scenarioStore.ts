@@ -780,13 +780,13 @@ const normalizeMembers = (members?: ScenarioMember[]): ScenarioMember[] => {
   }
 
   return [
-    {
-      id: createMemberId(),
-      name: DEFAULT_MEMBER_NAME,
-      kind: "person",
-      applyScope: { scope: "all" },
-      milestones: [],
-    },
+    // {
+    //   id: createMemberId(),
+    //   name: DEFAULT_MEMBER_NAME,
+    //   kind: "person",
+    //   applyScope: { scope: "all" },
+    //   milestones: [],
+    // },
   ];
 };
 
