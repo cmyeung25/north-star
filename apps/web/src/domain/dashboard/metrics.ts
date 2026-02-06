@@ -11,6 +11,7 @@ export type DashboardMetrics = {
   avgNonSalaryIncome12m: number | null;
   avgFunBudget12m: number | null;
   riskLevel: "green" | "red";
+  endMonth: string | null;
 };
 
 const EMPTY_METRICS: DashboardMetrics = {
@@ -22,6 +23,7 @@ const EMPTY_METRICS: DashboardMetrics = {
   avgNonSalaryIncome12m: null,
   avgFunBudget12m: null,
   riskLevel: "green",
+  endMonth: null,
 };
 
 const isSalaryEntry = (item: CashflowItem) => {
@@ -86,10 +88,9 @@ export const computeDashboardMetrics = (
   const cashRunwayMonths = avgExpense12m && avgExpense12m > 0 ? currentCash / avgExpense12m : null;
 
   const firstMillionMonth = (() => {
-    for (let index = 0; index < horizonMonths.length; index += 1) {
-      const month = horizonMonths[index];
-      const monthIndex = projection.months.indexOf(month);
-      const netWorth = projection.netWorth[monthIndex] ?? 0;
+    for (let index = 0; index < projection.months.length; index += 1) {
+      const month = projection.months[index];
+      const netWorth = projection.netWorth[index] ?? 0;
       if (netWorth >= 1_000_000) {
         return month;
       }
@@ -109,6 +110,7 @@ export const computeDashboardMetrics = (
   const riskLevel = (minCash12m?.value ?? 0) < 0 || (cashRunwayMonths !== null && cashRunwayMonths < 6)
     ? "red"
     : "green";
+  const endMonth = projection.months.at(-1) ?? null;
 
   return {
     minCash12m,
@@ -119,5 +121,6 @@ export const computeDashboardMetrics = (
     avgNonSalaryIncome12m,
     avgFunBudget12m,
     riskLevel,
+    endMonth,
   };
 };

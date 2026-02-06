@@ -78,7 +78,7 @@ import { buildSmartInvestProjectionBreakdown, type SmartInvestProjectionBreakdow
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
 import { compileSellLifecycle } from "../../../src/domain/positions/compileSellLifecycle";
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
-import RightPaneDashboard from "../../../components/RightPaneDashboard";
+import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import TemplatePickerDrawer from "../../../components/eventTemplates/TemplatePickerDrawer";
 import BundleWizardDrawer from "../../../components/eventTemplates/bundles/BundleWizardDrawer";
@@ -123,6 +123,7 @@ import { buildEventDeleteImpact } from "../../../src/domain/scenarioV2/eventDele
 import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
 import type { TemplateCategory, TemplateDef } from "../../../src/domain/eventTemplates/types";
 import { buildTemplateDrawerDraftOverrides } from "../../../src/domain/eventTemplates/presets";
+import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 
 type CashflowModalState = {
   opened: boolean;
@@ -270,15 +271,6 @@ export default function MoneyClient({
   );
   const projectionMonths = useMemo(() => projection?.months ?? [], [projection]);
   const latestProjectionMonth = projectionMonths.at(-1) ?? null;
-  const cashSeries = useMemo(() => projection?.cashBalance ?? [], [projection]);
-  const netWorthSeries = useMemo(() => projection?.netWorth ?? [], [projection]);
-  const netCashflowSeries = useMemo(
-    () =>
-      projectionMonths.map((month) =>
-        (ledgerByMonth[month] ?? []).reduce((total, item) => total + item.amount, 0)
-      ),
-    [ledgerByMonth, projectionMonths]
-  );
   const memberLookupRecord = useMemo(
     () =>
       Object.fromEntries(members.map((member) => [member.id, member.name])),
@@ -345,7 +337,6 @@ export default function MoneyClient({
   const activeDrawer = useUiStore((state) => state.activeDrawer);
   const openDrawer = useUiStore((state) => state.openDrawer);
   const closeDrawer = useUiStore((state) => state.closeDrawer);
-  const openModal = useUiStore((state) => state.openModal);
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
   const breakdownMonthRange = useUiStore((state) => state.breakdownMonthRange);
@@ -421,6 +412,7 @@ export default function MoneyClient({
   const [openAssetEditId, setOpenAssetEditId] = useState<string | null>(null);
   const [openLiabilityEditId, setOpenLiabilityEditId] = useState<string | null>(null);
   const [assetHoldingCostNotice, setAssetHoldingCostNotice] = useState(false);
+  const [previewScope, setPreviewScope] = useState<PreviewScope>("month");
 
   useEffect(() => {
     setActiveTab(resolvedTab);
@@ -481,6 +473,11 @@ export default function MoneyClient({
       petcare: budgetText("categoryPetcare"),
     }),
     [budgetText]
+  );
+
+  const dashboardMetrics = useMemo(
+    () => computeDashboardMetrics(projection, projectionNetCashflowByMonth, ledgerByMonth),
+    [ledgerByMonth, projection, projectionNetCashflowByMonth]
   );
   const v2LedgerRows = useMemo<LedgerRow[]>(() => {
     if (!scenario || !scenarioIsV2) {
@@ -2583,30 +2580,31 @@ export default function MoneyClient({
           </Stack>
         }
         right={
-          <RightPaneDashboard
-            months={projectionMonths}
-            selectedRange={normalizedRange}
+          <ProjectionPreviewPanel
+            title={t("previewTitle")}
             currency={scenario?.baseCurrency ?? "USD"}
-            cashBalance={cashBalanceValue}
-            netWorth={netWorthValue}
-            netCashflow={netCashflowValue}
-            cashSeries={cashSeries}
-            netWorthSeries={netWorthSeries}
-            netCashflowSeries={netCashflowSeries}
-            showCharts={!isMobile}
-            onRangeChange={(range) => {
-              setBreakdownMonthRange(range);
-              setBreakdownMonth(range.toMonth ?? null);
+            scope={previewScope}
+            onScopeChange={setPreviewScope}
+            labels={{
+              month: t("previewScopeMonth"),
+              twelveMonths: t("previewScope12m"),
+              horizon: t("previewScopeHorizon"),
+              cashBalance: t("previewCashBalance"),
+              netWorth: t("previewNetWorth"),
+              netCashflow: t("previewNetCashflow"),
+              minCash: t("previewMinCash"),
+              deficitMonths: t("previewDeficitMonths"),
+              runway: t("previewRunway"),
+              firstMillion: t("previewFirstMillion"),
+              endMonthScope: t("previewHorizonScope"),
+              notReached: t("previewNotReached"),
             }}
-            onOpenBreakdown={(focus) => {
-              if (!selectedDashboardMonth) {
-                return;
-              }
-              openModal("monthlyBreakdown", {
-                month: selectedDashboardMonth,
-                focus,
-              });
+            currentMonth={{
+              cashBalance: cashBalanceValue,
+              netWorth: netWorthValue,
+              netCashflow: netCashflowValue,
             }}
+            metrics={dashboardMetrics}
           />
         }
       />

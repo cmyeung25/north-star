@@ -80,6 +80,9 @@ import {
 } from "../../../src/domain/members/salaryStepMilestones";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../../src/domain/constants";
 import { buildDefaultsForNewMember } from "../../../src/domain/onboarding/buildDefaultsForNewMember";
+import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
+import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
+import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -163,6 +166,7 @@ export default function SettingsClient({
   const setAutoSyncError = useSettingsStore((state) => state.setAutoSyncError);
 
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [previewScope, setPreviewScope] = useState<PreviewScope>("12m");
   const [syncToast, setSyncToast] = useState<ToastState | null>(null);
   const [baseMonthInput, setBaseMonthInput] = useState("");
   const [baseMonthError, setBaseMonthError] = useState<string | null>(null);
@@ -327,6 +331,20 @@ export default function SettingsClient({
       new Map()
     );
   }, [salaryStepMilestones]);
+  const { projection, ledgerByMonth, projectionNetCashflowByMonth } = useProjectionWithLedger(
+    scenario,
+    eventLibrary,
+    { members, budgetRules }
+  );
+  const dashboardMetrics = useMemo(
+    () => computeDashboardMetrics(projection, projectionNetCashflowByMonth, ledgerByMonth),
+    [ledgerByMonth, projection, projectionNetCashflowByMonth]
+  );
+  const currentMonth = projection?.months[0] ?? null;
+  const currentMonthIndex = currentMonth ? projection?.months.indexOf(currentMonth) ?? -1 : -1;
+  const currentMonthCash = currentMonthIndex >= 0 ? projection?.cashBalance[currentMonthIndex] ?? null : null;
+  const currentMonthNetWorth = currentMonthIndex >= 0 ? projection?.netWorth[currentMonthIndex] ?? null : null;
+  const currentMonthNetCashflow = currentMonth ? (ledgerByMonth[currentMonth] ?? []).reduce((sum, item) => sum + item.amount, 0) : null;
   const baseCurrency = scenario?.baseCurrency ?? "";
   const formatCurrency = useCallback(
     (value: number) => {
@@ -1344,6 +1362,35 @@ export default function SettingsClient({
                 </Stack>
               </Group>
             </Stack>
+          </Card>
+
+          <Card withBorder radius="md" padding="md" mt="md">
+            <ProjectionPreviewPanel
+              title={t("previewTitle")}
+              currency={scenario?.baseCurrency ?? "USD"}
+              scope={previewScope}
+              onScopeChange={setPreviewScope}
+              labels={{
+                month: t("previewScopeMonth"),
+                twelveMonths: t("previewScope12m"),
+                horizon: t("previewScopeHorizon"),
+                cashBalance: t("previewCashBalance"),
+                netWorth: t("previewNetWorth"),
+                netCashflow: t("previewNetCashflow"),
+                minCash: t("previewMinCash"),
+                deficitMonths: t("previewDeficitMonths"),
+                runway: t("previewRunway"),
+                firstMillion: t("previewFirstMillion"),
+                endMonthScope: t("previewHorizonScope"),
+                notReached: t("previewNotReached"),
+              }}
+              currentMonth={{
+                cashBalance: currentMonthCash,
+                netWorth: currentMonthNetWorth,
+                netCashflow: currentMonthNetCashflow,
+              }}
+              metrics={dashboardMetrics}
+            />
           </Card>
 
           <Card withBorder radius="md" padding="md" mt="md">
@@ -2542,18 +2589,14 @@ export default function SettingsClient({
         <Tabs.Panel value="other" pt="md">
           <Card withBorder radius="md" padding="md">
             <Stack gap="md">
-              <NumberInput
-                label={t("initialCash")}
-                value={assumptions.initialCash}
-                min={0}
-                step={1000}
-                thousandSeparator=","
-                onChange={(value) => {
-                  if (typeof value === "number") {
-                    handleAssumptionChange({ initialCash: value });
-                  }
-                }}
-              />
+              <Card withBorder radius="md" padding="sm">
+                <Text size="sm" c="dimmed">
+                  {t("initialCashMovedHint")}{" "}
+                  <Link href={`${buildScenarioUrl("/money", scenario.id)}&tab=assets`}>
+                    {t("initialCashMovedLink")}
+                  </Link>
+                </Text>
+              </Card>
 
               <Group grow>
                 <NumberInput
