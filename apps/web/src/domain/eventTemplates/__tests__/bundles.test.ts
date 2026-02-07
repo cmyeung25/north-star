@@ -82,7 +82,7 @@ describe("event template bundles", () => {
   it("builds a single mortgage housing event with linked ids", () => {
     const event = buildHomePurchaseBundleEvent(
       {
-        id: "evt_home",
+        eventId: "evt_home",
         label: "Mortgage",
         startMonth: "2025-07",
         purchasePrice: 800000,
