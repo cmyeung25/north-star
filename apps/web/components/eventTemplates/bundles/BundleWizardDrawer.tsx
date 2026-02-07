@@ -728,7 +728,8 @@ export default function BundleWizardDrawer({
                 }))
               }
               onBlur={(event) => {
-                const result = normalizeMonthValue(event.currentTarget.value);
+                const raw = event.currentTarget.value;
+                const result = normalizeMonthValue(raw);
                 setNewBabyDraft((current) => ({
                   ...current,
                   birthMonth: result.value,
@@ -886,7 +887,8 @@ export default function BundleWizardDrawer({
                         }))
                       }
                       onBlur={(event) => {
-                        const value = helperCostMonthNormalize(event.currentTarget.value);
+                        const raw = event.currentTarget.value;
+                        const value = helperCostMonthNormalize(raw);
                         setNewBabyDraft((current) => ({
                           ...current,
                           schoolingStartMonth: value,
@@ -916,7 +918,8 @@ export default function BundleWizardDrawer({
                 }))
               }
               onBlur={(event) => {
-                const normalized = normalizeMonthValue(event.currentTarget.value);
+                const raw = event.currentTarget.value;
+                const normalized = normalizeMonthValue(raw);
                 setHomeDraft((current) => ({
                   ...current,
                   startMonth: normalized.value,
@@ -927,12 +930,13 @@ export default function BundleWizardDrawer({
               label={t("bundleHomeNameLabel")}
               placeholder={t("bundleHomeNamePlaceholder")}
               value={homeDraft.propertyName}
-              onChange={(event) =>
+              onChange={(event) => {
+                const v = event.currentTarget.value;
                 setHomeDraft((current) => ({
                   ...current,
-                  propertyName: event.currentTarget.value,
-                }))
-              }
+                  propertyName: v,
+                }));
+              }}
             />
             <NumberInput
               label={t("bundleHomePurchasePrice")}
@@ -1140,9 +1144,10 @@ export default function BundleWizardDrawer({
                         <TextInput
                           label={t("bundleFeeLabel")}
                           value={fee.label}
-                          onChange={(event) =>
-                            updateFees(fee.id, { label: event.currentTarget.value })
-                          }
+                          onChange={(event) => {
+                            const v = event.currentTarget.value;
+                            updateFees(fee.id, { label: v });
+                          }}
                         />
                         <NumberInput
                           label={t("bundleFeeAmount")}
@@ -1178,13 +1183,12 @@ export default function BundleWizardDrawer({
                               label={t("bundleFeeMonth")}
                               value={fee.month}
                               onChange={(value) => updateFees(fee.id, { month: value })}
-                              onBlur={(event) =>
+                              onBlur={(event) => {
+                                const raw = event.currentTarget.value;
                                 updateFees(fee.id, {
-                                  month: helperCostMonthNormalize(
-                                    event.currentTarget.value
-                                  ),
-                                })
-                              }
+                                  month: helperCostMonthNormalize(raw),
+                                });
+                              }}
                             />
                           )}
                         </Stack>
@@ -1237,11 +1241,12 @@ export default function BundleWizardDrawer({
                         <TextInput
                           label={t("bundleOngoingLabel")}
                           value={cost.label}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const v = event.currentTarget.value;
                             updateOngoingCosts(cost.id, {
-                              label: event.currentTarget.value,
-                            })
-                          }
+                              label: v,
+                            });
+                          }}
                         />
                         <NumberInput
                           label={t("bundleOngoingAmount")}
@@ -1261,13 +1266,12 @@ export default function BundleWizardDrawer({
                               startMonth: value,
                             })
                           }
-                          onBlur={(event) =>
+                          onBlur={(event) => {
+                            const raw = event.currentTarget.value;
                             updateOngoingCosts(cost.id, {
-                              startMonth: helperCostMonthNormalize(
-                                event.currentTarget.value
-                              ),
-                            })
-                          }
+                              startMonth: helperCostMonthNormalize(raw),
+                            });
+                          }}
                         />
                         <MonthField
                           label={t("bundleOngoingEndMonth")}
@@ -1277,13 +1281,12 @@ export default function BundleWizardDrawer({
                               endMonth: value,
                             })
                           }
-                          onBlur={(event) =>
+                          onBlur={(event) => {
+                            const raw = event.currentTarget.value;
                             updateOngoingCosts(cost.id, {
-                              endMonth: helperCostMonthNormalize(
-                                event.currentTarget.value
-                              ),
-                            })
-                          }
+                              endMonth: helperCostMonthNormalize(raw),
+                            });
+                          }}
                         />
                         <Button
                           variant="subtle"

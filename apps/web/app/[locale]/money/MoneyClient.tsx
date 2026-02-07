@@ -2404,16 +2404,10 @@ export default function MoneyClient({
               </Stack>
               <Button
                 onClick={() =>
-                  activeTab === "assets"
-                    ? openCreationDrawer({
-                        intent: "item",
-                        itemCategory: "assets",
-                        templateCategory: "assets",
-                      })
-                    : openCreationDrawer()
+                   openCreationDrawer()
                 }
               >
-                {activeTab === "assets" ? t("assetManagerAdd") : t("addCta")}
+                {t("addCta")}
               </Button>
             </Group>
             {showPlaceholderBanner && (
