@@ -25,6 +25,7 @@ import { isValidMonthKey } from "../../../src/utils/monthKey";
 import type { ScenarioEventDraft } from "../../../src/domain/scenarioV2/events";
 import type { TemplateDef } from "../../../src/domain/eventTemplates/types";
 import MonthField from "../../MonthField";
+import { addMonths } from "../../../src/domain/members/age";
 import {
   buildHomePurchaseBundleEvent,
   buildNewBabyBundleEvents,
@@ -54,6 +55,7 @@ type FeeDraft = {
   label: string;
   amount: number;
   month: string;
+  monthMode: "purchase" | "plus1" | "custom";
 };
 
 type OngoingCostDraft = {
@@ -79,6 +81,7 @@ type NewBabyDraft = {
 
 type HomePurchaseDraft = {
   startMonth: string;
+  propertyName: string;
   purchasePrice: number;
   downPaymentMode: "percent" | "amount";
   downPaymentPercent: number;
@@ -101,11 +104,13 @@ type HomePurchaseDraft = {
   eventId: string;
 };
 
-const createFeeDraft = (): FeeDraft => ({
+const createFeeDraft = (overrides?: Partial<FeeDraft>): FeeDraft => ({
   id: `fee_${nanoid(6)}`,
   label: "",
   amount: 0,
   month: "",
+  monthMode: "purchase",
+  ...overrides,
 });
 
 const createOngoingCostDraft = (): OngoingCostDraft => ({
@@ -203,6 +208,7 @@ export default function BundleWizardDrawer({
 
   const [homeDraft, setHomeDraft] = useState<HomePurchaseDraft>({
     startMonth: defaultMonth,
+    propertyName: "",
     purchasePrice: 0,
     downPaymentMode: "percent",
     downPaymentPercent: 20,
@@ -238,6 +244,7 @@ export default function BundleWizardDrawer({
     setPreviewEvents([]);
     setCreatedEventIds(new Set());
     setPackAsExperiment(true);
+    setDismissedMortgageWarning(false);
     setNewBabyDraft((current) => ({
       ...current,
       birthMonth: defaultMonth || current.birthMonth,
@@ -246,6 +253,7 @@ export default function BundleWizardDrawer({
     setHomeDraft((current) => ({
       ...current,
       startMonth: defaultMonth || current.startMonth,
+      propertyName: "",
       rentalStartMonth: defaultMonth || current.rentalStartMonth,
       propertyAssetId: `asset_home_${nanoid(6)}`,
       mortgageLiabilityId: `liability_mortgage_${nanoid(6)}`,
@@ -292,6 +300,12 @@ export default function BundleWizardDrawer({
       ),
     [scenarioEvents]
   );
+  const mortgageEventId = useMemo(() => {
+    const match = scenarioEvents.find(
+      (event) => event.type === "housing" && event.kind === "mortgage"
+    );
+    return match?.id ?? null;
+  }, [scenarioEvents]);
 
   const hasRentEvent = useMemo(() => {
     const rentLabel = t("templates.rent_housing.name");
@@ -303,6 +317,8 @@ export default function BundleWizardDrawer({
           (event.tags?.includes("rent") || event.label === rentLabel))
     );
   }, [scenarioEvents, t]);
+
+  const [dismissedMortgageWarning, setDismissedMortgageWarning] = useState(false);
 
   const warnings = useMemo(() => {
     if (isNewBabyBundle) {
@@ -320,7 +336,7 @@ export default function BundleWizardDrawer({
     }
     if (isHomeBundle) {
       const items: string[] = [];
-      if (hasMortgageEvent) {
+      if (hasMortgageEvent && !dismissedMortgageWarning) {
         items.push(t("bundleHomeWarningMortgage"));
       }
       if (hasRentEvent) {
@@ -337,8 +353,33 @@ export default function BundleWizardDrawer({
     hasRentEvent,
     isHomeBundle,
     isNewBabyBundle,
+    dismissedMortgageWarning,
     t,
   ]);
+
+  const nextHomeIndex = useMemo(() => {
+    const existingHomes = scenarioEvents.filter(
+      (event) => event.type === "housing" && event.kind === "mortgage"
+    ).length;
+    return existingHomes + 1;
+  }, [scenarioEvents]);
+
+  const resolvedHomeLabel = useMemo(() => {
+    const trimmed = homeDraft.propertyName.trim();
+    return trimmed || t("bundleHomeDefaultName", { index: nextHomeIndex });
+  }, [homeDraft.propertyName, nextHomeIndex, t]);
+
+  const feeTemplates = useMemo(
+    () => [
+      { key: "commission", label: t("bundleHomeFeeCommission") },
+      { key: "stampDuty", label: t("bundleHomeFeeStampDuty") },
+      { key: "legal", label: t("bundleHomeFeeLegal") },
+      { key: "renovation", label: t("bundleHomeFeeRenovation") },
+      { key: "furniture", label: t("bundleHomeFeeFurniture") },
+      { key: "moving", label: t("bundleHomeFeeMoving") },
+    ],
+    [t]
+  );
 
   const getEventTypeLabel = (event: ScenarioEventDraft) => {
     if (event.type === "cashflow") {
@@ -451,7 +492,7 @@ export default function BundleWizardDrawer({
             : homeDraft.mortgageTermMonths;
         const input: HomePurchaseBundleInput = {
           id: homeDraft.eventId,
-          label: t("bundleHomeMortgageLabel"),
+          label: resolvedHomeLabel,
           startMonth: homeDraft.startMonth,
           purchasePrice: homeDraft.purchasePrice,
           downPaymentMode: homeDraft.downPaymentMode,
@@ -470,7 +511,7 @@ export default function BundleWizardDrawer({
               id: fee.id,
               label: fee.label || undefined,
               amount: fee.amount,
-              month: fee.month,
+              month: resolveFeeMonth(fee),
             })),
           ongoingCosts: homeDraft.ongoingCosts
             .filter((cost) => cost.amount > 0)
@@ -586,6 +627,19 @@ export default function BundleWizardDrawer({
     return normalized.value;
   };
 
+  const resolveFeeMonth = (fee: FeeDraft) => {
+    if (fee.monthMode === "custom") {
+      return fee.month;
+    }
+    if (!isValidMonthKey(homeDraft.startMonth)) {
+      return fee.month;
+    }
+    if (fee.monthMode === "plus1") {
+      return addMonths(homeDraft.startMonth, 1);
+    }
+    return homeDraft.startMonth;
+  };
+
   const updateFees = (id: string, patch: Partial<FeeDraft>) => {
     setHomeDraft((current) => ({
       ...current,
@@ -623,6 +677,25 @@ export default function BundleWizardDrawer({
     annualRatePct: homeDraft.mortgageRatePct,
     termMonths,
   });
+
+  useEffect(() => {
+    if (!estimatedPayment || !homeDraft.mortgagePaymentIsEstimated) {
+      return;
+    }
+    const rounded = Math.round(estimatedPayment);
+    setHomeDraft((current) => {
+      if (!current.mortgagePaymentIsEstimated) {
+        return current;
+      }
+      if (current.mortgagePayment === rounded) {
+        return current;
+      }
+      return {
+        ...current,
+        mortgagePayment: rounded,
+      };
+    });
+  }, [estimatedPayment, homeDraft.mortgagePaymentIsEstimated]);
 
   return (
     <Drawer
@@ -850,6 +923,17 @@ export default function BundleWizardDrawer({
                 }));
               }}
             />
+            <TextInput
+              label={t("bundleHomeNameLabel")}
+              placeholder={t("bundleHomeNamePlaceholder")}
+              value={homeDraft.propertyName}
+              onChange={(event) =>
+                setHomeDraft((current) => ({
+                  ...current,
+                  propertyName: event.currentTarget.value,
+                }))
+              }
+            />
             <NumberInput
               label={t("bundleHomePurchasePrice")}
               min={0}
@@ -903,6 +987,12 @@ export default function BundleWizardDrawer({
                 }
               />
             )}
+            <Text size="xs" c="dimmed">
+              {t("bundleHomeDownPaymentSummary", {
+                downPayment: formatCurrency(downPaymentAmount, baseCurrency, locale),
+                loanAmount: formatCurrency(loanAmount, baseCurrency, locale),
+              })}
+            </Text>
             <NumberInput
               label={t("bundleHomeMortgageRate")}
               min={0}
@@ -976,9 +1066,9 @@ export default function BundleWizardDrawer({
                   })}
                 </Text>
               )}
-              {estimatedPayment && (
+              {estimatedPayment && !homeDraft.mortgagePaymentIsEstimated && (
                 <Button
-                  variant="light"
+                  variant="subtle"
                   size="xs"
                   onClick={() =>
                     setHomeDraft((current) => ({
@@ -988,7 +1078,7 @@ export default function BundleWizardDrawer({
                     }))
                   }
                 >
-                  {t("bundleHomeUseEstimate")}
+                  {t("bundleHomeResetEstimate")}
                 </Button>
               )}
             </Stack>
@@ -1014,6 +1104,31 @@ export default function BundleWizardDrawer({
                     {t("bundleAddFee")}
                   </Button>
                 </Group>
+                <Stack gap={6}>
+                  <Text size="xs" c="dimmed">
+                    {t("bundleHomeFeeQuickAdd")}
+                  </Text>
+                  <Group gap="xs" wrap="wrap">
+                    {feeTemplates.map((template) => (
+                      <Button
+                        key={template.key}
+                        variant="light"
+                        size="xs"
+                        onClick={() =>
+                          setHomeDraft((current) => ({
+                            ...current,
+                            feesOneOff: [
+                              ...current.feesOneOff,
+                              createFeeDraft({ label: template.label }),
+                            ],
+                          }))
+                        }
+                      >
+                        {template.label}
+                      </Button>
+                    ))}
+                  </Group>
+                </Stack>
                 {homeDraft.feesOneOff.length === 0 ? (
                   <Text size="sm" c="dimmed">
                     {t("bundleFeesEmpty")}
@@ -1037,16 +1152,42 @@ export default function BundleWizardDrawer({
                             updateFees(fee.id, { amount: Number(value) || 0 })
                           }
                         />
-                        <MonthField
-                          label={t("bundleFeeMonth")}
-                          value={fee.month}
-                          onChange={(value) => updateFees(fee.id, { month: value })}
-                          onBlur={(event) =>
-                            updateFees(fee.id, {
-                              month: helperCostMonthNormalize(event.currentTarget.value),
-                            })
-                          }
-                        />
+                        <Stack gap={4}>
+                          <Text size="xs" c="dimmed">
+                            {t("bundleFeeMonthLabel")}
+                          </Text>
+                          <SegmentedControl
+                            size="xs"
+                            value={fee.monthMode}
+                            onChange={(value) =>
+                              updateFees(fee.id, {
+                                monthMode:
+                                  value === "plus1" || value === "custom"
+                                    ? value
+                                    : "purchase",
+                              })
+                            }
+                            data={[
+                              { value: "purchase", label: t("bundleFeeMonthSame") },
+                              { value: "plus1", label: t("bundleFeeMonthPlusOne") },
+                              { value: "custom", label: t("bundleFeeMonthCustom") },
+                            ]}
+                          />
+                          {fee.monthMode === "custom" && (
+                            <MonthField
+                              label={t("bundleFeeMonth")}
+                              value={fee.month}
+                              onChange={(value) => updateFees(fee.id, { month: value })}
+                              onBlur={(event) =>
+                                updateFees(fee.id, {
+                                  month: helperCostMonthNormalize(
+                                    event.currentTarget.value
+                                  ),
+                                })
+                              }
+                            />
+                          )}
+                        </Stack>
                         <Button
                           variant="subtle"
                           size="xs"
@@ -1238,6 +1379,28 @@ export default function BundleWizardDrawer({
                       {warning}
                     </Text>
                   ))}
+                  {isHomeBundle && hasMortgageEvent && !dismissedMortgageWarning && (
+                    <Group gap="xs" mt="xs">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => {
+                          if (mortgageEventId && onOpenEventDrawer) {
+                            onOpenEventDrawer("housing", mortgageEventId);
+                          }
+                        }}
+                      >
+                        {t("bundleHomeWarningMortgageView")}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => setDismissedMortgageWarning(true)}
+                      >
+                        {t("bundleHomeWarningMortgageContinue")}
+                      </Button>
+                    </Group>
+                  )}
                 </Stack>
               </Alert>
             )}
@@ -1247,6 +1410,44 @@ export default function BundleWizardDrawer({
               </Text>
             ) : (
               <Stack gap="sm">
+                {isHomeBundle && (
+                  <Card withBorder radius="md" padding="sm">
+                    <Stack gap={4}>
+                      <Text fw={600}>{resolvedHomeLabel}</Text>
+                      <Text size="sm" c="dimmed">
+                        {t("bundleHomePreviewAsset", { name: resolvedHomeLabel })}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        {t("bundleHomePreviewLiability", { name: resolvedHomeLabel })}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        {t("bundleHomePreviewCashflow", { name: resolvedHomeLabel })}
+                      </Text>
+                      {homeDraft.feesOneOff.some((fee) => fee.amount > 0) && (
+                        <Stack gap={2} mt="xs">
+                          <Text size="xs" c="dimmed">
+                            {t("bundleHomePreviewFeesTitle")}
+                          </Text>
+                          {homeDraft.feesOneOff
+                            .filter((fee) => fee.amount > 0)
+                            .map((fee) => (
+                              <Text size="xs" c="dimmed" key={fee.id}>
+                                {t("bundleHomePreviewFeeItem", {
+                                  name: fee.label || t("bundleFeeUntitled"),
+                                  amount: formatCurrency(
+                                    fee.amount,
+                                    baseCurrency,
+                                    locale
+                                  ),
+                                  month: resolveFeeMonth(fee) || "-",
+                                })}
+                              </Text>
+                            ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                  </Card>
+                )}
                 {previewEvents.map((event, index) => (
                   <Card key={event.id ?? index} withBorder radius="md" padding="sm">
                     <Stack gap={6}>

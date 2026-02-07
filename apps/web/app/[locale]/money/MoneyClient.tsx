@@ -632,6 +632,7 @@ export default function MoneyClient({
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
   const initialCashValue = scenario?.assumptions.initialCash ?? 0;
   const currentProjectionMonth = baseMonth ?? null;
+  const hasInitialCashSetup = Boolean(baseMonth);
   const defaultSmartInvestPolicy = useMemo(
     () => buildDefaultSmartInvestPolicy(timelineText("smartInvestDefaultAllocation")),
     [timelineText]
@@ -2401,7 +2402,19 @@ export default function MoneyClient({
                   </Text>
                 )}
               </Stack>
-              <Button onClick={() => openCreationDrawer()}>{t("addCta")}</Button>
+              <Button
+                onClick={() =>
+                  activeTab === "assets"
+                    ? openCreationDrawer({
+                        intent: "item",
+                        itemCategory: "assets",
+                        templateCategory: "assets",
+                      })
+                    : openCreationDrawer()
+                }
+              >
+                {activeTab === "assets" ? t("assetManagerAdd") : t("addCta")}
+              </Button>
             </Group>
             {showPlaceholderBanner && (
               <Card withBorder radius="md" padding="md">
@@ -2616,8 +2629,16 @@ export default function MoneyClient({
               }
               openEditId={openAssetEditId}
               onOpenEditHandled={() => setOpenAssetEditId(null)}
-              emptyStateAction={
+              showAddButton={false}
+              emptyStateLabel={
                 nonCashAssets.length === 0
+                  ? hasInitialCashSetup
+                    ? t("assetManagerEmptyOptional")
+                    : t("assetManagerEmpty")
+                  : undefined
+              }
+              emptyStateAction={
+                !hasInitialCashSetup && nonCashAssets.length === 0
                   ? { label: t("assetManagerEmptyCta"), onClick: focusCashCard }
                   : null
               }
