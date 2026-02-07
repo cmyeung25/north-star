@@ -2,8 +2,6 @@ import { addMonths, monthIndex } from "@north-star/engine";
 import { nanoid } from "nanoid";
 import type { EventDefinition, ScenarioEventRef } from "../../src/domain/events/types";
 import type { ScenarioEventDraft } from "../moneyFlow/CashflowEventDrawer";
-import { resolveDateRefDraft } from "../../src/domain/dateRef";
-import type { ScenarioMember } from "../../src/store/scenarioStore";
 
 type BuildPlanLabEventFromCashflowDraftParams = {
   draft: ScenarioEventDraft;
@@ -11,7 +9,6 @@ type BuildPlanLabEventFromCashflowDraftParams = {
   baseMonth?: string | null;
   horizonMonths?: number;
   createId?: () => string;
-  membersById?: Record<string, ScenarioMember | undefined>;
 };
 
 const DEFAULT_HORIZON_MONTHS = 120;
@@ -54,7 +51,6 @@ export const buildPlanLabEventFromCashflowDraft = ({
   baseMonth,
   horizonMonths,
   createId,
-  membersById = {},
 }: BuildPlanLabEventFromCashflowDraftParams): { definition: EventDefinition; ref: ScenarioEventRef } | null => {
   if (draft.type !== "cashflow") {
     return null;
@@ -64,20 +60,6 @@ export const buildPlanLabEventFromCashflowDraft = ({
   const nextId = createId?.() ?? `planlab_evt_${nanoid(8)}`;
   const title = draft.label.trim() || (draft.kind === "income" ? "Income" : "Expense");
   const type = draft.kind === "income" ? "salary" : "custom";
-
-  const resolvedStartMonth =
-    draft.cadence === "oneOff"
-      ? draft.occurrenceMonth
-      : resolveDateRefDraft(draft.startAt, membersById);
-  if (!resolvedStartMonth) {
-    return null;
-  }
-  const resolvedEndMonth =
-    draft.cadence === "oneOff"
-      ? null
-      : draft.endAt.mode === "MONTH" && draft.endAt.month === ""
-        ? null
-        : resolveDateRefDraft(draft.endAt, membersById);
 
   const scheduleCadence =
     draft.cadence === "quarterly" ||
@@ -90,7 +72,7 @@ export const buildPlanLabEventFromCashflowDraft = ({
     draft.cadence === "oneOff"
       ? {
           mode: "params" as const,
-          startMonth: resolvedStartMonth,
+          startMonth: draft.occurrenceMonth,
           endMonth: null,
           monthlyAmount: 0,
           oneTimeAmount: amount,
@@ -99,14 +81,14 @@ export const buildPlanLabEventFromCashflowDraft = ({
       : scheduleCadence
         ? {
             mode: "schedule" as const,
-            startMonth: resolvedStartMonth,
-            endMonth: resolvedEndMonth ?? null,
+            startMonth: draft.startMonth,
+            endMonth: draft.endMonth || null,
             monthlyAmount: undefined,
             oneTimeAmount: 0,
             annualGrowthPct: 0,
             schedule: buildRecurringSchedule({
-              startMonth: resolvedStartMonth,
-              endMonth: resolvedEndMonth ?? undefined,
+              startMonth: draft.startMonth,
+              endMonth: draft.endMonth || undefined,
               cadence: scheduleCadence,
               everyNMonths: draft.everyNMonths,
               amount,
@@ -116,8 +98,8 @@ export const buildPlanLabEventFromCashflowDraft = ({
           }
         : {
             mode: "params" as const,
-            startMonth: resolvedStartMonth,
-            endMonth: resolvedEndMonth ?? null,
+            startMonth: draft.startMonth,
+            endMonth: draft.endMonth || null,
             monthlyAmount: amount,
             oneTimeAmount: 0,
             annualGrowthPct: 0,
@@ -141,3 +123,4 @@ export const buildPlanLabEventFromCashflowDraft = ({
     },
   };
 };
+

@@ -45,7 +45,6 @@ import {
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
-import { toMonthDateRef } from "../domain/dateRef";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -1316,24 +1315,10 @@ const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
   }));
 
 const cloneScenarioEvents = (events?: ScenarioEvent[]) =>
-  events?.map((event) => {
-    if (event.type !== "cashflow") {
-      return {
-        ...event,
-        tags: event.tags ? [...event.tags] : undefined,
-      };
-    }
-
-    const startAt = event.startAt ?? toMonthDateRef(event.startMonth ?? "");
-    const endAt = event.endAt ?? toMonthDateRef(event.endMonth ?? "");
-
-    return {
-      ...event,
-      startAt: startAt ?? undefined,
-      endAt: endAt ?? undefined,
-      tags: event.tags ? [...event.tags] : undefined,
-    };
-  });
+  events?.map((event) => ({
+    ...event,
+    tags: event.tags ? [...event.tags] : undefined,
+  }));
 
 const cloneScenarioAssets = (assets?: ScenarioAsset[]) =>
   assets?.map((asset) => ({ ...asset }));
