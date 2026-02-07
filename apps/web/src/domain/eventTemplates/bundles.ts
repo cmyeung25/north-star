@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { isValidMonthKey } from "../../utils/monthKey";
-import type { MonthKey, ScenarioEventDraft } from "../scenarioV2/events";
+import type { EventSource, MonthKey, ScenarioEventDraft } from "../scenarioV2/events";
 
 const createBundleEventId = () => `evt_v2_bundle_${nanoid(8)}`;
 
@@ -18,6 +18,8 @@ type BundleOngoingCost = {
   startMonth: MonthKey;
   endMonth?: MonthKey;
 };
+
+type BundleSource = NonNullable<EventSource>;
 
 export type NewBabyPlanInput = {
   birthMonth: MonthKey;
@@ -73,6 +75,7 @@ const buildCashflowEvent = ({
   startMonth,
   occurrenceMonth,
   tags,
+  source,
 }: {
   id?: string;
   label: string;
@@ -81,6 +84,7 @@ const buildCashflowEvent = ({
   startMonth?: MonthKey;
   occurrenceMonth?: MonthKey;
   tags: string[];
+  source?: BundleSource;
 }): ScenarioEventDraft => ({
   id: id ?? createBundleEventId(),
   type: "cashflow",
@@ -91,11 +95,17 @@ const buildCashflowEvent = ({
   occurrenceMonth: cadence === "oneOff" ? occurrenceMonth : undefined,
   tags,
   label,
+  source,
 });
 
 export const buildNewBabyBundleEvents = (
   input: NewBabyPlanInput,
   labels: NewBabyPlanLabels,
+  source: {
+    bundleInstanceId: string;
+    templateId: string;
+    bundleTitle?: string;
+  },
   createId: () => string = createBundleEventId
 ): ScenarioEventDraft[] => {
   const events: ScenarioEventDraft[] = [];
@@ -111,6 +121,10 @@ export const buildNewBabyBundleEvents = (
         amount: input.deliveryCost,
         occurrenceMonth: birthMonth,
         tags: ["baby"],
+        source: {
+          ...source,
+          componentKey: "deliveryCost",
+        },
       })
     );
   }
@@ -124,6 +138,10 @@ export const buildNewBabyBundleEvents = (
         amount: childcareAmount,
         startMonth: birthMonth,
         tags: ["baby"],
+        source: {
+          ...source,
+          componentKey: "childcare",
+        },
       })
     );
   }
@@ -138,6 +156,10 @@ export const buildNewBabyBundleEvents = (
           amount: input.helperMonthly,
           startMonth: birthMonth,
           tags: ["helper"],
+          source: {
+            ...source,
+            componentKey: "helperMonthly",
+          },
         })
       );
     }
@@ -150,6 +172,10 @@ export const buildNewBabyBundleEvents = (
           amount: input.agencyFee,
           occurrenceMonth: birthMonth,
           tags: ["helper"],
+          source: {
+            ...source,
+            componentKey: "helperAgency",
+          },
         })
       );
     }
@@ -168,6 +194,10 @@ export const buildNewBabyBundleEvents = (
           amount,
           startMonth,
           tags: ["schooling"],
+          source: {
+            ...source,
+            componentKey: "schooling",
+          },
         })
       );
     }
@@ -178,6 +208,11 @@ export const buildNewBabyBundleEvents = (
 
 export const buildHomePurchaseBundleEvent = (
   input: HomePurchaseBundleInput,
+  source: {
+    bundleInstanceId: string;
+    templateId: string;
+    bundleTitle?: string;
+  },
   createId: () => string = createBundleEventId
 ): ScenarioEventDraft => {
   const feesOneOff =
@@ -226,5 +261,9 @@ export const buildHomePurchaseBundleEvent = (
     propertyAssetId: input.propertyAssetId,
     mortgageLiabilityId: input.mortgageLiabilityId,
     label: input.label,
+    source: {
+      ...source,
+      componentKey: "homePurchase",
+    },
   };
 };

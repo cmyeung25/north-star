@@ -28,6 +28,11 @@ describe("event template bundles", () => {
         agencyFee: "Agency fee",
         schooling: "Schooling",
       },
+      {
+        bundleInstanceId: "bundle_test",
+        templateId: "life_new_baby_plan",
+        bundleTitle: "Baby plan",
+      },
       () => `evt_test_${counter++}`
     );
 
@@ -54,6 +59,11 @@ describe("event template bundles", () => {
         agencyFee: "Agency fee",
         schooling: "Schooling",
       },
+      {
+        bundleInstanceId: "bundle_test",
+        templateId: "life_new_baby_plan",
+        bundleTitle: "Baby plan",
+      },
       () => `evt_test_${counter++}`
     );
 
@@ -70,21 +80,28 @@ describe("event template bundles", () => {
   });
 
   it("builds a single mortgage housing event with linked ids", () => {
-    const event = buildHomePurchaseBundleEvent({
-      id: "evt_home",
-      label: "Mortgage",
-      startMonth: "2025-07",
-      purchasePrice: 800000,
-      downPaymentMode: "percent",
-      downPaymentPercent: 20,
-      mortgageRatePct: 4,
-      mortgageTermYears: 30,
-      mortgagePayment: 3500,
-      feesOneOff: [],
-      ongoingCosts: [],
-      propertyAssetId: "asset_home",
-      mortgageLiabilityId: "liability_home",
-    });
+    const event = buildHomePurchaseBundleEvent(
+      {
+        id: "evt_home",
+        label: "Mortgage",
+        startMonth: "2025-07",
+        purchasePrice: 800000,
+        downPaymentMode: "percent",
+        downPaymentPercent: 20,
+        mortgageRatePct: 4,
+        mortgageTermYears: 30,
+        mortgagePayment: 3500,
+        feesOneOff: [],
+        ongoingCosts: [],
+        propertyAssetId: "asset_home",
+        mortgageLiabilityId: "liability_home",
+      },
+      {
+        bundleInstanceId: "bundle_home",
+        templateId: "life_home_purchase",
+        bundleTitle: "Home 1",
+      }
+    );
 
     expect(event.type).toBe("housing");
     if (event.type !== "housing") {
