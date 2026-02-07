@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { EventDefinition } from "../../domain/events/types";
 import {
   normalizeScenario,
+  hydrateFromPersistedState,
   resetAppState,
   resetScenarioStore,
   selectHasExistingProfile,
@@ -125,6 +126,44 @@ describe("duplicateScenario", () => {
     expect(original?.assumptions.horizonMonths).toBe(240);
     expect(original?.eventRefs?.[0].enabled).toBe(true);
     expect(original?.positions?.homes?.[0].purchasePrice).toBe(600000);
+  });
+});
+
+describe("normalizeScenario", () => {
+  it("migrates start/end months into date refs", () => {
+    const scenario = buildScenario({
+      eventRefs: [
+        {
+          refId: "event-1",
+          enabled: true,
+          overrides: {
+            startMonth: "2024-02",
+            endMonth: "2024-12",
+          },
+        },
+      ],
+    });
+
+    const normalized = normalizeScenario(scenario);
+    const overrides = normalized.eventRefs?.[0]?.overrides;
+    expect(overrides?.startAt).toEqual({ mode: "MONTH", month: "2024-02" });
+    expect(overrides?.endAt).toEqual({ mode: "MONTH", month: "2024-12" });
+  });
+});
+
+describe("hydrateFromPersistedState", () => {
+  it("migrates event library date refs on hydrate", () => {
+    const scenario = buildScenario();
+    const payload = {
+      scenarios: [scenario],
+      eventLibrary: buildEventLibrary(),
+      activeScenarioId: scenario.id,
+    };
+
+    const hydrated = hydrateFromPersistedState(payload);
+    const rule = hydrated.eventLibrary[0]?.rule;
+    expect(rule?.startAt).toEqual({ mode: "MONTH", month: "2024-01" });
+    expect(rule?.endAt).toEqual(null);
   });
 });
 
