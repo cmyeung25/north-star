@@ -1397,7 +1397,7 @@
     "bundleHomeIntro": "建立置業按揭事件，並連結資產／負債。",
     "bundleHomeStartMonth": "開始月份",
     "bundleHomeNameLabel": "樓宇名稱（可選）",
-    "bundleHomeNamePlaceholder": "例如：YOHO 3座A室 / 太和 康樂花園 / Kai Tak One",
+    "bundleHomeNamePlaceholder": "例如：物業 1",
     "bundleHomeDefaultName": "物業 {index}",
     "bundleHomePurchasePrice": "買樓價格",
     "bundleHomeDownPaymentPercent": "首期比例（%）",
