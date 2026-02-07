@@ -3,6 +3,8 @@ import { isValidMonthKey } from "../../utils/monthKey";
 import type { EventSource, MonthKey, ScenarioEventDraft } from "../scenarioV2/events";
 
 const createBundleEventId = () => `evt_v2_bundle_${nanoid(8)}`;
+const createHomeAssetId = () => `asset_home_${nanoid(6)}`;
+const createMortgageLiabilityId = () => `liability_mortgage_${nanoid(6)}`;
 
 type BundleFeeItem = {
   id: string;
@@ -43,7 +45,8 @@ export type NewBabyPlanLabels = {
 };
 
 export type HomePurchaseBundleInput = {
-  id?: string;
+  eventId?: string;
+  bundleId?: string;
   label?: string;
   startMonth: MonthKey;
   purchasePrice: number;
@@ -63,8 +66,8 @@ export type HomePurchaseBundleInput = {
     endMonth?: MonthKey;
     discountMonthly?: number;
   };
-  propertyAssetId: string;
-  mortgageLiabilityId: string;
+  propertyAssetId?: string;
+  mortgageLiabilityId?: string;
 };
 
 const buildCashflowEvent = ({
@@ -239,9 +242,12 @@ export const buildHomePurchaseBundleEvent = (
             : undefined,
         }
       : undefined;
+  const propertyAssetId = input.propertyAssetId ?? createHomeAssetId();
+  const mortgageLiabilityId =
+    input.mortgageLiabilityId ?? createMortgageLiabilityId();
 
   return {
-    id: input.id ?? createId(),
+    id: input.eventId ?? createId(),
     type: "housing",
     kind: "mortgage",
     startMonth: input.startMonth,
@@ -258,11 +264,12 @@ export const buildHomePurchaseBundleEvent = (
     feesOneOff: feesOneOff.length > 0 ? feesOneOff : undefined,
     ongoingCosts: ongoingCosts.length > 0 ? ongoingCosts : undefined,
     rental,
-    propertyAssetId: input.propertyAssetId,
-    mortgageLiabilityId: input.mortgageLiabilityId,
+    propertyAssetId,
+    mortgageLiabilityId,
     label: input.label,
     source: {
       ...source,
+      bundleInstanceId: input.bundleId ?? source.bundleInstanceId,
       componentKey: "homePurchase",
     },
   };

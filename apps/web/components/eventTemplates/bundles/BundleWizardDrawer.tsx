@@ -48,6 +48,7 @@ type BundleWizardDrawerProps = {
     options?: { packAsExperiment?: boolean; experimentTitle?: string }
   ) => Promise<{ ok: boolean; error?: string }> | { ok: boolean; error?: string };
   allowInlineEdit?: boolean;
+  editingEventId?: string | null;
 };
 
 type FeeDraft = {
@@ -121,6 +122,103 @@ const createOngoingCostDraft = (): OngoingCostDraft => ({
   endMonth: "",
 });
 
+const createHomeDraft = (defaultMonth: string): HomePurchaseDraft => ({
+  startMonth: defaultMonth,
+  propertyName: "",
+  purchasePrice: 0,
+  downPaymentMode: "percent",
+  downPaymentPercent: 20,
+  downPaymentAmount: 0,
+  mortgageRatePct: 4,
+  termMode: "years",
+  mortgageTermYears: 30,
+  mortgageTermMonths: 360,
+  mortgagePayment: 0,
+  mortgagePaymentIsEstimated: true,
+  feesOneOff: [],
+  ongoingCosts: [],
+  rentalEnabled: false,
+  rentalMonthly: 0,
+  rentalDiscountMonthly: 0,
+  rentalStartMonth: defaultMonth,
+  rentalEndMonth: "",
+  propertyAssetId: `asset_home_${nanoid(6)}`,
+  mortgageLiabilityId: `liability_mortgage_${nanoid(6)}`,
+  eventId: `evt_v2_bundle_${nanoid(6)}`,
+});
+
+const resolveFeeMonthMode = (
+  feeMonth: string,
+  startMonth: string
+): FeeDraft["monthMode"] => {
+  if (!isValidMonthKey(startMonth)) {
+    return "custom";
+  }
+  if (feeMonth === startMonth) {
+    return "purchase";
+  }
+  if (feeMonth === addMonths(startMonth, 1)) {
+    return "plus1";
+  }
+  return "custom";
+};
+
+const hydrateHomeDraftFromEvent = (
+  event: ScenarioEventDraft,
+  fallbackMonth: string
+): HomePurchaseDraft => {
+  if (event.type !== "housing" || event.kind !== "mortgage") {
+    return createHomeDraft(fallbackMonth);
+  }
+  const startMonth = event.startMonth ?? fallbackMonth;
+  const downPaymentMode = event.downPaymentMode ?? "percent";
+  const mortgageTermYears = event.mortgageTermYears ?? 0;
+  const feesOneOff =
+    event.feesOneOff?.map((fee) => ({
+      id: fee.id,
+      label: fee.label ?? "",
+      amount: fee.amount,
+      month: fee.month,
+      monthMode: resolveFeeMonthMode(fee.month, startMonth),
+    })) ?? [];
+  const ongoingCosts =
+    event.ongoingCosts?.map((cost) => ({
+      id: cost.id,
+      label: cost.label ?? "",
+      amount: cost.amount,
+      startMonth: cost.startMonth,
+      endMonth: cost.endMonth ?? "",
+    })) ?? [];
+  const rentalEnabled = Boolean(event.rental?.enabled);
+
+  return {
+    startMonth,
+    propertyName: event.label ?? "",
+    purchasePrice: event.purchasePrice ?? 0,
+    downPaymentMode,
+    downPaymentPercent:
+      downPaymentMode === "percent" ? event.downPaymentPercent ?? 0 : 0,
+    downPaymentAmount:
+      downPaymentMode === "amount" ? event.downPaymentAmount ?? 0 : 0,
+    mortgageRatePct: event.mortgageRatePct ?? 0,
+    termMode: "years",
+    mortgageTermYears,
+    mortgageTermMonths: mortgageTermYears * 12,
+    mortgagePayment: event.mortgagePayment ?? 0,
+    mortgagePaymentIsEstimated: event.mortgagePaymentIsEstimated ?? true,
+    feesOneOff,
+    ongoingCosts,
+    rentalEnabled,
+    rentalMonthly: event.rental?.rentMonthly ?? 0,
+    rentalDiscountMonthly: 0,
+    rentalStartMonth: event.rental?.startMonth ?? startMonth,
+    rentalEndMonth: event.rental?.endMonth ?? "",
+    propertyAssetId: event.propertyAssetId ?? `asset_home_${nanoid(6)}`,
+    mortgageLiabilityId: event.mortgageLiabilityId ?? `liability_mortgage_${nanoid(6)}`,
+    eventId: event.id ?? `evt_v2_bundle_${nanoid(6)}`,
+  };
+};
+
 const estimateMonthlyPayment = ({
   principal,
   annualRatePct,
@@ -177,6 +275,7 @@ export default function BundleWizardDrawer({
   onOpenEventDrawer,
   onApplyEvents,
   allowInlineEdit = true,
+  editingEventId = null,
 }: BundleWizardDrawerProps) {
   const t = useTranslations("money");
   const validation = useTranslations("validation");
@@ -207,33 +306,25 @@ export default function BundleWizardDrawer({
     schoolingStartMonth: defaultMonth,
   });
 
-  const [homeDraft, setHomeDraft] = useState<HomePurchaseDraft>({
-    startMonth: defaultMonth,
-    propertyName: "",
-    purchasePrice: 0,
-    downPaymentMode: "percent",
-    downPaymentPercent: 20,
-    downPaymentAmount: 0,
-    mortgageRatePct: 4,
-    termMode: "years",
-    mortgageTermYears: 30,
-    mortgageTermMonths: 360,
-    mortgagePayment: 0,
-    mortgagePaymentIsEstimated: true,
-    feesOneOff: [],
-    ongoingCosts: [],
-    rentalEnabled: false,
-    rentalMonthly: 0,
-    rentalDiscountMonthly: 0,
-    rentalStartMonth: defaultMonth,
-    rentalEndMonth: "",
-    propertyAssetId: `asset_home_${nanoid(6)}`,
-    mortgageLiabilityId: `liability_mortgage_${nanoid(6)}`,
-    eventId: `evt_v2_bundle_${nanoid(6)}`,
-  });
+  const [homeDraft, setHomeDraft] = useState<HomePurchaseDraft>(() =>
+    createHomeDraft(defaultMonth)
+  );
 
   const isNewBabyBundle = template?.id === "life_new_baby_plan";
   const isHomeBundle = template?.id === "life_home_purchase";
+  const editingHomeEvent = useMemo(() => {
+    if (!editingEventId) {
+      return null;
+    }
+    return (
+      scenarioEvents.find((event) => event.id === editingEventId) ?? null
+    );
+  }, [editingEventId, scenarioEvents]);
+  const isEditingHomeBundle =
+    Boolean(editingHomeEvent) &&
+    editingHomeEvent?.type === "housing" &&
+    editingHomeEvent.kind === "mortgage" &&
+    isHomeBundle;
 
   useEffect(() => {
     if (!opened) {
@@ -246,28 +337,27 @@ export default function BundleWizardDrawer({
     setCreatedEventIds(new Set());
     setPackAsExperiment(true);
     setDismissedMortgageWarning(false);
-    setBundleInstanceId(`bundle_${nanoid(8)}`);
+    if (isEditingHomeBundle) {
+      setBundleInstanceId(
+        editingHomeEvent?.source?.bundleInstanceId ?? `bundle_${nanoid(8)}`
+      );
+    } else {
+      setBundleInstanceId(`bundle_${nanoid(8)}`);
+    }
     setNewBabyDraft((current) => ({
       ...current,
       birthMonth: defaultMonth || current.birthMonth,
       schoolingStartMonth: defaultMonth || current.schoolingStartMonth,
     }));
-    setHomeDraft((current) => ({
-      ...current,
-      startMonth: defaultMonth || current.startMonth,
-      propertyName: "",
-      rentalStartMonth: defaultMonth || current.rentalStartMonth,
-      propertyAssetId: `asset_home_${nanoid(6)}`,
-      mortgageLiabilityId: `liability_mortgage_${nanoid(6)}`,
-      eventId: `evt_v2_bundle_${nanoid(6)}`,
-      feesOneOff: [],
-      ongoingCosts: [],
-      rentalEnabled: false,
-      rentalMonthly: 0,
-      rentalDiscountMonthly: 0,
-      rentalEndMonth: "",
-    }));
-  }, [defaultMonth, opened, template?.id]);
+    if (isEditingHomeBundle && editingHomeEvent) {
+      setHomeDraft(hydrateHomeDraftFromEvent(editingHomeEvent, defaultMonth));
+    } else {
+      setHomeDraft((current) => ({
+        ...createHomeDraft(defaultMonth || current.startMonth),
+        startMonth: defaultMonth || current.startMonth,
+      }));
+    }
+  }, [defaultMonth, editingHomeEvent, isEditingHomeBundle, opened, template?.id]);
 
   const hasLivingTotal = useMemo(() => {
     const livingLabel = t("templates.living_total.name");
@@ -501,7 +591,8 @@ export default function BundleWizardDrawer({
             ? homeDraft.mortgageTermYears * 12
             : homeDraft.mortgageTermMonths;
         const input: HomePurchaseBundleInput = {
-          id: homeDraft.eventId,
+          eventId: homeDraft.eventId,
+          bundleId: bundleInstanceId,
           label: resolvedHomeLabel,
           startMonth: homeDraft.startMonth,
           purchasePrice: homeDraft.purchasePrice,
