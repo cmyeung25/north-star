@@ -130,7 +130,7 @@ export const compileEventToMonthlyCashflowSeries = ({
     return [];
   }
 
-  const effectiveRule = resolveEventRule(definition, ref);
+  const effectiveRule = resolveEventRule(definition, ref, { members });
   const baseMonthRaw = assumptions.baseMonth ?? effectiveRule.startMonth ?? null;
   const horizonMonths = assumptions.horizonMonths ?? 0;
 
@@ -154,6 +154,13 @@ export const compileEventToMonthlyCashflowSeries = ({
   const member = definition.memberId
     ? members?.find((entry) => entry.id === definition.memberId)
     : undefined;
+
+  if (effectiveRule.startAt?.mode === "AGE" && !effectiveRule.startMonth) {
+    throw new Error(`Missing birth month for age-based start: ${definition.id}`);
+  }
+  if (effectiveRule.endAt?.mode === "AGE" && !effectiveRule.endMonth) {
+    throw new Error(`Missing birth month for age-based end: ${definition.id}`);
+  }
 
   const rawEndMonth = effectiveRule.endMonth ?? "";
   const normalizedEnd =

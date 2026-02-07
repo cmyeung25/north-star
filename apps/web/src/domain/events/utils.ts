@@ -1,8 +1,9 @@
-import type { Scenario, ScenarioAssumptions } from "../../store/scenarioStore";
+import type { Scenario, ScenarioAssumptions, ScenarioMember } from "../../store/scenarioStore";
 import { normalizeEvent } from "../../features/timeline/schema";
 import { buildDerivedEvents } from "../../insurance/templates";
 import type { TimelineEvent } from "../../features/timeline/schema";
 import { DEFAULT_GROWTH_MODE } from "../growthMode";
+import { buildMonthDateRef, resolveDateRef } from "../dateRef";
 import type {
   EventDefinition,
   EventRule,
@@ -15,14 +16,30 @@ export const buildEventLibraryMap = (eventLibrary: EventDefinition[]) =>
 
 export const resolveEventRule = (
   definition: EventDefinition,
-  ref: ScenarioEventRef
+  ref: ScenarioEventRef,
+  options: { members?: ScenarioMember[] } = {}
 ): EventRule => {
   const mergedRule = {
     ...definition.rule,
     ...ref.overrides,
   };
+  const membersById = options.members
+    ? Object.fromEntries(options.members.map((member) => [member.id, member]))
+    : undefined;
+  const resolvedStart = mergedRule.startAt
+    ? resolveDateRef(mergedRule.startAt, membersById)
+    : undefined;
+  const resolvedEnd = mergedRule.endAt
+    ? resolveDateRef(mergedRule.endAt, membersById)
+    : undefined;
   return {
     ...mergedRule,
+    startMonth:
+      resolvedStart ??
+      (mergedRule.startAt ? undefined : mergedRule.startMonth ?? undefined),
+    endMonth:
+      resolvedEnd ??
+      (mergedRule.endAt ? undefined : mergedRule.endMonth ?? undefined),
     mode: mergedRule.mode ?? "params",
   };
 };
@@ -50,9 +67,10 @@ export const buildTimelineEventFromDefinition = (
     baseCurrency: string;
     fallbackMonth?: string | null;
     assumptions?: ScenarioAssumptions;
+    members?: ScenarioMember[];
   }
 ): TimelineEvent => {
-  const rule = resolveEventRule(definition, ref);
+  const rule = resolveEventRule(definition, ref, { members: options.members });
   const assumptions = options.assumptions;
   const annualGrowthPct =
     rule.growthMode === "GLOBAL"
@@ -66,6 +84,11 @@ export const buildTimelineEventFromDefinition = (
       name: definition.title,
       startMonth: rule.startMonth ?? "",
       endMonth: rule.endMonth ?? null,
+      startAt: rule.startAt ?? buildMonthDateRef(rule.startMonth ?? undefined) ?? undefined,
+      endAt:
+        rule.endAt ??
+        buildMonthDateRef(rule.endMonth ?? undefined) ??
+        (rule.endMonth === null ? null : undefined),
       enabled: ref.enabled,
       monthlyAmount: Number(rule.monthlyAmount ?? 0),
       oneTimeAmount: Number(rule.oneTimeAmount ?? 0),
@@ -102,7 +125,7 @@ export const buildScenarioEventViews = (
       {
         definition,
         ref,
-        rule: resolveEventRule(definition, ref),
+        rule: resolveEventRule(definition, ref, { members: scenario.members }),
       },
     ];
   });
@@ -124,6 +147,7 @@ export const buildScenarioTimelineEvents = (
         baseCurrency,
         fallbackMonth,
         assumptions: scenario.assumptions,
+        members: scenario.members,
       })
     );
 
@@ -151,6 +175,8 @@ export const buildDefinitionFromTimelineEvent = (
     mode: "params",
     startMonth: event.startMonth,
     endMonth: event.endMonth ?? null,
+    startAt: event.startAt,
+    endAt: event.endAt ?? null,
     monthlyAmount: Math.abs(event.monthlyAmount ?? 0),
     oneTimeAmount: Math.abs(event.oneTimeAmount ?? 0),
     annualGrowthPct: event.annualGrowthPct ?? 0,

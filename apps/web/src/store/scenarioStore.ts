@@ -45,6 +45,7 @@ import {
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
+import { buildMonthDateRef } from "../domain/dateRef";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -631,6 +632,10 @@ export const hydrateFromPersistedState = (
   payload: ScenarioStorePersistedState
 ): ScenarioStorePersistedState => {
   const normalizedScenarios = normalizeScenarioList(payload.scenarios);
+  const normalizedEventLibrary = payload.eventLibrary.map((event) => ({
+    ...event,
+    rule: migrateEventRule(event.rule),
+  }));
   const normalizedActiveScenarioId = normalizedScenarios.some(
     (scenario) => scenario.id === payload.activeScenarioId
   )
@@ -674,7 +679,7 @@ export const hydrateFromPersistedState = (
 
   useScenarioStore.setState({
     scenarios: scenariosWithGlobalHorizon,
-    eventLibrary: payload.eventLibrary,
+    eventLibrary: normalizedEventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
     appSettings: {
       globalHorizonMonths: normalizedGlobalHorizon,
@@ -688,7 +693,7 @@ export const hydrateFromPersistedState = (
 
   return {
     scenarios: scenariosWithGlobalHorizon,
-    eventLibrary: payload.eventLibrary,
+    eventLibrary: normalizedEventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
     globalHorizonMonths: normalizedGlobalHorizon,
     appSettings: {
@@ -1307,11 +1312,42 @@ const upsertEventGeneratedEntities = ({
   };
 };
 
+const migrateEventRule = (rule: EventDefinition["rule"]): EventDefinition["rule"] => {
+  const startAt = rule.startAt ?? buildMonthDateRef(rule.startMonth ?? undefined) ?? undefined;
+  const endAt =
+    rule.endAt ?? (rule.endMonth === null ? null : buildMonthDateRef(rule.endMonth ?? undefined));
+  return {
+    ...rule,
+    startAt,
+    endAt,
+  };
+};
+
+const migrateEventRuleOverrides = (
+  overrides?: ScenarioEventRef["overrides"]
+): ScenarioEventRef["overrides"] => {
+  if (!overrides) {
+    return overrides;
+  }
+  const startAt =
+    overrides.startAt ?? buildMonthDateRef(overrides.startMonth ?? undefined) ?? undefined;
+  const endAt =
+    overrides.endAt ??
+    (overrides.endMonth === null
+      ? null
+      : buildMonthDateRef(overrides.endMonth ?? undefined));
+  return {
+    ...overrides,
+    startAt,
+    endAt,
+  };
+};
+
 const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
   eventRefs?.map((ref) => ({
     ...ref,
     highlighted: ref.highlighted ?? false,
-    overrides: ref.overrides ? { ...ref.overrides } : undefined,
+    overrides: migrateEventRuleOverrides(ref.overrides),
   }));
 
 const cloneScenarioEvents = (events?: ScenarioEvent[]) =>
@@ -1837,7 +1873,7 @@ export const resetAppState = () => {
     scenarios: normalizeScenarioList(state.scenarios),
     eventLibrary: state.eventLibrary.map((event) => ({
       ...event,
-      rule: { ...event.rule },
+      rule: migrateEventRule(event.rule),
     })),
     activeScenarioId: state.activeScenarioId,
     appSettings: { ...state.appSettings },

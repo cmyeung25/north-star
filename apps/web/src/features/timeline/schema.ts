@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { eventTypes, type EventType } from "@north-star/engine";
 import { defaultCurrency } from "../../../lib/i18n";
+import { DateRefSchema, type DateRef } from "../../domain/dateRef";
 
 export type { EventType } from "@north-star/engine";
 
@@ -25,6 +26,8 @@ export const TimelineEventSchema = z.object({
   name: z.string(),
   startMonth: z.string().regex(monthPattern),
   endMonth: z.string().regex(monthPattern).nullable(),
+  startAt: DateRefSchema.optional(),
+  endAt: z.union([DateRefSchema, z.null()]).optional(),
   enabled: z.boolean(),
   monthlyAmount: z.number().default(0),
   oneTimeAmount: z.number().default(0),
@@ -84,12 +87,23 @@ export const normalizeEvent = (
     getCurrentMonth();
   const normalizedEndMonth = normalizeMonth(event.endMonth ?? "") ?? null;
 
+  const resolvedStartAt =
+    event.startAt ??
+    ({ mode: "MONTH", month: normalizedStartMonth } as DateRef);
+  const resolvedEndAt =
+    event.endAt ??
+    (normalizedEndMonth
+      ? ({ mode: "MONTH", month: normalizedEndMonth } as DateRef)
+      : null);
+
   return TimelineEventSchema.parse({
     id: event.id,
     type: event.type,
     name: event.name ?? "",
     startMonth: normalizedStartMonth,
     endMonth: normalizedEndMonth,
+    startAt: resolvedStartAt,
+    endAt: resolvedEndAt,
     enabled: event.enabled ?? true,
     monthlyAmount: Number(event.monthlyAmount ?? 0),
     oneTimeAmount: Number(event.oneTimeAmount ?? 0),

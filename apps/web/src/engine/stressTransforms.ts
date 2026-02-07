@@ -114,7 +114,7 @@ export const applyStressPreset = (
         if (!ref.enabled) {
           return ref;
         }
-        const rule = resolveEventRule(definition, ref);
+        const rule = resolveEventRule(definition, ref, { members: scenario.members });
         if (!rule.startMonth || rule.startMonth < shockMonth) {
           return ref;
         }
@@ -148,7 +148,7 @@ export const applyStressPreset = (
         if (!ref.enabled) {
           return ref;
         }
-        const rule = resolveEventRule(definition, ref);
+        const rule = resolveEventRule(definition, ref, { members: scenario.members });
         if (getEventSign(definition.type) !== -1) {
           return ref;
         }

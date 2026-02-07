@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import type { Scenario } from "../../store/scenarioStore";
+import { areDateRefsEqual, buildMonthDateRef } from "../dateRef";
 import type {
   EventDefinition,
   EventRule,
@@ -166,12 +167,21 @@ const isScheduleSimilar = (a?: EventRule["schedule"], b?: EventRule["schedule"])
 
 export const buildFingerprint = (definition: EventDefinition, rule: EventRule) => {
   const scheduleStats = buildScheduleStats(rule.schedule);
+  const resolvedStartAt = rule.startAt ?? buildMonthDateRef(rule.startMonth ?? "");
+  const resolvedEndAt =
+    rule.endAt ??
+    buildMonthDateRef(rule.endMonth ?? "") ??
+    (rule.endMonth === null ? null : undefined);
   const paramsSignature = [
     Number(rule.monthlyAmount ?? 0).toFixed(0),
     Number(rule.oneTimeAmount ?? 0).toFixed(0),
     Number(rule.annualGrowthPct ?? 0).toFixed(2),
     parseMonthIndex(rule.startMonth ?? definition.rule.startMonth ?? "") ?? "na",
     parseMonthIndex(rule.endMonth ?? definition.rule.endMonth ?? "") ?? "na",
+    resolvedStartAt?.mode ?? "na",
+    resolvedStartAt?.mode === "AGE" ? resolvedStartAt.ageYears : "na",
+    resolvedEndAt?.mode ?? "na",
+    resolvedEndAt?.mode === "AGE" ? resolvedEndAt.ageYears : "na",
   ].join(":");
   const scheduleSignature = [
     scheduleStats.count,
@@ -230,8 +240,20 @@ export const buildEventRuleOverrides = (
   targetRule: EventRule
 ): EventRuleOverrides | undefined => {
   const overrides: EventRuleOverrides = {};
+  if (
+    !areDateRefsEqual(baseRule.startAt, targetRule.startAt) &&
+    (targetRule.startAt || baseRule.startAt)
+  ) {
+    overrides.startAt = targetRule.startAt;
+  }
   if (!isMonthClose(baseRule.startMonth, targetRule.startMonth, 0)) {
     overrides.startMonth = targetRule.startMonth;
+  }
+  if (
+    !areDateRefsEqual(baseRule.endAt, targetRule.endAt) &&
+    (targetRule.endAt || baseRule.endAt)
+  ) {
+    overrides.endAt = targetRule.endAt;
   }
   if (!isMonthClose(baseRule.endMonth ?? null, targetRule.endMonth ?? null, 0)) {
     overrides.endMonth = targetRule.endMonth ?? null;
@@ -263,8 +285,14 @@ export const buildEventRuleOverrides = (
 
 export const listEventRuleDifferences = (baseRule: EventRule, targetRule: EventRule) => {
   const diffs: Array<keyof EventRuleOverrides> = [];
+  if (!areDateRefsEqual(baseRule.startAt, targetRule.startAt)) {
+    diffs.push("startAt");
+  }
   if (!isMonthClose(baseRule.startMonth, targetRule.startMonth, 0)) {
     diffs.push("startMonth");
+  }
+  if (!areDateRefsEqual(baseRule.endAt, targetRule.endAt)) {
+    diffs.push("endAt");
   }
   if (!isMonthClose(baseRule.endMonth ?? null, targetRule.endMonth ?? null, 0)) {
     diffs.push("endMonth");
@@ -319,7 +347,9 @@ export const findDuplicateClusters = (
       if (!definition || definition.kind !== "cashflow") {
         return;
       }
-      const effectiveRule = resolveEventRule(definition, ref);
+      const effectiveRule = resolveEventRule(definition, ref, {
+        members: scenario.members,
+      });
       const fingerprint = buildFingerprint(definition, effectiveRule);
       candidates.push({
         id: `candidate-${nanoid(6)}`,

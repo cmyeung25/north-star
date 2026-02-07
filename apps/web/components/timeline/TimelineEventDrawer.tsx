@@ -300,6 +300,8 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       overrides: {
         startMonth: updated.startMonth,
         endMonth: updated.endMonth,
+        startAt: updated.startAt,
+        endAt: updated.endAt ?? null,
         monthlyAmount: updated.monthlyAmount,
         oneTimeAmount: updated.oneTimeAmount,
         annualGrowthPct: updated.annualGrowthPct,
