@@ -406,14 +406,16 @@ export default function CashflowEventDrawer({
                   })}
                   checked={cashflowDraft.growthMode === "assumption"}
                   disabled={cashflowDraft.cadence === "oneOff"}
-                  onChange={(eventValue: React.ChangeEvent<HTMLInputElement>) =>
+                  onChange={(eventValue: any) => {
+                    const checked =
+                      typeof eventValue === "boolean"
+                        ? eventValue
+                        : !!(eventValue && eventValue.currentTarget && eventValue.currentTarget.checked);
                     setCashflowDraft((current) => ({
                       ...current,
-                      growthMode: eventValue.currentTarget.checked
-                        ? "assumption"
-                        : "none",
-                    }))
-                  }
+                      growthMode: checked ? "assumption" : "none",
+                    }));
+                  }}
                 />
                 <Text size="xs" c="dimmed">
                   {t("ledgerEventIncomeGrowthHint")}
