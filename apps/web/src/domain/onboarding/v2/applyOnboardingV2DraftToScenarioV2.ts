@@ -253,6 +253,10 @@ const buildIncomeEvents = ({
       return;
     }
 
+    const growthMode: CashflowEvent["growthMode"] =
+      income.followIncomeGrowth && income.frequency !== "oneOff"
+        ? "assumption"
+        : "none";
     const eventBase = {
       id: buildOnboardingEventId(scenarioId, `income-${income.id}`),
       type: "cashflow" as const,
@@ -260,6 +264,7 @@ const buildIncomeEvents = ({
       amount,
       label,
       memberId: normalizeMemberId(income.memberId),
+      growthMode,
     };
 
     if (income.frequency === "oneOff") {

@@ -5,6 +5,7 @@ import {
   compileScenarioV2ToProjectionInput,
   type ScenarioV2,
 } from "../scenarioV2Compiler";
+import type { CashflowEvent } from "../../domain/scenarioV2/events";
 
 const baseScenario = {
   id: "scenario-v2",
@@ -83,6 +84,40 @@ describe("compileScenarioV2ToLedger", () => {
       (entry) => entry.sourceEventId === "evt-monthly"
     );
     expect(monthlyEntries).toHaveLength(3);
+  });
+
+  it("applies income growth assumptions to recurring income", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        salaryGrowthRate: 3,
+      },
+      events: [
+        {
+          id: "evt-income-growth",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 30000,
+          startMonth: "2024-01",
+          endMonth: "2025-01",
+          growthMode: "assumption",
+        },
+      ],
+    };
+
+    const ledger = compileScenarioV2ToLedger(scenario);
+    const january = ledger.find(
+      (entry) => entry.sourceEventId === "evt-income-growth" && entry.month === "2024-01"
+    );
+    const nextJanuary = ledger.find(
+      (entry) => entry.sourceEventId === "evt-income-growth" && entry.month === "2025-01"
+    );
+
+    expect(january?.amount !== undefined).toBe(true);
+    expect(nextJanuary?.amount !== undefined).toBe(true);
+    expect((nextJanuary?.amount ?? 0) > (january?.amount ?? 0)).toBe(true);
   });
 
   it("compiles housing, loan, and insurance events", () => {
@@ -263,5 +298,57 @@ describe("compileScenarioV2ToLedger", () => {
     const projection = computeProjection(input);
 
     expect(projection.cashBalance.slice(0, 3)).toEqual([105000, 110000, 115000]);
+  });
+
+  it("produces higher projections when income growth is enabled", () => {
+    const scenarioBase: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        horizonMonths: 13,
+        salaryGrowthRate: 3,
+      },
+      events: [
+        {
+          id: "evt-income",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 30000,
+          startMonth: "2024-01",
+        },
+      ],
+    };
+
+    const baseEvent = scenarioBase.events?.[0] as CashflowEvent;
+    const scenarioWithGrowth: ScenarioV2 = {
+      ...scenarioBase,
+      events: [
+        {
+          ...baseEvent,
+          growthMode: "assumption",
+        },
+      ],
+    };
+
+    const scenarioWithoutGrowth: ScenarioV2 = {
+      ...scenarioBase,
+      events: [
+        {
+          ...baseEvent,
+          growthMode: "none",
+        },
+      ],
+    };
+
+    const inputWithGrowth = compileScenarioV2ToProjectionInput(scenarioWithGrowth);
+    const inputWithoutGrowth = compileScenarioV2ToProjectionInput(scenarioWithoutGrowth);
+    const projectionWithGrowth = computeProjection(inputWithGrowth);
+    const projectionWithoutGrowth = computeProjection(inputWithoutGrowth);
+
+    expect(
+      (projectionWithGrowth.cashBalance.at(-1) ?? 0) >
+        (projectionWithoutGrowth.cashBalance.at(-1) ?? 0)
+    ).toBe(true);
   });
 });

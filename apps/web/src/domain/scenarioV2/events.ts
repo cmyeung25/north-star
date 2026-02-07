@@ -20,6 +20,7 @@ export const CashflowEventSchemaBase = BaseEventSchema.extend({
   kind: z.enum(["income", "expense"]),
   cadence: z.enum(["monthly", "quarterly", "yearly", "oneOff", "everyNMonths"]),
   amount: z.number(),
+  growthMode: z.enum(["none", "assumption"]).optional(),
   startMonth: MonthKeySchema.optional(),
   endMonth: MonthKeySchema.optional(),
   occurrenceMonth: MonthKeySchema.optional(),
@@ -357,6 +358,7 @@ export const ScenarioEventSchema = z
   });
 
 export type CashflowEvent = z.infer<typeof CashflowEventSchemaBase>;
+export type IncomeGrowthMode = NonNullable<CashflowEvent["growthMode"]>;
 export type HousingEvent = z.infer<typeof HousingEventSchema>;
 export type LoanEvent = z.infer<typeof LoanEventSchema>;
 export type InsuranceEvent = z.infer<typeof InsuranceEventSchema>;

@@ -10,6 +10,7 @@ describe("buildPlanLabEventFromCashflowDraft", () => {
         kind: "income",
         cadence: "monthly",
         amount: "12000",
+        growthMode: "assumption",
         startMonth: "2026-01",
         endMonth: "",
         occurrenceMonth: "",

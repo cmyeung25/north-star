@@ -1989,6 +1989,7 @@ export default function OnboardingDraftWizard() {
                 incomes={incomes}
                 members={household.members}
                 baseMonth={profile.startMonth || resolvedBaseMonth}
+                incomeGrowthPct={assumptions.incomeGrowthPct}
                 errors={shouldShowStepErrors ? incomeErrors : {}}
                 onChange={setIncomes}
                 t={t}

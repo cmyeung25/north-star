@@ -33,6 +33,7 @@ type IncomeStepProps = {
   incomes: OnboardingV2DraftIncome[];
   members: OnboardingV2DraftMember[];
   baseMonth: string;
+  incomeGrowthPct?: number | null;
   errors: Record<string, IncomeFieldErrors>;
   onChange: (next: OnboardingV2DraftIncome[]) => void;
   t: (key: string, values?: Record<string, number>) => string;
@@ -76,6 +77,7 @@ export default function IncomeStep({
   incomes,
   members,
   baseMonth,
+  incomeGrowthPct,
   errors,
   onChange,
   t,
@@ -91,6 +93,12 @@ export default function IncomeStep({
     ],
     [members, t]
   );
+  const formattedIncomeGrowthPct = useMemo(() => {
+    if (!Number.isFinite(incomeGrowthPct ?? NaN)) {
+      return 0;
+    }
+    return incomeGrowthPct ?? 0;
+  }, [incomeGrowthPct]);
 
   const handleAddIncome = (next: OnboardingV2DraftIncome) => {
     onChange([...incomes, next]);
@@ -334,7 +342,9 @@ export default function IncomeStep({
                     />
                   </Group>
                   <Switch
-                    label={t("incomeFollowGrowth")}
+                    label={t("incomeFollowGrowthWithPct", {
+                      pct: formattedIncomeGrowthPct,
+                    })}
                     checked={income.followIncomeGrowth}
                     disabled={income.frequency === "oneOff"}
                     onChange={(event) =>

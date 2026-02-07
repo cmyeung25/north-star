@@ -137,6 +137,7 @@ describe("applyOnboardingV2DraftToScenarioV2", () => {
       cadence: "monthly",
       amount: 5000,
       startMonth: "2024-01",
+      growthMode: "none",
     });
   });
 
