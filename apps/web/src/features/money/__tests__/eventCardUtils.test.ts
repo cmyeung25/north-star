@@ -72,7 +72,7 @@ describe("eventCardUtils", () => {
     };
 
     expect(resolveEventCardAmount(event)).toBe(1200);
-    expect(resolveEventCardStartMonth(event, {})).toBe("2024-03");
-    expect(resolveEventCardEndMonth(event, {})).toBe("2024-03");
+    expect(resolveEventCardStartMonth(event)).toBe("2024-03");
+    expect(resolveEventCardEndMonth(event)).toBe("2024-03");
   });
 });

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { DateRefSchema } from "../dateRef";
 
 export type MonthKey = string;
 
@@ -22,9 +21,7 @@ export const CashflowEventSchemaBase = BaseEventSchema.extend({
   cadence: z.enum(["monthly", "quarterly", "yearly", "oneOff", "everyNMonths"]),
   amount: z.number(),
   startMonth: MonthKeySchema.optional(),
-  startAt: DateRefSchema.optional(),
   endMonth: MonthKeySchema.optional(),
-  endAt: DateRefSchema.optional(),
   occurrenceMonth: MonthKeySchema.optional(),
   everyNMonths: z.number().int().min(1).optional(),
 });
@@ -75,7 +72,7 @@ const validateCashflowFields = (
     return;
   }
 
-  if (!event.startMonth && !event.startAt) {
+  if (!event.startMonth) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "validation.startMonthRequired",

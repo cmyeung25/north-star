@@ -117,7 +117,6 @@ import {
   resolveEventCardStartMonth,
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
-import { toDateRef } from "../../../src/domain/dateRef";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
 import type { EventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
 import { buildEventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
@@ -286,10 +285,6 @@ export default function MoneyClient({
   const memberLookupRecord = useMemo(
     () =>
       Object.fromEntries(members.map((member) => [member.id, member.name])),
-    [members]
-  );
-  const membersById = useMemo(
-    () => Object.fromEntries(members.map((member) => [member.id, member])),
     [members]
   );
   const netWorthByMonth = useMemo(() => {
@@ -924,14 +919,8 @@ export default function MoneyClient({
       kind: draft.kind,
       cadence: draft.cadence,
       amount,
-      startAt:
-        draft.cadence === "oneOff"
-          ? undefined
-          : toDateRef(draft.startAt) ?? undefined,
-      endAt:
-        draft.cadence === "oneOff"
-          ? undefined
-          : toDateRef(draft.endAt) ?? undefined,
+      startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
+      endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
       everyNMonths:
         draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
@@ -1259,8 +1248,7 @@ export default function MoneyClient({
     () =>
       v2ScenarioEvents.map((event) => {
         const amount = resolveEventCardAmount(event);
-        const startMonth =
-          resolveEventCardStartMonth(event, membersById) ?? t("amountUnset");
+        const startMonth = resolveEventCardStartMonth(event) ?? t("amountUnset");
         return {
           id: event.id,
           kind: "event" as const,
@@ -1282,7 +1270,6 @@ export default function MoneyClient({
       openV2EventDrawer,
       scenario?.baseCurrency,
       t,
-      membersById,
       v2ScenarioEvents,
     ]
   );
@@ -2409,7 +2396,6 @@ export default function MoneyClient({
             )}
             <EventCardList
               events={incomeEvents}
-              members={members}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
@@ -2443,7 +2429,6 @@ export default function MoneyClient({
             )}
             <EventCardList
               events={expenseEvents}
-              members={members}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}

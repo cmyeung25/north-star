@@ -1,7 +1,6 @@
 import { nanoid } from "nanoid";
 import { isValidMonthKey } from "../../utils/monthKey";
 import type { MonthKey, ScenarioEventDraft } from "../scenarioV2/events";
-import { toMonthDateRef } from "../dateRef";
 
 const createBundleEventId = () => `evt_v2_bundle_${nanoid(8)}`;
 
@@ -89,10 +88,6 @@ const buildCashflowEvent = ({
   cadence,
   amount,
   startMonth: cadence === "oneOff" ? undefined : startMonth,
-  startAt:
-    cadence === "oneOff"
-      ? undefined
-      : toMonthDateRef(startMonth ?? "") ?? undefined,
   occurrenceMonth: cadence === "oneOff" ? occurrenceMonth : undefined,
   tags,
   label,

@@ -1,8 +1,6 @@
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { compareMonthKey } from "../../utils/monthKey";
-import { resolveDateRef } from "../../domain/dateRef";
-import type { ScenarioMember } from "../../store/scenarioStore";
 
 export type EventMonthlyImpact = {
   income: number;
@@ -74,19 +72,12 @@ export const resolveEventMonthlyImpact = (
   };
 };
 
-export const resolveEventCardStartMonth = (
-  event: ScenarioEvent,
-  membersById: Record<string, ScenarioMember | undefined>
-): string | null => {
+export const resolveEventCardStartMonth = (event: ScenarioEvent): string | null => {
   switch (event.type) {
     case "cashflow":
-      if (event.cadence === "oneOff") {
-        return event.occurrenceMonth ?? null;
-      }
-      if (event.startAt) {
-        return resolveDateRef(event.startAt, membersById);
-      }
-      return event.startMonth ?? null;
+      return event.cadence === "oneOff"
+        ? event.occurrenceMonth ?? null
+        : event.startMonth ?? null;
     case "adjustment":
       return event.month ?? null;
     case "housing":
@@ -106,19 +97,12 @@ export const resolveEventCardStartMonth = (
   }
 };
 
-export const resolveEventCardEndMonth = (
-  event: ScenarioEvent,
-  membersById: Record<string, ScenarioMember | undefined>
-): string | null => {
+export const resolveEventCardEndMonth = (event: ScenarioEvent): string | null => {
   switch (event.type) {
     case "cashflow":
-      if (event.cadence === "oneOff") {
-        return event.occurrenceMonth ?? null;
-      }
-      if (event.endAt) {
-        return resolveDateRef(event.endAt, membersById);
-      }
-      return event.endMonth ?? null;
+      return event.cadence === "oneOff"
+        ? event.occurrenceMonth ?? null
+        : event.endMonth ?? null;
     case "adjustment":
       return event.month ?? null;
     case "housing":

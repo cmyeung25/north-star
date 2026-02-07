@@ -4,7 +4,6 @@ import type { EventType, IncomeSubtype } from "../../features/timeline/schema";
 import { createEventDefinitionFromTemplate } from "../../../components/timeline/utils";
 import { isValidMonthKey } from "../../utils/monthKey";
 import type { TemplateDrawerType, TemplateId } from "./types";
-import type { DateRefDraft } from "../dateRef";
 
 type TemplatePreset = {
   drawerType: TemplateDrawerType;
@@ -35,8 +34,8 @@ export type CashflowDraftOverrides = {
   kind?: "income" | "expense";
   cadence?: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths";
   amount?: string;
-  startAt?: DateRefDraft;
-  endAt?: DateRefDraft;
+  startMonth?: string;
+  endMonth?: string;
   occurrenceMonth?: string;
   everyNMonths?: string;
   memberId?: string;
@@ -298,8 +297,7 @@ export const buildTemplateDrawerDraftOverrides = (
         label,
         kind: preset.cashflow?.kind ?? "income",
         cadence,
-        startAt: { mode: "MONTH", month: cadence === "oneOff" ? "" : baseMonth },
-        endAt: { mode: "MONTH", month: "" },
+        startMonth: cadence === "oneOff" ? "" : baseMonth,
         occurrenceMonth: cadence === "oneOff" ? baseMonth : "",
         tags: preset.cashflow?.tags,
       },
