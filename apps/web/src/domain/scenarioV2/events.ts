@@ -8,11 +8,21 @@ export const MonthKeySchema = z.string().regex(monthKeyPattern, "validation.useY
 
 export const EventTagSchema = z.array(z.string()).optional();
 
+export const EventSourceSchema = z
+  .object({
+    bundleInstanceId: z.string().optional(),
+    templateId: z.string().optional(),
+    componentKey: z.string().optional(),
+    bundleTitle: z.string().optional(),
+  })
+  .optional();
+
 const BaseEventSchema = z.object({
   id: z.string(),
   label: z.string().optional(),
   memberId: z.string().optional(),
   tags: EventTagSchema,
+  source: EventSourceSchema,
 });
 
 export const CashflowEventSchemaBase = BaseEventSchema.extend({
@@ -358,6 +368,7 @@ export const ScenarioEventSchema = z
     }
   });
 
+export type EventSource = z.infer<typeof EventSourceSchema>;
 export type CashflowEvent = z.infer<typeof CashflowEventSchemaBase>;
 export type IncomeGrowthMode = NonNullable<CashflowEvent["growthMode"]>;
 export type HousingEvent = z.infer<typeof HousingEventSchema>;

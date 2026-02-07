@@ -116,11 +116,16 @@ import { compileScenarioV2ToLedger } from "../../../src/engine/scenarioV2Compile
 import {
   resolveEventCardAmount,
   resolveEventCardStartMonth,
+  resolveEventMonthlyImpact,
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
-import type { EventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
-import { buildEventDeleteImpact } from "../../../src/domain/scenarioV2/eventDeleteImpact";
+import type { DeleteImpactSummary } from "../../../src/domain/scenarioV2/eventDeleteImpact";
+import {
+  buildBundleDeleteImpact,
+  buildEventDeleteImpact,
+  createEmptyLedgerPreview,
+} from "../../../src/domain/scenarioV2/eventDeleteImpact";
 import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
 import type { TemplateCategory, TemplateDef } from "../../../src/domain/eventTemplates/types";
 import { buildTemplateDrawerDraftOverrides } from "../../../src/domain/eventTemplates/presets";
@@ -186,6 +191,41 @@ type MoneyAddAction =
 type CreationIntent = "plan" | "item";
 type CreationItemCategory = "income" | "expenses" | "assets" | "liabilities";
 
+type DeleteConfirmation =
+  | {
+      type: "eventV2";
+      id: string;
+      label: string;
+      impact?: DeleteImpactSummary | null;
+    }
+  | {
+      type: "bundle";
+      bundleId: string;
+      label: string;
+      eventIds: string[];
+      impact?: DeleteImpactSummary | null;
+    }
+  | {
+      type: "bundleItem";
+      bundleId: string;
+      label: string;
+      eventIds: string[];
+      bundleTitle: string;
+      impact?: DeleteImpactSummary | null;
+    }
+  | {
+      type: "asset";
+      id: string;
+      label: string;
+      impact: DeleteImpactSummary;
+    }
+  | {
+      type: "liability";
+      id: string;
+      label: string;
+      impact: DeleteImpactSummary;
+    };
+
 export default function MoneyClient({
   scenarioId,
   initialTab,
@@ -227,7 +267,6 @@ export default function MoneyClient({
   const removeInsurancePosition = useScenarioStore((state) => state.removeInsurancePosition);
   const addLoanPosition = useScenarioStore((state) => state.addLoanPosition);
   const updateLoanPosition = useScenarioStore((state) => state.updateLoanPosition);
-  const removeLoanPosition = useScenarioStore((state) => state.removeLoanPosition);
   const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const addEvent = useScenarioStore((state) => state.addEvent);
@@ -238,6 +277,7 @@ export default function MoneyClient({
   const upsertScenarioLiabilities = useScenarioStore((state) => state.upsertScenarioLiabilities);
   const setScenarioAssets = useScenarioStore((state) => state.setScenarioAssets);
   const setScenarioLiabilities = useScenarioStore((state) => state.setScenarioLiabilities);
+  const setScenarioEvents = useScenarioStore((state) => state.setScenarioEvents);
   const setScenarioInitialCash = useScenarioStore(
     (state) => state.setScenarioInitialCash
   );
@@ -270,6 +310,53 @@ export default function MoneyClient({
   const scenarioIdValue = scenario?.id;
   const incomeGrowthPct = scenario?.assumptions.salaryGrowthRate ?? null;
   const v2ScenarioEvents = useMemo(() => scenario?.events ?? [], [scenario?.events]);
+  const bundleGroups = useMemo(() => {
+    if (!scenarioIsV2) {
+      return [];
+    }
+    const groups = new Map<
+      string,
+      {
+        id: string;
+        templateId?: string;
+        bundleTitle?: string;
+        events: ScenarioEvent[];
+      }
+    >();
+    v2ScenarioEvents.forEach((event) => {
+      const source = event.source;
+      if (!source?.bundleInstanceId) {
+        return;
+      }
+      const existing =
+        groups.get(source.bundleInstanceId) ?? {
+          id: source.bundleInstanceId,
+          templateId: source.templateId,
+          bundleTitle: source.bundleTitle,
+          events: [],
+        };
+      existing.events.push(event);
+      if (!existing.templateId && source.templateId) {
+        existing.templateId = source.templateId;
+      }
+      if (!existing.bundleTitle && source.bundleTitle) {
+        existing.bundleTitle = source.bundleTitle;
+      }
+      groups.set(source.bundleInstanceId, existing);
+    });
+    return Array.from(groups.values());
+  }, [scenarioIsV2, v2ScenarioEvents]);
+  const bundleGroupById = useMemo(
+    () => new Map(bundleGroups.map((group) => [group.id, group])),
+    [bundleGroups]
+  );
+  const bundleEventIds = useMemo(() => {
+    const ids = new Set<string>();
+    bundleGroups.forEach((group) => {
+      group.events.forEach((event) => ids.add(event.id));
+    });
+    return ids;
+  }, [bundleGroups]);
   const {
     projection,
     months,
@@ -401,12 +488,8 @@ export default function MoneyClient({
     id?: string;
   } | null>(null);
   const [assetDetailsMonth, setAssetDetailsMonth] = useState<string | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{
-    type: "eventV2" | "asset" | "loan";
-    id: string;
-    label: string;
-    impact?: EventDeleteImpact | null;
-  } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
+  const [expandedBundleIds, setExpandedBundleIds] = useState<string[]>([]);
   const [cashflowModal, setCashflowModal] = useState<CashflowModalState>({
     opened: false,
     title: "",
@@ -703,7 +786,14 @@ export default function MoneyClient({
             return kind;
         }
       };
-      return (scenario.assets ?? []).map((asset) => {
+      return (scenario.assets ?? [])
+        .filter((asset) => {
+          if (!asset.createdByEventId) {
+            return true;
+          }
+          return !bundleEventIds.has(asset.createdByEventId);
+        })
+        .map((asset) => {
         const resolvedValue =
           asset.currentValue ??
           (asset.kind === "cash" ? scenario.assumptions.initialCash : undefined);
@@ -723,10 +813,16 @@ export default function MoneyClient({
             if (!scenarioIdValue) {
               return;
             }
-            const nextAssets = (scenario.assets ?? []).filter(
-              (entry) => entry.id !== asset.id
-            );
-            setScenarioAssets(scenarioIdValue, nextAssets);
+            setDeleteConfirmation({
+              type: "asset",
+              id: asset.id,
+              label: asset.label ?? t("assetUntitled"),
+              impact: {
+                impactedAssets: [asset],
+                impactedLiabilities: [],
+                ledger: createEmptyLedgerPreview(),
+              },
+            });
           },
         };
       });
@@ -792,6 +888,7 @@ export default function MoneyClient({
     ];
     return items;
   }, [
+    bundleEventIds,
     cars,
     carsText,
     homes,
@@ -808,7 +905,6 @@ export default function MoneyClient({
     scenario,
     scenarioIdValue,
     scenarioIsV2,
-    setScenarioAssets,
     t,
   ]);
 
@@ -1252,6 +1348,39 @@ export default function MoneyClient({
     },
     [handleEditV2Event]
   );
+  const resolveBundleTitle = useCallback(
+    (bundle: { templateId?: string; bundleTitle?: string }) => {
+      const templateName = bundle.templateId
+        ? t(`templates.${bundle.templateId}.name`)
+        : t("bundleTitleFallback");
+      if (bundle.bundleTitle) {
+        return t("bundleTitleWithName", {
+          template: templateName,
+          name: bundle.bundleTitle,
+        });
+      }
+      return templateName;
+    },
+    [t]
+  );
+  const toggleBundleExpanded = useCallback((bundleId: string) => {
+    setExpandedBundleIds((current) =>
+      current.includes(bundleId)
+        ? current.filter((id) => id !== bundleId)
+        : [...current, bundleId]
+    );
+  }, []);
+  const handleEditBundle = useCallback(
+    (bundleId: string) => {
+      const bundle = bundleGroupById.get(bundleId);
+      const primaryEvent = bundle?.events[0];
+      if (!primaryEvent) {
+        return;
+      }
+      openV2EventDrawer("edit", primaryEvent.type, primaryEvent.id);
+    },
+    [bundleGroupById, openV2EventDrawer]
+  );
   const handleDuplicateV2Event = (eventId: string) => {
     if (!scenarioIdValue) {
       return;
@@ -1262,6 +1391,25 @@ export default function MoneyClient({
       setLedgerActionError(t("ledgerEventDuplicateFailed"));
     }
   };
+  const handleDeleteBundle = useCallback(
+    (bundleId: string) => {
+      const bundle = bundleGroupById.get(bundleId);
+      if (!bundle) {
+        return;
+      }
+      const bundleTitle = resolveBundleTitle(bundle);
+      const eventIds = bundle.events.map((event) => event.id);
+      const impact = scenario ? buildBundleDeleteImpact(scenario, eventIds) : null;
+      setDeleteConfirmation({
+        type: "bundle",
+        bundleId,
+        label: bundleTitle,
+        eventIds,
+        impact,
+      });
+    },
+    [bundleGroupById, resolveBundleTitle, scenario]
+  );
   const handleDeleteV2Event = useCallback(
     (eventId: string) => {
       if (!scenarioIsV2) {
@@ -1272,15 +1420,42 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventMissing"));
         return;
       }
+      if (match.source?.bundleInstanceId) {
+        const bundle = bundleGroupById.get(match.source.bundleInstanceId);
+        const bundleTitle = resolveBundleTitle({
+          templateId: bundle?.templateId ?? match.source.templateId,
+          bundleTitle: bundle?.bundleTitle ?? match.source.bundleTitle,
+        });
+        const eventIds = bundle?.events.map((event) => event.id) ?? [eventId];
+        const impact = scenario
+          ? buildBundleDeleteImpact(scenario, eventIds)
+          : null;
+        setDeleteConfirmation({
+          type: "bundleItem",
+          bundleId: match.source.bundleInstanceId,
+          label: bundleTitle,
+          bundleTitle,
+          eventIds,
+          impact,
+        });
+        return;
+      }
       const impact = scenario ? buildEventDeleteImpact(scenario, eventId) : null;
+      const summaryImpact = impact
+        ? {
+            impactedAssets: impact.impactedAssets,
+            impactedLiabilities: impact.impactedLiabilities,
+            ledger: impact.ledger,
+          }
+        : null;
       setDeleteConfirmation({
         type: "eventV2",
         id: eventId,
         label: match.label ?? t("ledgerRowFallbackLabel"),
-        impact,
+        impact: summaryImpact,
       });
     },
-    [scenario, scenarioIsV2, t, v2ScenarioEvents]
+    [bundleGroupById, resolveBundleTitle, scenario, scenarioIsV2, t, v2ScenarioEvents]
   );
   const handleAdjustEvent = (row: LedgerRow) => {
     setLedgerActionError(null);
@@ -1291,25 +1466,28 @@ export default function MoneyClient({
   };
   const inputEventItems = useMemo(
     () =>
-      v2ScenarioEvents.map((event) => {
-        const amount = resolveEventCardAmount(event);
-        const startMonth = resolveEventCardStartMonth(event) ?? t("amountUnset");
-        return {
-          id: event.id,
-          kind: "event" as const,
-          label: event.label ?? t("ledgerRowFallbackLabel"),
-          description: t("inputsEventMeta", {
-            month: startMonth,
-            amount:
-              amount !== null
-                ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
-                : t("amountUnset"),
-          }),
-          onEdit: () => openV2EventDrawer("edit", event.type, event.id),
-          onDelete: () => handleDeleteV2Event(event.id),
-        };
-      }),
+      v2ScenarioEvents
+        .filter((event) => !bundleEventIds.has(event.id))
+        .map((event) => {
+          const amount = resolveEventCardAmount(event);
+          const startMonth = resolveEventCardStartMonth(event) ?? t("amountUnset");
+          return {
+            id: event.id,
+            kind: "event" as const,
+            label: event.label ?? t("ledgerRowFallbackLabel"),
+            description: t("inputsEventMeta", {
+              month: startMonth,
+              amount:
+                amount !== null
+                  ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
+                  : t("amountUnset"),
+            }),
+            onEdit: () => openV2EventDrawer("edit", event.type, event.id),
+            onDelete: () => handleDeleteV2Event(event.id),
+          };
+        }),
     [
+      bundleEventIds,
       handleDeleteV2Event,
       locale,
       openV2EventDrawer,
@@ -1331,6 +1509,68 @@ export default function MoneyClient({
     () => scenario?.liabilities ?? [],
     [scenario?.liabilities]
   );
+  const bundleCardItems = useMemo(() => {
+    if (!scenarioIsV2 || !scenario) {
+      return [];
+    }
+    return bundleGroups.map((bundle) => {
+      const eventIds = bundle.events.map((event) => event.id);
+      const ledgerRows = eventIds.flatMap(
+        (id) => ledgerRowsByEventId.get(id) ?? []
+      );
+      const monthlyImpact = resolveEventMonthlyImpact(ledgerRows);
+      const oneOffTotal = bundle.events.reduce((total, event) => {
+        if (event.type === "cashflow" && event.cadence === "oneOff") {
+          return total + event.amount;
+        }
+        if (event.type === "housing" && event.kind === "mortgage") {
+          const feeTotal =
+            event.feesOneOff?.reduce((sum, fee) => sum + fee.amount, 0) ?? 0;
+          return total + feeTotal;
+        }
+        return total;
+      }, 0);
+      const assets = scenarioAssets.filter(
+        (asset) => asset.createdByEventId && eventIds.includes(asset.createdByEventId)
+      );
+      const liabilities = scenarioLiabilities.filter(
+        (liability) =>
+          liability.createdByEventId && eventIds.includes(liability.createdByEventId)
+      );
+      const incomeEvents = bundle.events.filter(
+        (event) => event.type === "cashflow" && event.kind === "income"
+      );
+      const expenseEvents = bundle.events.filter((event) => {
+        if (event.type === "cashflow") {
+          return event.kind === "expense";
+        }
+        return (
+          event.type === "housing" ||
+          event.type === "loan" ||
+          event.type === "insurance"
+        );
+      });
+      return {
+        id: bundle.id,
+        title: resolveBundleTitle(bundle),
+        eventIds,
+        assets,
+        liabilities,
+        incomeEvents,
+        expenseEvents,
+        monthlyImpact,
+        oneOffTotal,
+      };
+    });
+  }, [
+    bundleGroups,
+    ledgerRowsByEventId,
+    resolveBundleTitle,
+    scenario,
+    scenarioAssets,
+    scenarioIsV2,
+    scenarioLiabilities,
+  ]);
   const mortgageDetailEvent = useMemo(() => {
     if (!mortgageDetail) {
       return null;
@@ -1650,8 +1890,16 @@ export default function MoneyClient({
       }
       return;
     }
-    const nextAssets = scenarioAssets.filter((asset) => asset.id !== item.id);
-    setScenarioAssets(scenarioIdValue, nextAssets);
+    setDeleteConfirmation({
+      type: "asset",
+      id: item.id,
+      label: item.label ?? t("assetUntitled"),
+      impact: {
+        impactedAssets: [item],
+        impactedLiabilities: [],
+        ledger: createEmptyLedgerPreview(),
+      },
+    });
   };
   const handleUpsertLiabilityItem = (item: ScenarioLiability) => {
     if (!scenarioIdValue) {
@@ -1675,10 +1923,16 @@ export default function MoneyClient({
       }
       return;
     }
-    const nextLiabilities = scenarioLiabilities.filter(
-      (liability) => liability.id !== item.id
-    );
-    setScenarioLiabilities(scenarioIdValue, nextLiabilities);
+    setDeleteConfirmation({
+      type: "liability",
+      id: item.id,
+      label: item.label ?? t("liabilityUntitled"),
+      impact: {
+        impactedAssets: [],
+        impactedLiabilities: [item],
+        ledger: createEmptyLedgerPreview(),
+      },
+    });
   };
   const inputsItems = useMemo(() => {
     if (inputsFilter === "rules") {
@@ -1692,6 +1946,12 @@ export default function MoneyClient({
     }
     return [...inputRuleItems, ...inputAssetItems, ...inputEventItems];
   }, [inputAssetItems, inputEventItems, inputRuleItems, inputsFilter]);
+  const visibleBundleCards = useMemo(() => {
+    if (inputsFilter === "all" || inputsFilter === "events") {
+      return bundleCardItems;
+    }
+    return [];
+  }, [bundleCardItems, inputsFilter]);
   const isPastSellMonth = (sellMonth?: string) => {
     if (!sellMonth || !currentProjectionMonth) {
       return false;
@@ -1830,6 +2090,65 @@ export default function MoneyClient({
     }
   }, [mortgageDetail, mortgageDetailEvent]);
 
+  const removeBundleEvents = useCallback(
+    (eventIds: string[]) => {
+      if (!scenarioIdValue || !scenario) {
+        return;
+      }
+      const eventIdSet = new Set(eventIds);
+      const remainingEvents = (scenario.events ?? []).filter(
+        (event) => !eventIdSet.has(event.id)
+      );
+      const referencedAssetIds = new Set<string>();
+      const referencedLiabilityIds = new Set<string>();
+      remainingEvents.forEach((event) => {
+        if (event.type === "housing" && event.kind === "mortgage") {
+          if (event.propertyAssetId) {
+            referencedAssetIds.add(event.propertyAssetId);
+          }
+          if (event.mortgageLiabilityId) {
+            referencedLiabilityIds.add(event.mortgageLiabilityId);
+          }
+        }
+        if (event.type === "insurance" && event.mode === "detailed") {
+          (event.policies ?? []).forEach((policy) => {
+            if (policy.policyAssetId) {
+              referencedAssetIds.add(policy.policyAssetId);
+            }
+          });
+        }
+        if (event.type === "loan" && event.liabilityId) {
+          referencedLiabilityIds.add(event.liabilityId);
+        }
+      });
+      const nextAssets = (scenario.assets ?? []).filter((asset) => {
+        if (!asset.createdByEventId || !eventIdSet.has(asset.createdByEventId)) {
+          return true;
+        }
+        return referencedAssetIds.has(asset.id);
+      });
+      const nextLiabilities = (scenario.liabilities ?? []).filter((liability) => {
+        if (
+          !liability.createdByEventId ||
+          !eventIdSet.has(liability.createdByEventId)
+        ) {
+          return true;
+        }
+        return referencedLiabilityIds.has(liability.id);
+      });
+      setScenarioEvents(scenarioIdValue, remainingEvents);
+      setScenarioAssets(scenarioIdValue, nextAssets);
+      setScenarioLiabilities(scenarioIdValue, nextLiabilities);
+    },
+    [
+      scenario,
+      scenarioIdValue,
+      setScenarioAssets,
+      setScenarioEvents,
+      setScenarioLiabilities,
+    ]
+  );
+
   // Close editing drawers if the edited item was deleted
   useEffect(() => {
     if (editingHomeId && !homes.some((h) => h.id === editingHomeId)) {
@@ -1851,28 +2170,36 @@ export default function MoneyClient({
 
   const handleConfirmDelete = () => {
     if (!deleteConfirmation || !scenarioIdValue) return;
+    const { type } = deleteConfirmation;
 
-    const { type, id } = deleteConfirmation;
-    
     switch (type) {
       case "eventV2":
-        removeEvent(id, scenarioIdValue, { cascade: true });
+        removeEvent(deleteConfirmation.id, scenarioIdValue, { cascade: true });
         break;
-      case "asset":
-        // Determine asset type from the homes, cars, investments, insurances lists
-        if (homes.some((h) => h.id === id)) {
-          removeHomePosition(scenarioIdValue, id);
-        } else if (cars.some((c) => c.id === id)) {
-          removeCarPosition(scenarioIdValue, id);
-        } else if (investments.some((i) => i.id === id)) {
-          removeInvestmentPosition(scenarioIdValue, id);
-        } else if (insurances.some((i) => i.id === id)) {
-          removeInsurancePosition(scenarioIdValue, id);
+      case "bundle":
+      case "bundleItem":
+        removeBundleEvents(deleteConfirmation.eventIds);
+        break;
+      case "asset": {
+        if (!scenario) {
+          break;
         }
+        const nextAssets = (scenario.assets ?? []).filter(
+          (entry) => entry.id !== deleteConfirmation.id
+        );
+        setScenarioAssets(scenarioIdValue, nextAssets);
         break;
-      case "loan":
-        removeLoanPosition(scenarioIdValue, id);
+      }
+      case "liability": {
+        if (!scenario) {
+          break;
+        }
+        const nextLiabilities = (scenario.liabilities ?? []).filter(
+          (entry) => entry.id !== deleteConfirmation.id
+        );
+        setScenarioLiabilities(scenarioIdValue, nextLiabilities);
         break;
+      }
     }
 
     setDeleteConfirmation(null);
@@ -2721,34 +3048,267 @@ export default function MoneyClient({
                 { value: "events", label: t("inputsFilterEvents") },
               ]}
             />
-            {inputsItems.length === 0 ? (
+            {inputsItems.length === 0 && visibleBundleCards.length === 0 ? (
               <Text size="sm" c="dimmed">
                 {t("inputsEmpty")}
               </Text>
             ) : (
               <Stack gap="sm">
-                {inputsItems.map((item) => (
-                  <Card key={`${item.kind}-${item.id}`} withBorder radius="md" padding="sm">
-                    <Group justify="space-between" align="flex-start" wrap="wrap">
-                      <Stack gap={2}>
-                        <Text fw={600}>{item.label}</Text>
-                        {item.description && (
-                          <Text size="xs" c="dimmed">
-                            {item.description}
-                          </Text>
-                        )}
-                      </Stack>
-                      <Group gap="xs">
-                        <Button size="xs" variant="light" onClick={item.onEdit}>
-                          {common("actionEdit")}
-                        </Button>
-                        <Button size="xs" variant="subtle" color="red" onClick={item.onDelete}>
-                          {common("actionDelete")}
-                        </Button>
-                      </Group>
-                    </Group>
-                  </Card>
-                ))}
+                {visibleBundleCards.map((bundle) => {
+                    const expanded = expandedBundleIds.includes(bundle.id);
+                    return (
+                      <Card key={`bundle-${bundle.id}`} withBorder radius="md" padding="md">
+                        <Stack gap="sm">
+                          <Group justify="space-between" align="flex-start" wrap="wrap">
+                            <Stack gap={2}>
+                              <Text fw={600}>{bundle.title}</Text>
+                              <Text size="sm" c="dimmed">
+                                {t("bundleSummaryOneOff", {
+                                  amount:
+                                    bundle.oneOffTotal > 0
+                                      ? formatCurrency(
+                                          bundle.oneOffTotal,
+                                          scenario?.baseCurrency ?? "USD",
+                                          locale
+                                        )
+                                      : t("amountUnset"),
+                                })}
+                              </Text>
+                              <Text size="sm" c="dimmed">
+                                {t("bundleSummaryMonthlyNet", {
+                                  amount: bundle.monthlyImpact
+                                    ? formatCurrency(
+                                        bundle.monthlyImpact.net,
+                                        scenario?.baseCurrency ?? "USD",
+                                        locale
+                                      )
+                                    : t("amountUnset"),
+                                })}
+                              </Text>
+                              {bundle.assets.map((asset) => (
+                                <Text size="sm" c="dimmed" key={asset.id}>
+                                  {t("bundleSummaryAssetItem", {
+                                    name: asset.label ?? t("assetUntitled"),
+                                    amount:
+                                      typeof asset.currentValue === "number"
+                                        ? formatCurrency(
+                                            asset.currentValue,
+                                            scenario?.baseCurrency ?? "USD",
+                                            locale
+                                          )
+                                        : t("amountUnset"),
+                                  })}
+                                </Text>
+                              ))}
+                              {bundle.liabilities.map((liability) => (
+                                <Text size="sm" c="dimmed" key={liability.id}>
+                                  {t("bundleSummaryLiabilityItem", {
+                                    name: liability.label ?? t("liabilityUntitled"),
+                                    amount:
+                                      typeof liability.principalOutstanding === "number"
+                                        ? formatCurrency(
+                                            liability.principalOutstanding,
+                                            scenario?.baseCurrency ?? "USD",
+                                            locale
+                                          )
+                                        : t("amountUnset"),
+                                  })}
+                                </Text>
+                              ))}
+                            </Stack>
+                            <Group gap="xs">
+                              <Button
+                                size="xs"
+                                variant="light"
+                                onClick={() => toggleBundleExpanded(bundle.id)}
+                              >
+                                {expanded
+                                  ? t("bundleCardCollapse")
+                                  : t("bundleCardView")}
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                onClick={() => handleEditBundle(bundle.id)}
+                              >
+                                {common("actionEdit")}
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                color="red"
+                                onClick={() => handleDeleteBundle(bundle.id)}
+                              >
+                                {common("actionDelete")}
+                              </Button>
+                            </Group>
+                          </Group>
+
+                          {expanded && (
+                            <Stack gap="sm">
+                              {bundle.assets.length > 0 && (
+                                <Stack gap={4}>
+                                  <Text size="xs" c="dimmed">
+                                    {t("bundleDetailAssets")}
+                                  </Text>
+                                  {bundle.assets.map((asset) => (
+                                    <Group
+                                      key={asset.id}
+                                      justify="space-between"
+                                      wrap="nowrap"
+                                    >
+                                      <Text size="sm">
+                                        {asset.label ?? t("assetUntitled")}
+                                      </Text>
+                                      <Text size="sm" fw={500}>
+                                        {typeof asset.currentValue === "number"
+                                          ? formatCurrency(
+                                              asset.currentValue,
+                                              scenario?.baseCurrency ?? "USD",
+                                              locale
+                                            )
+                                          : t("amountUnset")}
+                                      </Text>
+                                    </Group>
+                                  ))}
+                                </Stack>
+                              )}
+                              {bundle.liabilities.length > 0 && (
+                                <Stack gap={4}>
+                                  <Text size="xs" c="dimmed">
+                                    {t("bundleDetailLiabilities")}
+                                  </Text>
+                                  {bundle.liabilities.map((liability) => (
+                                    <Group
+                                      key={liability.id}
+                                      justify="space-between"
+                                      wrap="nowrap"
+                                    >
+                                      <Text size="sm">
+                                        {liability.label ?? t("liabilityUntitled")}
+                                      </Text>
+                                      <Text size="sm" fw={500}>
+                                        {typeof liability.principalOutstanding === "number"
+                                          ? formatCurrency(
+                                              liability.principalOutstanding,
+                                              scenario?.baseCurrency ?? "USD",
+                                              locale
+                                            )
+                                          : t("amountUnset")}
+                                      </Text>
+                                    </Group>
+                                  ))}
+                                </Stack>
+                              )}
+                              {bundle.incomeEvents.length > 0 && (
+                                <Stack gap={4}>
+                                  <Text size="xs" c="dimmed">
+                                    {t("bundleDetailIncome")}
+                                  </Text>
+                                  {bundle.incomeEvents.map((event) => (
+                                    <Group
+                                      key={event.id}
+                                      justify="space-between"
+                                      wrap="nowrap"
+                                    >
+                                      <Text size="sm">
+                                        {event.label ?? t("ledgerRowFallbackLabel")} ·{" "}
+                                        {resolveEventCardStartMonth(event) ??
+                                          t("amountUnset")}
+                                      </Text>
+                                      <Text size="sm" fw={500}>
+                                        {resolveEventCardAmount(event) !== null
+                                          ? formatCurrency(
+                                              resolveEventCardAmount(event) ?? 0,
+                                              scenario?.baseCurrency ?? "USD",
+                                              locale
+                                            )
+                                          : t("amountUnset")}
+                                      </Text>
+                                    </Group>
+                                  ))}
+                                </Stack>
+                              )}
+                              {bundle.expenseEvents.length > 0 && (
+                                <Stack gap={4}>
+                                  <Text size="xs" c="dimmed">
+                                    {t("bundleDetailExpenses")}
+                                  </Text>
+                                  {bundle.expenseEvents.map((event) => (
+                                    <Group
+                                      key={event.id}
+                                      justify="space-between"
+                                      wrap="nowrap"
+                                    >
+                                      <Text size="sm">
+                                        {event.label ?? t("ledgerRowFallbackLabel")} ·{" "}
+                                        {resolveEventCardStartMonth(event) ??
+                                          t("amountUnset")}
+                                      </Text>
+                                      <Text size="sm" fw={500}>
+                                        {resolveEventCardAmount(event) !== null
+                                          ? formatCurrency(
+                                              resolveEventCardAmount(event) ?? 0,
+                                              scenario?.baseCurrency ?? "USD",
+                                              locale
+                                            )
+                                          : t("amountUnset")}
+                                      </Text>
+                                    </Group>
+                                  ))}
+                                </Stack>
+                              )}
+                              {bundle.assets.length === 0 &&
+                                bundle.liabilities.length === 0 &&
+                                bundle.incomeEvents.length === 0 &&
+                                bundle.expenseEvents.length === 0 && (
+                                  <Text size="sm" c="dimmed">
+                                    {t("bundleDetailEmpty")}
+                                  </Text>
+                                )}
+                            </Stack>
+                          )}
+                        </Stack>
+                      </Card>
+                    );
+                  })}
+
+                {inputsItems.length > 0 && (
+                  <Stack gap="sm">
+                    {inputsItems.map((item) => (
+                      <Card
+                        key={`${item.kind}-${item.id}`}
+                        withBorder
+                        radius="md"
+                        padding="sm"
+                      >
+                        <Group justify="space-between" align="flex-start" wrap="wrap">
+                          <Stack gap={2}>
+                            <Text fw={600}>{item.label}</Text>
+                            {item.description && (
+                              <Text size="xs" c="dimmed">
+                                {item.description}
+                              </Text>
+                            )}
+                          </Stack>
+                          <Group gap="xs">
+                            <Button size="xs" variant="light" onClick={item.onEdit}>
+                              {common("actionEdit")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="red"
+                              onClick={item.onDelete}
+                            >
+                              {common("actionDelete")}
+                            </Button>
+                          </Group>
+                        </Group>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
               </Stack>
             )}
           </Stack>
@@ -3280,9 +3840,23 @@ export default function MoneyClient({
           >
             <Stack gap="md">
               <Text>
-                {t("deleteConfirmation", { label: deleteConfirmation?.label ?? "" })}
+                {deleteConfirmation?.type === "bundle" ||
+                deleteConfirmation?.type === "bundleItem"
+                  ? t("deleteBundleConfirmation", {
+                      label: deleteConfirmation?.label ?? "",
+                    })
+                  : t("deleteConfirmation", {
+                      label: deleteConfirmation?.label ?? "",
+                    })}
               </Text>
-              {deleteConfirmation?.type === "eventV2" && deleteConfirmation.impact && (
+              {deleteConfirmation?.type === "bundleItem" && (
+                <Text size="sm" c="dimmed">
+                  {t("deleteBundleItemHint", {
+                    bundle: deleteConfirmation.bundleTitle,
+                  })}
+                </Text>
+              )}
+              {deleteConfirmation?.impact ? (
                 <Stack gap="sm">
                   <Stack gap={2}>
                     <Text size="xs" c="dimmed">
@@ -3342,8 +3916,7 @@ export default function MoneyClient({
                     )}
                   </Stack>
                 </Stack>
-              )}
-              {deleteConfirmation?.type === "eventV2" && !deleteConfirmation.impact && (
+              ) : (
                 <Text size="sm" c="dimmed">
                   {t("deleteImpactUnavailable")}
                 </Text>
@@ -3359,7 +3932,10 @@ export default function MoneyClient({
                   color="red"
                   onClick={handleConfirmDelete}
                 >
-                  {common("actionDelete")}
+                  {deleteConfirmation?.type === "bundle" ||
+                  deleteConfirmation?.type === "bundleItem"
+                    ? t("bundleDeleteAction")
+                    : common("actionDelete")}
                 </Button>
               </Group>
             </Stack>

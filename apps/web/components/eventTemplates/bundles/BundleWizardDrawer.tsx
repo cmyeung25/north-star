@@ -190,6 +190,7 @@ export default function BundleWizardDrawer({
   );
   const [actionError, setActionError] = useState<string | null>(null);
   const [packAsExperiment, setPackAsExperiment] = useState(true);
+  const [bundleInstanceId, setBundleInstanceId] = useState(() => `bundle_${nanoid(8)}`);
 
   const defaultMonth = baseMonth && isValidMonthKey(baseMonth) ? baseMonth : "";
 
@@ -245,6 +246,7 @@ export default function BundleWizardDrawer({
     setCreatedEventIds(new Set());
     setPackAsExperiment(true);
     setDismissedMortgageWarning(false);
+    setBundleInstanceId(`bundle_${nanoid(8)}`);
     setNewBabyDraft((current) => ({
       ...current,
       birthMonth: defaultMonth || current.birthMonth,
@@ -476,13 +478,21 @@ export default function BundleWizardDrawer({
           schoolingCadence: newBabyDraft.schoolingCadence,
           schoolingStartMonth: newBabyDraft.schoolingStartMonth,
         };
-        const events = buildNewBabyBundleEvents(input, {
-          deliveryCost: t("bundleNewBabyDelivery"),
-          childcare: t("bundleNewBabyChildcare"),
-          helperMonthly: t("bundleNewBabyHelperMonthly"),
-          agencyFee: t("bundleNewBabyAgencyFee"),
-          schooling: t("bundleNewBabySchooling"),
-        });
+        const events = buildNewBabyBundleEvents(
+          input,
+          {
+            deliveryCost: t("bundleNewBabyDelivery"),
+            childcare: t("bundleNewBabyChildcare"),
+            helperMonthly: t("bundleNewBabyHelperMonthly"),
+            agencyFee: t("bundleNewBabyAgencyFee"),
+            schooling: t("bundleNewBabySchooling"),
+          },
+          {
+            bundleInstanceId,
+            templateId: template?.id ?? "life_new_baby_plan",
+            bundleTitle: t("bundleNewBabyDefaultName"),
+          }
+        );
         setPreviewEvents(events);
       }
       if (isHomeBundle) {
@@ -534,7 +544,16 @@ export default function BundleWizardDrawer({
           propertyAssetId: homeDraft.propertyAssetId,
           mortgageLiabilityId: homeDraft.mortgageLiabilityId,
         };
-        setPreviewEvents([buildHomePurchaseBundleEvent(input)]);
+        setPreviewEvents([
+          buildHomePurchaseBundleEvent(
+            input,
+            {
+              bundleInstanceId,
+              templateId: template?.id ?? "life_home_purchase",
+              bundleTitle: resolvedHomeLabel,
+            }
+          ),
+        ]);
       }
     }
     setStep((current) => Math.min(current + 1, 2));
@@ -696,6 +715,29 @@ export default function BundleWizardDrawer({
       };
     });
   }, [estimatedPayment, homeDraft.mortgagePaymentIsEstimated]);
+
+  useEffect(() => {
+    if (!homeDraft.startMonth) {
+      return;
+    }
+    setHomeDraft((current) => {
+      let didUpdate = false;
+      const nextFees = current.feesOneOff.map((fee) => {
+        if (fee.monthMode !== "custom" || fee.month) {
+          return fee;
+        }
+        didUpdate = true;
+        return { ...fee, month: homeDraft.startMonth };
+      });
+      if (!didUpdate) {
+        return current;
+      }
+      return {
+        ...current,
+        feesOneOff: nextFees,
+      };
+    });
+  }, [homeDraft.startMonth]);
 
   return (
     <Drawer
@@ -1050,6 +1092,21 @@ export default function BundleWizardDrawer({
               />
             )}
             <Stack gap={4}>
+              <Switch
+                checked={homeDraft.mortgagePaymentIsEstimated}
+                label={t("bundleHomeMortgageAutoToggle")}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setHomeDraft((current) => ({
+                    ...current,
+                    mortgagePaymentIsEstimated: checked,
+                    mortgagePayment:
+                      checked && estimatedPayment
+                        ? Math.round(estimatedPayment)
+                        : current.mortgagePayment,
+                  }));
+                }}
+              />
               <NumberInput
                 label={t("bundleHomeMortgagePayment")}
                 min={0}
@@ -1070,20 +1127,10 @@ export default function BundleWizardDrawer({
                   })}
                 </Text>
               )}
-              {estimatedPayment && !homeDraft.mortgagePaymentIsEstimated && (
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  onClick={() =>
-                    setHomeDraft((current) => ({
-                      ...current,
-                      mortgagePayment: Math.round(estimatedPayment),
-                      mortgagePaymentIsEstimated: true,
-                    }))
-                  }
-                >
-                  {t("bundleHomeResetEstimate")}
-                </Button>
+              {!homeDraft.mortgagePaymentIsEstimated && (
+                <Text size="xs" c="dimmed">
+                  {t("bundleHomeMortgageManualHint")}
+                </Text>
               )}
             </Stack>
           </Stack>
@@ -1101,7 +1148,10 @@ export default function BundleWizardDrawer({
                     onClick={() =>
                       setHomeDraft((current) => ({
                         ...current,
-                        feesOneOff: [...current.feesOneOff, createFeeDraft()],
+                        feesOneOff: [
+                          ...current.feesOneOff,
+                          createFeeDraft({ month: homeDraft.startMonth }),
+                        ],
                       }))
                     }
                   >
@@ -1123,7 +1173,10 @@ export default function BundleWizardDrawer({
                             ...current,
                             feesOneOff: [
                               ...current.feesOneOff,
-                              createFeeDraft({ label: template.label }),
+                              createFeeDraft({
+                                label: template.label,
+                                month: homeDraft.startMonth,
+                              }),
                             ],
                           }))
                         }
