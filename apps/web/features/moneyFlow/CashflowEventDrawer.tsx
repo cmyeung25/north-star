@@ -8,6 +8,7 @@ import {
   NumberInput,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
 } from "@mantine/core";
@@ -25,6 +26,7 @@ export type CashflowEventDraft = {
   kind: CashflowEvent["kind"];
   cadence: CashflowEvent["cadence"];
   amount: string;
+  growthMode: NonNullable<CashflowEvent["growthMode"]>;
   startMonth: string;
   endMonth: string;
   occurrenceMonth: string;
@@ -52,6 +54,7 @@ type CashflowEventDrawerProps = {
   mode: "create" | "edit";
   baseCurrency: string;
   scenarioStartMonth?: string | null;
+  incomeGrowthPct?: number | null;
   members: ScenarioMember[];
   event: CashflowEvent | AdjustmentEvent | null;
   defaultKind?: CashflowEvent["kind"];
@@ -83,6 +86,7 @@ const buildCashflowDraft = (
       kind: defaultKind,
       cadence: "monthly",
       amount: "",
+      growthMode: defaultKind === "income" ? "assumption" : "none",
       startMonth: "",
       endMonth: "",
       occurrenceMonth: "",
@@ -98,6 +102,7 @@ const buildCashflowDraft = (
     kind: event.kind,
     cadence: event.cadence,
     amount: Number.isFinite(event.amount) ? String(event.amount) : "",
+    growthMode: event.kind === "income" ? event.growthMode ?? "none" : "none",
     startMonth: event.startMonth ?? "",
     endMonth: event.endMonth ?? "",
     occurrenceMonth: event.occurrenceMonth ?? "",
@@ -136,6 +141,7 @@ export default function CashflowEventDrawer({
   mode,
   baseCurrency,
   scenarioStartMonth,
+  incomeGrowthPct,
   members,
   event,
   defaultKind,
@@ -162,6 +168,15 @@ export default function CashflowEventDrawer({
     )
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const formattedIncomeGrowthPct = useMemo(() => {
+    if (!Number.isFinite(incomeGrowthPct ?? NaN)) {
+      return "0";
+    }
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
+      incomeGrowthPct ?? 0
+    );
+  }, [incomeGrowthPct]);
 
   useEffect(() => {
     setEventType(event?.type === "adjustment" ? "adjustment" : "cashflow");
@@ -322,6 +337,12 @@ export default function CashflowEventDrawer({
                 setCashflowDraft((current) => ({
                   ...current,
                   kind: (value ?? "income") as CashflowEvent["kind"],
+                  growthMode:
+                    (value ?? "income") === "income"
+                      ? current.growthMode === "none"
+                        ? "assumption"
+                        : current.growthMode
+                      : "none",
                 }))
               }
             />
@@ -333,6 +354,8 @@ export default function CashflowEventDrawer({
                 setCashflowDraft((current) => ({
                   ...current,
                   cadence: (value ?? "monthly") as CashflowEvent["cadence"],
+                  growthMode:
+                    value === "oneOff" ? "none" : current.growthMode,
                 }))
               }
             />
@@ -375,6 +398,28 @@ export default function CashflowEventDrawer({
                 }))
               }
             />
+            {cashflowDraft.kind === "income" && (
+              <Stack gap={4}>
+                <Switch
+                  label={t("ledgerEventIncomeGrowthLabel", {
+                    pct: formattedIncomeGrowthPct,
+                  })}
+                  checked={cashflowDraft.growthMode === "assumption"}
+                  disabled={cashflowDraft.cadence === "oneOff"}
+                  onChange={(eventValue: React.ChangeEvent<HTMLInputElement>) =>
+                    setCashflowDraft((current) => ({
+                      ...current,
+                      growthMode: eventValue.currentTarget.checked
+                        ? "assumption"
+                        : "none",
+                    }))
+                  }
+                />
+                <Text size="xs" c="dimmed">
+                  {t("ledgerEventIncomeGrowthHint")}
+                </Text>
+              </Stack>
+            )}
 
             {cashflowDraft.cadence === "oneOff" ? (
               <MonthField

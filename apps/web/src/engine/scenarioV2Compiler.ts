@@ -10,6 +10,7 @@ import type {
   LoanEvent,
   ScenarioEvent,
 } from "../domain/scenarioV2/events";
+import { resolveCashflowAmountForMonth } from "../domain/cashflowGrowth";
 import { computeMonthlyPayment } from "../domain/positions/calculations";
 import type { EventType } from "../features/timeline/schema";
 import type {
@@ -57,15 +58,6 @@ const resolveHorizonEndMonth = (
     return null;
   }
   return addMonths(baseMonth, Math.max(horizonMonths - 1, 0));
-};
-
-const normalizeAmount = (event: CashflowEvent) => {
-  const raw = Number(event.amount);
-  if (!Number.isFinite(raw)) {
-    return 0;
-  }
-  const sign = event.kind === "expense" ? -1 : 1;
-  return Math.abs(raw) * sign;
 };
 
 const buildCashflowMonths = (
@@ -414,14 +406,14 @@ export const compileScenarioV2ToLedger = (
     if (months.length === 0) {
       return [];
     }
-    const amount = normalizeAmount(event);
-    if (!Number.isFinite(amount) || amount === 0) {
+    const rawAmount = Number(event.amount);
+    if (!Number.isFinite(rawAmount) || rawAmount === 0) {
       return [];
     }
 
     return months.map((month) => ({
       month,
-      amount,
+      amount: resolveCashflowAmountForMonth({ event, month, assumptions }),
       sourceEventId: event.id,
       label: event.label,
       memberId: event.memberId,
@@ -473,7 +465,7 @@ const buildLegacyEventLibrary = (
       const type = buildEventTypeForKind(event.kind) as EventType;
       const schedule = months.map((month) => ({
         month,
-        amount: Math.abs(event.amount),
+        amount: Math.abs(resolveCashflowAmountForMonth({ event, month, assumptions })),
       }));
       const definition: EventDefinition = {
         id: event.id,

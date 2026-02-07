@@ -262,6 +262,7 @@ export default function MoneyClient({
   const showPlaceholderBanner =
     !dismissedPlaceholderBanner && (initialShowOnboardingBanner || initialShowOnboardingSkipped);
   const scenarioIdValue = scenario?.id;
+  const incomeGrowthPct = scenario?.assumptions.salaryGrowthRate ?? null;
   const v2ScenarioEvents = useMemo(() => scenario?.events ?? [], [scenario?.events]);
   const {
     projection,
@@ -919,6 +920,7 @@ export default function MoneyClient({
       kind: draft.kind,
       cadence: draft.cadence,
       amount,
+      growthMode: draft.kind === "income" ? draft.growthMode : "none",
       startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
       endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
@@ -2399,6 +2401,7 @@ export default function MoneyClient({
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
+              incomeGrowthPct={incomeGrowthPct}
               onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
@@ -2432,6 +2435,7 @@ export default function MoneyClient({
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
+              incomeGrowthPct={incomeGrowthPct}
               onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
@@ -2829,6 +2833,7 @@ export default function MoneyClient({
                 mode={v2EventDrawerMode}
                 baseCurrency={scenario.baseCurrency}
                 scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
+                incomeGrowthPct={incomeGrowthPct}
                 members={members}
                 event={
                   v2EventDrawerMode === "create"

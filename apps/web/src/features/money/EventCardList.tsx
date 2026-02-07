@@ -12,7 +12,7 @@ import {
   Text,
 } from "@mantine/core";
 import { useTranslations } from "next-intl";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
@@ -28,6 +28,7 @@ type EventCardListProps = {
   ledgerRowsByEventId: Map<string, LedgerRow[]>;
   baseCurrency: string;
   locale: string;
+  incomeGrowthPct?: number | null;
   onEditEvent: (eventId: string) => void;
   onDuplicateEvent: (eventId: string) => void;
   onDeleteEvent: (eventId: string) => void;
@@ -41,6 +42,7 @@ export default function EventCardList({
   ledgerRowsByEventId,
   baseCurrency,
   locale,
+  incomeGrowthPct,
   onEditEvent,
   onDuplicateEvent,
   onDeleteEvent,
@@ -50,6 +52,14 @@ export default function EventCardList({
   const common = useTranslations("common");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>([]);
   const [showAllLedgerEventIds, setShowAllLedgerEventIds] = useState<string[]>([]);
+  const formattedIncomeGrowthPct = useMemo(() => {
+    if (!Number.isFinite(incomeGrowthPct ?? NaN)) {
+      return "0";
+    }
+    return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+      incomeGrowthPct ?? 0
+    );
+  }, [incomeGrowthPct, locale]);
 
   const resolveEventCadenceLabel = useCallback(
     (event: ScenarioEvent) => {
@@ -117,6 +127,10 @@ export default function EventCardList({
         const impact = resolveEventMonthlyImpact(rows);
         const hasIncomeImpact = Boolean(impact && impact.income > 0);
         const hasExpenseImpact = Boolean(impact && impact.expense > 0);
+        const showIncomeGrowth =
+          event.type === "cashflow" &&
+          event.kind === "income" &&
+          event.growthMode === "assumption";
 
         return (
           <Card key={event.id} withBorder radius="md" padding="md">
@@ -127,6 +141,11 @@ export default function EventCardList({
                   <Text size="sm" c="dimmed">
                     {t("eventCardCadence", { cadence: cadenceLabel })}
                   </Text>
+                  {showIncomeGrowth && (
+                    <Text size="sm" c="dimmed">
+                      {t("eventCardIncomeGrowth", { pct: formattedIncomeGrowthPct })}
+                    </Text>
+                  )}
                   {impact ? (
                     <>
                       {hasIncomeImpact && (
