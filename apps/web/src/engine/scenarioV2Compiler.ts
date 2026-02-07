@@ -1,5 +1,6 @@
 import type { ProjectionInput } from "@north-star/engine";
 import { addMonths } from "../domain/members/age";
+import { resolveDateRef } from "../domain/dateRef";
 import { mapScenarioToEngineInput } from "./adapter";
 import { isValidMonthKey, compareMonthKey } from "../utils/monthKey";
 import type { EventDefinition } from "../domain/events/types";
@@ -68,9 +69,38 @@ const normalizeAmount = (event: CashflowEvent) => {
   return Math.abs(raw) * sign;
 };
 
+const resolveCashflowStartMonth = (
+  event: CashflowEvent,
+  membersById: Record<string, ScenarioMember | undefined>
+): string | null => {
+  if (event.startAt) {
+    const resolved = resolveDateRef(event.startAt, membersById);
+    if (!resolved && event.startAt.mode === "AGE") {
+      throw new Error(`Unable to resolve AGE startAt for event ${event.id}.`);
+    }
+    return resolved;
+  }
+  return event.startMonth ?? null;
+};
+
+const resolveCashflowEndMonth = (
+  event: CashflowEvent,
+  membersById: Record<string, ScenarioMember | undefined>
+): string | null => {
+  if (event.endAt) {
+    const resolved = resolveDateRef(event.endAt, membersById);
+    if (!resolved && event.endAt.mode === "AGE") {
+      throw new Error(`Unable to resolve AGE endAt for event ${event.id}.`);
+    }
+    return resolved;
+  }
+  return event.endMonth ?? null;
+};
+
 const buildCashflowMonths = (
   event: CashflowEvent,
-  assumptions: ScenarioAssumptions
+  assumptions: ScenarioAssumptions,
+  membersById: Record<string, ScenarioMember | undefined>
 ): string[] => {
   if (event.cadence === "oneOff") {
     if (event.occurrenceMonth && isValidMonthKey(event.occurrenceMonth)) {
@@ -79,17 +109,19 @@ const buildCashflowMonths = (
     return [];
   }
 
-  if (!event.startMonth || !isValidMonthKey(event.startMonth)) {
+  const startMonth = resolveCashflowStartMonth(event, membersById);
+  if (!startMonth || !isValidMonthKey(startMonth)) {
     return [];
   }
 
   const horizonEndMonth = resolveHorizonEndMonth(assumptions);
+  const resolvedEndMonth = resolveCashflowEndMonth(event, membersById);
   const endMonth =
-    event.endMonth && isValidMonthKey(event.endMonth)
-      ? event.endMonth
+    resolvedEndMonth && isValidMonthKey(resolvedEndMonth)
+      ? resolvedEndMonth
       : horizonEndMonth;
 
-  if (!endMonth || compareMonthKey(event.startMonth, endMonth) > 0) {
+  if (!endMonth || compareMonthKey(startMonth, endMonth) > 0) {
     return [];
   }
 
@@ -103,7 +135,7 @@ const buildCashflowMonths = (
       : event.everyNMonths ?? 1;
 
   const months: string[] = [];
-  let current = event.startMonth;
+  let current = startMonth;
   while (compareMonthKey(current, endMonth) <= 0) {
     months.push(current);
     current = addMonths(current, stepMonths);
@@ -376,6 +408,12 @@ export const compileScenarioV2ToLedger = (
 ): LedgerRow[] => {
   const events = scenario.events ?? [];
   const assumptions = scenario.assumptions;
+  const membersById = (scenario.members ?? []).reduce<
+    Record<string, ScenarioMember>
+  >((acc, member) => {
+    acc[member.id] = member;
+    return acc;
+  }, {});
 
   return events.flatMap<LedgerRow>((event) => {
     if (event.type !== "cashflow") {
@@ -410,7 +448,7 @@ export const compileScenarioV2ToLedger = (
         },
       ];
     }
-    const months = buildCashflowMonths(event, assumptions);
+    const months = buildCashflowMonths(event, assumptions, membersById);
     if (months.length === 0) {
       return [];
     }
@@ -457,7 +495,8 @@ const buildEventTypeForKind = (kind: CashflowEvent["kind"]): EventType =>
   kind === "income" ? "salary" : "custom";
 
 const buildLegacyEventLibrary = (
-  scenario: ScenarioV2
+  scenario: ScenarioV2,
+  membersById: Record<string, ScenarioMember | undefined>
 ): EventDefinition[] => {
   const assumptions = scenario.assumptions;
   const events = scenario.events ?? [];
@@ -465,7 +504,7 @@ const buildLegacyEventLibrary = (
 
   return events.flatMap<EventDefinition>((event) => {
     if (event.type === "cashflow") {
-      const months = buildCashflowMonths(event, assumptions);
+      const months = buildCashflowMonths(event, assumptions, membersById);
       if (months.length === 0) {
         return [];
       }
@@ -475,6 +514,8 @@ const buildLegacyEventLibrary = (
         month,
         amount: Math.abs(event.amount),
       }));
+      const startMonth = resolveCashflowStartMonth(event, membersById);
+      const endMonth = resolveCashflowEndMonth(event, membersById);
       const definition: EventDefinition = {
         id: event.id,
         title: event.label ?? "Cashflow",
@@ -482,8 +523,9 @@ const buildLegacyEventLibrary = (
         kind: "cashflow",
         rule: {
           mode: "schedule",
-          startMonth: event.startMonth ?? event.occurrenceMonth ?? horizonEndMonth ?? "",
-          endMonth: event.endMonth ?? null,
+          startMonth:
+            startMonth ?? event.occurrenceMonth ?? horizonEndMonth ?? "",
+          endMonth: endMonth ?? null,
           schedule,
         },
         currency: scenario.baseCurrency,
@@ -658,7 +700,13 @@ export const compileScenarioV2ToProjectionInput = (
   scenario: ScenarioV2
 ): ProjectionInput => {
   const shellScenario = buildLegacyScenarioShell(scenario);
-  const eventLibrary = buildLegacyEventLibrary(scenario);
+  const membersById = (scenario.members ?? []).reduce<
+    Record<string, ScenarioMember>
+  >((acc, member) => {
+    acc[member.id] = member;
+    return acc;
+  }, {});
+  const eventLibrary = buildLegacyEventLibrary(scenario, membersById);
   const events = scenario.events ?? [];
 
   const housingPositions = events.flatMap<HomePositionDraft>((event) => {

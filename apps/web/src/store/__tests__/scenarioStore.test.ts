@@ -128,6 +128,33 @@ describe("duplicateScenario", () => {
   });
 });
 
+describe("normalizeScenario", () => {
+  it("migrates cashflow startMonth/endMonth into date refs", () => {
+    const scenario = buildScenario({
+      events: [
+        {
+          id: "evt-cashflow",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 500,
+          startMonth: "2024-02",
+          endMonth: "2024-06",
+        },
+      ],
+    });
+
+    const normalized = normalizeScenario(scenario);
+    const event = normalized.events?.[0];
+    if (!event || event.type !== "cashflow") {
+      throw new Error("Expected cashflow event to be present.");
+    }
+
+    expect(event.startAt).toEqual({ mode: "MONTH", month: "2024-02" });
+    expect(event.endAt).toEqual({ mode: "MONTH", month: "2024-06" });
+  });
+});
+
 describe("position actions", () => {
   it("adds, updates, and removes car positions", () => {
     const { addCarPosition, updateCarPosition, removeCarPosition } =

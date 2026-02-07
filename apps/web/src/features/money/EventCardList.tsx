@@ -12,7 +12,7 @@ import {
   Text,
 } from "@mantine/core";
 import { useTranslations } from "next-intl";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
@@ -22,9 +22,11 @@ import {
   resolveEventCardStartMonth,
   resolveEventMonthlyImpact,
 } from "./eventCardUtils";
+import type { ScenarioMember } from "../../store/scenarioStore";
 
 type EventCardListProps = {
   events: ScenarioEvent[];
+  members: ScenarioMember[];
   ledgerRowsByEventId: Map<string, LedgerRow[]>;
   baseCurrency: string;
   locale: string;
@@ -38,6 +40,7 @@ const ledgerPreviewLimit = 24;
 
 export default function EventCardList({
   events,
+  members,
   ledgerRowsByEventId,
   baseCurrency,
   locale,
@@ -50,6 +53,14 @@ export default function EventCardList({
   const common = useTranslations("common");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>([]);
   const [showAllLedgerEventIds, setShowAllLedgerEventIds] = useState<string[]>([]);
+  const membersById = useMemo(
+    () =>
+      members.reduce<Record<string, ScenarioMember>>((acc, member) => {
+        acc[member.id] = member;
+        return acc;
+      }, {}),
+    [members]
+  );
 
   const resolveEventCadenceLabel = useCallback(
     (event: ScenarioEvent) => {
@@ -106,8 +117,8 @@ export default function EventCardList({
       {events.map((event) => {
         const rows = ledgerRowsByEventId.get(event.id) ?? [];
         const amount = resolveEventCardAmount(event);
-        const startMonth = resolveEventCardStartMonth(event);
-        const endMonth = resolveEventCardEndMonth(event);
+        const startMonth = resolveEventCardStartMonth(event, membersById);
+        const endMonth = resolveEventCardEndMonth(event, membersById);
         const cadenceLabel = resolveEventCadenceLabel(event);
         const expanded = expandedEventIds.includes(event.id);
         const showAll = showAllLedgerEventIds.includes(event.id);

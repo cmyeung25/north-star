@@ -18,6 +18,10 @@ import { compareMonthKey, isValidMonthKey } from "../../src/utils/monthKey";
 import type { AdjustmentEvent, CashflowEvent } from "../../src/domain/scenarioV2/events";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
 import { resolveYearlyStartMonthKey } from "../../src/features/moneyFlow/yearlyCadence";
+import DateRefInput, {
+  type DateRefInputValue,
+} from "../../components/DateRefInput";
+import { resolveDateRefDraft } from "../../src/domain/dateRef";
 
 export type CashflowEventDraft = {
   id?: string;
@@ -25,8 +29,8 @@ export type CashflowEventDraft = {
   kind: CashflowEvent["kind"];
   cadence: CashflowEvent["cadence"];
   amount: string;
-  startMonth: string;
-  endMonth: string;
+  startAt: DateRefInputValue;
+  endAt: DateRefInputValue;
   occurrenceMonth: string;
   everyNMonths: string;
   memberId: string;
@@ -83,8 +87,8 @@ const buildCashflowDraft = (
       kind: defaultKind,
       cadence: "monthly",
       amount: "",
-      startMonth: "",
-      endMonth: "",
+      startAt: { mode: "MONTH", month: "" },
+      endAt: { mode: "MONTH", month: "" },
       occurrenceMonth: "",
       everyNMonths: "",
       memberId: "",
@@ -92,14 +96,23 @@ const buildCashflowDraft = (
     };
   }
 
+  const startAt =
+    event.startAt ??
+    (event.startMonth
+      ? { mode: "MONTH", month: event.startMonth }
+      : { mode: "MONTH", month: "" });
+  const endAt =
+    event.endAt ??
+    (event.endMonth ? { mode: "MONTH", month: event.endMonth } : { mode: "MONTH", month: "" });
+
   return {
     id: event.id,
     label: event.label ?? "",
     kind: event.kind,
     cadence: event.cadence,
     amount: Number.isFinite(event.amount) ? String(event.amount) : "",
-    startMonth: event.startMonth ?? "",
-    endMonth: event.endMonth ?? "",
+    startAt,
+    endAt,
     occurrenceMonth: event.occurrenceMonth ?? "",
     everyNMonths: event.everyNMonths ? String(event.everyNMonths) : "",
     memberId: event.memberId ?? "",
@@ -209,12 +222,24 @@ export default function CashflowEventDrawer({
   );
 
   const yearlyMonthValue = useMemo(() => {
-    if (!isValidMonthKey(cashflowDraft.startMonth)) {
+    if (
+      cashflowDraft.startAt.mode !== "MONTH" ||
+      !isValidMonthKey(cashflowDraft.startAt.month)
+    ) {
       return "";
     }
-    const [, month] = cashflowDraft.startMonth.split("-");
+    const [, month] = cashflowDraft.startAt.month.split("-");
     return String(Number(month));
-  }, [cashflowDraft.startMonth]);
+  }, [cashflowDraft.startAt]);
+
+  const membersById = useMemo(
+    () =>
+      members.reduce<Record<string, ScenarioMember>>((acc, member) => {
+        acc[member.id] = member;
+        return acc;
+      }, {}),
+    [members]
+  );
 
   const canUseDOM = typeof document !== "undefined";
 
@@ -243,15 +268,24 @@ export default function CashflowEventDrawer({
         nextErrors.occurrenceMonth = t("ledgerEventOccurrenceRequired");
       }
     } else {
-      if (!isValidMonthKey(cashflowDraft.startMonth)) {
+      const resolvedStartMonth = resolveDateRefDraft(
+        cashflowDraft.startAt,
+        membersById
+      );
+      if (!resolvedStartMonth || !isValidMonthKey(resolvedStartMonth)) {
         nextErrors.startMonth = t("ledgerEventStartRequired");
       }
-      if (cashflowDraft.endMonth) {
-        if (!isValidMonthKey(cashflowDraft.endMonth)) {
+      const resolvedEndMonth =
+        cashflowDraft.endAt.mode === "MONTH" && cashflowDraft.endAt.month === ""
+          ? null
+          : resolveDateRefDraft(cashflowDraft.endAt, membersById);
+      if (resolvedEndMonth) {
+        if (!isValidMonthKey(resolvedEndMonth)) {
           nextErrors.endMonth = t("ledgerEventEndInvalid");
         } else if (
-          isValidMonthKey(cashflowDraft.startMonth) &&
-          compareMonthKey(cashflowDraft.startMonth, cashflowDraft.endMonth) > 0
+          resolvedStartMonth &&
+          isValidMonthKey(resolvedStartMonth) &&
+          compareMonthKey(resolvedStartMonth, resolvedEndMonth) > 0
         ) {
           nextErrors.endMonth = t("ledgerEventEndInvalid");
         }
@@ -372,6 +406,18 @@ export default function CashflowEventDrawer({
                 setCashflowDraft((current) => ({
                   ...current,
                   memberId: value ?? "",
+                  startAt:
+                    current.startAt.mode === "AGE"
+                      ? value
+                        ? { ...current.startAt, memberId: value }
+                        : { mode: "MONTH", month: "" }
+                      : current.startAt,
+                  endAt:
+                    current.endAt.mode === "AGE"
+                      ? value
+                        ? { ...current.endAt, memberId: value }
+                        : { mode: "MONTH", month: "" }
+                      : current.endAt,
                 }))
               }
             />
@@ -390,45 +436,69 @@ export default function CashflowEventDrawer({
               />
             ) : (
               <>
-                {cashflowDraft.cadence === "yearly" ? (
-                  <Select
-                    label={t("ledgerEventYearlyMonth")}
-                    data={yearlyMonthOptions}
-                    value={yearlyMonthValue}
-                    onChange={(value) =>
-                      setCashflowDraft((current) => ({
-                        ...current,
-                        startMonth: resolveYearlyStartMonthKey(
-                          value,
-                          scenarioStartMonth ?? null
-                        ),
-                      }))
-                    }
-                    error={errors.startMonth}
-                  />
-                ) : (
-                  <MonthField
-                    label={t("ledgerEventStartMonth")}
-                    value={cashflowDraft.startMonth}
-                    onChange={(value) =>
-                      setCashflowDraft((current) => ({
-                        ...current,
-                        startMonth: value,
-                      }))
-                    }
-                    error={errors.startMonth}
-                  />
-                )}
-                <MonthField
-                  label={t("ledgerEventEndMonth")}
-                  value={cashflowDraft.endMonth}
+                <DateRefInput
+                  label={t("ledgerEventStartMonth")}
+                  value={cashflowDraft.startAt}
+                  member={
+                    cashflowDraft.memberId
+                      ? membersById[cashflowDraft.memberId]
+                      : undefined
+                  }
                   onChange={(value) =>
-                    setCashflowDraft((current) => ({
-                      ...current,
-                      endMonth: value,
-                    }))
+                    setCashflowDraft((current) => ({ ...current, startAt: value }))
+                  }
+                  error={errors.startMonth}
+                  monthLabel={t("ledgerEventDateModeMonth")}
+                  ageLabel={t("ledgerEventDateModeAge")}
+                  previewLabel={(month) =>
+                    t("ledgerEventAgePreview", { month })
+                  }
+                  missingMemberText={t("ledgerEventAgeMemberRequired")}
+                  missingBirthMonthText={t("ledgerEventAgeBirthMonthRequired")}
+                  invalidMonthSwitchText={t("ledgerEventAgeMonthInvalid")}
+                  misalignedMonthText={t("ledgerEventAgeMonthMisaligned")}
+                  renderMonthInput={
+                    cashflowDraft.cadence === "yearly"
+                      ? ({ value, onChange, error, disabled }) => (
+                          <Select
+                            data={yearlyMonthOptions}
+                            value={yearlyMonthValue}
+                            onChange={(nextValue) =>
+                              onChange(
+                                resolveYearlyStartMonthKey(
+                                  nextValue,
+                                  scenarioStartMonth ?? null
+                                )
+                              )
+                            }
+                            error={error}
+                            disabled={disabled}
+                          />
+                        )
+                      : undefined
+                  }
+                />
+                <DateRefInput
+                  label={t("ledgerEventEndMonth")}
+                  value={cashflowDraft.endAt}
+                  member={
+                    cashflowDraft.memberId
+                      ? membersById[cashflowDraft.memberId]
+                      : undefined
+                  }
+                  onChange={(value) =>
+                    setCashflowDraft((current) => ({ ...current, endAt: value }))
                   }
                   error={errors.endMonth}
+                  monthLabel={t("ledgerEventDateModeMonth")}
+                  ageLabel={t("ledgerEventDateModeAge")}
+                  previewLabel={(month) =>
+                    t("ledgerEventAgePreview", { month })
+                  }
+                  missingMemberText={t("ledgerEventAgeMemberRequired")}
+                  missingBirthMonthText={t("ledgerEventAgeBirthMonthRequired")}
+                  invalidMonthSwitchText={t("ledgerEventAgeMonthInvalid")}
+                  misalignedMonthText={t("ledgerEventAgeMonthMisaligned")}
                 />
               </>
             )}

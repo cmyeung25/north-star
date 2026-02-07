@@ -25,6 +25,6 @@ describe("event templates registry", () => {
     expect(draft.drawerType).toBe("cashflow");
     expect(draft.cashflow?.kind).toBe("income");
     expect(draft.cashflow?.cadence).toBe("monthly");
-    expect(draft.cashflow?.startMonth).toBe("2024-01");
+    expect(draft.cashflow?.startAt).toEqual({ mode: "MONTH", month: "2024-01" });
   });
 });

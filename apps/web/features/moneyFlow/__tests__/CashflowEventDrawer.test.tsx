@@ -34,6 +34,6 @@ describe("CashflowEventDrawer", () => {
       )
     );
 
-    expect(html).toContain("ledgerEventYearlyMonth");
+    expect(html).toContain("ledgerEventStartMonth");
   });
 });

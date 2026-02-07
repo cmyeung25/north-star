@@ -76,6 +76,7 @@ import type {
   ScenarioMember,
   ScenarioMemberKind,
 } from "../../src/store/scenarioStore";
+import { toDateRef } from "../../src/domain/dateRef";
 import {
   createBudgetRuleId,
   createMemberId,
@@ -2164,8 +2165,14 @@ export default function PlanLabPanel({
           kind: draft.kind,
           cadence: draft.cadence,
           amount: Number(draft.amount),
-          startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
-          endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
+          startAt:
+            draft.cadence === "oneOff"
+              ? undefined
+              : toDateRef(draft.startAt) ?? undefined,
+          endAt:
+            draft.cadence === "oneOff"
+              ? undefined
+              : toDateRef(draft.endAt) ?? undefined,
           occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
           everyNMonths:
             draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
@@ -2205,8 +2212,14 @@ export default function PlanLabPanel({
       kind: draft.kind,
       cadence: draft.cadence,
       amount: Number(draft.amount),
-      startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
-      endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
+      startAt:
+        draft.cadence === "oneOff"
+          ? undefined
+          : toDateRef(draft.startAt) ?? undefined,
+      endAt:
+        draft.cadence === "oneOff"
+          ? undefined
+          : toDateRef(draft.endAt) ?? undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
       everyNMonths: draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
       memberId: draft.memberId || undefined,
