@@ -43,6 +43,7 @@ describe("EventCardList", () => {
         null,
         React.createElement(EventCardList, {
           events,
+          members: [],
           ledgerRowsByEventId,
           baseCurrency: "USD",
           locale: "en",
