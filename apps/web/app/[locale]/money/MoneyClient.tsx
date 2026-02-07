@@ -21,7 +21,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import HomeDetailsForm from "../../../components/timeline/HomeDetailsForm";
 import CarDetailsForm from "../../../components/timeline/CarDetailsForm";
@@ -99,6 +99,7 @@ import InsuranceEventDrawer, {
 import MortgageDetailDrawer, {
   type MortgageDetailTab,
 } from "../../../features/moneyFlow/MortgageDetailDrawer";
+import CashBalanceCard from "../../../features/assets/CashBalanceCard";
 import ScenarioAssetManager from "../../../features/assets/ScenarioAssetManager";
 import ScenarioLiabilityManager from "../../../features/liabilities/ScenarioLiabilityManager";
 import type {
@@ -207,6 +208,7 @@ export default function MoneyClient({
   const locale = useLocale();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);
@@ -236,6 +238,10 @@ export default function MoneyClient({
   const upsertScenarioLiabilities = useScenarioStore((state) => state.upsertScenarioLiabilities);
   const setScenarioAssets = useScenarioStore((state) => state.setScenarioAssets);
   const setScenarioLiabilities = useScenarioStore((state) => state.setScenarioLiabilities);
+  const setScenarioInitialCash = useScenarioStore(
+    (state) => state.setScenarioInitialCash
+  );
+  const setScenarioBaseMonth = useScenarioStore((state) => state.setScenarioBaseMonth);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const resolvedScenarioId = useMemo(
     () => resolveScenarioIdFromQuery(scenarioId ?? null, activeScenarioId, scenarios),
@@ -411,8 +417,12 @@ export default function MoneyClient({
     opened: false,
     title: "",
   });
+  const [shouldFocusCashCard, setShouldFocusCashCard] = useState(false);
   const hasHandledInitialAdd = useRef(false);
   const hasHandledInitialEdit = useRef(false);
+  const hasSyncedCashAsset = useRef(false);
+  const cashCardRef = useRef<HTMLDivElement>(null);
+  const cashInputRef = useRef<HTMLInputElement>(null);
 
   const resolvedTab = tabOrder.includes(initialTab as MoneyTab)
     ? (initialTab as MoneyTab)
@@ -429,6 +439,33 @@ export default function MoneyClient({
   useEffect(() => {
     setActiveTab(resolvedTab);
   }, [resolvedTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const focusParam = searchParams?.get("focus") ?? "";
+    const hasFocusHash = window.location.hash === "#cash";
+    if (focusParam === "cash" || hasFocusHash) {
+      setActiveTab("assets");
+      setShouldFocusCashCard(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!shouldFocusCashCard || activeTab !== "assets") {
+      return;
+    }
+    const node = cashCardRef.current;
+    if (!node) {
+      return;
+    }
+    node.scrollIntoView({ behavior: "smooth", block: "start" });
+    requestAnimationFrame(() => {
+      cashInputRef.current?.focus();
+    });
+    setShouldFocusCashCard(false);
+  }, [activeTab, shouldFocusCashCard]);
 
   const activeTemplateCategory = useMemo<TemplateCategory>(() => {
     switch (activeTab) {
@@ -593,6 +630,7 @@ export default function MoneyClient({
   const cars = useMemo(() => positions?.cars ?? [], [positions?.cars]);
   const loans = useMemo(() => positions?.loans ?? [], [positions?.loans]);
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
+  const initialCashValue = scenario?.assumptions.initialCash ?? 0;
   const currentProjectionMonth = baseMonth ?? null;
   const defaultSmartInvestPolicy = useMemo(
     () => buildDefaultSmartInvestPolicy(timelineText("smartInvestDefaultAllocation")),
@@ -921,6 +959,10 @@ export default function MoneyClient({
       cadence: draft.cadence,
       amount,
       growthMode: draft.kind === "income" ? draft.growthMode : "none",
+      customGrowthRatePct:
+        draft.kind === "income" && draft.growthMode === "custom"
+          ? Number(draft.customGrowthRatePct)
+          : undefined,
       startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
       endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
@@ -1276,6 +1318,14 @@ export default function MoneyClient({
     ]
   );
   const scenarioAssets = useMemo(() => scenario?.assets ?? [], [scenario?.assets]);
+  const cashAsset = useMemo(
+    () => scenarioAssets.find((asset) => asset.kind === "cash") ?? null,
+    [scenarioAssets]
+  );
+  const nonCashAssets = useMemo(
+    () => scenarioAssets.filter((asset) => asset.kind !== "cash"),
+    [scenarioAssets]
+  );
   const scenarioLiabilities = useMemo(
     () => scenario?.liabilities ?? [],
     [scenario?.liabilities]
@@ -1464,17 +1514,16 @@ export default function MoneyClient({
   }, [v2ScenarioEvents]);
   const assetItems = useMemo(
     () =>
-      scenarioAssets.map((asset) => {
+      nonCashAssets.map((asset) => {
         const resolvedValue =
           asset.currentValue ??
-          (asset.kind === "cash" ? scenario?.assumptions.initialCash : undefined) ??
           assetValueById.get(asset.id);
         return {
           ...asset,
           currentValue: resolvedValue,
         };
       }),
-    [assetValueById, scenario?.assumptions.initialCash, scenarioAssets]
+    [assetValueById, nonCashAssets]
   );
   const liabilityItems = useMemo(
     () =>
@@ -1507,6 +1556,88 @@ export default function MoneyClient({
       setAssetHoldingCostNotice(true);
     }
   };
+
+  useEffect(() => {
+    if (!scenarioIdValue || !cashAsset || hasSyncedCashAsset.current) {
+      return;
+    }
+    if (
+      typeof cashAsset.currentValue === "number" &&
+      cashAsset.currentValue !== scenario?.assumptions.initialCash
+    ) {
+      setScenarioInitialCash(scenarioIdValue, cashAsset.currentValue);
+    }
+    if (!scenario?.assumptions.baseMonth && cashAsset.startMonth) {
+      setScenarioBaseMonth(scenarioIdValue, cashAsset.startMonth);
+    }
+    hasSyncedCashAsset.current = true;
+  }, [
+    cashAsset,
+    scenario?.assumptions.baseMonth,
+    scenario?.assumptions.initialCash,
+    scenarioIdValue,
+    setScenarioBaseMonth,
+    setScenarioInitialCash,
+  ]);
+
+  const focusCashCard = useCallback(() => {
+    setActiveTab("assets");
+    setShouldFocusCashCard(true);
+  }, []);
+
+  const handleCashAmountChange = useCallback(
+    (value: number) => {
+      if (!scenarioIdValue) {
+        return;
+      }
+      setScenarioInitialCash(scenarioIdValue, Math.max(0, value));
+      if (cashAsset) {
+        upsertScenarioAssets(scenarioIdValue, [
+          {
+            ...cashAsset,
+            currentValue: Math.max(0, value),
+            startMonth: cashAsset.startMonth ?? baseMonth ?? undefined,
+            currency: cashAsset.currency ?? scenario?.baseCurrency,
+            source: cashAsset.source ?? "manual",
+          },
+        ]);
+      }
+    },
+    [
+      baseMonth,
+      cashAsset,
+      scenario?.baseCurrency,
+      scenarioIdValue,
+      setScenarioInitialCash,
+      upsertScenarioAssets,
+    ]
+  );
+
+  const handleCashBaseMonthChange = useCallback(
+    (value: string | null) => {
+      if (!scenarioIdValue) {
+        return;
+      }
+      setScenarioBaseMonth(scenarioIdValue, value);
+      if (cashAsset) {
+        upsertScenarioAssets(scenarioIdValue, [
+          {
+            ...cashAsset,
+            startMonth: value ?? undefined,
+            currency: cashAsset.currency ?? scenario?.baseCurrency,
+            source: cashAsset.source ?? "manual",
+          },
+        ]);
+      }
+    },
+    [
+      cashAsset,
+      scenario?.baseCurrency,
+      scenarioIdValue,
+      setScenarioBaseMonth,
+      upsertScenarioAssets,
+    ]
+  );
   const handleRemoveAssetItem = (item: ScenarioAsset) => {
     if (!scenarioIdValue) {
       return;
@@ -2449,6 +2580,16 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("assetsDescription")}
             </Text>
+            <div id="cash" ref={cashCardRef}>
+              <CashBalanceCard
+                value={initialCashValue}
+                baseMonth={baseMonth}
+                currency={scenario?.baseCurrency ?? "USD"}
+                amountInputRef={cashInputRef}
+                onChangeAmount={handleCashAmountChange}
+                onChangeBaseMonth={handleCashBaseMonthChange}
+              />
+            </div>
             {assetHoldingCostNotice && (
               <Notification
                 color="blue"
@@ -2475,6 +2616,11 @@ export default function MoneyClient({
               }
               openEditId={openAssetEditId}
               onOpenEditHandled={() => setOpenAssetEditId(null)}
+              emptyStateAction={
+                nonCashAssets.length === 0
+                  ? { label: t("assetManagerEmptyCta"), onClick: focusCashCard }
+                  : null
+              }
             />
             <Stack gap="sm">
               <Group justify="space-between" align="center" wrap="wrap">

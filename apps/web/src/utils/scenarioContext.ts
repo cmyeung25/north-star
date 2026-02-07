@@ -36,3 +36,18 @@ export const buildScenarioUrl = (
     | "/plan-lab",
   scenarioId: string
 ) => `${path}?scenarioId=${scenarioId}`;
+
+export const buildMoneyAssetsUrl = (
+  scenarioId: string,
+  options?: { focus?: "cash" }
+) => {
+  const base = buildScenarioUrl("/money", scenarioId);
+  const [pathname, queryString] = base.split("?");
+  const query = new URLSearchParams(queryString ?? "");
+  query.set("tab", "assets");
+  if (options?.focus) {
+    query.set("focus", options.focus);
+  }
+  const hash = options?.focus === "cash" ? "#cash" : "";
+  return `${pathname}?${query.toString()}${hash}`;
+};

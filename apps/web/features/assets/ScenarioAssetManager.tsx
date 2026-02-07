@@ -36,7 +36,7 @@ type ScenarioAssetDraft = {
 
 const buildDraft = (item: ScenarioAsset | null): ScenarioAssetDraft => ({
   id: item?.id ?? nanoid(),
-  kind: item?.kind ?? "cash",
+  kind: item?.kind ?? "investment",
   label: item?.label ?? "",
   currentValue:
     item?.currentValue !== undefined && Number.isFinite(item.currentValue)
@@ -56,6 +56,7 @@ type ScenarioAssetManagerProps = {
   onAddItem?: () => void;
   openEditId?: string | null;
   onOpenEditHandled?: () => void;
+  emptyStateAction?: { label: string; onClick: () => void } | null;
 };
 
 export default function ScenarioAssetManager({
@@ -70,6 +71,7 @@ export default function ScenarioAssetManager({
   onAddItem,
   openEditId,
   onOpenEditHandled,
+  emptyStateAction,
 }: ScenarioAssetManagerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -173,7 +175,6 @@ export default function ScenarioAssetManager({
   }, [items, onOpenEditHandled, openEditId, sourceEventsByAssetId]);
 
   const typeOptions = [
-    { value: "cash", label: t("assetTypeCash") },
     { value: "home", label: t("assetTypeProperty") },
     { value: "investment", label: t("assetTypeInvestment") },
     { value: "car", label: t("assetTypeCar") },
@@ -203,9 +204,16 @@ export default function ScenarioAssetManager({
       </Group>
 
       {filteredItems.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          {t("assetManagerEmpty")}
-        </Text>
+        <Stack gap="xs">
+          <Text size="sm" c="dimmed">
+            {t("assetManagerEmpty")}
+          </Text>
+          {emptyStateAction && (
+            <Button size="xs" variant="light" onClick={emptyStateAction.onClick}>
+              {emptyStateAction.label}
+            </Button>
+          )}
+        </Stack>
       ) : (
         <Stack gap="sm">
           {filteredItems.map((item) => {

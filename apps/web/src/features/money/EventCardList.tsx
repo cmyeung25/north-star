@@ -60,6 +60,17 @@ export default function EventCardList({
       incomeGrowthPct ?? 0
     );
   }, [incomeGrowthPct, locale]);
+  const formatGrowthPct = useCallback(
+    (value: number | null | undefined) => {
+      if (!Number.isFinite(value ?? NaN)) {
+        return "0";
+      }
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+        value ?? 0
+      );
+    },
+    [locale]
+  );
 
   const resolveEventCadenceLabel = useCallback(
     (event: ScenarioEvent) => {
@@ -127,10 +138,14 @@ export default function EventCardList({
         const impact = resolveEventMonthlyImpact(rows);
         const hasIncomeImpact = Boolean(impact && impact.income > 0);
         const hasExpenseImpact = Boolean(impact && impact.expense > 0);
-        const showIncomeGrowth =
+        const showIncomeGrowthAssumption =
           event.type === "cashflow" &&
           event.kind === "income" &&
           event.growthMode === "assumption";
+        const showIncomeGrowthCustom =
+          event.type === "cashflow" &&
+          event.kind === "income" &&
+          event.growthMode === "custom";
 
         return (
           <Card key={event.id} withBorder radius="md" padding="md">
@@ -141,9 +156,16 @@ export default function EventCardList({
                   <Text size="sm" c="dimmed">
                     {t("eventCardCadence", { cadence: cadenceLabel })}
                   </Text>
-                  {showIncomeGrowth && (
+                  {showIncomeGrowthAssumption && (
                     <Text size="sm" c="dimmed">
                       {t("eventCardIncomeGrowth", { pct: formattedIncomeGrowthPct })}
+                    </Text>
+                  )}
+                  {showIncomeGrowthCustom && (
+                    <Text size="sm" c="dimmed">
+                      {t("eventCardIncomeGrowthCustom", {
+                        pct: formatGrowthPct(event.customGrowthRatePct),
+                      })}
                     </Text>
                   )}
                   {impact ? (
