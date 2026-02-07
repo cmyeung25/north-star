@@ -56,7 +56,9 @@ type ScenarioAssetManagerProps = {
   onAddItem?: () => void;
   openEditId?: string | null;
   onOpenEditHandled?: () => void;
+  showAddButton?: boolean;
   emptyStateAction?: { label: string; onClick: () => void } | null;
+  emptyStateLabel?: string;
 };
 
 export default function ScenarioAssetManager({
@@ -71,7 +73,9 @@ export default function ScenarioAssetManager({
   onAddItem,
   openEditId,
   onOpenEditHandled,
+  showAddButton = true,
   emptyStateAction,
+  emptyStateLabel,
 }: ScenarioAssetManagerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -112,6 +116,8 @@ export default function ScenarioAssetManager({
       return true;
     });
   }, [items, filterType, search]);
+  const hasAnyItems = items.length > 0;
+  const showControls = hasAnyItems || search.trim() !== "" || filterType !== "all";
 
   const typeLabel = (assetType: ScenarioAssetKind) => {
     switch (assetType) {
@@ -184,29 +190,33 @@ export default function ScenarioAssetManager({
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="center" wrap="wrap">
-        <Group>
-          <Select
-            label={t("assetFilterType")}
-            value={filterType}
-            onChange={(value) => setFilterType(value ?? "all")}
-            data={[{ value: "all", label: t("assetFilterAll") }, ...typeOptions]}
-          />
-          <TextInput
-            label={t("assetFilterSearch")}
-            value={search}
-            onChange={(event) => setSearch(event.currentTarget?.value ?? "")}
-          />
+      {showControls && (
+        <Group justify="space-between" align="center" wrap="wrap">
+          <Group>
+            <Select
+              label={t("assetFilterType")}
+              value={filterType}
+              onChange={(value) => setFilterType(value ?? "all")}
+              data={[{ value: "all", label: t("assetFilterAll") }, ...typeOptions]}
+            />
+            <TextInput
+              label={t("assetFilterSearch")}
+              value={search}
+              onChange={(event) => setSearch(event.currentTarget?.value ?? "")}
+            />
+          </Group>
+          {showAddButton && (
+            <Button onClick={() => (onAddItem ? onAddItem() : openDrawer(null))}>
+              {t("assetManagerAdd")}
+            </Button>
+          )}
         </Group>
-        <Button onClick={() => (onAddItem ? onAddItem() : openDrawer(null))}>
-          {t("assetManagerAdd")}
-        </Button>
-      </Group>
+      )}
 
       {filteredItems.length === 0 ? (
         <Stack gap="xs">
           <Text size="sm" c="dimmed">
-            {t("assetManagerEmpty")}
+            {emptyStateLabel ?? t("assetManagerEmpty")}
           </Text>
           {emptyStateAction && (
             <Button size="xs" variant="light" onClick={emptyStateAction.onClick}>
