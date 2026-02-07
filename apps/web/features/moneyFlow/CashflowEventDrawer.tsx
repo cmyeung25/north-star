@@ -1,14 +1,13 @@
 "use client";
-
 import React from "react";
 import {
   Button,
   Drawer,
   Group,
   NumberInput,
+  SegmentedControl,
   Select,
   Stack,
-  Switch,
   Text,
   TextInput,
 } from "@mantine/core";
@@ -27,6 +26,7 @@ export type CashflowEventDraft = {
   cadence: CashflowEvent["cadence"];
   amount: string;
   growthMode: NonNullable<CashflowEvent["growthMode"]>;
+  customGrowthRatePct?: string;
   startMonth: string;
   endMonth: string;
   occurrenceMonth: string;
@@ -87,6 +87,7 @@ const buildCashflowDraft = (
       cadence: "monthly",
       amount: "",
       growthMode: defaultKind === "income" ? "assumption" : "none",
+      customGrowthRatePct: "",
       startMonth: "",
       endMonth: "",
       occurrenceMonth: "",
@@ -103,6 +104,10 @@ const buildCashflowDraft = (
     cadence: event.cadence,
     amount: Number.isFinite(event.amount) ? String(event.amount) : "",
     growthMode: event.kind === "income" ? event.growthMode ?? "none" : "none",
+    customGrowthRatePct:
+      event.kind === "income" && typeof event.customGrowthRatePct === "number"
+        ? String(event.customGrowthRatePct)
+        : "",
     startMonth: event.startMonth ?? "",
     endMonth: event.endMonth ?? "",
     occurrenceMonth: event.occurrenceMonth ?? "",
@@ -223,6 +228,20 @@ export default function CashflowEventDrawer({
     []
   );
 
+  const growthModeOptions = useMemo(
+    () => [
+      {
+        value: "assumption",
+        label: t("ledgerEventGrowthModeAssumption", {
+          pct: formattedIncomeGrowthPct,
+        }),
+      },
+      { value: "custom", label: t("ledgerEventGrowthModeCustom") },
+      { value: "none", label: t("ledgerEventGrowthModeNone") },
+    ],
+    [formattedIncomeGrowthPct, t]
+  );
+
   const yearlyMonthValue = useMemo(() => {
     if (!isValidMonthKey(cashflowDraft.startMonth)) {
       return "";
@@ -277,6 +296,13 @@ export default function CashflowEventDrawer({
       const everyNValue = Number(cashflowDraft.everyNMonths);
       if (!Number.isFinite(everyNValue) || everyNValue < 1) {
         nextErrors.everyNMonths = t("ledgerEventEveryNRequired");
+      }
+    }
+
+    if (cashflowDraft.kind === "income" && cashflowDraft.growthMode === "custom") {
+      const customGrowthValue = Number(cashflowDraft.customGrowthRatePct ?? "");
+      if (!Number.isFinite(customGrowthValue) || customGrowthValue < 0) {
+        nextErrors.customGrowthRatePct = t("ledgerEventGrowthCustomInvalid");
       }
     }
 
@@ -343,6 +369,10 @@ export default function CashflowEventDrawer({
                         ? "assumption"
                         : current.growthMode
                       : "none",
+                  customGrowthRatePct:
+                    (value ?? "income") === "income"
+                      ? current.customGrowthRatePct
+                      : "",
                 }))
               }
             />
@@ -399,27 +429,44 @@ export default function CashflowEventDrawer({
               }
             />
             {cashflowDraft.kind === "income" && (
-              <Stack gap={4}>
-                <Switch
-                  label={t("ledgerEventIncomeGrowthLabel", {
-                    pct: formattedIncomeGrowthPct,
-                  })}
-                  checked={cashflowDraft.growthMode === "assumption"}
+              <Stack gap="xs">
+                <Text size="sm" fw={500}>
+                  {t("ledgerEventGrowthModeTitle")}
+                </Text>
+                <SegmentedControl
+                  data={growthModeOptions}
+                  value={cashflowDraft.cadence === "oneOff" ? "none" : cashflowDraft.growthMode}
                   disabled={cashflowDraft.cadence === "oneOff"}
-                  onChange={(eventValue: any) => {
-                    const checked =
-                      typeof eventValue === "boolean"
-                        ? eventValue
-                        : !!(eventValue && eventValue.currentTarget && eventValue.currentTarget.checked);
+                  onChange={(value) =>
                     setCashflowDraft((current) => ({
                       ...current,
-                      growthMode: checked ? "assumption" : "none",
-                    }));
-                  }}
+                      growthMode:
+                        (value ?? "none") as NonNullable<CashflowEvent["growthMode"]>,
+                    }))
+                  }
                 />
-                <Text size="xs" c="dimmed">
-                  {t("ledgerEventIncomeGrowthHint")}
-                </Text>
+                {cashflowDraft.growthMode === "custom" && (
+                  <NumberInput
+                    label={t("ledgerEventGrowthCustomLabel")}
+                    value={cashflowDraft.customGrowthRatePct ?? ""}
+                    onChange={(value) =>
+                      setCashflowDraft((current) => ({
+                        ...current,
+                        customGrowthRatePct:
+                          value === "" || value === undefined ? "" : String(value),
+                      }))
+                    }
+                    error={errors.customGrowthRatePct}
+                    min={0}
+                    step={0.1}
+                    decimalScale={2}
+                  />
+                )}
+                {cashflowDraft.growthMode === "assumption" && (
+                  <Text size="xs" c="dimmed">
+                    {t("ledgerEventIncomeGrowthHint")}
+                  </Text>
+                )}
               </Stack>
             )}
 

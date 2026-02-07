@@ -54,7 +54,10 @@ import {
 } from "../../../src/store/scenarioStore";
 import { appliesToScenario, type ApplyScope } from "../../../src/domain/applyScope";
 import { useSettingsStore } from "../../../src/store/settingsStore";
-import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
+import {
+  buildMoneyAssetsUrl,
+  buildScenarioUrl,
+} from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears, monthAtAge } from "../../../src/domain/members/age";
@@ -1369,6 +1372,130 @@ export default function SettingsClient({
           </Card>
 
           <Card withBorder radius="md" padding="md" mt="md">
+            <Stack gap="md">
+              <Stack gap={2}>
+                <Text fw={600}>{t("scenarioAssumptionsTitle")}</Text>
+                <Text size="sm" c="dimmed">
+                  {t("scenarioAssumptionsHint")}
+                </Text>
+              </Stack>
+              <Card withBorder radius="md" padding="sm">
+                <Text size="sm" c="dimmed">
+                  {t("initialCashMovedHint")}{" "}
+                  <Link
+                    href={buildMoneyAssetsUrl(scenario.id, { focus: "cash" })}
+                  >
+                    {t("initialCashMovedLink")}
+                  </Link>
+                </Text>
+              </Card>
+              <Group grow>
+                <NumberInput
+                  label={t("inflationRate")}
+                  value={assumptions.inflationRate ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      inflationRate: typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+                <NumberInput
+                  label={t("salaryGrowth")}
+                  value={assumptions.salaryGrowthRate ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      salaryGrowthRate: typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+              </Group>
+
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={600}>{t("emergencyFundTarget")}</Text>
+                  <Text size="sm" c="dimmed">
+                    {t("emergencyFundValue", {
+                      months: assumptions.emergencyFundMonths ?? 6,
+                    })}
+                  </Text>
+                </Group>
+                <Slider
+                  min={3}
+                  max={12}
+                  step={1}
+                  value={assumptions.emergencyFundMonths ?? 6}
+                  onChange={(value) =>
+                    handleAssumptionChange({ emergencyFundMonths: value })
+                  }
+                />
+              </Stack>
+
+              <Group grow>
+                <NumberInput
+                  label={t("rentAnnualGrowth")}
+                  value={assumptions.rentAnnualGrowthPct ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      rentAnnualGrowthPct:
+                        typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+                <NumberInput
+                  label={t("propertyAppreciation")}
+                  value={assumptions.propertyAppreciationPct ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      propertyAppreciationPct:
+                        typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+              </Group>
+
+              <Group grow>
+                <NumberInput
+                  label={t("cashYield")}
+                  value={assumptions.cashYieldPct ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      cashYieldPct: typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+                <NumberInput
+                  label={t("carDepreciation")}
+                  value={assumptions.carDepreciationRatePct ?? ""}
+                  min={0}
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    handleAssumptionChange({
+                      carDepreciationRatePct:
+                        typeof value === "number" ? value : undefined,
+                    })
+                  }
+                />
+              </Group>
+            </Stack>
+          </Card>
+
+          <Card withBorder radius="md" padding="md" mt="md">
             <ProjectionPreviewPanel
               title={t("previewTitle")}
               currency={scenario?.baseCurrency ?? "USD"}
@@ -2593,61 +2720,9 @@ export default function SettingsClient({
         <Tabs.Panel value="other" pt="md">
           <Card withBorder radius="md" padding="md">
             <Stack gap="md">
-              <Card withBorder radius="md" padding="sm">
-                <Text size="sm" c="dimmed">
-                  {t("initialCashMovedHint")}{" "}
-                  <Link href={`${buildScenarioUrl("/money", scenario.id)}&tab=assets`}>
-                    {t("initialCashMovedLink")}
-                  </Link>
-                </Text>
-              </Card>
-
-              <Group grow>
-                <NumberInput
-                  label={t("inflationRate")}
-                  value={assumptions.inflationRate ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      inflationRate: typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-                <NumberInput
-                  label={t("salaryGrowth")}
-                  value={assumptions.salaryGrowthRate ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      salaryGrowthRate: typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-              </Group>
-
-              <Stack gap="xs">
-                <Group justify="space-between">
-                  <Text fw={600}>{t("emergencyFundTarget")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {t("emergencyFundValue", {
-                      months: assumptions.emergencyFundMonths ?? 6,
-                    })}
-                  </Text>
-                </Group>
-                <Slider
-                  min={3}
-                  max={12}
-                  step={1}
-                  value={assumptions.emergencyFundMonths ?? 6}
-                  onChange={(value) =>
-                    handleAssumptionChange({ emergencyFundMonths: value })
-                  }
-                />
-              </Stack>
+              <Text size="sm" c="dimmed">
+                {t("otherSettingsHint")}
+              </Text>
             </Stack>
           </Card>
         </Tabs.Panel>

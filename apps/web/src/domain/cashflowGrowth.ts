@@ -31,11 +31,19 @@ export const resolveIncomeGrowthPct = (
   event: CashflowEvent,
   assumptions: ScenarioAssumptions
 ): number => {
-  if (event.kind !== "income" || resolveIncomeGrowthMode(event) !== "assumption") {
+  if (event.kind !== "income") {
     return 0;
   }
-  const growthPct = assumptions.salaryGrowthRate ?? 0;
-  return Number.isFinite(growthPct) ? growthPct : 0;
+  const growthMode = resolveIncomeGrowthMode(event);
+  if (growthMode === "assumption") {
+    const growthPct = assumptions.salaryGrowthRate ?? 0;
+    return Number.isFinite(growthPct) ? growthPct : 0;
+  }
+  if (growthMode === "custom") {
+    const customGrowthPct = event.customGrowthRatePct ?? 0;
+    return Number.isFinite(customGrowthPct) ? customGrowthPct : 0;
+  }
+  return 0;
 };
 
 export const resolveCashflowAmountForMonth = (params: {
