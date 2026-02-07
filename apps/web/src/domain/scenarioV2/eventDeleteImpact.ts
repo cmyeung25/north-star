@@ -28,6 +28,12 @@ export type EventDeleteImpact = {
   ledger: EventLedgerPreview;
 };
 
+export type DeleteImpactSummary = {
+  impactedAssets: ScenarioAsset[];
+  impactedLiabilities: ScenarioLiability[];
+  ledger: EventLedgerPreview;
+};
+
 const getReferencedAssetIds = (event: ScenarioEvent) => {
   if (event.type === "housing" && event.kind === "mortgage") {
     return event.propertyAssetId ? [event.propertyAssetId] : [];
@@ -87,6 +93,43 @@ const summarizeLedgerRows = (
     totalExpense: totals.expense,
     netAmount: totals.income - totals.expense,
     topRows,
+  };
+};
+
+export const createEmptyLedgerPreview = (): EventLedgerPreview => ({
+  rows: [],
+  previewMonths: [],
+  previewRows: [],
+  totalIncome: 0,
+  totalExpense: 0,
+  netAmount: 0,
+  topRows: [],
+});
+
+export const buildBundleDeleteImpact = (
+  scenario: ScenarioV2,
+  eventIds: string[],
+  options?: { previewMonths?: number }
+): DeleteImpactSummary => {
+  const eventIdSet = new Set(eventIds);
+  const impactedAssets = (scenario.assets ?? []).filter((asset) =>
+    asset.createdByEventId && eventIdSet.has(asset.createdByEventId)
+  );
+  const impactedLiabilities = (scenario.liabilities ?? []).filter(
+    (liability) =>
+      liability.createdByEventId && eventIdSet.has(liability.createdByEventId)
+  );
+  const ledgerRows = compileScenarioV2ToLedger(scenario).filter((row) =>
+    eventIdSet.has(row.sourceEventId)
+  );
+  const previewMonths = buildPreviewMonths(
+    scenario.assumptions.baseMonth ?? null,
+    options?.previewMonths ?? 12
+  );
+  return {
+    impactedAssets,
+    impactedLiabilities,
+    ledger: summarizeLedgerRows(ledgerRows, previewMonths),
   };
 };
 
