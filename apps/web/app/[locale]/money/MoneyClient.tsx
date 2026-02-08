@@ -246,6 +246,13 @@ type BundleSlice = {
   items: BundleSliceItem[];
 };
 
+type BundleMonthlyBreakdownItem = {
+  id: string;
+  label: string;
+  amount: number;
+  kind: "income" | "expense";
+};
+
 type MortgageEvent = Extract<ScenarioEvent, { type: "housing" }> & {
   kind: "mortgage";
 };
@@ -781,6 +788,10 @@ export default function MoneyClient({
   const baseMonth = scenario?.assumptions.baseMonth ?? null;
   const initialCashValue = scenario?.assumptions.initialCash ?? 0;
   const currentProjectionMonth = baseMonth ?? null;
+  const bundleSummaryMonth = useMemo(
+    () => breakdownMonth ?? currentProjectionMonth ?? latestProjectionMonth ?? null,
+    [breakdownMonth, currentProjectionMonth, latestProjectionMonth]
+  );
   const hasInitialCashSetup = Boolean(baseMonth);
   const defaultSmartInvestPolicy = useMemo(
     () => buildDefaultSmartInvestPolicy(timelineText("smartInvestDefaultAllocation")),
@@ -1680,6 +1691,97 @@ export default function MoneyClient({
     () => scenario?.liabilities ?? [],
     [scenario?.liabilities]
   );
+  const isOneOffBundleRow = useCallback((event: ScenarioEvent, row: LedgerRow) => {
+    if (event.type === "cashflow" && event.cadence === "oneOff") {
+      return true;
+    }
+    if (event.type === "housing" && event.kind === "mortgage") {
+      const fee = (event.feesOneOff ?? []).find(
+        (entry) =>
+          entry.month === row.month &&
+          Math.abs(entry.amount) === Math.abs(row.amount) &&
+          (entry.label ?? event.label) === (row.label ?? event.label)
+      );
+      return Boolean(fee);
+    }
+    return false;
+  }, []);
+  const resolveBundleBreakdownLabel = useCallback(
+    (event: ScenarioEvent, row: LedgerRow) => {
+      const rawLabel = row.label ?? event.label;
+      if (rawLabel?.startsWith("breakdownLabels.")) {
+        return breakdownText(rawLabel);
+      }
+      if (event.type === "housing" && event.kind === "mortgage") {
+        if (row.kind === "income" || (!row.kind && row.amount >= 0)) {
+          return t("bundleHomeRentalMonthly");
+        }
+        if (
+          typeof event.mortgagePayment === "number" &&
+          Math.abs(row.amount) === Math.abs(event.mortgagePayment)
+        ) {
+          return t("bundleDetailMortgagePaymentLabel");
+        }
+        if (rawLabel === event.label) {
+          return breakdownText("breakdownLabels.holdingCost");
+        }
+      }
+      return rawLabel ?? t("bundleEventFallback");
+    },
+    [breakdownText, t]
+  );
+  const computeBundleMonthlySummary = useCallback(
+    (bundleEvents: ScenarioEvent[], monthKey: string | null) => {
+      const breakdownMap = new Map<string, BundleMonthlyBreakdownItem>();
+      if (!monthKey) {
+        return {
+          monthlyIncome: 0,
+          monthlyExpense: 0,
+          monthlyNet: 0,
+          breakdown: [],
+        };
+      }
+      let monthlyIncome = 0;
+      let monthlyExpense = 0;
+      bundleEvents.forEach((event) => {
+        const rows = ledgerRowsByEventId.get(event.id) ?? [];
+        rows.forEach((row) => {
+          if (row.month !== monthKey) {
+            return;
+          }
+          if (isOneOffBundleRow(event, row)) {
+            return;
+          }
+          const kind =
+            row.kind ?? (row.amount >= 0 ? ("income" as const) : ("expense" as const));
+          const amount = Math.abs(row.amount);
+          if (amount <= 0) {
+            return;
+          }
+          if (kind === "income") {
+            monthlyIncome += amount;
+          } else {
+            monthlyExpense += amount;
+          }
+          const label = resolveBundleBreakdownLabel(event, row);
+          const key = `${kind}:${label}`;
+          const existing = breakdownMap.get(key);
+          if (existing) {
+            existing.amount += amount;
+          } else {
+            breakdownMap.set(key, { id: key, label, amount, kind });
+          }
+        });
+      });
+      return {
+        monthlyIncome,
+        monthlyExpense,
+        monthlyNet: monthlyIncome - monthlyExpense,
+        breakdown: Array.from(breakdownMap.values()),
+      };
+    },
+    [isOneOffBundleRow, ledgerRowsByEventId, resolveBundleBreakdownLabel]
+  );
   const resolveBundleEventMonthlyImpact = useCallback(
     (event: ScenarioEvent) => {
       if (event.type === "cashflow" && event.cadence === "oneOff") {
@@ -1847,17 +1949,12 @@ export default function MoneyClient({
     }
     return bundleGroups.map((bundle) => {
       const eventIds = bundle.events.map((event) => event.id);
-      const monthlyTotals = bundle.events.reduce(
-        (acc, event) => {
-          const impact = resolveBundleEventMonthlyImpact(event);
-          return {
-            income: acc.income + impact.income,
-            expense: acc.expense + impact.expense,
-          };
-        },
-        { income: 0, expense: 0 }
+      const monthlySummary = computeBundleMonthlySummary(
+        bundle.events,
+        bundleSummaryMonth
       );
-      const hasMonthlyImpact = monthlyTotals.income > 0 || monthlyTotals.expense > 0;
+      const hasMonthlyImpact =
+        monthlySummary.monthlyIncome > 0 || monthlySummary.monthlyExpense > 0;
       const oneOffTotal = bundle.events.reduce((total, event) => {
         if (
           event.type === "cashflow" &&
@@ -1886,17 +1983,19 @@ export default function MoneyClient({
         eventIds,
         assets,
         liabilities,
-        monthlyIncome: monthlyTotals.income,
-        monthlyExpense: monthlyTotals.expense,
-        monthlyNet: monthlyTotals.income - monthlyTotals.expense,
+        monthlyIncome: monthlySummary.monthlyIncome,
+        monthlyExpense: monthlySummary.monthlyExpense,
+        monthlyNet: monthlySummary.monthlyNet,
+        breakdown: monthlySummary.breakdown,
         hasMonthlyImpact,
         oneOffTotal,
       };
     });
   }, [
     bundleGroups,
+    bundleSummaryMonth,
+    computeBundleMonthlySummary,
     resolveBundleTitle,
-    resolveBundleEventMonthlyImpact,
     scenario,
     scenarioAssets,
     scenarioIsV2,
@@ -1944,20 +2043,13 @@ export default function MoneyClient({
       monthlyPayment: activeBundleMortgageEvent.mortgagePayment ?? null,
     };
   }, [activeBundleMortgageEvent]);
-  const bundleDetailIncomeItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events
-      .flatMap((event) => buildBundleIncomeItems(event))
-      .filter((item) => item.amount > 0);
-  }, [activeBundleGroup, buildBundleIncomeItems]);
-  const bundleDetailExpenseItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events.flatMap((event) => buildBundleExpenseItems(event));
-  }, [activeBundleGroup, buildBundleExpenseItems]);
+  const bundleDetailBreakdown = useMemo(() => {
+    const breakdown = activeBundleCard?.breakdown ?? [];
+    return {
+      income: breakdown.filter((item) => item.kind === "income"),
+      expense: breakdown.filter((item) => item.kind === "expense"),
+    };
+  }, [activeBundleCard]);
   const mortgageDetailEvent = useMemo(() => {
     if (!mortgageDetail) {
       return null;
@@ -4212,12 +4304,12 @@ export default function MoneyClient({
               <Text size="sm" fw={600}>
                 {t("bundleDetailCashflowTitle")}
               </Text>
-              {bundleDetailIncomeItems.length > 0 && (
+              {bundleDetailBreakdown.income.length > 0 && (
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed">
                     {t("bundleDetailIncome")}
                   </Text>
-                  {bundleDetailIncomeItems.map((item) => (
+                  {bundleDetailBreakdown.income.map((item) => (
                     <Group key={item.id} justify="space-between" wrap="nowrap">
                       <Text size="sm">{item.label}</Text>
                       <Text size="sm" fw={500}>
@@ -4232,12 +4324,12 @@ export default function MoneyClient({
                 </Stack>
               )}
 
-              {bundleDetailExpenseItems.length > 0 && (
+              {bundleDetailBreakdown.expense.length > 0 && (
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed">
                     {t("bundleDetailExpenses")}
                   </Text>
-                  {bundleDetailExpenseItems.map((item) => (
+                  {bundleDetailBreakdown.expense.map((item) => (
                     <Group key={item.id} justify="space-between" wrap="nowrap">
                       <Text size="sm">{item.label}</Text>
                       <Text size="sm" fw={500}>
@@ -4252,8 +4344,8 @@ export default function MoneyClient({
                 </Stack>
               )}
 
-              {bundleDetailIncomeItems.length === 0 &&
-                bundleDetailExpenseItems.length === 0 && (
+              {bundleDetailBreakdown.income.length === 0 &&
+                bundleDetailBreakdown.expense.length === 0 && (
                   <Text size="sm" c="dimmed">
                     {t("bundleDetailEmpty")}
                   </Text>
