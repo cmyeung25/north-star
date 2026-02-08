@@ -282,6 +282,7 @@ type PlanLabToast = {
   onAction?: () => void;
 };
 type PlanLabDriverSource = "event" | "rule" | "position" | "experiment";
+type BundleDrawerSection = "summary" | "cashflow" | "mortgage";
 
 type PlanLabTopDriver = {
   id: string;
@@ -829,7 +830,6 @@ type PlanLabBundleItemRowProps = {
   meta?: string;
   highlighted?: boolean;
   onClick: () => void;
-  actionLabel: string;
 };
 
 const PlanLabBundleItemRow = ({
@@ -838,7 +838,6 @@ const PlanLabBundleItemRow = ({
   meta,
   highlighted,
   onClick,
-  actionLabel,
 }: PlanLabBundleItemRowProps) => (
   <Paper
     withBorder
@@ -874,16 +873,6 @@ const PlanLabBundleItemRow = ({
           ))}
         </Group>
       </Stack>
-      <Button
-        size="xs"
-        variant="light"
-        onClick={(event) => {
-          event.stopPropagation();
-          onClick();
-        }}
-      >
-        {actionLabel}
-      </Button>
     </Group>
   </Paper>
 );
@@ -1106,12 +1095,21 @@ export default function PlanLabPanel({
     tab: MortgageDetailTab;
     bundleId: string;
   } | null>(null);
+  const [bundleDrawerFocus, setBundleDrawerFocus] =
+    useState<BundleDrawerSection | null>(null);
+  const [lastBundleDrawerState, setLastBundleDrawerState] = useState<{
+    bundleId: string;
+    focusSection: BundleDrawerSection | null;
+  } | null>(null);
 
   const monthInvalidMessage = t("planLabMonthInvalid");
   const showChangedOnly = listTab === "changed";
   const showRiskyOnly = listTab === "risky";
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
   const bundleIdByItemIdRef = useRef(new Map<string, string>());
+  const bundleSummaryRef = useRef<HTMLDivElement | null>(null);
+  const bundleCashflowRef = useRef<HTMLDivElement | null>(null);
+  const bundleMortgageRef = useRef<HTMLDivElement | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
 
   const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
@@ -3320,9 +3318,15 @@ export default function PlanLabPanel({
     }
   }, [sandboxScenarioV2.assets, sandboxScenarioV2.events, sandboxScenarioV2.liabilities, scenarioIsV2]);
 
-  const handleViewBundle = useCallback((bundleId: string) => {
-    setBundleViewId(bundleId);
-  }, []);
+  const handleViewBundle = useCallback(
+    (bundleId: string, options?: { focusSection?: BundleDrawerSection }) => {
+      setMortgageDetail(null);
+      setLastBundleDrawerState(null);
+      setBundleViewId(bundleId);
+      setBundleDrawerFocus(options?.focusSection ?? null);
+    },
+    []
+  );
 
   const handleEditBundle = useCallback(
     (bundleId: string) => {
@@ -3361,7 +3365,10 @@ export default function PlanLabPanel({
     (bundleId: string, options?: { openDrawer?: boolean }) => {
       handleLocateItem(buildBundleRowId(bundleId));
       if (options?.openDrawer) {
+        setMortgageDetail(null);
+        setLastBundleDrawerState(null);
         setBundleViewId(bundleId);
+        setBundleDrawerFocus(null);
       }
     },
     [handleLocateItem]
@@ -3369,6 +3376,8 @@ export default function PlanLabPanel({
 
   const openMortgageDetails = useCallback(
     (bundleId: string, eventId: string, tab: MortgageDetailTab) => {
+      setLastBundleDrawerState({ bundleId, focusSection: "mortgage" });
+      setBundleViewId(null);
       setMortgageDetail({ bundleId, eventId, tab });
     },
     []
@@ -3519,10 +3528,35 @@ export default function PlanLabPanel({
     [bundleGroupById, bundleViewId]
   );
 
+  const lastBundleTitle = useMemo(() => {
+    if (!lastBundleDrawerState) {
+      return null;
+    }
+    return (
+      bundleCards.find((card) => card.id === lastBundleDrawerState.bundleId)?.title ??
+      moneyT("bundleTitleFallback")
+    );
+  }, [bundleCards, lastBundleDrawerState, moneyT]);
+
   const activeBundleSummary = useMemo(
     () => activeBundleCard?.monthlySummary ?? null,
     [activeBundleCard?.monthlySummary]
   );
+
+  useEffect(() => {
+    if (!activeBundleCard || !bundleDrawerFocus) {
+      return;
+    }
+    const sectionRefMap: Record<BundleDrawerSection, React.RefObject<HTMLDivElement>> = {
+      summary: bundleSummaryRef,
+      cashflow: bundleCashflowRef,
+      mortgage: bundleMortgageRef,
+    };
+    const target = sectionRefMap[bundleDrawerFocus]?.current;
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [activeBundleCard, bundleDrawerFocus]);
 
   const bundleDetailIncomeItems = useMemo(
     () =>
@@ -3783,6 +3817,58 @@ export default function PlanLabPanel({
   const getScenarioItemSummary = useCallback(
     (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id) ?? "",
     [scenarioItemMetaById]
+  );
+
+  const getBundleChildRoleLabel = useCallback(
+    (item: ScenarioEditorItem) => {
+      if (item.positionKind === "asset") {
+        return translate("planLabBundleChildAssetLabel", "資產");
+      }
+      if (item.positionKind === "liability") {
+        return translate("planLabBundleChildLiabilityLabel", "按揭");
+      }
+      const normalizedCategory = item.category?.toLowerCase();
+      if (normalizedCategory) {
+        if (normalizedCategory === "income" || normalizedCategory === "expense") {
+          return translate("planLabBundleChildCashflowLabel", "現金流");
+        }
+        return GROUP_LABEL[normalizedCategory] ?? null;
+      }
+      return translate("planLabBundleChildCashflowLabel", "現金流");
+    },
+    [translate]
+  );
+
+  const getBundleChildTitle = useCallback(
+    (item: ScenarioEditorItem) => {
+      const roleLabel = getBundleChildRoleLabel(item);
+      if (!roleLabel) {
+        return item.title;
+      }
+      return `${roleLabel}・${item.title}`;
+    },
+    [getBundleChildRoleLabel]
+  );
+
+  const getBundleChildFocusSection = useCallback(
+    (item: ScenarioEditorItem): BundleDrawerSection => {
+      if (item.positionKind === "liability") {
+        return "mortgage";
+      }
+      const normalizedCategory = item.category?.toLowerCase();
+      if (normalizedCategory === "mortgage") {
+        return "mortgage";
+      }
+      if (
+        normalizedCategory === "income" ||
+        normalizedCategory === "expense" ||
+        normalizedCategory === "expenses"
+      ) {
+        return "cashflow";
+      }
+      return "summary";
+    },
+    []
   );
 
   const getExperimentSummary = useCallback(
@@ -5827,7 +5913,6 @@ export default function PlanLabPanel({
                                           highlightedItemId ===
                                           buildBundleRowId(bundle.id)
                                         }
-                                        onClick={() => handleViewBundle(bundle.id)}
                                         primaryAction={{
                                           label: translate(
                                             "planLabBundleView",
@@ -5849,19 +5934,18 @@ export default function PlanLabPanel({
                                               {bundleItems.map((item) => (
                                                 <PlanLabBundleItemRow
                                                   key={item.id}
-                                                  title={item.title}
+                                                  title={getBundleChildTitle(item)}
                                                   badges={getScenarioItemBadges(item)}
                                                   meta={getScenarioItemSummary(item)}
                                                   highlighted={
                                                     highlightedItemId === item.id
                                                   }
                                                   onClick={() =>
-                                                    handleViewBundle(bundle.id)
+                                                    handleViewBundle(bundle.id, {
+                                                      focusSection:
+                                                        getBundleChildFocusSection(item),
+                                                    })
                                                   }
-                                                  actionLabel={translate(
-                                                    "planLabBundleView",
-                                                    "查看組合"
-                                                  )}
                                                 />
                                               ))}
                                             </Stack>
@@ -6964,7 +7048,28 @@ export default function PlanLabPanel({
 
       <MortgageDetailDrawer
         opened={Boolean(mortgageDetail && mortgageDetailEvent)}
-        onClose={() => setMortgageDetail(null)}
+        onClose={() => {
+          setMortgageDetail(null);
+          setLastBundleDrawerState(null);
+        }}
+        onBack={
+          lastBundleDrawerState
+            ? () => {
+                const saved = lastBundleDrawerState;
+                setMortgageDetail(null);
+                setLastBundleDrawerState(null);
+                setBundleViewId(saved.bundleId);
+                setBundleDrawerFocus(saved.focusSection);
+              }
+            : undefined
+        }
+        backLabel={
+          lastBundleTitle
+            ? translate("planLabBundleBackLabel", "返回：{title}", {
+                title: lastBundleTitle,
+              })
+            : undefined
+        }
         onEdit={
           mortgageDetail?.bundleId
             ? () => {
@@ -6984,7 +7089,10 @@ export default function PlanLabPanel({
 
       <Drawer
         opened={Boolean(activeBundleCard)}
-        onClose={() => setBundleViewId(null)}
+        onClose={() => {
+          setBundleViewId(null);
+          setBundleDrawerFocus(null);
+        }}
         position="right"
         size="md"
         title={activeBundleCard?.title ?? moneyT("bundleTitleFallback")}
@@ -6992,7 +7100,7 @@ export default function PlanLabPanel({
       >
         {activeBundleCard ? (
           <Stack gap="md">
-            <Stack gap={4}>
+            <Stack gap={4} ref={bundleSummaryRef}>
               <Text size="sm" fw={600}>
                 {moneyT("bundleDetailSummaryTitle")}
               </Text>
@@ -7073,7 +7181,7 @@ export default function PlanLabPanel({
               ))}
             </Stack>
 
-            <Stack gap="xs">
+            <Stack gap="xs" ref={bundleCashflowRef}>
               <Text size="sm" fw={600}>
                 {moneyT("bundleDetailCashflowTitle")}
               </Text>
@@ -7118,7 +7226,7 @@ export default function PlanLabPanel({
             </Stack>
 
             {activeBundleMortgageSummary && (
-              <Stack gap="xs">
+              <Stack gap="xs" ref={bundleMortgageRef}>
                 <Text size="sm" fw={600}>
                   {moneyT("bundleMortgageSummaryTitle")}
                 </Text>
