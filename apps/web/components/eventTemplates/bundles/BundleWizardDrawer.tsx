@@ -1781,10 +1781,12 @@ export default function BundleWizardDrawer({
                   checked={homeDraft.rentalEnabled}
                   label={t("bundleHomeRentalToggle")}
                   onChange={(event) => 
-                    setHomeDraft((current) => ({
-                      ...current,
-                      rentalEnabled: event?.currentTarget?.checked ?? false,
-                    }))
+                    setHomeDraft((current) => {
+                      return {
+                        ...current,
+                        rentalEnabled: event?.target?.checked ?? false,
+                      }
+                    })
                   }
                 />
                 {homeDraft.rentalEnabled && (
