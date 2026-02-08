@@ -70,6 +70,16 @@ export type HomePurchaseBundleInput = {
   mortgageLiabilityId?: string;
 };
 
+export type BundleWizardInput =
+  | {
+      templateId: "life_new_baby_plan";
+      input: NewBabyPlanInput;
+    }
+  | {
+      templateId: "life_home_purchase";
+      input: HomePurchaseBundleInput;
+    };
+
 const buildCashflowEvent = ({
   id,
   label,

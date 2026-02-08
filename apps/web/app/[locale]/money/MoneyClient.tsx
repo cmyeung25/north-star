@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Divider,
   Drawer,
   Group,
   Modal,
@@ -120,6 +121,7 @@ import {
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
+import type { ScenarioEventDraft as ScenarioV2EventDraft } from "../../../src/domain/scenarioV2/events";
 import type { DeleteImpactSummary } from "../../../src/domain/scenarioV2/eventDeleteImpact";
 import {
   buildBundleDeleteImpact,
@@ -127,8 +129,10 @@ import {
   createEmptyLedgerPreview,
 } from "../../../src/domain/scenarioV2/eventDeleteImpact";
 import type { LedgerRow } from "../../../src/engine/scenarioV2Compiler";
-import type { TemplateCategory, TemplateDef } from "../../../src/domain/eventTemplates/types";
+import type { TemplateCategory, TemplateDef, TemplateId } from "../../../src/domain/eventTemplates/types";
 import { buildTemplateDrawerDraftOverrides } from "../../../src/domain/eventTemplates/presets";
+import type { BundleWizardInput } from "../../../src/domain/eventTemplates/bundles";
+import { getTemplateDef } from "../../../src/domain/eventTemplates/registry";
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 
 type CashflowModalState = {
@@ -226,6 +230,22 @@ type DeleteConfirmation =
       impact: DeleteImpactSummary;
     };
 
+type BundleSliceItem = {
+  id: string;
+  label: string;
+  amount: number | null;
+  subLabel?: string | null;
+  sourceEventId?: string;
+};
+
+type BundleSlice = {
+  id: string;
+  bundleId: string;
+  title: string;
+  summaryAmount: number | null;
+  items: BundleSliceItem[];
+};
+
 export default function MoneyClient({
   scenarioId,
   initialTab,
@@ -270,9 +290,16 @@ export default function MoneyClient({
   const updateSmartInvest = useScenarioStore((state) => state.updateSmartInvest);
   const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const addEvent = useScenarioStore((state) => state.addEvent);
+  const replaceBundleEvents = useScenarioStore((state) => state.replaceBundleEvents);
   const updateEvent = useScenarioStore((state) => state.updateEvent);
   const removeEvent = useScenarioStore((state) => state.removeEvent);
   const duplicateEvent = useScenarioStore((state) => state.duplicateEvent);
+  const upsertBundleInstanceRecord = useScenarioStore(
+    (state) => state.upsertBundleInstanceRecord
+  );
+  const removeBundleInstanceRecord = useScenarioStore(
+    (state) => state.removeBundleInstanceRecord
+  );
   const upsertScenarioAssets = useScenarioStore((state) => state.upsertScenarioAssets);
   const upsertScenarioLiabilities = useScenarioStore((state) => state.upsertScenarioLiabilities);
   const setScenarioAssets = useScenarioStore((state) => state.setScenarioAssets);
@@ -310,6 +337,14 @@ export default function MoneyClient({
   const scenarioIdValue = scenario?.id;
   const incomeGrowthPct = scenario?.assumptions.salaryGrowthRate ?? null;
   const v2ScenarioEvents = useMemo(() => scenario?.events ?? [], [scenario?.events]);
+  const bundleInstanceRecords = useMemo(
+    () => scenario?.bundleInstances ?? [],
+    [scenario?.bundleInstances]
+  );
+  const bundleInstanceById = useMemo(
+    () => new Map(bundleInstanceRecords.map((record) => [record.id, record])),
+    [bundleInstanceRecords]
+  );
   const bundleGroups = useMemo(() => {
     if (!scenarioIsV2) {
       return [];
@@ -409,6 +444,17 @@ export default function MoneyClient({
     useState<CreationItemCategory | null>(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
   const [bundleTemplate, setBundleTemplate] = useState<TemplateDef | null>(null);
+  const [bundleWizardMode, setBundleWizardMode] = useState<"create" | "edit">(
+    "create"
+  );
+  const [bundleWizardInstanceId, setBundleWizardInstanceId] = useState<string | null>(null);
+  const [bundleWizardInitialInput, setBundleWizardInitialInput] =
+    useState<BundleWizardInput | null>(null);
+  const [bundleViewId, setBundleViewId] = useState<string | null>(null);
+  const [bundleEditNotice, setBundleEditNotice] = useState<{
+    bundleId: string;
+    templateId?: string;
+  } | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
     useState<Partial<CashflowEventDraft> | null>(null);
   const [templateHousingDraft, setTemplateHousingDraft] =
@@ -489,7 +535,7 @@ export default function MoneyClient({
   } | null>(null);
   const [assetDetailsMonth, setAssetDetailsMonth] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
-  const [expandedBundleIds, setExpandedBundleIds] = useState<string[]>([]);
+  const [expandedBundleSliceIds, setExpandedBundleSliceIds] = useState<string[]>([]);
   const [cashflowModal, setCashflowModal] = useState<CashflowModalState>({
     opened: false,
     title: "",
@@ -651,9 +697,20 @@ export default function MoneyClient({
       filterEventsByLedgerImpact(v2ScenarioEvents, ledgerRowsByEventId, "expense"),
     [ledgerRowsByEventId, v2ScenarioEvents]
   );
+  const standaloneIncomeEvents = useMemo(
+    () => incomeEvents.filter((event) => !event.source?.bundleInstanceId),
+    [incomeEvents]
+  );
+  const standaloneExpenseEvents = useMemo(
+    () => expenseEvents.filter((event) => !event.source?.bundleInstanceId),
+    [expenseEvents]
+  );
   const derivedIncomeItems = useMemo(() => {
     return v2ScenarioEvents.flatMap((event) => {
       if (event.type !== "housing") {
+        return [];
+      }
+      if (event.source?.bundleInstanceId) {
         return [];
       }
       const rows = ledgerRowsByEventId.get(event.id) ?? [];
@@ -955,6 +1012,9 @@ export default function MoneyClient({
     (template: TemplateDef) => {
       if (template.isBundle) {
         setBundleTemplate(template);
+        setBundleWizardMode("create");
+        setBundleWizardInstanceId(null);
+        setBundleWizardInitialInput(null);
         setBundleWizardOpen(true);
         return;
       }
@@ -997,6 +1057,59 @@ export default function MoneyClient({
       openV2EventDrawer("edit", type, eventId);
     },
     [openV2EventDrawer]
+  );
+  const handleApplyBundleEvents = useCallback(
+    (
+      events: ScenarioV2EventDraft[],
+      _options?: { packAsExperiment?: boolean; experimentTitle?: string },
+      context?: {
+        bundleInstanceId: string;
+        wizardInput: BundleWizardInput;
+      }
+    ) => {
+      if (!scenarioIdValue || !scenario) {
+        return { ok: false, error: t("bundleApplyFailed") };
+      }
+      if (events.length === 0) {
+        return { ok: true };
+      }
+      const resolvedBundleId =
+        context?.bundleInstanceId ?? events[0]?.source?.bundleInstanceId ?? null;
+      if (bundleWizardMode === "edit" && resolvedBundleId) {
+        const result = replaceBundleEvents(
+          resolvedBundleId,
+          events,
+          scenarioIdValue
+        );
+        if (!result.ok) {
+          return { ok: false, error: t("bundleApplyFailed") };
+        }
+      } else {
+        for (const event of events) {
+          const result = addEvent(event, scenarioIdValue);
+          if (!result.ok) {
+            return { ok: false, error: t("bundleApplyFailed") };
+          }
+        }
+      }
+      if (resolvedBundleId && context?.wizardInput) {
+        upsertBundleInstanceRecord(scenarioIdValue, {
+          id: resolvedBundleId,
+          wizardInput: context.wizardInput,
+          updatedAt: Date.now(),
+        });
+      }
+      return { ok: true };
+    },
+    [
+      addEvent,
+      bundleWizardMode,
+      replaceBundleEvents,
+      scenario,
+      scenarioIdValue,
+      t,
+      upsertBundleInstanceRecord,
+    ]
   );
 
   const handleAddCashflowEvent = useCallback(
@@ -1364,24 +1477,69 @@ export default function MoneyClient({
     },
     [t]
   );
-  const toggleBundleExpanded = useCallback((bundleId: string) => {
-    setExpandedBundleIds((current) =>
-      current.includes(bundleId)
-        ? current.filter((id) => id !== bundleId)
-        : [...current, bundleId]
+  const toggleBundleSliceExpanded = useCallback((sliceId: string) => {
+    setExpandedBundleSliceIds((current) =>
+      current.includes(sliceId)
+        ? current.filter((id) => id !== sliceId)
+        : [...current, sliceId]
     );
+  }, []);
+  const handleViewBundle = useCallback((bundleId: string) => {
+    setBundleViewId(bundleId);
   }, []);
   const handleEditBundle = useCallback(
     (bundleId: string) => {
       const bundle = bundleGroupById.get(bundleId);
-      const primaryEvent = bundle?.events[0];
-      if (!primaryEvent) {
+      if (!bundle) {
         return;
       }
-      openV2EventDrawer("edit", primaryEvent.type, primaryEvent.id);
+      const record = bundleInstanceById.get(bundleId);
+      if (!record) {
+        setBundleEditNotice({
+          bundleId,
+          templateId: bundle.templateId,
+        });
+        return;
+      }
+      const templateDef = record.wizardInput?.templateId
+        ? getTemplateDef(record.wizardInput.templateId)
+        : bundle.templateId
+        ? getTemplateDef(bundle.templateId as TemplateId)
+        : null;
+      if (!templateDef) {
+        setBundleEditNotice({
+          bundleId,
+          templateId: bundle.templateId,
+        });
+        return;
+      }
+      setBundleWizardMode("edit");
+      setBundleWizardInstanceId(bundleId);
+      setBundleWizardInitialInput(record.wizardInput);
+      setBundleTemplate(templateDef);
+      setBundleWizardOpen(true);
+      setBundleEditNotice(null);
     },
-    [bundleGroupById, openV2EventDrawer]
+    [bundleGroupById, bundleInstanceById]
   );
+  const handleRebuildBundle = useCallback(() => {
+    if (!bundleEditNotice) {
+      return;
+    }
+    const templateDef = bundleEditNotice.templateId
+      ? getTemplateDef(bundleEditNotice.templateId as TemplateId)
+      : null;
+    if (!templateDef) {
+      setBundleEditNotice(null);
+      return;
+    }
+    setBundleWizardMode("create");
+    setBundleWizardInstanceId(null);
+    setBundleWizardInitialInput(null);
+    setBundleTemplate(templateDef);
+    setBundleWizardOpen(true);
+    setBundleEditNotice(null);
+  }, [bundleEditNotice]);
   const handleDuplicateV2Event = (eventId: string) => {
     if (!scenarioIdValue) {
       return;
@@ -1572,6 +1730,10 @@ export default function MoneyClient({
     scenarioIsV2,
     scenarioLiabilities,
   ]);
+  const activeBundleCard = useMemo(
+    () => bundleCardItems.find((bundle) => bundle.id === bundleViewId) ?? null,
+    [bundleCardItems, bundleViewId]
+  );
   const mortgageDetailEvent = useMemo(() => {
     if (!mortgageDetail) {
       return null;
@@ -1782,6 +1944,184 @@ export default function MoneyClient({
       }),
     [liabilityDefaultsById, scenarioLiabilities]
   );
+  const standaloneAssetItems = useMemo(
+    () =>
+      assetItems.filter(
+        (asset) => !asset.createdByEventId || !bundleEventIds.has(asset.createdByEventId)
+      ),
+    [assetItems, bundleEventIds]
+  );
+  const standaloneLiabilityItems = useMemo(
+    () =>
+      liabilityItems.filter(
+        (liability) =>
+          !liability.createdByEventId || !bundleEventIds.has(liability.createdByEventId)
+      ),
+    [bundleEventIds, liabilityItems]
+  );
+  const bundleAssetItems = useMemo(
+    () =>
+      assetItems.filter(
+        (asset) => asset.createdByEventId && bundleEventIds.has(asset.createdByEventId)
+      ),
+    [assetItems, bundleEventIds]
+  );
+  const bundleLiabilityItems = useMemo(
+    () =>
+      liabilityItems.filter(
+        (liability) =>
+          liability.createdByEventId && bundleEventIds.has(liability.createdByEventId)
+      ),
+    [bundleEventIds, liabilityItems]
+  );
+  const bundleSlicesByType = useMemo(() => {
+    const slices: Record<
+      "income" | "expenses" | "assets" | "liabilities",
+      BundleSlice[]
+    > = {
+      income: [],
+      expenses: [],
+      assets: [],
+      liabilities: [],
+    };
+    if (!scenarioIsV2) {
+      return slices;
+    }
+    const bundleAssetByEventId = new Map<string, typeof bundleAssetItems>();
+    bundleAssetItems.forEach((asset) => {
+      if (!asset.createdByEventId) {
+        return;
+      }
+      const existing = bundleAssetByEventId.get(asset.createdByEventId) ?? [];
+      bundleAssetByEventId.set(asset.createdByEventId, [...existing, asset]);
+    });
+    const bundleLiabilityByEventId = new Map<string, typeof bundleLiabilityItems>();
+    bundleLiabilityItems.forEach((liability) => {
+      if (!liability.createdByEventId) {
+        return;
+      }
+      const existing = bundleLiabilityByEventId.get(liability.createdByEventId) ?? [];
+      bundleLiabilityByEventId.set(liability.createdByEventId, [...existing, liability]);
+    });
+
+    bundleGroups.forEach((bundle) => {
+      const bundleId = bundle.id;
+      const title = resolveBundleTitle(bundle);
+      const bundleEventIdSet = new Set(bundle.events.map((event) => event.id));
+
+      const incomeEventsForBundle = filterEventsByLedgerImpact(
+        bundle.events,
+        ledgerRowsByEventId,
+        "income"
+      );
+      if (incomeEventsForBundle.length > 0) {
+        const items = incomeEventsForBundle.map((event) => ({
+          id: event.id,
+          label: event.label ?? t("ledgerRowFallbackLabel"),
+          amount: resolveEventCardAmount(event),
+          subLabel: resolveEventCardStartMonth(event),
+          sourceEventId: event.id,
+        }));
+        const summaryAmount = items.some((item) => item.amount !== null)
+          ? items.reduce((sum, item) => sum + (item.amount ?? 0), 0)
+          : null;
+        slices.income.push({
+          id: `${bundleId}-income`,
+          bundleId,
+          title,
+          summaryAmount,
+          items,
+        });
+      }
+
+      const expenseEventsForBundle = filterEventsByLedgerImpact(
+        bundle.events,
+        ledgerRowsByEventId,
+        "expense"
+      );
+      if (expenseEventsForBundle.length > 0) {
+        const items = expenseEventsForBundle.map((event) => ({
+          id: event.id,
+          label: event.label ?? t("ledgerRowFallbackLabel"),
+          amount: resolveEventCardAmount(event),
+          subLabel: resolveEventCardStartMonth(event),
+          sourceEventId: event.id,
+        }));
+        const summaryAmount = items.some((item) => item.amount !== null)
+          ? items.reduce((sum, item) => sum + (item.amount ?? 0), 0)
+          : null;
+        slices.expenses.push({
+          id: `${bundleId}-expenses`,
+          bundleId,
+          title,
+          summaryAmount,
+          items,
+        });
+      }
+
+      const bundleAssets = Array.from(bundleEventIdSet).flatMap(
+        (eventId) => bundleAssetByEventId.get(eventId) ?? []
+      );
+      if (bundleAssets.length > 0) {
+        const items = bundleAssets.map((asset) => ({
+          id: asset.id,
+          label: asset.label ?? t("assetUntitled"),
+          amount: typeof asset.currentValue === "number" ? asset.currentValue : null,
+        }));
+        const summaryAmount = items.some((item) => item.amount !== null)
+          ? items.reduce((sum, item) => sum + (item.amount ?? 0), 0)
+          : null;
+        slices.assets.push({
+          id: `${bundleId}-assets`,
+          bundleId,
+          title,
+          summaryAmount,
+          items,
+        });
+      }
+
+      const bundleLiabilities = Array.from(bundleEventIdSet).flatMap(
+        (eventId) => bundleLiabilityByEventId.get(eventId) ?? []
+      );
+      if (bundleLiabilities.length > 0) {
+        const items = bundleLiabilities.map((liability) => ({
+          id: liability.id,
+          label: liability.label ?? t("liabilityUntitled"),
+          amount:
+            typeof liability.principalOutstanding === "number"
+              ? liability.principalOutstanding
+              : null,
+        }));
+        const summaryAmount = items.some((item) => item.amount !== null)
+          ? items.reduce((sum, item) => sum + (item.amount ?? 0), 0)
+          : null;
+        slices.liabilities.push({
+          id: `${bundleId}-liabilities`,
+          bundleId,
+          title,
+          summaryAmount,
+          items,
+        });
+      }
+    });
+
+    return slices;
+  }, [
+    bundleAssetItems,
+    bundleGroups,
+    bundleLiabilityItems,
+    ledgerRowsByEventId,
+    resolveBundleTitle,
+    scenarioIsV2,
+    t,
+  ]);
+  const formatSliceAmount = useCallback(
+    (amount: number | null) =>
+      amount !== null
+        ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
+        : t("amountUnset"),
+    [locale, scenario?.baseCurrency, t]
+  );
   const handleUpsertAssetItem = (item: ScenarioAsset) => {
     if (!scenario || !scenarioIdValue) {
       return;
@@ -1962,6 +2302,81 @@ export default function MoneyClient({
     }
     return monthIndex(currentProjectionMonth, sellMonth) < 0;
   };
+  const renderBundleSliceSection = (
+    slices: BundleSlice[],
+    summaryKey:
+      | "bundleSliceIncomeSummary"
+      | "bundleSliceExpenseSummary"
+      | "bundleSliceAssetSummary"
+      | "bundleSliceLiabilitySummary"
+  ) => {
+    if (slices.length === 0) {
+      return null;
+    }
+    return (
+      <Stack gap="xs">
+        <Text size="sm" fw={600}>
+          {t("bundleSliceSectionTitle")}
+        </Text>
+        {slices.map((slice) => {
+          const expanded = expandedBundleSliceIds.includes(slice.id);
+          return (
+            <Card key={slice.id} withBorder radius="md" padding="sm">
+              <Stack gap="sm">
+                <Group justify="space-between" align="flex-start" wrap="wrap">
+                  <Stack gap={2}>
+                    <Text fw={600}>{slice.title}</Text>
+                    <Text size="sm" c="dimmed">
+                      {t(summaryKey, {
+                        amount: formatSliceAmount(slice.summaryAmount),
+                      })}
+                    </Text>
+                  </Stack>
+                  <Group gap="xs">
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={() => handleViewBundle(slice.bundleId)}
+                    >
+                      {t("bundleCardView")}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      onClick={() => toggleBundleSliceExpanded(slice.id)}
+                    >
+                      {expanded ? t("bundleSliceCollapse") : t("bundleSliceExpand")}
+                    </Button>
+                  </Group>
+                </Group>
+                {expanded && (
+                  <Stack gap={4}>
+                    {slice.items.map((item) => (
+                      <Group
+                        key={item.id}
+                        justify="space-between"
+                        wrap="nowrap"
+                        onClick={() => handleViewBundle(slice.bundleId)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <Text size="sm">
+                          {item.label}
+                          {item.subLabel ? ` · ${item.subLabel}` : ""}
+                        </Text>
+                        <Text size="sm" fw={500}>
+                          {formatSliceAmount(item.amount)}
+                        </Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+          );
+        })}
+      </Stack>
+    );
+  };
 
   useEffect(() => {
     if (hasHandledInitialAdd.current) {
@@ -2092,7 +2507,7 @@ export default function MoneyClient({
   }, [mortgageDetail, mortgageDetailEvent]);
 
   const removeBundleEvents = useCallback(
-    (eventIds: string[]) => {
+    (bundleId: string, eventIds: string[]) => {
       if (!scenarioIdValue || !scenario) {
         return;
       }
@@ -2140,8 +2555,10 @@ export default function MoneyClient({
       setScenarioEvents(scenarioIdValue, remainingEvents);
       setScenarioAssets(scenarioIdValue, nextAssets);
       setScenarioLiabilities(scenarioIdValue, nextLiabilities);
+      removeBundleInstanceRecord(scenarioIdValue, bundleId);
     },
     [
+      removeBundleInstanceRecord,
       scenario,
       scenarioIdValue,
       setScenarioAssets,
@@ -2179,7 +2596,7 @@ export default function MoneyClient({
         break;
       case "bundle":
       case "bundleItem":
-        removeBundleEvents(deleteConfirmation.eventIds);
+        removeBundleEvents(deleteConfirmation.bundleId, deleteConfirmation.eventIds);
         break;
       case "asset": {
         if (!scenario) {
@@ -2201,6 +2618,10 @@ export default function MoneyClient({
         setScenarioLiabilities(scenarioIdValue, nextLiabilities);
         break;
       }
+    }
+
+    if (type === "bundle" || type === "bundleItem") {
+      setBundleViewId(null);
     }
 
     setDeleteConfirmation(null);
@@ -2862,8 +3283,12 @@ export default function MoneyClient({
                 ))}
               </Stack>
             )}
+            {renderBundleSliceSection(
+              bundleSlicesByType.income,
+              "bundleSliceIncomeSummary"
+            )}
             <EventCardList
-              events={incomeEvents}
+              events={standaloneIncomeEvents}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
@@ -2896,8 +3321,12 @@ export default function MoneyClient({
                 {ledgerActionError}
               </Text>
             )}
+            {renderBundleSliceSection(
+              bundleSlicesByType.expenses,
+              "bundleSliceExpenseSummary"
+            )}
             <EventCardList
-              events={expenseEvents}
+              events={standaloneExpenseEvents}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
@@ -2933,8 +3362,12 @@ export default function MoneyClient({
                 {t("assetHoldingCostHint")}
               </Notification>
             )}
+            {renderBundleSliceSection(
+              bundleSlicesByType.assets,
+              "bundleSliceAssetSummary"
+            )}
             <ScenarioAssetManager
-              items={assetItems}
+              items={standaloneAssetItems}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
               sourceEventsByAssetId={assetSourcesById}
@@ -3012,8 +3445,12 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("liabilitiesDescription")}
             </Text>
+            {renderBundleSliceSection(
+              bundleSlicesByType.liabilities,
+              "bundleSliceLiabilitySummary"
+            )}
             <ScenarioLiabilityManager
-              items={liabilityItems}
+              items={standaloneLiabilityItems}
               sourceEventsByLiabilityId={liabilitySourcesById}
               onUpsert={handleUpsertLiabilityItem}
               onDelete={handleRemoveLiabilityItem}
@@ -3037,6 +3474,19 @@ export default function MoneyClient({
             <Text size="sm" c="dimmed">
               {t("inputsDescription")}
             </Text>
+            {bundleEditNotice && (
+              <Notification
+                color="yellow"
+                onClose={() => setBundleEditNotice(null)}
+              >
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <Text size="sm">{t("bundleEditMissingInput")}</Text>
+                  <Button size="xs" variant="light" onClick={handleRebuildBundle}>
+                    {t("bundleEditMissingAction")}
+                  </Button>
+                </Group>
+              </Notification>
+            )}
             <SegmentedControl
               value={inputsFilter}
               onChange={(value) =>
@@ -3055,224 +3505,99 @@ export default function MoneyClient({
               </Text>
             ) : (
               <Stack gap="sm">
-                {visibleBundleCards.map((bundle) => {
-                    const expanded = expandedBundleIds.includes(bundle.id);
-                    return (
-                      <Card key={`bundle-${bundle.id}`} withBorder radius="md" padding="md">
-                        <Stack gap="sm">
-                          <Group justify="space-between" align="flex-start" wrap="wrap">
-                            <Stack gap={2}>
-                              <Text fw={600}>{bundle.title}</Text>
-                              <Text size="sm" c="dimmed">
-                                {t("bundleSummaryOneOff", {
-                                  amount:
-                                    bundle.oneOffTotal > 0
-                                      ? formatCurrency(
-                                          bundle.oneOffTotal,
-                                          scenario?.baseCurrency ?? "USD",
-                                          locale
-                                        )
-                                      : t("amountUnset"),
-                                })}
-                              </Text>
-                              <Text size="sm" c="dimmed">
-                                {t("bundleSummaryMonthlyNet", {
-                                  amount: bundle.monthlyImpact
+                {visibleBundleCards.map((bundle) => (
+                  <Card
+                    key={`bundle-${bundle.id}`}
+                    withBorder
+                    radius="md"
+                    padding="md"
+                    onClick={() => handleViewBundle(bundle.id)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="flex-start" wrap="wrap">
+                        <Stack gap={2}>
+                          <Text fw={600}>{bundle.title}</Text>
+                          <Text size="sm" c="dimmed">
+                            {t("bundleSummaryOneOff", {
+                              amount:
+                                bundle.oneOffTotal > 0
+                                  ? formatCurrency(
+                                      bundle.oneOffTotal,
+                                      scenario?.baseCurrency ?? "USD",
+                                      locale
+                                    )
+                                  : t("amountUnset"),
+                            })}
+                          </Text>
+                          <Text size="sm" c="dimmed">
+                            {t("bundleSummaryMonthlyNet", {
+                              amount: bundle.monthlyImpact
+                                ? formatCurrency(
+                                    bundle.monthlyImpact.net,
+                                    scenario?.baseCurrency ?? "USD",
+                                    locale
+                                  )
+                                : t("amountUnset"),
+                            })}
+                          </Text>
+                          {bundle.assets.map((asset) => (
+                            <Text size="sm" c="dimmed" key={asset.id}>
+                              {t("bundleSummaryAssetItem", {
+                                name: asset.label ?? t("assetUntitled"),
+                                amount:
+                                  typeof asset.currentValue === "number"
                                     ? formatCurrency(
-                                        bundle.monthlyImpact.net,
+                                        asset.currentValue,
                                         scenario?.baseCurrency ?? "USD",
                                         locale
                                       )
                                     : t("amountUnset"),
-                                })}
-                              </Text>
-                              {bundle.assets.map((asset) => (
-                                <Text size="sm" c="dimmed" key={asset.id}>
-                                  {t("bundleSummaryAssetItem", {
-                                    name: asset.label ?? t("assetUntitled"),
-                                    amount:
-                                      typeof asset.currentValue === "number"
-                                        ? formatCurrency(
-                                            asset.currentValue,
-                                            scenario?.baseCurrency ?? "USD",
-                                            locale
-                                          )
-                                        : t("amountUnset"),
-                                  })}
-                                </Text>
-                              ))}
-                              {bundle.liabilities.map((liability) => (
-                                <Text size="sm" c="dimmed" key={liability.id}>
-                                  {t("bundleSummaryLiabilityItem", {
-                                    name: liability.label ?? t("liabilityUntitled"),
-                                    amount:
-                                      typeof liability.principalOutstanding === "number"
-                                        ? formatCurrency(
-                                            liability.principalOutstanding,
-                                            scenario?.baseCurrency ?? "USD",
-                                            locale
-                                          )
-                                        : t("amountUnset"),
-                                  })}
-                                </Text>
-                              ))}
-                            </Stack>
-                            <Group gap="xs">
-                              <Button
-                                size="xs"
-                                variant="light"
-                                onClick={() => toggleBundleExpanded(bundle.id)}
-                              >
-                                {expanded
-                                  ? t("bundleCardCollapse")
-                                  : t("bundleCardView")}
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="subtle"
-                                onClick={() => handleEditBundle(bundle.id)}
-                              >
-                                {common("actionEdit")}
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="subtle"
-                                color="red"
-                                onClick={() => handleDeleteBundle(bundle.id)}
-                              >
-                                {common("actionDelete")}
-                              </Button>
-                            </Group>
-                          </Group>
-
-                          {expanded && (
-                            <Stack gap="sm">
-                              {bundle.assets.length > 0 && (
-                                <Stack gap={4}>
-                                  <Text size="xs" c="dimmed">
-                                    {t("bundleDetailAssets")}
-                                  </Text>
-                                  {bundle.assets.map((asset) => (
-                                    <Group
-                                      key={asset.id}
-                                      justify="space-between"
-                                      wrap="nowrap"
-                                    >
-                                      <Text size="sm">
-                                        {asset.label ?? t("assetUntitled")}
-                                      </Text>
-                                      <Text size="sm" fw={500}>
-                                        {typeof asset.currentValue === "number"
-                                          ? formatCurrency(
-                                              asset.currentValue,
-                                              scenario?.baseCurrency ?? "USD",
-                                              locale
-                                            )
-                                          : t("amountUnset")}
-                                      </Text>
-                                    </Group>
-                                  ))}
-                                </Stack>
-                              )}
-                              {bundle.liabilities.length > 0 && (
-                                <Stack gap={4}>
-                                  <Text size="xs" c="dimmed">
-                                    {t("bundleDetailLiabilities")}
-                                  </Text>
-                                  {bundle.liabilities.map((liability) => (
-                                    <Group
-                                      key={liability.id}
-                                      justify="space-between"
-                                      wrap="nowrap"
-                                    >
-                                      <Text size="sm">
-                                        {liability.label ?? t("liabilityUntitled")}
-                                      </Text>
-                                      <Text size="sm" fw={500}>
-                                        {typeof liability.principalOutstanding === "number"
-                                          ? formatCurrency(
-                                              liability.principalOutstanding,
-                                              scenario?.baseCurrency ?? "USD",
-                                              locale
-                                            )
-                                          : t("amountUnset")}
-                                      </Text>
-                                    </Group>
-                                  ))}
-                                </Stack>
-                              )}
-                              {bundle.incomeEvents.length > 0 && (
-                                <Stack gap={4}>
-                                  <Text size="xs" c="dimmed">
-                                    {t("bundleDetailIncome")}
-                                  </Text>
-                                  {bundle.incomeEvents.map((event) => (
-                                    <Group
-                                      key={event.id}
-                                      justify="space-between"
-                                      wrap="nowrap"
-                                    >
-                                      <Text size="sm">
-                                        {event.label ?? t("ledgerRowFallbackLabel")} ·{" "}
-                                        {resolveEventCardStartMonth(event) ??
-                                          t("amountUnset")}
-                                      </Text>
-                                      <Text size="sm" fw={500}>
-                                        {resolveEventCardAmount(event) !== null
-                                          ? formatCurrency(
-                                              resolveEventCardAmount(event) ?? 0,
-                                              scenario?.baseCurrency ?? "USD",
-                                              locale
-                                            )
-                                          : t("amountUnset")}
-                                      </Text>
-                                    </Group>
-                                  ))}
-                                </Stack>
-                              )}
-                              {bundle.expenseEvents.length > 0 && (
-                                <Stack gap={4}>
-                                  <Text size="xs" c="dimmed">
-                                    {t("bundleDetailExpenses")}
-                                  </Text>
-                                  {bundle.expenseEvents.map((event) => (
-                                    <Group
-                                      key={event.id}
-                                      justify="space-between"
-                                      wrap="nowrap"
-                                    >
-                                      <Text size="sm">
-                                        {event.label ?? t("ledgerRowFallbackLabel")} ·{" "}
-                                        {resolveEventCardStartMonth(event) ??
-                                          t("amountUnset")}
-                                      </Text>
-                                      <Text size="sm" fw={500}>
-                                        {resolveEventCardAmount(event) !== null
-                                          ? formatCurrency(
-                                              resolveEventCardAmount(event) ?? 0,
-                                              scenario?.baseCurrency ?? "USD",
-                                              locale
-                                            )
-                                          : t("amountUnset")}
-                                      </Text>
-                                    </Group>
-                                  ))}
-                                </Stack>
-                              )}
-                              {bundle.assets.length === 0 &&
-                                bundle.liabilities.length === 0 &&
-                                bundle.incomeEvents.length === 0 &&
-                                bundle.expenseEvents.length === 0 && (
-                                  <Text size="sm" c="dimmed">
-                                    {t("bundleDetailEmpty")}
-                                  </Text>
-                                )}
-                            </Stack>
-                          )}
+                              })}
+                            </Text>
+                          ))}
+                          {bundle.liabilities.map((liability) => (
+                            <Text size="sm" c="dimmed" key={liability.id}>
+                              {t("bundleSummaryLiabilityItem", {
+                                name: liability.label ?? t("liabilityUntitled"),
+                                amount:
+                                  typeof liability.principalOutstanding === "number"
+                                    ? formatCurrency(
+                                        liability.principalOutstanding,
+                                        scenario?.baseCurrency ?? "USD",
+                                        locale
+                                      )
+                                    : t("amountUnset"),
+                              })}
+                            </Text>
+                          ))}
                         </Stack>
-                      </Card>
-                    );
-                  })}
+                        <Group gap="xs">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleViewBundle(bundle.id);
+                            }}
+                          >
+                            {t("bundleCardView")}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleEditBundle(bundle.id);
+                            }}
+                          >
+                            {t("bundleEdit")}
+                          </Button>
+                        </Group>
+                      </Group>
+                    </Stack>
+                  </Card>
+                ))}
 
                 {inputsItems.length > 0 && (
                   <Stack gap="sm">
@@ -3532,6 +3857,9 @@ export default function MoneyClient({
       <BundleWizardDrawer
         opened={bundleWizardOpen}
         template={bundleTemplate}
+        mode={bundleWizardMode}
+        bundleInstanceId={bundleWizardInstanceId}
+        initialWizardInput={bundleWizardInitialInput}
         scenarioId={scenarioIdValue}
         baseMonth={baseMonth}
         baseCurrency={scenario?.baseCurrency ?? "USD"}
@@ -3539,9 +3867,180 @@ export default function MoneyClient({
         onClose={() => {
           setBundleWizardOpen(false);
           setBundleTemplate(null);
+          setBundleWizardMode("create");
+          setBundleWizardInstanceId(null);
+          setBundleWizardInitialInput(null);
         }}
         onOpenEventDrawer={handleOpenBundleEvent}
+        onApplyEvents={handleApplyBundleEvents}
       />
+
+      <Drawer
+        opened={Boolean(activeBundleCard)}
+        onClose={() => setBundleViewId(null)}
+        position="right"
+        size="md"
+        title={activeBundleCard?.title ?? t("bundleTitleFallback")}
+      >
+        {activeBundleCard ? (
+          <Stack gap="md">
+            <Stack gap={4}>
+              <Text size="sm" c="dimmed">
+                {t("bundleSummaryOneOff", {
+                  amount:
+                    activeBundleCard.oneOffTotal > 0
+                      ? formatCurrency(
+                          activeBundleCard.oneOffTotal,
+                          scenario?.baseCurrency ?? "USD",
+                          locale
+                        )
+                      : t("amountUnset"),
+                })}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {t("bundleSummaryMonthlyNet", {
+                  amount: activeBundleCard.monthlyImpact
+                    ? formatCurrency(
+                        activeBundleCard.monthlyImpact.net,
+                        scenario?.baseCurrency ?? "USD",
+                        locale
+                      )
+                    : t("amountUnset"),
+                })}
+              </Text>
+            </Stack>
+
+            {activeBundleCard.assets.length > 0 && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  {t("bundleDetailAssets")}
+                </Text>
+                {activeBundleCard.assets.map((asset) => (
+                  <Group key={asset.id} justify="space-between" wrap="nowrap">
+                    <Text size="sm">{asset.label ?? t("assetUntitled")}</Text>
+                    <Text size="sm" fw={500}>
+                      {typeof asset.currentValue === "number"
+                        ? formatCurrency(
+                            asset.currentValue,
+                            scenario?.baseCurrency ?? "USD",
+                            locale
+                          )
+                        : t("amountUnset")}
+                    </Text>
+                  </Group>
+                ))}
+              </Stack>
+            )}
+
+            {activeBundleCard.liabilities.length > 0 && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  {t("bundleDetailLiabilities")}
+                </Text>
+                {activeBundleCard.liabilities.map((liability) => (
+                  <Group key={liability.id} justify="space-between" wrap="nowrap">
+                    <Text size="sm">
+                      {liability.label ?? t("liabilityUntitled")}
+                    </Text>
+                    <Text size="sm" fw={500}>
+                      {typeof liability.principalOutstanding === "number"
+                        ? formatCurrency(
+                            liability.principalOutstanding,
+                            scenario?.baseCurrency ?? "USD",
+                            locale
+                          )
+                        : t("amountUnset")}
+                    </Text>
+                  </Group>
+                ))}
+              </Stack>
+            )}
+
+            {activeBundleCard.incomeEvents.length > 0 && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  {t("bundleDetailIncome")}
+                </Text>
+                {activeBundleCard.incomeEvents.map((event) => (
+                  <Group key={event.id} justify="space-between" wrap="nowrap">
+                    <Text size="sm">
+                      {event.label ?? t("ledgerRowFallbackLabel")} ·{" "}
+                      {resolveEventCardStartMonth(event) ?? t("amountUnset")}
+                    </Text>
+                    <Text size="sm" fw={500}>
+                      {resolveEventCardAmount(event) !== null
+                        ? formatCurrency(
+                            resolveEventCardAmount(event) ?? 0,
+                            scenario?.baseCurrency ?? "USD",
+                            locale
+                          )
+                        : t("amountUnset")}
+                    </Text>
+                  </Group>
+                ))}
+              </Stack>
+            )}
+
+            {activeBundleCard.expenseEvents.length > 0 && (
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  {t("bundleDetailExpenses")}
+                </Text>
+                {activeBundleCard.expenseEvents.map((event) => (
+                  <Group key={event.id} justify="space-between" wrap="nowrap">
+                    <Text size="sm">
+                      {event.label ?? t("ledgerRowFallbackLabel")} ·{" "}
+                      {resolveEventCardStartMonth(event) ?? t("amountUnset")}
+                    </Text>
+                    <Text size="sm" fw={500}>
+                      {resolveEventCardAmount(event) !== null
+                        ? formatCurrency(
+                            resolveEventCardAmount(event) ?? 0,
+                            scenario?.baseCurrency ?? "USD",
+                            locale
+                          )
+                        : t("amountUnset")}
+                    </Text>
+                  </Group>
+                ))}
+              </Stack>
+            )}
+
+            {activeBundleCard.assets.length === 0 &&
+              activeBundleCard.liabilities.length === 0 &&
+              activeBundleCard.incomeEvents.length === 0 &&
+              activeBundleCard.expenseEvents.length === 0 && (
+                <Text size="sm" c="dimmed">
+                  {t("bundleDetailEmpty")}
+                </Text>
+              )}
+
+            <Group justify="flex-end">
+              <Button
+                variant="subtle"
+                onClick={() => handleEditBundle(activeBundleCard.id)}
+              >
+                {t("bundleEdit")}
+              </Button>
+            </Group>
+
+            <Divider />
+
+            <Stack gap="xs">
+              <Text size="sm" fw={600} c="red">
+                {t("bundleDangerZoneTitle")}
+              </Text>
+              <Button
+                color="red"
+                variant="light"
+                onClick={() => handleDeleteBundle(activeBundleCard.id)}
+              >
+                {t("bundleDeleteAction")}
+              </Button>
+            </Stack>
+          </Stack>
+        ) : null}
+      </Drawer>
 
       {scenario && scenarioIdValue && (
         <>

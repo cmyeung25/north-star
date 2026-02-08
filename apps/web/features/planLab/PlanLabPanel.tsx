@@ -1800,7 +1800,8 @@ export default function PlanLabPanel({
   const handleApplyBundleEvents = useCallback(
     (
       events: ScenarioV2EventDraft[],
-      options?: { packAsExperiment?: boolean; experimentTitle?: string }
+      options?: { packAsExperiment?: boolean; experimentTitle?: string },
+      _context?: { bundleInstanceId: string; wizardInput: unknown }
     ) => {
       if (!scenarioIsV2 || events.length === 0) {
         return { ok: false, error: translate("bundleApplyFailed", "Failed to create plan bundle.") };
