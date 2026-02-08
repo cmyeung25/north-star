@@ -457,6 +457,12 @@ export default function BundleWizardDrawer({
   const [homeDraft, setHomeDraft] = useState<HomePurchaseDraft>(() =>
     createHomeDraft(defaultMonth)
   );
+  const hasHomeMonthlyExpense = useMemo(
+    () =>
+      homeDraft.mortgagePayment > 0 ||
+      homeDraft.ongoingCosts.some((cost) => cost.amount > 0),
+    [homeDraft.mortgagePayment, homeDraft.ongoingCosts]
+  );
 
   const resolvedTemplateId = template?.id ?? initialWizardInput?.templateId ?? null;
   const isNewBabyBundle = resolvedTemplateId === "life_new_baby_plan";
@@ -529,6 +535,15 @@ export default function BundleWizardDrawer({
     opened,
     resolvedTemplateId,
   ]);
+  useEffect(() => {
+    if (hasHomeMonthlyExpense || !homeDraft.rentalEnabled) {
+      return;
+    }
+    setHomeDraft((current) => ({
+      ...current,
+      rentalEnabled: false,
+    }));
+  }, [hasHomeMonthlyExpense, homeDraft.rentalEnabled]);
 
   const hasLivingTotal = useMemo(() => {
     const livingLabel = t("templates.living_total.name");
@@ -1779,6 +1794,7 @@ export default function BundleWizardDrawer({
               <Stack gap="sm">
                 <Switch
                   checked={homeDraft.rentalEnabled}
+                  disabled={!hasHomeMonthlyExpense}
                   label={t("bundleHomeRentalToggle")}
                   onChange={(event) =>
                     setHomeDraft((current) => ({
