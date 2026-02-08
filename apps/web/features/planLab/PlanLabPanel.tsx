@@ -190,6 +190,8 @@ import {
 import { computeBundleMonthlySummary } from "../../src/features/money/bundleSummary";
 import { compileScenarioV2ToLedger } from "../../src/engine/scenarioV2Compiler";
 
+const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
+  event.type === "housing" && event.kind === "mortgage";
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
@@ -3542,7 +3544,7 @@ export default function PlanLabPanel({
     }
     return (
       activeBundleGroup.events.find(
-        (event) => event.type === "housing" && event.kind === "mortgage"
+        (event): event is HousingEvent => isMortgageHousingEvent(event)
       ) ?? null
     );
   }, [activeBundleGroup]);
