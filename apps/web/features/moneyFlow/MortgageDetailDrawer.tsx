@@ -29,6 +29,8 @@ export type MortgageDetailTab = "overview" | "liability" | "cashflow";
 type MortgageDetailDrawerProps = {
   opened: boolean;
   onClose: () => void;
+  onBack?: () => void;
+  backLabel?: string;
   onEdit?: () => void;
   event: HousingEvent | null;
   asset?: ScenarioAsset | null;
@@ -54,6 +56,8 @@ const formatAmount = (
 export default function MortgageDetailDrawer({
   opened,
   onClose,
+  onBack,
+  backLabel,
   onEdit,
   event,
   asset,
@@ -178,6 +182,11 @@ export default function MortgageDetailDrawer({
       size="lg"
       title={
         <Group justify="space-between" w="100%" wrap="nowrap">
+          {onBack ? (
+            <Button size="xs" variant="subtle" onClick={onBack}>
+              {backLabel ?? common("actionBack")}
+            </Button>
+          ) : null}
           <Text fw={600}>{t("mortgageDetailTitle")}</Text>
           <Button size="xs" variant="light" onClick={() => onEdit?.()} disabled={!onEdit}>
             {common("actionEdit")}
