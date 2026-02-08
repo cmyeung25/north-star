@@ -246,6 +246,13 @@ type BundleSlice = {
   items: BundleSliceItem[];
 };
 
+type MortgageEvent = Extract<ScenarioEvent, { type: "housing" }> & {
+  kind: "mortgage";
+};
+
+const isMortgageEvent = (event: ScenarioEvent): event is MortgageEvent =>
+  event.type === "housing" && event.kind === "mortgage";
+
 export default function MoneyClient({
   scenarioId,
   initialTab,
@@ -265,6 +272,7 @@ export default function MoneyClient({
   const carsText = useTranslations("cars");
   const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
+  const breakdownText = useTranslations();
   const locale = useLocale();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const router = useRouter();
@@ -1452,6 +1460,10 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventMissing"));
         return;
       }
+      if (match.source?.bundleInstanceId) {
+        setBundleViewId(match.source.bundleInstanceId);
+        return;
+      }
       openV2EventDrawer("edit", match.type, eventId);
     },
     [openV2EventDrawer, scenarioIsV2, t, v2ScenarioEvents]
@@ -1668,18 +1680,190 @@ export default function MoneyClient({
     () => scenario?.liabilities ?? [],
     [scenario?.liabilities]
   );
+  const resolveBundleEventMonthlyImpact = useCallback(
+    (event: ScenarioEvent) => {
+      if (event.type === "cashflow" && event.cadence === "oneOff") {
+        return { income: 0, expense: 0 };
+      }
+      if (event.type === "adjustment") {
+        return { income: 0, expense: 0 };
+      }
+      const impact = resolveEventMonthlyImpact(ledgerRowsByEventId.get(event.id) ?? []);
+      if (impact) {
+        return { income: impact.income, expense: impact.expense };
+      }
+      if (event.type === "cashflow") {
+        if (event.kind === "income") {
+          return { income: event.amount ?? 0, expense: 0 };
+        }
+        return { income: 0, expense: event.amount ?? 0 };
+      }
+      if (event.type === "housing") {
+        if (event.kind === "rent") {
+          return { income: 0, expense: event.rentMonthly ?? 0 };
+        }
+        const ongoingTotal =
+          event.ongoingCosts?.reduce((sum, cost) => sum + (cost.amount ?? 0), 0) ?? 0;
+        return {
+          income:
+            event.rental?.enabled && event.rental.rentMonthly
+              ? event.rental.rentMonthly
+              : 0,
+          expense: (event.mortgagePayment ?? 0) + ongoingTotal,
+        };
+      }
+      if (event.type === "loan" || event.type === "insurance") {
+        return { income: 0, expense: resolveEventCardAmount(event) ?? 0 };
+      }
+      return { income: 0, expense: 0 };
+    },
+    [ledgerRowsByEventId]
+  );
+  const resolveBundleEventAmountForDirection = useCallback(
+    (event: ScenarioEvent, direction: "income" | "expense") => {
+      const impact = resolveBundleEventMonthlyImpact(event);
+      const amount = direction === "income" ? impact.income : impact.expense;
+      return amount > 0 ? amount : null;
+    },
+    [resolveBundleEventMonthlyImpact]
+  );
+  const buildMortgageExpenseItems = useCallback(
+    (event: ScenarioEvent) => {
+      if (event.type !== "housing" || event.kind !== "mortgage") {
+        return [];
+      }
+      const items: { id: string; label: string; amount: number }[] = [];
+      if (event.mortgagePayment && event.mortgagePayment > 0) {
+        items.push({
+          id: `${event.id}-mortgage-payment`,
+          label: t("bundleDetailMortgagePaymentLabel"),
+          amount: event.mortgagePayment,
+        });
+      }
+      (event.ongoingCosts ?? []).forEach((cost, index) => {
+        if (!cost.amount) {
+          return;
+        }
+        items.push({
+          id: `${event.id}-ongoing-${index}`,
+          label: cost.label ?? breakdownText("breakdownLabels.holdingCost"),
+          amount: cost.amount,
+        });
+      });
+      return items;
+    },
+    [breakdownText, t]
+  );
+  const buildBundleIncomeItems = useCallback(
+    (event: ScenarioEvent) => {
+      if (
+        event.type === "cashflow" &&
+        event.kind === "income" &&
+        event.cadence !== "oneOff"
+      ) {
+        const amount = resolveBundleEventAmountForDirection(event, "income");
+        return amount && amount > 0
+          ? [
+              {
+                id: `${event.id}-income`,
+                label: event.label ?? t("ledgerRowFallbackLabel"),
+                amount,
+              },
+            ]
+          : [];
+      }
+      if (
+        event.type === "housing" &&
+        event.kind === "mortgage" &&
+        event.rental?.enabled
+      ) {
+        const amount = resolveBundleEventAmountForDirection(event, "income");
+        return amount && amount > 0
+          ? [
+              {
+                id: `${event.id}-rental-income`,
+                label: t("bundleHomeRentalMonthly"),
+                amount,
+              },
+            ]
+          : [];
+      }
+      return [];
+    },
+    [resolveBundleEventAmountForDirection, t]
+  );
+  const buildBundleExpenseItems = useCallback(
+    (event: ScenarioEvent) => {
+      if (
+        event.type === "cashflow" &&
+        event.kind === "expense" &&
+        event.cadence !== "oneOff"
+      ) {
+        const amount = resolveBundleEventAmountForDirection(event, "expense");
+        return amount && amount > 0
+          ? [
+              {
+                id: `${event.id}-expense`,
+                label: event.label ?? t("ledgerRowFallbackLabel"),
+                amount,
+              },
+            ]
+          : [];
+      }
+      if (event.type === "housing" && event.kind === "rent") {
+        const amount = resolveBundleEventAmountForDirection(event, "expense");
+        return amount && amount > 0
+          ? [
+              {
+                id: `${event.id}-rent`,
+                label: event.label ?? t("ledgerRowFallbackLabel"),
+                amount,
+              },
+            ]
+          : [];
+      }
+      if (event.type === "housing" && event.kind === "mortgage") {
+        return buildMortgageExpenseItems(event);
+      }
+      if (event.type === "loan" || event.type === "insurance") {
+        const amount = resolveBundleEventAmountForDirection(event, "expense");
+        return amount && amount > 0
+          ? [
+              {
+                id: `${event.id}-expense`,
+                label: event.label ?? t("ledgerRowFallbackLabel"),
+                amount,
+              },
+            ]
+          : [];
+      }
+      return [];
+    },
+    [buildMortgageExpenseItems, resolveBundleEventAmountForDirection, t]
+  );
   const bundleCardItems = useMemo(() => {
     if (!scenarioIsV2 || !scenario) {
       return [];
     }
     return bundleGroups.map((bundle) => {
       const eventIds = bundle.events.map((event) => event.id);
-      const ledgerRows = eventIds.flatMap(
-        (id) => ledgerRowsByEventId.get(id) ?? []
+      const monthlyTotals = bundle.events.reduce(
+        (acc, event) => {
+          const impact = resolveBundleEventMonthlyImpact(event);
+          return {
+            income: acc.income + impact.income,
+            expense: acc.expense + impact.expense,
+          };
+        },
+        { income: 0, expense: 0 }
       );
-      const monthlyImpact = resolveEventMonthlyImpact(ledgerRows);
+      const hasMonthlyImpact = monthlyTotals.income > 0 || monthlyTotals.expense > 0;
       const oneOffTotal = bundle.events.reduce((total, event) => {
-        if (event.type === "cashflow" && event.cadence === "oneOff") {
+        if (
+          event.type === "cashflow" &&
+          event.cadence === "oneOff" &&
+          event.kind === "expense"
+        ) {
           return total + event.amount;
         }
         if (event.type === "housing" && event.kind === "mortgage") {
@@ -1696,35 +1880,23 @@ export default function MoneyClient({
         (liability) =>
           liability.createdByEventId && eventIds.includes(liability.createdByEventId)
       );
-      const incomeEvents = bundle.events.filter(
-        (event) => event.type === "cashflow" && event.kind === "income"
-      );
-      const expenseEvents = bundle.events.filter((event) => {
-        if (event.type === "cashflow") {
-          return event.kind === "expense";
-        }
-        return (
-          event.type === "housing" ||
-          event.type === "loan" ||
-          event.type === "insurance"
-        );
-      });
       return {
         id: bundle.id,
         title: resolveBundleTitle(bundle),
         eventIds,
         assets,
         liabilities,
-        incomeEvents,
-        expenseEvents,
-        monthlyImpact,
+        monthlyIncome: monthlyTotals.income,
+        monthlyExpense: monthlyTotals.expense,
+        monthlyNet: monthlyTotals.income - monthlyTotals.expense,
+        hasMonthlyImpact,
         oneOffTotal,
       };
     });
   }, [
     bundleGroups,
-    ledgerRowsByEventId,
     resolveBundleTitle,
+    resolveBundleEventMonthlyImpact,
     scenario,
     scenarioAssets,
     scenarioIsV2,
@@ -1739,6 +1911,53 @@ export default function MoneyClient({
       bundleViewId ? bundleGroupById.get(bundleViewId) ?? null : null,
     [bundleGroupById, bundleViewId]
   );
+  const activeBundleMortgageEvent = useMemo(() => {
+    if (!activeBundleGroup) {
+      return null;
+    }
+    return activeBundleGroup.events.find(isMortgageEvent) ?? null;
+  }, [activeBundleGroup]);
+  const activeBundleMortgageSummary = useMemo(() => {
+    if (!activeBundleMortgageEvent) {
+      return null;
+    }
+    const purchasePrice = activeBundleMortgageEvent.purchasePrice;
+    let downPayment = 0;
+    if (activeBundleMortgageEvent.downPaymentMode === "amount") {
+      downPayment = activeBundleMortgageEvent.downPaymentAmount ?? 0;
+    } else if (activeBundleMortgageEvent.downPaymentMode === "percent") {
+      downPayment =
+        (purchasePrice ?? 0) *
+        ((activeBundleMortgageEvent.downPaymentPercent ?? 0) / 100);
+    } else if (typeof activeBundleMortgageEvent.downPaymentAmount === "number") {
+      downPayment = activeBundleMortgageEvent.downPaymentAmount ?? 0;
+    }
+    const loanAmount =
+      typeof purchasePrice === "number"
+        ? Math.max(purchasePrice - downPayment, 0)
+        : null;
+    return {
+      eventId: activeBundleMortgageEvent.id,
+      loanAmount,
+      ratePct: activeBundleMortgageEvent.mortgageRatePct ?? null,
+      termYears: activeBundleMortgageEvent.mortgageTermYears ?? null,
+      monthlyPayment: activeBundleMortgageEvent.mortgagePayment ?? null,
+    };
+  }, [activeBundleMortgageEvent]);
+  const bundleDetailIncomeItems = useMemo(() => {
+    if (!activeBundleGroup) {
+      return [];
+    }
+    return activeBundleGroup.events
+      .flatMap((event) => buildBundleIncomeItems(event))
+      .filter((item) => item.amount > 0);
+  }, [activeBundleGroup, buildBundleIncomeItems]);
+  const bundleDetailExpenseItems = useMemo(() => {
+    if (!activeBundleGroup) {
+      return [];
+    }
+    return activeBundleGroup.events.flatMap((event) => buildBundleExpenseItems(event));
+  }, [activeBundleGroup, buildBundleExpenseItems]);
   const mortgageDetailEvent = useMemo(() => {
     if (!mortgageDetail) {
       return null;
@@ -1979,138 +2198,6 @@ export default function MoneyClient({
       ),
     [bundleEventIds, liabilityItems]
   );
-  const resolveBundleEventAmount = useCallback(
-    (eventId: string, direction: "income" | "expense") => {
-      const impact = resolveEventMonthlyImpact(ledgerRowsByEventId.get(eventId) ?? []);
-      if (!impact) {
-        return null;
-      }
-      return direction === "income" ? impact.income : impact.expense;
-    },
-    [ledgerRowsByEventId]
-  );
-  const resolveBundleEventAmountForDirection = useCallback(
-    (event: ScenarioEvent, direction: "income" | "expense") => {
-      const ledgerAmount = resolveBundleEventAmount(event.id, direction);
-      if (ledgerAmount !== null && ledgerAmount > 0) {
-        return ledgerAmount;
-      }
-      if (direction === "income") {
-        if (event.type === "cashflow" && event.kind === "income") {
-          return event.amount ?? null;
-        }
-        if (event.type === "housing" && event.kind === "mortgage") {
-          return event.rental?.enabled ? event.rental.rentMonthly ?? null : null;
-        }
-        return null;
-      }
-      if (event.type === "cashflow" && event.kind === "expense") {
-        return event.amount ?? null;
-      }
-      if (event.type === "housing" && event.kind === "mortgage") {
-        const ongoingTotal =
-          event.ongoingCosts?.reduce((sum, cost) => sum + (cost.amount ?? 0), 0) ?? 0;
-        const total = (event.mortgagePayment ?? 0) + ongoingTotal;
-        return total > 0 ? total : null;
-      }
-      if (event.type === "loan" || event.type === "insurance") {
-        return resolveEventCardAmount(event);
-      }
-      return null;
-    },
-    [resolveBundleEventAmount]
-  );
-  const bundleDetailIncomeItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events
-      .flatMap((event) => {
-        if (event.type === "cashflow" && event.kind === "income") {
-          const amount = resolveBundleEventAmountForDirection(event, "income");
-          return amount && amount > 0
-            ? [
-                {
-                  id: `${event.id}-income`,
-                  label: event.label ?? t("ledgerRowFallbackLabel"),
-                  amount,
-                },
-              ]
-            : [];
-        }
-        if (
-          event.type === "housing" &&
-          event.kind === "mortgage" &&
-          event.rental?.enabled
-        ) {
-          const amount = resolveBundleEventAmountForDirection(event, "income");
-          return amount && amount > 0
-            ? [
-                {
-                  id: `${event.id}-rental-income`,
-                  label: t("breakdownLabels.rentalIncome"),
-                  amount,
-                },
-              ]
-            : [];
-        }
-        return [];
-      })
-      .filter((item) => item.amount > 0);
-  }, [activeBundleGroup, resolveBundleEventAmountForDirection, t]);
-  const bundleDetailExpenseItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events.flatMap((event) => {
-      if (event.type === "cashflow" && event.kind === "expense") {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-expense`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      if (event.type === "housing" && event.kind === "mortgage") {
-        const items: { id: string; label: string; amount: number }[] = [];
-        if (event.mortgagePayment && event.mortgagePayment > 0) {
-          items.push({
-            id: `${event.id}-mortgage-payment`,
-            label: t("bundleDetailMortgagePaymentLabel"),
-            amount: event.mortgagePayment,
-          });
-        }
-        (event.ongoingCosts ?? []).forEach((cost, index) => {
-          if (!cost.amount) {
-            return;
-          }
-          items.push({
-            id: `${event.id}-ongoing-${index}`,
-            label: cost.label ?? t("breakdownLabels.holdingCost"),
-            amount: cost.amount,
-          });
-        });
-        return items;
-      }
-      if (event.type === "loan" || event.type === "insurance") {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-expense`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      return [];
-    });
-  }, [activeBundleGroup, resolveBundleEventAmountForDirection, t]);
   const bundleSlicesByType = useMemo(() => {
     const slices: Record<
       "income" | "expenses" | "assets" | "liabilities",
@@ -2145,24 +2232,13 @@ export default function MoneyClient({
       const bundleId = bundle.id;
       const title = resolveBundleTitle(bundle);
       const bundleEventIdSet = new Set(bundle.events.map((event) => event.id));
-      const incomeItems: BundleSliceItem[] = [];
-      bundle.events.forEach((event) => {
-        const amount = resolveBundleEventAmountForDirection(event, "income");
-        if (!amount || amount <= 0) {
-          return;
-        }
-        const label =
-          event.type === "housing" && event.kind === "mortgage"
-            ? t("breakdownLabels.rentalIncome")
-            : event.label ?? t("ledgerRowFallbackLabel");
-        incomeItems.push({
-          id: `${event.id}-income`,
-          label,
-          amount,
+      const incomeItems: BundleSliceItem[] = bundle.events.flatMap((event) =>
+        buildBundleIncomeItems(event).map((item) => ({
+          ...item,
           subLabel: resolveEventCardStartMonth(event),
           sourceEventId: event.id,
-        });
-      });
+        }))
+      );
       if (incomeItems.length > 0) {
         const summaryAmount = incomeItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
         slices.income.push({
@@ -2174,20 +2250,13 @@ export default function MoneyClient({
         });
       }
 
-      const expenseItems: BundleSliceItem[] = [];
-      bundle.events.forEach((event) => {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        if (!amount || amount <= 0) {
-          return;
-        }
-        expenseItems.push({
-          id: `${event.id}-expense`,
-          label: event.label ?? t("ledgerRowFallbackLabel"),
-          amount,
+      const expenseItems: BundleSliceItem[] = bundle.events.flatMap((event) =>
+        buildBundleExpenseItems(event).map((item) => ({
+          ...item,
           subLabel: resolveEventCardStartMonth(event),
           sourceEventId: event.id,
-        });
-      });
+        }))
+      );
       if (expenseItems.length > 0) {
         const summaryAmount = expenseItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
         slices.expenses.push({
@@ -2248,12 +2317,11 @@ export default function MoneyClient({
     return slices;
   }, [
     bundleAssetItems,
+    buildBundleExpenseItems,
+    buildBundleIncomeItems,
     bundleGroups,
     bundleLiabilityItems,
-    ledgerRowsByEventId,
     resolveBundleTitle,
-    resolveBundleEventAmount,
-    resolveBundleEventAmountForDirection,
     scenarioIsV2,
     t,
   ]);
@@ -2263,6 +2331,17 @@ export default function MoneyClient({
         ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
         : t("amountUnset"),
     [locale, scenario?.baseCurrency, t]
+  );
+  const formatGrowthPct = useCallback(
+    (value: number | null | undefined) => {
+      if (!Number.isFinite(value ?? NaN)) {
+        return "0";
+      }
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+        value ?? 0
+      );
+    },
+    [locale]
   );
   const handleUpsertAssetItem = (item: ScenarioAsset) => {
     if (!scenario || !scenarioIdValue) {
@@ -3673,10 +3752,32 @@ export default function MoneyClient({
                             })}
                           </Text>
                           <Text size="sm" c="dimmed">
-                            {t("bundleSummaryMonthlyNet", {
-                              amount: bundle.monthlyImpact
+                            {t("bundleSummaryMonthlyIncome", {
+                              amount: bundle.hasMonthlyImpact
                                 ? formatCurrency(
-                                    bundle.monthlyImpact.net,
+                                    bundle.monthlyIncome,
+                                    scenario?.baseCurrency ?? "USD",
+                                    locale
+                                  )
+                                : t("amountUnset"),
+                            })}
+                          </Text>
+                          <Text size="sm" c="dimmed">
+                            {t("bundleSummaryMonthlyExpense", {
+                              amount: bundle.hasMonthlyImpact
+                                ? formatCurrency(
+                                    bundle.monthlyExpense,
+                                    scenario?.baseCurrency ?? "USD",
+                                    locale
+                                  )
+                                : t("amountUnset"),
+                            })}
+                          </Text>
+                          <Text size="sm" c="dimmed">
+                            {t("bundleSummaryMonthlyNet", {
+                              amount: bundle.hasMonthlyImpact
+                                ? formatCurrency(
+                                    bundle.monthlyNet,
                                     scenario?.baseCurrency ?? "USD",
                                     locale
                                   )
@@ -4027,6 +4128,9 @@ export default function MoneyClient({
         {activeBundleCard ? (
           <Stack gap="md">
             <Stack gap={4}>
+              <Text size="sm" fw={600}>
+                {t("bundleDetailSummaryTitle")}
+              </Text>
               <Text size="sm" c="dimmed">
                 {t("bundleSummaryOneOff", {
                   amount:
@@ -4040,112 +4144,180 @@ export default function MoneyClient({
                 })}
               </Text>
               <Text size="sm" c="dimmed">
-                {t("bundleSummaryMonthlyNet", {
-                  amount: activeBundleCard.monthlyImpact
+                {t("bundleSummaryMonthlyIncome", {
+                  amount: activeBundleCard.hasMonthlyImpact
                     ? formatCurrency(
-                        activeBundleCard.monthlyImpact.net,
+                        activeBundleCard.monthlyIncome,
                         scenario?.baseCurrency ?? "USD",
                         locale
                       )
                     : t("amountUnset"),
                 })}
               </Text>
-            </Stack>
-
-            {activeBundleCard.assets.length > 0 && (
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">
-                  {t("bundleDetailAssets")}
-                </Text>
-                {activeBundleCard.assets.map((asset) => (
-                  <Group key={asset.id} justify="space-between" wrap="nowrap">
-                    <Text size="sm">{asset.label ?? t("assetUntitled")}</Text>
-                    <Text size="sm" fw={500}>
-                      {typeof asset.currentValue === "number"
+              <Text size="sm" c="dimmed">
+                {t("bundleSummaryMonthlyExpense", {
+                  amount: activeBundleCard.hasMonthlyImpact
+                    ? formatCurrency(
+                        activeBundleCard.monthlyExpense,
+                        scenario?.baseCurrency ?? "USD",
+                        locale
+                      )
+                    : t("amountUnset"),
+                })}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {t("bundleSummaryMonthlyNet", {
+                  amount: activeBundleCard.hasMonthlyImpact
+                    ? formatCurrency(
+                        activeBundleCard.monthlyNet,
+                        scenario?.baseCurrency ?? "USD",
+                        locale
+                      )
+                    : t("amountUnset"),
+                })}
+              </Text>
+              {activeBundleCard.assets.map((asset) => (
+                <Text size="sm" c="dimmed" key={asset.id}>
+                  {t("bundleSummaryAssetItem", {
+                    name: asset.label ?? t("assetUntitled"),
+                    amount:
+                      typeof asset.currentValue === "number"
                         ? formatCurrency(
                             asset.currentValue,
                             scenario?.baseCurrency ?? "USD",
                             locale
                           )
-                        : t("amountUnset")}
-                    </Text>
-                  </Group>
-                ))}
-              </Stack>
-            )}
-
-            {activeBundleCard.liabilities.length > 0 && (
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">
-                  {t("bundleDetailLiabilities")}
+                        : t("amountUnset"),
+                  })}
                 </Text>
-                {activeBundleCard.liabilities.map((liability) => (
-                  <Group key={liability.id} justify="space-between" wrap="nowrap">
-                    <Text size="sm">
-                      {liability.label ?? t("liabilityUntitled")}
-                    </Text>
-                    <Text size="sm" fw={500}>
-                      {typeof liability.principalOutstanding === "number"
+              ))}
+              {activeBundleCard.liabilities.map((liability) => (
+                <Text size="sm" c="dimmed" key={liability.id}>
+                  {t("bundleSummaryLiabilityItem", {
+                    name: liability.label ?? t("liabilityUntitled"),
+                    amount:
+                      typeof liability.principalOutstanding === "number"
                         ? formatCurrency(
                             liability.principalOutstanding,
                             scenario?.baseCurrency ?? "USD",
                             locale
                           )
-                        : t("amountUnset")}
-                    </Text>
-                  </Group>
-                ))}
-              </Stack>
-            )}
-
-            {bundleDetailIncomeItems.length > 0 && (
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">
-                  {t("bundleDetailIncome")}
+                        : t("amountUnset"),
+                  })}
                 </Text>
-                {bundleDetailIncomeItems.map((item) => (
-                  <Group key={item.id} justify="space-between" wrap="nowrap">
-                    <Text size="sm">{item.label}</Text>
-                    <Text size="sm" fw={500}>
-                      {formatCurrency(
-                        item.amount,
-                        scenario?.baseCurrency ?? "USD",
-                        locale
-                      )}
-                    </Text>
-                  </Group>
-                ))}
-              </Stack>
-            )}
+              ))}
+            </Stack>
 
-            {bundleDetailExpenseItems.length > 0 && (
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">
-                  {t("bundleDetailExpenses")}
-                </Text>
-                {bundleDetailExpenseItems.map((item) => (
-                  <Group key={item.id} justify="space-between" wrap="nowrap">
-                    <Text size="sm">{item.label}</Text>
-                    <Text size="sm" fw={500}>
-                      {formatCurrency(
-                        item.amount,
-                        scenario?.baseCurrency ?? "USD",
-                        locale
-                      )}
-                    </Text>
-                  </Group>
-                ))}
-              </Stack>
-            )}
-
-            {activeBundleCard.assets.length === 0 &&
-              activeBundleCard.liabilities.length === 0 &&
-              bundleDetailIncomeItems.length === 0 &&
-              bundleDetailExpenseItems.length === 0 && (
-                <Text size="sm" c="dimmed">
-                  {t("bundleDetailEmpty")}
-                </Text>
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>
+                {t("bundleDetailCashflowTitle")}
+              </Text>
+              {bundleDetailIncomeItems.length > 0 && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed">
+                    {t("bundleDetailIncome")}
+                  </Text>
+                  {bundleDetailIncomeItems.map((item) => (
+                    <Group key={item.id} justify="space-between" wrap="nowrap">
+                      <Text size="sm">{item.label}</Text>
+                      <Text size="sm" fw={500}>
+                        {formatCurrency(
+                          item.amount,
+                          scenario?.baseCurrency ?? "USD",
+                          locale
+                        )}
+                      </Text>
+                    </Group>
+                  ))}
+                </Stack>
               )}
+
+              {bundleDetailExpenseItems.length > 0 && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed">
+                    {t("bundleDetailExpenses")}
+                  </Text>
+                  {bundleDetailExpenseItems.map((item) => (
+                    <Group key={item.id} justify="space-between" wrap="nowrap">
+                      <Text size="sm">{item.label}</Text>
+                      <Text size="sm" fw={500}>
+                        {formatCurrency(
+                          item.amount,
+                          scenario?.baseCurrency ?? "USD",
+                          locale
+                        )}
+                      </Text>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
+
+              {bundleDetailIncomeItems.length === 0 &&
+                bundleDetailExpenseItems.length === 0 && (
+                  <Text size="sm" c="dimmed">
+                    {t("bundleDetailEmpty")}
+                  </Text>
+                )}
+            </Stack>
+
+            {activeBundleMortgageSummary && (
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {t("bundleMortgageSummaryTitle")}
+                </Text>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{t("bundleMortgageSummaryLoanAmount")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.loanAmount === "number"
+                      ? formatCurrency(
+                          activeBundleMortgageSummary.loanAmount,
+                          scenario?.baseCurrency ?? "USD",
+                          locale
+                        )
+                      : t("amountUnset")}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{t("bundleMortgageSummaryRate")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.ratePct === "number"
+                      ? `${formatGrowthPct(activeBundleMortgageSummary.ratePct)}%`
+                      : t("amountUnset")}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{t("bundleMortgageSummaryTerm")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.termYears === "number"
+                      ? new Intl.NumberFormat(locale).format(
+                          activeBundleMortgageSummary.termYears
+                        )
+                      : t("amountUnset")}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{t("bundleMortgageSummaryPayment")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.monthlyPayment === "number"
+                      ? formatCurrency(
+                          activeBundleMortgageSummary.monthlyPayment,
+                          scenario?.baseCurrency ?? "USD",
+                          locale
+                        )
+                      : t("amountUnset")}
+                  </Text>
+                </Group>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    openMortgageDetails(activeBundleMortgageSummary.eventId, "liability")
+                  }
+                >
+                  {t("bundleMortgageSummaryViewDetails")}
+                </Button>
+              </Stack>
+            )}
 
             <Group justify="flex-end">
               <Button
