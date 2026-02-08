@@ -117,9 +117,9 @@ import { compileScenarioV2ToLedger } from "../../../src/engine/scenarioV2Compile
 import {
   resolveEventCardAmount,
   resolveEventCardStartMonth,
-  resolveEventMonthlyImpact,
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
+import { computeBundleMonthlySummary } from "../../../src/features/money/bundleSummary";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
 import type { ScenarioEventDraft as ScenarioV2EventDraft } from "../../../src/domain/scenarioV2/events";
 import type { DeleteImpactSummary } from "../../../src/domain/scenarioV2/eventDeleteImpact";
@@ -252,6 +252,10 @@ type MortgageEvent = Extract<ScenarioEvent, { type: "housing" }> & {
 
 const isMortgageEvent = (event: ScenarioEvent): event is MortgageEvent =>
   event.type === "housing" && event.kind === "mortgage";
+const isHousingBundleEvent = (
+  event: ScenarioEvent
+): event is Extract<ScenarioEvent, { type: "housing" }> =>
+  event.type === "housing" && (event.kind === "mortgage" || event.kind === "rent");
 
 export default function MoneyClient({
   scenarioId,
@@ -555,6 +559,7 @@ export default function MoneyClient({
     title: "",
   });
   const [shouldFocusCashCard, setShouldFocusCashCard] = useState(false);
+  const warnedBundleSummary = useRef(new Set<string>());
   const hasHandledInitialAdd = useRef(false);
   const hasHandledInitialEdit = useRef(false);
   const hasSyncedCashAsset = useRef(false);
@@ -1680,166 +1685,14 @@ export default function MoneyClient({
     () => scenario?.liabilities ?? [],
     [scenario?.liabilities]
   );
-  const resolveBundleEventMonthlyImpact = useCallback(
-    (event: ScenarioEvent) => {
-      if (event.type === "cashflow" && event.cadence === "oneOff") {
-        return { income: 0, expense: 0 };
-      }
-      if (event.type === "adjustment") {
-        return { income: 0, expense: 0 };
-      }
-      const impact = resolveEventMonthlyImpact(ledgerRowsByEventId.get(event.id) ?? []);
-      if (impact) {
-        return { income: impact.income, expense: impact.expense };
-      }
-      if (event.type === "cashflow") {
-        if (event.kind === "income") {
-          return { income: event.amount ?? 0, expense: 0 };
-        }
-        return { income: 0, expense: event.amount ?? 0 };
-      }
-      if (event.type === "housing") {
-        if (event.kind === "rent") {
-          return { income: 0, expense: event.rentMonthly ?? 0 };
-        }
-        const ongoingTotal =
-          event.ongoingCosts?.reduce((sum, cost) => sum + (cost.amount ?? 0), 0) ?? 0;
-        return {
-          income:
-            event.rental?.enabled && event.rental.rentMonthly
-              ? event.rental.rentMonthly
-              : 0,
-          expense: (event.mortgagePayment ?? 0) + ongoingTotal,
-        };
-      }
-      if (event.type === "loan" || event.type === "insurance") {
-        return { income: 0, expense: resolveEventCardAmount(event) ?? 0 };
-      }
-      return { income: 0, expense: 0 };
-    },
-    [ledgerRowsByEventId]
-  );
-  const resolveBundleEventAmountForDirection = useCallback(
-    (event: ScenarioEvent, direction: "income" | "expense") => {
-      const impact = resolveBundleEventMonthlyImpact(event);
-      const amount = direction === "income" ? impact.income : impact.expense;
-      return amount > 0 ? amount : null;
-    },
-    [resolveBundleEventMonthlyImpact]
-  );
-  const buildMortgageExpenseItems = useCallback(
-    (event: ScenarioEvent) => {
-      if (event.type !== "housing" || event.kind !== "mortgage") {
-        return [];
-      }
-      const items: { id: string; label: string; amount: number }[] = [];
-      if (event.mortgagePayment && event.mortgagePayment > 0) {
-        items.push({
-          id: `${event.id}-mortgage-payment`,
-          label: t("bundleDetailMortgagePaymentLabel"),
-          amount: event.mortgagePayment,
-        });
-      }
-      (event.ongoingCosts ?? []).forEach((cost, index) => {
-        if (!cost.amount) {
-          return;
-        }
-        items.push({
-          id: `${event.id}-ongoing-${index}`,
-          label: cost.label ?? breakdownText("breakdownLabels.holdingCost"),
-          amount: cost.amount,
-        });
-      });
-      return items;
-    },
+  const bundleSummaryLabels = useMemo(
+    () => ({
+      mortgagePayment: t("bundleDetailMortgagePaymentLabel"),
+      rentalIncome: t("bundleHomeRentalMonthly"),
+      holdingCost: breakdownText("breakdownLabels.holdingCost"),
+      fallback: t("ledgerRowFallbackLabel"),
+    }),
     [breakdownText, t]
-  );
-  const buildBundleIncomeItems = useCallback(
-    (event: ScenarioEvent) => {
-      if (
-        event.type === "cashflow" &&
-        event.kind === "income" &&
-        event.cadence !== "oneOff"
-      ) {
-        const amount = resolveBundleEventAmountForDirection(event, "income");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-income`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      if (
-        event.type === "housing" &&
-        event.kind === "mortgage" &&
-        event.rental?.enabled
-      ) {
-        const amount = resolveBundleEventAmountForDirection(event, "income");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-rental-income`,
-                label: t("bundleHomeRentalMonthly"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      return [];
-    },
-    [resolveBundleEventAmountForDirection, t]
-  );
-  const buildBundleExpenseItems = useCallback(
-    (event: ScenarioEvent) => {
-      if (
-        event.type === "cashflow" &&
-        event.kind === "expense" &&
-        event.cadence !== "oneOff"
-      ) {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-expense`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      if (event.type === "housing" && event.kind === "rent") {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-rent`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      if (event.type === "housing" && event.kind === "mortgage") {
-        return buildMortgageExpenseItems(event);
-      }
-      if (event.type === "loan" || event.type === "insurance") {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-expense`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      return [];
-    },
-    [buildMortgageExpenseItems, resolveBundleEventAmountForDirection, t]
   );
   const bundleCardItems = useMemo(() => {
     if (!scenarioIsV2 || !scenario) {
@@ -1847,17 +1700,14 @@ export default function MoneyClient({
     }
     return bundleGroups.map((bundle) => {
       const eventIds = bundle.events.map((event) => event.id);
-      const monthlyTotals = bundle.events.reduce(
-        (acc, event) => {
-          const impact = resolveBundleEventMonthlyImpact(event);
-          return {
-            income: acc.income + impact.income,
-            expense: acc.expense + impact.expense,
-          };
-        },
-        { income: 0, expense: 0 }
+      const monthlySummary = computeBundleMonthlySummary(
+        bundle.events,
+        ledgerRowsByEventId,
+        selectedDashboardMonth,
+        bundleSummaryLabels
       );
-      const hasMonthlyImpact = monthlyTotals.income > 0 || monthlyTotals.expense > 0;
+      const hasMonthlyImpact =
+        monthlySummary.monthlyIncome > 0 || monthlySummary.monthlyExpense > 0;
       const oneOffTotal = bundle.events.reduce((total, event) => {
         if (
           event.type === "cashflow" &&
@@ -1886,21 +1736,88 @@ export default function MoneyClient({
         eventIds,
         assets,
         liabilities,
-        monthlyIncome: monthlyTotals.income,
-        monthlyExpense: monthlyTotals.expense,
-        monthlyNet: monthlyTotals.income - monthlyTotals.expense,
+        monthlyIncome: monthlySummary.monthlyIncome,
+        monthlyExpense: monthlySummary.monthlyExpense,
+        monthlyNet: monthlySummary.monthlyNet,
+        monthlySummary,
         hasMonthlyImpact,
         oneOffTotal,
       };
     });
   }, [
     bundleGroups,
+    bundleSummaryLabels,
+    ledgerRowsByEventId,
     resolveBundleTitle,
-    resolveBundleEventMonthlyImpact,
     scenario,
     scenarioAssets,
     scenarioIsV2,
     scenarioLiabilities,
+    selectedDashboardMonth,
+  ]);
+  const isMonthWithinRange = useCallback(
+    (month: string | null, startMonth?: string | null, endMonth?: string | null) => {
+      if (!month || !startMonth) {
+        return false;
+      }
+      if (compareMonthKey(month, startMonth) < 0) {
+        return false;
+      }
+      if (endMonth && compareMonthKey(month, endMonth) > 0) {
+        return false;
+      }
+      return true;
+    },
+    []
+  );
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      return;
+    }
+    if (!selectedDashboardMonth) {
+      return;
+    }
+    bundleCardItems.forEach((bundle) => {
+      const group = bundleGroupById.get(bundle.id);
+      if (!group) {
+        return;
+      }
+      group.events.filter(isHousingBundleEvent).forEach((event) => {
+          if (
+            !isMonthWithinRange(
+              selectedDashboardMonth,
+              event.startMonth,
+              event.endMonth
+            )
+          ) {
+            return;
+          }
+          const rows = ledgerRowsByEventId.get(event.id) ?? [];
+          const hasRows = rows.some((row) => row.month === selectedDashboardMonth);
+          if (hasRows) {
+            return;
+          }
+          const warningKey = `${bundle.id}:${event.id}:${selectedDashboardMonth}`;
+          if (warnedBundleSummary.current.has(warningKey)) {
+            return;
+          }
+          warnedBundleSummary.current.add(warningKey);
+          console.warn(
+            "[bundle summary] Missing ledger rows for housing event in bundle summary.",
+            {
+              bundleId: bundle.id,
+              eventId: event.id,
+              month: selectedDashboardMonth,
+            }
+          );
+        });
+    });
+  }, [
+    bundleCardItems,
+    bundleGroupById,
+    isMonthWithinRange,
+    ledgerRowsByEventId,
+    selectedDashboardMonth,
   ]);
   const activeBundleCard = useMemo(
     () => bundleCardItems.find((bundle) => bundle.id === bundleViewId) ?? null,
@@ -1944,20 +1861,22 @@ export default function MoneyClient({
       monthlyPayment: activeBundleMortgageEvent.mortgagePayment ?? null,
     };
   }, [activeBundleMortgageEvent]);
-  const bundleDetailIncomeItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events
-      .flatMap((event) => buildBundleIncomeItems(event))
-      .filter((item) => item.amount > 0);
-  }, [activeBundleGroup, buildBundleIncomeItems]);
-  const bundleDetailExpenseItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events.flatMap((event) => buildBundleExpenseItems(event));
-  }, [activeBundleGroup, buildBundleExpenseItems]);
+  const activeBundleSummary = useMemo(
+    () => activeBundleCard?.monthlySummary ?? null,
+    [activeBundleCard?.monthlySummary]
+  );
+  const bundleDetailIncomeItems = useMemo(
+    () =>
+      activeBundleSummary?.breakdown.filter((item) => item.direction === "income") ??
+      [],
+    [activeBundleSummary?.breakdown]
+  );
+  const bundleDetailExpenseItems = useMemo(
+    () =>
+      activeBundleSummary?.breakdown.filter((item) => item.direction === "expense") ??
+      [],
+    [activeBundleSummary?.breakdown]
+  );
   const mortgageDetailEvent = useMemo(() => {
     if (!mortgageDetail) {
       return null;
@@ -2232,15 +2151,22 @@ export default function MoneyClient({
       const bundleId = bundle.id;
       const title = resolveBundleTitle(bundle);
       const bundleEventIdSet = new Set(bundle.events.map((event) => event.id));
-      const incomeItems: BundleSliceItem[] = bundle.events.flatMap((event) =>
-        buildBundleIncomeItems(event).map((item) => ({
-          ...item,
-          subLabel: resolveEventCardStartMonth(event),
-          sourceEventId: event.id,
-        }))
+      const monthlySummary = computeBundleMonthlySummary(
+        bundle.events,
+        ledgerRowsByEventId,
+        selectedDashboardMonth,
+        bundleSummaryLabels
       );
+      const incomeItems: BundleSliceItem[] = monthlySummary.breakdown
+        .filter((item) => item.direction === "income")
+        .map((item) => ({
+          id: item.id,
+          label: item.label,
+          amount: item.amount,
+          sourceEventId: item.sourceEventId,
+        }));
       if (incomeItems.length > 0) {
-        const summaryAmount = incomeItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+        const summaryAmount = monthlySummary.monthlyIncome;
         slices.income.push({
           id: `${bundleId}-income`,
           bundleId,
@@ -2250,15 +2176,16 @@ export default function MoneyClient({
         });
       }
 
-      const expenseItems: BundleSliceItem[] = bundle.events.flatMap((event) =>
-        buildBundleExpenseItems(event).map((item) => ({
-          ...item,
-          subLabel: resolveEventCardStartMonth(event),
-          sourceEventId: event.id,
-        }))
-      );
+      const expenseItems: BundleSliceItem[] = monthlySummary.breakdown
+        .filter((item) => item.direction === "expense")
+        .map((item) => ({
+          id: item.id,
+          label: item.label,
+          amount: item.amount,
+          sourceEventId: item.sourceEventId,
+        }));
       if (expenseItems.length > 0) {
-        const summaryAmount = expenseItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+        const summaryAmount = monthlySummary.monthlyExpense;
         slices.expenses.push({
           id: `${bundleId}-expenses`,
           bundleId,
@@ -2317,12 +2244,13 @@ export default function MoneyClient({
     return slices;
   }, [
     bundleAssetItems,
-    buildBundleExpenseItems,
-    buildBundleIncomeItems,
     bundleGroups,
     bundleLiabilityItems,
+    bundleSummaryLabels,
+    ledgerRowsByEventId,
     resolveBundleTitle,
     scenarioIsV2,
+    selectedDashboardMonth,
     t,
   ]);
   const formatSliceAmount = useCallback(
