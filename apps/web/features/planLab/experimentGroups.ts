@@ -6,6 +6,9 @@ export type PlanLabExperimentGroup = {
   isEnabled: boolean;
   itemIds: string[];
   removedItems?: PlanLabExperimentRemovedItem[];
+  bundleInstanceId?: string;
+  templateId?: string;
+  primaryEventId?: string;
   createdAt: number;
 };
 
@@ -35,6 +38,7 @@ const getActiveGroupItemIds = (group: PlanLabExperimentGroup): string[] => {
 const EXPERIMENT_TITLE_FALLBACKS: Record<string, string> = {
   life_home_purchase: "置業買樓",
   life_new_baby: "新生兒計劃",
+  life_new_baby_plan: "新生兒計劃",
 };
 
 const looksLikeInternalId = (value: string) => /[_:]/.test(value);
@@ -215,5 +219,8 @@ export const createSingleItemExperimentGroup = (params: {
   title: resolveSingleItemExperimentTitle(params.itemLabel),
   isEnabled: true,
   itemIds: [params.itemId],
+  primaryEventId: params.itemId.startsWith("events:")
+    ? params.itemId.replace("events:", "")
+    : undefined,
   createdAt: params.createdAt ?? Date.now(),
 });

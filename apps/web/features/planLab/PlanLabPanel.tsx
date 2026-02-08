@@ -136,6 +136,7 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
 import { SavePlanModal } from "./SavePlanModal";
+import ExperimentTemplatesDrawer from "./ExperimentTemplatesDrawer";
 import MortgageDetailDrawer, {
   type MortgageDetailTab,
 } from "../moneyFlow/MortgageDetailDrawer";
@@ -194,6 +195,12 @@ const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
+
+type PlanLabExperimentTemplateId =
+  | "bundle_home"
+  | "bundle_baby"
+  | "income_adjust"
+  | "expense_adjust";
 
 type ScenarioV2DrawerType =
   | "cashflow"
@@ -963,6 +970,21 @@ export default function PlanLabPanel({
     },
     [moneyT]
   );
+  const resolveBundleExperimentTitle = useCallback(
+    (wizardInput: BundleWizardInput | null | undefined, fallback?: string) => {
+      if (!wizardInput) {
+        return fallback ?? translate("planLabBundleExperimentFallback", "人生事件組合");
+      }
+      if (wizardInput.templateId === "life_home_purchase") {
+        return resolveBundleTitle({
+          templateId: wizardInput.templateId,
+          bundleTitle: wizardInput.input.label,
+        });
+      }
+      return resolveBundleTitle({ templateId: wizardInput.templateId });
+    },
+    [resolveBundleTitle, translate]
+  );
 
   const [chartType, setChartType] = useState<ChartType>("netWorth");
   const [mode, setMode] = useState<"edit" | "compare">(initialMode ?? "edit");
@@ -994,6 +1016,16 @@ export default function PlanLabPanel({
   const [draftBudgetRules, setDraftBudgetRules] = useState<BudgetRule[]>([]);
   const [draftEvents, setDraftEvents] = useState<PlanLabDraftEventAddition[]>([]);
   const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
+  const [experimentTemplatesOpen, setExperimentTemplatesOpen] = useState(false);
+  const [experimentTemplateContext, setExperimentTemplateContext] = useState<{
+    title: string;
+    primaryEventId?: string;
+  } | null>(null);
+  const [experimentRenameDraft, setExperimentRenameDraft] = useState<{
+    kind: "group" | "legacy";
+    id: string;
+    title: string;
+  } | null>(null);
   const [experimentDrawerOpen, setExperimentDrawerOpen] = useState(false);
   const [experimentDraft, setExperimentDraft] = useState<PlanLabExperiment | null>(null);
   const [experimentDraftErrors, setExperimentDraftErrors] = useState<
@@ -1062,6 +1094,7 @@ export default function PlanLabPanel({
   const [bundleWizardInstanceId, setBundleWizardInstanceId] = useState<string | null>(null);
   const [bundleWizardInitialInput, setBundleWizardInitialInput] =
     useState<BundleWizardInput | null>(null);
+  const [bundleWizardExperimentMode, setBundleWizardExperimentMode] = useState(false);
   const [bundleViewId, setBundleViewId] = useState<string | null>(null);
   const [bundleInstanceOverrides, setBundleInstanceOverrides] = useState<
     BundleInstanceRecord[]
@@ -1196,6 +1229,9 @@ export default function PlanLabPanel({
     setExperiments([]);
     setExperimentGroups([]);
     setBundleExperimentCta(null);
+    setExperimentTemplateContext(null);
+    setExperimentRenameDraft(null);
+    setBundleWizardExperimentMode(false);
   }, [scenario.id, scenarioIsV2]);
 
   const refreshPlanLibrary = useCallback(() => {
@@ -1684,6 +1720,45 @@ export default function PlanLabPanel({
     );
   };
 
+  const moveExperiment = useCallback((id: string, direction: "up" | "down") => {
+    setExperiments((current) => {
+      const index = current.findIndex((experiment) => experiment.id === id);
+      if (index === -1) {
+        return current;
+      }
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next;
+    });
+  }, []);
+
+  const moveExperimentGroup = useCallback(
+    (id: string, direction: "up" | "down") => {
+      setExperimentGroups((current) => {
+        const index = current.findIndex((group) => group.experimentId === id);
+        if (index === -1) {
+          return current;
+        }
+        const targetIndex = direction === "up" ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= current.length) {
+          return current;
+        }
+        const next = [...current];
+        const temp = next[index];
+        next[index] = next[targetIndex];
+        next[targetIndex] = temp;
+        return next;
+      });
+    },
+    []
+  );
+
   const removeExperiment = (id: string) => {
     setExperiments((current) => current.filter((experiment) => experiment.id !== id));
   };
@@ -1728,11 +1803,80 @@ export default function PlanLabPanel({
     setExperimentDrawerOpen(true);
   };
 
+  const openExperimentTemplatesDrawer = () => {
+    setExperimentTemplatesOpen(true);
+  };
+
+  const handleExperimentTemplateSelect = (templateId: PlanLabExperimentTemplateId) => {
+    setExperimentTemplatesOpen(false);
+    if (templateId === "bundle_home" || templateId === "bundle_baby") {
+      const resolvedTemplateId =
+        templateId === "bundle_home" ? "life_home_purchase" : "life_new_baby_plan";
+      const templateDef = getTemplateDef(resolvedTemplateId);
+      if (!templateDef) {
+        return;
+      }
+      setBundleTemplate(templateDef);
+      setBundleWizardMode("create");
+      setBundleWizardInstanceId(null);
+      setBundleWizardInitialInput(null);
+      setBundleWizardExperimentMode(true);
+      setBundleWizardOpen(true);
+      return;
+    }
+    const baseMonth = scenario.assumptions.baseMonth ?? "";
+    if (templateId === "income_adjust") {
+      setExperimentTemplateContext({
+        title: translate("planLabExperimentIncomeTitle", "收入變動"),
+      });
+      setV2EventDefaultKind("income");
+      setTemplateCashflowDraft({
+        kind: "income",
+        cadence: "monthly",
+        amount: 5000,
+        startMonth: baseMonth || undefined,
+        endMonth: undefined,
+      });
+      openV2EventDrawer("create", "cashflow");
+      return;
+    }
+    if (templateId === "expense_adjust") {
+      setExperimentTemplateContext({
+        title: translate("planLabExperimentExpenseTitle", "支出變動"),
+      });
+      setV2EventDefaultKind("expense");
+      setTemplateCashflowDraft({
+        kind: "expense",
+        cadence: "monthly",
+        amount: 2000,
+        startMonth: baseMonth || undefined,
+        endMonth: undefined,
+      });
+      openV2EventDrawer("create", "cashflow");
+    }
+  };
+
   const openEditExperimentDrawer = (experiment: PlanLabExperiment) => {
     setExperimentDrawerMode("edit");
     setExperimentDraft({ ...experiment });
     setExperimentDraftErrors({});
     setExperimentDrawerOpen(true);
+  };
+
+  const openRenameExperiment = (experiment: PlanLabExperiment) => {
+    setExperimentRenameDraft({
+      kind: "legacy",
+      id: experiment.id,
+      title: experiment.title ?? "",
+    });
+  };
+
+  const openRenameExperimentGroup = (group: PlanLabExperimentGroup) => {
+    setExperimentRenameDraft({
+      kind: "group",
+      id: group.experimentId,
+      title: group.title ?? "",
+    });
   };
 
   const updateExperimentDraft = (patch: Partial<PlanLabExperiment>) => {
@@ -1793,6 +1937,27 @@ export default function PlanLabPanel({
     setExperimentDrawerOpen(false);
   };
 
+  const applyExperimentRename = () => {
+    if (!experimentRenameDraft) {
+      return;
+    }
+    const trimmed = experimentRenameDraft.title.trim();
+    if (experimentRenameDraft.kind === "legacy") {
+      updateExperiment(experimentRenameDraft.id, {
+        title: trimmed ? trimmed : undefined,
+      });
+    } else {
+      setExperimentGroups((current) =>
+        current.map((group) =>
+          group.experimentId === experimentRenameDraft.id
+            ? { ...group, title: trimmed || "未命名實驗" }
+            : group
+        )
+      );
+    }
+    setExperimentRenameDraft(null);
+  };
+
   const openAddMemberDrawer = () => {
     setMemberDrawerMode("add");
     setEditingMemberId(null);
@@ -1845,6 +2010,7 @@ export default function PlanLabPanel({
       setBundleWizardMode("create");
       setBundleWizardInstanceId(null);
       setBundleWizardInitialInput(null);
+      setBundleWizardExperimentMode(false);
       setBundleWizardOpen(true);
       return;
     }
@@ -1883,21 +2049,49 @@ export default function PlanLabPanel({
     }
   };
 
-  const createExperimentGroup = useCallback((title: string, itemIds: string[]) => {
-    if (itemIds.length === 0) {
-      return;
-    }
-    setExperimentGroups((current) => [
-      ...current,
-      {
-        experimentId: `exp_group_${nanoid(8)}`,
-        title: resolveExperimentGroupTitle(title),
-        isEnabled: true,
-        itemIds,
-        createdAt: Date.now(),
-      },
-    ]);
-  }, []);
+  const createExperimentGroup = useCallback(
+    (params: {
+      title: string;
+      itemIds: string[];
+      bundleInstanceId?: string;
+      templateId?: string;
+      primaryEventId?: string;
+    }) => {
+      if (params.itemIds.length === 0) {
+        return;
+      }
+      setExperimentGroups((current) => [
+        ...current,
+        {
+          experimentId: `exp_group_${nanoid(8)}`,
+          title: resolveExperimentGroupTitle(params.title),
+          isEnabled: true,
+          itemIds: params.itemIds,
+          bundleInstanceId: params.bundleInstanceId,
+          templateId: params.templateId,
+          primaryEventId: params.primaryEventId,
+          createdAt: Date.now(),
+        },
+      ]);
+    },
+    []
+  );
+
+  const applyExperimentTemplateToEvent = useCallback(
+    (eventId: string) => {
+      if (!experimentTemplateContext) {
+        return false;
+      }
+      createExperimentGroup({
+        title: experimentTemplateContext.title,
+        itemIds: [`events:${eventId}`],
+        primaryEventId: eventId,
+      });
+      setExperimentTemplateContext(null);
+      return true;
+    },
+    [createExperimentGroup, experimentTemplateContext]
+  );
 
   const showSingleItemPackPrompt = useCallback((itemId: string, itemLabel?: string | null) => {
     setBundleExperimentCta({
@@ -1937,27 +2131,99 @@ export default function PlanLabPanel({
         return { ok: false, error: translate("bundleApplyFailed", "Failed to create plan bundle.") };
       }
 
-      const nextPatches: PlanLabScenarioV2Patches = {
-        ...scenarioV2Patches,
-        events: {
-          add: [...scenarioV2Patches.events.add, ...parsedEvents],
-          update: scenarioV2Patches.events.update,
-          remove: scenarioV2Patches.events.remove.filter(
-            (id) => !parsedEvents.some((event) => event.id === id)
-          ),
-        },
-      };
-      setScenarioV2Patches(nextPatches);
-      const nextIds = collectPatchItemIds(nextPatches);
-      const newItemIds = nextIds.filter((itemId) => !prevIds.has(itemId));
+      const bundleInstanceId = _context?.bundleInstanceId ?? null;
+      const nextItemIds = parsedEvents.map((event) => `events:${event.id}`);
+      const shouldPack =
+        bundleWizardExperimentMode || options?.packAsExperiment !== false;
+      const experimentTitle = resolveBundleExperimentTitle(
+        _context?.wizardInput,
+        options?.experimentTitle
+      );
 
-      const shouldPack = options?.packAsExperiment !== false;
-      const experimentTitle =
-        options?.experimentTitle?.trim() ||
-        translate("planLabBundleExperimentFallback", "人生事件組合");
+      setScenarioV2Patches((current) => {
+        if (!bundleInstanceId) {
+          return {
+            ...current,
+            events: {
+              add: [...current.events.add, ...parsedEvents],
+              update: current.events.update,
+              remove: current.events.remove.filter(
+                (id) => !parsedEvents.some((event) => event.id === id)
+              ),
+            },
+          };
+        }
+        const removedIds = new Set(
+          current.events.add
+            .filter((event) => event.source?.bundleInstanceId === bundleInstanceId)
+            .map((event) => event.id)
+        );
+        const filteredAdd = current.events.add.filter(
+          (event) => event.source?.bundleInstanceId !== bundleInstanceId
+        );
+        const filteredUpdate = { ...current.events.update };
+        removedIds.forEach((id) => delete filteredUpdate[id]);
+        const filteredRemove = current.events.remove.filter((id) => !removedIds.has(id));
+        return {
+          ...current,
+          events: {
+            add: [...filteredAdd, ...parsedEvents],
+            update: filteredUpdate,
+            remove: filteredRemove.filter(
+              (id) => !parsedEvents.some((event) => event.id === id)
+            ),
+          },
+        };
+      });
+
+      const newItemIds = bundleInstanceId
+        ? nextItemIds
+        : nextItemIds.filter((itemId) => !prevIds.has(itemId));
 
       if (shouldPack) {
-        createExperimentGroup(experimentTitle, newItemIds);
+        setExperimentGroups((current) => {
+          if (!bundleInstanceId) {
+            return [
+              ...current,
+              {
+                experimentId: `exp_group_${nanoid(8)}`,
+                title: resolveExperimentGroupTitle(experimentTitle),
+                isEnabled: true,
+                itemIds: nextItemIds,
+                createdAt: Date.now(),
+                templateId: _context?.wizardInput?.templateId,
+              },
+            ];
+          }
+          const existingIndex = current.findIndex(
+            (group) => group.bundleInstanceId === bundleInstanceId
+          );
+          if (existingIndex === -1) {
+            return [
+              ...current,
+              {
+                experimentId: `exp_group_${nanoid(8)}`,
+                title: resolveExperimentGroupTitle(experimentTitle),
+                isEnabled: true,
+                itemIds: nextItemIds,
+                bundleInstanceId,
+                templateId: _context?.wizardInput?.templateId,
+                createdAt: Date.now(),
+              },
+            ];
+          }
+          const next = [...current];
+          const existing = next[existingIndex];
+          next[existingIndex] = {
+            ...existing,
+            title: resolveExperimentGroupTitle(experimentTitle),
+            itemIds: nextItemIds,
+            removedItems: [],
+            bundleInstanceId,
+            templateId: _context?.wizardInput?.templateId ?? existing.templateId,
+          };
+          return next;
+        });
       } else {
         setBundleExperimentCta({
           source: "bundle",
@@ -1996,14 +2262,16 @@ export default function PlanLabPanel({
       setBundleWizardMode("create");
       setBundleWizardInstanceId(null);
       setBundleWizardInitialInput(null);
+      setBundleWizardExperimentMode(false);
       if (firstEventId) {
         handleLocateItem(`event:${firstEventId}`);
       }
       return { ok: true };
     },
     [
-      createExperimentGroup,
       handleLocateItem,
+      resolveBundleExperimentTitle,
+      bundleWizardExperimentMode,
       scenarioIsV2,
       scenarioV2Patches,
       translate,
@@ -2322,7 +2590,9 @@ export default function PlanLabPanel({
         tags: draft.tags && draft.tags.length > 0 ? draft.tags : ["adjustment"],
       };
       upsertScenarioV2Event(payload, "create");
-      showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+      if (!applyExperimentTemplateToEvent(payload.id)) {
+        showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+      }
       closeV2EventDrawer();
       handleLocateItem(`event:${payload.id}`);
       return;
@@ -2344,7 +2614,9 @@ export default function PlanLabPanel({
       tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
     };
     upsertScenarioV2Event(payload, "create");
-    showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+    if (!applyExperimentTemplateToEvent(payload.id)) {
+      showSingleItemPackPrompt(`events:${payload.id}`, payload.label);
+    }
     closeV2EventDrawer();
     handleLocateItem(`event:${payload.id}`);
   };
@@ -2597,10 +2869,10 @@ export default function PlanLabPanel({
     if (ungroupedPatchItemIds.length === 0) {
       return;
     }
-    createExperimentGroup(
-      translate("planLabUngroupedExperimentTitle", "已新增項目"),
-      ungroupedPatchItemIds
-    );
+    createExperimentGroup({
+      title: translate("planLabUngroupedExperimentTitle", "已新增項目"),
+      itemIds: ungroupedPatchItemIds,
+    });
     setBundleExperimentCta(null);
   }, [createExperimentGroup, translate, ungroupedPatchItemIds]);
   const patchItemLookup = useMemo(() => {
@@ -2905,6 +3177,7 @@ export default function PlanLabPanel({
     setTemplateHousingDraft(null);
     setTemplateLoanDraft(null);
     setTemplateInsuranceDraft(null);
+    setExperimentTemplateContext(null);
   }, []);
 
   const v2EventLookup = useMemo(
@@ -3341,6 +3614,9 @@ export default function PlanLabPanel({
         );
         return;
       }
+      const isExperimentBundle = experimentGroups.some(
+        (group) => group.bundleInstanceId === bundleId
+      );
       const templateDef = record.wizardInput?.templateId
         ? getTemplateDef(record.wizardInput.templateId)
         : bundle.templateId
@@ -3355,10 +3631,11 @@ export default function PlanLabPanel({
       setBundleWizardMode("edit");
       setBundleWizardInstanceId(bundleId);
       setBundleWizardInitialInput(record.wizardInput);
+      setBundleWizardExperimentMode(isExperimentBundle);
       setBundleTemplate(templateDef);
       setBundleWizardOpen(true);
     },
-    [bundleGroupById, bundleInstanceById, translate]
+    [bundleGroupById, bundleInstanceById, experimentGroups, translate]
   );
 
   const handleLocateBundle = useCallback(
@@ -4421,6 +4698,62 @@ export default function PlanLabPanel({
       },
     ],
     [translate]
+  );
+
+  const experimentTemplateGroups = useMemo(
+    () => [
+      {
+        id: "bundle",
+        title: translate("planLabExperimentGroupBundles", "人生組合"),
+        templates: [
+          {
+            id: "bundle_home",
+            title: moneyT("templates.life_home_purchase.name"),
+            description: translate(
+              "planLabExperimentTemplateHomeDesc",
+              "置業買樓：房屋按揭 + 成本"
+            ),
+          },
+          {
+            id: "bundle_baby",
+            title: moneyT("templates.life_new_baby_plan.name"),
+            description: translate(
+              "planLabExperimentTemplateBabyDesc",
+              "迎接新生命：育兒/照顧支出"
+            ),
+          },
+        ],
+      },
+      {
+        id: "income",
+        title: translate("planLabExperimentGroupIncome", "收入變數"),
+        templates: [
+          {
+            id: "income_adjust",
+            title: translate("planLabExperimentTemplateIncomeAdjust", "收入上升 / 下降"),
+            description: translate(
+              "planLabExperimentTemplateIncomeAdjustDesc",
+              "調整每月收入（固定額）"
+            ),
+          },
+        ],
+      },
+      {
+        id: "expense",
+        title: translate("planLabExperimentGroupExpense", "支出變數"),
+        templates: [
+          {
+            id: "expense_adjust",
+            title: translate("planLabExperimentTemplateExpenseAdjust", "每月支出上升 / 下降"),
+            description: translate(
+              "planLabExperimentTemplateExpenseAdjustDesc",
+              "調整每月支出（固定額）"
+            ),
+          },
+        ],
+      },
+    ],
+    [moneyT, translate]
   );
 
   const experimentTypeCards = useMemo(
@@ -6169,6 +6502,11 @@ export default function PlanLabPanel({
                             {translate("planLabAddRuleAction", "新增規則")}
                           </Button>
                         )}
+                        {scenarioIsV2 && (
+                          <Button size="xs" variant="light" onClick={openExperimentTemplatesDrawer}>
+                            {translate("planLabExperimentsAddAction", "新增實驗")}
+                          </Button>
+                        )}
                         <Button
                           size="xs"
                           variant="light"
@@ -6214,10 +6552,10 @@ export default function PlanLabPanel({
                                   }),
                                 ]);
                               } else {
-                                createExperimentGroup(
-                                  bundleExperimentCta.title,
-                                  bundleExperimentCta.itemIds
-                                );
+                                createExperimentGroup({
+                                  title: bundleExperimentCta.title,
+                                  itemIds: bundleExperimentCta.itemIds,
+                                });
                               }
                               setBundleExperimentCta(null);
                             }}
@@ -6239,7 +6577,7 @@ export default function PlanLabPanel({
                         </Text>
                         {scenarioIsV2 ? (
                           <Group gap="xs">
-                            <Button size="xs" onClick={openAddEventDrawer}>
+                            <Button size="xs" onClick={openExperimentTemplatesDrawer}>
                               {translate("planLabCreateExperimentAction", "建立實驗")}
                             </Button>
                             {ungroupedPatchItemIds.length > 0 && (
@@ -6264,12 +6602,32 @@ export default function PlanLabPanel({
                     ) : (
                       <ScrollArea.Autosize mah={320} offsetScrollbars>
                         <Accordion variant="separated" radius="md" multiple>
-                          {(scenarioIsV2 ? experimentGroups : experiments).map((experiment) => {
+                          {(scenarioIsV2 ? experimentGroups : experiments).map((experiment, index, list) => {
                             if (scenarioIsV2) {
                               const group = experiment as PlanLabExperimentGroup;
                               const removedItems = group.removedItems ?? [];
                               const removedSet = new Set(removedItems.map((item) => item.itemId));
                               const activeItemIds = group.itemIds.filter((itemId) => !removedSet.has(itemId));
+                              const moveUpDisabled = index === 0;
+                              const moveDownDisabled = index === list.length - 1;
+                              const menuItems: PlanLabRowMenuItem[] = [
+                                {
+                                  label: translate("planLabExperimentRename", "重新命名"),
+                                  onClick: () => openRenameExperimentGroup(group),
+                                },
+                                {
+                                  label: translate("planLabExperimentMoveUp", "上移"),
+                                  onClick: () =>
+                                    moveExperimentGroup(group.experimentId, "up"),
+                                  disabled: moveUpDisabled,
+                                },
+                                {
+                                  label: translate("planLabExperimentMoveDown", "下移"),
+                                  onClick: () =>
+                                    moveExperimentGroup(group.experimentId, "down"),
+                                  disabled: moveDownDisabled,
+                                },
+                              ];
                               const badges: PlanLabRowBadge[] = [
                                 {
                                   label: translate("planLabBadgeExperiment", "實驗"),
@@ -6298,6 +6656,14 @@ export default function PlanLabPanel({
                                   )}
                                   enabled={group.isEnabled}
                                   onToggle={() => toggleExperimentGroup(group.experimentId)}
+                                  onEdit={
+                                    group.bundleInstanceId
+                                      ? () => handleEditBundle(group.bundleInstanceId)
+                                      : group.primaryEventId
+                                      ? () => handleEditV2Event(group.primaryEventId)
+                                      : undefined
+                                  }
+                                  menuItems={menuItems}
                                   primaryAction={{
                                     label: translate("planLabAppliedRemove", "移除"),
                                     onClick: () => setConfirmRemoveGroupId(group.experimentId),
@@ -6428,6 +6794,26 @@ export default function PlanLabPanel({
                               experimentTypeOptions.find(
                                 (option) => option.value === legacyExperiment.type
                               )?.label ?? translate("planLabExperimentFallback", "實驗");
+                            const moveUpDisabled = index === 0;
+                            const moveDownDisabled = index === list.length - 1;
+                            const menuItems: PlanLabRowMenuItem[] = [
+                              {
+                                label: translate("planLabExperimentRename", "重新命名"),
+                                onClick: () => openRenameExperiment(legacyExperiment),
+                              },
+                              {
+                                label: translate("planLabExperimentMoveUp", "上移"),
+                                onClick: () =>
+                                  moveExperiment(legacyExperiment.id, "up"),
+                                disabled: moveUpDisabled,
+                              },
+                              {
+                                label: translate("planLabExperimentMoveDown", "下移"),
+                                onClick: () =>
+                                  moveExperiment(legacyExperiment.id, "down"),
+                                disabled: moveDownDisabled,
+                              },
+                            ];
                             const badges: PlanLabRowBadge[] = [
                               {
                                 label: translate("planLabBadgeExperiment", "實驗"),
@@ -6447,7 +6833,7 @@ export default function PlanLabPanel({
                                 ref={(node) =>
                                   registerItemRef(`experiment-${legacyExperiment.id}`, node)
                                 }
-                                title={label}
+                                title={legacyExperiment.title ?? label}
                                 badges={badges}
                                 summary={getExperimentSummary(legacyExperiment)}
                                 enabled={legacyExperiment.isEnabled !== false}
@@ -6460,6 +6846,7 @@ export default function PlanLabPanel({
                                   })
                                 }
                                 onEdit={() => openEditExperimentDrawer(legacyExperiment)}
+                                menuItems={menuItems}
                                 primaryAction={{
                                   label: translate("planLabAppliedRemove", "移除"),
                                   onClick: () => setConfirmRemoveExperimentId(legacyExperiment.id),
@@ -7297,6 +7684,16 @@ export default function PlanLabPanel({
         ) : null}
       </Drawer>
 
+      <ExperimentTemplatesDrawer
+        opened={experimentTemplatesOpen}
+        title={translate("planLabExperimentTemplatesTitle", "實驗模板")}
+        groups={experimentTemplateGroups}
+        onClose={() => setExperimentTemplatesOpen(false)}
+        onSelect={(templateId) =>
+          handleExperimentTemplateSelect(templateId as PlanLabExperimentTemplateId)
+        }
+      />
+
       <BundleWizardDrawer
         opened={bundleWizardOpen}
         template={bundleTemplate}
@@ -7313,6 +7710,7 @@ export default function PlanLabPanel({
           setBundleWizardMode("create");
           setBundleWizardInstanceId(null);
           setBundleWizardInitialInput(null);
+          setBundleWizardExperimentMode(false);
         }}
         onApplyEvents={handleApplyBundleEvents}
         allowInlineEdit={false}
@@ -8422,13 +8820,42 @@ export default function PlanLabPanel({
         )}
       </Drawer>
       <Modal
+        opened={Boolean(experimentRenameDraft)}
+        onClose={() => setExperimentRenameDraft(null)}
+        title={translate("planLabExperimentRenameTitle", "重新命名實驗")}
+        centered
+      >
+        <Stack gap="sm">
+          <TextInput
+            label={translate("planLabExperimentRenameLabel", "實驗名稱")}
+            value={experimentRenameDraft?.title ?? ""}
+            onChange={(event) =>
+              setExperimentRenameDraft((current) =>
+                current ? { ...current, title: event.currentTarget.value } : current
+              )
+            }
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setExperimentRenameDraft(null)}>
+              {translate("planLabCancel", "取消")}
+            </Button>
+            <Button onClick={applyExperimentRename}>
+              {translate("planLabSave", "儲存")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
         opened={Boolean(pendingRemoveExperiment)}
         onClose={() => setConfirmRemoveExperimentId(null)}
         title={translate("planLabRemoveExperimentConfirmTitle", "移除實驗「{experimentTitle}」？", {
           experimentTitle: pendingRemoveExperiment
             ? (
+                pendingRemoveExperiment.title ??
                 experimentTypeOptions.find((option) => option.value === pendingRemoveExperiment.type)
-                  ?.label ?? translate("planLabExperimentFallback", "實驗")
+                  ?.label ??
+                translate("planLabExperimentFallback", "實驗")
               )
             : translate("planLabExperimentFallback", "實驗"),
         })}
@@ -8490,7 +8917,7 @@ export default function PlanLabPanel({
                     if (!id) {
                       return;
                     }
-                    if (kind === "event") {
+                    if (kind === "event" || kind === "events") {
                       removeScenarioV2Event(id);
                       return;
                     }
@@ -8522,20 +8949,25 @@ export default function PlanLabPanel({
                           remove: [...current.rules.remove],
                         },
                       };
-                      if (kind === "asset") {
+                      if (kind === "asset" || kind === "assets") {
                         nextPatches.assets.add = nextPatches.assets.add.filter((item) => item.id !== id);
                         delete nextPatches.assets.update[id];
                         nextPatches.assets.remove = nextPatches.assets.remove.filter((entry) => entry !== id);
                       }
-                      if (kind === "liability") {
+                      if (kind === "liability" || kind === "liabilities") {
                         nextPatches.liabilities.add = nextPatches.liabilities.add.filter((item) => item.id !== id);
                         delete nextPatches.liabilities.update[id];
                         nextPatches.liabilities.remove = nextPatches.liabilities.remove.filter((entry) => entry !== id);
                       }
-                      if (kind === "rule") {
+                      if (kind === "rule" || kind === "rules") {
                         nextPatches.rules.add = nextPatches.rules.add.filter((item) => item.id !== id);
                         delete nextPatches.rules.update[id];
                         nextPatches.rules.remove = nextPatches.rules.remove.filter((entry) => entry !== id);
+                      }
+                      if (kind === "member" || kind === "members") {
+                        nextPatches.members.add = nextPatches.members.add.filter((item) => item.id !== id);
+                        delete nextPatches.members.update[id];
+                        nextPatches.members.remove = nextPatches.members.remove.filter((entry) => entry !== id);
                       }
                       return nextPatches;
                     });

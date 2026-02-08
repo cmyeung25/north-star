@@ -61,6 +61,7 @@ export type PlanLabExperimentBase = {
   id: string;
   type: PlanLabExperimentType;
   isEnabled?: boolean;
+  title?: string;
 };
 
 export type PlanLabOneOffExpenseExperiment = PlanLabExperimentBase & {
