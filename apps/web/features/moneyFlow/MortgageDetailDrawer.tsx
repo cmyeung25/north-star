@@ -2,6 +2,7 @@
 
 import {
   Button,
+  Divider,
   Drawer,
   Group,
   ScrollArea,
@@ -131,25 +132,43 @@ export default function MortgageDetailDrawer({
     if (!event) {
       return [];
     }
-    const items: Array<{ label: string; amount: number | null | undefined }> = [];
+    const items: Array<{
+      label: string;
+      amount: number | null | undefined;
+      kind: "income" | "expense";
+    }> = [];
     items.push({
       label: t("mortgageDetailMonthlyPayment"),
       amount: monthlyPayment,
+      kind: "expense",
     });
     if (event.rental?.enabled) {
       items.push({
         label: t("mortgageDetailRentalIncome"),
         amount: event.rental.rentMonthly,
+        kind: "income",
       });
     }
     (event.ongoingCosts ?? []).forEach((cost) => {
       items.push({
         label: cost.label?.trim() || t("mortgageDetailOngoingCostFallback"),
         amount: cost.amount,
+        kind: "expense",
       });
     });
     return items;
   }, [event, monthlyPayment, t]);
+  const cashflowNet = useMemo(
+    () =>
+      cashflowItems.reduce((total, item) => {
+        if (!Number.isFinite(item.amount ?? NaN)) {
+          return total;
+        }
+        const value = Math.abs(item.amount ?? 0);
+        return total + (item.kind === "income" ? value : -value);
+      }, 0),
+    [cashflowItems]
+  );
 
   return (
     <Drawer
@@ -353,24 +372,45 @@ export default function MortgageDetailDrawer({
                   {t("mortgageDetailCashflowEmpty")}
                 </Text>
               ) : (
-                cashflowItems.map((item) => (
-                  <Group
-                    key={item.label}
-                    justify="space-between"
-                    align="center"
-                    wrap="wrap"
-                  >
-                    <Text>{item.label}</Text>
-                    <Text>
+                <>
+                  {cashflowItems.map((item) => {
+                    const signedAmount = Number.isFinite(item.amount ?? NaN)
+                      ? item.kind === "income"
+                        ? Math.abs(item.amount ?? 0)
+                        : -Math.abs(item.amount ?? 0)
+                      : null;
+                    return (
+                      <Group
+                        key={item.label}
+                        justify="space-between"
+                        align="center"
+                        wrap="wrap"
+                      >
+                        <Text>{item.label}</Text>
+                        <Text>
+                          {formatAmount(
+                            signedAmount,
+                            baseCurrency,
+                            locale,
+                            t("amountUnset")
+                          )}
+                        </Text>
+                      </Group>
+                    );
+                  })}
+                  <Divider />
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{t("mortgageDetailNetCashflow")}</Text>
+                    <Text fw={600}>
                       {formatAmount(
-                        item.amount,
+                        cashflowNet,
                         baseCurrency,
                         locale,
                         t("amountUnset")
                       )}
                     </Text>
                   </Group>
-                ))
+                </>
               )}
             </Stack>
           </Stack>

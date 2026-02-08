@@ -65,6 +65,7 @@ type OngoingCostDraft = {
   amount: number;
   startMonth: string;
   endMonth: string;
+  monthMode: "purchase" | "plus1" | "custom";
 };
 
 type NewBabyDraft = {
@@ -120,6 +121,7 @@ const createOngoingCostDraft = (): OngoingCostDraft => ({
   amount: 0,
   startMonth: "",
   endMonth: "",
+  monthMode: "purchase",
 });
 
 const createHomeDraft = (defaultMonth: string): HomePurchaseDraft => ({
@@ -163,6 +165,22 @@ const resolveFeeMonthMode = (
   return "custom";
 };
 
+const resolveOngoingMonthMode = (
+  startMonth: string,
+  purchaseMonth: string
+): OngoingCostDraft["monthMode"] => {
+  if (!isValidMonthKey(purchaseMonth)) {
+    return "custom";
+  }
+  if (startMonth === purchaseMonth) {
+    return "purchase";
+  }
+  if (startMonth === addMonths(purchaseMonth, 1)) {
+    return "plus1";
+  }
+  return "custom";
+};
+
 const hydrateHomeDraftFromEvent = (
   event: ScenarioEventDraft,
   fallbackMonth: string
@@ -188,6 +206,7 @@ const hydrateHomeDraftFromEvent = (
       amount: cost.amount,
       startMonth: cost.startMonth,
       endMonth: cost.endMonth ?? "",
+      monthMode: resolveOngoingMonthMode(cost.startMonth, startMonth),
     })) ?? [];
   const rentalEnabled = Boolean(event.rental?.enabled);
 
@@ -264,6 +283,29 @@ const normalizeAmount = (value: number | string | null | undefined) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
+const mergeHomePurchaseEvent = (
+  base: ScenarioEventDraft,
+  override: ScenarioEventDraft
+): ScenarioEventDraft => {
+  if (base.type !== "housing" || base.kind !== "mortgage") {
+    return override;
+  }
+  if (override.type !== "housing" || override.kind !== "mortgage") {
+    return override;
+  }
+  return {
+    ...base,
+    ...override,
+    feesOneOff: override.feesOneOff ?? base.feesOneOff,
+    ongoingCosts: override.ongoingCosts ?? base.ongoingCosts,
+    rental: override.rental ?? base.rental,
+    source: {
+      ...base.source,
+      ...override.source,
+    },
+  };
+};
+
 export default function BundleWizardDrawer({
   opened,
   template,
@@ -281,6 +323,7 @@ export default function BundleWizardDrawer({
   const validation = useTranslations("validation");
   const locale = useLocale();
   const addEvent = useScenarioStore((state) => state.addEvent);
+  const updateEvent = useScenarioStore((state) => state.updateEvent);
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [previewEvents, setPreviewEvents] = useState<ScenarioEventDraft[]>([]);
@@ -290,6 +333,13 @@ export default function BundleWizardDrawer({
   const [actionError, setActionError] = useState<string | null>(null);
   const [packAsExperiment, setPackAsExperiment] = useState(true);
   const [bundleInstanceId, setBundleInstanceId] = useState(() => `bundle_${nanoid(8)}`);
+  const scenarioEventIds = useMemo(
+    () =>
+      new Set(
+        scenarioEvents.map((event) => event.id).filter((id): id is string => Boolean(id))
+      ),
+    [scenarioEvents]
+  );
 
   const defaultMonth = baseMonth && isValidMonthKey(baseMonth) ? baseMonth : "";
 
@@ -523,10 +573,18 @@ export default function BundleWizardDrawer({
       return;
     }
     for (const event of drafts) {
-      const result = addEvent(event, scenarioId ?? undefined);
-      if (!result.ok) {
-        setActionError(t("bundleApplyFailed"));
-        return;
+      if (event.id && scenarioEventIds.has(event.id)) {
+        const result = updateEvent(event.id, event, scenarioId ?? undefined);
+        if (!result.ok) {
+          setActionError(t("bundleApplyFailed"));
+          return;
+        }
+      } else {
+        const result = addEvent(event, scenarioId ?? undefined);
+        if (!result.ok) {
+          setActionError(t("bundleApplyFailed"));
+          return;
+        }
       }
     }
     onClose();
@@ -620,7 +678,7 @@ export default function BundleWizardDrawer({
               id: cost.id,
               label: cost.label || undefined,
               amount: cost.amount,
-              startMonth: cost.startMonth,
+              startMonth: resolveOngoingStartMonth(cost),
               endMonth: cost.endMonth || undefined,
             })),
           rental: homeDraft.rentalEnabled
@@ -635,15 +693,18 @@ export default function BundleWizardDrawer({
           propertyAssetId: homeDraft.propertyAssetId,
           mortgageLiabilityId: homeDraft.mortgageLiabilityId,
         };
+        const nextEvent = buildHomePurchaseBundleEvent(
+          input,
+          {
+            bundleInstanceId,
+            templateId: template?.id ?? "life_home_purchase",
+            bundleTitle: resolvedHomeLabel,
+          }
+        );
         setPreviewEvents([
-          buildHomePurchaseBundleEvent(
-            input,
-            {
-              bundleInstanceId,
-              templateId: template?.id ?? "life_home_purchase",
-              bundleTitle: resolvedHomeLabel,
-            }
-          ),
+          isEditingHomeBundle && editingHomeEvent
+            ? mergeHomePurchaseEvent(editingHomeEvent, nextEvent)
+            : nextEvent,
         ]);
       }
     }
@@ -745,6 +806,19 @@ export default function BundleWizardDrawer({
       return fee.month;
     }
     if (fee.monthMode === "plus1") {
+      return addMonths(homeDraft.startMonth, 1);
+    }
+    return homeDraft.startMonth;
+  };
+
+  const resolveOngoingStartMonth = (cost: OngoingCostDraft) => {
+    if (cost.monthMode === "custom") {
+      return cost.startMonth;
+    }
+    if (!isValidMonthKey(homeDraft.startMonth)) {
+      return cost.startMonth;
+    }
+    if (cost.monthMode === "plus1") {
       return addMonths(homeDraft.startMonth, 1);
     }
     return homeDraft.startMonth;
@@ -1402,21 +1476,45 @@ export default function BundleWizardDrawer({
                             })
                           }
                         />
-                        <MonthField
-                          label={t("bundleOngoingStartMonth")}
-                          value={cost.startMonth}
-                          onChange={(value) =>
-                            updateOngoingCosts(cost.id, {
-                              startMonth: value,
-                            })
-                          }
-                          onBlur={(event) => {
-                            const raw = event.currentTarget.value;
-                            updateOngoingCosts(cost.id, {
-                              startMonth: helperCostMonthNormalize(raw),
-                            });
-                          }}
-                        />
+                        <Stack gap={4}>
+                          <Text size="xs" c="dimmed">
+                            {t("bundleOngoingMonthLabel")}
+                          </Text>
+                          <SegmentedControl
+                            size="xs"
+                            value={cost.monthMode}
+                            onChange={(value) =>
+                              updateOngoingCosts(cost.id, {
+                                monthMode:
+                                  value === "plus1" || value === "custom"
+                                    ? value
+                                    : "purchase",
+                              })
+                            }
+                            data={[
+                              { value: "purchase", label: t("bundleOngoingMonthSame") },
+                              { value: "plus1", label: t("bundleOngoingMonthPlusOne") },
+                              { value: "custom", label: t("bundleOngoingMonthCustom") },
+                            ]}
+                          />
+                          {cost.monthMode === "custom" && (
+                            <MonthField
+                              label={t("bundleOngoingStartMonth")}
+                              value={cost.startMonth}
+                              onChange={(value) =>
+                                updateOngoingCosts(cost.id, {
+                                  startMonth: value,
+                                })
+                              }
+                              onBlur={(event) => {
+                                const raw = event.currentTarget.value;
+                                updateOngoingCosts(cost.id, {
+                                  startMonth: helperCostMonthNormalize(raw),
+                                });
+                              }}
+                            />
+                          )}
+                        </Stack>
                         <MonthField
                           label={t("bundleOngoingEndMonth")}
                           value={cost.endMonth}

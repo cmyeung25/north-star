@@ -640,11 +640,12 @@ export default function MoneyClient({
     return map;
   }, [v2LedgerRows]);
 
-  const incomeEvents = useMemo(
-    () =>
-      filterEventsByLedgerImpact(v2ScenarioEvents, ledgerRowsByEventId, "income"),
-    [ledgerRowsByEventId, v2ScenarioEvents]
-  );
+  const incomeEvents = useMemo(() => {
+    const eligibleEvents = v2ScenarioEvents.filter(
+      (event) => event.type === "cashflow" || event.type === "adjustment"
+    );
+    return filterEventsByLedgerImpact(eligibleEvents, ledgerRowsByEventId, "income");
+  }, [ledgerRowsByEventId, v2ScenarioEvents]);
   const expenseEvents = useMemo(
     () =>
       filterEventsByLedgerImpact(v2ScenarioEvents, ledgerRowsByEventId, "expense"),
@@ -2847,7 +2848,7 @@ export default function MoneyClient({
                           variant="light"
                           component="button"
                           type="button"
-                          onClick={() => openEventDrawer(item.sourceEventId)}
+                          onClick={() => openMortgageDetails(item.sourceEventId, "cashflow")}
                           style={{ cursor: "pointer" }}
                         >
                           {item.sourceLabel}
