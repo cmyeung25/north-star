@@ -29,6 +29,7 @@ import { addMonths } from "../../../src/domain/members/age";
 import {
   buildHomePurchaseBundleEvent,
   buildNewBabyBundleEvents,
+  type BundleWizardInput,
   type HomePurchaseBundleInput,
   type NewBabyPlanInput,
 } from "../../../src/domain/eventTemplates/bundles";
@@ -37,6 +38,9 @@ import { useScenarioStore } from "../../../src/store/scenarioStore";
 type BundleWizardDrawerProps = {
   opened: boolean;
   template: TemplateDef | null;
+  mode?: "create" | "edit";
+  bundleInstanceId?: string | null;
+  initialWizardInput?: BundleWizardInput | null;
   scenarioId?: string | null;
   baseMonth?: string | null;
   baseCurrency: string;
@@ -45,7 +49,11 @@ type BundleWizardDrawerProps = {
   onOpenEventDrawer?: (type: ScenarioEventDraft["type"], eventId: string) => void;
   onApplyEvents?: (
     events: ScenarioEventDraft[],
-    options?: { packAsExperiment?: boolean; experimentTitle?: string }
+    options?: { packAsExperiment?: boolean; experimentTitle?: string },
+    context?: {
+      bundleInstanceId: string;
+      wizardInput: BundleWizardInput;
+    }
   ) => Promise<{ ok: boolean; error?: string }> | { ok: boolean; error?: string };
   allowInlineEdit?: boolean;
   editingEventId?: string | null;
@@ -149,6 +157,25 @@ const createHomeDraft = (defaultMonth: string): HomePurchaseDraft => ({
   eventId: `evt_v2_bundle_${nanoid(6)}`,
 });
 
+const hydrateNewBabyDraftFromInput = (
+  input: NewBabyPlanInput,
+  fallbackMonth: string
+): NewBabyDraft => {
+  const fallback = isValidMonthKey(fallbackMonth) ? fallbackMonth : input.birthMonth;
+  return {
+    birthMonth: input.birthMonth ?? fallback,
+    deliveryCost: input.deliveryCost ?? 0,
+    childcareMonthly: input.childcareMonthly ?? 0,
+    helperEnabled: input.helperEnabled ?? false,
+    helperMonthly: input.helperMonthly ?? 0,
+    agencyFee: input.agencyFee ?? 0,
+    schoolingEnabled: input.schoolingEnabled ?? false,
+    schoolingAmount: input.schoolingAmount ?? 0,
+    schoolingCadence: input.schoolingCadence ?? "monthly",
+    schoolingStartMonth: input.schoolingStartMonth ?? fallback,
+  };
+};
+
 const resolveFeeMonthMode = (
   feeMonth: string,
   startMonth: string
@@ -238,6 +265,60 @@ const hydrateHomeDraftFromEvent = (
   };
 };
 
+const hydrateHomeDraftFromInput = (
+  input: HomePurchaseBundleInput,
+  fallbackMonth: string
+): HomePurchaseDraft => {
+  const startMonth = input.startMonth ?? fallbackMonth;
+  const downPaymentMode = input.downPaymentMode ?? "percent";
+  const mortgageTermYears = input.mortgageTermYears ?? 0;
+  const feesOneOff =
+    input.feesOneOff?.map((fee) => ({
+      id: fee.id,
+      label: fee.label ?? "",
+      amount: fee.amount,
+      month: fee.month,
+      monthMode: resolveFeeMonthMode(fee.month, startMonth),
+    })) ?? [];
+  const ongoingCosts =
+    input.ongoingCosts?.map((cost) => ({
+      id: cost.id,
+      label: cost.label ?? "",
+      amount: cost.amount,
+      startMonth: cost.startMonth,
+      endMonth: cost.endMonth ?? "",
+      monthMode: resolveOngoingMonthMode(cost.startMonth, startMonth),
+    })) ?? [];
+  const rentalEnabled = Boolean(input.rental?.enabled);
+
+  return {
+    startMonth,
+    propertyName: input.label ?? "",
+    purchasePrice: input.purchasePrice ?? 0,
+    downPaymentMode,
+    downPaymentPercent:
+      downPaymentMode === "percent" ? input.downPaymentPercent ?? 0 : 0,
+    downPaymentAmount:
+      downPaymentMode === "amount" ? input.downPaymentAmount ?? 0 : 0,
+    mortgageRatePct: input.mortgageRatePct ?? 0,
+    termMode: "years",
+    mortgageTermYears,
+    mortgageTermMonths: mortgageTermYears * 12,
+    mortgagePayment: input.mortgagePayment ?? 0,
+    mortgagePaymentIsEstimated: input.mortgagePaymentIsEstimated ?? true,
+    feesOneOff,
+    ongoingCosts,
+    rentalEnabled,
+    rentalMonthly: input.rental?.rentMonthly ?? 0,
+    rentalDiscountMonthly: input.rental?.discountMonthly ?? 0,
+    rentalStartMonth: input.rental?.startMonth ?? startMonth,
+    rentalEndMonth: input.rental?.endMonth ?? "",
+    propertyAssetId: input.propertyAssetId ?? `asset_home_${nanoid(6)}`,
+    mortgageLiabilityId: input.mortgageLiabilityId ?? `liability_mortgage_${nanoid(6)}`,
+    eventId: input.eventId ?? `evt_v2_bundle_${nanoid(6)}`,
+  };
+};
+
 const estimateMonthlyPayment = ({
   principal,
   annualRatePct,
@@ -309,6 +390,9 @@ const mergeHomePurchaseEvent = (
 export default function BundleWizardDrawer({
   opened,
   template,
+  mode = "create",
+  bundleInstanceId: initialBundleInstanceId = null,
+  initialWizardInput = null,
   scenarioId,
   baseMonth,
   baseCurrency,
@@ -332,7 +416,9 @@ export default function BundleWizardDrawer({
   );
   const [actionError, setActionError] = useState<string | null>(null);
   const [packAsExperiment, setPackAsExperiment] = useState(true);
-  const [bundleInstanceId, setBundleInstanceId] = useState(() => `bundle_${nanoid(8)}`);
+  const [bundleInstanceId, setBundleInstanceId] = useState(
+    () => initialBundleInstanceId ?? `bundle_${nanoid(8)}`
+  );
   const scenarioEventIds = useMemo(
     () =>
       new Set(
@@ -360,8 +446,9 @@ export default function BundleWizardDrawer({
     createHomeDraft(defaultMonth)
   );
 
-  const isNewBabyBundle = template?.id === "life_new_baby_plan";
-  const isHomeBundle = template?.id === "life_home_purchase";
+  const resolvedTemplateId = template?.id ?? initialWizardInput?.templateId ?? null;
+  const isNewBabyBundle = resolvedTemplateId === "life_new_baby_plan";
+  const isHomeBundle = resolvedTemplateId === "life_home_purchase";
   const editingHomeEvent = useMemo(() => {
     if (!editingEventId) {
       return null;
@@ -371,6 +458,7 @@ export default function BundleWizardDrawer({
     );
   }, [editingEventId, scenarioEvents]);
   const isEditingHomeBundle =
+    mode === "edit" &&
     Boolean(editingHomeEvent) &&
     editingHomeEvent?.type === "housing" &&
     editingHomeEvent.kind === "mortgage" &&
@@ -387,19 +475,31 @@ export default function BundleWizardDrawer({
     setCreatedEventIds(new Set());
     setPackAsExperiment(true);
     setDismissedMortgageWarning(false);
-    if (isEditingHomeBundle) {
+    if (mode === "edit") {
       setBundleInstanceId(
-        editingHomeEvent?.source?.bundleInstanceId ?? `bundle_${nanoid(8)}`
+        initialBundleInstanceId ??
+          editingHomeEvent?.source?.bundleInstanceId ??
+          `bundle_${nanoid(8)}`
       );
     } else {
       setBundleInstanceId(`bundle_${nanoid(8)}`);
     }
-    setNewBabyDraft((current) => ({
-      ...current,
-      birthMonth: defaultMonth || current.birthMonth,
-      schoolingStartMonth: defaultMonth || current.schoolingStartMonth,
-    }));
-    if (isEditingHomeBundle && editingHomeEvent) {
+    if (initialWizardInput?.templateId === "life_new_baby_plan") {
+      setNewBabyDraft(
+        hydrateNewBabyDraftFromInput(initialWizardInput.input, defaultMonth)
+      );
+    } else {
+      setNewBabyDraft((current) => ({
+        ...current,
+        birthMonth: defaultMonth || current.birthMonth,
+        schoolingStartMonth: defaultMonth || current.schoolingStartMonth,
+      }));
+    }
+    if (initialWizardInput?.templateId === "life_home_purchase") {
+      setHomeDraft(
+        hydrateHomeDraftFromInput(initialWizardInput.input, defaultMonth)
+      );
+    } else if (isEditingHomeBundle && editingHomeEvent) {
       setHomeDraft(hydrateHomeDraftFromEvent(editingHomeEvent, defaultMonth));
     } else {
       setHomeDraft((current) => ({
@@ -407,7 +507,16 @@ export default function BundleWizardDrawer({
         startMonth: defaultMonth || current.startMonth,
       }));
     }
-  }, [defaultMonth, editingHomeEvent, isEditingHomeBundle, opened, template?.id]);
+  }, [
+    defaultMonth,
+    editingHomeEvent,
+    initialBundleInstanceId,
+    initialWizardInput,
+    isEditingHomeBundle,
+    mode,
+    opened,
+    resolvedTemplateId,
+  ]);
 
   const hasLivingTotal = useMemo(() => {
     const livingLabel = t("templates.living_total.name");
@@ -549,6 +658,80 @@ export default function BundleWizardDrawer({
     return "-";
   };
 
+  const buildWizardInput = (): BundleWizardInput | null => {
+    if (!resolvedTemplateId) {
+      return null;
+    }
+    if (isNewBabyBundle) {
+      const input: NewBabyPlanInput = {
+        birthMonth: newBabyDraft.birthMonth,
+        deliveryCost: newBabyDraft.deliveryCost,
+        childcareMonthly: normalizeAmount(newBabyDraft.childcareMonthly),
+        helperEnabled: newBabyDraft.helperEnabled,
+        helperMonthly: normalizeAmount(newBabyDraft.helperMonthly),
+        agencyFee: normalizeAmount(newBabyDraft.agencyFee),
+        schoolingEnabled: newBabyDraft.schoolingEnabled,
+        schoolingAmount: normalizeAmount(newBabyDraft.schoolingAmount),
+        schoolingCadence: newBabyDraft.schoolingCadence,
+        schoolingStartMonth: newBabyDraft.schoolingStartMonth,
+      };
+      return {
+        templateId: resolvedTemplateId,
+        input,
+      };
+    }
+    if (isHomeBundle) {
+      const termMonths =
+        homeDraft.termMode === "years"
+          ? homeDraft.mortgageTermYears * 12
+          : homeDraft.mortgageTermMonths;
+      const input: HomePurchaseBundleInput = {
+        eventId: homeDraft.eventId,
+        bundleId: bundleInstanceId,
+        label: resolvedHomeLabel,
+        startMonth: homeDraft.startMonth,
+        purchasePrice: homeDraft.purchasePrice,
+        downPaymentMode: homeDraft.downPaymentMode,
+        downPaymentPercent: homeDraft.downPaymentPercent,
+        downPaymentAmount: homeDraft.downPaymentAmount,
+        mortgageRatePct: homeDraft.mortgageRatePct,
+        mortgageTermYears:
+          homeDraft.termMode === "years" ? homeDraft.mortgageTermYears : termMonths / 12,
+        mortgagePayment: homeDraft.mortgagePayment,
+        mortgagePaymentIsEstimated: homeDraft.mortgagePaymentIsEstimated,
+        feesOneOff: homeDraft.feesOneOff.map((fee) => ({
+          id: fee.id,
+          label: fee.label || undefined,
+          amount: fee.amount,
+          month: resolveFeeMonth(fee),
+        })),
+        ongoingCosts: homeDraft.ongoingCosts.map((cost) => ({
+          id: cost.id,
+          label: cost.label || undefined,
+          amount: cost.amount,
+          startMonth: resolveOngoingStartMonth(cost),
+          endMonth: cost.endMonth || undefined,
+        })),
+        rental: homeDraft.rentalEnabled
+          ? {
+              enabled: true,
+              rentMonthly: homeDraft.rentalMonthly,
+              discountMonthly: homeDraft.rentalDiscountMonthly,
+              startMonth: homeDraft.rentalStartMonth,
+              endMonth: homeDraft.rentalEndMonth || undefined,
+            }
+          : undefined,
+        propertyAssetId: homeDraft.propertyAssetId,
+        mortgageLiabilityId: homeDraft.mortgageLiabilityId,
+      };
+      return {
+        templateId: resolvedTemplateId,
+        input,
+      };
+    }
+    return null;
+  };
+
   const handleApply = async () => {
     if (!scenarioId) {
       if (!onApplyEvents) {
@@ -560,11 +743,14 @@ export default function BundleWizardDrawer({
       (event) => event.id && !createdEventIds.has(event.id)
     );
     if (onApplyEvents) {
-      const experimentTitle = template ? t(`templates.${template.id}.name`) : undefined;
+      const experimentTitle = resolvedTemplateId
+        ? t(`templates.${resolvedTemplateId}.name`)
+        : undefined;
+      const wizardInput = buildWizardInput();
       const result = await onApplyEvents(drafts, {
         packAsExperiment,
         experimentTitle,
-      });
+      }, wizardInput ? { bundleInstanceId, wizardInput } : undefined);
       if (!result.ok) {
         setActionError(result.error ?? t("bundleApplyFailed"));
         return;
@@ -637,7 +823,7 @@ export default function BundleWizardDrawer({
           },
           {
             bundleInstanceId,
-            templateId: template?.id ?? "life_new_baby_plan",
+            templateId: resolvedTemplateId ?? "life_new_baby_plan",
             bundleTitle: t("bundleNewBabyDefaultName"),
           }
         );
@@ -697,12 +883,12 @@ export default function BundleWizardDrawer({
           input,
           {
             bundleInstanceId,
-            templateId: template?.id ?? "life_home_purchase",
+            templateId: resolvedTemplateId ?? "life_home_purchase",
             bundleTitle: resolvedHomeLabel,
           }
         );
         setPreviewEvents([
-          isEditingHomeBundle && editingHomeEvent
+          isEditingHomeBundle && editingHomeEvent && !initialWizardInput
             ? mergeHomePurchaseEvent(editingHomeEvent, nextEvent)
             : nextEvent,
         ]);

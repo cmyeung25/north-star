@@ -13,6 +13,7 @@ import type {
   ScenarioEvent,
   ScenarioEventDraft,
 } from "../domain/scenarioV2/events";
+import type { BundleWizardInput } from "../domain/eventTemplates/bundles";
 import {
   CashflowEventSchema,
   ScenarioEventSchema,
@@ -424,6 +425,12 @@ export type ScenarioClientComputed = {
   onboardingCompleted?: boolean;
 };
 
+export type BundleInstanceRecord = {
+  id: string;
+  wizardInput: BundleWizardInput;
+  updatedAt: number;
+};
+
 export type Scenario = {
   id: string;
   name: string;
@@ -442,6 +449,7 @@ export type Scenario = {
   clientComputed?: ScenarioClientComputed;
   snapshots?: ProjectionSnapshot[];
   plans?: Plan[];
+  bundleInstances?: BundleInstanceRecord[];
   meta?: ScenarioMeta;
 };
 
@@ -474,6 +482,16 @@ type ScenarioStoreState = {
     event: ScenarioEventDraft,
     scenarioId?: string
   ) => { ok: boolean; event?: ScenarioEvent; error?: string };
+  replaceBundleEvents: (
+    bundleInstanceId: string,
+    events: ScenarioEventDraft[],
+    scenarioId?: string
+  ) => { ok: boolean; error?: string };
+  upsertBundleInstanceRecord: (
+    scenarioId: string,
+    record: BundleInstanceRecord
+  ) => void;
+  removeBundleInstanceRecord: (scenarioId: string, bundleInstanceId: string) => void;
   updateEvent: (
     eventId: string,
     patch: Partial<ScenarioEvent>,
@@ -1312,6 +1330,32 @@ const upsertEventGeneratedEntities = ({
   };
 };
 
+const collectReferencedEntityIds = (events: ScenarioEvent[]) => {
+  const referencedAssetIds = new Set<string>();
+  const referencedLiabilityIds = new Set<string>();
+  events.forEach((event) => {
+    if (event.type === "housing" && event.kind === "mortgage") {
+      if (event.propertyAssetId) {
+        referencedAssetIds.add(event.propertyAssetId);
+      }
+      if (event.mortgageLiabilityId) {
+        referencedLiabilityIds.add(event.mortgageLiabilityId);
+      }
+    }
+    if (event.type === "insurance" && event.mode === "detailed") {
+      (event.policies ?? []).forEach((policy) => {
+        if (policy.policyAssetId) {
+          referencedAssetIds.add(policy.policyAssetId);
+        }
+      });
+    }
+    if (event.type === "loan" && event.liabilityId) {
+      referencedLiabilityIds.add(event.liabilityId);
+    }
+  });
+  return { referencedAssetIds, referencedLiabilityIds };
+};
+
 const migrateEventRule = (rule: EventDefinition["rule"]): EventDefinition["rule"] => {
   const startAt = rule.startAt ?? buildMonthDateRef(rule.startMonth ?? undefined) ?? undefined;
   const endAt =
@@ -1361,6 +1405,33 @@ const cloneScenarioAssets = (assets?: ScenarioAsset[]) =>
 
 const cloneScenarioLiabilities = (liabilities?: ScenarioLiability[]) =>
   liabilities?.map((liability) => ({ ...liability }));
+
+const cloneBundleWizardInput = (input: BundleWizardInput): BundleWizardInput => {
+  if (input.templateId === "life_new_baby_plan") {
+    return {
+      templateId: input.templateId,
+      input: { ...input.input },
+    };
+  }
+  if (input.templateId === "life_home_purchase") {
+    return {
+      templateId: input.templateId,
+      input: {
+        ...input.input,
+        feesOneOff: input.input.feesOneOff?.map((fee) => ({ ...fee })),
+        ongoingCosts: input.input.ongoingCosts?.map((cost) => ({ ...cost })),
+        rental: input.input.rental ? { ...input.input.rental } : undefined,
+      },
+    };
+  }
+  return input;
+};
+
+const cloneBundleInstances = (records?: BundleInstanceRecord[]) =>
+  records?.map((record) => ({
+    ...record,
+    wizardInput: cloneBundleWizardInput(record.wizardInput),
+  }));
 
 const cloneMembers = (members?: ScenarioMember[]) =>
   members?.map((member) => ({
@@ -1787,6 +1858,9 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
   const normalizedPlans = clonePlans(scenario.plans);
   const normalizedMilestoneEvents = normalizeMilestoneEvents(scenario.milestoneEvents);
+  const normalizedBundleInstances =
+    cloneBundleInstances(scenario.bundleInstances) ??
+    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
   const normalizedAssumptions = {
     ...defaultAssumptions,
     ...scenario.assumptions,
@@ -1803,6 +1877,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
       assets: normalizedAssets,
       liabilities: normalizedLiabilities,
       events: normalizedEvents,
+      bundleInstances: normalizedBundleInstances,
       eventRefs: normalizedEventRefs,
       milestoneEvents: normalizedMilestoneEvents,
       clientComputed: nextClientComputed,
@@ -1820,6 +1895,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     liabilities: normalizedLiabilities,
     events: normalizedEvents,
     positions: normalizedPositions,
+    bundleInstances: normalizedBundleInstances,
     eventRefs: normalizedEventRefs,
     milestoneEvents: normalizedMilestoneEvents,
     clientComputed: nextClientComputed,
@@ -1935,6 +2011,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       milestoneEvents: [],
       snapshots: [],
       plans: [],
+      bundleInstances: [],
       meta: { schemaVersion: 2 },
       clientComputed:
         options?.onboardingCompleted !== undefined
@@ -1985,6 +2062,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       clientComputed: cloneClientComputed(source.clientComputed),
       snapshots: cloneSnapshots(source.snapshots),
       plans: [],
+      bundleInstances: cloneBundleInstances(source.bundleInstances),
       meta: source.meta ? { ...source.meta } : undefined,
     };
 
@@ -2192,6 +2270,135 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
 
     return { ok: true, event: refined.data };
+  },
+  replaceBundleEvents: (bundleInstanceId, events, scenarioId) => {
+    const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
+    const scenario = get().scenarios.find(
+      (entry) => entry.id === resolvedScenarioId
+    );
+    if (!scenario) {
+      return { ok: false, error: "Scenario not found." };
+    }
+    const isV2 = scenario.meta?.schemaVersion === 2;
+    if (!isV2) {
+      return { ok: false, error: "Scenario must be v2." };
+    }
+
+    const parsedEvents: ScenarioEvent[] = [];
+    for (const event of events) {
+      const candidate = {
+        ...event,
+        id: event.id ?? createScenarioEventId(),
+      };
+      const parsed = ScenarioEventSchema.safeParse(candidate);
+      if (!parsed.success) {
+        return { ok: false, error: "Invalid event payload." };
+      }
+      const refined =
+        parsed.data.type === "cashflow"
+          ? CashflowEventSchema.safeParse(parsed.data)
+          : parsed;
+      if (!refined.success) {
+        return { ok: false, error: "Invalid event payload." };
+      }
+      parsedEvents.push(refined.data);
+    }
+
+    const existingEvents = scenario.events ?? [];
+    const removedEventIds = new Set(
+      existingEvents
+        .filter((event) => event.source?.bundleInstanceId === bundleInstanceId)
+        .map((event) => event.id)
+    );
+    const remainingEvents = existingEvents.filter(
+      (event) => !removedEventIds.has(event.id)
+    );
+    const { referencedAssetIds, referencedLiabilityIds } =
+      collectReferencedEntityIds(remainingEvents);
+
+    let nextAssets = (scenario.assets ?? []).filter((asset) => {
+      if (!asset.createdByEventId || !removedEventIds.has(asset.createdByEventId)) {
+        return true;
+      }
+      return referencedAssetIds.has(asset.id);
+    });
+    let nextLiabilities = (scenario.liabilities ?? []).filter((liability) => {
+      if (
+        !liability.createdByEventId ||
+        !removedEventIds.has(liability.createdByEventId)
+      ) {
+        return true;
+      }
+      return referencedLiabilityIds.has(liability.id);
+    });
+
+    parsedEvents.forEach((event) => {
+      const updated = upsertEventGeneratedEntities({
+        existingAssets: nextAssets,
+        existingLiabilities: nextLiabilities,
+        event,
+      });
+      nextAssets = updated.assets;
+      nextLiabilities = updated.liabilities;
+    });
+
+    const nextEvents = [...remainingEvents, ...parsedEvents];
+
+    set((state) => ({
+      scenarios: state.scenarios.map((entry) =>
+        entry.id === resolvedScenarioId
+          ? {
+              ...entry,
+              events: nextEvents,
+              assets: nextAssets,
+              liabilities: nextLiabilities,
+              updatedAt: now(),
+            }
+          : entry
+      ),
+    }));
+
+    return { ok: true };
+  },
+  upsertBundleInstanceRecord: (scenarioId, record) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === scenarioId
+          ? (() => {
+              const existing = scenario.bundleInstances ?? [];
+              const index = existing.findIndex((entry) => entry.id === record.id);
+              const nextRecords =
+                index >= 0
+                  ? [
+                      ...existing.slice(0, index),
+                      record,
+                      ...existing.slice(index + 1),
+                    ]
+                  : [...existing, record];
+              return {
+                ...scenario,
+                bundleInstances: nextRecords,
+                updatedAt: now(),
+              };
+            })()
+          : scenario
+      ),
+    }));
+  },
+  removeBundleInstanceRecord: (scenarioId, bundleInstanceId) => {
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === scenarioId
+          ? {
+              ...scenario,
+              bundleInstances: (scenario.bundleInstances ?? []).filter(
+                (record) => record.id !== bundleInstanceId
+              ),
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
   },
   updateEvent: (eventId, patch, scenarioId) => {
     const resolvedScenarioId = scenarioId ?? get().activeScenarioId;
