@@ -29,6 +29,8 @@ import { addMonths } from "../../../src/domain/members/age";
 import {
   buildHomePurchaseBundleEvent,
   buildNewBabyBundleEvents,
+  deriveStartMonth,
+  type StartMonthStrategy,
   type BundleWizardInput,
   type HomePurchaseBundleInput,
   type NewBabyPlanInput,
@@ -107,6 +109,7 @@ type HomePurchaseDraft = {
   rentalEnabled: boolean;
   rentalMonthly: number;
   rentalDiscountMonthly: number;
+  rentalStartStrategy: StartMonthStrategy;
   rentalStartMonth: string;
   rentalEndMonth: string;
   propertyAssetId: string;
@@ -150,6 +153,7 @@ const createHomeDraft = (defaultMonth: string): HomePurchaseDraft => ({
   rentalEnabled: false,
   rentalMonthly: 0,
   rentalDiscountMonthly: 0,
+  rentalStartStrategy: "purchase",
   rentalStartMonth: defaultMonth,
   rentalEndMonth: "",
   propertyAssetId: `asset_home_${nanoid(6)}`,
@@ -208,6 +212,7 @@ const resolveOngoingMonthMode = (
   return "custom";
 };
 
+
 const hydrateHomeDraftFromEvent = (
   event: ScenarioEventDraft,
   fallbackMonth: string
@@ -236,6 +241,7 @@ const hydrateHomeDraftFromEvent = (
       monthMode: resolveOngoingMonthMode(cost.startMonth, startMonth),
     })) ?? [];
   const rentalEnabled = Boolean(event.rental?.enabled);
+  const rentalStartMonth = event.rental?.startMonth ?? startMonth;
 
   return {
     startMonth,
@@ -257,7 +263,8 @@ const hydrateHomeDraftFromEvent = (
     rentalEnabled,
     rentalMonthly: event.rental?.rentMonthly ?? 0,
     rentalDiscountMonthly: 0,
-    rentalStartMonth: event.rental?.startMonth ?? startMonth,
+    rentalStartStrategy: event.rental?.startMonth ? "custom" : "purchase",
+    rentalStartMonth,
     rentalEndMonth: event.rental?.endMonth ?? "",
     propertyAssetId: event.propertyAssetId ?? `asset_home_${nanoid(6)}`,
     mortgageLiabilityId: event.mortgageLiabilityId ?? `liability_mortgage_${nanoid(6)}`,
@@ -290,6 +297,10 @@ const hydrateHomeDraftFromInput = (
       monthMode: resolveOngoingMonthMode(cost.startMonth, startMonth),
     })) ?? [];
   const rentalEnabled = Boolean(input.rental?.enabled);
+  const rentalStartMonth = input.rental?.startMonth ?? startMonth;
+  const rentalStartStrategy =
+    input.rental?.startMonthStrategy ??
+    (input.rental?.startMonth ? "custom" : "purchase");
 
   return {
     startMonth,
@@ -311,7 +322,8 @@ const hydrateHomeDraftFromInput = (
     rentalEnabled,
     rentalMonthly: input.rental?.rentMonthly ?? 0,
     rentalDiscountMonthly: input.rental?.discountMonthly ?? 0,
-    rentalStartMonth: input.rental?.startMonth ?? startMonth,
+    rentalStartStrategy,
+    rentalStartMonth,
     rentalEndMonth: input.rental?.endMonth ?? "",
     propertyAssetId: input.propertyAssetId ?? `asset_home_${nanoid(6)}`,
     mortgageLiabilityId: input.mortgageLiabilityId ?? `liability_mortgage_${nanoid(6)}`,
@@ -718,6 +730,7 @@ export default function BundleWizardDrawer({
               rentMonthly: homeDraft.rentalMonthly,
               discountMonthly: homeDraft.rentalDiscountMonthly,
               startMonth: homeDraft.rentalStartMonth,
+              startMonthStrategy: homeDraft.rentalStartStrategy,
               endMonth: homeDraft.rentalEndMonth || undefined,
             }
           : undefined,
@@ -873,6 +886,7 @@ export default function BundleWizardDrawer({
                 rentMonthly: homeDraft.rentalMonthly,
                 discountMonthly: homeDraft.rentalDiscountMonthly,
                 startMonth: homeDraft.rentalStartMonth,
+                startMonthStrategy: homeDraft.rentalStartStrategy,
                 endMonth: homeDraft.rentalEndMonth || undefined,
               }
             : undefined,
@@ -965,6 +979,15 @@ export default function BundleWizardDrawer({
     if (homeDraft.mortgagePayment <= 0) {
       errors.mortgagePayment = t("bundleAmountRequired");
     }
+    if (homeDraft.rentalEnabled && homeDraft.rentalStartStrategy === "custom") {
+      const rentalMonthResult = normalizeMonthValue(homeDraft.rentalStartMonth);
+      if (rentalMonthResult.error) {
+        errors.rentalStartMonth =
+          rentalMonthResult.error === "empty"
+            ? t("bundleMonthRequired")
+            : validation("useYearMonth");
+      }
+    }
     setErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -1009,6 +1032,21 @@ export default function BundleWizardDrawer({
     }
     return homeDraft.startMonth;
   };
+
+  const resolvedRentalStartMonth = useMemo(() => {
+    if (!isValidMonthKey(homeDraft.startMonth)) {
+      return homeDraft.rentalStartMonth;
+    }
+    return deriveStartMonth(
+      homeDraft.startMonth,
+      homeDraft.rentalStartStrategy,
+      homeDraft.rentalStartMonth
+    );
+  }, [
+    homeDraft.rentalStartMonth,
+    homeDraft.rentalStartStrategy,
+    homeDraft.startMonth,
+  ]);
 
   const updateFees = (id: string, patch: Partial<FeeDraft>) => {
     setHomeDraft((current) => ({
@@ -1773,16 +1811,51 @@ export default function BundleWizardDrawer({
                         }))
                       }
                     />
-                    <MonthField
-                      label={t("bundleHomeRentalStartMonth")}
-                      value={homeDraft.rentalStartMonth}
-                      onChange={(value) =>
-                        setHomeDraft((current) => ({
-                          ...current,
-                          rentalStartMonth: value,
-                        }))
-                      }
-                    />
+                    <Stack gap={4}>
+                      <Text size="xs" c="dimmed">
+                        {t("bundleHomeRentalStartStrategy")}
+                      </Text>
+                      <SegmentedControl
+                        size="xs"
+                        value={homeDraft.rentalStartStrategy}
+                        onChange={(value) =>
+                          setHomeDraft((current) => ({
+                            ...current,
+                            rentalStartStrategy:
+                              value === "plus1" || value === "custom"
+                                ? value
+                                : "purchase",
+                          }))
+                        }
+                        data={[
+                          { value: "purchase", label: t("bundleOngoingMonthSame") },
+                          { value: "plus1", label: t("bundleOngoingMonthPlusOne") },
+                          { value: "custom", label: t("bundleOngoingMonthCustom") },
+                        ]}
+                      />
+                    </Stack>
+                    {homeDraft.rentalStartStrategy === "custom" ? (
+                      <MonthField
+                        label={t("bundleHomeRentalStartMonth")}
+                        value={homeDraft.rentalStartMonth}
+                        onChange={(value) =>
+                          setHomeDraft((current) => ({
+                            ...current,
+                            rentalStartMonth: value,
+                          }))
+                        }
+                        onKeyDown={(event) => event.preventDefault()}
+                        onPaste={(event) => event.preventDefault()}
+                        error={errors.rentalStartMonth}
+                      />
+                    ) : (
+                      <MonthField
+                        label={t("bundleHomeRentalStartMonth")}
+                        value={resolvedRentalStartMonth}
+                        onChange={() => {}}
+                        disabled
+                      />
+                    )}
                     <MonthField
                       label={t("bundleHomeRentalEndMonth")}
                       value={homeDraft.rentalEndMonth}
