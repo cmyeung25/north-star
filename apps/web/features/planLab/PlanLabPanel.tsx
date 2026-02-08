@@ -82,6 +82,7 @@ import {
   isScenarioV2,
   useScenarioStore,
 } from "../../src/store/scenarioStore";
+import type { BundleInstanceRecord } from "../../src/store/scenarioStore";
 import type {
   AdjustmentEvent,
   CashflowEvent,
@@ -110,7 +111,7 @@ import {
 } from "../../src/domain/planLab/scorecard/cashRisk";
 import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
 import TemplatePickerDrawer from "../../components/eventTemplates/TemplatePickerDrawer";
-import type { TemplateCategory, TemplateDef } from "../../src/domain/eventTemplates/types";
+import type { TemplateCategory, TemplateDef, TemplateId } from "../../src/domain/eventTemplates/types";
 import BundleWizardDrawer from "../../components/eventTemplates/bundles/BundleWizardDrawer";
 import { buildTemplateDrawerDraftOverrides } from "../../src/domain/eventTemplates/presets";
 import { buildScenarioEventViews, buildTimelineEventFromDefinition, buildDefinitionFromTimelineEvent } from "../../src/domain/events/utils";
@@ -135,6 +136,9 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
 import { SavePlanModal } from "./SavePlanModal";
+import MortgageDetailDrawer, {
+  type MortgageDetailTab,
+} from "../moneyFlow/MortgageDetailDrawer";
 import {
   buildPlanPatchesFromSnapshot,
   validatePlanPatches,
@@ -160,6 +164,8 @@ import {
   renamePlanSnapshot,
   savePlanSnapshot,
 } from "../../src/persistence/planLibrary";
+import type { BundleWizardInput } from "../../src/domain/eventTemplates/bundles";
+import { getTemplateDef } from "../../src/domain/eventTemplates/registry";
 import CashflowEventDrawer, {
   type CashflowEventDraft,
   type ScenarioEventDraft as PlanLabScenarioEventDraft,
@@ -181,7 +187,11 @@ import {
   type PlanLabExperimentRemovedItemMeta,
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
+import { computeBundleMonthlySummary } from "../../src/features/money/bundleSummary";
+import { compileScenarioV2ToLedger } from "../../src/engine/scenarioV2Compiler";
 
+const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
+  event.type === "housing" && event.kind === "mortgage";
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
@@ -220,6 +230,10 @@ type ScenarioEditorItem = {
   amount?: number | null;
   frequency?: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths" | "schedule";
   intervalMonths?: number | null;
+  sourceEventId?: string | null;
+  bundleInstanceId?: string | null;
+  bundleTitle?: string | null;
+  bundleTemplateId?: string | null;
   eventId?: string;
   eventRefId?: string;
   eventDefinitionId?: string;
@@ -275,17 +289,10 @@ type PlanLabTopDriver = {
   source: PlanLabDriverSource;
   title: string;
   contribution: number;
+  bundleInstanceId?: string;
 };
 
-type PlanLabChangedDriverCandidate = {
-  id: string;
-  source: PlanLabDriverSource;
-  title: string;
-};
-
-const MAX_TOP_DRIVER_CANDIDATES = 8;
 const TOP_DRIVER_COUNT = 5;
-const TOP_DRIVER_DEBOUNCE_MS = 300;
 
 export const GROUP_LABEL: Record<string, string> = {
   income: "收入",
@@ -408,6 +415,8 @@ const eventTypeLabel = (definition: EventDefinition) => {
 const buildPositionKey = (kind: PositionKind, id: string | undefined, index: number) =>
   `${kind}:${id ?? `index-${index}`}`;
 
+const buildBundleRowId = (bundleId: string) => `bundle:${bundleId}`;
+
 const buildPositionTitle = (kind: PositionKind, position: any, index: number, labels: {
   home: string;
   car: string;
@@ -478,6 +487,24 @@ const deriveInputsFromScenarioV2 = (params: {
 }): ScenarioEditorItem[] => {
   const { scenario, members, rules, changed } = params;
   const memberLookup = new Map(members.map((member) => [member.id, member.name]));
+  const eventLookup = new Map(
+    (scenario.events ?? []).map((event) => [event.id, event])
+  );
+  const resolveBundleSource = (eventId?: string | null) => {
+    if (!eventId) {
+      return {
+        bundleInstanceId: null,
+        bundleTitle: null,
+        bundleTemplateId: null,
+      };
+    }
+    const source = eventLookup.get(eventId)?.source;
+    return {
+      bundleInstanceId: source?.bundleInstanceId ?? null,
+      bundleTitle: source?.bundleTitle ?? null,
+      bundleTemplateId: source?.templateId ?? null,
+    };
+  };
   const items: ScenarioEditorItem[] = [];
 
   (scenario.events ?? []).forEach((event) => {
@@ -503,6 +530,7 @@ const deriveInputsFromScenarioV2 = (params: {
         : event.type === "adjustment"
         ? event.amount
         : null;
+    const bundleSource = resolveBundleSource(event.id);
     items.push({
       id: `event:${event.id}`,
       kind: "event",
@@ -518,6 +546,10 @@ const deriveInputsFromScenarioV2 = (params: {
       enabled: true,
       changed: changed.events.has(event.id),
       eventId: event.id,
+      sourceEventId: event.id,
+      bundleInstanceId: bundleSource.bundleInstanceId,
+      bundleTitle: bundleSource.bundleTitle,
+      bundleTemplateId: bundleSource.bundleTemplateId,
       eventSource: changed.addedEvents.has(event.id) ? "draft" : "baseline",
       risky: event.type === "housing" || event.type === "loan",
       amount,
@@ -533,6 +565,7 @@ const deriveInputsFromScenarioV2 = (params: {
     const memberName = asset.ownerMemberId
       ? memberLookup.get(asset.ownerMemberId) ?? null
       : null;
+    const bundleSource = resolveBundleSource(asset.createdByEventId ?? null);
     items.push({
       id: `asset:${asset.id}`,
       kind: "position",
@@ -551,6 +584,10 @@ const deriveInputsFromScenarioV2 = (params: {
       positionKey: asset.id,
       positionKind: "asset",
       position: asset,
+      sourceEventId: asset.createdByEventId ?? null,
+      bundleInstanceId: bundleSource.bundleInstanceId,
+      bundleTitle: bundleSource.bundleTitle,
+      bundleTemplateId: bundleSource.bundleTemplateId,
     });
   });
 
@@ -558,6 +595,7 @@ const deriveInputsFromScenarioV2 = (params: {
     const memberName = liability.ownerMemberId
       ? memberLookup.get(liability.ownerMemberId) ?? null
       : null;
+    const bundleSource = resolveBundleSource(liability.createdByEventId ?? null);
     items.push({
       id: `liability:${liability.id}`,
       kind: "position",
@@ -578,11 +616,16 @@ const deriveInputsFromScenarioV2 = (params: {
       positionKey: liability.id,
       positionKind: "liability",
       position: liability,
+      sourceEventId: liability.createdByEventId ?? null,
+      bundleInstanceId: bundleSource.bundleInstanceId,
+      bundleTitle: bundleSource.bundleTitle,
+      bundleTemplateId: bundleSource.bundleTemplateId,
     });
   });
 
   rules.forEach((rule) => {
     const memberName = rule.memberId ? memberLookup.get(rule.memberId) ?? null : null;
+    const bundleSource = resolveBundleSource(rule.generatedByEventId ?? null);
     items.push({
       id: `rule:${rule.id}`,
       kind: "rule",
@@ -598,6 +641,10 @@ const deriveInputsFromScenarioV2 = (params: {
       ruleId: rule.id,
       ruleSource: "baseline",
       budgetRule: rule,
+      sourceEventId: rule.generatedByEventId ?? null,
+      bundleInstanceId: bundleSource.bundleInstanceId,
+      bundleTitle: bundleSource.bundleTitle,
+      bundleTemplateId: bundleSource.bundleTemplateId,
     });
   });
 
@@ -633,6 +680,7 @@ type PlanLabAccordionRowProps = {
   highlighted?: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
+  onClick?: () => void;
   primaryAction?: PlanLabRowAction;
   menuItems?: PlanLabRowMenuItem[];
   panel?: ReactNode;
@@ -650,6 +698,7 @@ const PlanLabAccordionRow = memo(
       highlighted,
       onToggle,
       onEdit,
+      onClick,
       primaryAction,
       menuItems,
       panel,
@@ -663,10 +712,11 @@ const PlanLabAccordionRow = memo(
           borderRadius: 12,
           outline: highlighted ? "2px solid rgba(18, 184, 134, 0.7)" : "none",
           outlineOffset: 2,
+          cursor: onClick ? "pointer" : "default",
         }}
       >
         <Accordion.Item value={id}>
-          <Accordion.Control>
+          <Accordion.Control onClick={onClick}>
             <Group justify="space-between" align="center" wrap="nowrap" w="100%">
               <Stack gap={4} miw={0}>
                 <Text fw={600} size="sm" lineClamp={1}>
@@ -773,6 +823,71 @@ const PlanLabAccordionRow = memo(
 
 PlanLabAccordionRow.displayName = "PlanLabAccordionRow";
 
+type PlanLabBundleItemRowProps = {
+  title: string;
+  badges: PlanLabRowBadge[];
+  meta?: string;
+  highlighted?: boolean;
+  onClick: () => void;
+  actionLabel: string;
+};
+
+const PlanLabBundleItemRow = ({
+  title,
+  badges,
+  meta,
+  highlighted,
+  onClick,
+  actionLabel,
+}: PlanLabBundleItemRowProps) => (
+  <Paper
+    withBorder
+    radius="md"
+    p="sm"
+    onClick={onClick}
+    style={{
+      cursor: "pointer",
+      outline: highlighted ? "2px solid rgba(18, 184, 134, 0.7)" : "none",
+      outlineOffset: 2,
+    }}
+  >
+    <Group justify="space-between" align="center" wrap="nowrap">
+      <Stack gap={4} miw={0}>
+        <Text fw={600} size="sm" lineClamp={1}>
+          {title}
+        </Text>
+        {meta ? (
+          <Text size="xs" c="dimmed" lineClamp={2}>
+            {meta}
+          </Text>
+        ) : null}
+        <Group gap={4} wrap="wrap">
+          {badges.map((badge, index) => (
+            <Badge
+              key={`${title}-${badge.label}-${index}`}
+              size="xs"
+              variant="light"
+              color={badge.color}
+            >
+              {badge.label}
+            </Badge>
+          ))}
+        </Group>
+      </Stack>
+      <Button
+        size="xs"
+        variant="light"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClick();
+        }}
+      >
+        {actionLabel}
+      </Button>
+    </Group>
+  </Paper>
+);
+
 const useDebouncedValue = <T,>(value: T, delayMs = 200) => {
   const [debounced, setDebounced] = useState(value);
 
@@ -783,47 +898,15 @@ const useDebouncedValue = <T,>(value: T, delayMs = 200) => {
 
   return debounced;
 };
-const hashString = (input: string) => {
-  let hash = 5381;
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 33) ^ input.charCodeAt(index);
-  }
-  return (hash >>> 0).toString(36);
-};
-
-const buildTopDriverCacheKey = (signature: string, candidateId: string) =>
-  `${signature}:${candidateId}:minCash`;
-
-const normalizeTopDrivers = (drivers: PlanLabTopDriver[]) =>
+const sortTopDriversByMagnitude = (drivers: PlanLabTopDriver[]) =>
   drivers
     .map((driver) => ({
       ...driver,
       contribution: Number(driver.contribution.toFixed(2)),
     }))
+    .filter((driver) => driver.contribution !== 0)
     .sort((left, right) => Math.abs(right.contribution) - Math.abs(left.contribution))
     .slice(0, TOP_DRIVER_COUNT);
-
-const areTopDriversEqual = (
-  left: PlanLabTopDriver[],
-  right: PlanLabTopDriver[]
-) => {
-  if (left.length !== right.length) {
-    return false;
-  }
-  return left.every((driver, index) => {
-    const candidate = right[index];
-    if (!candidate) {
-      return false;
-    }
-    return (
-      driver.id === candidate.id &&
-      driver.itemId === candidate.itemId &&
-      driver.title === candidate.title &&
-      driver.source === candidate.source &&
-      driver.contribution === candidate.contribution
-    );
-  });
-};
 
 
 export default function PlanLabPanel({
@@ -875,6 +958,21 @@ export default function PlanLabPanel({
   const smartInvestTooltip = translate(
     "planLabSmartInvestTooltip",
     "自動依照設定投入與提取資金，維持目標資產配置。"
+  );
+  const resolveBundleTitle = useCallback(
+    (bundle: { templateId?: string; bundleTitle?: string }) => {
+      const templateName = bundle.templateId
+        ? moneyT(`templates.${bundle.templateId}.name`)
+        : moneyT("bundleTitleFallback");
+      if (bundle.bundleTitle) {
+        return moneyT("bundleTitleWithName", {
+          template: templateName,
+          name: bundle.bundleTitle,
+        });
+      }
+      return templateName;
+    },
+    [moneyT]
   );
 
   const [chartType, setChartType] = useState<ChartType>("netWorth");
@@ -971,6 +1069,14 @@ export default function PlanLabPanel({
     } | null
   >(null);
   const [bundleWizardOpen, setBundleWizardOpen] = useState(false);
+  const [bundleWizardMode, setBundleWizardMode] = useState<"create" | "edit">("create");
+  const [bundleWizardInstanceId, setBundleWizardInstanceId] = useState<string | null>(null);
+  const [bundleWizardInitialInput, setBundleWizardInitialInput] =
+    useState<BundleWizardInput | null>(null);
+  const [bundleViewId, setBundleViewId] = useState<string | null>(null);
+  const [bundleInstanceOverrides, setBundleInstanceOverrides] = useState<
+    BundleInstanceRecord[]
+  >([]);
   const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null);
   const [confirmRemoveExperimentId, setConfirmRemoveExperimentId] = useState<string | null>(null);
   const [undoRemovalRevision, setUndoRemovalRevision] = useState(0);
@@ -995,16 +1101,18 @@ export default function PlanLabPanel({
   const [assetDrawerItem, setAssetDrawerItem] = useState<ScenarioAsset | null>(null);
   const [liabilityDrawerItem, setLiabilityDrawerItem] =
     useState<ScenarioLiability | null>(null);
+  const [mortgageDetail, setMortgageDetail] = useState<{
+    eventId: string;
+    tab: MortgageDetailTab;
+    bundleId: string;
+  } | null>(null);
 
   const monthInvalidMessage = t("planLabMonthInvalid");
   const showChangedOnly = listTab === "changed";
   const showRiskyOnly = listTab === "risky";
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const bundleIdByItemIdRef = useRef(new Map<string, string>());
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
-  const [topDriversLoading, setTopDriversLoading] = useState(false);
-  const [topDrivers, setTopDrivers] = useState<PlanLabTopDriver[]>([]);
-  const attributionGenerationRef = useRef(0);
-  const attributionCacheRef = useRef(new Map<string, number>());
 
   const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
     itemRefs.current.set(id, node);
@@ -1012,12 +1120,16 @@ export default function PlanLabPanel({
 
   const handleLocateItem = useCallback((id: string) => {
     setListTab((current) => (current === "changed" ? current : "changed"));
-    const node = itemRefs.current.get(id);
+    const bundleId = bundleIdByItemIdRef.current.get(id);
+    const resolvedId = bundleId ? buildBundleRowId(bundleId) : id;
+    const node = itemRefs.current.get(resolvedId);
     if (!node) {
       return;
     }
     node.scrollIntoView({ behavior: "smooth", block: "center" });
-    setHighlightedItemId((current) => (current === id ? current : id));
+    setHighlightedItemId((current) =>
+      current === resolvedId ? current : resolvedId
+    );
   }, []);
 
   useEffect(() => {
@@ -1732,6 +1844,9 @@ export default function PlanLabPanel({
     if (template.isBundle) {
       setTemplatePlanUnsupportedNotice(null);
       setBundleTemplate(template);
+      setBundleWizardMode("create");
+      setBundleWizardInstanceId(null);
+      setBundleWizardInitialInput(null);
       setBundleWizardOpen(true);
       return;
     }
@@ -1854,6 +1969,18 @@ export default function PlanLabPanel({
         });
       }
 
+      if (_context?.bundleInstanceId && _context?.wizardInput) {
+        setBundleInstanceOverrides((current) => {
+          const next = new Map(current.map((record) => [record.id, record]));
+          next.set(_context.bundleInstanceId, {
+            id: _context.bundleInstanceId,
+            wizardInput: _context.wizardInput as BundleWizardInput,
+            updatedAt: Date.now(),
+          });
+          return Array.from(next.values());
+        });
+      }
+
       setPlanToast(
         translate(
           "planLabBundleAppliedToast",
@@ -1868,6 +1995,9 @@ export default function PlanLabPanel({
       const firstEventId = parsedEvents[0]?.id;
       setBundleWizardOpen(false);
       setBundleTemplate(null);
+      setBundleWizardMode("create");
+      setBundleWizardInstanceId(null);
+      setBundleWizardInitialInput(null);
       if (firstEventId) {
         handleLocateItem(`event:${firstEventId}`);
       }
@@ -3083,6 +3213,404 @@ export default function PlanLabPanel({
     smartInvestPatch,
   ]);
 
+  useEffect(() => {
+    const map = new Map<string, string>();
+    scenarioItems.forEach((item) => {
+      if (item.bundleInstanceId) {
+        map.set(item.id, item.bundleInstanceId);
+      }
+    });
+    bundleIdByItemIdRef.current = map;
+  }, [scenarioItems]);
+
+  const standaloneItems = useMemo(
+    () => scenarioItems.filter((item) => !item.bundleInstanceId),
+    [scenarioItems]
+  );
+
+  const bundleInstanceRecords = useMemo(
+    () => scenario.bundleInstances ?? [],
+    [scenario.bundleInstances]
+  );
+
+  const bundleInstanceById = useMemo(() => {
+    const map = new Map<string, BundleInstanceRecord>();
+    bundleInstanceRecords.forEach((record) => map.set(record.id, record));
+    bundleInstanceOverrides.forEach((record) => map.set(record.id, record));
+    return map;
+  }, [bundleInstanceOverrides, bundleInstanceRecords]);
+
+  const bundleGroups = useMemo(() => {
+    if (!scenarioIsV2) {
+      return [];
+    }
+    const groups = new Map<
+      string,
+      {
+        id: string;
+        templateId?: string;
+        bundleTitle?: string;
+        events: ScenarioEvent[];
+      }
+    >();
+    (sandboxScenarioV2.events ?? []).forEach((event) => {
+      const source = event.source;
+      if (!source?.bundleInstanceId) {
+        return;
+      }
+      const existing =
+        groups.get(source.bundleInstanceId) ?? {
+          id: source.bundleInstanceId,
+          templateId: source.templateId,
+          bundleTitle: source.bundleTitle,
+          events: [],
+        };
+      existing.events.push(event);
+      if (!existing.templateId && source.templateId) {
+        existing.templateId = source.templateId;
+      }
+      if (!existing.bundleTitle && source.bundleTitle) {
+        existing.bundleTitle = source.bundleTitle;
+      }
+      groups.set(source.bundleInstanceId, existing);
+    });
+    return Array.from(groups.values());
+  }, [sandboxScenarioV2.events, scenarioIsV2]);
+
+  const bundleGroupById = useMemo(
+    () => new Map(bundleGroups.map((group) => [group.id, group])),
+    [bundleGroups]
+  );
+
+  useEffect(() => {
+    if (!scenarioIsV2) {
+      return;
+    }
+    const eventLookup = new Map(
+      (sandboxScenarioV2.events ?? []).map((event) => [event.id, event])
+    );
+    const missingLinks: string[] = [];
+    (sandboxScenarioV2.events ?? []).forEach((event) => {
+      if (event.source?.templateId && !event.source?.bundleInstanceId) {
+        missingLinks.push(`event:${event.id}`);
+      }
+    });
+    (sandboxScenarioV2.assets ?? []).forEach((asset) => {
+      if (!asset.createdByEventId) {
+        return;
+      }
+      const event = eventLookup.get(asset.createdByEventId);
+      if (event?.source?.templateId && !event.source?.bundleInstanceId) {
+        missingLinks.push(`asset:${asset.id}`);
+      }
+    });
+    (sandboxScenarioV2.liabilities ?? []).forEach((liability) => {
+      if (!liability.createdByEventId) {
+        return;
+      }
+      const event = eventLookup.get(liability.createdByEventId);
+      if (event?.source?.templateId && !event.source?.bundleInstanceId) {
+        missingLinks.push(`liability:${liability.id}`);
+      }
+    });
+    if (missingLinks.length > 0) {
+      console.warn(
+        `[PlanLab] Bundle metadata missing for linked items: ${missingLinks.join(", ")}`
+      );
+    }
+  }, [sandboxScenarioV2.assets, sandboxScenarioV2.events, sandboxScenarioV2.liabilities, scenarioIsV2]);
+
+  const handleViewBundle = useCallback((bundleId: string) => {
+    setBundleViewId(bundleId);
+  }, []);
+
+  const handleEditBundle = useCallback(
+    (bundleId: string) => {
+      const bundle = bundleGroupById.get(bundleId);
+      if (!bundle) {
+        return;
+      }
+      const record = bundleInstanceById.get(bundleId);
+      if (!record) {
+        setPlanToast(
+          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
+        );
+        return;
+      }
+      const templateDef = record.wizardInput?.templateId
+        ? getTemplateDef(record.wizardInput.templateId)
+        : bundle.templateId
+        ? getTemplateDef(bundle.templateId as TemplateId)
+        : null;
+      if (!templateDef || !record.wizardInput) {
+        setPlanToast(
+          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
+        );
+        return;
+      }
+      setBundleWizardMode("edit");
+      setBundleWizardInstanceId(bundleId);
+      setBundleWizardInitialInput(record.wizardInput);
+      setBundleTemplate(templateDef);
+      setBundleWizardOpen(true);
+    },
+    [bundleGroupById, bundleInstanceById, translate]
+  );
+
+  const handleLocateBundle = useCallback(
+    (bundleId: string, options?: { openDrawer?: boolean }) => {
+      handleLocateItem(buildBundleRowId(bundleId));
+      if (options?.openDrawer) {
+        setBundleViewId(bundleId);
+      }
+    },
+    [handleLocateItem]
+  );
+
+  const openMortgageDetails = useCallback(
+    (bundleId: string, eventId: string, tab: MortgageDetailTab) => {
+      setMortgageDetail({ bundleId, eventId, tab });
+    },
+    []
+  );
+
+  const bundleItemsById = useMemo(() => {
+    const map = new Map<string, ScenarioEditorItem[]>();
+    scenarioItems.forEach((item) => {
+      if (!item.bundleInstanceId) {
+        return;
+      }
+      const items = map.get(item.bundleInstanceId) ?? [];
+      items.push(item);
+      map.set(item.bundleInstanceId, items);
+    });
+    map.forEach((items, key) => {
+      items.sort((left, right) => left.title.localeCompare(right.title));
+      map.set(key, items);
+    });
+    return map;
+  }, [scenarioItems]);
+
+  const scenarioAssets = useMemo(
+    () => sandboxScenarioV2.assets ?? [],
+    [sandboxScenarioV2.assets]
+  );
+
+  const scenarioLiabilities = useMemo(
+    () => sandboxScenarioV2.liabilities ?? [],
+    [sandboxScenarioV2.liabilities]
+  );
+
+  const bundleSummaryLabels = useMemo(
+    () => ({
+      mortgagePayment: moneyT("bundleDetailMortgagePaymentLabel"),
+      rentalIncome: moneyT("bundleHomeRentalMonthly"),
+      holdingCost: translate("planLabBundleHoldingCostLabel", "持有成本"),
+      fallback: moneyT("ledgerRowFallbackLabel"),
+    }),
+    [moneyT, translate]
+  );
+
+  const v2LedgerRows = useMemo(
+    () => (scenarioIsV2 ? compileScenarioV2ToLedger(sandboxScenarioV2) : []),
+    [sandboxScenarioV2, scenarioIsV2]
+  );
+
+  const ledgerRowsByEventId = useMemo(() => {
+    const map = new Map<string, typeof v2LedgerRows>();
+    v2LedgerRows.forEach((row) => {
+      if (!row.sourceEventId) {
+        return;
+      }
+      const existing = map.get(row.sourceEventId) ?? [];
+      existing.push(row);
+      map.set(row.sourceEventId, existing);
+    });
+    map.forEach((rows, key) => {
+      rows.sort((a, b) => {
+        const monthSort = b.month.localeCompare(a.month);
+        if (monthSort !== 0) {
+          return monthSort;
+        }
+        return (a.label ?? "").localeCompare(b.label ?? "");
+      });
+      map.set(key, rows);
+    });
+    return map;
+  }, [v2LedgerRows]);
+
+  const bundleSummaryMonth = useMemo(() => {
+    return (
+      planLabProjection.projection?.baseMonth ??
+      scenario.assumptions.baseMonth ??
+      planLabProjection.months[0] ??
+      null
+    );
+  }, [planLabProjection.months, planLabProjection.projection?.baseMonth, scenario.assumptions.baseMonth]);
+
+  const bundleCards = useMemo(() => {
+    if (!scenarioIsV2) {
+      return [];
+    }
+    return bundleGroups.map((bundle) => {
+      const eventIds = bundle.events.map((event) => event.id);
+      const monthlySummary = computeBundleMonthlySummary(
+        bundle.events,
+        ledgerRowsByEventId,
+        bundleSummaryMonth,
+        bundleSummaryLabels
+      );
+      const hasMonthlyImpact =
+        monthlySummary.monthlyIncome > 0 || monthlySummary.monthlyExpense > 0;
+      const oneOffTotal = bundle.events.reduce((total, event) => {
+        if (
+          event.type === "cashflow" &&
+          event.cadence === "oneOff" &&
+          event.kind === "expense"
+        ) {
+          return total + event.amount;
+        }
+        if (event.type === "housing" && event.kind === "mortgage") {
+          const feeTotal =
+            event.feesOneOff?.reduce((sum, fee) => sum + fee.amount, 0) ?? 0;
+          return total + feeTotal;
+        }
+        return total;
+      }, 0);
+      const assets = scenarioAssets.filter(
+        (asset) => asset.createdByEventId && eventIds.includes(asset.createdByEventId)
+      );
+      const liabilities = scenarioLiabilities.filter(
+        (liability) =>
+          liability.createdByEventId && eventIds.includes(liability.createdByEventId)
+      );
+      return {
+        id: bundle.id,
+        title: resolveBundleTitle(bundle),
+        eventIds,
+        assets,
+        liabilities,
+        monthlyIncome: monthlySummary.monthlyIncome,
+        monthlyExpense: monthlySummary.monthlyExpense,
+        monthlyNet: monthlySummary.monthlyNet,
+        monthlySummary,
+        hasMonthlyImpact,
+        oneOffTotal,
+      };
+    });
+  }, [
+    bundleGroups,
+    bundleSummaryLabels,
+    bundleSummaryMonth,
+    ledgerRowsByEventId,
+    resolveBundleTitle,
+    scenarioAssets,
+    scenarioIsV2,
+    scenarioLiabilities,
+  ]);
+
+  const activeBundleCard = useMemo(
+    () => (bundleViewId ? bundleCards.find((card) => card.id === bundleViewId) ?? null : null),
+    [bundleCards, bundleViewId]
+  );
+
+  const activeBundleGroup = useMemo(
+    () => (bundleViewId ? bundleGroupById.get(bundleViewId) ?? null : null),
+    [bundleGroupById, bundleViewId]
+  );
+
+  const activeBundleSummary = useMemo(
+    () => activeBundleCard?.monthlySummary ?? null,
+    [activeBundleCard?.monthlySummary]
+  );
+
+  const bundleDetailIncomeItems = useMemo(
+    () =>
+      activeBundleSummary?.breakdown.filter((item) => item.direction === "income") ??
+      [],
+    [activeBundleSummary?.breakdown]
+  );
+
+  const bundleDetailExpenseItems = useMemo(
+    () =>
+      activeBundleSummary?.breakdown.filter((item) => item.direction === "expense") ??
+      [],
+    [activeBundleSummary?.breakdown]
+  );
+
+  const activeBundleMortgageEvent = useMemo(() => {
+    if (!activeBundleGroup) {
+      return null;
+    }
+    return (
+      activeBundleGroup.events.find(
+        (event): event is HousingEvent => isMortgageHousingEvent(event)
+      ) ?? null
+    );
+  }, [activeBundleGroup]);
+
+  const activeBundleMortgageSummary = useMemo(() => {
+    if (!activeBundleMortgageEvent) {
+      return null;
+    }
+    const purchasePrice = activeBundleMortgageEvent.purchasePrice;
+    let downPayment = 0;
+    if (activeBundleMortgageEvent.downPaymentMode === "amount") {
+      downPayment = activeBundleMortgageEvent.downPaymentAmount ?? 0;
+    } else if (activeBundleMortgageEvent.downPaymentMode === "percent") {
+      downPayment =
+        (purchasePrice ?? 0) *
+        ((activeBundleMortgageEvent.downPaymentPercent ?? 0) / 100);
+    } else if (typeof activeBundleMortgageEvent.downPaymentAmount === "number") {
+      downPayment = activeBundleMortgageEvent.downPaymentAmount ?? 0;
+    }
+    const loanAmount =
+      typeof purchasePrice === "number"
+        ? Math.max(purchasePrice - downPayment, 0)
+        : null;
+    return {
+      eventId: activeBundleMortgageEvent.id,
+      loanAmount,
+      ratePct: activeBundleMortgageEvent.mortgageRatePct ?? null,
+      termYears: activeBundleMortgageEvent.mortgageTermYears ?? null,
+      monthlyPayment: activeBundleMortgageEvent.mortgagePayment ?? null,
+    };
+  }, [activeBundleMortgageEvent]);
+
+  const mortgageDetailEvent = useMemo(() => {
+    if (!mortgageDetail) {
+      return null;
+    }
+    const match = (sandboxScenarioV2.events ?? []).find(
+      (event) => event.id === mortgageDetail.eventId
+    );
+    if (match?.type !== "housing" || match.kind !== "mortgage") {
+      return null;
+    }
+    return match;
+  }, [mortgageDetail, sandboxScenarioV2.events]);
+
+  const mortgageDetailAsset = useMemo(() => {
+    if (!mortgageDetailEvent?.propertyAssetId) {
+      return null;
+    }
+    return (
+      scenarioAssets.find((asset) => asset.id === mortgageDetailEvent.propertyAssetId) ??
+      null
+    );
+  }, [mortgageDetailEvent?.propertyAssetId, scenarioAssets]);
+
+  const mortgageDetailLiability = useMemo(() => {
+    if (!mortgageDetailEvent?.mortgageLiabilityId) {
+      return null;
+    }
+    return (
+      scenarioLiabilities.find(
+        (liability) => liability.id === mortgageDetailEvent.mortgageLiabilityId
+      ) ?? null
+    );
+  }, [mortgageDetailEvent?.mortgageLiabilityId, scenarioLiabilities]);
+
   const getScenarioItemChangeStatus = useCallback(
     (
       item: ScenarioEditorItem
@@ -3301,7 +3829,7 @@ export default function PlanLabPanel({
 
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return scenarioItems.filter((item) => {
+    return standaloneItems.filter((item) => {
       if (filterKind === "events" && item.kind !== "event") {
         return false;
       }
@@ -3338,10 +3866,10 @@ export default function PlanLabPanel({
     filterKind,
     getScenarioItemChangeStatus,
     scenarioIsV2,
-    scenarioItems,
     searchQuery,
     showChangedOnly,
     showRiskyOnly,
+    standaloneItems,
   ]);
 
   const groupedItems = useMemo(() => {
@@ -3378,6 +3906,7 @@ export default function PlanLabPanel({
     categoryLabels,
     scenarioIsV2,
   ]);
+  const showBundleSection = scenarioIsV2 && bundleCards.length > 0;
 
   const optionViewModel = useMemo(
     () =>
@@ -3425,265 +3954,126 @@ export default function PlanLabPanel({
     [firstBucketTargetValue, planLabProjection.projection]
   );
 
-  const changedDriverCandidates = useMemo<PlanLabChangedDriverCandidate[]>(() => {
-    const changedItems = scenarioItems.filter(
-      (item) => getScenarioItemChangeStatus(item) !== null
-    );
-    const mapped = changedItems.map((item) => {
-      const source: PlanLabDriverSource =
-        item.kind === "event"
-          ? "event"
-          : item.kind === "rule"
-          ? "rule"
-          : item.kind === "position"
-          ? "position"
-          : "experiment";
-      return {
-        id: item.id,
-        source,
-        title: item.title,
-      };
-    });
-    return mapped.slice(0, MAX_TOP_DRIVER_CANDIDATES);
-  }, [getScenarioItemChangeStatus, scenarioItems]);
-
-  const changedDriverIds = useMemo(
-    () => changedDriverCandidates.map((candidate) => candidate.id),
-    [changedDriverCandidates]
-  );
-
-  const topDriverOverlaySignature = useMemo(() => {
-    if (scenarioIsV2) {
-      return hashString(
-        [
-          "v2",
-          scenario.id,
-          snapshotPayload.eventsPatch.add.map((event) => event.id).sort().join("|"),
-          snapshotPayload.eventsPatch.update.map((entry) => entry.id).sort().join("|"),
-          snapshotPayload.eventsPatch.remove.slice().sort().join("|"),
-          (snapshotPayload.rulesPatch?.add ?? []).map((rule) => rule.id).sort().join("|"),
-          (snapshotPayload.rulesPatch?.update ?? []).map((entry) => entry.id).sort().join("|"),
-          (snapshotPayload.rulesPatch?.remove ?? []).slice().sort().join("|"),
-          changedDriverIds.join("|"),
-        ].join("::")
-      );
-    }
-    return hashString(
-      [
-        "legacy",
-        scenario.id,
-        sandboxPatches.length,
-        changedDriverIds.join("|"),
-      ].join("::")
-    );
-  }, [
-    changedDriverIds,
-    sandboxPatches.length,
-    scenario.id,
-    scenarioIsV2,
-    snapshotPayload.eventsPatch.add,
-    snapshotPayload.eventsPatch.remove,
-    snapshotPayload.eventsPatch.update,
-    snapshotPayload.rulesPatch?.add,
-    snapshotPayload.rulesPatch?.remove,
-    snapshotPayload.rulesPatch?.update,
-  ]);
-
-  useEffect(() => {
-    const baseMinCash = baselineKpis?.minCash?.value;
-    const currentMinCash = optionKpis?.minCash?.value;
-    if (
-      !planLabProjection.projection ||
-      typeof baseMinCash !== "number" ||
-      typeof currentMinCash !== "number" ||
-      changedDriverCandidates.length === 0
-    ) {
-      setTopDrivers((current) => (current.length === 0 ? current : []));
-      setTopDriversLoading(false);
-      return;
-    }
-
-    const generation = attributionGenerationRef.current + 1;
-    attributionGenerationRef.current = generation;
-    setTopDriversLoading(true);
-
-    const timeout = setTimeout(() => {
-      const nextDrivers: PlanLabTopDriver[] = [];
-      const currentDelta = currentMinCash - baseMinCash;
-
-      changedDriverCandidates.forEach((candidate) => {
-        const cacheKey = buildTopDriverCacheKey(topDriverOverlaySignature, candidate.id);
-        const cached = attributionCacheRef.current.get(cacheKey);
-        if (typeof cached === "number") {
-          nextDrivers.push({
-            id: candidate.id,
-            itemId: candidate.id,
-            source: candidate.source,
-            title: candidate.title,
-            contribution: cached,
-          });
-          return;
-        }
-
-        let variantMinCash: number | null = null;
-
-        if (scenarioIsV2) {
-          const nextPatches: PlanLabScenarioV2Patches = {
-            events: {
-              add: [...scenarioV2Patches.events.add],
-              update: { ...scenarioV2Patches.events.update },
-              remove: [...scenarioV2Patches.events.remove],
-            },
-            assets: {
-              add: [...scenarioV2Patches.assets.add],
-              update: { ...scenarioV2Patches.assets.update },
-              remove: [...scenarioV2Patches.assets.remove],
-            },
-            liabilities: {
-              add: [...scenarioV2Patches.liabilities.add],
-              update: { ...scenarioV2Patches.liabilities.update },
-              remove: [...scenarioV2Patches.liabilities.remove],
-            },
-            members: {
-              add: [...scenarioV2Patches.members.add],
-              update: { ...scenarioV2Patches.members.update },
-              remove: [...scenarioV2Patches.members.remove],
-            },
-            rules: {
-              add: [...scenarioV2Patches.rules.add],
-              update: { ...scenarioV2Patches.rules.update },
-              remove: [...scenarioV2Patches.rules.remove],
-            },
-          };
-
-          const [kind, rawId] = candidate.id.split(":");
-          if (kind === "event") {
-            nextPatches.events.add = nextPatches.events.add.filter((item) => item.id !== rawId);
-            delete nextPatches.events.update[rawId];
-            nextPatches.events.remove = nextPatches.events.remove.filter((id) => id !== rawId);
-          }
-          if (kind === "rule") {
-            nextPatches.rules.add = nextPatches.rules.add.filter((item) => item.id !== rawId);
-            delete nextPatches.rules.update[rawId];
-            nextPatches.rules.remove = nextPatches.rules.remove.filter((id) => id !== rawId);
-          }
-          if (kind === "asset") {
-              const id = rawId;
-              nextPatches.assets.add = nextPatches.assets.add.filter((item) => item.id !== id);
-              delete nextPatches.assets.update[id];
-              nextPatches.assets.remove = nextPatches.assets.remove.filter((entry) => entry !== id);
-            }
-            if (kind === "liability") {
-              const id = rawId;
-              nextPatches.liabilities.add = nextPatches.liabilities.add.filter((item) => item.id !== id);
-              delete nextPatches.liabilities.update[id];
-              nextPatches.liabilities.remove = nextPatches.liabilities.remove.filter((entry) => entry !== id);
-          }
-
-          const variantScenarioV2 = applyPlanLabScenarioV2Patches(
-            baselineScenarioV2,
-            nextPatches
-          );
-          const variantProjection = computeProjectionWithSmartInvest(
-            variantScenarioV2 as unknown as Scenario,
-            eventLibrary,
-            {
-              members: variantScenarioV2.members ?? [],
-              budgetRules: [],
-            }
-          ).projection;
-          variantMinCash = computePlanLabKpis(
-            variantProjection,
-            firstBucketTargetValue
-          )?.minCash?.value ?? null;
-        } else {
-          const variantSnapshot: PlanLabSnapshot = {
-            baselinePatches: {
-              eventPatches: { ...(planSnapshot.baselinePatches?.eventPatches ?? {}) },
-              rulePatches: { ...(planSnapshot.baselinePatches?.rulePatches ?? {}) },
-              positionPatches: { ...(planSnapshot.baselinePatches?.positionPatches ?? {}) },
-              smartInvestPatch: planSnapshot.baselinePatches?.smartInvestPatch,
-            },
-            experiments: [...(planSnapshot.experiments ?? [])],
-            scorecardSettings: planSnapshot.scorecardSettings,
-          };
-
-          const [kind, rawId] = candidate.id.split(":");
-          if (kind === "event") {
-            delete variantSnapshot.baselinePatches?.eventPatches?.[rawId];
-          }
-          if (kind === "rule") {
-            delete variantSnapshot.baselinePatches?.rulePatches?.[rawId];
-          }
-          if (kind === "position") {
-            delete variantSnapshot.baselinePatches?.positionPatches?.[rawId];
-          }
-          if (kind === "experiment") {
-            const experimentId = rawId.replace("experiment-", "");
-            variantSnapshot.experiments = variantSnapshot.experiments?.filter(
-              (experiment) => experiment.id !== experimentId
-            );
-          }
-
-          const applyResult = applyPlanPatches({
-            scenario,
-            snapshot: variantSnapshot,
-            patches: buildPlanPatchesFromSnapshot(variantSnapshot),
-            eventLibrary,
-            budgetRules,
-            members,
-          });
-          const variantProjection = computeProjectionWithSmartInvest(
-            applyResult.scenario,
-            [...eventLibrary, ...applyResult.eventDefinitions],
-            {
-              members: applyResult.members,
-              budgetRules: applyResult.budgetRules,
-            }
-          ).projection;
-          variantMinCash =
-            computePlanLabKpis(variantProjection, firstBucketTargetValue)?.minCash?.value ?? null;
-        }
-
-        const contribution =
-          typeof variantMinCash === "number" ? currentDelta - (variantMinCash - baseMinCash) : 0;
-        attributionCacheRef.current.set(cacheKey, contribution);
-        nextDrivers.push({
-          id: candidate.id,
-          itemId: candidate.id,
-          source: candidate.source,
-          title: candidate.title,
-          contribution,
-        });
-      });
-
-      if (attributionGenerationRef.current !== generation) {
+  const scenarioItemByEventId = useMemo(() => {
+    const map = new Map<string, ScenarioEditorItem>();
+    scenarioItems.forEach((item) => {
+      if (item.kind !== "event") {
         return;
       }
-      const normalized = normalizeTopDrivers(nextDrivers);
-      setTopDrivers((current) => (areTopDriversEqual(current, normalized) ? current : normalized));
-      setTopDriversLoading(false);
-    }, TOP_DRIVER_DEBOUNCE_MS);
+      const eventId = item.eventId ?? item.eventDefinitionId ?? item.sourceEventId;
+      if (eventId) {
+        map.set(eventId, item);
+      }
+    });
+    return map;
+  }, [scenarioItems]);
 
-    return () => {
-      clearTimeout(timeout);
-    };
+  const scenarioItemByRuleId = useMemo(() => {
+    const map = new Map<string, ScenarioEditorItem>();
+    scenarioItems.forEach((item) => {
+      if (item.kind !== "rule" || !item.ruleId) {
+        return;
+      }
+      map.set(item.ruleId, item);
+    });
+    return map;
+  }, [scenarioItems]);
+
+  const driverMonth = useMemo(() => {
+    if (optionKpis?.minCash?.month) {
+      return optionKpis.minCash.month;
+    }
+    if (baselineKpis?.minCash?.month) {
+      return baselineKpis.minCash.month;
+    }
+    return planLabProjection.months[planLabProjection.months.length - 1] ?? null;
   }, [
-    baselineKpis?.minCash?.value,
-    baselineScenarioV2,
-    budgetRules,
-    changedDriverCandidates,
-    eventLibrary,
-    firstBucketTargetValue,
-    members,
-    optionKpis?.minCash?.value,
-    planLabProjection.projection,
-    planSnapshot,
-    scenario,
-    scenarioIsV2,
-    scenarioV2Patches,
-    topDriverOverlaySignature,
+    baselineKpis?.minCash?.month,
+    optionKpis?.minCash?.month,
+    planLabProjection.months,
   ]);
+
+  const topDriversLoading = !planLabProjection.projection || !baselineProjection.projection;
+
+  const topDrivers = useMemo(() => {
+    if (!driverMonth || topDriversLoading) {
+      return [];
+    }
+    const optionLedger = planLabProjection.ledgerByMonth[driverMonth] ?? [];
+    const baselineLedger = baselineProjection.ledgerByMonth[driverMonth] ?? [];
+    const totals = new Map<
+      string,
+      { source: PlanLabDriverSource; sourceId: string; label?: string; contribution: number }
+    >();
+    const accumulate = (entries: typeof optionLedger, multiplier: number) => {
+      entries.forEach((entry) => {
+        if (entry.source !== "event" && entry.source !== "budget") {
+          return;
+        }
+        const key = `${entry.source}:${entry.sourceId}`;
+        const source: PlanLabDriverSource =
+          entry.source === "event" ? "event" : "rule";
+        const existing = totals.get(key) ?? {
+          source,
+          sourceId: entry.sourceId,
+          label: entry.label,
+          contribution: 0,
+        };
+        existing.contribution += entry.amount * multiplier;
+        if (!existing.label && entry.label) {
+          existing.label = entry.label;
+        }
+        totals.set(key, existing);
+      });
+    };
+
+    accumulate(optionLedger, 1);
+    accumulate(baselineLedger, -1);
+
+    const drivers = Array.from(totals.values()).map((entry) => {
+      const scenarioItem =
+        entry.source === "event"
+          ? scenarioItemByEventId.get(entry.sourceId)
+          : scenarioItemByRuleId.get(entry.sourceId);
+      const title =
+        scenarioItem?.title ??
+        entry.label ??
+        translate("planLabDriverFallback", "未命名項目");
+      const bundleId = scenarioItem?.bundleInstanceId ?? undefined;
+      const itemId = bundleId
+        ? buildBundleRowId(bundleId)
+        : scenarioItem?.id ?? `${entry.source}:${entry.sourceId}`;
+      return {
+        id: `${entry.source}:${entry.sourceId}`,
+        itemId,
+        source: entry.source,
+        title,
+        contribution: entry.contribution,
+        bundleInstanceId: bundleId,
+      };
+    });
+
+    return sortTopDriversByMagnitude(drivers);
+  }, [
+    baselineProjection.ledgerByMonth,
+    driverMonth,
+    planLabProjection.ledgerByMonth,
+    scenarioItemByEventId,
+    scenarioItemByRuleId,
+    topDriversLoading,
+    translate,
+  ]);
+
+  const handleTopDriverClick = useCallback(
+    (driver: PlanLabTopDriver) => {
+      if (driver.bundleInstanceId) {
+        handleLocateBundle(driver.bundleInstanceId, { openDrawer: true });
+        return;
+      }
+      handleLocateItem(driver.itemId);
+    },
+    [handleLocateBundle, handleLocateItem]
+  );
 
   const chartData = useMemo(() => {
     const baseline =
@@ -3787,6 +4177,17 @@ export default function PlanLabPanel({
       };
     },
     [locale, scenario.baseCurrency]
+  );
+  const formatGrowthPct = useCallback(
+    (value: number | null | undefined) => {
+      if (!Number.isFinite(value ?? NaN)) {
+        return "0";
+      }
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+        value ?? 0
+      );
+    },
+    [locale]
   );
 
   const kpiCards = useMemo(() => {
@@ -5331,155 +5732,318 @@ export default function PlanLabPanel({
                     </Tabs.List>
                   </Tabs>
                 </Stack>
-                {groupedItems.length === 0 ? (
+                {groupedItems.length === 0 && !showBundleSection ? (
                   <Text size="sm" c="dimmed">
                     {translate("planLabFilterEmpty", "沒有符合條件的項目。")}
                   </Text>
                 ) : (
                   <ScrollArea.Autosize mah={420} offsetScrollbars>
                     <Stack gap="xs">
-                      {groupedItems.map(([group, items]) => (
-                        <Stack key={group} gap="xs">
-                          <Text size="xs" fw={600} c="dimmed">
-                            {group}
-                          </Text>
-                          <Accordion variant="separated" radius="md" multiple>
-                            {items.map((item) => {
-                              const menuItems: PlanLabRowMenuItem[] = [];
-                              if (scenarioIsV2) {
-                                if (item.kind === "event" && item.eventId) {
-                                  menuItems.push({
-                                    label: translate("planLabAppliedRemove", "移除"),
-                                    onClick: () => removeScenarioV2Event(item.eventId ?? item.id),
-                                  });
-                                }
-                              } else {
-                                if (
-                                  (item.kind === "event" && item.eventSource !== "draft") ||
-                                  item.kind === "rule"
-                                ) {
-                                  menuItems.push({
-                                    label: translate("planLabActionEnd", "設定結束月份"),
-                                    onClick: () => openEditingItem(item, "validity"),
-                                  });
-                                }
-                                if (item.kind === "event" && item.eventSource === "draft") {
-                                  menuItems.push({
-                                    label: translate("planLabAppliedRemove", "移除"),
-                                    onClick: () =>
-                                      setDraftEvents((current) =>
-                                        current.filter(
-                                          (event) =>
-                                            event.definition.id !== item.eventDefinitionId
+                      {showBundleSection && (
+                        <Accordion
+                          variant="separated"
+                          radius="md"
+                          defaultValue="bundles"
+                        >
+                          <Accordion.Item value="bundles">
+                            <Accordion.Control>
+                              <Group justify="space-between" align="center" wrap="wrap">
+                                <Text size="sm" fw={600}>
+                                  {translate(
+                                    "planLabBundlesSectionTitle",
+                                    "人生組合（Bundles）"
+                                  )}
+                                </Text>
+                                <Badge variant="light" color="blue">
+                                  {bundleCards.length}
+                                </Badge>
+                              </Group>
+                            </Accordion.Control>
+                            <Accordion.Panel>
+                              <Stack gap="xs">
+                                <Accordion variant="separated" radius="md" multiple>
+                                  {bundleCards.map((bundle) => {
+                                    const bundleItems =
+                                      bundleItemsById.get(bundle.id) ?? [];
+                                    const summaryParts: string[] = [];
+                                    if (bundle.oneOffTotal > 0) {
+                                      summaryParts.push(
+                                        translate(
+                                          "planLabBundleRowOneOff",
+                                          "一次性 {amount}",
+                                          {
+                                            amount: formatCurrency(
+                                              bundle.oneOffTotal,
+                                              scenario.baseCurrency,
+                                              locale
+                                            ),
+                                          }
                                         )
-                                      ),
-                                  });
-                                }
-                                if (item.kind === "rule" && item.ruleSource === "draft") {
-                                  menuItems.push({
-                                    label: translate("planLabAppliedRemove", "移除"),
-                                    onClick: () => removeDraftBudgetRule(item.ruleId ?? item.id),
-                                  });
-                                }
-                              }
-                              return (
-                                <PlanLabAccordionRow
-                                  key={item.id}
-                                  id={item.id}
-                                  ref={(node) => registerItemRef(item.id, node)}
-                                  title={item.title}
-                                  badges={getScenarioItemBadges(item)}
-                                  meta={getScenarioItemSummary(item)}
-                                  enabled={item.enabled}
-                                  highlighted={highlightedItemId === item.id}
-                                  onToggle={
-                                    scenarioIsV2
-                                      ? undefined
-                                      : () => {
-                                          if (item.kind === "event" && item.eventDefinitionId) {
-                                            if (item.eventSource === "draft") {
-                                              setDraftEvents((current) =>
-                                                current.map((event) =>
-                                                  event.definition.id === item.eventDefinitionId
-                                                    ? {
-                                                        ...event,
-                                                        ref: {
-                                                          ...event.ref,
-                                                          enabled: !event.ref.enabled,
-                                                        },
-                                                      }
-                                                    : event
-                                                )
-                                              );
-                                            } else {
-                                              updateEventPatch(item.eventDefinitionId, {
-                                                isDisabled: item.enabled,
-                                              });
-                                            }
-                                          }
-                                          if (item.kind === "rule" && item.ruleId) {
-                                            if (item.ruleSource === "draft") {
-                                              setDraftBudgetRules((current) =>
-                                                current.map((rule) =>
-                                                  rule.id === item.ruleId
-                                                    ? { ...rule, enabled: !rule.enabled }
-                                                    : rule
-                                                )
-                                              );
-                                            } else {
-                                              updateRulePatch(item.ruleId, {
-                                                isDisabled: item.enabled,
-                                              });
-                                            }
-                                          }
-                                          if (item.kind === "position" && item.positionKey) {
-                                            if (item.positionKind === "smartInvest") {
-                                              updateSmartInvestPatch({ isDisabled: item.enabled });
-                                            } else {
-                                              updatePositionPatch(item.positionKey, {
-                                                isDisabled: item.enabled,
-                                              });
-                                            }
-                                          }
-                                        }
-                                  }
-                                  onEdit={() => {
-                                    if (scenarioIsV2) {
-                                      if (item.kind === "event" && item.eventId) {
-                                        handleEditV2Event(item.eventId);
-                                      }
-                                      if (item.positionKind === "asset") {
-                                        setAssetDrawerItem(item.position ?? null);
-                                      }
-                                      if (item.positionKind === "liability") {
-                                        setLiabilityDrawerItem(item.position ?? null);
-                                      }
-                                      return;
-                                    }
-                                    if (item.kind === "event" && item.eventSource === "draft") {
-                                      const addition = draftEvents.find(
-                                        (event) =>
-                                          event.definition.id === item.eventDefinitionId
                                       );
-                                      if (addition) {
-                                        openEditEventDrawer(addition);
-                                      }
-                                      return;
                                     }
-                                    openEditingItem(item);
-                                  }}
-                                  menuItems={menuItems}
-                                  panel={
-                                    <Text size="xs" c="dimmed">
-                                      {getScenarioItemSummary(item) || "—"}
-                                    </Text>
+                                    if (bundle.hasMonthlyImpact) {
+                                      summaryParts.push(
+                                        translate(
+                                          "planLabBundleRowMonthlyNet",
+                                          "每月淨影響 {amount}",
+                                          {
+                                            amount: formatCurrency(
+                                              bundle.monthlyNet,
+                                              scenario.baseCurrency,
+                                              locale
+                                            ),
+                                          }
+                                        )
+                                      );
+                                    }
+                                    const summaryText =
+                                      summaryParts.join(" · ") ||
+                                      translate(
+                                        "planLabBundleRowItemsCount",
+                                        "包含 {count} 項",
+                                        { count: bundleItems.length }
+                                      );
+                                    return (
+                                      <PlanLabAccordionRow
+                                        key={bundle.id}
+                                        id={buildBundleRowId(bundle.id)}
+                                        ref={(node) =>
+                                          registerItemRef(
+                                            buildBundleRowId(bundle.id),
+                                            node
+                                          )
+                                        }
+                                        title={bundle.title}
+                                        badges={[
+                                          {
+                                            label: translate(
+                                              "planLabBundleBadge",
+                                              "組合"
+                                            ),
+                                          },
+                                        ]}
+                                        meta={summaryText}
+                                        highlighted={
+                                          highlightedItemId ===
+                                          buildBundleRowId(bundle.id)
+                                        }
+                                        onClick={() => handleViewBundle(bundle.id)}
+                                        primaryAction={{
+                                          label: translate(
+                                            "planLabBundleView",
+                                            "查看組合"
+                                          ),
+                                          onClick: () =>
+                                            handleViewBundle(bundle.id),
+                                        }}
+                                        panel={
+                                          bundleItems.length === 0 ? (
+                                            <Text size="xs" c="dimmed">
+                                              {translate(
+                                                "planLabBundleItemsEmpty",
+                                                "未偵測到散件"
+                                              )}
+                                            </Text>
+                                          ) : (
+                                            <Stack gap="xs">
+                                              {bundleItems.map((item) => (
+                                                <PlanLabBundleItemRow
+                                                  key={item.id}
+                                                  title={item.title}
+                                                  badges={getScenarioItemBadges(item)}
+                                                  meta={getScenarioItemSummary(item)}
+                                                  highlighted={
+                                                    highlightedItemId === item.id
+                                                  }
+                                                  onClick={() =>
+                                                    handleViewBundle(bundle.id)
+                                                  }
+                                                  actionLabel={translate(
+                                                    "planLabBundleView",
+                                                    "查看組合"
+                                                  )}
+                                                />
+                                              ))}
+                                            </Stack>
+                                          )
+                                        }
+                                      />
+                                    );
+                                  })}
+                                </Accordion>
+                              </Stack>
+                            </Accordion.Panel>
+                          </Accordion.Item>
+                        </Accordion>
+                      )}
+                      {groupedItems.length === 0 ? (
+                        <Text size="sm" c="dimmed">
+                          {translate("planLabFilterEmpty", "沒有符合條件的項目。")}
+                        </Text>
+                      ) : (
+                        groupedItems.map(([group, items]) => (
+                          <Stack key={group} gap="xs">
+                            <Text size="xs" fw={600} c="dimmed">
+                              {group}
+                            </Text>
+                            <Accordion variant="separated" radius="md" multiple>
+                              {items.map((item) => {
+                                const menuItems: PlanLabRowMenuItem[] = [];
+                                if (scenarioIsV2) {
+                                  if (item.kind === "event" && item.eventId) {
+                                    menuItems.push({
+                                      label: translate("planLabAppliedRemove", "移除"),
+                                      onClick: () =>
+                                        removeScenarioV2Event(item.eventId ?? item.id),
+                                    });
                                   }
-                                />
-                              );
-                            })}
-                          </Accordion>
-                        </Stack>
-                      ))}
+                                } else {
+                                  if (
+                                    (item.kind === "event" &&
+                                      item.eventSource !== "draft") ||
+                                    item.kind === "rule"
+                                  ) {
+                                    menuItems.push({
+                                      label: translate(
+                                        "planLabActionEnd",
+                                        "設定結束月份"
+                                      ),
+                                      onClick: () => openEditingItem(item, "validity"),
+                                    });
+                                  }
+                                  if (item.kind === "event" && item.eventSource === "draft") {
+                                    menuItems.push({
+                                      label: translate("planLabAppliedRemove", "移除"),
+                                      onClick: () =>
+                                        setDraftEvents((current) =>
+                                          current.filter(
+                                            (event) =>
+                                              event.definition.id !==
+                                              item.eventDefinitionId
+                                          )
+                                        ),
+                                    });
+                                  }
+                                  if (item.kind === "rule" && item.ruleSource === "draft") {
+                                    menuItems.push({
+                                      label: translate("planLabAppliedRemove", "移除"),
+                                      onClick: () =>
+                                        removeDraftBudgetRule(item.ruleId ?? item.id),
+                                    });
+                                  }
+                                }
+                                return (
+                                  <PlanLabAccordionRow
+                                    key={item.id}
+                                    id={item.id}
+                                    ref={(node) => registerItemRef(item.id, node)}
+                                    title={item.title}
+                                    badges={getScenarioItemBadges(item)}
+                                    meta={getScenarioItemSummary(item)}
+                                    enabled={item.enabled}
+                                    highlighted={highlightedItemId === item.id}
+                                    onToggle={
+                                      scenarioIsV2
+                                        ? undefined
+                                        : () => {
+                                            if (
+                                              item.kind === "event" &&
+                                              item.eventDefinitionId
+                                            ) {
+                                              if (item.eventSource === "draft") {
+                                                setDraftEvents((current) =>
+                                                  current.map((event) =>
+                                                    event.definition.id ===
+                                                    item.eventDefinitionId
+                                                      ? {
+                                                          ...event,
+                                                          ref: {
+                                                            ...event.ref,
+                                                            enabled: !event.ref.enabled,
+                                                          },
+                                                        }
+                                                      : event
+                                                  )
+                                                );
+                                              } else {
+                                                updateEventPatch(item.eventDefinitionId, {
+                                                  isDisabled: item.enabled,
+                                                });
+                                              }
+                                            }
+                                            if (item.kind === "rule" && item.ruleId) {
+                                              if (item.ruleSource === "draft") {
+                                                setDraftBudgetRules((current) =>
+                                                  current.map((rule) =>
+                                                    rule.id === item.ruleId
+                                                      ? { ...rule, enabled: !rule.enabled }
+                                                      : rule
+                                                  )
+                                                );
+                                              } else {
+                                                updateRulePatch(item.ruleId, {
+                                                  isDisabled: item.enabled,
+                                                });
+                                              }
+                                            }
+                                            if (
+                                              item.kind === "position" &&
+                                              item.positionKey
+                                            ) {
+                                              if (item.positionKind === "smartInvest") {
+                                                updateSmartInvestPatch({
+                                                  isDisabled: item.enabled,
+                                                });
+                                              } else {
+                                                updatePositionPatch(item.positionKey, {
+                                                  isDisabled: item.enabled,
+                                                });
+                                              }
+                                            }
+                                          }
+                                    }
+                                    onEdit={() => {
+                                      if (scenarioIsV2) {
+                                        if (item.kind === "event" && item.eventId) {
+                                          handleEditV2Event(item.eventId);
+                                        }
+                                        if (item.positionKind === "asset") {
+                                          setAssetDrawerItem(item.position ?? null);
+                                        }
+                                        if (item.positionKind === "liability") {
+                                          setLiabilityDrawerItem(item.position ?? null);
+                                        }
+                                        return;
+                                      }
+                                      if (
+                                        item.kind === "event" &&
+                                        item.eventSource === "draft"
+                                      ) {
+                                        const addition = draftEvents.find(
+                                          (event) =>
+                                            event.definition.id ===
+                                            item.eventDefinitionId
+                                        );
+                                        if (addition) {
+                                          openEditEventDrawer(addition);
+                                        }
+                                        return;
+                                      }
+                                      openEditingItem(item);
+                                    }}
+                                    menuItems={menuItems}
+                                    panel={
+                                      <Text size="xs" c="dimmed">
+                                        {getScenarioItemSummary(item) || "—"}
+                                      </Text>
+                                    }
+                                  />
+                                );
+                              })}
+                            </Accordion>
+                          </Stack>
+                        ))
+                      )}
                     </Stack>
                   </ScrollArea.Autosize>
                 )}
@@ -6150,7 +6714,7 @@ export default function PlanLabPanel({
                           key={driver.id}
                           variant="subtle"
                           justify="space-between"
-                          onClick={() => handleLocateItem(driver.itemId)}
+                          onClick={() => handleTopDriverClick(driver)}
                         >
                           <Text size="sm">{driver.title}</Text>
                           <Badge
@@ -6398,9 +6962,239 @@ export default function PlanLabPanel({
         )}
       </Drawer>
 
+      <MortgageDetailDrawer
+        opened={Boolean(mortgageDetail && mortgageDetailEvent)}
+        onClose={() => setMortgageDetail(null)}
+        onEdit={
+          mortgageDetail?.bundleId
+            ? () => {
+                handleEditBundle(mortgageDetail.bundleId);
+                setMortgageDetail(null);
+              }
+            : undefined
+        }
+        event={mortgageDetailEvent}
+        asset={mortgageDetailAsset}
+        liability={mortgageDetailLiability}
+        baseCurrency={scenario.baseCurrency}
+        locale={locale}
+        defaultTab={mortgageDetail?.tab ?? "overview"}
+        currentMonth={planLabProjection.months[0] ?? scenario.assumptions.baseMonth ?? null}
+      />
+
+      <Drawer
+        opened={Boolean(activeBundleCard)}
+        onClose={() => setBundleViewId(null)}
+        position="right"
+        size="md"
+        title={activeBundleCard?.title ?? moneyT("bundleTitleFallback")}
+        styles={drawerStyles}
+      >
+        {activeBundleCard ? (
+          <Stack gap="md">
+            <Stack gap={4}>
+              <Text size="sm" fw={600}>
+                {moneyT("bundleDetailSummaryTitle")}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {moneyT("bundleSummaryOneOff", {
+                  amount:
+                    activeBundleCard.oneOffTotal > 0
+                      ? formatCurrency(
+                          activeBundleCard.oneOffTotal,
+                          scenario.baseCurrency,
+                          locale
+                        )
+                      : moneyT("amountUnset"),
+                })}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {moneyT("bundleSummaryMonthlyIncome", {
+                  amount: activeBundleCard.hasMonthlyImpact
+                    ? formatCurrency(
+                        activeBundleCard.monthlyIncome,
+                        scenario.baseCurrency,
+                        locale
+                      )
+                    : moneyT("amountUnset"),
+                })}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {moneyT("bundleSummaryMonthlyExpense", {
+                  amount: activeBundleCard.hasMonthlyImpact
+                    ? formatCurrency(
+                        activeBundleCard.monthlyExpense,
+                        scenario.baseCurrency,
+                        locale
+                      )
+                    : moneyT("amountUnset"),
+                })}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {moneyT("bundleSummaryMonthlyNet", {
+                  amount: activeBundleCard.hasMonthlyImpact
+                    ? formatCurrency(
+                        activeBundleCard.monthlyNet,
+                        scenario.baseCurrency,
+                        locale
+                      )
+                    : moneyT("amountUnset"),
+                })}
+              </Text>
+              {activeBundleCard.assets.map((asset) => (
+                <Text size="sm" c="dimmed" key={asset.id}>
+                  {moneyT("bundleSummaryAssetItem", {
+                    name: asset.label ?? moneyT("assetUntitled"),
+                    amount:
+                      typeof asset.currentValue === "number"
+                        ? formatCurrency(
+                            asset.currentValue,
+                            scenario.baseCurrency,
+                            locale
+                          )
+                        : moneyT("amountUnset"),
+                  })}
+                </Text>
+              ))}
+              {activeBundleCard.liabilities.map((liability) => (
+                <Text size="sm" c="dimmed" key={liability.id}>
+                  {moneyT("bundleSummaryLiabilityItem", {
+                    name: liability.label ?? moneyT("liabilityUntitled"),
+                    amount:
+                      typeof liability.principalOutstanding === "number"
+                        ? formatCurrency(
+                            liability.principalOutstanding,
+                            scenario.baseCurrency,
+                            locale
+                          )
+                        : moneyT("amountUnset"),
+                  })}
+                </Text>
+              ))}
+            </Stack>
+
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>
+                {moneyT("bundleDetailCashflowTitle")}
+              </Text>
+              {bundleDetailIncomeItems.length > 0 && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed">
+                    {moneyT("bundleDetailIncome")}
+                  </Text>
+                  {bundleDetailIncomeItems.map((item) => (
+                    <Group key={item.id} justify="space-between" wrap="nowrap">
+                      <Text size="sm">{item.label}</Text>
+                      <Text size="sm" fw={500}>
+                        {formatCurrency(item.amount, scenario.baseCurrency, locale)}
+                      </Text>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
+
+              {bundleDetailExpenseItems.length > 0 && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed">
+                    {moneyT("bundleDetailExpenses")}
+                  </Text>
+                  {bundleDetailExpenseItems.map((item) => (
+                    <Group key={item.id} justify="space-between" wrap="nowrap">
+                      <Text size="sm">{item.label}</Text>
+                      <Text size="sm" fw={500}>
+                        {formatCurrency(item.amount, scenario.baseCurrency, locale)}
+                      </Text>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
+
+              {bundleDetailIncomeItems.length === 0 &&
+                bundleDetailExpenseItems.length === 0 && (
+                  <Text size="sm" c="dimmed">
+                    {moneyT("bundleDetailEmpty")}
+                  </Text>
+                )}
+            </Stack>
+
+            {activeBundleMortgageSummary && (
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>
+                  {moneyT("bundleMortgageSummaryTitle")}
+                </Text>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{moneyT("bundleMortgageSummaryLoanAmount")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.loanAmount === "number"
+                      ? formatCurrency(
+                          activeBundleMortgageSummary.loanAmount,
+                          scenario.baseCurrency,
+                          locale
+                        )
+                      : moneyT("amountUnset")}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{moneyT("bundleMortgageSummaryRate")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.ratePct === "number"
+                      ? `${formatGrowthPct(activeBundleMortgageSummary.ratePct)}%`
+                      : moneyT("amountUnset")}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{moneyT("bundleMortgageSummaryTerm")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.termYears === "number"
+                      ? new Intl.NumberFormat(locale).format(
+                          activeBundleMortgageSummary.termYears
+                        )
+                      : moneyT("amountUnset")}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">{moneyT("bundleMortgageSummaryPayment")}</Text>
+                  <Text size="sm" fw={500}>
+                    {typeof activeBundleMortgageSummary.monthlyPayment === "number"
+                      ? formatCurrency(
+                          activeBundleMortgageSummary.monthlyPayment,
+                          scenario.baseCurrency,
+                          locale
+                        )
+                      : moneyT("amountUnset")}
+                  </Text>
+                </Group>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() =>
+                    openMortgageDetails(
+                      activeBundleCard.id,
+                      activeBundleMortgageSummary.eventId,
+                      "liability"
+                    )
+                  }
+                >
+                  {moneyT("bundleMortgageSummaryViewDetails")}
+                </Button>
+              </Stack>
+            )}
+
+            <Group justify="flex-end">
+              <Button onClick={() => handleEditBundle(activeBundleCard.id)}>
+                {moneyT("bundleEdit")}
+              </Button>
+            </Group>
+          </Stack>
+        ) : null}
+      </Drawer>
+
       <BundleWizardDrawer
         opened={bundleWizardOpen}
         template={bundleTemplate}
+        mode={bundleWizardMode}
+        bundleInstanceId={bundleWizardInstanceId}
+        initialWizardInput={bundleWizardInitialInput}
         scenarioId={scenario.id}
         baseMonth={scenario.assumptions.baseMonth}
         baseCurrency={scenario.baseCurrency}
@@ -6408,6 +7202,9 @@ export default function PlanLabPanel({
         onClose={() => {
           setBundleWizardOpen(false);
           setBundleTemplate(null);
+          setBundleWizardMode("create");
+          setBundleWizardInstanceId(null);
+          setBundleWizardInitialInput(null);
         }}
         onApplyEvents={handleApplyBundleEvents}
         allowInlineEdit={false}
