@@ -1739,97 +1739,6 @@ export default function MoneyClient({
       bundleViewId ? bundleGroupById.get(bundleViewId) ?? null : null,
     [bundleGroupById, bundleViewId]
   );
-  const bundleDetailIncomeItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events
-      .flatMap((event) => {
-        if (event.type === "cashflow" && event.kind === "income") {
-          const amount = resolveBundleEventAmountForDirection(event, "income");
-          return amount && amount > 0
-            ? [
-                {
-                  id: `${event.id}-income`,
-                  label: event.label ?? t("ledgerRowFallbackLabel"),
-                  amount,
-                },
-              ]
-            : [];
-        }
-        if (
-          event.type === "housing" &&
-          event.kind === "mortgage" &&
-          event.rental?.enabled
-        ) {
-          const amount = resolveBundleEventAmountForDirection(event, "income");
-          return amount && amount > 0
-            ? [
-                {
-                  id: `${event.id}-rental-income`,
-                  label: t("breakdownLabels.rentalIncome"),
-                  amount,
-                },
-              ]
-            : [];
-        }
-        return [];
-      })
-      .filter((item) => item.amount > 0);
-  }, [activeBundleGroup, resolveBundleEventAmountForDirection, t]);
-  const bundleDetailExpenseItems = useMemo(() => {
-    if (!activeBundleGroup) {
-      return [];
-    }
-    return activeBundleGroup.events.flatMap((event) => {
-      if (event.type === "cashflow" && event.kind === "expense") {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-expense`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      if (event.type === "housing" && event.kind === "mortgage") {
-        const items: { id: string; label: string; amount: number }[] = [];
-        if (event.mortgagePayment && event.mortgagePayment > 0) {
-          items.push({
-            id: `${event.id}-mortgage-payment`,
-            label: t("bundleDetailMortgagePaymentLabel"),
-            amount: event.mortgagePayment,
-          });
-        }
-        (event.ongoingCosts ?? []).forEach((cost, index) => {
-          if (!cost.amount) {
-            return;
-          }
-          items.push({
-            id: `${event.id}-ongoing-${index}`,
-            label: cost.label ?? t("breakdownLabels.holdingCost"),
-            amount: cost.amount,
-          });
-        });
-        return items;
-      }
-      if (event.type === "loan" || event.type === "insurance") {
-        const amount = resolveBundleEventAmountForDirection(event, "expense");
-        return amount && amount > 0
-          ? [
-              {
-                id: `${event.id}-expense`,
-                label: event.label ?? t("ledgerRowFallbackLabel"),
-                amount,
-              },
-            ]
-          : [];
-      }
-      return [];
-    });
-  }, [activeBundleGroup, resolveBundleEventAmountForDirection, t]);
   const mortgageDetailEvent = useMemo(() => {
     if (!mortgageDetail) {
       return null;
@@ -2111,6 +2020,97 @@ export default function MoneyClient({
     },
     [resolveBundleEventAmount]
   );
+  const bundleDetailIncomeItems = useMemo(() => {
+    if (!activeBundleGroup) {
+      return [];
+    }
+    return activeBundleGroup.events
+      .flatMap((event) => {
+        if (event.type === "cashflow" && event.kind === "income") {
+          const amount = resolveBundleEventAmountForDirection(event, "income");
+          return amount && amount > 0
+            ? [
+                {
+                  id: `${event.id}-income`,
+                  label: event.label ?? t("ledgerRowFallbackLabel"),
+                  amount,
+                },
+              ]
+            : [];
+        }
+        if (
+          event.type === "housing" &&
+          event.kind === "mortgage" &&
+          event.rental?.enabled
+        ) {
+          const amount = resolveBundleEventAmountForDirection(event, "income");
+          return amount && amount > 0
+            ? [
+                {
+                  id: `${event.id}-rental-income`,
+                  label: t("breakdownLabels.rentalIncome"),
+                  amount,
+                },
+              ]
+            : [];
+        }
+        return [];
+      })
+      .filter((item) => item.amount > 0);
+  }, [activeBundleGroup, resolveBundleEventAmountForDirection, t]);
+  const bundleDetailExpenseItems = useMemo(() => {
+    if (!activeBundleGroup) {
+      return [];
+    }
+    return activeBundleGroup.events.flatMap((event) => {
+      if (event.type === "cashflow" && event.kind === "expense") {
+        const amount = resolveBundleEventAmountForDirection(event, "expense");
+        return amount && amount > 0
+          ? [
+              {
+                id: `${event.id}-expense`,
+                label: event.label ?? t("ledgerRowFallbackLabel"),
+                amount,
+              },
+            ]
+          : [];
+      }
+      if (event.type === "housing" && event.kind === "mortgage") {
+        const items: { id: string; label: string; amount: number }[] = [];
+        if (event.mortgagePayment && event.mortgagePayment > 0) {
+          items.push({
+            id: `${event.id}-mortgage-payment`,
+            label: t("bundleDetailMortgagePaymentLabel"),
+            amount: event.mortgagePayment,
+          });
+        }
+        (event.ongoingCosts ?? []).forEach((cost, index) => {
+          if (!cost.amount) {
+            return;
+          }
+          items.push({
+            id: `${event.id}-ongoing-${index}`,
+            label: cost.label ?? t("breakdownLabels.holdingCost"),
+            amount: cost.amount,
+          });
+        });
+        return items;
+      }
+      if (event.type === "loan" || event.type === "insurance") {
+        const amount = resolveBundleEventAmountForDirection(event, "expense");
+        return amount && amount > 0
+          ? [
+              {
+                id: `${event.id}-expense`,
+                label: event.label ?? t("ledgerRowFallbackLabel"),
+                amount,
+              },
+            ]
+          : [];
+      }
+      return [];
+    });
+  }, [activeBundleGroup, resolveBundleEventAmountForDirection, t]);
   const bundleSlicesByType = useMemo(() => {
     const slices: Record<
       "income" | "expenses" | "assets" | "liabilities",
@@ -2145,25 +2145,24 @@ export default function MoneyClient({
       const bundleId = bundle.id;
       const title = resolveBundleTitle(bundle);
       const bundleEventIdSet = new Set(bundle.events.map((event) => event.id));
-      const incomeItems = bundle.events
-        .map((event) => {
-          const amount = resolveBundleEventAmountForDirection(event, "income");
-          if (!amount || amount <= 0) {
-            return null;
-          }
-          const label =
-            event.type === "housing" && event.kind === "mortgage"
-              ? t("breakdownLabels.rentalIncome")
-              : event.label ?? t("ledgerRowFallbackLabel");
-          return {
-            id: `${event.id}-income`,
-            label,
-            amount,
-            subLabel: resolveEventCardStartMonth(event),
-            sourceEventId: event.id,
-          };
-        })
-        .filter((item): item is BundleSlice["items"][number] => Boolean(item));
+      const incomeItems: BundleSliceItem[] = [];
+      bundle.events.forEach((event) => {
+        const amount = resolveBundleEventAmountForDirection(event, "income");
+        if (!amount || amount <= 0) {
+          return;
+        }
+        const label =
+          event.type === "housing" && event.kind === "mortgage"
+            ? t("breakdownLabels.rentalIncome")
+            : event.label ?? t("ledgerRowFallbackLabel");
+        incomeItems.push({
+          id: `${event.id}-income`,
+          label,
+          amount,
+          subLabel: resolveEventCardStartMonth(event),
+          sourceEventId: event.id,
+        });
+      });
       if (incomeItems.length > 0) {
         const summaryAmount = incomeItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
         slices.income.push({
@@ -2175,21 +2174,20 @@ export default function MoneyClient({
         });
       }
 
-      const expenseItems = bundle.events
-        .map((event) => {
-          const amount = resolveBundleEventAmountForDirection(event, "expense");
-          if (!amount || amount <= 0) {
-            return null;
-          }
-          return {
-            id: `${event.id}-expense`,
-            label: event.label ?? t("ledgerRowFallbackLabel"),
-            amount,
-            subLabel: resolveEventCardStartMonth(event),
-            sourceEventId: event.id,
-          };
-        })
-        .filter((item): item is BundleSlice["items"][number] => Boolean(item));
+      const expenseItems: BundleSliceItem[] = [];
+      bundle.events.forEach((event) => {
+        const amount = resolveBundleEventAmountForDirection(event, "expense");
+        if (!amount || amount <= 0) {
+          return;
+        }
+        expenseItems.push({
+          id: `${event.id}-expense`,
+          label: event.label ?? t("ledgerRowFallbackLabel"),
+          amount,
+          subLabel: resolveEventCardStartMonth(event),
+          sourceEventId: event.id,
+        });
+      });
       if (expenseItems.length > 0) {
         const summaryAmount = expenseItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
         slices.expenses.push({
