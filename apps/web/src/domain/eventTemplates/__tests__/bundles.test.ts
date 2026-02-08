@@ -111,4 +111,64 @@ describe("event template bundles", () => {
     expect(event.propertyAssetId).toBe("asset_home");
     expect(event.mortgageLiabilityId).toBe("liability_home");
   });
+
+  it("derives rental start month using the start strategy", () => {
+    const plusOneEvent = buildHomePurchaseBundleEvent(
+      {
+        eventId: "evt_home",
+        label: "Mortgage",
+        startMonth: "2025-07",
+        purchasePrice: 800000,
+        downPaymentMode: "percent",
+        downPaymentPercent: 20,
+        mortgageRatePct: 4,
+        mortgageTermYears: 30,
+        mortgagePayment: 3500,
+        rental: {
+          enabled: true,
+          rentMonthly: 20000,
+          startMonthStrategy: "plus1",
+        },
+      },
+      {
+        bundleInstanceId: "bundle_home",
+        templateId: "life_home_purchase",
+        bundleTitle: "Home 1",
+      }
+    );
+
+    if (plusOneEvent.type !== "housing" || plusOneEvent.kind !== "mortgage") {
+      throw new Error("Expected mortgage housing event.");
+    }
+    expect(plusOneEvent.rental?.startMonth).toBe("2025-08");
+
+    const customEvent = buildHomePurchaseBundleEvent(
+      {
+        eventId: "evt_home_custom",
+        label: "Mortgage",
+        startMonth: "2025-07",
+        purchasePrice: 800000,
+        downPaymentMode: "percent",
+        downPaymentPercent: 20,
+        mortgageRatePct: 4,
+        mortgageTermYears: 30,
+        mortgagePayment: 3500,
+        rental: {
+          enabled: true,
+          rentMonthly: 20000,
+          startMonth: "2025-10",
+        },
+      },
+      {
+        bundleInstanceId: "bundle_home",
+        templateId: "life_home_purchase",
+        bundleTitle: "Home 1",
+      }
+    );
+
+    if (customEvent.type !== "housing" || customEvent.kind !== "mortgage") {
+      throw new Error("Expected mortgage housing event.");
+    }
+    expect(customEvent.rental?.startMonth).toBe("2025-10");
+  });
 });

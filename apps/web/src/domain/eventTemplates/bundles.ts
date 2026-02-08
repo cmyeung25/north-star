@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { addMonths } from "../members/age";
 import { isValidMonthKey } from "../../utils/monthKey";
 import type { EventSource, MonthKey, ScenarioEventDraft } from "../scenarioV2/events";
 
@@ -65,9 +66,26 @@ export type HomePurchaseBundleInput = {
     startMonth?: MonthKey;
     endMonth?: MonthKey;
     discountMonthly?: number;
+    startMonthStrategy?: StartMonthStrategy;
   };
   propertyAssetId?: string;
   mortgageLiabilityId?: string;
+};
+
+export type StartMonthStrategy = "purchase" | "plus1" | "custom";
+
+export const deriveStartMonth = (
+  purchaseMonth: MonthKey,
+  strategy: StartMonthStrategy | undefined,
+  customMonth?: MonthKey
+): MonthKey => {
+  if (strategy === "custom") {
+    return isValidMonthKey(customMonth ?? "") ? customMonth ?? purchaseMonth : purchaseMonth;
+  }
+  if (strategy === "plus1") {
+    return addMonths(purchaseMonth, 1);
+  }
+  return purchaseMonth;
 };
 
 export type BundleWizardInput =
@@ -244,9 +262,12 @@ export const buildHomePurchaseBundleEvent = (
             0,
             input.rental.rentMonthly - (input.rental.discountMonthly ?? 0)
           ),
-          startMonth: input.rental.startMonth && isValidMonthKey(input.rental.startMonth)
-            ? input.rental.startMonth
-            : undefined,
+          startMonth: deriveStartMonth(
+            input.startMonth,
+            input.rental.startMonthStrategy ??
+              (input.rental.startMonth ? "custom" : "purchase"),
+            input.rental.startMonth
+          ),
           endMonth: input.rental.endMonth && isValidMonthKey(input.rental.endMonth)
             ? input.rental.endMonth
             : undefined,
