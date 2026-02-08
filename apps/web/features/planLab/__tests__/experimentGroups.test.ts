@@ -43,6 +43,7 @@ describe("single item experiment helpers", () => {
       title: "實驗：Living expenses",
       isEnabled: true,
       itemIds: ["events:evt_1"],
+      primaryEventId: "evt_1",
       createdAt: 123,
     });
   });

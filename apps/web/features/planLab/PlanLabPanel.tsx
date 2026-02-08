@@ -1833,9 +1833,9 @@ export default function PlanLabPanel({
       setTemplateCashflowDraft({
         kind: "income",
         cadence: "monthly",
-        amount: 5000,
-        startMonth: baseMonth || undefined,
-        endMonth: undefined,
+        amount: "5000",
+        startMonth: baseMonth || "",
+        endMonth: "",
       });
       openV2EventDrawer("create", "cashflow");
       return;
@@ -1848,9 +1848,9 @@ export default function PlanLabPanel({
       setTemplateCashflowDraft({
         kind: "expense",
         cadence: "monthly",
-        amount: 2000,
-        startMonth: baseMonth || undefined,
-        endMonth: undefined,
+        amount: "2000",
+        startMonth: baseMonth || "",
+        endMonth: "",
       });
       openV2EventDrawer("create", "cashflow");
     }
@@ -2108,7 +2108,7 @@ export default function PlanLabPanel({
     (
       events: ScenarioV2EventDraft[],
       options?: { packAsExperiment?: boolean; experimentTitle?: string },
-      _context?: { bundleInstanceId: string; wizardInput: unknown }
+      _context?: { bundleInstanceId: string; wizardInput: BundleWizardInput }
     ) => {
       if (!scenarioIsV2 || events.length === 0) {
         return { ok: false, error: translate("bundleApplyFailed", "Failed to create plan bundle.") };
@@ -6658,9 +6658,9 @@ export default function PlanLabPanel({
                                   onToggle={() => toggleExperimentGroup(group.experimentId)}
                                   onEdit={
                                     group.bundleInstanceId
-                                      ? () => handleEditBundle(group.bundleInstanceId)
+                                      ? () => handleEditBundle(group.bundleInstanceId!)
                                       : group.primaryEventId
-                                      ? () => handleEditV2Event(group.primaryEventId)
+                                      ? () => handleEditV2Event(group.primaryEventId!)
                                       : undefined
                                   }
                                   menuItems={menuItems}
