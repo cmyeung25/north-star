@@ -47,6 +47,7 @@ import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 import { buildMonthDateRef } from "../domain/dateRef";
+import type { ScenarioSeedPayload } from "../scenarios/scenarioSeeds";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -418,6 +419,8 @@ export type PositionCopyType =
 export type ScenarioMeta = {
   onboardingVersion?: number;
   schemaVersion?: number;
+  isSeeded?: boolean;
+  skipOnboarding?: boolean;
 };
 
 export type ScenarioClientComputed = {
@@ -467,6 +470,7 @@ type ScenarioStoreState = {
     name: string,
     options?: { baseCurrency?: string; onboardingCompleted?: boolean }
   ) => Scenario;
+  createScenarioFromSeed: (name: string, seed: ScenarioSeedPayload) => Scenario | null;
   renameScenario: (id: string, name: string) => void;
   duplicateScenario: (id: string) => Scenario | null;
   deleteScenario: (id: string) => void;
@@ -2024,6 +2028,48 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
 
     return newScenario;
+  },
+  createScenarioFromSeed: (name, seed) => {
+    const created = get().createScenario(name, { onboardingCompleted: true });
+    if (!created) {
+      return null;
+    }
+    const scenarioId = created.id;
+
+    get().updateScenarioAssumptions(scenarioId, {
+      baseMonth: seed.baseMonth,
+      initialCash: seed.initialCash,
+    });
+
+    if (seed.members.length > 0) {
+      get().setScenarioMembers(scenarioId, seed.members);
+    }
+
+    if (seed.assets.length > 0) {
+      get().setScenarioAssets(scenarioId, seed.assets);
+    }
+
+    if (seed.liabilities.length > 0) {
+      get().setScenarioLiabilities(scenarioId, seed.liabilities);
+    }
+
+    seed.bundleInstances.forEach((record) => {
+      get().upsertBundleInstanceRecord(scenarioId, record);
+    });
+
+    seed.events.forEach((event) => {
+      get().addEvent(event, scenarioId);
+    });
+
+    get().updateScenarioMeta(scenarioId, {
+      isSeeded: true,
+      skipOnboarding: true,
+      onboardingVersion: 2,
+      schemaVersion: 2,
+    });
+    get().updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+
+    return get().scenarios.find((scenario) => scenario.id === scenarioId) ?? null;
   },
   renameScenario: (id, name) => {
     set((state) => ({

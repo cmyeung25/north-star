@@ -3195,7 +3195,132 @@
     "compareTemplateEducationBudgetHint": "Add a scoped education budget rule for the new scenario.",
     "compareTemplateEducationRuleName": "Education budget {index}",
     "compareTemplateCarOwnership": "Car ownership",
-    "compareTemplateCarOwnershipHint": "Add a car position with defaults."
+    "compareTemplateCarOwnershipHint": "Add a car position with defaults.",
+    "seeds": {
+      "sectionTitle": "Quick start (test scenarios)",
+      "sectionDescription": "Create a prefilled scenario and jump straight into Plan Lab.",
+      "useSeed": "Use this test scenario",
+      "preview": "Preview",
+      "previewTitle": "Scenario preview",
+      "previewMembers": "Household members",
+      "previewMonthlyIncome": "Monthly income",
+      "previewMonthlyExpense": "Monthly expense",
+      "previewMonthlyNet": "Net cashflow / month",
+      "previewAssets": "Assets",
+      "previewLiabilities": "Liabilities",
+      "previewBundles": "Included bundles",
+      "previewBundlesEmpty": "None",
+      "previewStartMonth": "Start month",
+      "seedCreated": "Test scenario created: \"{name}\"",
+      "seedFailed": "Failed to create scenario. Please try again.",
+      "keyNumbers": {
+        "monthlyIncome": "Monthly income",
+        "monthlyExpense": "Monthly expense",
+        "cash": "Cash",
+        "propertyMortgage": "Property / mortgage",
+        "rentalIncome": "Rental income",
+        "baby": "Baby costs",
+        "helper": "Helper costs",
+        "investments": "Investments"
+      },
+      "bundleLabels": {
+        "homePurchase": "Home purchase",
+        "newBaby": "New baby plan",
+        "deliveryCost": "Delivery cost",
+        "childcare": "Childcare",
+        "helperMonthly": "Helper salary",
+        "agencyFee": "Agency fee",
+        "schooling": "Schooling"
+      },
+      "assetLabels": {
+        "cash": "Cash",
+        "investments": "Investments"
+      },
+      "eventLabels": {
+        "salary": "Salary",
+        "bonus": "Bonus / incentives",
+        "rent": "Rent",
+        "living": "Living expenses",
+        "stampDuty": "Stamp duty",
+        "legalFee": "Legal fees",
+        "managementFee": "Management fee",
+        "babySetup": "Baby supplies"
+      },
+      "profiles": {
+        "singleRenter": {
+          "title": "Single professional | Rent & save",
+          "description": "1 member, fixed salary, rent plus basic living, starter cash & investments.",
+          "tags": ["1 person", "Fixed salary", "Renting", "Cash + investments"],
+          "memberName": "Alex",
+          "keyNumbers": {
+            "monthlyIncome": "$25k",
+            "monthlyExpense": "$18k",
+            "cash": "$50k"
+          }
+        },
+        "dualIncomeHome": {
+          "title": "Dual-income couple | Home purchase",
+          "description": "2 members, dual income, home purchase bundle with mortgage and fees.",
+          "tags": ["2 people", "Dual income", "Home bundle", "Mortgage"],
+          "memberNameA": "Jamie",
+          "memberNameB": "Morgan",
+          "keyNumbers": {
+            "monthlyIncome": "$65k",
+            "monthlyExpense": "$35.5k",
+            "propertyMortgage": "$6M / $4.8M"
+          }
+        },
+        "dualIncomeRental": {
+          "title": "Dual-income couple | Home + rental income",
+          "description": "2 members, home purchase plus partial rental income for cashflow checks.",
+          "tags": ["2 people", "Dual income", "Home + rental", "Rent income"],
+          "memberNameA": "Jordan",
+          "memberNameB": "Taylor",
+          "keyNumbers": {
+            "monthlyIncome": "$67k",
+            "rentalIncome": "$12k",
+            "propertyMortgage": "$7M / $5.25M"
+          }
+        },
+        "newBaby": {
+          "title": "New baby family | Childcare costs",
+          "description": "2 adults + baby, delivery cost plus ongoing childcare expenses.",
+          "tags": ["2-3 members", "New baby", "One-off + ongoing", "Childcare"],
+          "memberNameA": "Casey",
+          "memberNameB": "Riley",
+          "memberNameC": "Baby",
+          "keyNumbers": {
+            "monthlyIncome": "$56k",
+            "baby": "$5k / mo",
+            "cash": "$150k"
+          }
+        },
+        "newBabyHelper": {
+          "title": "New baby family | Childcare + helper",
+          "description": "Dual income, baby costs plus helper salary and agency fee.",
+          "tags": ["2 members", "New baby", "Helper cost", "One-off fee"],
+          "memberNameA": "Sky",
+          "memberNameB": "Noah",
+          "keyNumbers": {
+            "monthlyIncome": "$60k",
+            "helper": "$5k / mo",
+            "baby": "$6k / mo"
+          }
+        },
+        "highAsset": {
+          "title": "High-asset household | Property + mortgage + investments",
+          "description": "High cash and investments with property mortgage to test KPI mix.",
+          "tags": ["High assets", "Property + mortgage", "Investments", "Higher income"],
+          "memberNameA": "Harper",
+          "memberNameB": "Quinn",
+          "keyNumbers": {
+            "monthlyIncome": "$130k",
+            "investments": "$2M",
+            "propertyMortgage": "$12M / $7M"
+          }
+        }
+      }
+    }
   },
   "warnings": {
     "doubleCountingHomeRent": "Rent and home purchase overlap; double counting may occur.",

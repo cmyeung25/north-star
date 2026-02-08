@@ -154,7 +154,12 @@ export default function Providers({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (activeScenario && activeScenario.clientComputed?.onboardingCompleted !== true) {
+    const shouldSkipOnboarding =
+      activeScenario?.clientComputed?.onboardingCompleted === true ||
+      activeScenario?.meta?.skipOnboarding === true ||
+      activeScenario?.meta?.isSeeded === true;
+
+    if (activeScenario && !shouldSkipOnboarding) {
       router.replace(`/${locale}/onboarding`);
     }
   }, [
