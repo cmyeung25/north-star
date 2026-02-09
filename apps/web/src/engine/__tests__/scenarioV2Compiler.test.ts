@@ -300,6 +300,41 @@ describe("compileScenarioV2ToLedger", () => {
     expect(projection.cashBalance.slice(0, 3)).toEqual([105000, 110000, 115000]);
   });
 
+  it("uses mortgage base value for mortgage principal and market value for assets", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        baseMonth: "2024-01",
+        horizonMonths: 6,
+      },
+      events: [
+        {
+          id: "evt-housing-mortgage",
+          type: "housing",
+          kind: "mortgage",
+          startMonth: "2024-01",
+          purchasePrice: 100000,
+          propertyMarketValue: 100000,
+          mortgageBaseValue: 120000,
+          mortgageBaseMode: "CUSTOM",
+          downPaymentMode: "percent",
+          downPaymentPercent: 20,
+          mortgageRatePct: 0,
+          mortgageTermYears: 1,
+          propertyAssetId: "asset-home-1",
+          mortgageLiabilityId: "liability-mortgage-1",
+        },
+      ],
+    };
+
+    const input = compileScenarioV2ToProjectionInput(scenario);
+    const home = input.positions?.homes?.[0];
+
+    expect(home?.purchasePrice).toBe(100000);
+    expect(home?.mortgage?.principal).toBe(100000);
+  });
+
   it("produces higher projections when income growth is enabled", () => {
     const scenarioBase: ScenarioV2 = {
       ...baseScenario,

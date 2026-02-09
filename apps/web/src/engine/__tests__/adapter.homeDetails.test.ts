@@ -47,6 +47,31 @@ describe("mapScenarioToEngineInput home details", () => {
     expect(input.positions?.homes?.[0]?.mortgage?.principal).toBe(7000000);
   });
 
+  it("uses mortgage base value when provided for mortgage principal", () => {
+    const scenario = buildScenario({
+      positions: {
+        homes: [
+          {
+            id: "home-3",
+            purchasePrice: 9000000,
+            mortgageBaseValue: 11000000,
+            downPayment: 1000000,
+            purchaseMonth: "2026-06",
+            annualAppreciationPct: 3,
+            mortgageRatePct: 4,
+            mortgageTermYears: 30,
+            feesOneTime: 0,
+          },
+        ],
+      },
+    });
+
+    const { input } = mapScenarioToEngineInput(scenario, []);
+
+    expect(input.positions?.homes?.[0]?.purchasePrice).toBe(9000000);
+    expect(input.positions?.homes?.[0]?.mortgage?.principal).toBe(10000000);
+  });
+
   it("maps existing homes without recalculating principal", () => {
     const scenario = buildScenario({
       positions: {

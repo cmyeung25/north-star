@@ -23,8 +23,14 @@ import ConfirmDeleteDialog from "../../../features/scenarios/components/ConfirmD
 import NewScenarioModal from "../../../features/scenarios/components/NewScenarioModal";
 import RenameScenarioModal from "../../../features/scenarios/components/RenameScenarioModal";
 import ScenarioComparisonWizard from "../../../features/scenarios/components/ScenarioComparisonWizard";
+import ScenarioSeedGallery from "../../../features/scenarios/components/ScenarioSeedGallery";
 import type { Scenario } from "../../../features/scenarios/types";
 import { formatRelativeTime } from "../../../features/scenarios/utils";
+import {
+  getScenarioSeeds,
+  type ScenarioSeedPayload,
+  type ScenarioSeedTranslator,
+} from "../../../src/scenarios/scenarioSeeds";
 import { useScenarioSummary } from "../../../src/scenarios/useScenarioSummary";
 import {
   getActiveScenario,
@@ -80,6 +86,9 @@ export default function ScenariosPage() {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const createScenario = useScenarioStore((state) => state.createScenario);
+  const createScenarioFromSeed = useScenarioStore(
+    (state) => state.createScenarioFromSeed
+  );
   const renameScenario = useScenarioStore((state) => state.renameScenario);
   const duplicateScenario = useScenarioStore((state) => state.duplicateScenario);
   const deleteScenario = useScenarioStore((state) => state.deleteScenario);
@@ -122,6 +131,13 @@ export default function ScenariosPage() {
     setToast({ message, color });
   };
 
+  const scenarioSeeds = useMemo(
+    () => getScenarioSeeds(t as ScenarioSeedTranslator),
+    [t]
+  );
+  const enableScenarioSeeds =
+    process.env.NEXT_PUBLIC_ENABLE_SCENARIO_SEEDS !== "false";
+
   const handleRunOnboarding = (scenarioId: string) => {
     setActiveScenario(scenarioId);
     setSelectedScenarioId(scenarioId);
@@ -144,6 +160,23 @@ export default function ScenariosPage() {
     setActiveScenario(newScenario.id);
     showToast(t("created"), "teal");
     router.push(`/${locale}/onboarding`);
+  };
+
+  const handleCreateScenarioSeed = (
+    seedTitle: string,
+    seedPayload: ScenarioSeedPayload
+  ) => {
+    const suffix = new Date().toISOString().slice(0, 10);
+    const name = `${seedTitle} · ${suffix}`;
+    const created = createScenarioFromSeed(name, seedPayload);
+    if (!created) {
+      showToast(t("seeds.seedFailed"), "red");
+      return;
+    }
+    setSelectedScenarioId(created.id);
+    setActiveScenario(created.id);
+    showToast(t("seeds.seedCreated", { name: created.name }), "teal");
+    router.push(`/${locale}${buildScenarioUrl("/plan-lab", created.id)}`);
   };
 
   const handleRenameScenario = (id: string, newName: string) => {
@@ -197,6 +230,11 @@ export default function ScenariosPage() {
             {t("subtitle")}
           </Text>
         </Stack>
+        {toast && (
+          <Notification color={toast.color} onClose={() => setToast(null)}>
+            {toast.message}
+          </Notification>
+        )}
         <Card withBorder radius="md" padding="lg">
           <Stack gap="sm">
             <Text fw={600}>{t("emptyTitle")}</Text>
@@ -216,6 +254,12 @@ export default function ScenariosPage() {
             </Button>
           </Stack>
         </Card>
+        {enableScenarioSeeds && (
+          <ScenarioSeedGallery
+            seeds={scenarioSeeds}
+            onUseSeed={(seed) => handleCreateScenarioSeed(seed.title, seed.payload)}
+          />
+        )}
       </Stack>
     );
   }

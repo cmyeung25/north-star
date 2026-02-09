@@ -165,7 +165,11 @@ import {
   renamePlanSnapshot,
   savePlanSnapshot,
 } from "../../src/persistence/planLibrary";
-import type { BundleWizardInput } from "../../src/domain/eventTemplates/bundles";
+import type {
+  BundleWizardInput,
+  HomePurchaseBundleInput,
+  NewBabyPlanInput,
+} from "../../src/domain/eventTemplates/bundles";
 import { getTemplateDef } from "../../src/domain/eventTemplates/registry";
 import CashflowEventDrawer, {
   type CashflowEventDraft,
@@ -183,13 +187,13 @@ import {
   collectUngroupedPatchItemIds,
   createSingleItemExperimentGroup,
   filterScenarioV2PatchesByExperimentGroups,
+  removeExperimentGroupItemsFromPatches,
   resolveExperimentGroupTitle,
   resolveSingleItemExperimentTitle,
   type PlanLabExperimentRemovedItemMeta,
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
 import { computeBundleMonthlySummary } from "../../src/features/money/bundleSummary";
-import { compileScenarioV2ToLedger } from "../../src/engine/scenarioV2Compiler";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -690,6 +694,7 @@ type PlanLabAccordionRowProps = {
   onEdit?: () => void;
   onClick?: () => void;
   primaryAction?: PlanLabRowAction;
+  secondaryAction?: PlanLabRowAction;
   menuItems?: PlanLabRowMenuItem[];
   panel?: ReactNode;
 };
@@ -708,6 +713,7 @@ const PlanLabAccordionRow = memo(
       onEdit,
       onClick,
       primaryAction,
+      secondaryAction,
       menuItems,
       panel,
     },
@@ -791,6 +797,20 @@ const PlanLabAccordionRow = memo(
                     {primaryAction.label}
                   </Button>
                 )}
+                {secondaryAction && (
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color={secondaryAction.color}
+                    disabled={secondaryAction.disabled}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      secondaryAction.onClick();
+                    }}
+                  >
+                    {secondaryAction.label}
+                  </Button>
+                )}
                 {menuItems && menuItems.length > 0 && (
                   <Menu withinPortal position="bottom-end">
                     <Menu.Target>
@@ -836,7 +856,6 @@ type PlanLabBundleItemRowProps = {
   badges: PlanLabRowBadge[];
   meta?: string;
   highlighted?: boolean;
-  onClick: () => void;
 };
 
 const PlanLabBundleItemRow = ({
@@ -844,15 +863,12 @@ const PlanLabBundleItemRow = ({
   badges,
   meta,
   highlighted,
-  onClick,
 }: PlanLabBundleItemRowProps) => (
   <Paper
     withBorder
     radius="md"
     p="sm"
-    onClick={onClick}
     style={{
-      cursor: "pointer",
       outline: highlighted ? "2px solid rgba(18, 184, 134, 0.7)" : "none",
       outlineOffset: 2,
     }}
@@ -1149,6 +1165,55 @@ export default function PlanLabPanel({
     itemRefs.current.set(id, node);
   }, []);
 
+  const closeAllPlanLabDrawers = useCallback(() => {
+    setMemberDrawerOpen(false);
+    setMemberDrawerMode("add");
+    setEditingMemberId(null);
+    setMemberDraft(null);
+    setMemberDraftErrors({});
+    setChildTemplateSelections({});
+    setExperimentDrawerOpen(false);
+    setExperimentDraft(null);
+    setExperimentDraftErrors({});
+    setExperimentDrawerMode("add");
+    setExperimentTemplatesOpen(false);
+    setExperimentTemplateContext(null);
+    setEventDrawerOpen(false);
+    setEventDrawerMode("add");
+    setEventDraftDefinition(null);
+    setEventDraftRef(null);
+    setEventDraftGroup(null);
+    setEventDraftType(null);
+    setTemplatePickerOpen(false);
+    setTemplatePickerCategory("popular");
+    setTemplatePickerIntent(null);
+    setTemplatePickerItemCategory(null);
+    setTemplatePlanUnsupportedNotice(null);
+    setBundleViewId(null);
+    setBundleDrawerFocus(null);
+    setBundleWizardOpen(false);
+    setBundleWizardMode("create");
+    setBundleWizardInstanceId(null);
+    setBundleWizardInitialInput(null);
+    setBundleWizardExperimentMode(false);
+    setBundleTemplate(null);
+    setMortgageDetail(null);
+    setLastBundleDrawerState(null);
+    setV2EventDrawerOpen(false);
+    setV2EventDrawerMode("create");
+    setV2EventDrawerType(null);
+    setEditingV2EventId(null);
+    setV2EventDefaultKind("income");
+    setTemplateCashflowDraft(null);
+    setTemplateHousingDraft(null);
+    setTemplateLoanDraft(null);
+    setTemplateInsuranceDraft(null);
+    setAssetDrawerItem(null);
+    setLiabilityDrawerItem(null);
+    setEditingItem(null);
+    setEditingFocus(null);
+  }, []);
+
   const handleLocateItem = useCallback((id: string) => {
     setListTab((current) => (current === "changed" ? current : "changed"));
     const bundleId = bundleIdByItemIdRef.current.get(id);
@@ -1207,6 +1272,19 @@ export default function PlanLabPanel({
     () => buildScenarioV2FromScenario(scenario, eventLibrary),
     [eventLibrary, scenario]
   );
+  const baselineBundleEventIdsByBundleId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    (baselineScenarioV2.events ?? []).forEach((event) => {
+      const bundleId = event.source?.bundleInstanceId;
+      if (!bundleId) {
+        return;
+      }
+      const existing = map.get(bundleId) ?? [];
+      existing.push(event.id);
+      map.set(bundleId, existing);
+    });
+    return map;
+  }, [baselineScenarioV2.events]);
   const baselineSignature = useMemo(
     () => computeBaselineFingerprint(baselineScenarioV2, budgetRules),
     [baselineScenarioV2, budgetRules]
@@ -1577,10 +1655,11 @@ export default function PlanLabPanel({
 
   const openEditingItem = useCallback(
     (item: ScenarioEditorItem, focus: "validity" | null = null) => {
+      closeAllPlanLabDrawers();
       setEditingItem(item);
       setEditingFocus(focus);
     },
-    []
+    [closeAllPlanLabDrawers]
   );
 
   const buildNewRuleDraft = useCallback(
@@ -1779,6 +1858,38 @@ export default function PlanLabPanel({
     );
   }, []);
 
+  const removeBundleExperimentGroup = useCallback(
+    (group: PlanLabExperimentGroup) => {
+      setScenarioV2Patches((current) => {
+        const next = removeExperimentGroupItemsFromPatches(current, group);
+        if (!group.bundleInstanceId) {
+          return next;
+        }
+        const baselineEventIds =
+          baselineBundleEventIdsByBundleId.get(group.bundleInstanceId) ?? [];
+        if (baselineEventIds.length === 0) {
+          return next;
+        }
+        return {
+          ...next,
+          events: {
+            ...next.events,
+            remove: next.events.remove.filter((id) => !baselineEventIds.includes(id)),
+          },
+        };
+      });
+      setExperimentGroups((current) =>
+        current.filter((entry) => entry.experimentId !== group.experimentId)
+      );
+      if (group.bundleInstanceId) {
+        setBundleInstanceOverrides((current) =>
+          current.filter((record) => record.id !== group.bundleInstanceId)
+        );
+      }
+    },
+    [baselineBundleEventIdsByBundleId]
+  );
+
   const removeDraftMember = (memberId: string) => {
     setDraftMembers((current) =>
       current.filter((member) => member.id !== memberId)
@@ -1797,6 +1908,7 @@ export default function PlanLabPanel({
   };
 
   const openAddExperimentDrawer = () => {
+    closeAllPlanLabDrawers();
     setExperimentDrawerMode("add");
     setExperimentDraft(null);
     setExperimentDraftErrors({});
@@ -1804,10 +1916,12 @@ export default function PlanLabPanel({
   };
 
   const openExperimentTemplatesDrawer = () => {
+    closeAllPlanLabDrawers();
     setExperimentTemplatesOpen(true);
   };
 
   const handleExperimentTemplateSelect = (templateId: PlanLabExperimentTemplateId) => {
+    closeAllPlanLabDrawers();
     setExperimentTemplatesOpen(false);
     if (templateId === "bundle_home" || templateId === "bundle_baby") {
       const resolvedTemplateId =
@@ -1857,6 +1971,7 @@ export default function PlanLabPanel({
   };
 
   const openEditExperimentDrawer = (experiment: PlanLabExperiment) => {
+    closeAllPlanLabDrawers();
     setExperimentDrawerMode("edit");
     setExperimentDraft({ ...experiment });
     setExperimentDraftErrors({});
@@ -1959,6 +2074,7 @@ export default function PlanLabPanel({
   };
 
   const openAddMemberDrawer = () => {
+    closeAllPlanLabDrawers();
     setMemberDrawerMode("add");
     setEditingMemberId(null);
     setMemberDraft({
@@ -1973,6 +2089,7 @@ export default function PlanLabPanel({
   };
 
   const openEditMemberDrawer = (member: ScenarioMember) => {
+    closeAllPlanLabDrawers();
     setMemberDrawerMode("edit");
     setEditingMemberId(member.id);
     setMemberDraft({
@@ -1987,6 +2104,7 @@ export default function PlanLabPanel({
   };
 
   const openAddEventDrawer = () => {
+    closeAllPlanLabDrawers();
     setTemplatePickerCategory("popular");
     setTemplatePickerIntent(null);
     setTemplatePickerItemCategory(null);
@@ -1995,6 +2113,7 @@ export default function PlanLabPanel({
   };
 
   const openEditEventDrawer = (addition: PlanLabDraftEventAddition) => {
+    closeAllPlanLabDrawers();
     setEventDrawerMode("edit");
     setEventDraftGroup(getEventMeta(addition.definition.type).group as EventGroup);
     setEventDraftType(addition.definition.type);
@@ -2004,6 +2123,7 @@ export default function PlanLabPanel({
   };
 
   const handleTemplateSelect = (template: TemplateDef) => {
+    closeAllPlanLabDrawers();
     if (template.isBundle) {
       setTemplatePlanUnsupportedNotice(null);
       setBundleTemplate(template);
@@ -2132,6 +2252,9 @@ export default function PlanLabPanel({
       }
 
       const bundleInstanceId = _context?.bundleInstanceId ?? null;
+      const baselineBundleEventIds = bundleInstanceId
+        ? baselineBundleEventIdsByBundleId.get(bundleInstanceId) ?? []
+        : [];
       const nextItemIds = parsedEvents.map((event) => `events:${event.id}`);
       const shouldPack =
         bundleWizardExperimentMode || options?.packAsExperiment !== false;
@@ -2164,12 +2287,18 @@ export default function PlanLabPanel({
         const filteredUpdate = { ...current.events.update };
         removedIds.forEach((id) => delete filteredUpdate[id]);
         const filteredRemove = current.events.remove.filter((id) => !removedIds.has(id));
+        const nextRemove = new Set(filteredRemove);
+        baselineBundleEventIds.forEach((id) => {
+          if (!parsedEvents.some((event) => event.id === id)) {
+            nextRemove.add(id);
+          }
+        });
         return {
           ...current,
           events: {
             add: [...filteredAdd, ...parsedEvents],
             update: filteredUpdate,
-            remove: filteredRemove.filter(
+            remove: Array.from(nextRemove).filter(
               (id) => !parsedEvents.some((event) => event.id === id)
             ),
           },
@@ -2269,6 +2398,7 @@ export default function PlanLabPanel({
       return { ok: true };
     },
     [
+      baselineBundleEventIdsByBundleId,
       handleLocateItem,
       resolveBundleExperimentTitle,
       bundleWizardExperimentMode,
@@ -3161,12 +3291,13 @@ export default function PlanLabPanel({
 
   const openV2EventDrawer = useCallback(
     (mode: "create" | "edit", type: ScenarioV2DrawerType, eventId?: string) => {
+      closeAllPlanLabDrawers();
       setV2EventDrawerMode(mode);
       setV2EventDrawerType(type);
       setEditingV2EventId(eventId ?? null);
       setV2EventDrawerOpen(true);
     },
-    []
+    [closeAllPlanLabDrawers]
   );
 
   const closeV2EventDrawer = useCallback(() => {
@@ -3504,12 +3635,23 @@ export default function PlanLabPanel({
     [scenario.bundleInstances]
   );
 
+  const baselineBundleInstanceById = useMemo(
+    () => new Map(bundleInstanceRecords.map((record) => [record.id, record])),
+    [bundleInstanceRecords]
+  );
+
+  const bundleInstanceOverrideById = useMemo(
+    () => new Map(bundleInstanceOverrides.map((record) => [record.id, record])),
+    [bundleInstanceOverrides]
+  );
+
   const bundleInstanceById = useMemo(() => {
     const map = new Map<string, BundleInstanceRecord>();
     bundleInstanceRecords.forEach((record) => map.set(record.id, record));
     bundleInstanceOverrides.forEach((record) => map.set(record.id, record));
     return map;
   }, [bundleInstanceOverrides, bundleInstanceRecords]);
+
 
   const bundleGroups = useMemo(() => {
     if (!scenarioIsV2) {
@@ -3593,12 +3735,11 @@ export default function PlanLabPanel({
 
   const handleViewBundle = useCallback(
     (bundleId: string, options?: { focusSection?: BundleDrawerSection }) => {
-      setMortgageDetail(null);
-      setLastBundleDrawerState(null);
+      closeAllPlanLabDrawers();
       setBundleViewId(bundleId);
       setBundleDrawerFocus(options?.focusSection ?? null);
     },
-    []
+    [closeAllPlanLabDrawers]
   );
 
   const handleEditBundle = useCallback(
@@ -3614,6 +3755,7 @@ export default function PlanLabPanel({
         );
         return;
       }
+      closeAllPlanLabDrawers();
       const isExperimentBundle = experimentGroups.some(
         (group) => group.bundleInstanceId === bundleId
       );
@@ -3635,29 +3777,28 @@ export default function PlanLabPanel({
       setBundleTemplate(templateDef);
       setBundleWizardOpen(true);
     },
-    [bundleGroupById, bundleInstanceById, experimentGroups, translate]
+    [bundleGroupById, bundleInstanceById, closeAllPlanLabDrawers, experimentGroups, translate]
   );
 
   const handleLocateBundle = useCallback(
     (bundleId: string, options?: { openDrawer?: boolean }) => {
       handleLocateItem(buildBundleRowId(bundleId));
       if (options?.openDrawer) {
-        setMortgageDetail(null);
-        setLastBundleDrawerState(null);
+        closeAllPlanLabDrawers();
         setBundleViewId(bundleId);
         setBundleDrawerFocus(null);
       }
     },
-    [handleLocateItem]
+    [closeAllPlanLabDrawers, handleLocateItem]
   );
 
   const openMortgageDetails = useCallback(
     (bundleId: string, eventId: string, tab: MortgageDetailTab) => {
+      closeAllPlanLabDrawers();
       setLastBundleDrawerState({ bundleId, focusSection: "mortgage" });
-      setBundleViewId(null);
       setMortgageDetail({ bundleId, eventId, tab });
     },
-    []
+    [closeAllPlanLabDrawers]
   );
 
   const bundleItemsById = useMemo(() => {
@@ -3698,8 +3839,30 @@ export default function PlanLabPanel({
   );
 
   const v2LedgerRows = useMemo(
-    () => (scenarioIsV2 ? compileScenarioV2ToLedger(sandboxScenarioV2) : []),
-    [sandboxScenarioV2, scenarioIsV2]
+    () =>
+      scenarioIsV2
+        ? planLabProjection.ledger
+            .filter((entry) => entry.source === "event")
+            .map((entry) => {
+              const kind: "income" | "expense" =
+                entry.category === "income"
+                  ? "income"
+                  : entry.category === "expense"
+                  ? "expense"
+                  : entry.amount >= 0
+                  ? "income"
+                  : "expense";
+              return {
+                month: entry.month,
+                amount: entry.amount,
+                sourceEventId: entry.sourceId,
+                label: entry.label,
+                memberId: entry.memberId,
+                kind,
+              };
+            })
+        : [],
+    [planLabProjection.ledger, scenarioIsV2]
   );
 
   const ledgerRowsByEventId = useMemo(() => {
@@ -3794,6 +3957,11 @@ export default function PlanLabPanel({
     scenarioIsV2,
     scenarioLiabilities,
   ]);
+
+  const bundleCardById = useMemo(
+    () => new Map(bundleCards.map((card) => [card.id, card])),
+    [bundleCards]
+  );
 
   const activeBundleCard = useMemo(
     () => (bundleViewId ? bundleCards.find((card) => card.id === bundleViewId) ?? null : null),
@@ -4826,6 +4994,167 @@ export default function PlanLabPanel({
     [translate]
   );
 
+  const formatBundleAmount = useCallback(
+    (value?: number | null) =>
+      typeof value === "number"
+        ? formatCurrency(value, scenario.baseCurrency, locale)
+        : moneyT("amountUnset"),
+    [locale, moneyT, scenario.baseCurrency]
+  );
+
+  const formatBundleDownPayment = useCallback(
+    (input: HomePurchaseBundleInput) =>
+      input.downPaymentMode === "percent"
+        ? `${input.downPaymentPercent ?? 0}%`
+        : formatBundleAmount(input.downPaymentAmount),
+    [formatBundleAmount]
+  );
+
+  const formatBundleRent = useCallback(
+    (input: HomePurchaseBundleInput) => {
+      if (!input.rental?.enabled) {
+        return translate("planLabBundleRentDisabled", "未出租");
+      }
+      return formatBundleAmount(input.rental.rentMonthly ?? 0);
+    },
+    [formatBundleAmount, translate]
+  );
+
+  const formatBundleHelper = useCallback(
+    (input: NewBabyPlanInput) => {
+      if (!input.helperEnabled) {
+        return translate("planLabBundleHelperDisabled", "未啟用");
+      }
+      return formatBundleAmount(input.helperMonthly ?? 0);
+    },
+    [formatBundleAmount, translate]
+  );
+
+  const formatBundleHelperFee = useCallback(
+    (input: NewBabyPlanInput) => {
+      if (!input.helperEnabled) {
+        return translate("planLabBundleHelperDisabled", "未啟用");
+      }
+      return formatBundleAmount(input.agencyFee ?? 0);
+    },
+    [formatBundleAmount, translate]
+  );
+
+  const formatBundleSchooling = useCallback(
+    (input: NewBabyPlanInput) => {
+      if (!input.schoolingEnabled) {
+        return translate("planLabBundleSchoolingDisabled", "未啟用");
+      }
+      const cadenceLabel =
+        input.schoolingCadence === "yearly"
+          ? translate("planLabBundleCadenceYearly", "／年")
+          : translate("planLabBundleCadenceMonthly", "／月");
+      return `${formatBundleAmount(input.schoolingAmount ?? 0)}${cadenceLabel}`;
+    },
+    [formatBundleAmount, translate]
+  );
+
+  const buildBundleChangeSummary = useCallback(
+    (baselineInput?: BundleWizardInput | null, currentInput?: BundleWizardInput | null) => {
+      if (!currentInput) {
+        return [];
+      }
+      if (!baselineInput) {
+        return [translate("planLabAppliedUpdated", "已更新")];
+      }
+      if (baselineInput.templateId !== currentInput.templateId) {
+        return [translate("planLabBundleTemplateChanged", "已更新組合類型")];
+      }
+      if (currentInput.templateId === "life_home_purchase") {
+        const base = baselineInput.input as HomePurchaseBundleInput;
+        const next = currentInput.input as HomePurchaseBundleInput;
+        const diffLines = [
+          buildDiffLine(
+            translate("planLabBundlePurchasePriceLabel", "物業價"),
+            formatBundleAmount(base.purchasePrice),
+            formatBundleAmount(next.purchasePrice)
+          ),
+          buildDiffLine(
+            translate("planLabBundleDownPaymentLabel", "首期"),
+            formatBundleDownPayment(base),
+            formatBundleDownPayment(next)
+          ),
+          buildDiffLine(
+            translate("planLabBundleMortgageRateLabel", "按揭利率"),
+            base.mortgageRatePct != null ? `${base.mortgageRatePct}%` : null,
+            next.mortgageRatePct != null ? `${next.mortgageRatePct}%` : null
+          ),
+          buildDiffLine(
+            translate("planLabBundleMortgageTermLabel", "年期"),
+            base.mortgageTermYears,
+            next.mortgageTermYears
+          ),
+          buildDiffLine(
+            translate("planLabBundleMortgagePaymentLabel", "每月供款"),
+            formatBundleAmount(base.mortgagePayment),
+            formatBundleAmount(next.mortgagePayment)
+          ),
+          buildDiffLine(
+            translate("planLabBundleRentMonthlyLabel", "租金收入"),
+            formatBundleRent(base),
+            formatBundleRent(next)
+          ),
+          buildDiffLine(
+            translate("planLabBundleStartMonthLabel", "購入月份"),
+            base.startMonth,
+            next.startMonth
+          ),
+        ].filter(Boolean) as string[];
+        return diffLines.length > 0 ? diffLines : [translate("planLabAppliedUpdated", "已更新")];
+      }
+      const base = baselineInput.input as NewBabyPlanInput;
+      const next = currentInput.input as NewBabyPlanInput;
+      const diffLines = [
+        buildDiffLine(
+          translate("planLabBundleBirthMonthLabel", "出生月份"),
+          base.birthMonth,
+          next.birthMonth
+        ),
+        buildDiffLine(
+          translate("planLabBundleDeliveryCostLabel", "生產費用"),
+          formatBundleAmount(base.deliveryCost),
+          formatBundleAmount(next.deliveryCost)
+        ),
+        buildDiffLine(
+          translate("planLabBundleChildcareLabel", "育兒支出"),
+          formatBundleAmount(base.childcareMonthly),
+          formatBundleAmount(next.childcareMonthly)
+        ),
+        buildDiffLine(
+          translate("planLabBundleHelperLabel", "外傭支出"),
+          formatBundleHelper(base),
+          formatBundleHelper(next)
+        ),
+        buildDiffLine(
+          translate("planLabBundleHelperFeeLabel", "外傭中介費"),
+          formatBundleHelperFee(base),
+          formatBundleHelperFee(next)
+        ),
+        buildDiffLine(
+          translate("planLabBundleSchoolingLabel", "教育支出"),
+          formatBundleSchooling(base),
+          formatBundleSchooling(next)
+        ),
+      ].filter(Boolean) as string[];
+      return diffLines.length > 0 ? diffLines : [translate("planLabAppliedUpdated", "已更新")];
+    },
+    [
+      buildDiffLine,
+      formatBundleAmount,
+      formatBundleDownPayment,
+      formatBundleHelper,
+      formatBundleHelperFee,
+      formatBundleRent,
+      formatBundleSchooling,
+      translate,
+    ]
+  );
+
   const appliedControls = useMemo(() => {
     const controls: Array<{
       id: string;
@@ -4840,7 +5169,21 @@ export default function PlanLabPanel({
     }> = [];
 
     if (scenarioIsV2) {
+      const bundleExperimentGroups = experimentGroups.filter(
+        (group) => Boolean(group.bundleInstanceId)
+      );
+      const bundleExperimentEventIds = new Set<string>();
+      bundleExperimentGroups.forEach((group) => {
+        group.itemIds.forEach((itemId) => {
+          if (itemId.startsWith("events:")) {
+            bundleExperimentEventIds.add(itemId.replace("events:", ""));
+          }
+        });
+      });
       scenarioV2Patches.events.add.forEach((event) => {
+        if (bundleExperimentEventIds.has(event.id)) {
+          return;
+        }
         controls.push({
           id: `event-add-${event.id}`,
           titleLine: event.label ?? event.id,
@@ -4852,6 +5195,9 @@ export default function PlanLabPanel({
         });
       });
       Object.keys(scenarioV2Patches.events.update).forEach((eventId) => {
+        if (bundleExperimentEventIds.has(eventId)) {
+          return;
+        }
         const updated = v2EventLookup.get(eventId);
         controls.push({
           id: `event-update-${eventId}`,
@@ -4861,6 +5207,80 @@ export default function PlanLabPanel({
           onRemove: () => removeScenarioV2Event(eventId),
           onLocate: () => handleLocateItem(`event:${eventId}`),
           onEdit: () => handleEditV2Event(eventId),
+        });
+      });
+      bundleExperimentGroups.forEach((group) => {
+        if (!group.bundleInstanceId) {
+          return;
+        }
+        const bundleId = group.bundleInstanceId;
+        const baselineRecord = baselineBundleInstanceById.get(bundleId);
+        const overrideRecord = bundleInstanceOverrideById.get(bundleId);
+        const wizardInput =
+          overrideRecord?.wizardInput ?? baselineRecord?.wizardInput ?? null;
+        const fallbackTitle = bundleGroupById.get(bundleId)
+          ? resolveBundleTitle(bundleGroupById.get(bundleId) ?? {})
+          : translate("planLabBundleExperimentFallback", "人生事件組合");
+        const titleLine = resolveBundleExperimentTitle(wizardInput, fallbackTitle);
+        const changeSummary = buildBundleChangeSummary(
+          baselineRecord?.wizardInput,
+          wizardInput
+        );
+        const bundleCard = bundleCardById.get(bundleId);
+        const impactLines = bundleCard
+          ? [
+              moneyT("bundleSummaryOneOff", {
+                amount:
+                  bundleCard.oneOffTotal > 0
+                    ? formatCurrency(
+                        bundleCard.oneOffTotal,
+                        scenario.baseCurrency,
+                        locale
+                      )
+                    : moneyT("amountUnset"),
+              }),
+              moneyT("bundleSummaryMonthlyIncome", {
+                amount: bundleCard.hasMonthlyImpact
+                  ? formatCurrency(
+                      bundleCard.monthlyIncome,
+                      scenario.baseCurrency,
+                      locale
+                    )
+                  : moneyT("amountUnset"),
+              }),
+              moneyT("bundleSummaryMonthlyExpense", {
+                amount: bundleCard.hasMonthlyImpact
+                  ? formatCurrency(
+                      bundleCard.monthlyExpense,
+                      scenario.baseCurrency,
+                      locale
+                    )
+                  : moneyT("amountUnset"),
+              }),
+              moneyT("bundleSummaryMonthlyNet", {
+                amount: bundleCard.hasMonthlyImpact
+                  ? formatCurrency(
+                      bundleCard.monthlyNet,
+                      scenario.baseCurrency,
+                      locale
+                    )
+                  : moneyT("amountUnset"),
+              }),
+            ]
+          : [];
+        const diffLines = [...changeSummary, ...impactLines].filter(Boolean);
+        controls.push({
+          id: `bundle-override-${group.experimentId}`,
+          titleLine,
+          diffLines:
+            diffLines.length > 0
+              ? diffLines
+              : [translate("planLabAppliedUpdated", "已更新")],
+          isEnabled: group.isEnabled !== false,
+          onToggle: () => toggleExperimentGroup(group.experimentId),
+          onRemove: () => removeBundleExperimentGroup(group),
+          onEdit: () => handleEditBundle(bundleId),
+          onLocate: () => handleLocateBundle(bundleId, { openDrawer: true }),
         });
       });
       return controls;
@@ -5373,6 +5793,11 @@ export default function PlanLabPanel({
     return controls;
   }, [
     baselineSmartInvestPolicy,
+    baselineBundleInstanceById,
+    bundleCardById,
+    bundleGroupById,
+    bundleInstanceOverrideById,
+    buildBundleChangeSummary,
     buildDiffLine,
     draftBudgetRules,
     draftEvents,
@@ -5383,8 +5808,11 @@ export default function PlanLabPanel({
     formatSmartInvestContributionLabel,
     formatSmartInvestReserveLabel,
     getScenarioItemSummary,
+    handleEditBundle,
+    handleLocateBundle,
     handleLocateItem,
     locale,
+    moneyT,
     openEditExperimentDrawer,
     openEditEventDrawer,
     handleEditV2Event,
@@ -5394,8 +5822,11 @@ export default function PlanLabPanel({
     removeDraftBudgetRule,
     removeDraftMember,
     removeScenarioV2Event,
+    removeBundleExperimentGroup,
     removeExperiment,
     rulePatches,
+    resolveBundleExperimentTitle,
+    resolveBundleTitle,
     scenario.baseCurrency,
     scenario.eventRefs,
     scenarioIsV2,
@@ -6256,6 +6687,13 @@ export default function PlanLabPanel({
                                           onClick: () =>
                                             handleViewBundle(bundle.id),
                                         }}
+                                        secondaryAction={{
+                                          label: translate(
+                                            "planLabBundleEdit",
+                                            "編輯"
+                                          ),
+                                          onClick: () => handleEditBundle(bundle.id),
+                                        }}
                                         panel={
                                           bundleItems.length === 0 ? (
                                             <Text size="xs" c="dimmed">
@@ -6275,14 +6713,14 @@ export default function PlanLabPanel({
                                                   highlighted={
                                                     highlightedItemId === item.id
                                                   }
-                                                  onClick={() =>
-                                                    handleViewBundle(bundle.id, {
-                                                      focusSection:
-                                                        getBundleChildFocusSection(item),
-                                                    })
-                                                  }
                                                 />
                                               ))}
+                                              <Text size="xs" c="dimmed">
+                                                {translate(
+                                                  "planLabBundleItemsReadonly",
+                                                  "散件為只讀，請使用「查看組合」查看完整內容。"
+                                                )}
+                                              </Text>
                                             </Stack>
                                           )
                                         }
@@ -6427,9 +6865,11 @@ export default function PlanLabPanel({
                                           handleEditV2Event(item.eventId);
                                         }
                                         if (item.positionKind === "asset") {
+                                          closeAllPlanLabDrawers();
                                           setAssetDrawerItem(item.position ?? null);
                                         }
                                         if (item.positionKind === "liability") {
+                                          closeAllPlanLabDrawers();
                                           setLiabilityDrawerItem(item.position ?? null);
                                         }
                                         return;

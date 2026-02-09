@@ -47,6 +47,7 @@ import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 import { buildMonthDateRef } from "../domain/dateRef";
+import type { ScenarioSeedPayload } from "../scenarios/scenarioSeeds";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -214,6 +215,7 @@ export type HomePosition = {
   usage?: HomeUsage;
   mode?: HomeMode;
   purchasePrice?: number;
+  mortgageBaseValue?: number;
   downPayment?: number;
   purchaseMonth?: string;
   annualAppreciationPct: number;
@@ -418,6 +420,8 @@ export type PositionCopyType =
 export type ScenarioMeta = {
   onboardingVersion?: number;
   schemaVersion?: number;
+  isSeeded?: boolean;
+  skipOnboarding?: boolean;
 };
 
 export type ScenarioClientComputed = {
@@ -467,6 +471,7 @@ type ScenarioStoreState = {
     name: string,
     options?: { baseCurrency?: string; onboardingCompleted?: boolean }
   ) => Scenario;
+  createScenarioFromSeed: (name: string, seed: ScenarioSeedPayload) => Scenario | null;
   renameScenario: (id: string, name: string) => void;
   duplicateScenario: (id: string) => Scenario | null;
   deleteScenario: (id: string) => void;
@@ -1197,36 +1202,62 @@ const applyLiabilityItemRemoveFromPositions = (
   };
 };
 
+const resolvePropertyMarketValue = (event: ScenarioEvent) => {
+  if (event.type !== "housing" || event.kind !== "mortgage") {
+    return undefined;
+  }
+  return typeof event.propertyMarketValue === "number"
+    ? event.propertyMarketValue
+    : typeof event.purchasePrice === "number"
+    ? event.purchasePrice
+    : undefined;
+};
+
+const resolveMortgageBaseValue = (event: ScenarioEvent) => {
+  if (event.type !== "housing" || event.kind !== "mortgage") {
+    return undefined;
+  }
+  return typeof event.mortgageBaseValue === "number"
+    ? event.mortgageBaseValue
+    : typeof event.purchasePrice === "number"
+    ? event.purchasePrice
+    : typeof event.propertyMarketValue === "number"
+    ? event.propertyMarketValue
+    : undefined;
+};
+
 const resolveMortgagePrincipal = (event: ScenarioEvent) => {
   if (event.type !== "housing" || event.kind !== "mortgage") {
     return undefined;
   }
-  if (typeof event.purchasePrice !== "number") {
+  const mortgageBaseValue = resolveMortgageBaseValue(event);
+  if (typeof mortgageBaseValue !== "number") {
     return undefined;
   }
   if (event.downPaymentMode === "amount") {
-    return Math.max(event.purchasePrice - (event.downPaymentAmount ?? 0), 0);
+    return Math.max(mortgageBaseValue - (event.downPaymentAmount ?? 0), 0);
   }
   if (event.downPaymentMode === "percent") {
     const downPaymentPct = event.downPaymentPercent ?? 0;
-    return Math.max(event.purchasePrice * (1 - downPaymentPct / 100), 0);
+    return Math.max(mortgageBaseValue * (1 - downPaymentPct / 100), 0);
   }
   if (typeof event.downPaymentAmount === "number") {
-    return Math.max(event.purchasePrice - event.downPaymentAmount, 0);
+    return Math.max(mortgageBaseValue - event.downPaymentAmount, 0);
   }
-  return event.purchasePrice;
+  return mortgageBaseValue;
 };
 
 const buildEventGeneratedAssetsForEvent = (
   event: ScenarioEvent
 ): ScenarioAsset[] => {
   if (event.type === "housing" && event.kind === "mortgage") {
+    const currentValue = resolvePropertyMarketValue(event);
     return [
       {
         id: event.propertyAssetId ?? event.id,
         kind: "home" as const,
         label: event.label,
-        currentValue: event.purchasePrice,
+        currentValue,
         source: "eventGenerated" as const,
         createdByEventId: event.id,
         createdByTemplate: "housing_mortgage" as const,
@@ -2024,6 +2055,109 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
 
     return newScenario;
+  },
+  createScenarioFromSeed: (name, seed) => {
+    const created = get().createScenario(name, { onboardingCompleted: true });
+    if (!created) {
+      return null;
+    }
+    const scenarioId = created.id;
+    const scenario = get().scenarios.find((entry) => entry.id === scenarioId);
+    if (!scenario) {
+      return null;
+    }
+
+    const resolveSeedMemberId = (roleKey: string) =>
+      `${scenarioId}:member:${roleKey}`;
+
+    const seedMemberIdMap = new Map(
+      seed.members.map((member) => [member.id, resolveSeedMemberId(member.id)])
+    );
+    const seededMembers = seed.members.map((member) => ({
+      ...member,
+      id: seedMemberIdMap.get(member.id) ?? member.id,
+    }));
+    const seededEvents = seed.events.map((event) =>
+      event.memberId
+        ? {
+            ...event,
+            memberId: seedMemberIdMap.get(event.memberId) ?? event.memberId,
+          }
+        : event
+    );
+
+    const seedAssumptions: Partial<ScenarioAssumptions> = {
+      ...seed.assumptions,
+      baseMonth: seed.assumptions?.baseMonth ?? seed.baseMonth,
+      initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
+    };
+
+    const assumptionPatch: Partial<ScenarioAssumptions> = {};
+    const assumptionPatchRecord = assumptionPatch as Record<
+      keyof ScenarioAssumptions,
+      ScenarioAssumptions[keyof ScenarioAssumptions] | undefined
+    >;
+    (
+      Object.entries(seedAssumptions) as [
+        keyof ScenarioAssumptions,
+        ScenarioAssumptions[keyof ScenarioAssumptions] | undefined,
+      ][]
+    ).forEach(([assumptionKey, value]) => {
+      if (value === undefined) {
+        return;
+      }
+      const currentValue = scenario.assumptions[assumptionKey];
+      const defaultValue = (defaultAssumptions as Partial<ScenarioAssumptions>)[
+        assumptionKey
+      ];
+      const shouldApply =
+        currentValue === undefined ||
+        currentValue === null ||
+        (defaultValue !== undefined && currentValue === defaultValue);
+      if (shouldApply) {
+        assumptionPatchRecord[assumptionKey] = value;
+      }
+    });
+
+    if (seed.baseCurrency && seed.baseCurrency !== scenario.baseCurrency) {
+      get().updateScenarioBaseCurrency(scenarioId, seed.baseCurrency);
+    }
+
+    if (Object.keys(assumptionPatch).length > 0) {
+      get().updateScenarioAssumptions(scenarioId, assumptionPatch);
+    }
+
+    if (seed.members.length > 0) {
+      if (!scenario.members?.length) {
+        get().setScenarioMembers(scenarioId, seededMembers);
+      }
+    }
+
+    if (seed.assets.length > 0) {
+      get().setScenarioAssets(scenarioId, seed.assets);
+    }
+
+    if (seed.liabilities.length > 0) {
+      get().setScenarioLiabilities(scenarioId, seed.liabilities);
+    }
+
+    seed.bundleInstances.forEach((record) => {
+      get().upsertBundleInstanceRecord(scenarioId, record);
+    });
+
+    seededEvents.forEach((event) => {
+      get().addEvent(event, scenarioId);
+    });
+
+    get().updateScenarioMeta(scenarioId, {
+      isSeeded: true,
+      skipOnboarding: true,
+      onboardingVersion: 2,
+      schemaVersion: 2,
+    });
+    get().updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+
+    return get().scenarios.find((scenario) => scenario.id === scenarioId) ?? null;
   },
   renameScenario: (id, name) => {
     set((state) => ({

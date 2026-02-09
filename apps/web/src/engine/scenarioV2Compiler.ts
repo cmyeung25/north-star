@@ -104,13 +104,28 @@ const buildCashflowMonths = (
   return months;
 };
 
-const resolveDownPaymentAmount = (event: {
+const resolvePropertyMarketValue = (event: {
+  propertyMarketValue?: number;
   purchasePrice?: number;
-  downPaymentMode?: "percent" | "amount";
-  downPaymentPercent?: number;
-  downPaymentAmount?: number;
-}) => {
-  const purchasePrice = event.purchasePrice ?? 0;
+}) => event.propertyMarketValue ?? event.purchasePrice ?? 0;
+
+const resolveMortgageBaseValue = (event: {
+  mortgageBaseValue?: number;
+  propertyMarketValue?: number;
+  purchasePrice?: number;
+}) => event.mortgageBaseValue ?? event.purchasePrice ?? event.propertyMarketValue ?? 0;
+
+const resolveDownPaymentAmount = (
+  event: {
+    purchasePrice?: number;
+    propertyMarketValue?: number;
+    downPaymentMode?: "percent" | "amount";
+    downPaymentPercent?: number;
+    downPaymentAmount?: number;
+  },
+  baseValue?: number
+) => {
+  const purchasePrice = baseValue ?? event.purchasePrice ?? event.propertyMarketValue ?? 0;
   if (event.downPaymentMode === "amount") {
     return event.downPaymentAmount ?? 0;
   }
@@ -181,9 +196,9 @@ const buildHousingLedgerRows = (
     return rows;
   }
 
-  const purchasePrice = event.purchasePrice ?? 0;
-  const downPayment = resolveDownPaymentAmount(event);
-  const principal = Math.max(0, purchasePrice - downPayment);
+  const mortgageBaseValue = resolveMortgageBaseValue(event);
+  const downPayment = resolveDownPaymentAmount(event, mortgageBaseValue);
+  const principal = Math.max(0, mortgageBaseValue - downPayment);
   const termMonths = Math.max(0, Math.round((event.mortgageTermYears ?? 0) * 12));
   const payment =
     event.mortgagePayment ??
@@ -657,19 +672,21 @@ export const compileScenarioV2ToProjectionInput = (
     if (event.type !== "housing" || event.kind !== "mortgage") {
       return [];
     }
-    const purchasePrice = event.purchasePrice ?? 0;
-    const downPayment = resolveDownPaymentAmount(event);
+    const propertyMarketValue = resolvePropertyMarketValue(event);
+    const mortgageBaseValue = resolveMortgageBaseValue(event);
+    const downPayment = resolveDownPaymentAmount(event, propertyMarketValue);
     return [
       {
         id: event.propertyAssetId ?? event.id,
         usage: "primary" as const,
         mode: "new_purchase" as const,
-        purchasePrice,
+        purchasePrice: propertyMarketValue,
         downPayment,
         purchaseMonth: event.startMonth,
         annualAppreciationPct: scenario.assumptions.propertyAppreciationPct ?? 0,
         mortgageRatePct: event.mortgageRatePct ?? 0,
         mortgageTermYears: event.mortgageTermYears ?? 0,
+        mortgageBaseValue,
         feesOneTime: 0,
         holdingCostMonthly: 0,
         holdingCostAnnualGrowthPct: 0,

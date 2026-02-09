@@ -2742,8 +2742,9 @@
     "housingOwnHint": "填寫物業估值、首期及按揭資料（如適用）。",
     "housingOwnOnboardingHint": "Onboarding 只需填第一間物業；其他物業之後到金錢專區再添加。",
     "housingPropertyValue": "物業估值",
+    "housingPropertyMarketValue": "樓宇現價",
     "housingPropertyStartMonth": "購入／開始月份",
-    "housingPropertyValueRequired": "請輸入物業估值",
+    "housingPropertyValueRequired": "請輸入樓宇現價",
     "housingPropertyStartMonthRequired": "請輸入開始月份",
     "housingDownPaymentTitle": "首期",
     "housingDownPaymentPercent": "首期（%）",
@@ -2757,6 +2758,11 @@
     "housingMortgageEstimate": "估算月供：{amount}",
     "housingMortgageDifference": "與輸入差額：{diff}",
     "housingMortgageManualToggle": "手動輸入每月供款",
+    "housingMortgageBaseSynced": "按揭基準金額：與樓宇現價一致",
+    "housingMortgageBaseSplitAction": "分開輸入",
+    "housingMortgageBaseValue": "按揭基準金額",
+    "housingMortgageBaseSyncToggle": "與樓宇現價同步",
+    "housingMortgageBaseWarning": "按揭基準高於現價，淨值可能為負。",
     "housingMortgageRateRequired": "請輸入按揭利率",
     "housingMortgageTermRequired": "請輸入按揭年期（年）",
     "housingMortgagePaymentRequired": "請輸入每月供款",
@@ -3070,6 +3076,7 @@
     "rentMonthlyRequired": "請輸入每月租金。",
     "existingHomeMarketValue": "請輸入物業市值。",
     "mortgageBalanceNonNegative": "按揭餘額必須為 0 或以上。",
+    "mortgageBaseMin": "按揭基準金額必須為 0 或以上。",
     "mortgageRateMin": "按揭利率必須為 0 或以上。",
     "remainingTermMin": "剩餘期數至少為 1 個月。",
     "holdingCostMonthlyMin": "持有成本必須為 0 或以上。",
@@ -3242,7 +3249,132 @@
     "compareTemplateEducationBudgetHint": "為新情境加入限定範圍的教育預算規則。",
     "compareTemplateEducationRuleName": "教育預算 {index}",
     "compareTemplateCarOwnership": "擁車開支",
-    "compareTemplateCarOwnershipHint": "加入預設的汽車資產項目。"
+    "compareTemplateCarOwnershipHint": "加入預設的汽車資產項目。",
+    "seeds": {
+      "sectionTitle": "快速開始（測試情景）",
+      "sectionDescription": "一鍵建立預設資料，直接進入情景實驗室。",
+      "useSeed": "使用此測試情景",
+      "preview": "預覽內容",
+      "previewTitle": "測試情景預覽",
+      "previewMembers": "家庭成員",
+      "previewMonthlyIncome": "月入",
+      "previewMonthlyExpense": "月支",
+      "previewMonthlyNet": "月淨現金流",
+      "previewAssets": "資產",
+      "previewLiabilities": "負債",
+      "previewBundles": "包含組合",
+      "previewBundlesEmpty": "無",
+      "previewStartMonth": "開始月份",
+      "seedCreated": "已建立測試情景：「{name}」",
+      "seedFailed": "建立失敗，請再試一次。",
+      "keyNumbers": {
+        "monthlyIncome": "月入",
+        "monthlyExpense": "月支",
+        "cash": "現金",
+        "propertyMortgage": "物業/按揭",
+        "rentalIncome": "租金收入",
+        "baby": "育兒支出",
+        "helper": "工人費用",
+        "investments": "投資"
+      },
+      "bundleLabels": {
+        "homePurchase": "置業組合",
+        "newBaby": "新生兒組合",
+        "deliveryCost": "生產費用",
+        "childcare": "育兒開支",
+        "helperMonthly": "工人薪金",
+        "agencyFee": "中介費/機票",
+        "schooling": "教育費用"
+      },
+      "assetLabels": {
+        "cash": "現金",
+        "investments": "投資"
+      },
+      "eventLabels": {
+        "salary": "固定薪金",
+        "bonus": "獎金/分紅",
+        "rent": "租金",
+        "living": "基本生活開支",
+        "stampDuty": "印花稅",
+        "legalFee": "律師費",
+        "managementFee": "管理費",
+        "babySetup": "嬰兒用品"
+      },
+      "profiles": {
+        "singleRenter": {
+          "title": "單身上班族｜租樓儲蓄",
+          "description": "1 成員，固定薪金，租金＋基本生活開支，少量現金/投資。",
+          "tags": ["1人", "固定薪金", "租樓", "現金/投資"],
+          "memberName": "阿樂",
+          "keyNumbers": {
+            "monthlyIncome": "$25k",
+            "monthlyExpense": "$18k",
+            "cash": "$50k"
+          }
+        },
+        "dualIncomeHome": {
+          "title": "雙職夫婦｜置業（首期+按揭）",
+          "description": "2 成員，雙收入，置業組合含首期、按揭與一次性費用。",
+          "tags": ["2人", "雙收入", "置業組合", "按揭"],
+          "memberNameA": "志明",
+          "memberNameB": "阿欣",
+          "keyNumbers": {
+            "monthlyIncome": "$65k",
+            "monthlyExpense": "$35.5k",
+            "propertyMortgage": "$600萬 / $480萬"
+          }
+        },
+        "dualIncomeRental": {
+          "title": "雙職夫婦｜置業 + 租金收入",
+          "description": "2 成員，置業組合加租金收入，用於測試現金流。",
+          "tags": ["2人", "雙收入", "置業+出租", "租金收入"],
+          "memberNameA": "子健",
+          "memberNameB": "嘉欣",
+          "keyNumbers": {
+            "monthlyIncome": "$67k",
+            "rentalIncome": "$12k",
+            "propertyMortgage": "$700萬 / $525萬"
+          }
+        },
+        "newBaby": {
+          "title": "有新生兒家庭｜育兒開支",
+          "description": "2 大人 + BB，生產一次性＋持續育兒支出。",
+          "tags": ["2-3人", "新生兒", "一次性+持續", "育兒"],
+          "memberNameA": "家怡",
+          "memberNameB": "天佑",
+          "memberNameC": "BB",
+          "keyNumbers": {
+            "monthlyIncome": "$56k",
+            "baby": "$5k/月",
+            "cash": "$15萬"
+          }
+        },
+        "newBabyHelper": {
+          "title": "有工人姐姐｜育兒 + 工人費用",
+          "description": "雙收入，育兒支出加工人薪金及中介費。",
+          "tags": ["2人", "新生兒", "工人費用", "一次性費用"],
+          "memberNameA": "俊豪",
+          "memberNameB": "思穎",
+          "keyNumbers": {
+            "monthlyIncome": "$60k",
+            "helper": "$5k/月",
+            "baby": "$6k/月"
+          }
+        },
+        "highAsset": {
+          "title": "高資產家庭｜有物業 + 按揭 + 投資",
+          "description": "現金/投資較多，物業加按揭，適合測試 KPI 混合顯示。",
+          "tags": ["高資產", "物業+按揭", "投資", "較高收入"],
+          "memberNameA": "雅婷",
+          "memberNameB": "子朗",
+          "keyNumbers": {
+            "monthlyIncome": "$130k",
+            "investments": "$200萬",
+            "propertyMortgage": "$1200萬 / $700萬"
+          }
+        }
+      }
+    }
   },
   "warnings": {
     "doubleCountingHomeRent": "租屋與買樓同時存在，可能重複計算。",

@@ -1078,8 +1078,9 @@ export const mapScenarioToEngineInput = (
           }
 
           const purchasePrice = home.purchasePrice ?? 0;
+          const mortgageBaseValue = home.mortgageBaseValue ?? purchasePrice;
           const downPayment = home.downPayment ?? 0;
-          const principal = purchasePrice - downPayment;
+          const principal = Math.max(mortgageBaseValue - downPayment, 0);
           const annualRateDecimal = (home.mortgageRatePct ?? 0) / 100;
           const termMonths = (home.mortgageTermYears ?? 0) * 12;
 
@@ -1097,6 +1098,7 @@ export const mapScenarioToEngineInput = (
             }
             console.debug("[homeMap]", {
               purchasePrice,
+              mortgageBaseValue,
               downPayment,
               principal,
               annualRateDecimal,

@@ -509,15 +509,19 @@ const buildHousingChanges = ({
     return { assets, liabilities, events };
   }
 
-  const propertyValue = normalizeAmount(housing.own.propertyValue);
+  const propertyMarketValue = normalizeAmount(housing.own.propertyMarketValue);
+  const mortgageBaseValue =
+    housing.own.mortgageBaseMode === "CUSTOM"
+      ? normalizeAmount(housing.own.mortgageBaseValue ?? propertyMarketValue)
+      : propertyMarketValue;
   const propertyStartMonth =
     normalizeMonth(housing.own.startMonth) ?? resolvedBaseMonth;
-  if (propertyValue > 0 && propertyStartMonth) {
+  if (propertyMarketValue > 0 && propertyStartMonth) {
     assets.push({
       id: propertyId,
       kind: "home",
       label: "Property",
-      currentValue: propertyValue,
+      currentValue: propertyMarketValue,
       startMonth: propertyStartMonth,
       source: "eventGenerated",
     });
@@ -526,12 +530,12 @@ const buildHousingChanges = ({
   const downPaymentPercent =
     housing.own.downPaymentMode === "percent"
       ? normalizeAmount(housing.own.downPaymentPercent)
-      : propertyValue > 0
-        ? (normalizeAmount(housing.own.downPaymentAmount) / propertyValue) * 100
+      : propertyMarketValue > 0
+        ? (normalizeAmount(housing.own.downPaymentAmount) / propertyMarketValue) * 100
         : 0;
   const downPaymentAmount =
     housing.own.downPaymentMode === "percent"
-      ? (propertyValue * downPaymentPercent) / 100
+      ? (propertyMarketValue * downPaymentPercent) / 100
       : normalizeAmount(housing.own.downPaymentAmount);
 
   const mortgageTermYears = normalizeAmount(
@@ -541,8 +545,8 @@ const buildHousingChanges = ({
         : 0)
   );
 
-  if (propertyValue > 0) {
-    const principalOutstanding = Math.max(propertyValue - downPaymentAmount, 0);
+  if (housing.own.mortgageEnabled && mortgageBaseValue > 0) {
+    const principalOutstanding = Math.max(mortgageBaseValue - downPaymentAmount, 0);
     liabilities.push({
       id: mortgageId,
       kind: "mortgage",
@@ -555,7 +559,7 @@ const buildHousingChanges = ({
     });
   }
 
-  if (!propertyStartMonth || propertyValue <= 0) {
+  if (!propertyStartMonth || propertyMarketValue <= 0 || !housing.own.mortgageEnabled) {
     return { assets, liabilities, events };
   }
 
@@ -564,7 +568,10 @@ const buildHousingChanges = ({
     type: "housing",
     kind: "mortgage",
     startMonth: propertyStartMonth ?? resolvedBaseMonth,
-    purchasePrice: propertyValue,
+    purchasePrice: propertyMarketValue,
+    propertyMarketValue,
+    mortgageBaseValue,
+    mortgageBaseMode: housing.own.mortgageBaseMode ?? "SYNC",
     downPaymentMode: housing.own.downPaymentMode,
     downPaymentPercent,
     downPaymentAmount,

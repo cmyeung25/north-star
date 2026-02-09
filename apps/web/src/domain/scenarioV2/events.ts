@@ -109,6 +109,9 @@ const HousingEventSchemaBase = BaseEventSchema.extend({
   rentMonthly: z.number().optional(),
   rentAnnualGrowthPct: z.number().optional(),
   purchasePrice: z.number().optional(),
+  propertyMarketValue: z.number().optional(),
+  mortgageBaseValue: z.number().optional(),
+  mortgageBaseMode: z.enum(["SYNC", "CUSTOM"]).optional(),
   downPaymentMode: z.enum(["percent", "amount"]).optional(),
   downPaymentPercent: z.number().optional(),
   downPaymentAmount: z.number().optional(),
@@ -179,7 +182,10 @@ const validateHousingEvent = (
       path: ["mortgageLiabilityId"],
     });
   }
-  if (typeof event.purchasePrice !== "number") {
+  if (
+    typeof event.purchasePrice !== "number" &&
+    typeof event.propertyMarketValue !== "number"
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "validation.purchasePriceRequired",
