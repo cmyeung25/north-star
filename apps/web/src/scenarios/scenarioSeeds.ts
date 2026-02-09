@@ -16,6 +16,7 @@ import {
   buildNewBabyBundleEvents,
 } from "../domain/eventTemplates/bundles";
 import { addMonths } from "../domain/members/age";
+import { defaultCurrency } from "../../lib/i18n";
 
 export type ScenarioSeedTranslator = ((
   key: string,
@@ -44,6 +45,7 @@ export type ScenarioSeedBundleSummary = {
 
 export type ScenarioSeedPayload = {
   baseMonth: MonthKey;
+  baseCurrency?: string;
   initialCash: number;
   assumptions?: Partial<ScenarioAssumptions>;
   members: ScenarioMember[];
@@ -283,7 +285,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
       const memberBirthMonth = offsetMonth(baseMonth, -30 * 12);
-      const memberId = "seed-single-1";
+      const memberId = "self";
       const members = [
         buildMember(
           memberId,
@@ -333,6 +335,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       ];
       const payload: ScenarioSeedPayload = {
         baseMonth,
+        baseCurrency: defaultCurrency,
         initialCash: 50000,
         assumptions: buildSeedAssumptions(baseMonth, {
           inflationRate: 2.5,
@@ -371,8 +374,8 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     ],
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
-      const memberA = "seed-couple-a";
-      const memberB = "seed-couple-b";
+      const memberA = "self";
+      const memberB = "spouse";
       const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
       const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
       const members = [
@@ -480,6 +483,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
 
       const payload: ScenarioSeedPayload = {
         baseMonth,
+        baseCurrency: defaultCurrency,
         initialCash: 200000,
         assumptions: buildSeedAssumptions(baseMonth, {
           inflationRate: 2.5,
@@ -527,8 +531,8 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     ],
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
-      const memberA = "seed-rental-a";
-      const memberB = "seed-rental-b";
+      const memberA = "self";
+      const memberB = "spouse";
       const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
       const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
       const members = [
@@ -628,6 +632,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
 
       const payload: ScenarioSeedPayload = {
         baseMonth,
+        baseCurrency: defaultCurrency,
         initialCash: 300000,
         assumptions: buildSeedAssumptions(baseMonth, {
           inflationRate: 2.5,
@@ -677,9 +682,9 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
       const babyMonth = offsetMonth(baseMonth, 5);
-      const memberA = "seed-baby-a";
-      const memberB = "seed-baby-b";
-      const memberC = "seed-baby-c";
+      const memberA = "self";
+      const memberB = "spouse";
+      const memberC = "child1";
       const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
       const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
       const members = [
@@ -771,6 +776,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
 
       const payload: ScenarioSeedPayload = {
         baseMonth,
+        baseCurrency: defaultCurrency,
         initialCash: 150000,
         assumptions: buildSeedAssumptions(baseMonth, {
           inflationRate: 2.5,
@@ -816,10 +822,10 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
       const babyMonth = offsetMonth(baseMonth, 5);
-      const memberA = "seed-helper-a";
-      const memberB = "seed-helper-b";
-      const memberC = "seed-helper-c";
-      const memberD = "seed-helper-d";
+      const memberA = "self";
+      const memberB = "spouse";
+      const memberC = "child1";
+      const memberD = "helper";
       const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
       const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
       const helperBirthMonth = offsetMonth(baseMonth, -28 * 12);
@@ -905,6 +911,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
 
       const payload: ScenarioSeedPayload = {
         baseMonth,
+        baseCurrency: defaultCurrency,
         initialCash: 180000,
         assumptions: buildSeedAssumptions(baseMonth, {
           inflationRate: 2.5,
@@ -949,8 +956,8 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     ],
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
-      const memberA = "seed-wealth-a";
-      const memberB = "seed-wealth-b";
+      const memberA = "self";
+      const memberB = "spouse";
       const memberABirthMonth = offsetMonth(baseMonth, -45 * 12);
       const memberBBirthMonth = offsetMonth(baseMonth, -43 * 12);
       const members = [
@@ -1051,6 +1058,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
 
       const payload: ScenarioSeedPayload = {
         baseMonth,
+        baseCurrency: defaultCurrency,
         initialCash: 800000,
         assumptions: buildSeedAssumptions(baseMonth, {
           inflationRate: 2.5,
