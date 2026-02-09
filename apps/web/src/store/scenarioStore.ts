@@ -12,6 +12,7 @@ import type { EventDefinition, ScenarioEventRef } from "../domain/events/types";
 import type {
   ScenarioEvent,
   ScenarioEventDraft,
+  MonthKey,
 } from "../domain/scenarioV2/events";
 import type { BundleWizardInput } from "../domain/eventTemplates/bundles";
 import {
@@ -46,8 +47,9 @@ import {
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
+import { addMonths } from "../domain/members/age";
 import { buildMonthDateRef } from "../domain/dateRef";
-import type { ScenarioSeedPayload } from "../scenarios/scenarioSeeds";
+import { getScenarioSeedDefinition } from "../scenarios/scenarioSeeds";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -421,6 +423,8 @@ export type ScenarioMeta = {
   schemaVersion?: number;
   isSeeded?: boolean;
   skipOnboarding?: boolean;
+  seedKey?: string;
+  seedVersion?: number;
 };
 
 export type ScenarioClientComputed = {
@@ -470,7 +474,11 @@ type ScenarioStoreState = {
     name: string,
     options?: { baseCurrency?: string; onboardingCompleted?: boolean }
   ) => Scenario;
-  createScenarioFromSeed: (name: string, seed: ScenarioSeedPayload) => Scenario | null;
+  createScenarioFromSeed: (
+    name: string,
+    seedKey: string,
+    baseMonth?: MonthKey
+  ) => Scenario | null;
   renameScenario: (id: string, name: string) => void;
   duplicateScenario: (id: string) => Scenario | null;
   deleteScenario: (id: string) => void;
@@ -736,12 +744,13 @@ const defaultKpis: ScenarioKpis = {
   riskLevel: "Medium",
 };
 
-const defaultAssumptions: ScenarioAssumptions = {
+export const DEFAULT_ASSUMPTIONS_V1: ScenarioAssumptions = {
   horizonMonths: 60,
   initialCash: 0,
   baseMonth: null,
   includeBudgetRulesInProjection: true,
 };
+const defaultAssumptions = DEFAULT_ASSUMPTIONS_V1;
 
 const defaultAppSettings: AppSettings = {
   globalBaseMonth: null,
@@ -774,6 +783,48 @@ const clonePlans = (plans?: Plan[]) =>
     ...plan,
     snapshot: clonePlanSnapshot(plan.snapshot),
   })) ?? [];
+
+const buildSeedMember = ({
+  scenarioId,
+  roleKey,
+  name,
+  baseMonth,
+  birthMonth,
+  birthMonthOffsetMonths,
+  retireAge,
+}: {
+  scenarioId: string;
+  roleKey: string;
+  name: string;
+  baseMonth: MonthKey;
+  birthMonth?: MonthKey;
+  birthMonthOffsetMonths?: number;
+  retireAge?: number;
+}): ScenarioMember => {
+  const resolvedBirthMonth =
+    birthMonth ??
+    (typeof birthMonthOffsetMonths === "number"
+      ? addMonths(baseMonth, birthMonthOffsetMonths)
+      : undefined);
+
+  const milestones: MemberMilestone[] = [];
+  if (typeof retireAge === "number") {
+    milestones.push({
+      id: `${scenarioId}:member:${roleKey}:retirement`,
+      kind: "retirement",
+      label: "Retirement",
+      atAgeYears: retireAge,
+    });
+  }
+
+  return {
+    id: `${scenarioId}:member:${roleKey}`,
+    name,
+    kind: "person",
+    birthMonth: resolvedBirthMonth,
+    milestones: milestones.length > 0 ? milestones : undefined,
+  };
+};
 
 const createScenarioId = () => `scenario-${nanoid(8)}`;
 const createScenarioEventId = () => `evt_v2_${nanoid(8)}`;
@@ -2029,43 +2080,74 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
 
     return newScenario;
   },
-  createScenarioFromSeed: (name, seed) => {
-    const created = get().createScenario(name, { onboardingCompleted: true });
+  createScenarioFromSeed: (name, seedKey, baseMonthOverride) => {
+    if (process.env.NEXT_PUBLIC_ENABLE_SCENARIO_SEEDS_V1 === "false") {
+      return null;
+    }
+
+    const seed = getScenarioSeedDefinition(seedKey);
+    if (!seed) {
+      return null;
+    }
+
+    const baseMonth =
+      baseMonthOverride ?? seed.assumptionsPreset.baseMonth ?? seed.environmentPreset.baseMonth;
+    const horizonYears =
+      seed.assumptionsPreset.horizonYears ?? seed.environmentPreset.horizonYears;
+    const horizonMonths = horizonYears * 12;
+
+    const created = get().createScenario(name, {
+      onboardingCompleted: true,
+      baseCurrency: seed.environmentPreset.currency,
+    });
     if (!created) {
       return null;
     }
     const scenarioId = created.id;
 
-    get().updateScenarioAssumptions(scenarioId, {
-      baseMonth: seed.baseMonth,
-      initialCash: seed.initialCash,
-    });
+    const nextAssumptions: ScenarioAssumptions = {
+      ...DEFAULT_ASSUMPTIONS_V1,
+      ...created.assumptions,
+      ...seed.assumptionsPreset,
+      baseMonth,
+      horizonMonths: clamp(horizonMonths, horizonRange.min, horizonRange.max),
+    };
 
-    if (seed.members.length > 0) {
-      get().setScenarioMembers(scenarioId, seed.members);
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === scenarioId
+          ? {
+              ...scenario,
+              assumptions: nextAssumptions,
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+
+    const members = seed.membersPreset.map((member) =>
+      buildSeedMember({
+        scenarioId,
+        roleKey: member.roleKey,
+        name: member.name,
+        baseMonth,
+        birthMonth: member.birthMonth,
+        birthMonthOffsetMonths: member.birthMonthOffsetMonths,
+        retireAge: member.retireAge,
+      })
+    );
+
+    if (members.length > 0) {
+      get().setScenarioMembers(scenarioId, members);
     }
-
-    if (seed.assets.length > 0) {
-      get().setScenarioAssets(scenarioId, seed.assets);
-    }
-
-    if (seed.liabilities.length > 0) {
-      get().setScenarioLiabilities(scenarioId, seed.liabilities);
-    }
-
-    seed.bundleInstances.forEach((record) => {
-      get().upsertBundleInstanceRecord(scenarioId, record);
-    });
-
-    seed.events.forEach((event) => {
-      get().addEvent(event, scenarioId);
-    });
 
     get().updateScenarioMeta(scenarioId, {
       isSeeded: true,
       skipOnboarding: true,
       onboardingVersion: 2,
       schemaVersion: 2,
+      seedKey,
+      seedVersion: 1,
     });
     get().updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
 

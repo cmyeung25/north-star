@@ -28,7 +28,6 @@ import type { Scenario } from "../../../features/scenarios/types";
 import { formatRelativeTime } from "../../../features/scenarios/utils";
 import {
   getScenarioSeeds,
-  type ScenarioSeedPayload,
   type ScenarioSeedTranslator,
 } from "../../../src/scenarios/scenarioSeeds";
 import { useScenarioSummary } from "../../../src/scenarios/useScenarioSummary";
@@ -136,7 +135,7 @@ export default function ScenariosPage() {
     [t]
   );
   const enableScenarioSeeds =
-    process.env.NEXT_PUBLIC_ENABLE_SCENARIO_SEEDS !== "false";
+    process.env.NEXT_PUBLIC_ENABLE_SCENARIO_SEEDS_V1 !== "false";
 
   const handleRunOnboarding = (scenarioId: string) => {
     setActiveScenario(scenarioId);
@@ -162,13 +161,10 @@ export default function ScenariosPage() {
     router.push(`/${locale}/onboarding`);
   };
 
-  const handleCreateScenarioSeed = (
-    seedTitle: string,
-    seedPayload: ScenarioSeedPayload
-  ) => {
+  const handleCreateScenarioSeed = (seedTitle: string, seedKey: string) => {
     const suffix = new Date().toISOString().slice(0, 10);
     const name = `${seedTitle} · ${suffix}`;
-    const created = createScenarioFromSeed(name, seedPayload);
+    const created = createScenarioFromSeed(name, seedKey);
     if (!created) {
       showToast(t("seeds.seedFailed"), "red");
       return;
@@ -257,7 +253,7 @@ export default function ScenariosPage() {
         {enableScenarioSeeds && (
           <ScenarioSeedGallery
             seeds={scenarioSeeds}
-            onUseSeed={(seed) => handleCreateScenarioSeed(seed.title, seed.payload)}
+            onUseSeed={(seed) => handleCreateScenarioSeed(seed.title, seed.seedKey)}
           />
         )}
       </Stack>

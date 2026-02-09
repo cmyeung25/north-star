@@ -6,15 +6,18 @@ const t = Object.assign((key: string) => key, {
 });
 
 describe("scenario seed mapping", () => {
-  it("summarizes the dual-income home seed totals", () => {
+  it("exposes the configured scenario seeds", () => {
     const seeds = getScenarioSeeds(t);
-    const seed = seeds.find((entry) => entry.id === "dual-income-home");
+    const seedKeys = seeds.map((seed) => seed.seedKey);
 
-    expect(Boolean(seed)).toBe(true);
-    expect(seed?.summary.monthlyIncome).toBe(65000);
-    expect(seed?.summary.monthlyExpense).toBe(35500);
-    expect(seed?.summary.monthlyNet).toBe(29500);
-    expect(seed?.summary.assetsTotal).toBe(6250000);
-    expect(seed?.summary.liabilitiesTotal).toBe(4800000);
+    expect(seedKeys).toEqual([
+      "single_renter_saver",
+      "couple_home_purchase",
+      "couple_home_with_rent",
+      "newbaby_basic",
+      "newbaby_with_helper",
+      "high_networth_mix",
+    ]);
+    expect(seeds[0]?.environmentPreset.baseMonth).toBe("2026-02");
   });
 });
