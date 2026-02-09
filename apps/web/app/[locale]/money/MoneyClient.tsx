@@ -1706,6 +1706,9 @@ export default function MoneyClient({
         selectedDashboardMonth,
         bundleSummaryLabels
       );
+      const hasStartMonthOneOffImpact =
+        monthlySummary.startMonthOneOffIncome > 0 ||
+        monthlySummary.startMonthOneOffExpense > 0;
       const hasMonthlyImpact =
         monthlySummary.monthlyIncome > 0 || monthlySummary.monthlyExpense > 0;
       const oneOffTotal = bundle.events.reduce((total, event) => {
@@ -1741,6 +1744,7 @@ export default function MoneyClient({
         monthlyNet: monthlySummary.monthlyNet,
         monthlySummary,
         hasMonthlyImpact,
+        hasStartMonthOneOffImpact,
         oneOffTotal,
       };
     });
@@ -1876,6 +1880,20 @@ export default function MoneyClient({
       activeBundleSummary?.breakdown.filter((item) => item.direction === "expense") ??
       [],
     [activeBundleSummary?.breakdown]
+  );
+  const bundleDetailOneOffIncomeItems = useMemo(
+    () =>
+      activeBundleSummary?.oneOffBreakdown.filter(
+        (item) => item.direction === "income"
+      ) ?? [],
+    [activeBundleSummary?.oneOffBreakdown]
+  );
+  const bundleDetailOneOffExpenseItems = useMemo(
+    () =>
+      activeBundleSummary?.oneOffBreakdown.filter(
+        (item) => item.direction === "expense"
+      ) ?? [],
+    [activeBundleSummary?.oneOffBreakdown]
   );
   const mortgageDetailEvent = useMemo(() => {
     if (!mortgageDetail) {
@@ -3712,6 +3730,18 @@ export default function MoneyClient({
                                 : t("amountUnset"),
                             })}
                           </Text>
+                          {bundle.hasStartMonthOneOffImpact && (
+                            <Text size="sm" c="dimmed">
+                              {t("bundleSummaryStartMonthNet", {
+                                amount: formatCurrency(
+                                  bundle.monthlySummary.startMonthNet,
+                                  scenario?.baseCurrency ?? "USD",
+                                  locale
+                                ),
+                                month: bundle.monthlySummary.month ?? "--",
+                              })}
+                            </Text>
+                          )}
                           {bundle.assets.map((asset) => (
                             <Text size="sm" c="dimmed" key={asset.id}>
                               {t("bundleSummaryAssetItem", {
@@ -4104,6 +4134,18 @@ export default function MoneyClient({
                     : t("amountUnset"),
                 })}
               </Text>
+              {activeBundleCard.hasStartMonthOneOffImpact && (
+                <Text size="sm" c="dimmed">
+                  {t("bundleSummaryStartMonthNet", {
+                    amount: formatCurrency(
+                      activeBundleCard.monthlySummary.startMonthNet,
+                      scenario?.baseCurrency ?? "USD",
+                      locale
+                    ),
+                    month: activeBundleCard.monthlySummary.month ?? "--",
+                  })}
+                </Text>
+              )}
               {activeBundleCard.assets.map((asset) => (
                 <Text size="sm" c="dimmed" key={asset.id}>
                   {t("bundleSummaryAssetItem", {
@@ -4140,48 +4182,106 @@ export default function MoneyClient({
               <Text size="sm" fw={600}>
                 {t("bundleDetailCashflowTitle")}
               </Text>
-              {bundleDetailIncomeItems.length > 0 && (
+              {bundleDetailOneOffIncomeItems.length > 0 ||
+              bundleDetailOneOffExpenseItems.length > 0 ? (
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed">
-                    {t("bundleDetailIncome")}
+                    {t("bundleDetailOneOffSection", {
+                      month: activeBundleSummary?.month ?? "--",
+                    })}
                   </Text>
-                  {bundleDetailIncomeItems.map((item) => (
-                    <Group key={item.id} justify="space-between" wrap="nowrap">
-                      <Text size="sm">{item.label}</Text>
-                      <Text size="sm" fw={500}>
-                        {formatCurrency(
-                          item.amount,
-                          scenario?.baseCurrency ?? "USD",
-                          locale
-                        )}
+                  {bundleDetailOneOffIncomeItems.length > 0 && (
+                    <Stack gap={4}>
+                      <Text size="xs" c="dimmed">
+                        {t("bundleDetailIncome")}
                       </Text>
-                    </Group>
-                  ))}
+                      {bundleDetailOneOffIncomeItems.map((item) => (
+                        <Group key={item.id} justify="space-between" wrap="nowrap">
+                          <Text size="sm">{item.label}</Text>
+                          <Text size="sm" fw={500}>
+                            {formatCurrency(
+                              item.amount,
+                              scenario?.baseCurrency ?? "USD",
+                              locale
+                            )}
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                  )}
+                  {bundleDetailOneOffExpenseItems.length > 0 && (
+                    <Stack gap={4}>
+                      <Text size="xs" c="dimmed">
+                        {t("bundleDetailExpenses")}
+                      </Text>
+                      {bundleDetailOneOffExpenseItems.map((item) => (
+                        <Group key={item.id} justify="space-between" wrap="nowrap">
+                          <Text size="sm">{item.label}</Text>
+                          <Text size="sm" fw={500}>
+                            {formatCurrency(
+                              item.amount,
+                              scenario?.baseCurrency ?? "USD",
+                              locale
+                            )}
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                  )}
                 </Stack>
-              )}
+              ) : null}
 
-              {bundleDetailExpenseItems.length > 0 && (
+              {bundleDetailIncomeItems.length > 0 ||
+              bundleDetailExpenseItems.length > 0 ? (
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed">
-                    {t("bundleDetailExpenses")}
+                    {t("bundleDetailRecurringSection")}
                   </Text>
-                  {bundleDetailExpenseItems.map((item) => (
-                    <Group key={item.id} justify="space-between" wrap="nowrap">
-                      <Text size="sm">{item.label}</Text>
-                      <Text size="sm" fw={500}>
-                        {formatCurrency(
-                          item.amount,
-                          scenario?.baseCurrency ?? "USD",
-                          locale
-                        )}
+                  {bundleDetailIncomeItems.length > 0 && (
+                    <Stack gap={4}>
+                      <Text size="xs" c="dimmed">
+                        {t("bundleDetailIncome")}
                       </Text>
-                    </Group>
-                  ))}
+                      {bundleDetailIncomeItems.map((item) => (
+                        <Group key={item.id} justify="space-between" wrap="nowrap">
+                          <Text size="sm">{item.label}</Text>
+                          <Text size="sm" fw={500}>
+                            {formatCurrency(
+                              item.amount,
+                              scenario?.baseCurrency ?? "USD",
+                              locale
+                            )}
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                  )}
+                  {bundleDetailExpenseItems.length > 0 && (
+                    <Stack gap={4}>
+                      <Text size="xs" c="dimmed">
+                        {t("bundleDetailExpenses")}
+                      </Text>
+                      {bundleDetailExpenseItems.map((item) => (
+                        <Group key={item.id} justify="space-between" wrap="nowrap">
+                          <Text size="sm">{item.label}</Text>
+                          <Text size="sm" fw={500}>
+                            {formatCurrency(
+                              item.amount,
+                              scenario?.baseCurrency ?? "USD",
+                              locale
+                            )}
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                  )}
                 </Stack>
-              )}
+              ) : null}
 
               {bundleDetailIncomeItems.length === 0 &&
-                bundleDetailExpenseItems.length === 0 && (
+                bundleDetailExpenseItems.length === 0 &&
+                bundleDetailOneOffIncomeItems.length === 0 &&
+                bundleDetailOneOffExpenseItems.length === 0 && (
                   <Text size="sm" c="dimmed">
                     {t("bundleDetailEmpty")}
                   </Text>
