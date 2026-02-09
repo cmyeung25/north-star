@@ -6021,6 +6021,11 @@ export default function PlanLabPanel({
     experimentTypeOptions,
   ]);
 
+  const enabledAppliedControlsCount = useMemo(
+    () => appliedControls.filter((control) => control.isEnabled).length,
+    [appliedControls]
+  );
+
   const handleResetAllControls = () => {
     setBaselinePatches({
       eventPatches: {},
@@ -7380,7 +7385,7 @@ export default function PlanLabPanel({
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{t("planLabAppliedControlsTitle")}</Text>
                     <Badge variant="light" color="blue">
-                      {appliedControls.length}
+                      {enabledAppliedControlsCount}
                     </Badge>
                   </Group>
                 </Accordion.Control>
@@ -7396,7 +7401,7 @@ export default function PlanLabPanel({
                       >
                         <Text size="sm" fw={600}>
                           {translate("planLabAppliedSummary", "已套用改動")} (
-                          {appliedControls.length})
+                          {enabledAppliedControlsCount})
                         </Text>
                       </MantineTooltip>
                       <Group gap="xs" wrap="wrap">
@@ -7417,16 +7422,29 @@ export default function PlanLabPanel({
                         <Stack gap="xs">
                           {appliedControls.map((control) => {
                             const content = (
-                              <Paper key={control.id} withBorder radius="md" p="xs">
+                              <Paper
+                                key={control.id}
+                                withBorder
+                                radius="md"
+                                p="xs"
+                                style={{ opacity: control.isEnabled ? 1 : 0.6 }}
+                              >
                                 <Group
                                   justify="space-between"
                                   align="flex-start"
                                   wrap="nowrap"
                                 >
                                   <Stack gap={4} style={{ flex: 1 }}>
-                                    <Text size="sm" fw={600}>
-                                      {control.titleLine}
-                                    </Text>
+                                    <Group gap="xs" wrap="wrap">
+                                      <Text size="sm" fw={600}>
+                                        {control.titleLine}
+                                      </Text>
+                                      {!control.isEnabled && (
+                                        <Badge size="xs" variant="light" color="gray">
+                                          {translate("planLabBadgeDisabled", "已停用")}
+                                        </Badge>
+                                      )}
+                                    </Group>
                                     {control.diffLines.map((line, index) => (
                                       <Text
                                         key={`${control.id}-diff-${index}`}

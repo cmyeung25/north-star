@@ -19,6 +19,7 @@ import {
 import { applyPlanPatches } from "../domain/planLab/applyPlanPatches";
 import { buildPlanPatchesFromSnapshot } from "../domain/planLab/planPatches";
 import type { PlanLabDraft, PlanLabSnapshot, PlanPatch } from "../domain/planLab/types";
+import { selectEnabledPlanLabExperiments } from "../domain/planLab/planLabSelectors";
 import type { BudgetRule, Scenario, ScenarioMember } from "../store/scenarioStore";
 import { normalizeMonthStrict } from "../utils/month";
 import { monthIndex } from "@north-star/engine";
@@ -237,7 +238,7 @@ export const usePlanLabProjectionWithLedger = (
 
     const snapshot: PlanLabSnapshot = {
       baselinePatches: draft?.baselinePatches,
-      experiments: draft?.experiments,
+      experiments: selectEnabledPlanLabExperiments(draft?.experiments),
       scorecardSettings: draft?.scorecardSettings,
     };
     const patches = options.patches ?? buildPlanPatchesFromSnapshot(snapshot);

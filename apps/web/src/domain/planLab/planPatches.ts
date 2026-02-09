@@ -3,6 +3,7 @@ import type { BudgetRule, Scenario, ScenarioMember } from "../../store/scenarioS
 import type { CompilerWarning } from "../warnings/types";
 import { WarningCode } from "../warnings/types";
 import type { PlanLabSnapshot, PlanPatch } from "./types";
+import { selectEnabledPlanLabExperiments } from "./planLabSelectors";
 
 type ValidatePlanPatchesInput = {
   patches: PlanPatch[];
@@ -227,7 +228,7 @@ export const buildPlanPatchesFromSnapshot = (
     });
   }
 
-  (snapshot.experiments ?? []).forEach((experiment) => {
+  selectEnabledPlanLabExperiments(snapshot.experiments).forEach((experiment) => {
     patches.push({
       op: "add",
       entity: "event",
