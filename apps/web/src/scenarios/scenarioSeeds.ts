@@ -1,6 +1,7 @@
 import type { ScenarioEventDraft, MonthKey } from "../domain/scenarioV2/events";
 import type {
   ScenarioAsset,
+  ScenarioAssumptions,
   ScenarioLiability,
   ScenarioMember,
   BundleInstanceRecord,
@@ -14,6 +15,7 @@ import {
   buildHomePurchaseBundleEvent,
   buildNewBabyBundleEvents,
 } from "../domain/eventTemplates/bundles";
+import { addMonths } from "../domain/members/age";
 
 export type ScenarioSeedTranslator = ((
   key: string,
@@ -43,6 +45,7 @@ export type ScenarioSeedBundleSummary = {
 export type ScenarioSeedPayload = {
   baseMonth: MonthKey;
   initialCash: number;
+  assumptions?: Partial<ScenarioAssumptions>;
   members: ScenarioMember[];
   assets: ScenarioAsset[];
   liabilities: ScenarioLiability[];
@@ -70,10 +73,36 @@ type ScenarioSeedDefinition = {
   buildPayload: (t: ScenarioSeedTranslator) => ScenarioSeedPayload;
 };
 
-const buildMember = (id: string, name: string): ScenarioMember => ({
+const SEED_HORIZON_MONTHS = 120;
+
+const offsetMonth = (baseMonth: MonthKey, deltaMonths: number): MonthKey =>
+  addMonths(baseMonth, deltaMonths) as MonthKey;
+
+const buildMember = (
+  id: string,
+  name: string,
+  birthMonth?: MonthKey
+): ScenarioMember => ({
   id,
   name,
   kind: "person",
+  birthMonth,
+});
+
+const buildInvestmentReturnAssumptions = (rate: number) => ({
+  equity: rate,
+  bond: rate,
+  fund: rate,
+  crypto: rate,
+});
+
+const buildSeedAssumptions = (
+  baseMonth: MonthKey,
+  overrides: Partial<ScenarioAssumptions>
+): Partial<ScenarioAssumptions> => ({
+  baseMonth,
+  horizonMonths: SEED_HORIZON_MONTHS,
+  ...overrides,
 });
 
 const buildAsset = ({
@@ -249,9 +278,14 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     ],
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
+      const memberBirthMonth = offsetMonth(baseMonth, -30 * 12);
       const memberId = "seed-single-1";
       const members = [
-        buildMember(memberId, t("seeds.profiles.singleRenter.memberName")),
+        buildMember(
+          memberId,
+          t("seeds.profiles.singleRenter.memberName"),
+          memberBirthMonth
+        ),
       ];
       const assets = [
         buildAsset({
@@ -296,6 +330,12 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const payload: ScenarioSeedPayload = {
         baseMonth,
         initialCash: 50000,
+        assumptions: buildSeedAssumptions(baseMonth, {
+          inflationRate: 2.5,
+          salaryGrowthRate: 3,
+          rentAnnualGrowthPct: 2,
+          investmentReturnAssumptions: buildInvestmentReturnAssumptions(5),
+        }),
         members,
         assets,
         liabilities: [],
@@ -329,9 +369,19 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const baseMonth: MonthKey = "2026-02";
       const memberA = "seed-couple-a";
       const memberB = "seed-couple-b";
+      const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
+      const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
       const members = [
-        buildMember(memberA, t("seeds.profiles.dualIncomeHome.memberNameA")),
-        buildMember(memberB, t("seeds.profiles.dualIncomeHome.memberNameB")),
+        buildMember(
+          memberA,
+          t("seeds.profiles.dualIncomeHome.memberNameA"),
+          memberABirthMonth
+        ),
+        buildMember(
+          memberB,
+          t("seeds.profiles.dualIncomeHome.memberNameB"),
+          memberBBirthMonth
+        ),
       ];
       const assets = [
         buildAsset({
@@ -425,6 +475,13 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const payload: ScenarioSeedPayload = {
         baseMonth,
         initialCash: 200000,
+        assumptions: buildSeedAssumptions(baseMonth, {
+          inflationRate: 2.5,
+          salaryGrowthRate: 3,
+          investmentReturnAssumptions: buildInvestmentReturnAssumptions(5),
+          propertyAppreciationPct: 2,
+          mortgageRatePct: 4,
+        }),
         members,
         assets,
         liabilities: [],
@@ -466,9 +523,19 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const baseMonth: MonthKey = "2026-02";
       const memberA = "seed-rental-a";
       const memberB = "seed-rental-b";
+      const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
+      const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
       const members = [
-        buildMember(memberA, t("seeds.profiles.dualIncomeRental.memberNameA")),
-        buildMember(memberB, t("seeds.profiles.dualIncomeRental.memberNameB")),
+        buildMember(
+          memberA,
+          t("seeds.profiles.dualIncomeRental.memberNameA"),
+          memberABirthMonth
+        ),
+        buildMember(
+          memberB,
+          t("seeds.profiles.dualIncomeRental.memberNameB"),
+          memberBBirthMonth
+        ),
       ];
       const assets = [
         buildAsset({
@@ -511,7 +578,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         rental: {
           enabled: true,
           rentMonthly: 12000,
-          startMonthStrategy: "plus1",
+          startMonthStrategy: "purchase",
         },
       };
       const homeEvent = buildHomePurchaseBundleEvent(
@@ -554,6 +621,14 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const payload: ScenarioSeedPayload = {
         baseMonth,
         initialCash: 300000,
+        assumptions: buildSeedAssumptions(baseMonth, {
+          inflationRate: 2.5,
+          salaryGrowthRate: 3,
+          rentAnnualGrowthPct: 2,
+          investmentReturnAssumptions: buildInvestmentReturnAssumptions(5),
+          propertyAppreciationPct: 2,
+          mortgageRatePct: 4,
+        }),
         members,
         assets,
         liabilities: [],
@@ -593,14 +668,28 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     ],
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
-      const babyMonth: MonthKey = "2026-06";
+      const babyMonth = offsetMonth(baseMonth, 5);
       const memberA = "seed-baby-a";
       const memberB = "seed-baby-b";
       const memberC = "seed-baby-c";
+      const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
+      const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
       const members = [
-        buildMember(memberA, t("seeds.profiles.newBaby.memberNameA")),
-        buildMember(memberB, t("seeds.profiles.newBaby.memberNameB")),
-        buildMember(memberC, t("seeds.profiles.newBaby.memberNameC")),
+        buildMember(
+          memberA,
+          t("seeds.profiles.newBaby.memberNameA"),
+          memberABirthMonth
+        ),
+        buildMember(
+          memberB,
+          t("seeds.profiles.newBaby.memberNameB"),
+          memberBBirthMonth
+        ),
+        buildMember(
+          memberC,
+          t("seeds.profiles.newBaby.memberNameC"),
+          babyMonth
+        ),
       ];
       const assets = [
         buildAsset({
@@ -675,6 +764,10 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const payload: ScenarioSeedPayload = {
         baseMonth,
         initialCash: 150000,
+        assumptions: buildSeedAssumptions(baseMonth, {
+          inflationRate: 2.5,
+          salaryGrowthRate: 3,
+        }),
         members,
         assets,
         liabilities: [],
@@ -714,12 +807,27 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
     ],
     buildPayload: (t) => {
       const baseMonth: MonthKey = "2026-02";
-      const babyMonth: MonthKey = "2026-05";
+      const babyMonth = offsetMonth(baseMonth, 5);
       const memberA = "seed-helper-a";
       const memberB = "seed-helper-b";
+      const memberC = "seed-helper-c";
+      const memberD = "seed-helper-d";
+      const memberABirthMonth = offsetMonth(baseMonth, -32 * 12);
+      const memberBBirthMonth = offsetMonth(baseMonth, -31 * 12);
+      const helperBirthMonth = offsetMonth(baseMonth, -28 * 12);
       const members = [
-        buildMember(memberA, t("seeds.profiles.newBabyHelper.memberNameA")),
-        buildMember(memberB, t("seeds.profiles.newBabyHelper.memberNameB")),
+        buildMember(
+          memberA,
+          t("seeds.profiles.newBabyHelper.memberNameA"),
+          memberABirthMonth
+        ),
+        buildMember(
+          memberB,
+          t("seeds.profiles.newBabyHelper.memberNameB"),
+          memberBBirthMonth
+        ),
+        buildMember(memberC, t("seeds.profiles.newBaby.memberNameC"), babyMonth),
+        buildMember(memberD, t("eventTypes.helper"), helperBirthMonth),
       ];
       const assets = [
         buildAsset({
@@ -790,6 +898,10 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const payload: ScenarioSeedPayload = {
         baseMonth,
         initialCash: 180000,
+        assumptions: buildSeedAssumptions(baseMonth, {
+          inflationRate: 2.5,
+          salaryGrowthRate: 3,
+        }),
         members,
         assets,
         liabilities: [],
@@ -831,9 +943,19 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const baseMonth: MonthKey = "2026-02";
       const memberA = "seed-wealth-a";
       const memberB = "seed-wealth-b";
+      const memberABirthMonth = offsetMonth(baseMonth, -45 * 12);
+      const memberBBirthMonth = offsetMonth(baseMonth, -43 * 12);
       const members = [
-        buildMember(memberA, t("seeds.profiles.highAsset.memberNameA")),
-        buildMember(memberB, t("seeds.profiles.highAsset.memberNameB")),
+        buildMember(
+          memberA,
+          t("seeds.profiles.highAsset.memberNameA"),
+          memberABirthMonth
+        ),
+        buildMember(
+          memberB,
+          t("seeds.profiles.highAsset.memberNameB"),
+          memberBBirthMonth
+        ),
       ];
       const assets = [
         buildAsset({
@@ -920,6 +1042,13 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const payload: ScenarioSeedPayload = {
         baseMonth,
         initialCash: 800000,
+        assumptions: buildSeedAssumptions(baseMonth, {
+          inflationRate: 2.5,
+          salaryGrowthRate: 2,
+          investmentReturnAssumptions: buildInvestmentReturnAssumptions(6),
+          propertyAppreciationPct: 2,
+          mortgageRatePct: 4,
+        }),
         members,
         assets,
         liabilities: [],

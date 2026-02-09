@@ -2036,13 +2036,19 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }
     const scenarioId = created.id;
 
-    get().updateScenarioAssumptions(scenarioId, {
-      baseMonth: seed.baseMonth,
-      initialCash: seed.initialCash,
-    });
+    const seedAssumptions: Partial<ScenarioAssumptions> = {
+      ...seed.assumptions,
+      baseMonth: seed.assumptions?.baseMonth ?? seed.baseMonth,
+      initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
+    };
+
+    get().updateScenarioAssumptions(scenarioId, seedAssumptions);
 
     if (seed.members.length > 0) {
-      get().setScenarioMembers(scenarioId, seed.members);
+      const scenario = get().scenarios.find((entry) => entry.id === scenarioId);
+      if (!scenario?.members?.length) {
+        get().setScenarioMembers(scenarioId, seed.members);
+      }
     }
 
     if (seed.assets.length > 0) {
