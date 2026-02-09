@@ -21,6 +21,12 @@ export type BundleMonthlySummary = {
   oneOffBreakdown: BundleMonthlyBreakdownItem[];
 };
 
+export type BundleCashflowSummary = BundleMonthlySummary & {
+  oneOffTotal: number;
+  hasMonthlyImpact: boolean;
+  hasStartMonthOneOffImpact: boolean;
+};
+
 type BundleMonthlySummaryLabels = {
   mortgagePayment: string;
   rentalIncome: string;
@@ -105,13 +111,19 @@ export const computeBundleMonthlySummary = (
     if (!event.feesOneOff || event.feesOneOff.length === 0) {
       return false;
     }
-    const rowLabel = row.label ?? event.label ?? "";
+    const rowLabel = (row.label ?? event.label ?? "").trim();
     return event.feesOneOff.some((fee) => {
-      const feeLabel = fee.label ?? event.label ?? "";
+      const feeLabel = (fee.label ?? event.label ?? "").trim();
+      const normalizedRowLabel = rowLabel.toLowerCase();
+      const normalizedFeeLabel = feeLabel.toLowerCase();
       return (
         fee.month === row.month &&
         Math.abs(fee.amount) === Math.abs(row.amount) &&
-        feeLabel === rowLabel
+        (!normalizedFeeLabel ||
+          !normalizedRowLabel ||
+          normalizedFeeLabel === normalizedRowLabel ||
+          normalizedRowLabel.includes(normalizedFeeLabel) ||
+          normalizedFeeLabel.includes(normalizedRowLabel))
       );
     });
   };
@@ -224,5 +236,45 @@ export const computeBundleMonthlySummary = (
       startMonthOneOffExpense,
     breakdown,
     oneOffBreakdown,
+  };
+};
+
+export const computeBundleCashflowSummary = (
+  bundleEvents: ScenarioEvent[],
+  ledgerRowsByEventId: Map<string, LedgerRow[]>,
+  monthKey: string | null,
+  labels: BundleMonthlySummaryLabels
+): BundleCashflowSummary => {
+  const monthlySummary = computeBundleMonthlySummary(
+    bundleEvents,
+    ledgerRowsByEventId,
+    monthKey,
+    labels
+  );
+  const oneOffTotal = bundleEvents.reduce((total, event) => {
+    if (
+      event.type === "cashflow" &&
+      event.cadence === "oneOff" &&
+      event.kind === "expense"
+    ) {
+      return total + Math.abs(event.amount);
+    }
+    if (event.type === "housing" && event.kind === "mortgage") {
+      const feeTotal =
+        event.feesOneOff?.reduce((sum, fee) => sum + Math.abs(fee.amount), 0) ?? 0;
+      return total + feeTotal;
+    }
+    return total;
+  }, 0);
+  const hasMonthlyImpact =
+    monthlySummary.monthlyIncome > 0 || monthlySummary.monthlyExpense > 0;
+  const hasStartMonthOneOffImpact =
+    monthlySummary.startMonthOneOffIncome > 0 ||
+    monthlySummary.startMonthOneOffExpense > 0;
+  return {
+    ...monthlySummary,
+    oneOffTotal,
+    hasMonthlyImpact,
+    hasStartMonthOneOffImpact,
   };
 };

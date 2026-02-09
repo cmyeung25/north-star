@@ -114,4 +114,61 @@ describe("computeBundleMonthlySummary", () => {
       "Stamp duty",
     ]);
   });
+
+  it("treats housing one-off fees as start month impact even when labels differ", () => {
+    const events: ScenarioEvent[] = [
+      {
+        id: "housing-mortgage",
+        type: "housing",
+        kind: "mortgage",
+        startMonth: "2026-02",
+        mortgageRatePct: 3,
+        mortgageTermYears: 30,
+        purchasePrice: 5000000,
+        mortgagePayment: 20000,
+        feesOneOff: [
+          {
+            id: "fee-legal",
+            label: "Legal fee",
+            amount: 10000,
+            month: "2026-02",
+          },
+        ],
+      },
+    ];
+
+    const ledgerRowsByEventId = new Map<string, LedgerRow[]>();
+    ledgerRowsByEventId.set("housing-mortgage", [
+      {
+        month: "2026-02",
+        amount: -20000,
+        sourceEventId: "housing-mortgage",
+        label: "Mortgage payment",
+        kind: "expense",
+      },
+      {
+        month: "2026-02",
+        amount: -10000,
+        sourceEventId: "housing-mortgage",
+        label: "Legal fee (one-off)",
+        kind: "expense",
+      },
+    ]);
+
+    const summary = computeBundleMonthlySummary(
+      events,
+      ledgerRowsByEventId,
+      "2026-02",
+      {
+        mortgagePayment: "Mortgage payment",
+        rentalIncome: "Rental income",
+        holdingCost: "Holding cost",
+        fallback: "Cashflow",
+      }
+    );
+
+    expect(summary.monthlyExpense).toBe(20000);
+    expect(summary.startMonthOneOffExpense).toBe(10000);
+    expect(summary.startMonthNet).toBe(-30000);
+  });
 });
