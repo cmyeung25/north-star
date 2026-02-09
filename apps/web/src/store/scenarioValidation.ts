@@ -66,6 +66,10 @@ export const HomePositionSchema = z
       .number()
       .positive("validation.purchasePricePositive")
       .optional(),
+    mortgageBaseValue: z
+      .number()
+      .min(0, "validation.mortgageBaseMin")
+      .optional(),
     downPayment: z.number().min(0, "validation.downPaymentMin").optional(),
     purchaseMonth: z
       .string()

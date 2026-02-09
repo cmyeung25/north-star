@@ -83,7 +83,10 @@ export type OnboardingV2DraftHousingRental = {
 };
 
 export type OnboardingV2DraftHousingOwn = {
-  propertyValue: number;
+  propertyMarketValue: number;
+  propertyValue?: number;
+  mortgageBaseValue?: number;
+  mortgageBaseMode?: "SYNC" | "CUSTOM";
   startMonth?: string;
   downPaymentMode: "percent" | "amount";
   downPaymentPercent?: number;

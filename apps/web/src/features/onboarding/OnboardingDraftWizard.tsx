@@ -306,6 +306,17 @@ const buildHousingDraft = ({
     typeof value === "number" && Number.isFinite(value) ? value : 0;
   const toOptional = (value: unknown) =>
     typeof value === "number" && Number.isFinite(value) ? value : null;
+  const propertyMarketValue = toNumber(
+    existing?.own?.propertyMarketValue ?? existing?.own?.propertyValue
+  );
+  const mortgageBaseValue =
+    typeof existing?.own?.mortgageBaseValue === "number" &&
+    Number.isFinite(existing?.own?.mortgageBaseValue)
+      ? existing?.own?.mortgageBaseValue
+      : propertyMarketValue;
+  const mortgageBaseMode =
+    existing?.own?.mortgageBaseMode ??
+    (mortgageBaseValue !== propertyMarketValue ? "CUSTOM" : "SYNC");
 
   return {
     mode: existing?.mode === "own" ? "own" : "rent",
@@ -317,7 +328,9 @@ const buildHousingDraft = ({
       rentGrowthPct: toOptional(existing?.rent?.rentGrowthPct),
     },
     own: {
-      propertyValue: toNumber(existing?.own?.propertyValue),
+      propertyMarketValue,
+      mortgageBaseValue,
+      mortgageBaseMode,
       startMonth: existing?.own?.startMonth ?? baseMonth,
       downPaymentMode:
         existing?.own?.downPaymentMode === "amount" ? "amount" : "percent",
@@ -1207,8 +1220,11 @@ export default function OnboardingDraftWizard() {
   }
 
   if (housing.mode === "own") {
-    if (!Number.isFinite(housing.own.propertyValue) || housing.own.propertyValue <= 0) {
-      housingErrors.own.propertyValue = t("housingPropertyValueRequired");
+    if (
+      !Number.isFinite(housing.own.propertyMarketValue) ||
+      housing.own.propertyMarketValue <= 0
+    ) {
+      housingErrors.own.propertyMarketValue = t("housingPropertyValueRequired");
     }
     if (!housing.own.startMonth) {
       housingErrors.own.startMonth = t("housingPropertyStartMonthRequired");

@@ -185,18 +185,22 @@ export default function ReviewStep({
       return flags;
     }
     const own = draft.housing.own;
-    const propertyValue = Number(own.propertyValue ?? 0);
+    const propertyMarketValue = Number(own.propertyMarketValue ?? 0);
+    const mortgageBaseValue =
+      own.mortgageBaseMode === "CUSTOM"
+        ? Number(own.mortgageBaseValue ?? propertyMarketValue)
+        : propertyMarketValue;
     const downPaymentPercent =
       own.downPaymentMode === "percent"
         ? Number(own.downPaymentPercent ?? 0)
-        : propertyValue > 0
-          ? (Number(own.downPaymentAmount ?? 0) / propertyValue) * 100
+        : propertyMarketValue > 0
+          ? (Number(own.downPaymentAmount ?? 0) / propertyMarketValue) * 100
           : 0;
     const downPaymentAmount =
       own.downPaymentMode === "percent"
-        ? (propertyValue * downPaymentPercent) / 100
+        ? (propertyMarketValue * downPaymentPercent) / 100
         : Number(own.downPaymentAmount ?? 0);
-    const loanAmount = Math.max(0, propertyValue - downPaymentAmount);
+    const loanAmount = Math.max(0, mortgageBaseValue - downPaymentAmount);
     const mortgageRate = Number(own.mortgageRatePct ?? 0);
     const mortgageTerm = Number(own.mortgageTermYears ?? 0);
 
