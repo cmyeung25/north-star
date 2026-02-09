@@ -1674,33 +1674,6 @@ export default function PlanLabPanel({
     [closeAllPlanLabDrawers]
   );
 
-  const canCreateExperimentFromItem = useCallback(
-    (item: ScenarioEditorItem): boolean => {
-      if (scenarioIsV2) {
-        return item.kind === "event" && Boolean(item.eventId);
-      }
-      return item.kind === "event" || item.kind === "rule" || item.kind === "position";
-    },
-    [scenarioIsV2]
-  );
-
-  const handleCreateExperimentFromItem = useCallback(
-    (item: ScenarioEditorItem) => {
-      if (scenarioIsV2) {
-        if (item.kind === "event" && item.eventId) {
-          handleEditV2Event(item.eventId);
-          return;
-        }
-        setPlanToast(
-          translate("planLabExperimentUnsupported", "此項目暫未支援建立實驗。")
-        );
-        return;
-      }
-      openEditingItem(item);
-    },
-    [handleEditV2Event, openEditingItem, scenarioIsV2, translate]
-  );
-
   const buildNewRuleDraft = useCallback(
     (overrides: Partial<BudgetRule> = {}) =>
       ({
@@ -3387,6 +3360,33 @@ export default function PlanLabPanel({
       openV2EventDrawer("edit", event.type, eventId);
     },
     [openV2EventDrawer, v2EventLookup]
+  );
+
+  const canCreateExperimentFromItem = useCallback(
+    (item: ScenarioEditorItem): boolean => {
+      if (scenarioIsV2) {
+        return item.kind === "event" && Boolean(item.eventId);
+      }
+      return item.kind === "event" || item.kind === "rule" || item.kind === "position";
+    },
+    [scenarioIsV2]
+  );
+
+  const handleCreateExperimentFromItem = useCallback(
+    (item: ScenarioEditorItem) => {
+      if (scenarioIsV2) {
+        if (item.kind === "event" && item.eventId) {
+          handleEditV2Event(item.eventId);
+          return;
+        }
+        setPlanToast(
+          translate("planLabExperimentUnsupported", "此項目暫未支援建立實驗。")
+        );
+        return;
+      }
+      openEditingItem(item);
+    },
+    [handleEditV2Event, openEditingItem, scenarioIsV2, translate]
   );
 
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
