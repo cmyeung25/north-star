@@ -170,6 +170,7 @@ import type {
   HomePurchaseBundleInput,
   NewBabyPlanInput,
 } from "../../src/domain/eventTemplates/bundles";
+import type { LedgerRow } from "../../src/engine/scenarioV2Compiler";
 import { getTemplateDef } from "../../src/domain/eventTemplates/registry";
 import CashflowEventDrawer, {
   type CashflowEventDraft,
@@ -193,7 +194,7 @@ import {
   type PlanLabExperimentRemovedItemMeta,
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
-import { computeBundleMonthlySummary } from "../../src/features/money/bundleSummary";
+import { computeBundleCashflowSummary } from "../../src/features/money/bundleSummary";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -2995,9 +2996,34 @@ export default function PlanLabPanel({
     () => JSON.stringify(experimentGroups),
     [experimentGroups]
   );
+  const experimentGroupsForPatches = useMemo(() => {
+    if (!scenarioIsV2) {
+      return experimentGroups;
+    }
+    return experimentGroups.map((group) => {
+      if (!group.bundleInstanceId) {
+        return group;
+      }
+      const baselineEventIds =
+        baselineBundleEventIdsByBundleId.get(group.bundleInstanceId) ?? [];
+      if (baselineEventIds.length === 0) {
+        return group;
+      }
+      const baselineItemIds = baselineEventIds.map((id) => `events:${id}`);
+      return {
+        ...group,
+        itemIds: Array.from(new Set([...group.itemIds, ...baselineItemIds])),
+      };
+    });
+  }, [baselineBundleEventIdsByBundleId, experimentGroups, scenarioIsV2]);
+
   const projectionScenarioV2Patches = useMemo(
-    () => filterScenarioV2PatchesByExperimentGroups(scenarioV2Patches, experimentGroups),
-    [experimentGroupsKey, scenarioV2PatchesKey]
+    () =>
+      filterScenarioV2PatchesByExperimentGroups(
+        scenarioV2Patches,
+        experimentGroupsForPatches
+      ),
+    [experimentGroupsForPatches, scenarioV2PatchesKey]
   );
   const projectionScenarioV2PatchesKey = useMemo(
     () => JSON.stringify(projectionScenarioV2Patches),
@@ -3392,8 +3418,8 @@ export default function PlanLabPanel({
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
     if (scenarioIsV2) {
       return deriveInputsFromScenarioV2({
-        scenario: sandboxScenarioV2,
-        members: sandboxScenarioV2.members ?? [],
+        scenario: baselineScenarioV2,
+        members: baselineScenarioV2.members ?? [],
         rules: sandboxBudgetRules,
         changed: scenarioV2Changed,
       });
@@ -3691,47 +3717,59 @@ export default function PlanLabPanel({
     return map;
   }, [bundleInstanceOverrides, bundleInstanceRecords]);
 
+  const buildBundleGroups = useCallback(
+    (events: ScenarioEvent[] | undefined) => {
+      if (!scenarioIsV2) {
+        return [];
+      }
+      const groups = new Map<
+        string,
+        {
+          id: string;
+          templateId?: string;
+          bundleTitle?: string;
+          events: ScenarioEvent[];
+        }
+      >();
+      (events ?? []).forEach((event) => {
+        const source = event.source;
+        if (!source?.bundleInstanceId) {
+          return;
+        }
+        const existing =
+          groups.get(source.bundleInstanceId) ?? {
+            id: source.bundleInstanceId,
+            templateId: source.templateId,
+            bundleTitle: source.bundleTitle,
+            events: [],
+          };
+        existing.events.push(event);
+        if (!existing.templateId && source.templateId) {
+          existing.templateId = source.templateId;
+        }
+        if (!existing.bundleTitle && source.bundleTitle) {
+          existing.bundleTitle = source.bundleTitle;
+        }
+        groups.set(source.bundleInstanceId, existing);
+      });
+      return Array.from(groups.values());
+    },
+    [scenarioIsV2]
+  );
 
-  const bundleGroups = useMemo(() => {
-    if (!scenarioIsV2) {
-      return [];
-    }
-    const groups = new Map<
-      string,
-      {
-        id: string;
-        templateId?: string;
-        bundleTitle?: string;
-        events: ScenarioEvent[];
-      }
-    >();
-    (sandboxScenarioV2.events ?? []).forEach((event) => {
-      const source = event.source;
-      if (!source?.bundleInstanceId) {
-        return;
-      }
-      const existing =
-        groups.get(source.bundleInstanceId) ?? {
-          id: source.bundleInstanceId,
-          templateId: source.templateId,
-          bundleTitle: source.bundleTitle,
-          events: [],
-        };
-      existing.events.push(event);
-      if (!existing.templateId && source.templateId) {
-        existing.templateId = source.templateId;
-      }
-      if (!existing.bundleTitle && source.bundleTitle) {
-        existing.bundleTitle = source.bundleTitle;
-      }
-      groups.set(source.bundleInstanceId, existing);
-    });
-    return Array.from(groups.values());
-  }, [sandboxScenarioV2.events, scenarioIsV2]);
+  const baselineBundleGroups = useMemo(
+    () => buildBundleGroups(baselineScenarioV2.events),
+    [baselineScenarioV2.events, buildBundleGroups]
+  );
+
+  const sandboxBundleGroups = useMemo(
+    () => buildBundleGroups(sandboxScenarioV2.events),
+    [sandboxScenarioV2.events, buildBundleGroups]
+  );
 
   const bundleGroupById = useMemo(
-    () => new Map(bundleGroups.map((group) => [group.id, group])),
-    [bundleGroups]
+    () => new Map(baselineBundleGroups.map((group) => [group.id, group])),
+    [baselineBundleGroups]
   );
 
   useEffect(() => {
@@ -3892,14 +3930,14 @@ export default function PlanLabPanel({
     return map;
   }, [scenarioItems]);
 
-  const scenarioAssets = useMemo(
-    () => sandboxScenarioV2.assets ?? [],
-    [sandboxScenarioV2.assets]
+  const baselineScenarioAssets = useMemo(
+    () => baselineScenarioV2.assets ?? [],
+    [baselineScenarioV2.assets]
   );
 
-  const scenarioLiabilities = useMemo(
-    () => sandboxScenarioV2.liabilities ?? [],
-    [sandboxScenarioV2.liabilities]
+  const baselineScenarioLiabilities = useMemo(
+    () => baselineScenarioV2.liabilities ?? [],
+    [baselineScenarioV2.liabilities]
   );
 
   const bundleSummaryLabels = useMemo(
@@ -3912,57 +3950,66 @@ export default function PlanLabPanel({
     [moneyT, translate]
   );
 
-  const v2LedgerRows = useMemo(
-    () =>
-      scenarioIsV2
-        ? planLabProjection.ledger
-            .filter((entry) => entry.source === "event")
-            .map((entry) => {
-              const kind: "income" | "expense" =
-                entry.category === "income"
-                  ? "income"
-                  : entry.category === "expense"
-                  ? "expense"
-                  : entry.amount >= 0
-                  ? "income"
-                  : "expense";
-              return {
-                month: entry.month,
-                amount: entry.amount,
-                sourceEventId: entry.sourceId,
-                label: entry.label,
-                memberId: entry.memberId,
-                kind,
-              };
-            })
-        : [],
-    [planLabProjection.ledger, scenarioIsV2]
+  const buildLedgerRowsByEventId = useCallback(
+    (entries: typeof planLabProjection.ledger) => {
+      const map = new Map<string, LedgerRow[]>();
+      if (!scenarioIsV2) {
+        return map;
+      }
+      const ledgerRows: LedgerRow[] = entries
+        .filter((entry) => entry.source === "event" && entry.sourceId)
+        .map((entry) => {
+          const kind: "income" | "expense" =
+            entry.category === "income"
+              ? "income"
+              : entry.category === "expense"
+              ? "expense"
+              : entry.amount >= 0
+              ? "income"
+              : "expense";
+          return {
+            month: entry.month,
+            amount: entry.amount,
+            sourceEventId: entry.sourceId ?? "",
+            label: entry.label ?? undefined,
+            memberId: entry.memberId ?? undefined,
+            kind,
+          };
+        });
+      ledgerRows.forEach((row) => {
+        if (!row.sourceEventId) {
+          return;
+        }
+        const existing = map.get(row.sourceEventId) ?? [];
+        existing.push(row);
+        map.set(row.sourceEventId, existing);
+      });
+      map.forEach((rows, key) => {
+        rows.sort((a, b) => {
+          const monthSort = b.month.localeCompare(a.month);
+          if (monthSort !== 0) {
+            return monthSort;
+          }
+          return (a.label ?? "").localeCompare(b.label ?? "");
+        });
+        map.set(key, rows);
+      });
+      return map;
+    },
+    [scenarioIsV2]
   );
 
-  const ledgerRowsByEventId = useMemo(() => {
-    const map = new Map<string, typeof v2LedgerRows>();
-    v2LedgerRows.forEach((row) => {
-      if (!row.sourceEventId) {
-        return;
-      }
-      const existing = map.get(row.sourceEventId) ?? [];
-      existing.push(row);
-      map.set(row.sourceEventId, existing);
-    });
-    map.forEach((rows, key) => {
-      rows.sort((a, b) => {
-        const monthSort = b.month.localeCompare(a.month);
-        if (monthSort !== 0) {
-          return monthSort;
-        }
-        return (a.label ?? "").localeCompare(b.label ?? "");
-      });
-      map.set(key, rows);
-    });
-    return map;
-  }, [v2LedgerRows]);
+  const sandboxLedgerRowsByEventId = useMemo(
+    () => buildLedgerRowsByEventId(planLabProjection.ledger),
+    [buildLedgerRowsByEventId, planLabProjection.ledger]
+  );
 
-  const bundleSummaryMonth = useMemo(() => {
+  const baselineLedgerRowsByEventId = useMemo(
+    () => buildLedgerRowsByEventId(baselineProjection.ledger),
+    [baselineProjection.ledger, buildLedgerRowsByEventId]
+  );
+
+  const sandboxBundleSummaryMonth = useMemo(() => {
     return (
       planLabProjection.projection?.baseMonth ??
       scenario.assumptions.baseMonth ??
@@ -3971,39 +4018,31 @@ export default function PlanLabPanel({
     );
   }, [planLabProjection.months, planLabProjection.projection?.baseMonth, scenario.assumptions.baseMonth]);
 
-  const bundleCards = useMemo(() => {
+  const baselineBundleSummaryMonth = useMemo(() => {
+    return (
+      baselineProjection.projection?.baseMonth ??
+      scenario.assumptions.baseMonth ??
+      baselineProjection.months[0] ??
+      null
+    );
+  }, [baselineProjection.months, baselineProjection.projection?.baseMonth, scenario.assumptions.baseMonth]);
+
+  const baselineBundleCards = useMemo(() => {
     if (!scenarioIsV2) {
       return [];
     }
-    return bundleGroups.map((bundle) => {
+    return baselineBundleGroups.map((bundle) => {
       const eventIds = bundle.events.map((event) => event.id);
-      const monthlySummary = computeBundleMonthlySummary(
+      const cashflowSummary = computeBundleCashflowSummary(
         bundle.events,
-        ledgerRowsByEventId,
-        bundleSummaryMonth,
+        baselineLedgerRowsByEventId,
+        baselineBundleSummaryMonth,
         bundleSummaryLabels
       );
-      const hasMonthlyImpact =
-        monthlySummary.monthlyIncome > 0 || monthlySummary.monthlyExpense > 0;
-      const oneOffTotal = bundle.events.reduce((total, event) => {
-        if (
-          event.type === "cashflow" &&
-          event.cadence === "oneOff" &&
-          event.kind === "expense"
-        ) {
-          return total + event.amount;
-        }
-        if (event.type === "housing" && event.kind === "mortgage") {
-          const feeTotal =
-            event.feesOneOff?.reduce((sum, fee) => sum + fee.amount, 0) ?? 0;
-          return total + feeTotal;
-        }
-        return total;
-      }, 0);
-      const assets = scenarioAssets.filter(
+      const assets = baselineScenarioAssets.filter(
         (asset) => asset.createdByEventId && eventIds.includes(asset.createdByEventId)
       );
-      const liabilities = scenarioLiabilities.filter(
+      const liabilities = baselineScenarioLiabilities.filter(
         (liability) =>
           liability.createdByEventId && eventIds.includes(liability.createdByEventId)
       );
@@ -4013,33 +4052,67 @@ export default function PlanLabPanel({
         eventIds,
         assets,
         liabilities,
-        monthlyIncome: monthlySummary.monthlyIncome,
-        monthlyExpense: monthlySummary.monthlyExpense,
-        monthlyNet: monthlySummary.monthlyNet,
-        monthlySummary,
-        hasMonthlyImpact,
-        oneOffTotal,
+        monthlyIncome: cashflowSummary.monthlyIncome,
+        monthlyExpense: cashflowSummary.monthlyExpense,
+        monthlyNet: cashflowSummary.monthlyNet,
+        monthlySummary: cashflowSummary,
+        hasMonthlyImpact: cashflowSummary.hasMonthlyImpact,
+        hasStartMonthOneOffImpact: cashflowSummary.hasStartMonthOneOffImpact,
+        oneOffTotal: cashflowSummary.oneOffTotal,
       };
     });
   }, [
-    bundleGroups,
+    baselineBundleGroups,
+    baselineBundleSummaryMonth,
+    baselineLedgerRowsByEventId,
+    baselineScenarioAssets,
+    baselineScenarioLiabilities,
     bundleSummaryLabels,
-    bundleSummaryMonth,
-    ledgerRowsByEventId,
     resolveBundleTitle,
-    scenarioAssets,
     scenarioIsV2,
-    scenarioLiabilities,
   ]);
 
-  const bundleCardById = useMemo(
-    () => new Map(bundleCards.map((card) => [card.id, card])),
-    [bundleCards]
+  const sandboxBundleCards = useMemo(() => {
+    if (!scenarioIsV2) {
+      return [];
+    }
+    return sandboxBundleGroups.map((bundle) => {
+      const cashflowSummary = computeBundleCashflowSummary(
+        bundle.events,
+        sandboxLedgerRowsByEventId,
+        sandboxBundleSummaryMonth,
+        bundleSummaryLabels
+      );
+      return {
+        id: bundle.id,
+        monthlyIncome: cashflowSummary.monthlyIncome,
+        monthlyExpense: cashflowSummary.monthlyExpense,
+        monthlyNet: cashflowSummary.monthlyNet,
+        monthlySummary: cashflowSummary,
+        hasMonthlyImpact: cashflowSummary.hasMonthlyImpact,
+        hasStartMonthOneOffImpact: cashflowSummary.hasStartMonthOneOffImpact,
+        oneOffTotal: cashflowSummary.oneOffTotal,
+      };
+    });
+  }, [
+    bundleSummaryLabels,
+    sandboxBundleGroups,
+    sandboxBundleSummaryMonth,
+    sandboxLedgerRowsByEventId,
+    scenarioIsV2,
+  ]);
+
+  const sandboxBundleCardById = useMemo(
+    () => new Map(sandboxBundleCards.map((card) => [card.id, card])),
+    [sandboxBundleCards]
   );
 
   const activeBundleCard = useMemo(
-    () => (bundleViewId ? bundleCards.find((card) => card.id === bundleViewId) ?? null : null),
-    [bundleCards, bundleViewId]
+    () =>
+      bundleViewId
+        ? baselineBundleCards.find((card) => card.id === bundleViewId) ?? null
+        : null,
+    [baselineBundleCards, bundleViewId]
   );
 
   const activeBundleGroup = useMemo(
@@ -4047,15 +4120,22 @@ export default function PlanLabPanel({
     [bundleGroupById, bundleViewId]
   );
 
+  const canEditActiveBundle = useMemo(() => {
+    if (!activeBundleCard) {
+      return false;
+    }
+    return experimentGroups.some((group) => group.bundleInstanceId === activeBundleCard.id);
+  }, [activeBundleCard, experimentGroups]);
+
   const lastBundleTitle = useMemo(() => {
     if (!lastBundleDrawerState) {
       return null;
     }
     return (
-      bundleCards.find((card) => card.id === lastBundleDrawerState.bundleId)?.title ??
+      baselineBundleCards.find((card) => card.id === lastBundleDrawerState.bundleId)?.title ??
       moneyT("bundleTitleFallback")
     );
-  }, [bundleCards, lastBundleDrawerState, moneyT]);
+  }, [baselineBundleCards, lastBundleDrawerState, moneyT]);
 
   const activeBundleSummary = useMemo(
     () => activeBundleCard?.monthlySummary ?? null,
@@ -4134,35 +4214,37 @@ export default function PlanLabPanel({
     if (!mortgageDetail) {
       return null;
     }
-    const match = (sandboxScenarioV2.events ?? []).find(
+    const match = (baselineScenarioV2.events ?? []).find(
       (event) => event.id === mortgageDetail.eventId
     );
     if (match?.type !== "housing" || match.kind !== "mortgage") {
       return null;
     }
     return match;
-  }, [mortgageDetail, sandboxScenarioV2.events]);
+  }, [baselineScenarioV2.events, mortgageDetail]);
 
   const mortgageDetailAsset = useMemo(() => {
     if (!mortgageDetailEvent?.propertyAssetId) {
       return null;
     }
     return (
-      scenarioAssets.find((asset) => asset.id === mortgageDetailEvent.propertyAssetId) ??
+      baselineScenarioAssets.find(
+        (asset) => asset.id === mortgageDetailEvent.propertyAssetId
+      ) ??
       null
     );
-  }, [mortgageDetailEvent?.propertyAssetId, scenarioAssets]);
+  }, [baselineScenarioAssets, mortgageDetailEvent?.propertyAssetId]);
 
   const mortgageDetailLiability = useMemo(() => {
     if (!mortgageDetailEvent?.mortgageLiabilityId) {
       return null;
     }
     return (
-      scenarioLiabilities.find(
+      baselineScenarioLiabilities.find(
         (liability) => liability.id === mortgageDetailEvent.mortgageLiabilityId
       ) ?? null
     );
-  }, [mortgageDetailEvent?.mortgageLiabilityId, scenarioLiabilities]);
+  }, [baselineScenarioLiabilities, mortgageDetailEvent?.mortgageLiabilityId]);
 
   const getScenarioItemChangeStatus = useCallback(
     (
@@ -4606,10 +4688,12 @@ export default function PlanLabPanel({
       return [];
     }
     if (listTab !== "changed") {
-      return bundleCards;
+      return baselineBundleCards;
     }
-    return bundleCards.filter((bundle) => enabledBundleExperimentIds.has(bundle.id));
-  }, [bundleCards, enabledBundleExperimentIds, listTab, scenarioIsV2]);
+    return baselineBundleCards.filter((bundle) =>
+      enabledBundleExperimentIds.has(bundle.id)
+    );
+  }, [baselineBundleCards, enabledBundleExperimentIds, listTab, scenarioIsV2]);
 
   const showBundleSection = scenarioIsV2 && visibleBundleCards.length > 0;
 
@@ -5402,7 +5486,7 @@ export default function PlanLabPanel({
           baselineRecord?.wizardInput,
           wizardInput
         );
-        const bundleCard = bundleCardById.get(bundleId);
+        const bundleCard = sandboxBundleCardById.get(bundleId);
         const impactLines = bundleCard
           ? [
               moneyT("bundleSummaryOneOff", {
@@ -5442,6 +5526,18 @@ export default function PlanLabPanel({
                     )
                   : moneyT("amountUnset"),
               }),
+              ...(bundleCard.hasStartMonthOneOffImpact
+                ? [
+                    moneyT("bundleSummaryStartMonthNet", {
+                      amount: formatCurrency(
+                        bundleCard.monthlySummary.startMonthNet,
+                        scenario.baseCurrency,
+                        locale
+                      ),
+                      month: bundleCard.monthlySummary.month ?? "--",
+                    }),
+                  ]
+                : []),
             ]
           : [];
         const diffLines = [...changeSummary, ...impactLines].filter(Boolean);
@@ -5970,7 +6066,7 @@ export default function PlanLabPanel({
   }, [
     baselineSmartInvestPolicy,
     baselineBundleInstanceById,
-    bundleCardById,
+    sandboxBundleCardById,
     bundleGroupById,
     bundleInstanceOverrideById,
     buildBundleChangeSummary,
@@ -6843,6 +6939,18 @@ export default function PlanLabPanel({
                                             ),
                                           }
                                         )
+                                      );
+                                    }
+                                    if (bundle.hasStartMonthOneOffImpact) {
+                                      summaryParts.push(
+                                        moneyT("bundleSummaryStartMonthNet", {
+                                          amount: formatCurrency(
+                                            bundle.monthlySummary.startMonthNet,
+                                            scenario.baseCurrency,
+                                            locale
+                                          ),
+                                          month: bundle.monthlySummary.month ?? "--",
+                                        })
                                       );
                                     }
                                     const summaryText =
@@ -7984,7 +8092,8 @@ export default function PlanLabPanel({
             : undefined
         }
         onEdit={
-          mortgageDetail?.bundleId
+          mortgageDetail?.bundleId &&
+          experimentGroups.some((group) => group.bundleInstanceId === mortgageDetail.bundleId)
             ? () => {
                 handleEditBundle(mortgageDetail.bundleId);
                 setMortgageDetail(null);
@@ -8062,6 +8171,18 @@ export default function PlanLabPanel({
                     : moneyT("amountUnset"),
                 })}
               </Text>
+              {activeBundleCard.hasStartMonthOneOffImpact && (
+                <Text size="sm" c="dimmed">
+                  {moneyT("bundleSummaryStartMonthNet", {
+                    amount: formatCurrency(
+                      activeBundleCard.monthlySummary.startMonthNet,
+                      scenario.baseCurrency,
+                      locale
+                    ),
+                    month: activeBundleCard.monthlySummary.month ?? "--",
+                  })}
+                </Text>
+              )}
               {activeBundleCard.assets.map((asset) => (
                 <Text size="sm" c="dimmed" key={asset.id}>
                   {moneyT("bundleSummaryAssetItem", {
@@ -8202,9 +8323,18 @@ export default function PlanLabPanel({
             )}
 
             <Group justify="flex-end">
-              <Button onClick={() => handleEditBundle(activeBundleCard.id)}>
-                {moneyT("bundleEdit")}
-              </Button>
+              {canEditActiveBundle ? (
+                <Button onClick={() => handleEditBundle(activeBundleCard.id)}>
+                  {moneyT("bundleEdit")}
+                </Button>
+              ) : (
+                <Button
+                  variant="light"
+                  onClick={() => handleCreateBundleExperiment(activeBundleCard.id)}
+                >
+                  {translate("planLabBundleCreateExperiment", "建立組合實驗")}
+                </Button>
+              )}
             </Group>
           </Stack>
         ) : null}

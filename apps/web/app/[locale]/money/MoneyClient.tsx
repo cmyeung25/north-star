@@ -119,7 +119,10 @@ import {
   resolveEventCardStartMonth,
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
-import { computeBundleMonthlySummary } from "../../../src/features/money/bundleSummary";
+import {
+  computeBundleCashflowSummary,
+  type BundleMonthlyBreakdownItem,
+} from "../../../src/features/money/bundleSummary";
 import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
 import type { ScenarioEventDraft as ScenarioV2EventDraft } from "../../../src/domain/scenarioV2/events";
 import type { DeleteImpactSummary } from "../../../src/domain/scenarioV2/eventDeleteImpact";
@@ -1700,32 +1703,14 @@ export default function MoneyClient({
     }
     return bundleGroups.map((bundle) => {
       const eventIds = bundle.events.map((event) => event.id);
-      const monthlySummary = computeBundleMonthlySummary(
+      const cashflowSummary = computeBundleCashflowSummary(
         bundle.events,
         ledgerRowsByEventId,
         selectedDashboardMonth,
         bundleSummaryLabels
       );
-      const hasStartMonthOneOffImpact =
-        monthlySummary.startMonthOneOffIncome > 0 ||
-        monthlySummary.startMonthOneOffExpense > 0;
-      const hasMonthlyImpact =
-        monthlySummary.monthlyIncome > 0 || monthlySummary.monthlyExpense > 0;
-      const oneOffTotal = bundle.events.reduce((total, event) => {
-        if (
-          event.type === "cashflow" &&
-          event.cadence === "oneOff" &&
-          event.kind === "expense"
-        ) {
-          return total + event.amount;
-        }
-        if (event.type === "housing" && event.kind === "mortgage") {
-          const feeTotal =
-            event.feesOneOff?.reduce((sum, fee) => sum + fee.amount, 0) ?? 0;
-          return total + feeTotal;
-        }
-        return total;
-      }, 0);
+      const { hasStartMonthOneOffImpact, hasMonthlyImpact, oneOffTotal } =
+        cashflowSummary;
       const assets = scenarioAssets.filter(
         (asset) => asset.createdByEventId && eventIds.includes(asset.createdByEventId)
       );
@@ -1739,10 +1724,10 @@ export default function MoneyClient({
         eventIds,
         assets,
         liabilities,
-        monthlyIncome: monthlySummary.monthlyIncome,
-        monthlyExpense: monthlySummary.monthlyExpense,
-        monthlyNet: monthlySummary.monthlyNet,
-        monthlySummary,
+        monthlyIncome: cashflowSummary.monthlyIncome,
+        monthlyExpense: cashflowSummary.monthlyExpense,
+        monthlyNet: cashflowSummary.monthlyNet,
+        monthlySummary: cashflowSummary,
         hasMonthlyImpact,
         hasStartMonthOneOffImpact,
         oneOffTotal,
@@ -2169,14 +2154,14 @@ export default function MoneyClient({
       const bundleId = bundle.id;
       const title = resolveBundleTitle(bundle);
       const bundleEventIdSet = new Set(bundle.events.map((event) => event.id));
-      const monthlySummary = computeBundleMonthlySummary(
+      const monthlySummary = computeBundleCashflowSummary(
         bundle.events,
         ledgerRowsByEventId,
         selectedDashboardMonth,
         bundleSummaryLabels
       );
       const incomeItems: BundleSliceItem[] = monthlySummary.breakdown
-        .filter((item) => item.direction === "income")
+        .filter((item: BundleMonthlyBreakdownItem) => item.direction === "income")
         .map((item) => ({
           id: item.id,
           label: item.label,
@@ -2195,7 +2180,7 @@ export default function MoneyClient({
       }
 
       const expenseItems: BundleSliceItem[] = monthlySummary.breakdown
-        .filter((item) => item.direction === "expense")
+        .filter((item: BundleMonthlyBreakdownItem) => item.direction === "expense")
         .map((item) => ({
           id: item.id,
           label: item.label,
