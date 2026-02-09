@@ -1150,6 +1150,9 @@ export default function PlanLabPanel({
     bundleId: string;
     focusSection: BundleDrawerSection | null;
   } | null>(null);
+  const [viewScenarioItem, setViewScenarioItem] = useState<ScenarioEditorItem | null>(
+    null
+  );
 
   const monthInvalidMessage = t("planLabMonthInvalid");
   const showChangedOnly = listTab === "changed";
@@ -1212,7 +1215,16 @@ export default function PlanLabPanel({
     setLiabilityDrawerItem(null);
     setEditingItem(null);
     setEditingFocus(null);
+    setViewScenarioItem(null);
   }, []);
+
+  const openScenarioItemView = useCallback(
+    (item: ScenarioEditorItem) => {
+      closeAllPlanLabDrawers();
+      setViewScenarioItem(item);
+    },
+    [closeAllPlanLabDrawers]
+  );
 
   const handleLocateItem = useCallback((id: string) => {
     setListTab((current) => (current === "changed" ? current : "changed"));
@@ -3350,6 +3362,33 @@ export default function PlanLabPanel({
     [openV2EventDrawer, v2EventLookup]
   );
 
+  const canCreateExperimentFromItem = useCallback(
+    (item: ScenarioEditorItem): boolean => {
+      if (scenarioIsV2) {
+        return item.kind === "event" && Boolean(item.eventId);
+      }
+      return item.kind === "event" || item.kind === "rule" || item.kind === "position";
+    },
+    [scenarioIsV2]
+  );
+
+  const handleCreateExperimentFromItem = useCallback(
+    (item: ScenarioEditorItem) => {
+      if (scenarioIsV2) {
+        if (item.kind === "event" && item.eventId) {
+          handleEditV2Event(item.eventId);
+          return;
+        }
+        setPlanToast(
+          translate("planLabExperimentUnsupported", "此項目暫未支援建立實驗。")
+        );
+        return;
+      }
+      openEditingItem(item);
+    },
+    [handleEditV2Event, openEditingItem, scenarioIsV2, translate]
+  );
+
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
     if (scenarioIsV2) {
       return deriveInputsFromScenarioV2({
@@ -3780,6 +3819,41 @@ export default function PlanLabPanel({
     [bundleGroupById, bundleInstanceById, closeAllPlanLabDrawers, experimentGroups, translate]
   );
 
+  const handleCreateBundleExperiment = useCallback(
+    (bundleId: string) => {
+      const bundle = bundleGroupById.get(bundleId);
+      if (!bundle) {
+        return;
+      }
+      const record = bundleInstanceById.get(bundleId);
+      if (!record) {
+        setPlanToast(
+          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
+        );
+        return;
+      }
+      closeAllPlanLabDrawers();
+      const templateDef = record.wizardInput?.templateId
+        ? getTemplateDef(record.wizardInput.templateId)
+        : bundle.templateId
+        ? getTemplateDef(bundle.templateId as TemplateId)
+        : null;
+      if (!templateDef || !record.wizardInput) {
+        setPlanToast(
+          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
+        );
+        return;
+      }
+      setBundleWizardMode("edit");
+      setBundleWizardInstanceId(bundleId);
+      setBundleWizardInitialInput(record.wizardInput);
+      setBundleWizardExperimentMode(true);
+      setBundleTemplate(templateDef);
+      setBundleWizardOpen(true);
+    },
+    [bundleGroupById, bundleInstanceById, closeAllPlanLabDrawers, translate]
+  );
+
   const handleLocateBundle = useCallback(
     (bundleId: string, options?: { openDrawer?: boolean }) => {
       handleLocateItem(buildBundleRowId(bundleId));
@@ -4187,6 +4261,84 @@ export default function PlanLabPanel({
     ]
   );
 
+  const getActiveExperimentGroupItemIds = useCallback(
+    (group: PlanLabExperimentGroup) => {
+      if (!group.removedItems || group.removedItems.length === 0) {
+        return group.itemIds;
+      }
+      const removed = new Set(group.removedItems.map((item) => item.itemId));
+      return group.itemIds.filter((itemId) => !removed.has(itemId));
+    },
+    []
+  );
+
+  const enabledExperimentItemIds = useMemo(() => {
+    if (!scenarioIsV2) {
+      return new Set<string>();
+    }
+    const ids = new Set<string>();
+    experimentGroups.forEach((group) => {
+      if (group.isEnabled === false) {
+        return;
+      }
+      getActiveExperimentGroupItemIds(group).forEach((itemId) => ids.add(itemId));
+    });
+    return ids;
+  }, [experimentGroups, getActiveExperimentGroupItemIds, scenarioIsV2]);
+
+  const enabledBundleExperimentIds = useMemo(() => {
+    if (!scenarioIsV2) {
+      return new Set<string>();
+    }
+    return new Set(
+      experimentGroups
+        .filter((group) => group.isEnabled !== false && group.bundleInstanceId)
+        .map((group) => group.bundleInstanceId as string)
+    );
+  }, [experimentGroups, scenarioIsV2]);
+
+  const getExperimentItemIdForScenarioItem = useCallback(
+    (item: ScenarioEditorItem): string | null => {
+      if (!scenarioIsV2) {
+        return null;
+      }
+      if (item.kind === "event" && item.eventId) {
+        return `events:${item.eventId}`;
+      }
+      if (item.kind === "rule" && item.ruleId) {
+        return `rules:${item.ruleId}`;
+      }
+      if (item.kind === "position" && item.positionKind === "asset" && item.assetId) {
+        return `assets:${item.assetId}`;
+      }
+      if (
+        item.kind === "position" &&
+        item.positionKind === "liability" &&
+        item.liabilityId
+      ) {
+        return `liabilities:${item.liabilityId}`;
+      }
+      return null;
+    },
+    [scenarioIsV2]
+  );
+
+  const isItemImpactedByEnabledExperiment = useCallback(
+    (item: ScenarioEditorItem): boolean => {
+      if (!scenarioIsV2) {
+        return Boolean(getScenarioItemChangeStatus(item));
+      }
+      const itemId = getExperimentItemIdForScenarioItem(item);
+      return itemId ? enabledExperimentItemIds.has(itemId) : false;
+    },
+    [
+      enabledExperimentItemIds,
+      getExperimentItemIdForScenarioItem,
+      getScenarioItemChangeStatus,
+      scenarioIsV2,
+    ]
+  );
+
   const getScenarioItemChangeBadge = useCallback(
     (item: ScenarioEditorItem): PlanLabRowBadge | null => {
       const status = getScenarioItemChangeStatus(item);
@@ -4210,6 +4362,12 @@ export default function PlanLabPanel({
   const getScenarioItemBadges = useCallback(
     (item: ScenarioEditorItem): PlanLabRowBadge[] => {
       const badges: PlanLabRowBadge[] = [];
+      if (isItemImpactedByEnabledExperiment(item)) {
+        badges.push({
+          label: translate("planLabBadgeAppliedExperiment", "已套用實驗"),
+          color: "blue",
+        });
+      }
       const changeBadge = getScenarioItemChangeBadge(item);
       if (changeBadge) {
         badges.push(changeBadge);
@@ -4225,7 +4383,12 @@ export default function PlanLabPanel({
       }
       return badges;
     },
-    [categoryLabels, getScenarioItemChangeBadge, translate]
+    [
+      categoryLabels,
+      getScenarioItemChangeBadge,
+      isItemImpactedByEnabledExperiment,
+      translate,
+    ]
   );
 
   const frequencyLabels = useMemo<Record<NonNullable<ScenarioEditorItem["frequency"]>, string>>(
@@ -4381,7 +4544,7 @@ export default function PlanLabPanel({
       if (activeOnly && !item.enabled) {
         return false;
       }
-      if (showChangedOnly && !getScenarioItemChangeStatus(item)) {
+      if (showChangedOnly && !isItemImpactedByEnabledExperiment(item)) {
         return false;
       }
       if (showRiskyOnly && !item.risky) {
@@ -4395,7 +4558,7 @@ export default function PlanLabPanel({
   }, [
     activeOnly,
     filterKind,
-    getScenarioItemChangeStatus,
+    isItemImpactedByEnabledExperiment,
     scenarioIsV2,
     searchQuery,
     showChangedOnly,
@@ -4437,7 +4600,18 @@ export default function PlanLabPanel({
     categoryLabels,
     scenarioIsV2,
   ]);
-  const showBundleSection = scenarioIsV2 && bundleCards.length > 0;
+
+  const visibleBundleCards = useMemo(() => {
+    if (!scenarioIsV2) {
+      return [];
+    }
+    if (listTab !== "changed") {
+      return bundleCards;
+    }
+    return bundleCards.filter((bundle) => enabledBundleExperimentIds.has(bundle.id));
+  }, [bundleCards, enabledBundleExperimentIds, listTab, scenarioIsV2]);
+
+  const showBundleSection = scenarioIsV2 && visibleBundleCards.length > 0;
 
   const optionViewModel = useMemo(
     () =>
@@ -5164,7 +5338,7 @@ export default function PlanLabPanel({
       isEnabled: boolean;
       onToggle?: () => void;
       onRemove: () => void;
-      onEdit?: () => void;
+      onView?: () => void;
       onLocate?: () => void;
     }> = [];
 
@@ -5184,6 +5358,7 @@ export default function PlanLabPanel({
         if (bundleExperimentEventIds.has(event.id)) {
           return;
         }
+        const scenarioItem = scenarioItems.find((item) => item.eventId === event.id);
         controls.push({
           id: `event-add-${event.id}`,
           titleLine: event.label ?? event.id,
@@ -5191,7 +5366,7 @@ export default function PlanLabPanel({
           isEnabled: true,
           onRemove: () => removeScenarioV2Event(event.id),
           onLocate: () => handleLocateItem(`event:${event.id}`),
-          onEdit: () => handleEditV2Event(event.id),
+          onView: scenarioItem ? () => openScenarioItemView(scenarioItem) : undefined,
         });
       });
       Object.keys(scenarioV2Patches.events.update).forEach((eventId) => {
@@ -5199,6 +5374,7 @@ export default function PlanLabPanel({
           return;
         }
         const updated = v2EventLookup.get(eventId);
+        const scenarioItem = scenarioItems.find((item) => item.eventId === eventId);
         controls.push({
           id: `event-update-${eventId}`,
           titleLine: updated?.label ?? eventId,
@@ -5206,7 +5382,7 @@ export default function PlanLabPanel({
           isEnabled: true,
           onRemove: () => removeScenarioV2Event(eventId),
           onLocate: () => handleLocateItem(`event:${eventId}`),
-          onEdit: () => handleEditV2Event(eventId),
+          onView: scenarioItem ? () => openScenarioItemView(scenarioItem) : undefined,
         });
       });
       bundleExperimentGroups.forEach((group) => {
@@ -5279,7 +5455,7 @@ export default function PlanLabPanel({
           isEnabled: group.isEnabled !== false,
           onToggle: () => toggleExperimentGroup(group.experimentId),
           onRemove: () => removeBundleExperimentGroup(group),
-          onEdit: () => handleEditBundle(bundleId),
+          onView: () => handleViewBundle(bundleId),
           onLocate: () => handleLocateBundle(bundleId, { openDrawer: true }),
         });
       });
@@ -5294,7 +5470,7 @@ export default function PlanLabPanel({
         isEnabled: true,
         onRemove: () => removeDraftMember(member.id),
         onLocate: () => openEditMemberDrawer(member),
-        onEdit: () => openEditMemberDrawer(member),
+        onView: () => openEditMemberDrawer(member),
       });
     });
 
@@ -5313,10 +5489,10 @@ export default function PlanLabPanel({
           ),
         onRemove: () => removeDraftBudgetRule(rule.id),
         onLocate: () => handleLocateItem(`rule:${rule.id}`),
-        onEdit: () => {
+        onView: () => {
           const item = scenarioItems.find((entry) => entry.ruleId === rule.id);
           if (item) {
-            openEditingItem(item);
+            openScenarioItemView(item);
           }
         },
       });
@@ -5352,7 +5528,7 @@ export default function PlanLabPanel({
             current.filter((entry) => entry.definition.id !== event.definition.id)
           ),
         onLocate: () => handleLocateItem(`event:${event.definition.id}`),
-        onEdit: () => openEditEventDrawer(event),
+        onView: () => openEditEventDrawer(event),
       });
     });
 
@@ -5430,7 +5606,7 @@ export default function PlanLabPanel({
         onToggle: () => updateEventPatch(refId, { isDisabled: !nextEnabled }),
         onRemove: () => removePatch("event", refId),
         onLocate: () => handleLocateItem(`event:${refId}`),
-        onEdit: item ? () => openEditingItem(item) : undefined,
+        onView: item ? () => openScenarioItemView(item) : undefined,
       });
     });
 
@@ -5496,7 +5672,7 @@ export default function PlanLabPanel({
         onToggle: () => updateRulePatch(ruleId, { isDisabled: !nextEnabled }),
         onRemove: () => removePatch("rule", ruleId),
         onLocate: () => handleLocateItem(`rule:${ruleId}`),
-        onEdit: item ? () => openEditingItem(item) : undefined,
+        onView: item ? () => openScenarioItemView(item) : undefined,
       });
     });
 
@@ -5550,7 +5726,7 @@ export default function PlanLabPanel({
         onToggle: () => updatePositionPatch(key, { isDisabled: !patch.isDisabled }),
         onRemove: () => removePatch("position", key),
         onLocate: () => handleLocateItem(`position:${key}`),
-        onEdit: item ? () => openEditingItem(item) : undefined,
+        onView: item ? () => openScenarioItemView(item) : undefined,
       });
     });
 
@@ -5629,12 +5805,12 @@ export default function PlanLabPanel({
           updateSmartInvestPatch({ isDisabled: patchedPolicy.enabled }),
         onRemove: () => removePatch("position", "smartInvest"),
         onLocate: () => handleLocateItem("position:smartInvest"),
-        onEdit: () => {
+        onView: () => {
           const item = scenarioItems.find(
             (entry) => entry.positionKind === "smartInvest"
           );
           if (item) {
-            openEditingItem(item);
+            openScenarioItemView(item);
           }
         },
       });
@@ -5786,7 +5962,7 @@ export default function PlanLabPanel({
           }),
         onRemove: () => removeExperiment(experiment.id),
         onLocate: () => handleLocateItem(`experiment-${experiment.id}`),
-        onEdit: () => openEditExperimentDrawer(experiment),
+        onView: () => openEditExperimentDrawer(experiment),
       });
     });
 
@@ -5808,16 +5984,15 @@ export default function PlanLabPanel({
     formatSmartInvestContributionLabel,
     formatSmartInvestReserveLabel,
     getScenarioItemSummary,
-    handleEditBundle,
+    handleViewBundle,
     handleLocateBundle,
     handleLocateItem,
     locale,
     moneyT,
     openEditExperimentDrawer,
     openEditEventDrawer,
-    handleEditV2Event,
     openEditMemberDrawer,
-    openEditingItem,
+    openScenarioItemView,
     positionPatches,
     removeDraftBudgetRule,
     removeDraftMember,
@@ -6443,12 +6618,12 @@ export default function PlanLabPanel({
                   <MantineTooltip
                     label={translate(
                       "planLabScenarioEditorTooltip",
-                      "調整基準情境的事件、規則與資產，這些改動只在此沙盒生效。"
+                      "檢視基準情境的事件、規則與資產（只讀）。"
                     )}
                     withArrow
                   >
                     <Text fw={600}>
-                      {translate("planLabScenarioEditor", "情境編輯器")}
+                      {translate("planLabScenarioEditor", "Baseline 檢視器")}
                     </Text>
                   </MantineTooltip>
                 </Group>
@@ -6607,16 +6782,33 @@ export default function PlanLabPanel({
                                   )}
                                 </Text>
                                 <Badge variant="light" color="blue">
-                                  {bundleCards.length}
+                                  {visibleBundleCards.length}
                                 </Badge>
                               </Group>
                             </Accordion.Control>
                             <Accordion.Panel>
                               <Stack gap="xs">
                                 <Accordion variant="separated" radius="md" multiple>
-                                  {bundleCards.map((bundle) => {
+                                  {visibleBundleCards.map((bundle) => {
                                     const bundleItems =
                                       bundleItemsById.get(bundle.id) ?? [];
+                                    const bundleBadges: PlanLabRowBadge[] = [
+                                      {
+                                        label: translate(
+                                          "planLabBundleBadge",
+                                          "組合"
+                                        ),
+                                      },
+                                    ];
+                                    if (enabledBundleExperimentIds.has(bundle.id)) {
+                                      bundleBadges.unshift({
+                                        label: translate(
+                                          "planLabBadgeAppliedExperiment",
+                                          "已套用實驗"
+                                        ),
+                                        color: "blue",
+                                      });
+                                    }
                                     const summaryParts: string[] = [];
                                     if (bundle.oneOffTotal > 0) {
                                       summaryParts.push(
@@ -6666,14 +6858,7 @@ export default function PlanLabPanel({
                                           )
                                         }
                                         title={bundle.title}
-                                        badges={[
-                                          {
-                                            label: translate(
-                                              "planLabBundleBadge",
-                                              "組合"
-                                            ),
-                                          },
-                                        ]}
+                                        badges={bundleBadges}
                                         meta={summaryText}
                                         highlighted={
                                           highlightedItemId ===
@@ -6689,10 +6874,11 @@ export default function PlanLabPanel({
                                         }}
                                         secondaryAction={{
                                           label: translate(
-                                            "planLabBundleEdit",
-                                            "編輯"
+                                            "planLabBundleCreateExperiment",
+                                            "建立組合實驗"
                                           ),
-                                          onClick: () => handleEditBundle(bundle.id),
+                                          onClick: () =>
+                                            handleCreateBundleExperiment(bundle.id),
                                         }}
                                         panel={
                                           bundleItems.length === 0 ? (
@@ -6745,50 +6931,6 @@ export default function PlanLabPanel({
                             </Text>
                             <Accordion variant="separated" radius="md" multiple>
                               {items.map((item) => {
-                                const menuItems: PlanLabRowMenuItem[] = [];
-                                if (scenarioIsV2) {
-                                  if (item.kind === "event" && item.eventId) {
-                                    menuItems.push({
-                                      label: translate("planLabAppliedRemove", "移除"),
-                                      onClick: () =>
-                                        removeScenarioV2Event(item.eventId ?? item.id),
-                                    });
-                                  }
-                                } else {
-                                  if (
-                                    (item.kind === "event" &&
-                                      item.eventSource !== "draft") ||
-                                    item.kind === "rule"
-                                  ) {
-                                    menuItems.push({
-                                      label: translate(
-                                        "planLabActionEnd",
-                                        "設定結束月份"
-                                      ),
-                                      onClick: () => openEditingItem(item, "validity"),
-                                    });
-                                  }
-                                  if (item.kind === "event" && item.eventSource === "draft") {
-                                    menuItems.push({
-                                      label: translate("planLabAppliedRemove", "移除"),
-                                      onClick: () =>
-                                        setDraftEvents((current) =>
-                                          current.filter(
-                                            (event) =>
-                                              event.definition.id !==
-                                              item.eventDefinitionId
-                                          )
-                                        ),
-                                    });
-                                  }
-                                  if (item.kind === "rule" && item.ruleSource === "draft") {
-                                    menuItems.push({
-                                      label: translate("planLabAppliedRemove", "移除"),
-                                      onClick: () =>
-                                        removeDraftBudgetRule(item.ruleId ?? item.id),
-                                    });
-                                  }
-                                }
                                 return (
                                   <PlanLabAccordionRow
                                     key={item.id}
@@ -6797,100 +6939,23 @@ export default function PlanLabPanel({
                                     title={item.title}
                                     badges={getScenarioItemBadges(item)}
                                     meta={getScenarioItemSummary(item)}
-                                    enabled={item.enabled}
                                     highlighted={highlightedItemId === item.id}
-                                    onToggle={
-                                      scenarioIsV2
-                                        ? undefined
-                                        : () => {
-                                            if (
-                                              item.kind === "event" &&
-                                              item.eventDefinitionId
-                                            ) {
-                                              if (item.eventSource === "draft") {
-                                                setDraftEvents((current) =>
-                                                  current.map((event) =>
-                                                    event.definition.id ===
-                                                    item.eventDefinitionId
-                                                      ? {
-                                                          ...event,
-                                                          ref: {
-                                                            ...event.ref,
-                                                            enabled: !event.ref.enabled,
-                                                          },
-                                                        }
-                                                      : event
-                                                  )
-                                                );
-                                              } else {
-                                                updateEventPatch(item.eventDefinitionId, {
-                                                  isDisabled: item.enabled,
-                                                });
-                                              }
-                                            }
-                                            if (item.kind === "rule" && item.ruleId) {
-                                              if (item.ruleSource === "draft") {
-                                                setDraftBudgetRules((current) =>
-                                                  current.map((rule) =>
-                                                    rule.id === item.ruleId
-                                                      ? { ...rule, enabled: !rule.enabled }
-                                                      : rule
-                                                  )
-                                                );
-                                              } else {
-                                                updateRulePatch(item.ruleId, {
-                                                  isDisabled: item.enabled,
-                                                });
-                                              }
-                                            }
-                                            if (
-                                              item.kind === "position" &&
-                                              item.positionKey
-                                            ) {
-                                              if (item.positionKind === "smartInvest") {
-                                                updateSmartInvestPatch({
-                                                  isDisabled: item.enabled,
-                                                });
-                                              } else {
-                                                updatePositionPatch(item.positionKey, {
-                                                  isDisabled: item.enabled,
-                                                });
-                                              }
-                                            }
-                                          }
-                                    }
-                                    onEdit={() => {
-                                      if (scenarioIsV2) {
-                                        if (item.kind === "event" && item.eventId) {
-                                          handleEditV2Event(item.eventId);
-                                        }
-                                        if (item.positionKind === "asset") {
-                                          closeAllPlanLabDrawers();
-                                          setAssetDrawerItem(item.position ?? null);
-                                        }
-                                        if (item.positionKind === "liability") {
-                                          closeAllPlanLabDrawers();
-                                          setLiabilityDrawerItem(item.position ?? null);
-                                        }
-                                        return;
-                                      }
-                                      if (
-                                        item.kind === "event" &&
-                                        item.eventSource === "draft"
-                                      ) {
-                                        const addition = draftEvents.find(
-                                          (event) =>
-                                            event.definition.id ===
-                                            item.eventDefinitionId
-                                        );
-                                        if (addition) {
-                                          openEditEventDrawer(addition);
-                                        }
-                                        return;
-                                      }
-                                      openEditingItem(item);
+                                    primaryAction={{
+                                      label: translate(
+                                        "planLabViewDetailsAction",
+                                        "查看"
+                                      ),
+                                      onClick: () => openScenarioItemView(item),
                                     }}
-                                    menuItems={menuItems}
+                                    secondaryAction={{
+                                      label: translate(
+                                        "planLabCreateExperimentAction",
+                                        "建立實驗"
+                                      ),
+                                      onClick: () =>
+                                        handleCreateExperimentFromItem(item),
+                                      disabled: !canCreateExperimentFromItem(item),
+                                    }}
                                     panel={
                                       <Text size="xs" c="dimmed">
                                         {getScenarioItemSummary(item) || "—"}
@@ -7380,13 +7445,13 @@ export default function PlanLabPanel({
                                         onChange={() => control.onToggle?.()}
                                       />
                                     )}
-                                    {control.onEdit && (
+                                    {control.onView && (
                                       <Button
                                         size="xs"
                                         variant="subtle"
-                                        onClick={() => control.onEdit?.()}
+                                        onClick={() => control.onView?.()}
                                       >
-                                        {translate("planLabAppliedEdit", "編輯")}
+                                        {translate("planLabAppliedView", "查看")}
                                       </Button>
                                     )}
                                     <Button
@@ -8288,6 +8353,42 @@ export default function PlanLabPanel({
                   <Text size="sm">
                     {translate("planLabLiabilityDrawerNotes", "備註")}:{" "}
                     {liabilityDrawerItem.notes}
+                  </Text>
+                )}
+              </Stack>
+            ) : null}
+          </Drawer>
+          <Drawer
+            opened={Boolean(viewScenarioItem)}
+            onClose={() => setViewScenarioItem(null)}
+            position="right"
+            size="md"
+            title={translate("planLabBaselineViewerTitle", "Baseline 檢視")}
+          >
+            {viewScenarioItem ? (
+              <Stack gap="xs">
+                <Text fw={600}>{viewScenarioItem.title}</Text>
+                <Group gap={4} wrap="wrap">
+                  {getScenarioItemBadges(viewScenarioItem).map((badge) => (
+                    <Badge
+                      key={`view-${viewScenarioItem.id}-${badge.label}`}
+                      size="xs"
+                      variant="light"
+                      color={badge.color}
+                    >
+                      {badge.label}
+                    </Badge>
+                  ))}
+                </Group>
+                {viewScenarioItem.category && (
+                  <Text size="sm">
+                    {translate("planLabBaselineViewerCategory", "分類")}:{" "}
+                    {viewScenarioItem.category}
+                  </Text>
+                )}
+                {getScenarioItemSummary(viewScenarioItem) && (
+                  <Text size="sm" c="dimmed">
+                    {getScenarioItemSummary(viewScenarioItem)}
                   </Text>
                 )}
               </Stack>
