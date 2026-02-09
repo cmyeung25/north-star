@@ -192,6 +192,10 @@ const summarizeScenarioSeedPayload = (
         monthlyExpense += event.rentMonthly;
       }
       if (event.kind === "mortgage") {
+        const propertyMarketValue =
+          event.propertyMarketValue ?? event.purchasePrice ?? 0;
+        const mortgageBaseValue =
+          event.mortgageBaseValue ?? event.purchasePrice ?? propertyMarketValue;
         if (typeof event.mortgagePayment === "number") {
           monthlyExpense += event.mortgagePayment;
         }
@@ -201,13 +205,13 @@ const summarizeScenarioSeedPayload = (
         if (event.rental?.enabled && typeof event.rental.rentMonthly === "number") {
           monthlyIncome += event.rental.rentMonthly;
         }
-        if (typeof event.purchasePrice === "number") {
-          assetsTotal += event.purchasePrice;
+        if (propertyMarketValue > 0) {
+          assetsTotal += propertyMarketValue;
           const downPaymentAmount =
             event.downPaymentMode === "amount"
               ? event.downPaymentAmount ?? 0
-              : (event.purchasePrice * (event.downPaymentPercent ?? 0)) / 100;
-          liabilitiesTotal += Math.max(0, event.purchasePrice - downPaymentAmount);
+              : (propertyMarketValue * (event.downPaymentPercent ?? 0)) / 100;
+          liabilitiesTotal += Math.max(0, mortgageBaseValue - downPaymentAmount);
         }
       }
     }
@@ -356,6 +360,8 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         bundleId: homeBundleId,
         label: homeBundleTitle,
         startMonth: baseMonth,
+        propertyMarketValue: 6000000,
+        mortgageBaseValue: 6000000,
         purchasePrice: 6000000,
         downPaymentMode: "percent",
         downPaymentPercent: 20,
@@ -486,6 +492,8 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         bundleId: homeBundleId,
         label: homeBundleTitle,
         startMonth: baseMonth,
+        propertyMarketValue: 7000000,
+        mortgageBaseValue: 7000000,
         purchasePrice: 7000000,
         downPaymentMode: "percent",
         downPaymentPercent: 25,
@@ -857,6 +865,8 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         bundleId: homeBundleId,
         label: homeBundleTitle,
         startMonth: baseMonth,
+        propertyMarketValue: 12000000,
+        mortgageBaseValue: 12000000,
         purchasePrice: 12000000,
         downPaymentMode: "amount",
         downPaymentAmount: 5000000,

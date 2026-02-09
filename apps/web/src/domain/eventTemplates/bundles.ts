@@ -50,6 +50,9 @@ export type HomePurchaseBundleInput = {
   bundleId?: string;
   label?: string;
   startMonth: MonthKey;
+  propertyMarketValue?: number;
+  mortgageBaseValue?: number;
+  mortgageBaseMode?: "SYNC" | "CUSTOM";
   purchasePrice: number;
   downPaymentMode: "percent" | "amount";
   downPaymentPercent?: number;
@@ -276,13 +279,21 @@ export const buildHomePurchaseBundleEvent = (
   const propertyAssetId = input.propertyAssetId ?? createHomeAssetId();
   const mortgageLiabilityId =
     input.mortgageLiabilityId ?? createMortgageLiabilityId();
+  const propertyMarketValue = input.propertyMarketValue ?? input.purchasePrice;
+  const mortgageBaseValue = input.mortgageBaseValue ?? propertyMarketValue;
+  const mortgageBaseMode =
+    input.mortgageBaseMode ??
+    (mortgageBaseValue !== propertyMarketValue ? "CUSTOM" : "SYNC");
 
   return {
     id: input.eventId ?? createId(),
     type: "housing",
     kind: "mortgage",
     startMonth: input.startMonth,
-    purchasePrice: input.purchasePrice,
+    purchasePrice: propertyMarketValue,
+    propertyMarketValue,
+    mortgageBaseValue,
+    mortgageBaseMode,
     downPaymentMode: input.downPaymentMode,
     downPaymentPercent:
       input.downPaymentMode === "percent" ? input.downPaymentPercent : undefined,

@@ -75,7 +75,9 @@ const buildDraft = (overrides: Partial<OnboardingV2Draft> = {}): OnboardingV2Dra
     mode: "rent",
     rent: { amount: 0 },
     own: {
-      propertyValue: 0,
+      propertyMarketValue: 0,
+      mortgageBaseValue: 0,
+      mortgageBaseMode: "SYNC",
       downPaymentMode: "percent",
       mortgageEnabled: false,
       mortgageRatePct: 0,
@@ -181,7 +183,9 @@ describe("applyOnboardingV2DraftToScenarioV2", () => {
         mode: "own",
         rent: { amount: 0 },
         own: {
-          propertyValue: 500000,
+          propertyMarketValue: 500000,
+          mortgageBaseValue: 500000,
+          mortgageBaseMode: "SYNC",
           startMonth: "2024-01",
           downPaymentMode: "percent",
           downPaymentPercent: 20,
@@ -216,13 +220,90 @@ describe("applyOnboardingV2DraftToScenarioV2", () => {
     ).toBe(true);
   });
 
+  it("uses mortgage base value for mortgage liabilities and events", () => {
+    const draft = buildDraft({
+      housing: {
+        mode: "own",
+        rent: { amount: 0 },
+        own: {
+          propertyMarketValue: 1000000,
+          mortgageBaseValue: 1200000,
+          mortgageBaseMode: "CUSTOM",
+          startMonth: "2024-01",
+          downPaymentMode: "percent",
+          downPaymentPercent: 20,
+          mortgageEnabled: true,
+          mortgageRatePct: 3,
+          mortgageTermYears: 25,
+          mortgagePayment: 0,
+          fees: [],
+          ongoingCosts: [],
+          rental: { enabled: false, amount: 0 },
+        },
+      },
+    });
+
+    const result = applyOnboardingV2DraftToScenarioV2(draft, baseScenario);
+    const mortgageLiability = result.liabilities?.find(
+      (entry) => entry.kind === "mortgage"
+    );
+    const housingEvent = result.events?.find(
+      (event): event is HousingEvent =>
+        event.type === "housing" && event.kind === "mortgage"
+    );
+
+    expect(mortgageLiability?.principalOutstanding).toBe(1000000);
+    expect(housingEvent?.propertyMarketValue).toBe(1000000);
+    expect(housingEvent?.mortgageBaseValue).toBe(1200000);
+    expect(housingEvent?.mortgageBaseMode).toBe("CUSTOM");
+  });
+
+  it("skips mortgage liabilities and events when mortgage is disabled", () => {
+    const draft = buildDraft({
+      housing: {
+        mode: "own",
+        rent: { amount: 0 },
+        own: {
+          propertyMarketValue: 500000,
+          mortgageBaseValue: 500000,
+          mortgageBaseMode: "SYNC",
+          startMonth: "2024-01",
+          downPaymentMode: "percent",
+          downPaymentPercent: 20,
+          mortgageEnabled: false,
+          mortgageRatePct: 3,
+          mortgageTermYears: 25,
+          mortgagePayment: 0,
+          fees: [],
+          ongoingCosts: [],
+          rental: { enabled: false, amount: 0 },
+        },
+      },
+    });
+
+    const result = applyOnboardingV2DraftToScenarioV2(draft, baseScenario);
+    const mortgageLiability = result.liabilities?.find(
+      (entry) => entry.kind === "mortgage"
+    );
+    const housingEvent = result.events?.find(
+      (event): event is HousingEvent =>
+        event.type === "housing" && event.kind === "mortgage"
+    );
+
+    expect(mortgageLiability).toBeUndefined();
+    expect(housingEvent).toBeUndefined();
+    expect(result.assets?.some((asset) => asset.kind === "home")).toBe(true);
+  });
+
   it("skips rent events when rent is marked as no payment", () => {
     const draft = buildDraft({
       housing: {
         mode: "rent",
         rent: { amount: 0, noPayment: true, startMonth: "2024-01" },
         own: {
-          propertyValue: 0,
+          propertyMarketValue: 0,
+          mortgageBaseValue: 0,
+          mortgageBaseMode: "SYNC",
           downPaymentMode: "percent",
           mortgageEnabled: false,
           mortgageRatePct: 0,

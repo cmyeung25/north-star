@@ -301,6 +301,9 @@ describe("scenario v2 event asset/liability upserts", () => {
         kind: "mortgage",
         startMonth: "2025-01",
         purchasePrice: 1000000,
+        propertyMarketValue: 1000000,
+        mortgageBaseValue: 1200000,
+        mortgageBaseMode: "CUSTOM",
         downPaymentMode: "percent",
         downPaymentPercent: 20,
         mortgageRatePct: 4,
@@ -331,7 +334,7 @@ describe("scenario v2 event asset/liability upserts", () => {
     expect(liability).toMatchObject({
       id: "liability-mortgage-1",
       kind: "mortgage",
-      principalOutstanding: 800000,
+      principalOutstanding: 960000,
       annualInterestRatePct: 4,
       termYears: 30,
       source: "eventGenerated",

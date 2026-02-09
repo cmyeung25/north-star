@@ -15,7 +15,7 @@ import {
   Title,
 } from "@mantine/core";
 import { nanoid } from "nanoid";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MonthField from "../../../../components/MonthField";
 import { calcAmortizedPaymentMonthly } from "../../../domain/positions/calculations";
 import type { OnboardingV2DraftHousing } from "../../../domain/onboarding/v2/draftTypes";
@@ -27,7 +27,7 @@ export type HousingErrors = {
     endMonth: string;
   }>;
   own: {
-    propertyValue?: string;
+    propertyMarketValue?: string;
     startMonth?: string;
     mortgageRatePct?: string;
     mortgageTermYears?: string;
@@ -59,20 +59,25 @@ const toOptionalNumber = (value: number | string) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
 const resolveLoanAmount = (own: OnboardingV2DraftHousing["own"]) => {
-  const propertyValue = toNumber(own.propertyValue);
+  const propertyMarketValue = toNumber(own.propertyMarketValue);
+  const mortgageBaseValue =
+    own.mortgageBaseMode === "CUSTOM"
+      ? toNumber(own.mortgageBaseValue ?? propertyMarketValue)
+      : propertyMarketValue;
   const downPaymentPercent =
     own.downPaymentMode === "percent"
       ? toNumber(own.downPaymentPercent ?? 0)
-      : propertyValue > 0
-        ? (toNumber(own.downPaymentAmount ?? 0) / propertyValue) * 100
+      : propertyMarketValue > 0
+        ? (toNumber(own.downPaymentAmount ?? 0) / propertyMarketValue) * 100
         : 0;
   const downPaymentAmount =
     own.downPaymentMode === "percent"
-      ? (propertyValue * downPaymentPercent) / 100
+      ? (propertyMarketValue * downPaymentPercent) / 100
       : toNumber(own.downPaymentAmount ?? 0);
-  const loanAmount = Math.max(0, propertyValue - downPaymentAmount);
+  const loanAmount = Math.max(0, mortgageBaseValue - downPaymentAmount);
   return {
-    propertyValue,
+    propertyMarketValue,
+    mortgageBaseValue,
     downPaymentPercent,
     downPaymentAmount,
     loanAmount,
@@ -125,6 +130,23 @@ export default function HousingStep({
         ...housing.own,
         ...patch,
       };
+      const resolvedMortgageBaseMode = nextOwn.mortgageBaseMode ?? "SYNC";
+      if (
+        typeof patch.propertyMarketValue === "number" &&
+        resolvedMortgageBaseMode === "SYNC"
+      ) {
+        nextOwn.mortgageBaseValue = patch.propertyMarketValue;
+      }
+      if (patch.mortgageBaseMode === "SYNC") {
+        nextOwn.mortgageBaseValue = nextOwn.propertyMarketValue;
+      }
+      if (
+        typeof patch.mortgageBaseValue === "number" &&
+        patch.mortgageBaseMode === undefined
+      ) {
+        nextOwn.mortgageBaseMode =
+          patch.mortgageBaseValue === nextOwn.propertyMarketValue ? "SYNC" : "CUSTOM";
+      }
       if (options?.paymentSource) {
         nextOwn.mortgagePaymentSource = options.paymentSource;
       }
@@ -263,6 +285,20 @@ export default function HousingStep({
   const paymentDiff =
     estimatedPayment && paymentInput > 0 ? paymentInput - estimatedPayment : null;
   const isManualPayment = housing.own.mortgagePaymentSource === "manual";
+  const [mortgageBaseExpanded, setMortgageBaseExpanded] = useState(
+    housing.own.mortgageBaseMode === "CUSTOM"
+  );
+  const propertyMarketValue = toNumber(housing.own.propertyMarketValue);
+  const mortgageBaseValue =
+    housing.own.mortgageBaseMode === "CUSTOM"
+      ? toNumber(housing.own.mortgageBaseValue ?? propertyMarketValue)
+      : propertyMarketValue;
+  const isMortgageBaseSynced = (housing.own.mortgageBaseMode ?? "SYNC") === "SYNC";
+  const showMortgageBaseWarning =
+    housing.own.mortgageEnabled &&
+    mortgageBaseValue > 0 &&
+    propertyMarketValue > 0 &&
+    mortgageBaseValue > propertyMarketValue;
 
   useEffect(() => {
     if (!housing.own.mortgageEnabled) {
@@ -289,6 +325,12 @@ export default function HousingStep({
     paymentInput,
     updateOwn,
   ]);
+
+  useEffect(() => {
+    if (housing.own.mortgageBaseMode === "CUSTOM") {
+      setMortgageBaseExpanded(true);
+    }
+  }, [housing.own.mortgageBaseMode]);
 
   const rentNetAmount = Math.max(
     0,
@@ -393,11 +435,13 @@ export default function HousingStep({
               </Text>
               <Group grow align="flex-start">
                 <NumberInput
-                  label={t("housingPropertyValue")}
+                  label={t("housingPropertyMarketValue")}
                   min={0}
-                  value={housing.own.propertyValue}
-                  error={errors.own.propertyValue}
-                  onChange={(value) => updateOwn({ propertyValue: toNumber(value) })}
+                  value={housing.own.propertyMarketValue}
+                  error={errors.own.propertyMarketValue}
+                  onChange={(value) =>
+                    updateOwn({ propertyMarketValue: toNumber(value) })
+                  }
                 />
                 <MonthField
                   label={t("housingPropertyStartMonth")}
@@ -471,6 +515,55 @@ export default function HousingStep({
                 </Group>
                 {housing.own.mortgageEnabled && (
                   <Stack gap="xs">
+                    {!mortgageBaseExpanded && (
+                      <Group justify="space-between" align="center">
+                        <Text size="xs" c="dimmed">
+                          {t("housingMortgageBaseSynced")}
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => setMortgageBaseExpanded(true)}
+                        >
+                          {t("housingMortgageBaseSplitAction")}
+                        </Button>
+                      </Group>
+                    )}
+                    {mortgageBaseExpanded && (
+                      <Stack gap="xs">
+                        <NumberInput
+                          label={t("housingMortgageBaseValue")}
+                          min={0}
+                          value={mortgageBaseValue}
+                          disabled={isMortgageBaseSynced}
+                          onChange={(value) =>
+                            updateOwn({
+                              mortgageBaseValue: toNumber(value),
+                              mortgageBaseMode: "CUSTOM",
+                            })
+                          }
+                        />
+                        <Switch
+                          checked={isMortgageBaseSynced}
+                          label={t("housingMortgageBaseSyncToggle")}
+                          onChange={(event) =>
+                            updateOwn({
+                              mortgageBaseMode: event.currentTarget.checked
+                                ? "SYNC"
+                                : "CUSTOM",
+                              mortgageBaseValue: event.currentTarget.checked
+                                ? propertyMarketValue
+                                : mortgageBaseValue,
+                            })
+                          }
+                        />
+                      </Stack>
+                    )}
+                    {showMortgageBaseWarning && (
+                      <Text size="xs" c="orange">
+                        {t("housingMortgageBaseWarning")}
+                      </Text>
+                    )}
                     <Group grow align="flex-start">
                       <NumberInput
                         label={t("housingMortgageRate")}

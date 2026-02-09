@@ -215,6 +215,7 @@ export type HomePosition = {
   usage?: HomeUsage;
   mode?: HomeMode;
   purchasePrice?: number;
+  mortgageBaseValue?: number;
   downPayment?: number;
   purchaseMonth?: string;
   annualAppreciationPct: number;
@@ -1201,36 +1202,62 @@ const applyLiabilityItemRemoveFromPositions = (
   };
 };
 
+const resolvePropertyMarketValue = (event: ScenarioEvent) => {
+  if (event.type !== "housing" || event.kind !== "mortgage") {
+    return undefined;
+  }
+  return typeof event.propertyMarketValue === "number"
+    ? event.propertyMarketValue
+    : typeof event.purchasePrice === "number"
+    ? event.purchasePrice
+    : undefined;
+};
+
+const resolveMortgageBaseValue = (event: ScenarioEvent) => {
+  if (event.type !== "housing" || event.kind !== "mortgage") {
+    return undefined;
+  }
+  return typeof event.mortgageBaseValue === "number"
+    ? event.mortgageBaseValue
+    : typeof event.purchasePrice === "number"
+    ? event.purchasePrice
+    : typeof event.propertyMarketValue === "number"
+    ? event.propertyMarketValue
+    : undefined;
+};
+
 const resolveMortgagePrincipal = (event: ScenarioEvent) => {
   if (event.type !== "housing" || event.kind !== "mortgage") {
     return undefined;
   }
-  if (typeof event.purchasePrice !== "number") {
+  const mortgageBaseValue = resolveMortgageBaseValue(event);
+  if (typeof mortgageBaseValue !== "number") {
     return undefined;
   }
   if (event.downPaymentMode === "amount") {
-    return Math.max(event.purchasePrice - (event.downPaymentAmount ?? 0), 0);
+    return Math.max(mortgageBaseValue - (event.downPaymentAmount ?? 0), 0);
   }
   if (event.downPaymentMode === "percent") {
     const downPaymentPct = event.downPaymentPercent ?? 0;
-    return Math.max(event.purchasePrice * (1 - downPaymentPct / 100), 0);
+    return Math.max(mortgageBaseValue * (1 - downPaymentPct / 100), 0);
   }
   if (typeof event.downPaymentAmount === "number") {
-    return Math.max(event.purchasePrice - event.downPaymentAmount, 0);
+    return Math.max(mortgageBaseValue - event.downPaymentAmount, 0);
   }
-  return event.purchasePrice;
+  return mortgageBaseValue;
 };
 
 const buildEventGeneratedAssetsForEvent = (
   event: ScenarioEvent
 ): ScenarioAsset[] => {
   if (event.type === "housing" && event.kind === "mortgage") {
+    const currentValue = resolvePropertyMarketValue(event);
     return [
       {
         id: event.propertyAssetId ?? event.id,
         kind: "home" as const,
         label: event.label,
-        currentValue: event.purchasePrice,
+        currentValue,
         source: "eventGenerated" as const,
         createdByEventId: event.id,
         createdByTemplate: "housing_mortgage" as const,
