@@ -71,6 +71,7 @@ const ENTITY_ORDER: PatchEntity[] = ["events", "assets", "liabilities", "members
 
 const buildItemId = (entity: PatchEntity, id: string) => `${entity}:${id}`;
 
+
 export const collectPatchItemIds = (patches: PlanLabScenarioV2Patches): string[] => {
   const ids: string[] = [];
   ENTITY_ORDER.forEach((entity) => {
@@ -104,36 +105,58 @@ export const filterScenarioV2PatchesByExperimentGroups = (
       .filter((group) => group.isEnabled === false)
       .flatMap((group) => getActiveGroupItemIds(group))
   );
-  const removed = new Set(groups.flatMap((group) => group.removedItems?.map((item) => item.itemId) ?? []));
+  const removed = new Set(
+    groups.flatMap((group) => group.removedItems?.map((item) => item.itemId) ?? [])
+  );
   const excluded = new Set([...disabled, ...removed]);
   if (excluded.size === 0) {
     return patches;
   }
 
-  const filtered: PlanLabScenarioV2Patches = {
-    ...patches,
-    events: { ...patches.events, add: [...patches.events.add] },
-    assets: { ...patches.assets, add: [...patches.assets.add] },
-    liabilities: { ...patches.liabilities, add: [...patches.liabilities.add] },
-    members: { ...patches.members, add: [...patches.members.add] },
-    rules: { ...patches.rules, add: [...patches.rules.add] },
+  const excludedByEntity: Record<PatchEntity, Set<string>> = {
+    events: new Set<string>(),
+    assets: new Set<string>(),
+    liabilities: new Set<string>(),
+    members: new Set<string>(),
+    rules: new Set<string>(),
+  };
+  excluded.forEach((itemId) => {
+    const parsed = parseItemId(itemId);
+    if (!parsed) {
+      return;
+    }
+    excludedByEntity[parsed.entity].add(parsed.id);
+  });
+
+  const filterPatchSet = <T extends { id: string }>(
+    patchSet: { add: T[]; update: Record<string, Partial<T>>; remove: string[] },
+    excludedIds: Set<string>
+  ) => {
+    if (excludedIds.size === 0) {
+      return {
+        add: [...patchSet.add],
+        update: { ...patchSet.update },
+        remove: [...patchSet.remove],
+      };
+    }
+    const nextUpdate = Object.fromEntries(
+      Object.entries(patchSet.update).filter(([id]) => !excludedIds.has(id))
+    );
+    return {
+      add: patchSet.add.filter((item) => !excludedIds.has(item.id)),
+      update: nextUpdate,
+      remove: patchSet.remove.filter((id) => !excludedIds.has(id)),
+    };
   };
 
-  filtered.events.add = filtered.events.add.filter(
-    (item) => !excluded.has(buildItemId("events", item.id))
-  );
-  filtered.assets.add = filtered.assets.add.filter(
-    (item) => !excluded.has(buildItemId("assets", item.id))
-  );
-  filtered.liabilities.add = filtered.liabilities.add.filter(
-    (item) => !excluded.has(buildItemId("liabilities", item.id))
-  );
-  filtered.members.add = filtered.members.add.filter(
-    (item) => !excluded.has(buildItemId("members", item.id))
-  );
-  filtered.rules.add = filtered.rules.add.filter(
-    (item) => !excluded.has(buildItemId("rules", item.id))
-  );
+  const filtered: PlanLabScenarioV2Patches = {
+    ...patches,
+    events: filterPatchSet(patches.events, excludedByEntity.events),
+    assets: filterPatchSet(patches.assets, excludedByEntity.assets),
+    liabilities: filterPatchSet(patches.liabilities, excludedByEntity.liabilities),
+    members: filterPatchSet(patches.members, excludedByEntity.members),
+    rules: filterPatchSet(patches.rules, excludedByEntity.rules),
+  };
 
   return filtered;
 };
