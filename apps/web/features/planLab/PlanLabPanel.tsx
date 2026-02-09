@@ -4476,13 +4476,15 @@ export default function PlanLabPanel({
     if (!Number.isFinite(baselineEndNetWorth) || baselineEndNetWorth <= 0) {
       return [];
     }
-    const multipliers = [0.5, 1, 1.5, 2];
+    const multipliers = [0.5, 1, 1.5, 2, 3,4 ,5];
     const rawValues = multipliers.map((multiplier) =>
       Math.round((baselineEndNetWorth ?? 0) * multiplier)
     );
     const roundedValues = Array.from(
-      new Set(rawValues.map((value) => Math.round(value / 10000) * 10000))
+      new Set(rawValues.map((value) => Math.round(value / 1000000) * 1000000))
     ).filter((value) => value > 0);
+
+
     return roundedValues.map((value) => ({
       value: String(value),
       label: formatCurrency(value, scenario.baseCurrency, locale),
@@ -6502,14 +6504,15 @@ export default function PlanLabPanel({
                             {translate("planLabAddRuleAction", "新增規則")}
                           </Button>
                         )}
-                        {scenarioIsV2 && (
-                          <Button size="xs" variant="light" onClick={openExperimentTemplatesDrawer}>
+                        {scenarioIsV2 && experimentGroups.length > 0 && (
+                          <Button size="xs" onClick={openExperimentTemplatesDrawer}>
                             {translate("planLabExperimentsAddAction", "新增實驗")}
                           </Button>
                         )}
                         <Button
                           size="xs"
                           variant="light"
+                          display="none"
                           onClick={openAddEventDrawer}
                         >
                           {translate("planLabAddEventAction", "新增事件")}
