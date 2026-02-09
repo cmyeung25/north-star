@@ -2062,6 +2062,29 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       return null;
     }
     const scenarioId = created.id;
+    const scenario = get().scenarios.find((entry) => entry.id === scenarioId);
+    if (!scenario) {
+      return null;
+    }
+
+    const resolveSeedMemberId = (roleKey: string) =>
+      `${scenarioId}:member:${roleKey}`;
+
+    const seedMemberIdMap = new Map(
+      seed.members.map((member) => [member.id, resolveSeedMemberId(member.id)])
+    );
+    const seededMembers = seed.members.map((member) => ({
+      ...member,
+      id: seedMemberIdMap.get(member.id) ?? member.id,
+    }));
+    const seededEvents = seed.events.map((event) =>
+      event.memberId
+        ? {
+            ...event,
+            memberId: seedMemberIdMap.get(event.memberId) ?? event.memberId,
+          }
+        : event
+    );
 
     const seedAssumptions: Partial<ScenarioAssumptions> = {
       ...seed.assumptions,
@@ -2069,12 +2092,44 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
     };
 
-    get().updateScenarioAssumptions(scenarioId, seedAssumptions);
+    const assumptionPatch: Partial<ScenarioAssumptions> = {};
+    const assumptionPatchRecord = assumptionPatch as Record<
+      keyof ScenarioAssumptions,
+      ScenarioAssumptions[keyof ScenarioAssumptions] | undefined
+    >;
+    (
+      Object.entries(seedAssumptions) as [
+        keyof ScenarioAssumptions,
+        ScenarioAssumptions[keyof ScenarioAssumptions] | undefined,
+      ][]
+    ).forEach(([assumptionKey, value]) => {
+      if (value === undefined) {
+        return;
+      }
+      const currentValue = scenario.assumptions[assumptionKey];
+      const defaultValue = (defaultAssumptions as Partial<ScenarioAssumptions>)[
+        assumptionKey
+      ];
+      const shouldApply =
+        currentValue === undefined ||
+        currentValue === null ||
+        (defaultValue !== undefined && currentValue === defaultValue);
+      if (shouldApply) {
+        assumptionPatchRecord[assumptionKey] = value;
+      }
+    });
+
+    if (seed.baseCurrency && seed.baseCurrency !== scenario.baseCurrency) {
+      get().updateScenarioBaseCurrency(scenarioId, seed.baseCurrency);
+    }
+
+    if (Object.keys(assumptionPatch).length > 0) {
+      get().updateScenarioAssumptions(scenarioId, assumptionPatch);
+    }
 
     if (seed.members.length > 0) {
-      const scenario = get().scenarios.find((entry) => entry.id === scenarioId);
-      if (!scenario?.members?.length) {
-        get().setScenarioMembers(scenarioId, seed.members);
+      if (!scenario.members?.length) {
+        get().setScenarioMembers(scenarioId, seededMembers);
       }
     }
 
@@ -2090,7 +2145,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       get().upsertBundleInstanceRecord(scenarioId, record);
     });
 
-    seed.events.forEach((event) => {
+    seededEvents.forEach((event) => {
       get().addEvent(event, scenarioId);
     });
 
