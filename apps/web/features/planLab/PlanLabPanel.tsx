@@ -196,6 +196,11 @@ import {
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
 import { computeBundleCashflowSummary } from "../../src/features/money/bundleSummary";
+import {
+  buildEventOverridePatch,
+  buildEventOverrideSummary,
+  type EventOverrideExperimentSpec,
+} from "../../src/domain/planLab/eventOverrideExperiment";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -262,6 +267,16 @@ type ScenarioEditorItem = {
   eventRule?: EventRule;
   eventOverrides?: EventRuleOverrides;
   eventSource?: "baseline" | "draft";
+};
+
+type EventExperimentDraft = {
+  targetEventId: string | null;
+  amountMode: "percent" | "hkd";
+  amountValue: number;
+  startShiftMonths: number;
+  endShiftMonths: number;
+  growthMode: "unchanged" | "assumption" | "custom" | "none";
+  growthRate: number;
 };
 
 type PlanLabDraftEventAddition = {
@@ -1142,6 +1157,16 @@ export default function PlanLabPanel({
   const [editingV2EventId, setEditingV2EventId] = useState<string | null>(null);
   const [v2EventDefaultKind, setV2EventDefaultKind] =
     useState<CashflowEvent["kind"]>("income");
+  const [eventExperimentDrawerOpen, setEventExperimentDrawerOpen] = useState(false);
+  const [eventExperimentDraft, setEventExperimentDraft] = useState<EventExperimentDraft>({
+    targetEventId: null,
+    amountMode: "percent",
+    amountValue: 0,
+    startShiftMonths: 0,
+    endShiftMonths: 0,
+    growthMode: "unchanged",
+    growthRate: 0,
+  });
   const [assetDrawerItem, setAssetDrawerItem] = useState<ScenarioAsset | null>(null);
   const [liabilityDrawerItem, setLiabilityDrawerItem] =
     useState<ScenarioLiability | null>(null);
@@ -1222,6 +1247,16 @@ export default function PlanLabPanel({
     setV2EventDrawerType(null);
     setEditingV2EventId(null);
     setV2EventDefaultKind("income");
+    setEventExperimentDrawerOpen(false);
+    setEventExperimentDraft({
+      targetEventId: null,
+      amountMode: "percent",
+      amountValue: 0,
+      startShiftMonths: 0,
+      endShiftMonths: 0,
+      growthMode: "unchanged",
+      growthRate: 0,
+    });
     setTemplateCashflowDraft(null);
     setTemplateHousingDraft(null);
     setTemplateLoanDraft(null);
@@ -2180,12 +2215,7 @@ export default function PlanLabPanel({
   };
 
   const openItemTemplatePicker = () => {
-    closeAllPlanLabDrawers();
-    setTemplatePickerCategory("popular");
-    setTemplatePickerIntent("item");
-    setTemplatePickerItemCategory("income");
-    setTemplatePlanUnsupportedNotice(null);
-    setTemplatePickerOpen(true);
+    openEventExperimentDrawer();
   };
 
   const openEditEventDrawer = (addition: PlanLabDraftEventAddition) => {
@@ -3451,10 +3481,138 @@ export default function PlanLabPanel({
     [openV2EventDrawer, v2EventLookup]
   );
 
+  const openEventExperimentDrawer = useCallback(
+    (eventId?: string) => {
+      closeAllPlanLabDrawers();
+      setEventExperimentDraft({
+        targetEventId: eventId ?? null,
+        amountMode: "percent",
+        amountValue: 0,
+        startShiftMonths: 0,
+        endShiftMonths: 0,
+        growthMode: "unchanged",
+        growthRate: 0,
+      });
+      setEventExperimentDrawerOpen(true);
+    },
+    [closeAllPlanLabDrawers]
+  );
+
+  const submitEventExperiment = useCallback(() => {
+    if (!eventExperimentDraft.targetEventId) {
+      setPlanToast(translate("planLabExperimentPickEvent", "請先選擇一個散件事件。"));
+      return;
+    }
+    const baselineEvent = (baselineScenarioV2.events ?? []).find(
+      (event) => event.id === eventExperimentDraft.targetEventId
+    );
+    if (!baselineEvent) {
+      setPlanToast(translate("planLabExperimentEventMissing", "找不到目標事件。"));
+      return;
+    }
+    const spec: EventOverrideExperimentSpec = {
+      id: `event_override_${nanoid(8)}`,
+      title: `事件實驗：${baselineEvent.label ?? baselineEvent.id}`,
+      type: "event_override",
+      targetEventId: baselineEvent.id,
+      changes: {
+        amountMultiplier:
+          eventExperimentDraft.amountMode === "percent"
+            ? 1 + eventExperimentDraft.amountValue / 100
+            : undefined,
+        amountDelta:
+          eventExperimentDraft.amountMode === "hkd"
+            ? eventExperimentDraft.amountValue
+            : undefined,
+        startMonthShift:
+          eventExperimentDraft.startShiftMonths !== 0
+            ? eventExperimentDraft.startShiftMonths
+            : undefined,
+        endMonthShift:
+          eventExperimentDraft.endShiftMonths !== 0
+            ? eventExperimentDraft.endShiftMonths
+            : undefined,
+        growthMode:
+          eventExperimentDraft.growthMode === "unchanged"
+            ? undefined
+            : eventExperimentDraft.growthMode,
+        growthRate:
+          eventExperimentDraft.growthMode === "custom"
+            ? eventExperimentDraft.growthRate
+            : undefined,
+      },
+    };
+    const patch = buildEventOverridePatch(baselineEvent, spec);
+    const summary = buildEventOverrideSummary(baselineEvent, spec);
+    setScenarioV2Patches((current) => ({
+      ...current,
+      events: {
+        ...current.events,
+        update: {
+          ...current.events.update,
+          [baselineEvent.id]: {
+            ...(current.events.update[baselineEvent.id] ?? {}),
+            ...patch,
+          } as Partial<ScenarioEvent>,
+        },
+      },
+    }));
+    const itemId = `events:${baselineEvent.id}`;
+    setExperimentGroups((current) => [
+      ...current,
+      {
+        experimentId: spec.id,
+        title: summary.length > 0 ? `${baselineEvent.label ?? baselineEvent.id}（${summary.join("；")}）` : spec.title,
+        isEnabled: true,
+        itemIds: [itemId],
+        primaryEventId: baselineEvent.id,
+        templateId: spec.type,
+        createdAt: Date.now(),
+      },
+    ]);
+    setEventExperimentDrawerOpen(false);
+  }, [
+    baselineScenarioV2.events,
+    eventExperimentDraft,
+    setScenarioV2Patches,
+    translate,
+  ]);
+
+  const standaloneEventExperimentOptions = useMemo(
+    () =>
+      (baselineScenarioV2.events ?? []).map((event) => ({
+        value: event.id,
+        label: `${event.label ?? event.id} (${event.type === "cashflow" ? event.kind : event.type})`,
+        disabled: Boolean(event.source?.bundleInstanceId),
+      })),
+    [baselineScenarioV2.events]
+  );
+
+  const selectedEventExperimentEvent = useMemo(
+    () =>
+      eventExperimentDraft.targetEventId
+        ? (baselineScenarioV2.events ?? []).find((event) => event.id === eventExperimentDraft.targetEventId) ?? null
+        : null,
+    [baselineScenarioV2.events, eventExperimentDraft.targetEventId]
+  );
+
+  const eventExperimentPreviewAmount = useMemo(() => {
+    if (!selectedEventExperimentEvent || selectedEventExperimentEvent.type !== "cashflow") {
+      return null;
+    }
+    if (eventExperimentDraft.amountMode === "percent") {
+      return Math.round(
+        selectedEventExperimentEvent.amount *
+          (1 + eventExperimentDraft.amountValue / 100)
+      );
+    }
+    return Math.round(selectedEventExperimentEvent.amount + eventExperimentDraft.amountValue);
+  }, [eventExperimentDraft.amountMode, eventExperimentDraft.amountValue, selectedEventExperimentEvent]);
+
   const canCreateExperimentFromItem = useCallback(
     (item: ScenarioEditorItem): boolean => {
       if (scenarioIsV2) {
-        return item.kind === "event" && Boolean(item.eventId);
+        return item.kind === "event" && Boolean(item.eventId) && !item.bundleInstanceId;
       }
       return item.kind === "event" || item.kind === "rule" || item.kind === "position";
     },
@@ -3465,7 +3623,7 @@ export default function PlanLabPanel({
     (item: ScenarioEditorItem) => {
       if (scenarioIsV2) {
         if (item.kind === "event" && item.eventId) {
-          handleEditV2Event(item.eventId);
+          openEventExperimentDrawer(item.eventId);
           return;
         }
         setPlanToast(
@@ -3475,7 +3633,7 @@ export default function PlanLabPanel({
       }
       openEditingItem(item);
     },
-    [handleEditV2Event, openEditingItem, scenarioIsV2, translate]
+    [openEventExperimentDrawer, openEditingItem, scenarioIsV2, translate]
   );
 
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
@@ -6238,7 +6396,7 @@ export default function PlanLabPanel({
   const isExperimentLibraryEmpty = scenarioIsV2
     ? experimentGroups.length === 0
     : experiments.length === 0;
-  const showExperimentEmptyState = isExperimentLibraryEmpty || appliedControls.length === 0;
+  const showExperimentEmptyState = isExperimentLibraryEmpty;
 
   const showBundleSection = scenarioIsV2 && visibleBundleCards.length > 0;
   const standaloneItemsContent =
@@ -7511,59 +7669,28 @@ export default function PlanLabPanel({
                       </Group>
                     </Group>
                     {showExperimentEmptyState && (
-                      <Paper withBorder radius="md" p="md">
-                        <Stack gap="sm">
-                          <Stack gap={4}>
-                            <Text fw={600}>
-                              {translate(
-                                "planLabEmptyStateTitle",
-                                "建立第一個實驗"
-                              )}
-                            </Text>
-                            <Text size="sm" c="dimmed">
-                              {translate(
-                                "planLabEmptyStateDescription",
-                                "用實驗去測試改動對現況的影響，結果即時反映到右邊 KPI/圖表。"
-                              )}
-                            </Text>
-                          </Stack>
-                          <Group gap="xs" wrap="wrap">
-                            <Button size="sm" onClick={handleAddExperimentAction}>
-                              {translate("planLabEmptyStateCta", "新增實驗")}
-                            </Button>
-                            <Button
-                              size="xs"
-                              variant="light"
-                              onClick={openBundleTemplatePicker}
-                            >
-                              {translate(
-                                "planLabEmptyStateBundleAction",
-                                "修改人生組合"
-                              )}
-                            </Button>
-                            <Button
-                              size="xs"
-                              variant="light"
-                              onClick={openItemTemplatePicker}
-                            >
-                              {translate(
-                                "planLabEmptyStateItemAction",
-                                "修改獨立事件"
-                              )}
-                            </Button>
-                            <Button
-                              size="xs"
-                              variant="light"
-                              onClick={() => openAddRuleDrawer()}
-                            >
-                              {translate(
-                                "planLabEmptyStateAssumptionsAction",
-                                "修改環境假設"
-                              )}
-                            </Button>
-                          </Group>
-                        </Stack>
-                      </Paper>
+                      <Stack gap={6}>
+                        <Text size="sm" c="dimmed">
+                          {translate(
+                            "planLabExperimentsEmptyCompact",
+                            "建立實驗以比較 baseline 與新方案，並即時反映 KPI/圖表。"
+                          )}
+                        </Text>
+                        <Group gap="xs" wrap="wrap">
+                          <Button size="sm" onClick={handleAddExperimentAction}>
+                            {translate("planLabEmptyStateCta", "新增實驗")}
+                          </Button>
+                          <Button size="xs" variant="light" onClick={openBundleTemplatePicker}>
+                            {translate("planLabEmptyStateBundleAction", "修改人生組合")}
+                          </Button>
+                          <Button size="xs" variant="light" onClick={openItemTemplatePicker}>
+                            {translate("planLabEmptyStateItemAction", "修改獨立事件")}
+                          </Button>
+                          <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
+                            {translate("planLabEmptyStateAssumptionsAction", "修改環境假設")}
+                          </Button>
+                        </Group>
+                      </Stack>
                     )}
                     {scenarioIsV2 && bundleExperimentCta ? (
                       <Notification color="teal" onClose={() => setBundleExperimentCta(null)}>
@@ -7609,7 +7736,7 @@ export default function PlanLabPanel({
                         </Group>
                       </Notification>
                     ) : null}
-                    {(scenarioIsV2 ? experimentGroups.length === 0 : experiments.length === 0) ? (
+                    {(!scenarioIsV2 && experiments.length === 0) ? (
                       <Stack gap="xs">
                         <Text size="sm" c="dimmed">
                           {scenarioIsV2
@@ -10008,6 +10135,149 @@ export default function PlanLabPanel({
           </Group>
         </Stack>
       </Modal>
+
+      <Drawer
+        opened={eventExperimentDrawerOpen}
+        onClose={() => setEventExperimentDrawerOpen(false)}
+        position={isMobile ? "bottom" : "right"}
+        size={isMobile ? "100%" : "md"}
+        title={translate("planLabEventExperimentDrawerTitle", "事件實驗")}
+        styles={drawerStyles}
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {translate("planLabEventExperimentDrawerHint", "你正在建立實驗，不會改動 baseline。")}
+          </Text>
+          <Select
+            label={translate("planLabEventExperimentTarget", "目標事件")}
+            data={standaloneEventExperimentOptions}
+            value={eventExperimentDraft.targetEventId}
+            onChange={(value) =>
+              setEventExperimentDraft((current) => ({ ...current, targetEventId: value }))
+            }
+            placeholder={translate("planLabEventExperimentTargetPlaceholder", "選擇散件事件")}
+          />
+          {selectedEventExperimentEvent?.source?.bundleInstanceId ? (
+            <Text size="xs" c="orange">
+              {translate(
+                "planLabEventExperimentBundleHint",
+                "此項目由人生組合生成，請用「建立組合實驗」修改。"
+              )}
+            </Text>
+          ) : null}
+          <SegmentedControl
+            value={eventExperimentDraft.amountMode}
+            onChange={(value) =>
+              setEventExperimentDraft((current) => ({
+                ...current,
+                amountMode: value as "percent" | "hkd",
+              }))
+            }
+            data={[
+              { label: "%", value: "percent" },
+              { label: "HKD", value: "hkd" },
+            ]}
+          />
+          <NumberInput
+            label={translate("planLabEventExperimentAmount", "金額變更")}
+            value={eventExperimentDraft.amountValue}
+            onChange={(value) =>
+              setEventExperimentDraft((current) => ({
+                ...current,
+                amountValue: typeof value === "number" ? value : 0,
+              }))
+            }
+            allowDecimal={eventExperimentDraft.amountMode === "percent"}
+            step={eventExperimentDraft.amountMode === "percent" ? 1 : 500}
+          />
+          {selectedEventExperimentEvent?.type === "cashflow" &&
+            typeof eventExperimentPreviewAmount === "number" && (
+              <Text size="sm" c="dimmed">
+                {translate("planLabEventExperimentPreview", "預覽：{base} → {next}", {
+                  base: formatCurrency(
+                    selectedEventExperimentEvent.amount,
+                    scenario.baseCurrency,
+                    locale
+                  ),
+                  next: formatCurrency(eventExperimentPreviewAmount, scenario.baseCurrency, locale),
+                })}
+              </Text>
+            )}
+          <NumberInput
+            label={translate("planLabEventExperimentStartShift", "開始月份（提早/延後）")}
+            description={translate("planLabEventExperimentShiftDesc", "負數代表提早；正數代表延後（單位：月）")}
+            value={eventExperimentDraft.startShiftMonths}
+            onChange={(value) =>
+              setEventExperimentDraft((current) => ({
+                ...current,
+                startShiftMonths: typeof value === "number" ? value : 0,
+              }))
+            }
+            step={1}
+          />
+          <NumberInput
+            label={translate("planLabEventExperimentEndShift", "結束月份（提前/延後）")}
+            description={translate("planLabEventExperimentShiftDesc", "負數代表提前；正數代表延後（單位：月）")}
+            value={eventExperimentDraft.endShiftMonths}
+            onChange={(value) =>
+              setEventExperimentDraft((current) => ({
+                ...current,
+                endShiftMonths: typeof value === "number" ? value : 0,
+              }))
+            }
+            step={1}
+          />
+          <Select
+            label={translate("planLabEventExperimentGrowth", "成長假設")}
+            data={[
+              {
+                value: "unchanged",
+                label: translate("planLabEventExperimentGrowthUnchanged", "維持不變"),
+              },
+              {
+                value: "assumption",
+                label: translate("planLabEventExperimentGrowthAssumption", "跟隨環境假設"),
+              },
+              {
+                value: "custom",
+                label: translate("planLabEventExperimentGrowthCustom", "自訂成長率"),
+              },
+              {
+                value: "none",
+                label: translate("planLabEventExperimentGrowthNone", "不成長"),
+              },
+            ]}
+            value={eventExperimentDraft.growthMode}
+            onChange={(value) =>
+              setEventExperimentDraft((current) => ({
+                ...current,
+                growthMode: (value as EventExperimentDraft["growthMode"]) ?? "unchanged",
+              }))
+            }
+          />
+          {eventExperimentDraft.growthMode === "custom" && (
+            <NumberInput
+              label={translate("planLabEventExperimentGrowthRate", "自訂成長率（%）")}
+              value={eventExperimentDraft.growthRate}
+              onChange={(value) =>
+                setEventExperimentDraft((current) => ({
+                  ...current,
+                  growthRate: typeof value === "number" ? value : 0,
+                }))
+              }
+              step={0.1}
+            />
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setEventExperimentDrawerOpen(false)}>
+              {translate("planLabActionCancel", "取消")}
+            </Button>
+            <Button onClick={submitEventExperiment}>
+              {translate("planLabEventExperimentCreate", "建立實驗")}
+            </Button>
+          </Group>
+        </Stack>
+      </Drawer>
 
       <Modal
         opened={Boolean(pendingRemoveGroup)}
