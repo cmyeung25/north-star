@@ -1927,52 +1927,64 @@ export default function PlanLabPanel({
     setExperiments((current) => current.filter((experiment) => experiment.id !== id));
   };
 
-  const toggleExperimentGroup = useCallback((experimentId: string) => {
+  const applyExperiment = useCallback((experimentId: string) => {
     setExperimentGroups((current) =>
       current.map((group) =>
-        group.experimentId === experimentId
-          ? { ...group, isEnabled: !group.isEnabled }
-          : group
+        group.experimentId === experimentId ? { ...group, isEnabled: true } : group
       )
     );
   }, []);
 
-  const deleteExperimentGroup = useCallback((experimentId: string) => {
+  const unapplyExperiment = useCallback((experimentId: string) => {
     setExperimentGroups((current) =>
-      current.filter((group) => group.experimentId !== experimentId)
+      current.map((group) =>
+        group.experimentId === experimentId ? { ...group, isEnabled: false } : group
+      )
     );
   }, []);
 
-  const removeBundleExperimentGroup = useCallback(
-    (group: PlanLabExperimentGroup) => {
-      setScenarioV2Patches((current) => {
-        const next = removeExperimentGroupItemsFromPatches(current, group);
-        if (!group.bundleInstanceId) {
-          return next;
-        }
-        const baselineEventIds =
-          baselineBundleEventIdsByBundleId.get(group.bundleInstanceId) ?? [];
-        if (baselineEventIds.length === 0) {
-          return next;
-        }
-        return {
-          ...next,
-          events: {
-            ...next.events,
-            remove: next.events.remove.filter((id) => !baselineEventIds.includes(id)),
-          },
-        };
-      });
+  const deleteExperiment = useCallback(
+    (experimentId: string) => {
+      const targetGroup =
+        experimentGroups.find((group) => group.experimentId === experimentId) ?? null;
+      if (!targetGroup) {
+        return;
+      }
       setExperimentGroups((current) =>
-        current.filter((entry) => entry.experimentId !== group.experimentId)
+        current.filter((group) => group.experimentId !== experimentId)
       );
-      if (group.bundleInstanceId) {
+      const baselineEventIds = new Set((baselineScenarioV2.events ?? []).map((event) => event.id));
+      setScenarioV2Patches((current) => {
+        const next = removeExperimentGroupItemsFromPatches(current, targetGroup);
+        if (process.env.NODE_ENV !== "production") {
+          const currentBaselineRemovals = current.events.remove.filter((id) => baselineEventIds.has(id));
+          const nextBaselineRemovals = next.events.remove.filter((id) => baselineEventIds.has(id));
+          if (nextBaselineRemovals.length > currentBaselineRemovals.length) {
+            console.error("Plan Lab experiment delete attempted to remove baseline events", {
+              experimentId,
+              addedBaselineRemovals: nextBaselineRemovals.filter(
+                (id) => !currentBaselineRemovals.includes(id)
+              ),
+            });
+            return current;
+          }
+        }
+        return next;
+      });
+      if (targetGroup.bundleInstanceId) {
         setBundleInstanceOverrides((current) =>
-          current.filter((record) => record.id !== group.bundleInstanceId)
+          current.filter((record) => record.id !== targetGroup.bundleInstanceId)
         );
       }
     },
-    [baselineBundleEventIdsByBundleId]
+    [baselineScenarioV2.events, experimentGroups]
+  );
+
+  const removeBundleExperimentGroup = useCallback(
+    (group: PlanLabExperimentGroup) => {
+      deleteExperiment(group.experimentId);
+    },
+    [deleteExperiment]
   );
 
   const removeDraftMember = (memberId: string) => {
@@ -5662,6 +5674,18 @@ export default function PlanLabPanel({
     ]
   );
 
+  const experimentIdByPatchItemId = useMemo(() => {
+    const mapping = new Map<string, string>();
+    experimentGroups.forEach((group) => {
+      group.itemIds.forEach((itemId) => {
+        if (!mapping.has(itemId)) {
+          mapping.set(itemId, group.experimentId);
+        }
+      });
+    });
+    return mapping;
+  }, [experimentGroups]);
+
   const appliedControls = useMemo(() => {
     const controls: Array<{
       id: string;
@@ -5693,13 +5717,21 @@ export default function PlanLabPanel({
           return;
         }
         const scenarioItem = scenarioItems.find((item) => item.eventId === event.id);
+        const sourceExperimentId = experimentIdByPatchItemId.get(`events:${event.id}`);
         controls.push({
           id: `event-add-${event.id}`,
           titleLine: event.label ?? event.id,
-          diffLines: [translate("planLabAppliedAddedEvent", "新增事件")],
+          diffLines: sourceExperimentId
+            ? [
+                translate("planLabAppliedAddedEvent", "新增事件"),
+                translate("planLabAppliedRevertExperimentImpact", "移除本實驗影響"),
+              ]
+            : [translate("planLabAppliedAddedEvent", "新增事件")],
           isEnabled: true,
           itemIds: [`event:${event.id}`],
-          onRemove: () => removeScenarioV2Event(event.id),
+          onRemove: sourceExperimentId
+            ? () => unapplyExperiment(sourceExperimentId)
+            : () => removeScenarioV2Event(event.id),
           onLocate: () => handleLocateItem(`event:${event.id}`),
           onView: scenarioItem ? () => openScenarioItemView(scenarioItem) : undefined,
         });
@@ -5710,13 +5742,21 @@ export default function PlanLabPanel({
         }
         const updated = v2EventLookup.get(eventId);
         const scenarioItem = scenarioItems.find((item) => item.eventId === eventId);
+        const sourceExperimentId = experimentIdByPatchItemId.get(`events:${eventId}`);
         controls.push({
           id: `event-update-${eventId}`,
           titleLine: updated?.label ?? eventId,
-          diffLines: [translate("planLabAppliedUpdated", "已更新")],
+          diffLines: sourceExperimentId
+            ? [
+                translate("planLabAppliedUpdated", "已更新"),
+                translate("planLabAppliedRevertExperimentImpact", "移除本實驗影響"),
+              ]
+            : [translate("planLabAppliedUpdated", "已更新")],
           isEnabled: true,
           itemIds: [`event:${eventId}`],
-          onRemove: () => removeScenarioV2Event(eventId),
+          onRemove: sourceExperimentId
+            ? () => unapplyExperiment(sourceExperimentId)
+            : () => removeScenarioV2Event(eventId),
           onLocate: () => handleLocateItem(`event:${eventId}`),
           onView: scenarioItem ? () => openScenarioItemView(scenarioItem) : undefined,
         });
@@ -5802,7 +5842,10 @@ export default function PlanLabPanel({
               : [translate("planLabAppliedUpdated", "已更新")],
           isEnabled: group.isEnabled !== false,
           itemIds: [buildBundleRowId(bundleId)],
-          onToggle: () => toggleExperimentGroup(group.experimentId),
+          onToggle: () =>
+            group.isEnabled === false
+              ? applyExperiment(group.experimentId)
+              : unapplyExperiment(group.experimentId),
           onRemove: () => removeBundleExperimentGroup(group),
           onView: () => handleViewBundle(bundleId),
           onLocate: () => handleLocateBundle(bundleId, { openDrawer: true }),
@@ -6334,6 +6377,7 @@ export default function PlanLabPanel({
     draftEvents,
     draftMembers,
     eventPatches,
+    experimentIdByPatchItemId,
     experiments,
     formatEnabledLabel,
     formatSmartInvestContributionLabel,
@@ -6354,6 +6398,7 @@ export default function PlanLabPanel({
     removeScenarioV2Event,
     removeBundleExperimentGroup,
     removeExperiment,
+    unapplyExperiment,
     rulePatches,
     resolveBundleExperimentTitle,
     resolveBundleTitle,
@@ -7826,7 +7871,11 @@ export default function PlanLabPanel({
                                     { count: activeItemIds.length }
                                   )}
                                   enabled={group.isEnabled}
-                                  onToggle={() => toggleExperimentGroup(group.experimentId)}
+                                  onToggle={() =>
+                                    group.isEnabled === false
+                                      ? applyExperiment(group.experimentId)
+                                      : unapplyExperiment(group.experimentId)
+                                  }
                                   onEdit={
                                     group.bundleInstanceId
                                       ? () => handleEditBundle(group.bundleInstanceId!)
@@ -10293,7 +10342,7 @@ export default function PlanLabPanel({
           <Text size="sm">
             {translate(
               "planLabRemoveExperimentConfirmBody",
-              "此操作會移除實驗，並撤銷其套用的 {count} 個變更項目。",
+              "此操作只會移除實驗及其 {count} 個變更，不會刪除基準事件。",
               { count: String(pendingRemoveGroupCount) }
             )}
           </Text>
@@ -10305,67 +10354,7 @@ export default function PlanLabPanel({
               color="red"
               onClick={() => {
                 if (pendingRemoveGroup) {
-                  pendingRemoveGroup.itemIds.forEach((itemId) => {
-                    const [kind, id] = itemId.split(":");
-                    if (!id) {
-                      return;
-                    }
-                    if (kind === "event" || kind === "events") {
-                      removeScenarioV2Event(id);
-                      return;
-                    }
-                    setScenarioV2Patches((current) => {
-                      const nextPatches: PlanLabScenarioV2Patches = {
-                        events: {
-                          add: [...current.events.add],
-                          update: { ...current.events.update },
-                          remove: [...current.events.remove],
-                        },
-                        assets: {
-                          add: [...current.assets.add],
-                          update: { ...current.assets.update },
-                          remove: [...current.assets.remove],
-                        },
-                        liabilities: {
-                          add: [...current.liabilities.add],
-                          update: { ...current.liabilities.update },
-                          remove: [...current.liabilities.remove],
-                        },
-                        members: {
-                          add: [...current.members.add],
-                          update: { ...current.members.update },
-                          remove: [...current.members.remove],
-                        },
-                        rules: {
-                          add: [...current.rules.add],
-                          update: { ...current.rules.update },
-                          remove: [...current.rules.remove],
-                        },
-                      };
-                      if (kind === "asset" || kind === "assets") {
-                        nextPatches.assets.add = nextPatches.assets.add.filter((item) => item.id !== id);
-                        delete nextPatches.assets.update[id];
-                        nextPatches.assets.remove = nextPatches.assets.remove.filter((entry) => entry !== id);
-                      }
-                      if (kind === "liability" || kind === "liabilities") {
-                        nextPatches.liabilities.add = nextPatches.liabilities.add.filter((item) => item.id !== id);
-                        delete nextPatches.liabilities.update[id];
-                        nextPatches.liabilities.remove = nextPatches.liabilities.remove.filter((entry) => entry !== id);
-                      }
-                      if (kind === "rule" || kind === "rules") {
-                        nextPatches.rules.add = nextPatches.rules.add.filter((item) => item.id !== id);
-                        delete nextPatches.rules.update[id];
-                        nextPatches.rules.remove = nextPatches.rules.remove.filter((entry) => entry !== id);
-                      }
-                      if (kind === "member" || kind === "members") {
-                        nextPatches.members.add = nextPatches.members.add.filter((item) => item.id !== id);
-                        delete nextPatches.members.update[id];
-                        nextPatches.members.remove = nextPatches.members.remove.filter((entry) => entry !== id);
-                      }
-                      return nextPatches;
-                    });
-                  });
-                  deleteExperimentGroup(pendingRemoveGroup.experimentId);
+                  deleteExperiment(pendingRemoveGroup.experimentId);
                 }
                 setConfirmRemoveGroupId(null);
               }}

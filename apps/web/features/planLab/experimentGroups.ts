@@ -186,36 +186,33 @@ export const removeExperimentGroupItemsFromPatches = (
     events: {
       add: patches.events.add.filter((item) => !removals.events.has(item.id)),
       update: { ...patches.events.update },
-      remove: [...patches.events.remove],
+      remove: patches.events.remove.filter((id) => !removals.events.has(id)),
     },
     assets: {
       add: patches.assets.add.filter((item) => !removals.assets.has(item.id)),
       update: { ...patches.assets.update },
-      remove: [...patches.assets.remove],
+      remove: patches.assets.remove.filter((id) => !removals.assets.has(id)),
     },
     liabilities: {
       add: patches.liabilities.add.filter((item) => !removals.liabilities.has(item.id)),
       update: { ...patches.liabilities.update },
-      remove: [...patches.liabilities.remove],
+      remove: patches.liabilities.remove.filter((id) => !removals.liabilities.has(id)),
     },
     members: {
       add: patches.members.add.filter((item) => !removals.members.has(item.id)),
       update: { ...patches.members.update },
-      remove: [...patches.members.remove],
+      remove: patches.members.remove.filter((id) => !removals.members.has(id)),
     },
     rules: {
       add: patches.rules.add.filter((item) => !removals.rules.has(item.id)),
       update: { ...patches.rules.update },
-      remove: [...patches.rules.remove],
+      remove: patches.rules.remove.filter((id) => !removals.rules.has(id)),
     },
   };
 
   ENTITY_ORDER.forEach((entity) => {
     removals[entity].forEach((id) => {
       delete next[entity].update[id];
-      if (!next[entity].remove.includes(id)) {
-        next[entity].remove.push(id);
-      }
     });
   });
 
