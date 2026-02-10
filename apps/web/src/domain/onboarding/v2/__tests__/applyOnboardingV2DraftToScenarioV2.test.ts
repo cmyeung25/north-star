@@ -112,6 +112,31 @@ const buildDraft = (overrides: Partial<OnboardingV2Draft> = {}): OnboardingV2Dra
 });
 
 describe("applyOnboardingV2DraftToScenarioV2", () => {
+
+  it("applies negative assumption growth values to scenario assumptions", () => {
+    const draft = buildDraft({
+      assumptions: {
+        inflationPct: -2.5,
+        incomeGrowthPct: -3,
+        investmentReturnPct: 5,
+        rentGrowthPct: -1,
+        propertyAppreciationPct: -5,
+        carDepreciationPct: 10,
+        cashYieldPct: -0.5,
+        taxInputMode: null,
+      },
+    });
+
+    const result = applyOnboardingV2DraftToScenarioV2(draft, baseScenario);
+
+    expect(result.assumptions.inflationRate).toBe(-2.5);
+    expect(result.assumptions.salaryGrowthRate).toBe(-3);
+    expect(result.assumptions.rentAnnualGrowthPct).toBe(-1);
+    expect(result.assumptions.propertyAppreciationPct).toBe(-5);
+    expect(result.assumptions.cashYieldPct).toBe(-0.5);
+    expect(result.assumptions.carDepreciationRatePct).toBe(10);
+  });
+
   it("maps income entries to cashflow events", () => {
     const draft = buildDraft({
       incomes: [

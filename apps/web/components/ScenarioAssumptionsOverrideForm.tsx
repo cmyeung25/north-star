@@ -1,5 +1,6 @@
 import { Group, NumberInput, Slider, Stack, Text } from "@mantine/core";
 import type { ScenarioAssumptions } from "../src/store/scenarioStore";
+import { scenarioAssumptionConstraints } from "../src/domain/scenarioAssumptions";
 
 export type ScenarioAssumptionsOverride = Partial<
   Pick<
@@ -57,9 +58,12 @@ export default function ScenarioAssumptionsOverrideForm({
   emergencyFundRange,
   onChange,
 }: Props) {
-  const emergencyMin = emergencyFundRange?.min ?? 0;
-  const emergencyMax = emergencyFundRange?.max ?? 24;
-  const emergencyStep = emergencyFundRange?.step ?? 1;
+  const emergencyMin =
+    emergencyFundRange?.min ?? scenarioAssumptionConstraints.emergencyFundMonths.min;
+  const emergencyMax =
+    emergencyFundRange?.max ?? scenarioAssumptionConstraints.emergencyFundMonths.max;
+  const emergencyStep =
+    emergencyFundRange?.step ?? scenarioAssumptionConstraints.emergencyFundMonths.step;
 
   return (
     <Stack gap="md">
@@ -68,9 +72,9 @@ export default function ScenarioAssumptionsOverrideForm({
           label={labels.inflationRate}
           description={baselineLabel(labels.baselinePrefix, baseline.inflationRate)}
           value={values.inflationRate ?? ""}
-          min={0}
-          max={100}
-          step={0.1}
+          min={scenarioAssumptionConstraints.inflationRate.min}
+          max={scenarioAssumptionConstraints.inflationRate.max}
+          step={scenarioAssumptionConstraints.inflationRate.step}
           decimalScale={2}
           onChange={(value) =>
             onChange({ inflationRate: typeof value === "number" ? value : undefined })
@@ -80,9 +84,9 @@ export default function ScenarioAssumptionsOverrideForm({
           label={labels.salaryGrowthRate}
           description={baselineLabel(labels.baselinePrefix, baseline.salaryGrowthRate)}
           value={values.salaryGrowthRate ?? ""}
-          min={0}
-          max={100}
-          step={0.1}
+          min={scenarioAssumptionConstraints.salaryGrowthRate.min}
+          max={scenarioAssumptionConstraints.salaryGrowthRate.max}
+          step={scenarioAssumptionConstraints.salaryGrowthRate.step}
           decimalScale={2}
           onChange={(value) =>
             onChange({ salaryGrowthRate: typeof value === "number" ? value : undefined })
@@ -114,9 +118,9 @@ export default function ScenarioAssumptionsOverrideForm({
           label={labels.rentAnnualGrowthPct}
           description={baselineLabel(labels.baselinePrefix, baseline.rentAnnualGrowthPct)}
           value={values.rentAnnualGrowthPct ?? ""}
-          min={0}
-          max={100}
-          step={0.1}
+          min={scenarioAssumptionConstraints.rentAnnualGrowthPct.min}
+          max={scenarioAssumptionConstraints.rentAnnualGrowthPct.max}
+          step={scenarioAssumptionConstraints.rentAnnualGrowthPct.step}
           decimalScale={2}
           onChange={(value) =>
             onChange({ rentAnnualGrowthPct: typeof value === "number" ? value : undefined })
@@ -126,9 +130,9 @@ export default function ScenarioAssumptionsOverrideForm({
           label={labels.propertyAppreciationPct}
           description={baselineLabel(labels.baselinePrefix, baseline.propertyAppreciationPct)}
           value={values.propertyAppreciationPct ?? ""}
-          min={0}
-          max={100}
-          step={0.1}
+          min={scenarioAssumptionConstraints.propertyAppreciationPct.min}
+          max={scenarioAssumptionConstraints.propertyAppreciationPct.max}
+          step={scenarioAssumptionConstraints.propertyAppreciationPct.step}
           decimalScale={2}
           onChange={(value) =>
             onChange({
@@ -143,9 +147,9 @@ export default function ScenarioAssumptionsOverrideForm({
           label={labels.cashYieldPct}
           description={baselineLabel(labels.baselinePrefix, baseline.cashYieldPct)}
           value={values.cashYieldPct ?? ""}
-          min={0}
-          max={100}
-          step={0.1}
+          min={scenarioAssumptionConstraints.cashYieldPct.min}
+          max={scenarioAssumptionConstraints.cashYieldPct.max}
+          step={scenarioAssumptionConstraints.cashYieldPct.step}
           decimalScale={2}
           onChange={(value) =>
             onChange({ cashYieldPct: typeof value === "number" ? value : undefined })
@@ -155,9 +159,9 @@ export default function ScenarioAssumptionsOverrideForm({
           label={labels.carDepreciationRatePct}
           description={baselineLabel(labels.baselinePrefix, baseline.carDepreciationRatePct)}
           value={values.carDepreciationRatePct ?? ""}
-          min={0}
-          max={100}
-          step={0.1}
+          min={scenarioAssumptionConstraints.carDepreciationRatePct.min}
+          max={scenarioAssumptionConstraints.carDepreciationRatePct.max}
+          step={scenarioAssumptionConstraints.carDepreciationRatePct.step}
           decimalScale={2}
           onChange={(value) =>
             onChange({
