@@ -30,6 +30,7 @@ import {
   Title,
   Tooltip as MantineTooltip,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import {
   forwardRef,
   memo,
@@ -937,6 +938,7 @@ export default function PlanLabPanel({
   const warningsT = useTranslations();
   const timeline = useTranslations("timeline");
   const locale = useLocale();
+  const isMobile = useMediaQuery("(max-width: 48em)");
   const router = useRouter();
   const duplicateScenario = useScenarioStore((state) => state.duplicateScenario);
   const deleteScenario = useScenarioStore((state) => state.deleteScenario);
@@ -1055,7 +1057,10 @@ export default function PlanLabPanel({
     ""
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [listTab, setListTab] = useState<"changed" | "all" | "risky">("changed");
+  const [listTab, setListTab] = useState<"affected" | "all" | "risky">("all");
+  const [controlsAccordionValue, setControlsAccordionValue] = useState<string | null>(
+    "experiments"
+  );
   const [filterKind, setFilterKind] = useState<
     "all" | "positions" | "assets" | "events" | "rules"
   >("all");
@@ -1156,18 +1161,27 @@ export default function PlanLabPanel({
   );
 
   const monthInvalidMessage = t("planLabMonthInvalid");
-  const showChangedOnly = listTab === "changed";
+  const showAffectedOnly = listTab === "affected";
   const showRiskyOnly = listTab === "risky";
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const appliedControlRefs = useRef(new Map<string, HTMLDivElement | null>());
   const bundleIdByItemIdRef = useRef(new Map<string, string>());
   const bundleSummaryRef = useRef<HTMLDivElement | null>(null);
   const bundleCashflowRef = useRef<HTMLDivElement | null>(null);
   const bundleMortgageRef = useRef<HTMLDivElement | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const [highlightedControlId, setHighlightedControlId] = useState<string | null>(null);
 
   const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
     itemRefs.current.set(id, node);
   }, []);
+
+  const registerAppliedControlRef = useCallback(
+    (id: string, node: HTMLDivElement | null) => {
+      appliedControlRefs.current.set(id, node);
+    },
+    []
+  );
 
   const closeAllPlanLabDrawers = useCallback(() => {
     setMemberDrawerOpen(false);
@@ -1228,7 +1242,7 @@ export default function PlanLabPanel({
   );
 
   const handleLocateItem = useCallback((id: string) => {
-    setListTab((current) => (current === "changed" ? current : "changed"));
+    setListTab((current) => (current === "affected" ? current : "affected"));
     const bundleId = bundleIdByItemIdRef.current.get(id);
     const resolvedId = bundleId ? buildBundleRowId(bundleId) : id;
     const node = itemRefs.current.get(resolvedId);
@@ -1241,6 +1255,21 @@ export default function PlanLabPanel({
     );
   }, []);
 
+  const handleLocateControl = useCallback(
+    (controlId: string) => {
+      setControlsAccordionValue("applied-controls");
+      const node = appliedControlRefs.current.get(controlId);
+      if (!node) {
+        return;
+      }
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedControlId((current) =>
+        current === controlId ? current : controlId
+      );
+    },
+    []
+  );
+
   useEffect(() => {
     if (!highlightedItemId) {
       return;
@@ -1248,6 +1277,14 @@ export default function PlanLabPanel({
     const timeout = setTimeout(() => setHighlightedItemId(null), 2000);
     return () => clearTimeout(timeout);
   }, [highlightedItemId]);
+
+  useEffect(() => {
+    if (!highlightedControlId) {
+      return;
+    }
+    const timeout = setTimeout(() => setHighlightedControlId(null), 2000);
+    return () => clearTimeout(timeout);
+  }, [highlightedControlId]);
   const drawerStyles = useMemo(
     () => ({
       body: {
@@ -1933,6 +1970,14 @@ export default function PlanLabPanel({
     setExperimentTemplatesOpen(true);
   };
 
+  const handleAddExperimentAction = useCallback(() => {
+    if (scenarioIsV2) {
+      openExperimentTemplatesDrawer();
+      return;
+    }
+    openAddExperimentDrawer();
+  }, [openAddExperimentDrawer, openExperimentTemplatesDrawer, scenarioIsV2]);
+
   const handleExperimentTemplateSelect = (templateId: PlanLabExperimentTemplateId) => {
     closeAllPlanLabDrawers();
     setExperimentTemplatesOpen(false);
@@ -2121,6 +2166,24 @@ export default function PlanLabPanel({
     setTemplatePickerCategory("popular");
     setTemplatePickerIntent(null);
     setTemplatePickerItemCategory(null);
+    setTemplatePlanUnsupportedNotice(null);
+    setTemplatePickerOpen(true);
+  };
+
+  const openBundleTemplatePicker = () => {
+    closeAllPlanLabDrawers();
+    setTemplatePickerCategory("popular");
+    setTemplatePickerIntent("plan");
+    setTemplatePickerItemCategory(null);
+    setTemplatePlanUnsupportedNotice(null);
+    setTemplatePickerOpen(true);
+  };
+
+  const openItemTemplatePicker = () => {
+    closeAllPlanLabDrawers();
+    setTemplatePickerCategory("popular");
+    setTemplatePickerIntent("item");
+    setTemplatePickerItemCategory("income");
     setTemplatePlanUnsupportedNotice(null);
     setTemplatePickerOpen(true);
   };
@@ -4446,7 +4509,7 @@ export default function PlanLabPanel({
       const badges: PlanLabRowBadge[] = [];
       if (isItemImpactedByEnabledExperiment(item)) {
         badges.push({
-          label: translate("planLabBadgeAppliedExperiment", "已套用實驗"),
+          label: translate("planLabBadgeAffected", "受影響"),
           color: "blue",
         });
       }
@@ -4603,50 +4666,80 @@ export default function PlanLabPanel({
     [locale, scenario.baseCurrency, translate]
   );
 
+  const filterScenarioItems = useCallback(
+    (
+      items: ScenarioEditorItem[],
+      {
+        affectedOnly,
+        riskyOnly,
+      }: {
+        affectedOnly: boolean;
+        riskyOnly: boolean;
+      }
+    ) => {
+      const query = searchQuery.trim().toLowerCase();
+      return items.filter((item) => {
+        if (filterKind === "events" && item.kind !== "event") {
+          return false;
+        }
+        if (filterKind === "assets") {
+          if (item.kind !== "position") {
+            return false;
+          }
+          if (item.positionKind !== "asset" && item.positionKind !== "liability") {
+            return false;
+          }
+        }
+        if (filterKind === "rules" && item.kind !== "rule") {
+          return false;
+        }
+        if (filterKind === "positions" && item.kind !== "position") {
+          return false;
+        }
+        if (activeOnly && !item.enabled) {
+          return false;
+        }
+        if (affectedOnly && !isItemImpactedByEnabledExperiment(item)) {
+          return false;
+        }
+        if (riskyOnly && !item.risky) {
+          return false;
+        }
+        if (query && !item.title.toLowerCase().includes(query)) {
+          return false;
+        }
+        return true;
+      });
+    },
+    [activeOnly, filterKind, isItemImpactedByEnabledExperiment, searchQuery]
+  );
+
   const filteredItems = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return standaloneItems.filter((item) => {
-      if (filterKind === "events" && item.kind !== "event") {
-        return false;
-      }
-      if (filterKind === "assets") {
-        if (item.kind !== "position") {
-          return false;
-        }
-        if (item.positionKind !== "asset" && item.positionKind !== "liability") {
-          return false;
-        }
-      }
-      if (filterKind === "rules" && item.kind !== "rule") {
-        return false;
-      }
-      if (filterKind === "positions" && item.kind !== "position") {
-        return false;
-      }
-      if (activeOnly && !item.enabled) {
-        return false;
-      }
-      if (showChangedOnly && !isItemImpactedByEnabledExperiment(item)) {
-        return false;
-      }
-      if (showRiskyOnly && !item.risky) {
-        return false;
-      }
-      if (query && !item.title.toLowerCase().includes(query)) {
-        return false;
-      }
-      return true;
+    return filterScenarioItems(standaloneItems, {
+      affectedOnly: showAffectedOnly,
+      riskyOnly: showRiskyOnly,
     });
-  }, [
-    activeOnly,
-    filterKind,
-    isItemImpactedByEnabledExperiment,
-    scenarioIsV2,
-    searchQuery,
-    showChangedOnly,
-    showRiskyOnly,
-    standaloneItems,
-  ]);
+  }, [filterScenarioItems, showAffectedOnly, showRiskyOnly, standaloneItems]);
+
+  const affectedFilteredItems = useMemo(
+    () =>
+      filterScenarioItems(standaloneItems, {
+        affectedOnly: true,
+        riskyOnly: false,
+      }),
+    [filterScenarioItems, standaloneItems]
+  );
+
+  const affectedBundleCount = useMemo(() => {
+    if (!scenarioIsV2) {
+      return 0;
+    }
+    return baselineBundleCards.filter((bundle) =>
+      enabledBundleExperimentIds.has(bundle.id)
+    ).length;
+  }, [baselineBundleCards, enabledBundleExperimentIds, scenarioIsV2]);
+
+  const affectedCount = affectedFilteredItems.length + affectedBundleCount;
 
   const groupedItems = useMemo(() => {
     const prioritizeChanges = listTab === "all";
@@ -4687,15 +4780,13 @@ export default function PlanLabPanel({
     if (!scenarioIsV2) {
       return [];
     }
-    if (listTab !== "changed") {
+    if (listTab !== "affected") {
       return baselineBundleCards;
     }
     return baselineBundleCards.filter((bundle) =>
       enabledBundleExperimentIds.has(bundle.id)
     );
   }, [baselineBundleCards, enabledBundleExperimentIds, listTab, scenarioIsV2]);
-
-  const showBundleSection = scenarioIsV2 && visibleBundleCards.length > 0;
 
   const optionViewModel = useMemo(
     () =>
@@ -5420,6 +5511,7 @@ export default function PlanLabPanel({
       diffLines: string[];
       tooltip?: string;
       isEnabled: boolean;
+      itemIds?: string[];
       onToggle?: () => void;
       onRemove: () => void;
       onView?: () => void;
@@ -5448,6 +5540,7 @@ export default function PlanLabPanel({
           titleLine: event.label ?? event.id,
           diffLines: [translate("planLabAppliedAddedEvent", "新增事件")],
           isEnabled: true,
+          itemIds: [`event:${event.id}`],
           onRemove: () => removeScenarioV2Event(event.id),
           onLocate: () => handleLocateItem(`event:${event.id}`),
           onView: scenarioItem ? () => openScenarioItemView(scenarioItem) : undefined,
@@ -5464,6 +5557,7 @@ export default function PlanLabPanel({
           titleLine: updated?.label ?? eventId,
           diffLines: [translate("planLabAppliedUpdated", "已更新")],
           isEnabled: true,
+          itemIds: [`event:${eventId}`],
           onRemove: () => removeScenarioV2Event(eventId),
           onLocate: () => handleLocateItem(`event:${eventId}`),
           onView: scenarioItem ? () => openScenarioItemView(scenarioItem) : undefined,
@@ -5549,6 +5643,7 @@ export default function PlanLabPanel({
               ? diffLines
               : [translate("planLabAppliedUpdated", "已更新")],
           isEnabled: group.isEnabled !== false,
+          itemIds: [buildBundleRowId(bundleId)],
           onToggle: () => toggleExperimentGroup(group.experimentId),
           onRemove: () => removeBundleExperimentGroup(group),
           onView: () => handleViewBundle(bundleId),
@@ -5577,6 +5672,7 @@ export default function PlanLabPanel({
         titleLine: rule.name,
         diffLines,
         isEnabled: rule.enabled,
+        itemIds: [`rule:${rule.id}`],
         onToggle: () =>
           setDraftBudgetRules((current) =>
             current.map((entry) =>
@@ -5608,6 +5704,7 @@ export default function PlanLabPanel({
         titleLine: event.definition.title,
         diffLines,
         isEnabled: event.ref.enabled !== false,
+        itemIds: [`event:${event.definition.id}`],
         onToggle: () =>
           setDraftEvents((current) =>
             current.map((entry) =>
@@ -5699,6 +5796,7 @@ export default function PlanLabPanel({
         titleLine: title,
         diffLines,
         isEnabled: nextEnabled,
+        itemIds: [`event:${refId}`],
         onToggle: () => updateEventPatch(refId, { isDisabled: !nextEnabled }),
         onRemove: () => removePatch("event", refId),
         onLocate: () => handleLocateItem(`event:${refId}`),
@@ -5765,6 +5863,7 @@ export default function PlanLabPanel({
         titleLine: title,
         diffLines,
         isEnabled: nextEnabled,
+        itemIds: [`rule:${ruleId}`],
         onToggle: () => updateRulePatch(ruleId, { isDisabled: !nextEnabled }),
         onRemove: () => removePatch("rule", ruleId),
         onLocate: () => handleLocateItem(`rule:${ruleId}`),
@@ -5819,6 +5918,7 @@ export default function PlanLabPanel({
         titleLine: title,
         diffLines,
         isEnabled: !patch.isDisabled,
+        itemIds: [`position:${key}`],
         onToggle: () => updatePositionPatch(key, { isDisabled: !patch.isDisabled }),
         onRemove: () => removePatch("position", key),
         onLocate: () => handleLocateItem(`position:${key}`),
@@ -5897,6 +5997,7 @@ export default function PlanLabPanel({
         diffLines,
         tooltip: smartInvestTooltip,
         isEnabled: patchedPolicy.enabled,
+        itemIds: ["position:smartInvest"],
         onToggle: () =>
           updateSmartInvestPatch({ isDisabled: patchedPolicy.enabled }),
         onRemove: () => removePatch("position", "smartInvest"),
@@ -6117,10 +6218,91 @@ export default function PlanLabPanel({
     experimentTypeOptions,
   ]);
 
+  const appliedControlIdByItemId = useMemo(() => {
+    const map = new Map<string, string>();
+    appliedControls.forEach((control) => {
+      control.itemIds?.forEach((itemId) => {
+        if (!map.has(itemId)) {
+          map.set(itemId, control.id);
+        }
+      });
+    });
+    return map;
+  }, [appliedControls]);
+
   const enabledAppliedControlsCount = useMemo(
     () => appliedControls.filter((control) => control.isEnabled).length,
     [appliedControls]
   );
+
+  const isExperimentLibraryEmpty = scenarioIsV2
+    ? experimentGroups.length === 0
+    : experiments.length === 0;
+  const showExperimentEmptyState = isExperimentLibraryEmpty || appliedControls.length === 0;
+
+  const showBundleSection = scenarioIsV2 && visibleBundleCards.length > 0;
+  const standaloneItemsContent =
+    groupedItems.length === 0 ? (
+      <Text size="sm" c="dimmed">
+        {translate("planLabFilterEmpty", "沒有符合條件的項目。")}
+      </Text>
+    ) : (
+      groupedItems.map(([group, items]) => (
+        <Stack key={group} gap="xs">
+          <Text size="xs" fw={600} c="dimmed">
+            {group}
+          </Text>
+          <Accordion variant="separated" radius="md" multiple>
+            {items.map((item) => {
+              const isAffected = isItemImpactedByEnabledExperiment(item);
+              const controlId = appliedControlIdByItemId.get(item.id);
+              return (
+                <PlanLabAccordionRow
+                  key={item.id}
+                  id={item.id}
+                  ref={(node) => registerItemRef(item.id, node)}
+                  title={item.title}
+                  badges={getScenarioItemBadges(item)}
+                  meta={getScenarioItemSummary(item)}
+                  highlighted={highlightedItemId === item.id}
+                  primaryAction={{
+                    label: isAffected
+                      ? translate("planLabViewDiffAction", "查看差異")
+                      : translate("planLabViewDetailsAction", "查看"),
+                    onClick: () => openScenarioItemView(item),
+                  }}
+                  secondaryAction={
+                    isAffected
+                      ? {
+                          label: translate(
+                            "planLabLocateControlAction",
+                            "定位控制項"
+                          ),
+                          onClick: () =>
+                            controlId ? handleLocateControl(controlId) : undefined,
+                          disabled: !controlId,
+                        }
+                      : {
+                          label: translate(
+                            "planLabCreateExperimentAction",
+                            "建立實驗"
+                          ),
+                          onClick: () => handleCreateExperimentFromItem(item),
+                          disabled: !canCreateExperimentFromItem(item),
+                        }
+                  }
+                  panel={
+                    <Text size="xs" c="dimmed">
+                      {getScenarioItemSummary(item) || "—"}
+                    </Text>
+                  }
+                />
+              );
+            })}
+          </Accordion>
+        </Stack>
+      ))
+    );
 
   const handleResetAllControls = () => {
     setBaselinePatches({
@@ -6847,12 +7029,19 @@ export default function PlanLabPanel({
                     value={listTab}
                     onChange={(value) => value && setListTab(value as typeof listTab)}
                   >
-                    <Tabs.List>
-                      <Tabs.Tab value="changed">
-                        {translate("planLabTabChanged", "已變更")}
-                      </Tabs.Tab>
+                    <Tabs.List
+                      style={{
+                        flexWrap: isMobile ? "nowrap" : "wrap",
+                        overflowX: isMobile ? "auto" : "visible",
+                      }}
+                    >
                       <Tabs.Tab value="all">
                         {translate("planLabTabAll", "全部")}
+                      </Tabs.Tab>
+                      <Tabs.Tab value="affected">
+                        {translate("planLabTabAffected", "受影響 ({count})", {
+                          count: affectedCount,
+                        })}
                       </Tabs.Tab>
                       <Tabs.Tab value="risky">
                         {translate("planLabTabRisky", "高風險")}
@@ -6864,6 +7053,210 @@ export default function PlanLabPanel({
                   <Text size="sm" c="dimmed">
                     {translate("planLabFilterEmpty", "沒有符合條件的項目。")}
                   </Text>
+                ) : isMobile ? (
+                  <Stack gap="xs">
+                    {showBundleSection && (
+                      <Accordion
+                        variant="separated"
+                        radius="md"
+                        defaultValue={undefined}
+                      >
+                        <Accordion.Item value="bundles">
+                          <Accordion.Control>
+                            <Group justify="space-between" align="center" wrap="wrap">
+                              <Text size="sm" fw={600}>
+                                {translate(
+                                  "planLabBundlesSectionTitle",
+                                  "人生組合（Bundles）"
+                                )}
+                              </Text>
+                              <Badge variant="light" color="blue">
+                                {visibleBundleCards.length}
+                              </Badge>
+                            </Group>
+                          </Accordion.Control>
+                          <Accordion.Panel>
+                            <Stack gap="xs">
+                              <Accordion variant="separated" radius="md" multiple>
+                                {visibleBundleCards.map((bundle) => {
+                                  const bundleItems =
+                                    bundleItemsById.get(bundle.id) ?? [];
+                                  const bundleBadges: PlanLabRowBadge[] = [
+                                    {
+                                      label: translate(
+                                        "planLabBundleBadge",
+                                        "組合"
+                                      ),
+                                    },
+                                  ];
+                                  const bundleIsAffected =
+                                    enabledBundleExperimentIds.has(bundle.id);
+                                  const bundleControlId =
+                                    appliedControlIdByItemId.get(
+                                      buildBundleRowId(bundle.id)
+                                    );
+                                  if (bundleIsAffected) {
+                                    bundleBadges.unshift({
+                                      label: translate("planLabBadgeAffected", "受影響"),
+                                      color: "blue",
+                                    });
+                                  }
+                                  const summaryParts: string[] = [];
+                                  if (bundle.oneOffTotal > 0) {
+                                    summaryParts.push(
+                                      translate(
+                                        "planLabBundleRowOneOff",
+                                        "一次性 {amount}",
+                                        {
+                                          amount: formatCurrency(
+                                            bundle.oneOffTotal,
+                                            scenario.baseCurrency,
+                                            locale
+                                          ),
+                                        }
+                                      )
+                                    );
+                                  }
+                                  if (bundle.hasMonthlyImpact) {
+                                    summaryParts.push(
+                                      translate(
+                                        "planLabBundleRowMonthlyNet",
+                                        "每月淨影響 {amount}",
+                                        {
+                                          amount: formatCurrency(
+                                            bundle.monthlyNet,
+                                            scenario.baseCurrency,
+                                            locale
+                                          ),
+                                        }
+                                      )
+                                    );
+                                  }
+                                  if (bundle.hasStartMonthOneOffImpact) {
+                                    summaryParts.push(
+                                      moneyT("bundleSummaryStartMonthNet", {
+                                        amount: formatCurrency(
+                                          bundle.monthlySummary.startMonthNet,
+                                          scenario.baseCurrency,
+                                          locale
+                                        ),
+                                        month: bundle.monthlySummary.month ?? "--",
+                                      })
+                                    );
+                                  }
+                                  const summaryText =
+                                    summaryParts.join(" · ") ||
+                                    translate(
+                                      "planLabBundleRowItemsCount",
+                                      "包含 {count} 項",
+                                      { count: bundleItems.length }
+                                    );
+                                  return (
+                                    <PlanLabAccordionRow
+                                      key={bundle.id}
+                                      id={buildBundleRowId(bundle.id)}
+                                      ref={(node) =>
+                                        registerItemRef(
+                                          buildBundleRowId(bundle.id),
+                                          node
+                                        )
+                                      }
+                                      title={bundle.title}
+                                      badges={bundleBadges}
+                                      meta={summaryText}
+                                      highlighted={
+                                        highlightedItemId ===
+                                        buildBundleRowId(bundle.id)
+                                      }
+                                      primaryAction={{
+                                        label: bundleIsAffected
+                                          ? translate("planLabViewDiffAction", "查看差異")
+                                          : translate(
+                                              "planLabBundleView",
+                                              "查看組合"
+                                            ),
+                                        onClick: () => handleViewBundle(bundle.id),
+                                      }}
+                                      secondaryAction={
+                                        bundleIsAffected
+                                          ? {
+                                              label: translate(
+                                                "planLabLocateControlAction",
+                                                "定位控制項"
+                                              ),
+                                              onClick: () =>
+                                                bundleControlId
+                                                  ? handleLocateControl(bundleControlId)
+                                                  : undefined,
+                                              disabled: !bundleControlId,
+                                            }
+                                          : {
+                                              label: translate(
+                                                "planLabBundleCreateExperiment",
+                                                "建立組合實驗"
+                                              ),
+                                              onClick: () =>
+                                                handleCreateBundleExperiment(bundle.id),
+                                            }
+                                      }
+                                      panel={
+                                        bundleItems.length === 0 ? (
+                                          <Text size="xs" c="dimmed">
+                                            {translate(
+                                              "planLabBundleItemsEmpty",
+                                              "未偵測到散件"
+                                            )}
+                                          </Text>
+                                        ) : (
+                                          <Stack gap="xs">
+                                            {bundleItems.map((item) => (
+                                              <PlanLabBundleItemRow
+                                                key={item.id}
+                                                title={getBundleChildTitle(item)}
+                                                badges={getScenarioItemBadges(item)}
+                                                meta={getScenarioItemSummary(item)}
+                                                highlighted={
+                                                  highlightedItemId === item.id
+                                                }
+                                              />
+                                            ))}
+                                            <Text size="xs" c="dimmed">
+                                              {translate(
+                                                "planLabBundleItemsReadonly",
+                                                "散件為只讀，請使用「查看組合」查看完整內容。"
+                                              )}
+                                            </Text>
+                                          </Stack>
+                                        )
+                                      }
+                                    />
+                                  );
+                                })}
+                              </Accordion>
+                            </Stack>
+                          </Accordion.Panel>
+                        </Accordion.Item>
+                      </Accordion>
+                    )}
+                    <Accordion variant="separated" radius="md" defaultValue={undefined}>
+                      <Accordion.Item value="baseline-items">
+                        <Accordion.Control>
+                          <Group justify="space-between" align="center" wrap="wrap">
+                            <Text size="sm" fw={600}>
+                              {translate(
+                                "planLabBaselineItemsSectionTitle",
+                                "散件"
+                              )}
+                            </Text>
+                            <Badge variant="light" color="blue">
+                              {filteredItems.length}
+                            </Badge>
+                          </Group>
+                        </Accordion.Control>
+                        <Accordion.Panel>{standaloneItemsContent}</Accordion.Panel>
+                      </Accordion.Item>
+                    </Accordion>
+                  </Stack>
                 ) : (
                   <ScrollArea.Autosize mah={420} offsetScrollbars>
                     <Stack gap="xs">
@@ -6901,12 +7294,15 @@ export default function PlanLabPanel({
                                         ),
                                       },
                                     ];
-                                    if (enabledBundleExperimentIds.has(bundle.id)) {
+                                    const bundleIsAffected =
+                                      enabledBundleExperimentIds.has(bundle.id);
+                                    const bundleControlId =
+                                      appliedControlIdByItemId.get(
+                                        buildBundleRowId(bundle.id)
+                                      );
+                                    if (bundleIsAffected) {
                                       bundleBadges.unshift({
-                                        label: translate(
-                                          "planLabBadgeAppliedExperiment",
-                                          "已套用實驗"
-                                        ),
+                                        label: translate("planLabBadgeAffected", "受影響"),
                                         color: "blue",
                                       });
                                     }
@@ -6978,21 +7374,36 @@ export default function PlanLabPanel({
                                           buildBundleRowId(bundle.id)
                                         }
                                         primaryAction={{
-                                          label: translate(
-                                            "planLabBundleView",
-                                            "查看組合"
-                                          ),
-                                          onClick: () =>
-                                            handleViewBundle(bundle.id),
+                                          label: bundleIsAffected
+                                            ? translate("planLabViewDiffAction", "查看差異")
+                                            : translate(
+                                                "planLabBundleView",
+                                                "查看組合"
+                                              ),
+                                          onClick: () => handleViewBundle(bundle.id),
                                         }}
-                                        secondaryAction={{
-                                          label: translate(
-                                            "planLabBundleCreateExperiment",
-                                            "建立組合實驗"
-                                          ),
-                                          onClick: () =>
-                                            handleCreateBundleExperiment(bundle.id),
-                                        }}
+                                        secondaryAction={
+                                          bundleIsAffected
+                                            ? {
+                                                label: translate(
+                                                  "planLabLocateControlAction",
+                                                  "定位控制項"
+                                                ),
+                                                onClick: () =>
+                                                  bundleControlId
+                                                    ? handleLocateControl(bundleControlId)
+                                                    : undefined,
+                                                disabled: !bundleControlId,
+                                              }
+                                            : {
+                                                label: translate(
+                                                  "planLabBundleCreateExperiment",
+                                                  "建立組合實驗"
+                                                ),
+                                                onClick: () =>
+                                                  handleCreateBundleExperiment(bundle.id),
+                                              }
+                                        }
                                         panel={
                                           bundleItems.length === 0 ? (
                                             <Text size="xs" c="dimmed">
@@ -7032,62 +7443,19 @@ export default function PlanLabPanel({
                           </Accordion.Item>
                         </Accordion>
                       )}
-                      {groupedItems.length === 0 ? (
-                        <Text size="sm" c="dimmed">
-                          {translate("planLabFilterEmpty", "沒有符合條件的項目。")}
-                        </Text>
-                      ) : (
-                        groupedItems.map(([group, items]) => (
-                          <Stack key={group} gap="xs">
-                            <Text size="xs" fw={600} c="dimmed">
-                              {group}
-                            </Text>
-                            <Accordion variant="separated" radius="md" multiple>
-                              {items.map((item) => {
-                                return (
-                                  <PlanLabAccordionRow
-                                    key={item.id}
-                                    id={item.id}
-                                    ref={(node) => registerItemRef(item.id, node)}
-                                    title={item.title}
-                                    badges={getScenarioItemBadges(item)}
-                                    meta={getScenarioItemSummary(item)}
-                                    highlighted={highlightedItemId === item.id}
-                                    primaryAction={{
-                                      label: translate(
-                                        "planLabViewDetailsAction",
-                                        "查看"
-                                      ),
-                                      onClick: () => openScenarioItemView(item),
-                                    }}
-                                    secondaryAction={{
-                                      label: translate(
-                                        "planLabCreateExperimentAction",
-                                        "建立實驗"
-                                      ),
-                                      onClick: () =>
-                                        handleCreateExperimentFromItem(item),
-                                      disabled: !canCreateExperimentFromItem(item),
-                                    }}
-                                    panel={
-                                      <Text size="xs" c="dimmed">
-                                        {getScenarioItemSummary(item) || "—"}
-                                      </Text>
-                                    }
-                                  />
-                                );
-                              })}
-                            </Accordion>
-                          </Stack>
-                        ))
-                      )}
+                      {standaloneItemsContent}
                     </Stack>
                   </ScrollArea.Autosize>
                 )}
               </Stack>
             </Paper>
 
-            <Accordion variant="separated" radius="lg" defaultValue="experiments">
+            <Accordion
+              variant="separated"
+              radius="lg"
+              value={controlsAccordionValue}
+              onChange={(value) => setControlsAccordionValue(value)}
+            >
               <Accordion.Item value="experiments">
                 <Accordion.Control>
                   <Group justify="space-between" align="center" wrap="wrap">
@@ -7142,6 +7510,61 @@ export default function PlanLabPanel({
                         )}
                       </Group>
                     </Group>
+                    {showExperimentEmptyState && (
+                      <Paper withBorder radius="md" p="md">
+                        <Stack gap="sm">
+                          <Stack gap={4}>
+                            <Text fw={600}>
+                              {translate(
+                                "planLabEmptyStateTitle",
+                                "建立第一個實驗"
+                              )}
+                            </Text>
+                            <Text size="sm" c="dimmed">
+                              {translate(
+                                "planLabEmptyStateDescription",
+                                "用實驗去測試改動對現況的影響，結果即時反映到右邊 KPI/圖表。"
+                              )}
+                            </Text>
+                          </Stack>
+                          <Group gap="xs" wrap="wrap">
+                            <Button size="sm" onClick={handleAddExperimentAction}>
+                              {translate("planLabEmptyStateCta", "新增實驗")}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={openBundleTemplatePicker}
+                            >
+                              {translate(
+                                "planLabEmptyStateBundleAction",
+                                "修改人生組合"
+                              )}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={openItemTemplatePicker}
+                            >
+                              {translate(
+                                "planLabEmptyStateItemAction",
+                                "修改獨立事件"
+                              )}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() => openAddRuleDrawer()}
+                            >
+                              {translate(
+                                "planLabEmptyStateAssumptionsAction",
+                                "修改環境假設"
+                              )}
+                            </Button>
+                          </Group>
+                        </Stack>
+                      </Paper>
+                    )}
                     {scenarioIsV2 && bundleExperimentCta ? (
                       <Notification color="teal" onClose={() => setBundleExperimentCta(null)}>
                         <Group justify="space-between" align="center" wrap="wrap">
@@ -7535,7 +7958,15 @@ export default function PlanLabPanel({
                                 withBorder
                                 radius="md"
                                 p="xs"
-                                style={{ opacity: control.isEnabled ? 1 : 0.6 }}
+                                ref={(node) => registerAppliedControlRef(control.id, node)}
+                                style={{
+                                  opacity: control.isEnabled ? 1 : 0.6,
+                                  outline:
+                                    highlightedControlId === control.id
+                                      ? "2px solid rgba(18, 184, 134, 0.7)"
+                                      : "none",
+                                  outlineOffset: 2,
+                                }}
                               >
                                 <Group
                                   justify="space-between"
