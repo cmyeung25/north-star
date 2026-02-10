@@ -198,9 +198,9 @@ import {
 import { computeBundleCashflowSummary } from "../../src/features/money/bundleSummary";
 import {
   buildEventOverridePatch,
-  buildEventOverrideSummary,
   type EventOverrideExperimentSpec,
 } from "../../src/domain/planLab/eventOverrideExperiment";
+import { formatExperimentChanges, formatExperimentSummary } from "./experimentSummary";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -2025,6 +2025,11 @@ export default function PlanLabPanel({
     openAddExperimentDrawer();
   }, [openAddExperimentDrawer, openExperimentTemplatesDrawer, scenarioIsV2]);
 
+  const handleSelectEnvironmentTemplate = useCallback((_envKey: string) => {
+    setExperimentTemplatesOpen(false);
+    openAddRuleDrawer();
+  }, [openAddRuleDrawer]);
+
   const handleExperimentTemplateSelect = (templateId: PlanLabExperimentTemplateId) => {
     closeAllPlanLabDrawers();
     setExperimentTemplatesOpen(false);
@@ -2208,28 +2213,6 @@ export default function PlanLabPanel({
     setMemberDrawerOpen(true);
   };
 
-  const openAddEventDrawer = () => {
-    closeAllPlanLabDrawers();
-    setTemplatePickerCategory("popular");
-    setTemplatePickerIntent(null);
-    setTemplatePickerItemCategory(null);
-    setTemplatePlanUnsupportedNotice(null);
-    setTemplatePickerOpen(true);
-  };
-
-  const openBundleTemplatePicker = () => {
-    closeAllPlanLabDrawers();
-    setTemplatePickerCategory("popular");
-    setTemplatePickerIntent("plan");
-    setTemplatePickerItemCategory(null);
-    setTemplatePlanUnsupportedNotice(null);
-    setTemplatePickerOpen(true);
-  };
-
-  const openItemTemplatePicker = () => {
-    openEventExperimentDrawer();
-  };
-
   const openEditEventDrawer = (addition: PlanLabDraftEventAddition) => {
     closeAllPlanLabDrawers();
     setEventDrawerMode("edit");
@@ -2294,6 +2277,7 @@ export default function PlanLabPanel({
       bundleInstanceId?: string;
       templateId?: string;
       primaryEventId?: string;
+      kind?: "ADD_EVENT" | "MODIFY_BASELINE_EVENT" | "ENV_OVERRIDE" | "BUNDLE_EXPERIMENT";
     }) => {
       if (params.itemIds.length === 0) {
         return;
@@ -2303,6 +2287,9 @@ export default function PlanLabPanel({
         {
           experimentId: `exp_group_${nanoid(8)}`,
           title: resolveExperimentGroupTitle(params.title),
+          kind:
+            params.kind ??
+            (params.bundleInstanceId ? "BUNDLE_EXPERIMENT" : "ADD_EVENT"),
           isEnabled: true,
           itemIds: params.itemIds,
           bundleInstanceId: params.bundleInstanceId,
@@ -3555,7 +3542,13 @@ export default function PlanLabPanel({
       },
     };
     const patch = buildEventOverridePatch(baselineEvent, spec);
-    const summary = buildEventOverrideSummary(baselineEvent, spec);
+    const changes = formatExperimentChanges(
+      baselineEvent,
+      spec,
+      scenario.baseCurrency,
+      locale
+    );
+    const summary = formatExperimentSummary(changes);
     setScenarioV2Patches((current) => ({
       ...current,
       events: {
@@ -3574,7 +3567,20 @@ export default function PlanLabPanel({
       ...current,
       {
         experimentId: spec.id,
-        title: summary.length > 0 ? `${baselineEvent.label ?? baselineEvent.id}（${summary.join("；")}）` : spec.title,
+        title:
+          changes.length > 0
+            ? `${baselineEvent.label ?? baselineEvent.id}（${summary}）`
+            : spec.title,
+        kind: "MODIFY_BASELINE_EVENT",
+        target: { baselineEventId: baselineEvent.id },
+        changes,
+        affectedEntities: [
+          {
+            itemId,
+            label: baselineEvent.label ?? baselineEvent.id,
+            type: baselineEvent.type === "cashflow" ? baselineEvent.kind : baselineEvent.type,
+          },
+        ],
         isEnabled: true,
         itemIds: [itemId],
         primaryEventId: baselineEvent.id,
@@ -3586,6 +3592,8 @@ export default function PlanLabPanel({
   }, [
     baselineScenarioV2.events,
     eventExperimentDraft,
+    locale,
+    scenario.baseCurrency,
     setScenarioV2Patches,
     translate,
   ]);
@@ -3598,6 +3606,28 @@ export default function PlanLabPanel({
         disabled: Boolean(event.source?.bundleInstanceId),
       })),
     [baselineScenarioV2.events]
+  );
+
+  const baselineEventTemplateOptions = useMemo(
+    () =>
+      (baselineScenarioV2.events ?? []).map((event) => ({
+        id: event.id,
+        title: event.label ?? event.id,
+        description: event.type === "cashflow" ? event.kind : event.type,
+        disabled: Boolean(event.source?.bundleInstanceId),
+      })),
+    [baselineScenarioV2.events]
+  );
+
+  const environmentTemplateOptions = useMemo(
+    () => [
+      {
+        id: "budget-rule",
+        title: translate("planLabEmptyStateAssumptionsAction", "修改環境假設"),
+        description: translate("planLabEnvOverrideDesc", "對齊設定頁全局假設結構。"),
+      },
+    ],
+    [translate]
   );
 
   const selectedEventExperimentEvent = useMemo(
@@ -7670,49 +7700,36 @@ export default function PlanLabPanel({
                 </Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="xs">
-                    <Group justify="space-between" align="center" wrap="wrap">
-                      <MantineTooltip
-                        label={translate(
-                          "planLabExperimentsTooltip",
-                          "新增假設來觀察財務走勢變化。"
-                        )}
-                        withArrow
-                      >
-                        <Text size="sm" fw={600}>
-                          {translate("planLabControlsTitle", "控制項")}
-                        </Text>
-                      </MantineTooltip>
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <MantineTooltip
+                      label={translate(
+                        "planLabExperimentsTooltip",
+                        "新增假設來觀察財務走勢變化。"
+                      )}
+                      withArrow
+                    >
+                      <Text size="sm" fw={600}>
+                        {translate("planLabControlsTitle", "控制項")}
+                      </Text>
+                    </MantineTooltip>
+                    {scenarioIsV2 ? (
+                      <Button size="xs" onClick={openExperimentTemplatesDrawer}>
+                        {translate("planLabExperimentsAddAction", "新增實驗")}
+                      </Button>
+                    ) : (
                       <Group gap="xs" wrap="wrap">
-                        {!scenarioIsV2 && (
-                          <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
-                            {translate("planLabAddMemberAction", "新增成員")}
-                          </Button>
-                        )}
-                        {!scenarioIsV2 && (
-                          <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
-                            {translate("planLabAddRuleAction", "新增規則")}
-                          </Button>
-                        )}
-                        {scenarioIsV2 && experimentGroups.length > 0 && (
-                          <Button size="xs" onClick={openExperimentTemplatesDrawer}>
-                            {translate("planLabExperimentsAddAction", "新增實驗")}
-                          </Button>
-                        )}
-                        <Button
-                          size="xs"
-                          variant="light"
-                          display="none"
-                          onClick={openAddEventDrawer}
-                        >
-                          {translate("planLabAddEventAction", "新增事件")}
+                        <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
+                          {translate("planLabAddMemberAction", "新增成員")}
                         </Button>
-                        {!scenarioIsV2 && (
-                          <Button size="xs" onClick={openAddExperimentDrawer}>
-                            {translate("planLabExperimentsAddAction", "新增實驗")}
-                          </Button>
-                        )}
+                        <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
+                          {translate("planLabAddRuleAction", "新增規則")}
+                        </Button>
+                        <Button size="xs" onClick={openAddExperimentDrawer}>
+                          {translate("planLabExperimentsAddAction", "新增實驗")}
+                        </Button>
                       </Group>
-                    </Group>
+                    )}
+                  </Group>
                     {showExperimentEmptyState && (
                       <Stack gap={6}>
                         <Text size="sm" c="dimmed">
@@ -7721,20 +7738,9 @@ export default function PlanLabPanel({
                             "建立實驗以比較 baseline 與新方案，並即時反映 KPI/圖表。"
                           )}
                         </Text>
-                        <Group gap="xs" wrap="wrap">
-                          <Button size="sm" onClick={handleAddExperimentAction}>
-                            {translate("planLabEmptyStateCta", "新增實驗")}
-                          </Button>
-                          <Button size="xs" variant="light" onClick={openBundleTemplatePicker}>
-                            {translate("planLabEmptyStateBundleAction", "修改人生組合")}
-                          </Button>
-                          <Button size="xs" variant="light" onClick={openItemTemplatePicker}>
-                            {translate("planLabEmptyStateItemAction", "修改獨立事件")}
-                          </Button>
-                          <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
-                            {translate("planLabEmptyStateAssumptionsAction", "修改環境假設")}
-                          </Button>
-                        </Group>
+                        <Button size="sm" onClick={handleAddExperimentAction}>
+                          {translate("planLabEmptyStateCta", "新增實驗")}
+                        </Button>
                       </Stack>
                     )}
                     {scenarioIsV2 && bundleExperimentCta ? (
@@ -7844,9 +7850,17 @@ export default function PlanLabPanel({
                                   disabled: moveDownDisabled,
                                 },
                               ];
+                              const kindLabel =
+                                group.kind === "MODIFY_BASELINE_EVENT"
+                                  ? translate("planLabBadgeModifyBaseline", "修改基準事件")
+                                  : group.kind === "ENV_OVERRIDE"
+                                  ? translate("planLabBadgeEnvOverride", "環境假設")
+                                  : group.kind === "BUNDLE_EXPERIMENT"
+                                  ? translate("planLabBadgeBundle", "修改人生組合")
+                                  : translate("planLabBadgeAddEvent", "新增事件");
                               const badges: PlanLabRowBadge[] = [
                                 {
-                                  label: translate("planLabBadgeExperiment", "實驗"),
+                                  label: kindLabel,
                                   color: "blue",
                                 },
                               ];
@@ -7856,6 +7870,7 @@ export default function PlanLabPanel({
                                   color: "red",
                                 });
                               }
+                              const readableChanges = group.changes ?? [];
                               return (
                                 <PlanLabAccordionRow
                                   key={group.experimentId}
@@ -7865,11 +7880,7 @@ export default function PlanLabPanel({
                                   }
                                   title={resolveExperimentGroupTitle(group.title)}
                                   badges={badges}
-                                  summary={translate(
-                                    "planLabExperimentConnectedCount",
-                                    "已連接 {count} 個事件",
-                                    { count: activeItemIds.length }
-                                  )}
+                                  summary={formatExperimentSummary(readableChanges)}
                                   enabled={group.isEnabled}
                                   onToggle={() =>
                                     group.isEnabled === false
@@ -7891,22 +7902,27 @@ export default function PlanLabPanel({
                                   }}
                                   panel={
                                     <Stack gap={6}>
-                                      <Text size="xs" c="dimmed">
-                                        {translate(
-                                          "planLabExperimentDiffSummary",
-                                          "變更摘要：+{added} / -{removed} / ~{modified}",
-                                          {
-                                            added: String(activeItemIds.length),
-                                            removed: String(removedItems.length),
-                                            modified: "0",
-                                          }
-                                        )}
+                                      <Text size="xs" fw={500}>
+                                        {translate("planLabExperimentChangesTitle", "變更摘要")}
                                       </Text>
+                                      <Stack gap={2}>
+                                        {(readableChanges.length > 0
+                                          ? readableChanges
+                                          : [translate("planLabAppliedUpdated", "已更新")]
+                                        ).map((line) => (
+                                          <Text key={`${group.experimentId}-${line}`} size="xs" c="dimmed">
+                                            • {line}
+                                          </Text>
+                                        ))}
+                                      </Stack>
                                       <Text size="xs" fw={500}>
                                         {translate("planLabExperimentIncludesItems", "包含項目")}
                                       </Text>
                                       <Stack gap={4}>
-                                        {activeItemIds.slice(0, 3).map((itemId) => {
+                                        {(group.affectedEntities?.length
+                                          ? group.affectedEntities.map((entity) => entity.itemId)
+                                          : activeItemIds
+                                        ).slice(0, 5).map((itemId) => {
                                           const item = patchItemLookup.get(itemId);
                                           const label = item?.label?.trim() || "—";
                                           const type = item?.type ?? "—";
@@ -7930,6 +7946,21 @@ export default function PlanLabPanel({
                                               <Button
                                                 size="compact-xs"
                                                 variant="subtle"
+                                                onClick={() =>
+                                                  handleLocateItem(
+                                                    itemId.startsWith("events:")
+                                                      ? `event:${itemId.replace("events:", "")}`
+                                                      : itemId.startsWith("rules:")
+                                                      ? `rule:${itemId.replace("rules:", "")}`
+                                                      : itemId
+                                                  )
+                                                }
+                                              >
+                                                {translate("planLabLocateControlAction", "定位控制項")}
+                                              </Button>
+                                              <Button
+                                                size="compact-xs"
+                                                variant="subtle"
                                                 color="red"
                                                 onClick={() =>
                                                   removeItemFromExperimentGroup(
@@ -7943,9 +7974,9 @@ export default function PlanLabPanel({
                                             </Group>
                                           );
                                         })}
-                                        {activeItemIds.length > 3 && (
+                                        {(group.affectedEntities?.length ?? activeItemIds.length) > 5 && (
                                           <Text size="xs" c="dimmed">
-                                            +{activeItemIds.length - 3}
+                                            +{(group.affectedEntities?.length ?? activeItemIds.length) - 5}
                                           </Text>
                                         )}
                                       </Stack>
@@ -8951,10 +8982,17 @@ export default function PlanLabPanel({
         opened={experimentTemplatesOpen}
         title={translate("planLabExperimentTemplatesTitle", "實驗模板")}
         groups={experimentTemplateGroups}
+        baselineEventOptions={baselineEventTemplateOptions}
+        envOptions={environmentTemplateOptions}
         onClose={() => setExperimentTemplatesOpen(false)}
         onSelect={(templateId) =>
           handleExperimentTemplateSelect(templateId as PlanLabExperimentTemplateId)
         }
+        onSelectBaselineEvent={(eventId) => {
+          setExperimentTemplatesOpen(false);
+          openEventExperimentDrawer(eventId);
+        }}
+        onSelectEnvKey={handleSelectEnvironmentTemplate}
       />
 
       <BundleWizardDrawer

@@ -3,6 +3,18 @@ import type { PlanLabScenarioV2Patches } from "../../src/domain/planLab/scenario
 export type PlanLabExperimentGroup = {
   experimentId: string;
   title: string;
+  kind?: "ADD_EVENT" | "MODIFY_BASELINE_EVENT" | "ENV_OVERRIDE" | "BUNDLE_EXPERIMENT";
+  target?: {
+    baselineEventId?: string;
+    bundleId?: string;
+    envKey?: string;
+  };
+  changes?: string[];
+  affectedEntities?: Array<{
+    itemId: string;
+    label: string;
+    type: string;
+  }>;
   isEnabled: boolean;
   itemIds: string[];
   removedItems?: PlanLabExperimentRemovedItem[];
