@@ -23,7 +23,7 @@ const DEFAULT_INVESTMENT_RETURN_PCTS: Record<InvestmentAssetClass, number> = {
 };
 const DEFAULT_RENT_GROWTH_PCT = 2;
 const DEFAULT_PROPERTY_APPRECIATION_PCT = 2;
-const DEFAULT_CAR_DEPRECIATION_PCT = -12;
+const DEFAULT_CAR_DEPRECIATION_PCT = 12;
 const DEFAULT_CASH_YIELD_PCT = 2;
 
 const normalizeNumber = (value: unknown): number | null => {

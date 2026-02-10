@@ -97,12 +97,14 @@ describe("applyPlanLabScenarioV2Patches", () => {
     });
     const patches = emptyPlanLabScenarioV2Patches();
     patches.assumptions = {
-      inflationRate: 3,
+      inflationRate: -2.5,
+      propertyAppreciationPct: -5,
       emergencyFundMonths: 9,
     };
 
     const result = applyPlanLabScenarioV2Patches(baseline, patches);
-    expect(result.assumptions.inflationRate).toBe(3);
+    expect(result.assumptions.inflationRate).toBe(-2.5);
+    expect(result.assumptions.propertyAppreciationPct).toBe(-5);
     expect(result.assumptions.emergencyFundMonths).toBe(9);
   });
 

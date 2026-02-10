@@ -9,6 +9,7 @@ import {
   Title,
 } from "@mantine/core";
 import type { OnboardingV2DraftAssumptions } from "../../../domain/onboarding/v2/assumptions";
+import { scenarioAssumptionConstraints } from "../../../domain/scenarioAssumptions";
 
 interface AssumptionsStepProps {
   assumptions: OnboardingV2DraftAssumptions;
@@ -41,9 +42,9 @@ export default function AssumptionsStep({
             <NumberInput
               label={t("assumptionInflation")}
               value={assumptions.inflationPct ?? ""}
-              min={-10}
-              max={100}
-              step={0.1}
+              min={scenarioAssumptionConstraints.inflationRate.min}
+              max={scenarioAssumptionConstraints.inflationRate.max}
+              step={scenarioAssumptionConstraints.inflationRate.step}
               suffix="%"
               error={errors.inflationPct}
               onChange={(value) =>
@@ -53,9 +54,9 @@ export default function AssumptionsStep({
             <NumberInput
               label={t("assumptionIncomeGrowth")}
               value={assumptions.incomeGrowthPct ?? ""}
-              min={-10}
-              max={100}
-              step={0.1}
+              min={scenarioAssumptionConstraints.salaryGrowthRate.min}
+              max={scenarioAssumptionConstraints.salaryGrowthRate.max}
+              step={scenarioAssumptionConstraints.salaryGrowthRate.step}
               suffix="%"
               error={errors.incomeGrowthPct}
               onChange={(value) =>
@@ -91,9 +92,9 @@ export default function AssumptionsStep({
                   label={t("assumptionRentGrowth")}
                   description={t("assumptionRentGrowthImpact")}
                   value={assumptions.rentGrowthPct ?? ""}
-                  min={-10}
-                  max={100}
-                  step={0.1}
+                  min={scenarioAssumptionConstraints.rentAnnualGrowthPct.min}
+                  max={scenarioAssumptionConstraints.rentAnnualGrowthPct.max}
+                  step={scenarioAssumptionConstraints.rentAnnualGrowthPct.step}
                   suffix="%"
                   onChange={(value) =>
                     onChange({
@@ -108,9 +109,9 @@ export default function AssumptionsStep({
                   label={t("assumptionPropertyAppreciation")}
                   description={t("assumptionPropertyAppreciationImpact")}
                   value={assumptions.propertyAppreciationPct ?? ""}
-                  min={-50}
-                  max={100}
-                  step={0.1}
+                  min={scenarioAssumptionConstraints.propertyAppreciationPct.min}
+                  max={scenarioAssumptionConstraints.propertyAppreciationPct.max}
+                  step={scenarioAssumptionConstraints.propertyAppreciationPct.step}
                   suffix="%"
                   onChange={(value) =>
                     onChange({
@@ -127,9 +128,9 @@ export default function AssumptionsStep({
                   label={t("assumptionCarDepreciation")}
                   description={t("assumptionCarDepreciationImpact")}
                   value={assumptions.carDepreciationPct ?? ""}
-                  min={-100}
-                  max={100}
-                  step={0.1}
+                  min={scenarioAssumptionConstraints.carDepreciationRatePct.min}
+                  max={scenarioAssumptionConstraints.carDepreciationRatePct.max}
+                  step={scenarioAssumptionConstraints.carDepreciationRatePct.step}
                   suffix="%"
                   onChange={(value) =>
                     onChange({
@@ -144,9 +145,9 @@ export default function AssumptionsStep({
                   label={t("assumptionCashYield")}
                   description={t("assumptionCashYieldImpact")}
                   value={assumptions.cashYieldPct ?? ""}
-                  min={-10}
-                  max={100}
-                  step={0.1}
+                  min={scenarioAssumptionConstraints.cashYieldPct.min}
+                  max={scenarioAssumptionConstraints.cashYieldPct.max}
+                  step={scenarioAssumptionConstraints.cashYieldPct.step}
                   suffix="%"
                   onChange={(value) =>
                     onChange({

@@ -1403,7 +1403,6 @@ export default function SettingsClient({
                   carDepreciationRatePct: t("carDepreciation"),
                   baselinePrefix: `${t("baseline")}：`,
                 }}
-                emergencyFundRange={{ min: 3, max: 12, step: 1 }}
                 onChange={handleAssumptionChange}
               />
             </Stack>

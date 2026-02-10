@@ -3128,7 +3128,12 @@
     "loanTermRequired": "Loan term is required.",
     "loanTermMin": "Loan term must be at least 1 year.",
     "loanTermMax": "Loan term must be 50 years or less.",
-    "loanPaymentMin": "Loan payment must be 0 or higher."
+    "loanPaymentMin": "Loan payment must be 0 or higher.",
+    "assumptionGrowthHardMin": "Rate must be greater than -100%.",
+    "assumptionGrowthMin": "Rate must be -50% or higher.",
+    "assumptionGrowthMax": "Rate must be 50% or lower.",
+    "assumptionNonNegativeMin": "Value must be 0 or higher.",
+    "emergencyFundMax": "Emergency fund target must be 24 months or less."
   },
   "dataManagement": {
     "title": "Data management",
@@ -3280,7 +3285,12 @@
         "singleRenter": {
           "title": "Single professional | Rent & save",
           "description": "1 member, fixed salary, rent plus basic living, starter cash & investments.",
-          "tags": ["1 person", "Fixed salary", "Renting", "Cash + investments"],
+          "tags": [
+            "1 person",
+            "Fixed salary",
+            "Renting",
+            "Cash + investments"
+          ],
           "memberName": "Alex",
           "keyNumbers": {
             "monthlyIncome": "$25k",
@@ -3291,7 +3301,12 @@
         "dualIncomeHome": {
           "title": "Dual-income couple | Home purchase",
           "description": "2 members, dual income, home purchase bundle with mortgage and fees.",
-          "tags": ["2 people", "Dual income", "Home bundle", "Mortgage"],
+          "tags": [
+            "2 people",
+            "Dual income",
+            "Home bundle",
+            "Mortgage"
+          ],
           "memberNameA": "Jamie",
           "memberNameB": "Morgan",
           "keyNumbers": {
@@ -3303,7 +3318,12 @@
         "dualIncomeRental": {
           "title": "Dual-income couple | Home + rental income",
           "description": "2 members, home purchase plus partial rental income for cashflow checks.",
-          "tags": ["2 people", "Dual income", "Home + rental", "Rent income"],
+          "tags": [
+            "2 people",
+            "Dual income",
+            "Home + rental",
+            "Rent income"
+          ],
           "memberNameA": "Jordan",
           "memberNameB": "Taylor",
           "keyNumbers": {
@@ -3315,7 +3335,12 @@
         "newBaby": {
           "title": "New baby family | Childcare costs",
           "description": "2 adults + baby, delivery cost plus ongoing childcare expenses.",
-          "tags": ["2-3 members", "New baby", "One-off + ongoing", "Childcare"],
+          "tags": [
+            "2-3 members",
+            "New baby",
+            "One-off + ongoing",
+            "Childcare"
+          ],
           "memberNameA": "Casey",
           "memberNameB": "Riley",
           "memberNameC": "Baby",
@@ -3328,7 +3353,12 @@
         "newBabyHelper": {
           "title": "New baby family | Childcare + helper",
           "description": "Dual income, baby costs plus helper salary and agency fee.",
-          "tags": ["2 members", "New baby", "Helper cost", "One-off fee"],
+          "tags": [
+            "2 members",
+            "New baby",
+            "Helper cost",
+            "One-off fee"
+          ],
           "memberNameA": "Sky",
           "memberNameB": "Noah",
           "keyNumbers": {
@@ -3340,7 +3370,12 @@
         "highAsset": {
           "title": "High-asset household | Property + mortgage + investments",
           "description": "High cash and investments with property mortgage to test KPI mix.",
-          "tags": ["High assets", "Property + mortgage", "Investments", "Higher income"],
+          "tags": [
+            "High assets",
+            "Property + mortgage",
+            "Investments",
+            "Higher income"
+          ],
           "memberNameA": "Harper",
           "memberNameB": "Quinn",
           "keyNumbers": {

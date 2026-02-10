@@ -66,6 +66,7 @@ import {
   PLANNING_HORIZON_YEARS,
   isPlanningHorizonYears,
 } from "../../domain/assumptions/planningHorizon";
+import { scenarioAssumptionSchema } from "../../domain/scenarioAssumptions";
 
 const steps = [
   "profile",
@@ -734,6 +735,7 @@ const normalizeHouseholdCounts = (
 
 export default function OnboardingDraftWizard() {
   const t = useTranslations("onboardingDraft");
+  const validation = useTranslations("validation");
   const locale = useLocale();
   const router = useRouter();
   const scenarios = useScenarioStore((state) => state.scenarios);
@@ -1023,6 +1025,15 @@ export default function OnboardingDraftWizard() {
   );
   const hasMemberMonthErrors = Object.keys(memberMonthErrors).length > 0;
 
+  const assumptionValidationResult = scenarioAssumptionSchema.safeParse({
+    inflationRate: assumptions.inflationPct ?? undefined,
+    salaryGrowthRate: assumptions.incomeGrowthPct ?? undefined,
+    rentAnnualGrowthPct: assumptions.rentGrowthPct ?? undefined,
+    propertyAppreciationPct: assumptions.propertyAppreciationPct ?? undefined,
+    cashYieldPct: assumptions.cashYieldPct ?? undefined,
+    carDepreciationRatePct: assumptions.carDepreciationPct ?? undefined,
+  });
+
   const assumptionsErrors: Partial<
     Record<keyof OnboardingV2DraftAssumptions, string>
   > = {
@@ -1033,6 +1044,42 @@ export default function OnboardingDraftWizard() {
     investmentReturnPct:
       assumptions.investmentReturnPct === null ? t("requiredField") : "",
   };
+
+  if (!assumptionValidationResult.success) {
+    const issues = new Map(
+      assumptionValidationResult.error.issues.map((issue) => [issue.path[0], issue.message])
+    );
+
+    const inflationError = issues.get("inflationRate");
+    if (typeof inflationError === "string") {
+      assumptionsErrors.inflationPct = validation(inflationError);
+    }
+
+    const incomeError = issues.get("salaryGrowthRate");
+    if (typeof incomeError === "string") {
+      assumptionsErrors.incomeGrowthPct = validation(incomeError);
+    }
+
+    const rentError = issues.get("rentAnnualGrowthPct");
+    if (typeof rentError === "string") {
+      assumptionsErrors.rentGrowthPct = validation(rentError);
+    }
+
+    const propertyError = issues.get("propertyAppreciationPct");
+    if (typeof propertyError === "string") {
+      assumptionsErrors.propertyAppreciationPct = validation(propertyError);
+    }
+
+    const cashYieldError = issues.get("cashYieldPct");
+    if (typeof cashYieldError === "string") {
+      assumptionsErrors.cashYieldPct = validation(cashYieldError);
+    }
+
+    const carDepError = issues.get("carDepreciationRatePct");
+    if (typeof carDepError === "string") {
+      assumptionsErrors.carDepreciationPct = validation(carDepError);
+    }
+  }
 
   const hasAssumptionErrors = Object.values(assumptionsErrors).some(
     (value) => value

@@ -3175,7 +3175,12 @@
     "loanTermRequired": "必須填寫貸款年期。",
     "loanTermMin": "貸款年期至少為 1 年。",
     "loanTermMax": "貸款年期不得超過 50 年。",
-    "loanPaymentMin": "每月供款必須為 0 或以上。"
+    "loanPaymentMin": "每月供款必須為 0 或以上。",
+    "assumptionGrowthHardMin": "比率必須大於 -100%。",
+    "assumptionGrowthMin": "比率必須為 -50% 或以上。",
+    "assumptionGrowthMax": "比率不得超過 50%。",
+    "assumptionNonNegativeMin": "數值必須為 0 或以上。",
+    "emergencyFundMax": "緊急儲備目標不得超過 24 個月。"
   },
   "dataManagement": {
     "title": "資料管理",
@@ -3327,7 +3332,12 @@
         "singleRenter": {
           "title": "單身上班族｜租樓儲蓄",
           "description": "1 成員，固定薪金，租金＋基本生活開支，少量現金/投資。",
-          "tags": ["1人", "固定薪金", "租樓", "現金/投資"],
+          "tags": [
+            "1人",
+            "固定薪金",
+            "租樓",
+            "現金/投資"
+          ],
           "memberName": "阿樂",
           "keyNumbers": {
             "monthlyIncome": "$25k",
@@ -3338,7 +3348,12 @@
         "dualIncomeHome": {
           "title": "雙職夫婦｜置業（首期+按揭）",
           "description": "2 成員，雙收入，置業組合含首期、按揭與一次性費用。",
-          "tags": ["2人", "雙收入", "置業組合", "按揭"],
+          "tags": [
+            "2人",
+            "雙收入",
+            "置業組合",
+            "按揭"
+          ],
           "memberNameA": "志明",
           "memberNameB": "阿欣",
           "keyNumbers": {
@@ -3350,7 +3365,12 @@
         "dualIncomeRental": {
           "title": "雙職夫婦｜置業 + 租金收入",
           "description": "2 成員，置業組合加租金收入，用於測試現金流。",
-          "tags": ["2人", "雙收入", "置業+出租", "租金收入"],
+          "tags": [
+            "2人",
+            "雙收入",
+            "置業+出租",
+            "租金收入"
+          ],
           "memberNameA": "子健",
           "memberNameB": "嘉欣",
           "keyNumbers": {
@@ -3362,7 +3382,12 @@
         "newBaby": {
           "title": "有新生兒家庭｜育兒開支",
           "description": "2 大人 + BB，生產一次性＋持續育兒支出。",
-          "tags": ["2-3人", "新生兒", "一次性+持續", "育兒"],
+          "tags": [
+            "2-3人",
+            "新生兒",
+            "一次性+持續",
+            "育兒"
+          ],
           "memberNameA": "家怡",
           "memberNameB": "天佑",
           "memberNameC": "BB",
@@ -3375,7 +3400,12 @@
         "newBabyHelper": {
           "title": "有工人姐姐｜育兒 + 工人費用",
           "description": "雙收入，育兒支出加工人薪金及中介費。",
-          "tags": ["2人", "新生兒", "工人費用", "一次性費用"],
+          "tags": [
+            "2人",
+            "新生兒",
+            "工人費用",
+            "一次性費用"
+          ],
           "memberNameA": "俊豪",
           "memberNameB": "思穎",
           "keyNumbers": {
@@ -3387,7 +3417,12 @@
         "highAsset": {
           "title": "高資產家庭｜有物業 + 按揭 + 投資",
           "description": "現金/投資較多，物業加按揭，適合測試 KPI 混合顯示。",
-          "tags": ["高資產", "物業+按揭", "投資", "較高收入"],
+          "tags": [
+            "高資產",
+            "物業+按揭",
+            "投資",
+            "較高收入"
+          ],
           "memberNameA": "雅婷",
           "memberNameB": "子朗",
           "keyNumbers": {
