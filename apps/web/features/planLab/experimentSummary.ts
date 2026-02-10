@@ -1,5 +1,6 @@
 import type { ScenarioEvent } from "../../src/domain/scenarioV2/events";
 import type { EventOverrideExperimentSpec } from "../../src/domain/planLab/eventOverrideExperiment";
+import type { ScenarioAssumptionsOverride } from "../../components/ScenarioAssumptionsOverrideForm";
 
 const formatSignedPercent = (value: number) => `${value >= 0 ? "+" : ""}${value}%`;
 
@@ -24,6 +25,29 @@ const formatGrowth = (mode?: "none" | "assumption" | "custom", rate?: number) =>
   }
   return `成長：自訂 ${rate ?? 0}%`;
 };
+
+const formatPercentOrDash = (value?: number) =>
+  typeof value === "number" ? `${value}%` : "—";
+
+const formatMonthsOrDash = (value?: number) =>
+  typeof value === "number" ? `${value} 個月` : "—";
+
+export const getScenarioAssumptionOverrideEntries = (
+  overrides: ScenarioAssumptionsOverride
+): Array<[keyof ScenarioAssumptionsOverride, number | undefined]> =>
+  Object.entries(overrides) as Array<[keyof ScenarioAssumptionsOverride, number | undefined]>;
+
+export const formatScenarioAssumptionChange = (
+  label: string,
+  baseline: number | undefined,
+  next: number | undefined
+): string => {
+  const formatter = label.includes("緊急儲備") ? formatMonthsOrDash : formatPercentOrDash;
+  return `${label} ${formatter(baseline)} → ${formatter(next)}`;
+};
+
+export const formatScenarioAssumptionSummary = (changes: string[]): string =>
+  changes.length > 0 ? `${changes.slice(0, 2).join("；")}${changes.length > 2 ? ` +${changes.length - 2}` : ""}` : "已建立實驗";
 
 export const formatExperimentChanges = (
   event: ScenarioEvent,

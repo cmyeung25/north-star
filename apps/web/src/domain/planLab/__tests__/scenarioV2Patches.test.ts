@@ -85,4 +85,25 @@ describe("applyPlanLabScenarioV2Patches", () => {
     const input = compileScenarioV2ToProjectionInput(sandbox);
     expect(input.positions?.homes?.some((home) => home.id === "event-home-1")).toBe(true);
   });
+
+  it("applies assumption overrides to sandbox scenario", () => {
+    const baseline = buildScenario({
+      assumptions: {
+        horizonMonths: 12,
+        initialCash: 0,
+        baseMonth: "2024-01",
+        inflationRate: 2.5,
+      },
+    });
+    const patches = emptyPlanLabScenarioV2Patches();
+    patches.assumptions = {
+      inflationRate: 3,
+      emergencyFundMonths: 9,
+    };
+
+    const result = applyPlanLabScenarioV2Patches(baseline, patches);
+    expect(result.assumptions.inflationRate).toBe(3);
+    expect(result.assumptions.emergencyFundMonths).toBe(9);
+  });
+
 });

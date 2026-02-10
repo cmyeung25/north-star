@@ -73,6 +73,7 @@ import type {
   BudgetRule,
   Scenario,
   ScenarioAsset,
+  ScenarioAssumptions,
   ScenarioLiability,
   ScenarioMember,
   ScenarioMemberKind,
@@ -127,6 +128,10 @@ import {
   listEventTypesForGroup,
 } from "../../components/timeline/utils";
 import SmartInvestForm from "../../components/SmartInvestForm";
+import ScenarioAssumptionsOverrideForm, {
+  SCENARIO_ASSUMPTION_OVERRIDE_KEYS,
+  type ScenarioAssumptionsOverride,
+} from "../../components/ScenarioAssumptionsOverrideForm";
 import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
 import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
 import { applySmartInvestPatch } from "../../src/domain/planLab/smartInvestAdjust";
@@ -200,7 +205,13 @@ import {
   buildEventOverridePatch,
   type EventOverrideExperimentSpec,
 } from "../../src/domain/planLab/eventOverrideExperiment";
-import { formatExperimentChanges, formatExperimentSummary } from "./experimentSummary";
+import {
+  formatExperimentChanges,
+  formatExperimentSummary,
+  formatScenarioAssumptionChange,
+  formatScenarioAssumptionSummary,
+  getScenarioAssumptionOverrideEntries,
+} from "./experimentSummary";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -322,6 +333,28 @@ type PlanLabTopDriver = {
 };
 
 const TOP_DRIVER_COUNT = 5;
+
+const ENV_ASSUMPTION_LABELS: Record<keyof ScenarioAssumptionsOverride, string> = {
+  inflationRate: "通脹率",
+  salaryGrowthRate: "薪金增長",
+  emergencyFundMonths: "緊急儲備目標",
+  rentAnnualGrowthPct: "租金增長",
+  propertyAppreciationPct: "房產增值",
+  cashYieldPct: "現金收益率",
+  carDepreciationRatePct: "汽車折舊",
+};
+
+const pickScenarioAssumptionOverrides = (
+  assumptions: ScenarioAssumptions
+): ScenarioAssumptionsOverride => ({
+  inflationRate: assumptions.inflationRate,
+  salaryGrowthRate: assumptions.salaryGrowthRate,
+  emergencyFundMonths: assumptions.emergencyFundMonths,
+  rentAnnualGrowthPct: assumptions.rentAnnualGrowthPct,
+  propertyAppreciationPct: assumptions.propertyAppreciationPct,
+  cashYieldPct: assumptions.cashYieldPct,
+  carDepreciationRatePct: assumptions.carDepreciationRatePct,
+});
 
 export const GROUP_LABEL: Record<string, string> = {
   income: "收入",
@@ -1051,6 +1084,9 @@ export default function PlanLabPanel({
   const [draftEvents, setDraftEvents] = useState<PlanLabDraftEventAddition[]>([]);
   const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
   const [experimentTemplatesOpen, setExperimentTemplatesOpen] = useState(false);
+  const [envAssumptionsDrawerOpen, setEnvAssumptionsDrawerOpen] = useState(false);
+  const [envAssumptionsViewGroupId, setEnvAssumptionsViewGroupId] = useState<string | null>(null);
+  const [envAssumptionOverridesDraft, setEnvAssumptionOverridesDraft] = useState<ScenarioAssumptionsOverride>({});
   const [experimentTemplateContext, setExperimentTemplateContext] = useState<{
     title: string;
     primaryEventId?: string;
@@ -1220,6 +1256,9 @@ export default function PlanLabPanel({
     setExperimentDraftErrors({});
     setExperimentDrawerMode("add");
     setExperimentTemplatesOpen(false);
+    setEnvAssumptionsDrawerOpen(false);
+    setEnvAssumptionsViewGroupId(null);
+    setEnvAssumptionOverridesDraft({});
     setExperimentTemplateContext(null);
     setEventDrawerOpen(false);
     setEventDrawerMode("add");
@@ -2025,10 +2064,25 @@ export default function PlanLabPanel({
     openAddExperimentDrawer();
   }, [openAddExperimentDrawer, openExperimentTemplatesDrawer, scenarioIsV2]);
 
+  const baselineAssumptionOverrides = useMemo(
+    () => pickScenarioAssumptionOverrides(scenario.assumptions),
+    [scenario.assumptions]
+  );
+
+  const openEnvAssumptionsExperimentDrawer = useCallback(
+    (group?: PlanLabExperimentGroup | null) => {
+      closeAllPlanLabDrawers();
+      setExperimentTemplatesOpen(false);
+      setEnvAssumptionsViewGroupId(group?.experimentId ?? null);
+      setEnvAssumptionOverridesDraft(group ? { ...baselineAssumptionOverrides, ...(group.envOverrides ?? {}) } : baselineAssumptionOverrides);
+      setEnvAssumptionsDrawerOpen(true);
+    },
+    [baselineAssumptionOverrides, closeAllPlanLabDrawers]
+  );
+
   const handleSelectEnvironmentTemplate = useCallback((_envKey: string) => {
-    setExperimentTemplatesOpen(false);
-    openAddRuleDrawer();
-  }, [openAddRuleDrawer]);
+    openEnvAssumptionsExperimentDrawer(null);
+  }, [openEnvAssumptionsExperimentDrawer]);
 
   const handleExperimentTemplateSelect = (templateId: PlanLabExperimentTemplateId) => {
     closeAllPlanLabDrawers();
@@ -2278,8 +2332,11 @@ export default function PlanLabPanel({
       templateId?: string;
       primaryEventId?: string;
       kind?: "ADD_EVENT" | "MODIFY_BASELINE_EVENT" | "ENV_OVERRIDE" | "BUNDLE_EXPERIMENT";
+      envOverrides?: ScenarioAssumptionsOverride;
+      changes?: string[];
+      affectedEntities?: Array<{ itemId: string; label: string; type: string }>;
     }) => {
-      if (params.itemIds.length === 0) {
+      if (params.itemIds.length === 0 && params.kind !== "ENV_OVERRIDE") {
         return;
       }
       setExperimentGroups((current) => [
@@ -2296,11 +2353,73 @@ export default function PlanLabPanel({
           templateId: params.templateId,
           primaryEventId: params.primaryEventId,
           createdAt: Date.now(),
+          envOverrides: params.envOverrides,
+          changes: params.changes,
+          affectedEntities: params.affectedEntities,
         },
       ]);
     },
     []
   );
+
+  const saveEnvAssumptionsExperiment = useCallback(() => {
+    const nextOverrides = SCENARIO_ASSUMPTION_OVERRIDE_KEYS.reduce<ScenarioAssumptionsOverride>(
+      (acc, key) => {
+        const draftValue = envAssumptionOverridesDraft[key];
+        const baselineValue = baselineAssumptionOverrides[key];
+        if (draftValue !== baselineValue) {
+          acc[key] = draftValue;
+        }
+        return acc;
+      },
+      {}
+    );
+    if (Object.keys(nextOverrides).length === 0) {
+      setEnvAssumptionsDrawerOpen(false);
+      return;
+    }
+    const changeLines = getScenarioAssumptionOverrideEntries(nextOverrides).map(([key, value]) =>
+      formatScenarioAssumptionChange(ENV_ASSUMPTION_LABELS[key], baselineAssumptionOverrides[key], value)
+    );
+    const affected = Object.keys(nextOverrides).map((key) => ({
+      itemId: key,
+      label: ENV_ASSUMPTION_LABELS[key as keyof ScenarioAssumptionsOverride],
+      type: "assumption",
+    }));
+
+    if (envAssumptionsViewGroupId) {
+      setExperimentGroups((current) =>
+        current.map((group) =>
+          group.experimentId === envAssumptionsViewGroupId
+            ? {
+                ...group,
+                envOverrides: nextOverrides,
+                changes: changeLines,
+                affectedEntities: affected,
+                isEnabled: true,
+                createdAt: Date.now(),
+              }
+            : group
+        )
+      );
+    } else {
+      createExperimentGroup({
+        title: `環境假設（${formatScenarioAssumptionSummary(changeLines)}）`,
+        itemIds: [],
+        kind: "ENV_OVERRIDE",
+        envOverrides: nextOverrides,
+        changes: changeLines,
+        affectedEntities: affected,
+      });
+    }
+    setEnvAssumptionsDrawerOpen(false);
+    setEnvAssumptionsViewGroupId(null);
+  }, [
+    baselineAssumptionOverrides,
+    createExperimentGroup,
+    envAssumptionOverridesDraft,
+    envAssumptionsViewGroupId,
+  ]);
 
   const applyExperimentTemplateToEvent = useCallback(
     (eventId: string) => {
@@ -2685,7 +2804,10 @@ export default function PlanLabPanel({
   };
 
   const scenarioV2Changed = useMemo(() => {
-    const buildSet = (patches: PlanLabScenarioV2Patches[keyof PlanLabScenarioV2Patches]) =>
+    const buildSet = <T extends { id: string }>(patches: {
+      add: T[];
+      update: Record<string, Partial<T>>;
+    }) =>
       new Set<string>([
         ...patches.add.map((item) => item.id),
         ...Object.keys(patches.update),
@@ -2707,13 +2829,17 @@ export default function PlanLabPanel({
       scenarioV2Patches.members,
       scenarioV2Patches.rules,
     ];
-    return patchSets.some(
-      (patch) =>
-        patch.add.length > 0 ||
-        patch.remove.length > 0 ||
-        Object.keys(patch.update).length > 0
+    return (
+      patchSets.some(
+        (patch) =>
+          patch.add.length > 0 ||
+          patch.remove.length > 0 ||
+          Object.keys(patch.update).length > 0
+      ) ||
+      Object.keys(scenarioV2Patches.assumptions).length > 0 ||
+      experimentGroups.some((group) => group.kind === "ENV_OVERRIDE")
     );
-  }, [scenarioV2Patches]);
+  }, [experimentGroups, scenarioV2Patches]);
 
   const upsertScenarioV2Event = useCallback(
     (event: ScenarioEvent, mode: "create" | "edit") => {
@@ -3109,14 +3235,28 @@ export default function PlanLabPanel({
     });
   }, [baselineBundleEventIdsByBundleId, experimentGroups, scenarioIsV2]);
 
-  const projectionScenarioV2Patches = useMemo(
-    () =>
-      filterScenarioV2PatchesByExperimentGroups(
-        scenarioV2Patches,
-        experimentGroupsForPatches
-      ),
-    [experimentGroupsForPatches, scenarioV2PatchesKey]
-  );
+  const projectionScenarioV2Patches = useMemo(() => {
+    const filtered = filterScenarioV2PatchesByExperimentGroups(
+      scenarioV2Patches,
+      experimentGroupsForPatches
+    );
+    const assumptionOverrides = experimentGroupsForPatches.reduce<ScenarioAssumptionsOverride>(
+      (acc, group) => {
+        if (group.kind !== "ENV_OVERRIDE" || group.isEnabled === false || !group.envOverrides) {
+          return acc;
+        }
+        return { ...acc, ...group.envOverrides };
+      },
+      {}
+    );
+    return {
+      ...filtered,
+      assumptions: {
+        ...filtered.assumptions,
+        ...assumptionOverrides,
+      },
+    };
+  }, [experimentGroupsForPatches, scenarioV2Patches]);
   const projectionScenarioV2PatchesKey = useMemo(
     () => JSON.stringify(projectionScenarioV2Patches),
     [projectionScenarioV2Patches]
@@ -5791,6 +5931,31 @@ export default function PlanLabPanel({
           onView: scenarioItem ? () => openScenarioItemView(scenarioItem) : undefined,
         });
       });
+
+      experimentGroups
+        .filter((group) => group.kind === "ENV_OVERRIDE" && group.envOverrides)
+        .forEach((group) => {
+          const lines = group.changes ??
+            getScenarioAssumptionOverrideEntries(group.envOverrides ?? {}).map(([key, value]) =>
+              formatScenarioAssumptionChange(
+                ENV_ASSUMPTION_LABELS[key],
+                baselineAssumptionOverrides[key],
+                value
+              )
+            );
+          controls.push({
+            id: `env-${group.experimentId}`,
+            titleLine: resolveExperimentGroupTitle(group.title),
+            diffLines: lines,
+            isEnabled: group.isEnabled,
+            onToggle: () =>
+              group.isEnabled
+                ? unapplyExperiment(group.experimentId)
+                : applyExperiment(group.experimentId),
+            onRemove: () => deleteExperiment(group.experimentId),
+            onView: () => openEnvAssumptionsExperimentDrawer(group),
+          });
+        });
       bundleExperimentGroups.forEach((group) => {
         if (!group.bundleInstanceId) {
           return;
@@ -7892,6 +8057,8 @@ export default function PlanLabPanel({
                                       ? () => handleEditBundle(group.bundleInstanceId!)
                                       : group.primaryEventId
                                       ? () => handleEditV2Event(group.primaryEventId!)
+                                      : group.kind === "ENV_OVERRIDE"
+                                      ? () => openEnvAssumptionsExperimentDrawer(group)
                                       : undefined
                                   }
                                   menuItems={menuItems}
@@ -7923,6 +8090,24 @@ export default function PlanLabPanel({
                                           ? group.affectedEntities.map((entity) => entity.itemId)
                                           : activeItemIds
                                         ).slice(0, 5).map((itemId) => {
+                                          if (group.kind === "ENV_OVERRIDE") {
+                                            const label =
+                                              ENV_ASSUMPTION_LABELS[
+                                                itemId as keyof ScenarioAssumptionsOverride
+                                              ] ?? itemId;
+                                            return (
+                                              <Group
+                                                key={`${group.experimentId}-${itemId}`}
+                                                gap={6}
+                                                wrap="wrap"
+                                              >
+                                                <Text size="xs">{label}</Text>
+                                                <Badge size="xs" variant="light" color="grape">
+                                                  assumption
+                                                </Badge>
+                                              </Group>
+                                            );
+                                          }
                                           const item = patchItemLookup.get(itemId);
                                           const label = item?.label?.trim() || "—";
                                           const type = item?.type ?? "—";
@@ -8995,6 +9180,59 @@ export default function PlanLabPanel({
         onSelectEnvKey={handleSelectEnvironmentTemplate}
       />
 
+
+      <Drawer
+        opened={envAssumptionsDrawerOpen}
+        onClose={() => {
+          setEnvAssumptionsDrawerOpen(false);
+          setEnvAssumptionsViewGroupId(null);
+        }}
+        position="right"
+        size="md"
+        title={translate("planLabEmptyStateAssumptionsAction", "修改環境假設")}
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {translate(
+              "planLabEnvOverrideHint",
+              "你正在建立實驗，不會改動 baseline；可隨時開關比較 KPI/圖表。"
+            )}
+          </Text>
+          <ScenarioAssumptionsOverrideForm
+            values={envAssumptionOverridesDraft}
+            baseline={baselineAssumptionOverrides}
+            labels={{
+              inflationRate: "通脹率 (%)",
+              salaryGrowthRate: "薪金增長 (%)",
+              emergencyFundMonths: "緊急儲備目標",
+              emergencyFundValue: (months) => `${months} 個月`,
+              rentAnnualGrowthPct: "租金增長 (%)",
+              propertyAppreciationPct: "房產增值 (%)",
+              cashYieldPct: "現金收益率 (%)",
+              carDepreciationRatePct: "汽車折舊 (%)",
+              baselinePrefix: "基準：",
+            }}
+            emergencyFundRange={{ min: 0, max: 24, step: 1 }}
+            onChange={(patch) =>
+              setEnvAssumptionOverridesDraft((current) => ({ ...current, ...patch }))
+            }
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => {
+                setEnvAssumptionsDrawerOpen(false);
+                setEnvAssumptionsViewGroupId(null);
+              }}
+            >
+              {translate("planLabCancel", "取消")}
+            </Button>
+            <Button onClick={saveEnvAssumptionsExperiment}>
+              {translate("planLabCreateExperimentAction", "建立實驗")}
+            </Button>
+          </Group>
+        </Stack>
+      </Drawer>
       <BundleWizardDrawer
         opened={bundleWizardOpen}
         template={bundleTemplate}

@@ -2,6 +2,7 @@ import type { ScenarioV2 } from "../../engine/scenarioV2Compiler";
 import type { ScenarioEvent } from "../scenarioV2/events";
 import type {
   BudgetRule,
+  ScenarioAssumptions,
   ScenarioAsset,
   ScenarioLiability,
   ScenarioMember,
@@ -19,6 +20,7 @@ export type PlanLabScenarioV2Patches = {
   liabilities: ScenarioV2PatchSet<ScenarioLiability>;
   members: ScenarioV2PatchSet<ScenarioMember>;
   rules: ScenarioV2PatchSet<BudgetRule>;
+  assumptions: Partial<ScenarioAssumptions>;
 };
 
 export const emptyPlanLabScenarioV2Patches = (): PlanLabScenarioV2Patches => ({
@@ -27,6 +29,7 @@ export const emptyPlanLabScenarioV2Patches = (): PlanLabScenarioV2Patches => ({
   liabilities: { add: [], update: {}, remove: [] },
   members: { add: [], update: {}, remove: [] },
   rules: { add: [], update: {}, remove: [] },
+  assumptions: {},
 });
 
 const synthesizeAssetsFromEvents = (events: ScenarioEvent[] | undefined): ScenarioAsset[] =>
@@ -143,6 +146,10 @@ export const applyPlanLabScenarioV2Patches = (
 
   return {
     ...scenario,
+    assumptions: {
+      ...scenario.assumptions,
+      ...patches.assumptions,
+    },
     events: nextEvents,
     assets: mergeUniqueById(explicitAssets, synthesizedAssets),
     liabilities: mergeUniqueById(explicitLiabilities, synthesizedLiabilities),
