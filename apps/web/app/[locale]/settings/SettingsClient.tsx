@@ -13,7 +13,6 @@ import {
   MultiSelect,
   Select,
   SegmentedControl,
-  Slider,
   Stack,
   Tabs,
   Switch,
@@ -58,6 +57,7 @@ import {
   buildMoneyAssetsUrl,
   buildScenarioUrl,
 } from "../../../src/utils/scenarioContext";
+import ScenarioAssumptionsOverrideForm from "../../../components/ScenarioAssumptionsOverrideForm";
 import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears, monthAtAge } from "../../../src/domain/members/age";
@@ -1389,109 +1389,23 @@ export default function SettingsClient({
                   </Link>
                 </Text>
               </Card>
-              <Group grow>
-                <NumberInput
-                  label={t("inflationRate")}
-                  value={assumptions.inflationRate ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      inflationRate: typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-                <NumberInput
-                  label={t("salaryGrowth")}
-                  value={assumptions.salaryGrowthRate ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      salaryGrowthRate: typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-              </Group>
-
-              <Stack gap="xs">
-                <Group justify="space-between">
-                  <Text fw={600}>{t("emergencyFundTarget")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {t("emergencyFundValue", {
-                      months: assumptions.emergencyFundMonths ?? 6,
-                    })}
-                  </Text>
-                </Group>
-                <Slider
-                  min={3}
-                  max={12}
-                  step={1}
-                  value={assumptions.emergencyFundMonths ?? 6}
-                  onChange={(value) =>
-                    handleAssumptionChange({ emergencyFundMonths: value })
-                  }
-                />
-              </Stack>
-
-              <Group grow>
-                <NumberInput
-                  label={t("rentAnnualGrowth")}
-                  value={assumptions.rentAnnualGrowthPct ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      rentAnnualGrowthPct:
-                        typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-                <NumberInput
-                  label={t("propertyAppreciation")}
-                  value={assumptions.propertyAppreciationPct ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      propertyAppreciationPct:
-                        typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-              </Group>
-
-              <Group grow>
-                <NumberInput
-                  label={t("cashYield")}
-                  value={assumptions.cashYieldPct ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      cashYieldPct: typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-                <NumberInput
-                  label={t("carDepreciation")}
-                  value={assumptions.carDepreciationRatePct ?? ""}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    handleAssumptionChange({
-                      carDepreciationRatePct:
-                        typeof value === "number" ? value : undefined,
-                    })
-                  }
-                />
-              </Group>
+              <ScenarioAssumptionsOverrideForm
+                values={assumptions}
+                baseline={assumptions}
+                labels={{
+                  inflationRate: t("inflationRate"),
+                  salaryGrowthRate: t("salaryGrowth"),
+                  emergencyFundMonths: t("emergencyFundTarget"),
+                  emergencyFundValue: (months) => t("emergencyFundValue", { months }),
+                  rentAnnualGrowthPct: t("rentAnnualGrowth"),
+                  propertyAppreciationPct: t("propertyAppreciation"),
+                  cashYieldPct: t("cashYield"),
+                  carDepreciationRatePct: t("carDepreciation"),
+                  baselinePrefix: `${t("baseline")}：`,
+                }}
+                emergencyFundRange={{ min: 3, max: 12, step: 1 }}
+                onChange={handleAssumptionChange}
+              />
             </Stack>
           </Card>
 

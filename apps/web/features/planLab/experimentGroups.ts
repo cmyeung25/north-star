@@ -1,4 +1,5 @@
 import type { PlanLabScenarioV2Patches } from "../../src/domain/planLab/scenarioV2Patches";
+import type { ScenarioAssumptions } from "../../src/store/scenarioStore";
 
 export type PlanLabExperimentGroup = {
   experimentId: string;
@@ -9,6 +10,18 @@ export type PlanLabExperimentGroup = {
     bundleId?: string;
     envKey?: string;
   };
+  envOverrides?: Partial<
+    Pick<
+      ScenarioAssumptions,
+      | "inflationRate"
+      | "salaryGrowthRate"
+      | "emergencyFundMonths"
+      | "rentAnnualGrowthPct"
+      | "propertyAppreciationPct"
+      | "cashYieldPct"
+      | "carDepreciationRatePct"
+    >
+  >;
   changes?: string[];
   affectedEntities?: Array<{
     itemId: string;
@@ -77,7 +90,7 @@ export const resolveExperimentGroupTitle = (title?: string | null): string => {
   return trimmed;
 };
 
-type PatchEntity = keyof PlanLabScenarioV2Patches;
+type PatchEntity = Exclude<keyof PlanLabScenarioV2Patches, "assumptions">;
 
 const ENTITY_ORDER: PatchEntity[] = ["events", "assets", "liabilities", "members", "rules"];
 
