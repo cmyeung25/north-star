@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { applyAnnualGrowth } from "../cashflowGrowth";
+import { applyAnnualRate, applyDepreciation } from "../cashflowGrowth";
 
-describe("applyAnnualGrowth", () => {
-  it("compounds monthly growth from an annual rate", () => {
-    const baseAmount = 30000;
-    const annualGrowthPct = 3;
-    const monthIndex = 12;
-    const monthlyRate = Math.pow(1 + annualGrowthPct / 100, 1 / 12) - 1;
-    const expected = baseAmount * Math.pow(1 + monthlyRate, monthIndex);
+describe("cashflowGrowth utils", () => {
+  it("applies annual growth rate for 0/12/24 months", () => {
+    const base = 1000;
+    expect(applyAnnualRate(base, 0, 3)).toBe(1000);
+    expect(applyAnnualRate(base, 12, 3)).toBe(1030);
+    expect(applyAnnualRate(base, 24, 3)).toBe(1061);
+  });
 
-    expect(applyAnnualGrowth(baseAmount, annualGrowthPct, monthIndex)).toBeCloseTo(
-      expected,
-      6
-    );
+  it("applies depreciation for 12/24 months", () => {
+    const base = 10000;
+    expect(applyDepreciation(base, 12, 10)).toBe(9000);
+    expect(applyDepreciation(base, 24, 10)).toBe(8100);
   });
 });

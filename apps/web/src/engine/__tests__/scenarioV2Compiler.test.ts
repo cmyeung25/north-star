@@ -386,4 +386,131 @@ describe("compileScenarioV2ToLedger", () => {
         (projectionWithoutGrowth.cashBalance.at(-1) ?? 0)
     ).toBe(true);
   });
+
+  it("applies inflation growth for recurring expenses marked with assumption source", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        inflationRate: 6,
+      },
+      events: [
+        {
+          id: "evt-expense-inflation",
+          type: "cashflow",
+          kind: "expense",
+          cadence: "monthly",
+          amount: 1000,
+          startMonth: "2024-01",
+          endMonth: "2025-01",
+          growthSource: "inflation",
+        },
+      ],
+    };
+
+    const ledger = compileScenarioV2ToLedger(scenario);
+    const jan2024 = ledger.find((row) => row.month === "2024-01");
+    const jan2025 = ledger.find((row) => row.month === "2025-01");
+
+    expect((jan2025?.amount ?? 0) < (jan2024?.amount ?? 0)).toBe(true);
+  });
+
+  it("applies rent growth for housing rent events marked with assumption", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        rentAnnualGrowthPct: 5,
+      },
+      events: [
+        {
+          id: "evt-rent-growth",
+          type: "housing",
+          kind: "rent",
+          startMonth: "2024-01",
+          endMonth: "2025-01",
+          rentMonthly: 1000,
+          rentGrowthMode: "assumption",
+        },
+      ],
+    };
+
+    const ledger = compileScenarioV2ToLedger(scenario).filter(
+      (row) => row.sourceEventId === "evt-rent-growth"
+    );
+    const jan2024 = ledger.find((row) => row.month === "2024-01");
+    const jan2025 = ledger.find((row) => row.month === "2025-01");
+
+    expect((jan2025?.amount ?? 0) < (jan2024?.amount ?? 0)).toBe(true);
+  });
+
+  it("applies car depreciation from assumptions when car asset is flagged", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        horizonMonths: 13,
+        carDepreciationRatePct: 10,
+      },
+      assets: [
+        {
+          id: "asset-car-1",
+          kind: "car",
+          currentValue: 100000,
+          startMonth: "2024-01",
+          depreciationSource: "carDepreciation",
+        },
+      ],
+      events: [],
+    };
+
+    const input = compileScenarioV2ToProjectionInput(scenario);
+    const projection = computeProjection(input);
+
+    expect((projection.assets.cars[12] ?? 0) < (projection.assets.cars[0] ?? 0)).toBe(true);
+  });
+
+  it("keeps unflagged recurring expense and car assets unchanged", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        horizonMonths: 13,
+        inflationRate: 6,
+        carDepreciationRatePct: 10,
+      },
+      assets: [
+        {
+          id: "asset-car-unflagged",
+          kind: "car",
+          currentValue: 100000,
+          startMonth: "2024-01",
+        },
+      ],
+      events: [
+        {
+          id: "evt-expense-plain",
+          type: "cashflow",
+          kind: "expense",
+          cadence: "monthly",
+          amount: 1000,
+          startMonth: "2024-01",
+          endMonth: "2025-01",
+        },
+      ],
+    };
+
+    const ledger = compileScenarioV2ToLedger(scenario).filter(
+      (row) => row.sourceEventId === "evt-expense-plain"
+    );
+    const jan2024 = ledger.find((row) => row.month === "2024-01");
+    const jan2025 = ledger.find((row) => row.month === "2025-01");
+    expect(jan2024?.amount).toBe(jan2025?.amount);
+
+    const input = compileScenarioV2ToProjectionInput(scenario);
+    const projection = computeProjection(input);
+    expect(projection.assets.cars[0] ?? 0).toBe(0);
+    expect(projection.assets.cars[12] ?? 0).toBe(0);
+  });
+
 });

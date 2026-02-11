@@ -9,6 +9,39 @@ const resolveMonthlyGrowthRate = (annualGrowthPct: number): number => {
   return Math.pow(1 + annualGrowthPct / 100, 1 / 12) - 1;
 };
 
+const roundCurrency = (value: number): number => Math.round(value);
+
+export const applyAnnualRate = (
+  baseAmount: number,
+  monthsFromStart: number,
+  annualRatePct: number
+): number => {
+  const amount = Number.isFinite(baseAmount) ? baseAmount : 0;
+  const months = Number.isFinite(monthsFromStart)
+    ? Math.max(0, Math.floor(monthsFromStart))
+    : 0;
+  const annualRate = Number.isFinite(annualRatePct) ? annualRatePct / 100 : 0;
+  const factor = Math.pow(1 + annualRate, months / 12);
+  return roundCurrency(amount * factor);
+};
+
+export const applyDepreciation = (
+  initialValue: number,
+  monthsFromStart: number,
+  annualDepreciationPct: number
+): number => {
+  const value = Number.isFinite(initialValue) ? initialValue : 0;
+  const months = Number.isFinite(monthsFromStart)
+    ? Math.max(0, Math.floor(monthsFromStart))
+    : 0;
+  const depreciation = Number.isFinite(annualDepreciationPct)
+    ? annualDepreciationPct / 100
+    : 0;
+  const factor = Math.pow(1 - depreciation, months / 12);
+  const result = value * factor;
+  return Number.isFinite(result) ? roundCurrency(result) : roundCurrency(value);
+};
+
 export const applyAnnualGrowth = (
   baseAmount: number,
   annualGrowthPct: number,
@@ -31,12 +64,19 @@ export const resolveIncomeGrowthPct = (
   event: CashflowEvent,
   assumptions: ScenarioAssumptions
 ): number => {
-  if (event.kind !== "income") {
-    return 0;
+  if (event.growthSource === "rentGrowth") {
+    return assumptions.rentAnnualGrowthPct ?? 0;
   }
+  if (event.growthSource === "inflation") {
+    return assumptions.inflationRate ?? 0;
+  }
+
   const growthMode = resolveIncomeGrowthMode(event);
   if (growthMode === "assumption") {
-    const growthPct = assumptions.salaryGrowthRate ?? 0;
+    const growthPct =
+      event.kind === "income"
+        ? assumptions.salaryGrowthRate ?? 0
+        : assumptions.inflationRate ?? 0;
     return Number.isFinite(growthPct) ? growthPct : 0;
   }
   if (growthMode === "custom") {
@@ -61,5 +101,5 @@ export const resolveCashflowAmountForMonth = (params: {
   }
 
   const monthIndex = monthsBetween(event.startMonth, month);
-  return sign * applyAnnualGrowth(baseAmount, annualGrowthPct, monthIndex);
+  return sign * applyAnnualRate(baseAmount, monthIndex, annualGrowthPct);
 };

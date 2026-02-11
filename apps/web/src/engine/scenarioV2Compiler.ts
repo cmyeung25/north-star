@@ -1,5 +1,5 @@
 import type { ProjectionInput } from "@north-star/engine";
-import { addMonths } from "../domain/members/age";
+import { addMonths, monthsBetween } from "../domain/members/age";
 import { mapScenarioToEngineInput } from "./adapter";
 import { isValidMonthKey, compareMonthKey } from "../utils/monthKey";
 import type { EventDefinition } from "../domain/events/types";
@@ -10,7 +10,7 @@ import type {
   LoanEvent,
   ScenarioEvent,
 } from "../domain/scenarioV2/events";
-import { resolveCashflowAmountForMonth } from "../domain/cashflowGrowth";
+import { applyAnnualRate, resolveCashflowAmountForMonth } from "../domain/cashflowGrowth";
 import { computeMonthlyPayment } from "../domain/positions/calculations";
 import type { EventType } from "../features/timeline/schema";
 import type {
@@ -23,6 +23,7 @@ import type {
   HomePositionDraft,
   LoanPositionDraft,
   InsurancePositionDraft,
+  CarPositionDraft,
 } from "../store/scenarioStore";
 
 export type LedgerRow = {
@@ -157,6 +158,34 @@ const buildRangeMonths = (params: {
   return months;
 };
 
+
+const resolveRentAnnualGrowthPct = (
+  growthMode: "none" | "assumption" | "custom" | undefined,
+  customGrowthPct: number | undefined,
+  assumptions: ScenarioAssumptions
+): number => {
+  if (growthMode === "assumption") {
+    return assumptions.rentAnnualGrowthPct ?? 0;
+  }
+  if (growthMode === "custom") {
+    return customGrowthPct ?? 0;
+  }
+  return 0;
+};
+
+const buildGrowthSchedule = (
+  amount: number,
+  months: string[],
+  startMonth: string,
+  annualGrowthPct: number
+): Array<{ month: string; amount: number }> =>
+  months.map((month) => ({
+    month,
+    amount: Math.abs(
+      applyAnnualRate(amount, Math.max(0, monthsBetween(startMonth, month)), annualGrowthPct)
+    ),
+  }));
+
 const buildTermEndMonth = (startMonth: string, termMonths: number) => {
   if (!isValidMonthKey(startMonth) || termMonths <= 0) {
     return null;
@@ -176,15 +205,21 @@ const buildHousingLedgerRows = (
   if (event.kind === "rent") {
     const rentMonthly = event.rentMonthly ?? 0;
     if (rentMonthly > 0) {
+      const annualGrowthPct = resolveRentAnnualGrowthPct(
+        event.rentGrowthMode,
+        event.rentAnnualGrowthPct,
+        assumptions
+      );
       const months = buildRangeMonths({
         startMonth: event.startMonth,
         endMonth: event.endMonth ?? null,
         assumptions,
       });
       months.forEach((month) => {
+        const monthsFromStart = Math.max(0, monthsBetween(event.startMonth, month));
         rows.push({
           month,
-          amount: -Math.abs(rentMonthly),
+          amount: -Math.abs(applyAnnualRate(rentMonthly, monthsFromStart, annualGrowthPct)),
           sourceEventId: event.id,
           label: event.label,
           memberId: event.memberId,
@@ -267,17 +302,24 @@ const buildHousingLedgerRows = (
   });
 
   if (event.rental?.enabled && event.rental.rentMonthly) {
+    const rentalStartMonth = event.rental.startMonth ?? event.startMonth;
     const vacancyRate = event.rental.vacancyRatePct ?? 0;
     const rentNet = Math.max(0, event.rental.rentMonthly * (1 - vacancyRate / 100));
+    const annualGrowthPct = resolveRentAnnualGrowthPct(
+      event.rental.rentGrowthMode,
+      event.rental.rentAnnualGrowthPct,
+      assumptions
+    );
     const months = buildRangeMonths({
-      startMonth: event.rental.startMonth ?? event.startMonth,
+      startMonth: rentalStartMonth,
       endMonth: event.rental.endMonth ?? event.endMonth ?? null,
       assumptions,
     });
     months.forEach((month) => {
+      const monthsFromStart = Math.max(0, monthsBetween(rentalStartMonth, month));
       rows.push({
         month,
-        amount: Math.abs(rentNet),
+        amount: Math.abs(applyAnnualRate(rentNet, monthsFromStart, annualGrowthPct)),
         sourceEventId: event.id,
         label: event.label,
         memberId: event.memberId,
@@ -512,10 +554,17 @@ const buildLegacyEventLibrary = (
           endMonth: event.endMonth ?? null,
           assumptions,
         });
-        const schedule = months.map((month) => ({
-          month,
-          amount: Math.abs(rentMonthly),
-        }));
+        const annualGrowthPct = resolveRentAnnualGrowthPct(
+          event.rentGrowthMode,
+          event.rentAnnualGrowthPct,
+          assumptions
+        );
+        const schedule = buildGrowthSchedule(
+          rentMonthly,
+          months,
+          event.startMonth,
+          annualGrowthPct
+        );
         const definition: EventDefinition = {
           id: event.id,
           title: event.label ?? "Rent",
@@ -588,7 +637,53 @@ const buildLegacyEventLibrary = (
       }
       );
 
-      return [...feeDefinitions, ...ongoingDefinitions];
+      const rentalDefinitions =
+        event.rental?.enabled && event.rental.rentMonthly
+          ? (() => {
+              const rentalStartMonth = event.rental.startMonth ?? event.startMonth;
+              const months = buildRangeMonths({
+                startMonth: rentalStartMonth,
+                endMonth: event.rental.endMonth ?? event.endMonth ?? null,
+                assumptions,
+              });
+              const annualGrowthPct = resolveRentAnnualGrowthPct(
+                event.rental.rentGrowthMode,
+                event.rental.rentAnnualGrowthPct,
+                assumptions
+              );
+              const schedule = buildGrowthSchedule(
+                Math.max(
+                  0,
+                  (event.rental.rentMonthly ?? 0) *
+                    (1 - (event.rental.vacancyRatePct ?? 0) / 100)
+                ),
+                months,
+                rentalStartMonth,
+                annualGrowthPct
+              );
+              if (schedule.length === 0) {
+                return [] as EventDefinition[];
+              }
+              return [
+                {
+                  id: `${event.id}-rental`,
+                  title: event.label ?? "Rental income",
+                  type: "rent" as const,
+                  kind: "cashflow" as const,
+                  rule: {
+                    mode: "schedule" as const,
+                    startMonth: rentalStartMonth,
+                    endMonth: event.rental.endMonth ?? event.endMonth ?? null,
+                    schedule,
+                  },
+                  currency: scenario.baseCurrency,
+                  memberId: event.memberId,
+                },
+              ];
+            })()
+          : [];
+
+      return [...feeDefinitions, ...ongoingDefinitions, ...rentalDefinitions];
     }
 
     if (event.type === "loan") {
@@ -763,6 +858,38 @@ export const compileScenarioV2ToProjectionInput = (
     }));
   });
 
+  const carPositionsFromAssets = (scenario.assets ?? []).flatMap<CarPositionDraft>((asset) => {
+    if (asset.kind !== "car" || asset.depreciationSource !== "carDepreciation") {
+      return [];
+    }
+    const purchaseMonth =
+      asset.startMonth && isValidMonthKey(asset.startMonth)
+        ? asset.startMonth
+        : scenario.assumptions.baseMonth;
+    if (!purchaseMonth || !isValidMonthKey(purchaseMonth)) {
+      return [];
+    }
+    const purchasePrice = Math.max(0, asset.currentValue ?? 0);
+    if (purchasePrice <= 0) {
+      return [];
+    }
+
+    return [
+      {
+        id: asset.id,
+        name: asset.label,
+        purchaseMonth,
+        purchasePrice,
+        downPayment: purchasePrice,
+        annualDepreciationRatePct: Math.max(0, scenario.assumptions.carDepreciationRatePct ?? 0),
+        depreciationMode: "GLOBAL",
+        holdingCostMonthly: 0,
+        holdingCostAnnualGrowthPct: 0,
+        source: "eventGenerated",
+      },
+    ];
+  });
+
   const assets = events.flatMap<ScenarioAsset>((event) => {
     if (event.type === "housing" && event.kind === "mortgage") {
       return [
@@ -830,6 +957,7 @@ export const compileScenarioV2ToProjectionInput = (
       homes: housingPositions,
       loans: loanPositions,
       insurances: insurancePositions,
+      cars: carPositionsFromAssets,
     },
   };
   const { input } = mapScenarioToEngineInput(scenarioWithEvents, eventLibrary);

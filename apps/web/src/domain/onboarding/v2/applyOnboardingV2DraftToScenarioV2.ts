@@ -343,6 +343,8 @@ const buildLivingSpendEvents = ({
       cadence: "monthly",
       amount,
       label,
+      growthMode: "assumption",
+      growthSource: "inflation",
       startMonth,
       endMonth,
     });
@@ -503,6 +505,7 @@ const buildHousingChanges = ({
         rentMonthly: amount,
         rentAnnualGrowthPct:
           normalizeOptionalNumber(housing.rent.rentGrowthPct) ?? inflationRate,
+        rentGrowthMode: "assumption",
         label: "Rent",
       });
     }
@@ -632,6 +635,8 @@ const buildHousingChanges = ({
           startMonth:
             normalizeMonth(housing.own.rental.startMonth) ?? propertyStartMonth,
           endMonth: normalizeMonth(housing.own.rental.endMonth),
+          rentGrowthMode: "assumption",
+          rentAnnualGrowthPct: inflationRate,
         }
       : undefined,
     propertyAssetId: propertyId,
@@ -919,6 +924,7 @@ const buildAssetEntries = ({
       currentValue: carValue,
       startMonth: normalizeMonth(draft.assets.car.startMonth) ?? undefined,
       source: "manual",
+      depreciationSource: "carDepreciation",
     });
   }
 
