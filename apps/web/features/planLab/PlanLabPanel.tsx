@@ -182,6 +182,7 @@ import CashflowEventDrawer, {
   type CashflowEventDraft,
   type ScenarioEventDraft as PlanLabScenarioEventDraft,
 } from "../moneyFlow/CashflowEventDrawer";
+import { buildCashflowGrowthPayload } from "../moneyFlow/growthMode";
 import HousingEventDrawer, {
   type HousingEventDraft,
 } from "../moneyFlow/HousingEventDrawer";
@@ -2916,6 +2917,15 @@ export default function PlanLabPanel({
         };
         upsertScenarioV2Event(payload, "edit");
       } else {
+        const growthPayload = buildCashflowGrowthPayload({
+          kind: draft.kind,
+          cadence: draft.cadence,
+          growthMode: draft.growthMode,
+          customGrowthRatePct:
+            draft.growthMode === "custom" ? Number(draft.customGrowthRatePct) : undefined,
+          tags: draft.tags,
+          growthSource: draft.growthSource,
+        });
         const payload: CashflowEvent = {
           id: ensureScenarioV2EventId(draft.id),
           type: "cashflow",
@@ -2923,7 +2933,7 @@ export default function PlanLabPanel({
           kind: draft.kind,
           cadence: draft.cadence,
           amount: Number(draft.amount),
-          growthMode: draft.kind === "income" ? draft.growthMode : "none",
+          ...growthPayload,
           startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
           endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
           occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
@@ -2960,6 +2970,15 @@ export default function PlanLabPanel({
       return;
     }
 
+    const growthPayload = buildCashflowGrowthPayload({
+      kind: draft.kind,
+      cadence: draft.cadence,
+      growthMode: draft.growthMode,
+      customGrowthRatePct:
+        draft.growthMode === "custom" ? Number(draft.customGrowthRatePct) : undefined,
+      tags: draft.tags,
+      growthSource: draft.growthSource,
+    });
     const payload: CashflowEvent = {
       id: createdEventId,
       type: "cashflow",
@@ -2967,7 +2986,7 @@ export default function PlanLabPanel({
       kind: draft.kind,
       cadence: draft.cadence,
       amount: Number(draft.amount),
-      growthMode: draft.kind === "income" ? draft.growthMode : "none",
+      ...growthPayload,
       startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
       endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
@@ -9284,6 +9303,8 @@ export default function PlanLabPanel({
             baseCurrency={scenario.baseCurrency}
             scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
             incomeGrowthPct={scenario.assumptions.salaryGrowthRate ?? null}
+            inflationPct={scenario.assumptions.inflationRate ?? null}
+            rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
             members={sandboxScenarioV2.members ?? []}
             event={v2EventDrawerMode === "edit" ? editingCashflowEvent : null}
             defaultKind={v2EventDefaultKind}

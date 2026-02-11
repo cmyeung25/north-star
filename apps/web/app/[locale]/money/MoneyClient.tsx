@@ -88,6 +88,9 @@ import CashflowEventDrawer, {
   type CashflowEventDraft,
   type ScenarioEventDraft,
 } from "../../../features/moneyFlow/CashflowEventDrawer";
+import {
+  buildCashflowGrowthPayload,
+} from "../../../features/moneyFlow/growthMode";
 import HousingEventDrawer, {
   type HousingEventDraft,
 } from "../../../features/moneyFlow/HousingEventDrawer";
@@ -1179,17 +1182,23 @@ export default function MoneyClient({
     }
 
     const amount = Number(draft.amount);
+    const growthPayload = buildCashflowGrowthPayload({
+      kind: draft.kind,
+      cadence: draft.cadence,
+      growthMode: draft.growthMode,
+      customGrowthRatePct:
+        draft.growthMode === "custom" ? Number(draft.customGrowthRatePct) : undefined,
+      tags: draft.tags,
+      growthSource: draft.growthSource,
+    });
+
     const payload = {
       type: "cashflow" as const,
       label: draft.label.trim() || undefined,
       kind: draft.kind,
       cadence: draft.cadence,
       amount,
-      growthMode: draft.kind === "income" ? draft.growthMode : "none",
-      customGrowthRatePct:
-        draft.kind === "income" && draft.growthMode === "custom"
-          ? Number(draft.customGrowthRatePct)
-          : undefined,
+      ...growthPayload,
       startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
       endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
@@ -4372,6 +4381,8 @@ export default function MoneyClient({
                 baseCurrency={scenario.baseCurrency}
                 scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
                 incomeGrowthPct={incomeGrowthPct}
+                inflationPct={scenario.assumptions.inflationRate ?? null}
+                rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
                 members={members}
                 event={
                   v2EventDrawerMode === "create"
