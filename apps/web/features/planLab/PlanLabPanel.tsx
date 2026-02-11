@@ -212,6 +212,7 @@ import {
   formatScenarioAssumptionSummary,
   getScenarioAssumptionOverrideEntries,
 } from "./experimentSummary";
+import { a } from "vitest/dist/chunks/suite.B2jumIFP.js";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -7878,9 +7879,13 @@ export default function PlanLabPanel({
                       </Text>
                     </MantineTooltip>
                     {scenarioIsV2 ? (
-                      <Button size="xs" onClick={openExperimentTemplatesDrawer}>
-                        {translate("planLabExperimentsAddAction", "新增實驗")}
-                      </Button>
+                      <>
+                        {experiments.length > 0 && (
+                          <Button size="xs" onClick={openExperimentTemplatesDrawer}>
+                            {translate("planLabExperimentsAddAction", "新增")}
+                          </Button>
+                        )}
+                      </>
                     ) : (
                       <Group gap="xs" wrap="wrap">
                         <Button size="xs" variant="light" onClick={openAddMemberDrawer}>

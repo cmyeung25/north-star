@@ -64,7 +64,7 @@ export default function ExperimentTemplatesDrawer({
     <Drawer opened={opened} onClose={onClose} title={currentTitle} position="right" size="md">
       <Stack gap="md">
         {!mode && (
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+          <SimpleGrid cols={{ base: 1, sm: 1 }} spacing="sm">
             {modeCards.map((card) => (
               <Card key={card.id} withBorder radius="md" p="sm">
                 <Stack gap={6}>
