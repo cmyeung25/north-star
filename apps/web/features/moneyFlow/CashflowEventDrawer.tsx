@@ -18,6 +18,11 @@ import { compareMonthKey, isValidMonthKey } from "../../src/utils/monthKey";
 import type { AdjustmentEvent, CashflowEvent } from "../../src/domain/scenarioV2/events";
 import type { ScenarioMember } from "../../src/store/scenarioStore";
 import { resolveYearlyStartMonthKey } from "../../src/features/moneyFlow/yearlyCadence";
+import {
+  resolveCashflowAssumptionRate,
+  resolveCashflowGrowthAssumption,
+  type CashflowGrowthAssumptions,
+} from "./growthMode";
 
 export type CashflowEventDraft = {
   id?: string;
@@ -33,6 +38,7 @@ export type CashflowEventDraft = {
   everyNMonths: string;
   memberId: string;
   tags?: string[];
+  growthSource?: CashflowEvent["growthSource"];
 };
 
 export type AdjustmentEventDraft = {
@@ -55,6 +61,8 @@ type CashflowEventDrawerProps = {
   baseCurrency: string;
   scenarioStartMonth?: string | null;
   incomeGrowthPct?: number | null;
+  inflationPct?: number | null;
+  rentGrowthPct?: number | null;
   members: ScenarioMember[];
   event: CashflowEvent | AdjustmentEvent | null;
   defaultKind?: CashflowEvent["kind"];
@@ -94,6 +102,7 @@ const buildCashflowDraft = (
       everyNMonths: "",
       memberId: "",
       tags: undefined,
+      growthSource: undefined,
     };
   }
 
@@ -103,9 +112,9 @@ const buildCashflowDraft = (
     kind: event.kind,
     cadence: event.cadence,
     amount: Number.isFinite(event.amount) ? String(event.amount) : "",
-    growthMode: event.kind === "income" ? event.growthMode ?? "none" : "none",
+    growthMode: event.growthMode ?? "none",
     customGrowthRatePct:
-      event.kind === "income" && typeof event.customGrowthRatePct === "number"
+      typeof event.customGrowthRatePct === "number"
         ? String(event.customGrowthRatePct)
         : "",
     startMonth: event.startMonth ?? "",
@@ -114,6 +123,7 @@ const buildCashflowDraft = (
     everyNMonths: event.everyNMonths ? String(event.everyNMonths) : "",
     memberId: event.memberId ?? "",
     tags: event.tags ? [...event.tags] : undefined,
+    growthSource: event.growthSource,
   };
 };
 
@@ -147,6 +157,8 @@ export default function CashflowEventDrawer({
   baseCurrency,
   scenarioStartMonth,
   incomeGrowthPct,
+  inflationPct,
+  rentGrowthPct,
   members,
   event,
   defaultKind,
@@ -174,14 +186,33 @@ export default function CashflowEventDrawer({
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const formattedIncomeGrowthPct = useMemo(() => {
-    if (!Number.isFinite(incomeGrowthPct ?? NaN)) {
-      return "0";
+  const growthAssumptions = useMemo<CashflowGrowthAssumptions>(
+    () => ({
+      salaryGrowthRate: incomeGrowthPct,
+      inflationRate: inflationPct,
+      rentAnnualGrowthPct: rentGrowthPct,
+    }),
+    [incomeGrowthPct, inflationPct, rentGrowthPct]
+  );
+
+  const growthAssumptionKey = useMemo(
+    () => resolveCashflowGrowthAssumption(cashflowDraft),
+    [cashflowDraft]
+  );
+  const assumptionRate = useMemo(
+    () => resolveCashflowAssumptionRate(cashflowDraft, growthAssumptions),
+    [cashflowDraft, growthAssumptions]
+  );
+  const formattedAssumptionPct = useMemo(() => {
+    if (!Number.isFinite(assumptionRate ?? NaN)) {
+      return null;
     }
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
-      incomeGrowthPct ?? 0
+      assumptionRate ?? 0
     );
-  }, [incomeGrowthPct]);
+  }, [assumptionRate]);
+  const isAssumptionUnavailable =
+    growthAssumptionKey === "rentAnnualGrowthPct" && !Number.isFinite(assumptionRate ?? NaN);
 
   useEffect(() => {
     setEventType(event?.type === "adjustment" ? "adjustment" : "cashflow");
@@ -232,14 +263,18 @@ export default function CashflowEventDrawer({
     () => [
       {
         value: "assumption",
-        label: t("ledgerEventGrowthModeAssumption", {
-          pct: formattedIncomeGrowthPct,
-        }),
+        label:
+          formattedAssumptionPct === null
+            ? t("ledgerEventGrowthModeAssumptionUnset")
+            : t("ledgerEventGrowthModeAssumption", {
+                pct: formattedAssumptionPct,
+              }),
+        disabled: isAssumptionUnavailable,
       },
       { value: "custom", label: t("ledgerEventGrowthModeCustom") },
       { value: "none", label: t("ledgerEventGrowthModeNone") },
     ],
-    [formattedIncomeGrowthPct, t]
+    [formattedAssumptionPct, isAssumptionUnavailable, t]
   );
 
   const yearlyMonthValue = useMemo(() => {
@@ -299,7 +334,7 @@ export default function CashflowEventDrawer({
       }
     }
 
-    if (cashflowDraft.kind === "income" && cashflowDraft.growthMode === "custom") {
+    if (cashflowDraft.cadence !== "oneOff" && cashflowDraft.growthMode === "custom") {
       const customGrowthValue = Number(cashflowDraft.customGrowthRatePct ?? "");
       if (!Number.isFinite(customGrowthValue) || customGrowthValue < 0) {
         nextErrors.customGrowthRatePct = t("ledgerEventGrowthCustomInvalid");
@@ -363,16 +398,7 @@ export default function CashflowEventDrawer({
                 setCashflowDraft((current) => ({
                   ...current,
                   kind: (value ?? "income") as CashflowEvent["kind"],
-                  growthMode:
-                    (value ?? "income") === "income"
-                      ? current.growthMode === "none"
-                        ? "assumption"
-                        : current.growthMode
-                      : "none",
-                  customGrowthRatePct:
-                    (value ?? "income") === "income"
-                      ? current.customGrowthRatePct
-                      : "",
+                  growthMode: current.cadence === "oneOff" ? "none" : current.growthMode,
                 }))
               }
             />
@@ -428,23 +454,33 @@ export default function CashflowEventDrawer({
                 }))
               }
             />
-            {cashflowDraft.kind === "income" && (
+            {cashflowDraft.cadence !== "oneOff" && (
               <Stack gap="xs">
                 <Text size="sm" fw={500}>
                   {t("ledgerEventGrowthModeTitle")}
                 </Text>
                 <SegmentedControl
                   data={growthModeOptions}
-                  value={cashflowDraft.cadence === "oneOff" ? "none" : cashflowDraft.growthMode}
-                  disabled={cashflowDraft.cadence === "oneOff"}
+                  value={cashflowDraft.growthMode}
                   onChange={(value) =>
-                    setCashflowDraft((current) => ({
-                      ...current,
-                      growthMode:
-                        (value ?? "none") as NonNullable<CashflowEvent["growthMode"]>,
-                    }))
+                    setCashflowDraft((current) => {
+                      const nextMode =
+                        (value ?? "none") as NonNullable<CashflowEvent["growthMode"]>;
+                      return {
+                        ...current,
+                        growthMode:
+                          nextMode === "assumption" && isAssumptionUnavailable
+                            ? "none"
+                            : nextMode,
+                      };
+                    })
                   }
                 />
+                {isAssumptionUnavailable && (
+                  <Text size="xs" c="dimmed">
+                    {t("ledgerEventGrowthModeAssumptionUnavailableHint")}
+                  </Text>
+                )}
                 {cashflowDraft.growthMode === "custom" && (
                   <NumberInput
                     label={t("ledgerEventGrowthCustomLabel")}

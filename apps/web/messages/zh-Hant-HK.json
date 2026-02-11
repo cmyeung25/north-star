@@ -1707,7 +1707,9 @@
     "planLabCreateExperimentAction": "建立實驗",
     "planLabPackUngroupedAction": "將已新增項目打包成實驗",
     "planLabExperimentGroupCount": "{count}項",
-    "planLabUngroupedExperimentTitle": "已新增項目"
+    "planLabUngroupedExperimentTitle": "已新增項目",
+    "ledgerEventGrowthModeAssumptionUnset": "跟隨假設（未設定）",
+    "ledgerEventGrowthModeAssumptionUnavailableHint": "請先於「假設」設定租金增長，才可使用此選項。"
   },
   "entryLauncher": {
     "title": "新增金錢項目",

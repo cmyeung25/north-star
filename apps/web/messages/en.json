@@ -1672,7 +1672,9 @@
     "planLabCreateExperimentAction": "Create experiment",
     "planLabPackUngroupedAction": "Pack existing added items as experiment",
     "planLabExperimentGroupCount": "{count} items",
-    "planLabUngroupedExperimentTitle": "Added items"
+    "planLabUngroupedExperimentTitle": "Added items",
+    "ledgerEventGrowthModeAssumptionUnset": "Follow assumption (Not set)",
+    "ledgerEventGrowthModeAssumptionUnavailableHint": "Set rent growth in Assumptions before using this option."
   },
   "entryLauncher": {
     "title": "Add new money items",
