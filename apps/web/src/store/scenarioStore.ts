@@ -376,6 +376,7 @@ export type ScenarioAsset = {
   source?: "manual" | "eventGenerated";
   createdByEventId?: string;
   createdByTemplate?: ScenarioEntityTemplate;
+  depreciationSource?: "carDepreciation";
 };
 
 export type ScenarioLiabilityKind =
