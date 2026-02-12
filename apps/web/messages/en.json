@@ -102,7 +102,8 @@
     "applyScopeAll": "All scenarios",
     "applyScopeInclude": "Only selected scenarios",
     "applyScopeExclude": "Exclude selected scenarios",
-    "applyScopePlaceholder": "Select scenarios"
+    "applyScopePlaceholder": "Select scenarios",
+    "planLabExperimentsEnabledCount": "Enabled {enabled} / Total {total}"
   },
   "nav": {
     "home": "Home",
