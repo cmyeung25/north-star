@@ -34,7 +34,7 @@ import type {
   MilestoneEventCompileResult,
   GeneratedEntitySummary,
 } from "../domain/milestoneEvents/types";
-import type { Plan } from "../domain/planLab/types";
+import type { Plan, PlanLabMeta } from "../domain/planLab/types";
 import type { EventType } from "../features/timeline/schema";
 import type { SmartInvestPolicy } from "../domain/smartInvest/types";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../domain/constants";
@@ -423,6 +423,7 @@ export type ScenarioMeta = {
   schemaVersion?: number;
   isSeeded?: boolean;
   skipOnboarding?: boolean;
+  planLab?: PlanLabMeta;
 };
 
 export type ScenarioClientComputed = {
