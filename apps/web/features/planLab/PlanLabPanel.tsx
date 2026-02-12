@@ -3018,6 +3018,12 @@ export default function PlanLabPanel({
         draft.kind === "rent" && draft.rentAnnualGrowthPct
           ? Number(draft.rentAnnualGrowthPct)
           : undefined,
+      propertyGrowthMode:
+        draft.kind === "mortgage" ? draft.propertyGrowthMode : undefined,
+      propertyAnnualGrowthPct:
+        draft.kind === "mortgage" && draft.propertyGrowthMode === "custom"
+          ? Number(draft.propertyAnnualGrowthPct || 0)
+          : undefined,
       purchasePrice: draft.kind === "mortgage" ? Number(draft.purchasePrice) : undefined,
       downPaymentMode: draft.kind === "mortgage" ? draft.downPaymentMode : undefined,
       downPaymentPercent:
@@ -3067,6 +3073,11 @@ export default function PlanLabPanel({
               vacancyRatePct: draft.rental.vacancyRatePct
                 ? Number(draft.rental.vacancyRatePct)
                 : undefined,
+              rentGrowthMode: draft.rental.rentGrowthMode,
+              rentAnnualGrowthPct:
+                draft.rental.rentGrowthMode === "custom"
+                  ? Number(draft.rental.rentAnnualGrowthPct || 0)
+                  : undefined,
             }
           : undefined,
       propertyAssetId: draft.kind === "mortgage" ? draft.propertyAssetId : undefined,
@@ -9321,6 +9332,10 @@ export default function PlanLabPanel({
             baseCurrency={scenario.baseCurrency}
             event={v2EventDrawerMode === "edit" ? editingHousingEvent : null}
             initialDraft={templateHousingDraft ?? undefined}
+            rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
+            propertyAppreciationPct={
+              scenario.assumptions.propertyAppreciationPct ?? null
+            }
             onClose={closeV2EventDrawer}
             onSave={handleSaveHousingEvent}
           />

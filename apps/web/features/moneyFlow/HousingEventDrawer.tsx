@@ -41,6 +41,8 @@ type HousingRentalDraft = {
   startMonth: string;
   endMonth: string;
   vacancyRatePct: string;
+  rentGrowthMode: "none" | "assumption" | "custom";
+  rentAnnualGrowthPct: string;
 };
 
 export type HousingEventDraft = {
@@ -62,6 +64,8 @@ export type HousingEventDraft = {
   feesOneOff: HousingFeeDraft[];
   ongoingCosts: HousingOngoingCostDraft[];
   rental: HousingRentalDraft;
+  propertyGrowthMode: "none" | "assumption" | "custom";
+  propertyAnnualGrowthPct: string;
   propertyAssetId: string;
   mortgageLiabilityId: string;
   memberId: string;
@@ -73,6 +77,8 @@ type HousingEventDrawerProps = {
   baseCurrency: string;
   event: HousingEvent | null;
   initialDraft?: Partial<HousingEventDraft>;
+  rentGrowthPct?: number | null;
+  propertyAppreciationPct?: number | null;
   onClose: () => void;
   onSave: (draft: HousingEventDraft) => void;
 };
@@ -117,6 +123,10 @@ const buildRentalDraft = (rental?: HousingEvent["rental"]): HousingRentalDraft =
   vacancyRatePct: Number.isFinite(rental?.vacancyRatePct)
     ? String(rental?.vacancyRatePct)
     : "",
+  rentGrowthMode: rental?.rentGrowthMode ?? "assumption",
+  rentAnnualGrowthPct: Number.isFinite(rental?.rentAnnualGrowthPct)
+    ? String(rental?.rentAnnualGrowthPct)
+    : "",
 });
 
 const buildDraft = (event: HousingEvent | null): HousingEventDraft => {
@@ -145,7 +155,11 @@ const buildDraft = (event: HousingEvent | null): HousingEventDraft => {
         startMonth: "",
         endMonth: "",
         vacancyRatePct: "",
+        rentGrowthMode: "assumption",
+        rentAnnualGrowthPct: "",
       },
+      propertyGrowthMode: "assumption",
+      propertyAnnualGrowthPct: "",
       propertyAssetId: `asset_housing_${nanoid(8)}`,
       mortgageLiabilityId: `liability_mortgage_${nanoid(8)}`,
       memberId: "",
@@ -188,6 +202,10 @@ const buildDraft = (event: HousingEvent | null): HousingEventDraft => {
     feesOneOff: buildFeesDraft(event.feesOneOff),
     ongoingCosts: buildOngoingDraft(event.ongoingCosts),
     rental: buildRentalDraft(event.rental),
+    propertyGrowthMode: event.propertyGrowthMode ?? "assumption",
+    propertyAnnualGrowthPct: Number.isFinite(event.propertyAnnualGrowthPct)
+      ? String(event.propertyAnnualGrowthPct)
+      : "",
     propertyAssetId: event.propertyAssetId ?? `asset_housing_${nanoid(8)}`,
     mortgageLiabilityId: event.mortgageLiabilityId ?? `liability_mortgage_${nanoid(8)}`,
     memberId: event.memberId ?? "",
@@ -200,6 +218,8 @@ export default function HousingEventDrawer({
   baseCurrency,
   event,
   initialDraft,
+  rentGrowthPct,
+  propertyAppreciationPct,
   onClose,
   onSave,
 }: HousingEventDrawerProps) {
@@ -209,6 +229,46 @@ export default function HousingEventDrawer({
     applyDraftOverrides(buildDraft(event), initialDraft)
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const formatAssumptionRate = (value?: number | null): string | null =>
+    typeof value === "number" && Number.isFinite(value)
+      ? String(Math.round(value * 100) / 100)
+      : null;
+
+  const formattedRentGrowthPct = formatAssumptionRate(rentGrowthPct);
+  const formattedPropertyAppreciationPct = formatAssumptionRate(propertyAppreciationPct);
+  const isRentAssumptionUnavailable = formattedRentGrowthPct === null;
+  const isPropertyAssumptionUnavailable = formattedPropertyAppreciationPct === null;
+
+  const rentalGrowthModeOptions = [
+    {
+      value: "assumption",
+      label:
+        formattedRentGrowthPct === null
+          ? t("ledgerEventGrowthModeAssumptionUnset")
+          : t("ledgerEventGrowthModeAssumption", {
+              pct: formattedRentGrowthPct,
+            }),
+      disabled: isRentAssumptionUnavailable,
+    },
+    { value: "custom", label: t("ledgerEventGrowthModeCustom") },
+    { value: "none", label: t("ledgerEventGrowthModeNone") },
+  ];
+
+  const propertyGrowthModeOptions = [
+    {
+      value: "assumption",
+      label:
+        formattedPropertyAppreciationPct === null
+          ? t("ledgerEventGrowthModeAssumptionUnset")
+          : t("ledgerEventGrowthModeAssumption", {
+              pct: formattedPropertyAppreciationPct,
+            }),
+      disabled: isPropertyAssumptionUnavailable,
+    },
+    { value: "custom", label: t("ledgerEventGrowthModeCustom") },
+    { value: "none", label: t("ledgerEventGrowthModeNone") },
+  ];
 
   useEffect(() => {
     if (!opened) {
@@ -364,14 +424,24 @@ export default function HousingEventDrawer({
         (cost) => cost.label || cost.amount || cost.startMonth || cost.endMonth
       ),
       rental: draft.rental.enabled
-        ? draft.rental
+        ? {
+            ...draft.rental,
+            rentAnnualGrowthPct:
+              draft.rental.rentGrowthMode === "custom"
+                ? draft.rental.rentAnnualGrowthPct
+                : "",
+          }
         : {
             enabled: false,
             rentMonthly: "",
             startMonth: "",
             endMonth: "",
             vacancyRatePct: "",
+            rentGrowthMode: "assumption",
+            rentAnnualGrowthPct: "",
           },
+      propertyAnnualGrowthPct:
+        draft.propertyGrowthMode === "custom" ? draft.propertyAnnualGrowthPct : "",
     };
     onSave(normalizedDraft);
   };
@@ -468,6 +538,51 @@ export default function HousingEventDrawer({
                 }))
               }
             />
+            <Stack gap="xs">
+              <Text size="sm" fw={500}>
+                {t("housingPropertyAppreciationGrowthTitle")}
+              </Text>
+              <SegmentedControl
+                data={propertyGrowthModeOptions}
+                value={draft.propertyGrowthMode}
+                onChange={(value) =>
+                  setDraft((current) => {
+                    const nextMode = (value ?? "none") as
+                      | "none"
+                      | "assumption"
+                      | "custom";
+                    return {
+                      ...current,
+                      propertyGrowthMode:
+                        nextMode === "assumption" && isPropertyAssumptionUnavailable
+                          ? "none"
+                          : nextMode,
+                    };
+                  })
+                }
+              />
+              {isPropertyAssumptionUnavailable && (
+                <Text size="xs" c="dimmed">
+                  {t("housingPropertyGrowthAssumptionUnavailableHint")}
+                </Text>
+              )}
+              {draft.propertyGrowthMode === "custom" && (
+                <NumberInput
+                  label={t("housingPropertyAppreciationLabel")}
+                  value={
+                    draft.propertyAnnualGrowthPct ? Number(draft.propertyAnnualGrowthPct) : ""
+                  }
+                  step={0.1}
+                  decimalScale={2}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      propertyAnnualGrowthPct: value === "" ? "" : String(value),
+                    }))
+                  }
+                />
+              )}
+            </Stack>
             <SegmentedControl
               data={[
                 { value: "percent", label: "%" },
@@ -730,6 +845,59 @@ export default function HousingEventDrawer({
                     }))
                   }
                 />
+                <Stack gap="xs">
+                  <Text size="sm" fw={500}>
+                    {t("housingRentalGrowthTitle")}
+                  </Text>
+                  <SegmentedControl
+                    data={rentalGrowthModeOptions}
+                    value={draft.rental.rentGrowthMode}
+                    onChange={(value) =>
+                      setDraft((current) => {
+                        const nextMode = (value ?? "none") as
+                          | "none"
+                          | "assumption"
+                          | "custom";
+                        return {
+                          ...current,
+                          rental: {
+                            ...current.rental,
+                            rentGrowthMode:
+                              nextMode === "assumption" && isRentAssumptionUnavailable
+                                ? "none"
+                                : nextMode,
+                          },
+                        };
+                      })
+                    }
+                  />
+                  {isRentAssumptionUnavailable && (
+                    <Text size="xs" c="dimmed">
+                      {t("ledgerEventGrowthModeAssumptionUnavailableHint")}
+                    </Text>
+                  )}
+                  {draft.rental.rentGrowthMode === "custom" && (
+                    <NumberInput
+                      label={t("housingRentAnnualGrowthLabel")}
+                      value={
+                        draft.rental.rentAnnualGrowthPct
+                          ? Number(draft.rental.rentAnnualGrowthPct)
+                          : ""
+                      }
+                      step={0.1}
+                      decimalScale={2}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          rental: {
+                            ...current.rental,
+                            rentAnnualGrowthPct: value === "" ? "" : String(value),
+                          },
+                        }))
+                      }
+                    />
+                  )}
+                </Stack>
                 <MonthField
                   label={t("assetRentalStartMonthLabel")}
                   value={draft.rental.startMonth}

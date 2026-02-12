@@ -112,6 +112,8 @@ const HousingEventSchemaBase = BaseEventSchema.extend({
   rentGrowthMode: z.enum(["none", "assumption", "custom"]).optional(),
   purchasePrice: z.number().optional(),
   propertyMarketValue: z.number().optional(),
+  propertyAnnualGrowthPct: z.number().optional(),
+  propertyGrowthMode: z.enum(["none", "assumption", "custom"]).optional(),
   mortgageBaseValue: z.number().optional(),
   mortgageBaseMode: z.enum(["SYNC", "CUSTOM"]).optional(),
   downPaymentMode: z.enum(["percent", "amount"]).optional(),
