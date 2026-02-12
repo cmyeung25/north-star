@@ -144,6 +144,7 @@ export type PlanLabExperiment =
 
 export type PlanLabScorecardSettings = {
   firstBucketTargetAmount?: number;
+  targetMonth?: string;
 };
 
 export type PlanLabDraftAdditions = {
