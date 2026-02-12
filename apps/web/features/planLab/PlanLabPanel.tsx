@@ -25,6 +25,7 @@ import {
   Switch,
   Text,
   TextInput,
+  Pill,
   Title,
   Tooltip as MantineTooltip,
 } from "@mantine/core";
@@ -44,6 +45,7 @@ import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
 import { monthIndex, type EventGroup, type EventType } from "@north-star/engine";
 import {
+  Legend as RechartsLegend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -102,9 +104,11 @@ import {
   useProjectionWithLedger,
 } from "../../src/engine/useProjectionWithLedger";
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+import { useUiStore } from "../../src/store/uiStore";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
 import MonthField from "../../components/MonthField";
+import MonthlyBreakdownModalHost from "../../components/MonthlyBreakdownModalHost";
 import { computePlanLabKpis, diffPlanLabKpis } from "../../src/domain/planLab/kpis";
 import {
   computeCashRiskScorecard,
@@ -192,6 +196,7 @@ import {
   type PlanLabExperimentRemovedItemMeta,
   type PlanLabExperimentGroup,
 } from "./experimentGroups";
+import { deriveExperimentTargets } from "./deriveExperimentTargets";
 import { computeBundleCashflowSummary } from "../../src/features/money/bundleSummary";
 import {
   buildEventOverridePatch,
@@ -994,6 +999,7 @@ export default function PlanLabPanel({
   const timeline = useTranslations("timeline");
   const locale = useLocale();
   const isMobile = useMediaQuery("(max-width: 48em)");
+  const openModal = useUiStore((state) => state.openModal);
   const router = useRouter();
   const duplicateScenario = useScenarioStore((state) => state.duplicateScenario);
   const deleteScenario = useScenarioStore((state) => state.deleteScenario);
@@ -1120,6 +1126,7 @@ export default function PlanLabPanel({
     "experiments"
   );
   const [targetMonthInput, setTargetMonthInput] = useState("");
+  const [chartPreviewOpen, setChartPreviewOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
   const [editingFocus, setEditingFocus] = useState<"validity" | null>(null);
@@ -5253,6 +5260,79 @@ export default function PlanLabPanel({
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
 
+  const planLabNetWorthByMonth = useMemo(
+    () =>
+      planLabProjection.projection?.months.reduce<Record<string, number>>((acc, month, index) => {
+        acc[month] = planLabProjection.projection?.netWorth[index] ?? 0;
+        return acc;
+      }, {}) ?? {},
+    [planLabProjection.projection]
+  );
+
+  const eventLabelById = useMemo(
+    () =>
+      new Map(
+        (baselineScenarioV2.events ?? []).map((event) => [
+          event.id,
+          event.label?.trim() || event.id,
+        ])
+      ),
+    [baselineScenarioV2.events]
+  );
+
+  const bundleLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    bundleInstanceRecords.forEach((record) => {
+      map.set(record.id, resolveBundleExperimentTitle(record.wizardInput, record.id));
+    });
+    baselineBundleGroups.forEach((group) => {
+      if (!map.has(group.id)) {
+        map.set(group.id, group.bundleTitle?.trim() || group.id);
+      }
+    });
+    return map;
+  }, [baselineBundleGroups, bundleInstanceRecords, resolveBundleExperimentTitle]);
+
+  const renderProjectionChart = useCallback(
+    (height: number) => (
+      <div style={{ width: "100%", height }}>
+        <ResponsiveContainer>
+          <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
+            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              width={72}
+              tickFormatter={(value) => formatCurrency(Number(value), undefined, locale)}
+            />
+            <RechartsTooltip
+              formatter={(value) => formatCurrency(Number(value), undefined, locale)}
+              labelFormatter={(label) => t("monthLabel", { month: label })}
+            />
+            <RechartsLegend verticalAlign="top" height={24} />
+            <Line
+              type="monotone"
+              dataKey="baseline"
+              stroke="#adb5bd"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              dot={false}
+              name={mode === "compare" ? "B" : t("planLabBaselineLabel")}
+            />
+            <Line
+              type="monotone"
+              dataKey="option"
+              stroke="#12b886"
+              strokeWidth={2}
+              dot={false}
+              name={mode === "compare" ? "A" : t("planLabOptionLabel")}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    ),
+    [chartData, locale, mode, t]
+  );
+
   // Compute cash risk scorecard metrics
   const cashRiskScorecard = useMemo(() => {
     if (!optionSeries.cash || optionSeries.cash.length === 0) {
@@ -5344,6 +5424,8 @@ export default function PlanLabPanel({
     const parsed = parseMonthStrict(targetMonthInput);
     return parsed.ok ? parsed.month : defaultTargetMonth;
   }, [defaultTargetMonth, targetMonthInput]);
+
+  const hasValidTargetMonth = useMemo(() => parseMonthStrict(targetMonthInput).ok, [targetMonthInput]);
 
   const resolveNetWorthAtTargetMonth = useCallback(
     (series: TimeSeriesPoint[]) => {
@@ -5525,6 +5607,9 @@ export default function PlanLabPanel({
         valueA: targetMonthNetWorthAValue,
         valueB: targetMonthNetWorthBValue,
         delta: formatDeltaDisplay(targetMonthNetWorthDelta, null),
+        actionLabel: translate("planLabViewMonthlyBreakdown", "查看每月明細"),
+        actionDisabled: !hasValidTargetMonth,
+        actionTooltip: translate("planLabViewMonthlyBreakdownDisabled", "先設定目標月份"),
       },
       {
         key: "targetMonth",
@@ -5547,6 +5632,7 @@ export default function PlanLabPanel({
     firstBucketTargetValue,
     formatDeltaDisplay,
     formatMonthLabel,
+    hasValidTargetMonth,
     kpiDiff,
     locale,
     optionKpis,
@@ -8026,6 +8112,14 @@ export default function PlanLabPanel({
                                 });
                               }
                               const readableChanges = group.changes ?? [];
+                              const derivedTargets = deriveExperimentTargets(group, {
+                                eventLabelById,
+                                bundleLabelById,
+                                assumptionLabelByKey: ENV_ASSUMPTION_LABELS,
+                                patchItemLookup,
+                              });
+                              const visibleTargets = derivedTargets.slice(0, 3);
+                              const hiddenTargetCount = Math.max(derivedTargets.length - visibleTargets.length, 0);
                               return (
                                 <PlanLabAccordionRow
                                   key={group.experimentId}
@@ -8076,83 +8170,38 @@ export default function PlanLabPanel({
                                         {translate("planLabExperimentIncludesItems", "包含項目")}
                                       </Text>
                                       <Stack gap={4}>
-                                        {(group.affectedEntities?.length
-                                          ? group.affectedEntities.map((entity) => entity.itemId)
-                                          : activeItemIds
-                                        ).slice(0, 5).map((itemId) => {
-                                          if (group.kind === "ENV_OVERRIDE") {
-                                            const label =
-                                              ENV_ASSUMPTION_LABELS[
-                                                itemId as keyof ScenarioAssumptionsOverride
-                                              ] ?? itemId;
-                                            return (
-                                              <Group
-                                                key={`${group.experimentId}-${itemId}`}
-                                                gap={6}
-                                                wrap="wrap"
-                                              >
-                                                <Text size="xs">{label}</Text>
-                                                <Badge size="xs" variant="light" color="grape">
-                                                  assumption
-                                                </Badge>
-                                              </Group>
-                                            );
-                                          }
-                                          const item = patchItemLookup.get(itemId);
-                                          const label = item?.label?.trim() || "—";
-                                          const type = item?.type ?? "—";
-                                          const amountText =
-                                            typeof item?.amount === "number"
-                                              ? formatCurrency(item.amount, "HKD", locale)
-                                              : "—";
-                                          const startMonth = item?.startMonth?.trim() || "—";
-                                          return (
-                                            <Group key={`${group.experimentId}-${itemId}`} gap={6} wrap="wrap">
-                                              <Text size="xs">{label}</Text>
-                                              <Badge size="xs" variant="light" color="gray">
-                                                {type}
-                                              </Badge>
-                                              <Text size="xs" c="dimmed">
-                                                {amountText}
-                                              </Text>
-                                              <Text size="xs" c="dimmed">
-                                                {startMonth}
-                                              </Text>
-                                              <Button
-                                                size="compact-xs"
-                                                variant="subtle"
-                                                onClick={() =>
-                                                  handleLocateItem(
-                                                    itemId.startsWith("events:")
-                                                      ? `event:${itemId.replace("events:", "")}`
-                                                      : itemId.startsWith("rules:")
-                                                      ? `rule:${itemId.replace("rules:", "")}`
-                                                      : itemId
-                                                  )
-                                                }
-                                              >
-                                                {translate("planLabLocateControlAction", "定位控制項")}
-                                              </Button>
-                                              <Button
-                                                size="compact-xs"
-                                                variant="subtle"
-                                                color="red"
-                                                onClick={() =>
-                                                  removeItemFromExperimentGroup(
-                                                    group.experimentId,
-                                                    itemId
-                                                  )
-                                                }
-                                              >
-                                                {translate("planLabAppliedRemove", "移除")}
-                                              </Button>
-                                            </Group>
-                                          );
-                                        })}
-                                        {(group.affectedEntities?.length ?? activeItemIds.length) > 5 && (
+                                        {derivedTargets.length === 0 ? (
                                           <Text size="xs" c="dimmed">
-                                            +{(group.affectedEntities?.length ?? activeItemIds.length) - 5}
+                                            {translate(
+                                              "planLabExperimentIncludesUnknown",
+                                              "未能識別（請打開查看變更摘要）"
+                                            )}
                                           </Text>
+                                        ) : (
+                                          <Group gap={6} wrap="wrap">
+                                            {visibleTargets.map((target) => (
+                                              <Group key={`${group.experimentId}-${target.kind}-${"id" in target ? target.id : target.key}`} gap={4}>
+                                                <Pill
+                                                  size="xs"
+                                                  withRemoveButton={false}
+                                                >
+                                                  {target.label}
+                                                </Pill>
+                                                {target.kind !== "assumption" && (
+                                                  <Button
+                                                    size="compact-xs"
+                                                    variant="subtle"
+                                                    onClick={() => handleLocateItem(target.locateId)}
+                                                  >
+                                                    {translate("planLabLocateControlAction", "定位控制項")}
+                                                  </Button>
+                                                )}
+                                              </Group>
+                                            ))}
+                                            {hiddenTargetCount > 0 && (
+                                              <Pill size="xs">+{hiddenTargetCount}</Pill>
+                                            )}
+                                          </Group>
                                         )}
                                       </Stack>
                                       {removedItems.length > 0 && (
@@ -8464,6 +8513,29 @@ export default function PlanLabPanel({
                                   </Text>
                                 )}
                               </Group>
+                              {"actionLabel" in card && card.actionLabel && (
+                                <MantineTooltip
+                                  label={card.actionDisabled ? card.actionTooltip : undefined}
+                                  disabled={!card.actionDisabled}
+                                  withArrow
+                                >
+                                  <span>
+                                    <Button
+                                      size="compact-xs"
+                                      variant="subtle"
+                                      disabled={card.actionDisabled}
+                                      onClick={() =>
+                                        openModal("monthlyBreakdown", {
+                                          month: targetMonth,
+                                          focus: "networth",
+                                        })
+                                      }
+                                    >
+                                      {card.actionLabel}
+                                    </Button>
+                                  </span>
+                                </MantineTooltip>
+                              )}
                               {card.helper && (
                                 <Text size="xs" c="dimmed">
                                   {card.helper}
@@ -8536,54 +8608,23 @@ export default function PlanLabPanel({
                 <Stack gap="sm">
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{t("planLabPreviewTitle")}</Text>
-                    <SegmentedControl
-                      size="xs"
-                      data={[
-                        { value: "netWorth", label: t("planLabChartNetWorth") },
-                        { value: "cash", label: t("planLabChartCash") },
-                        { value: "netCashflow", label: t("planLabChartNetCashflow") },
-                      ]}
-                      value={chartType}
-                      onChange={(value) => setChartType(value as ChartType)}
-                    />
+                    <Group gap="xs">
+                      <SegmentedControl
+                        size="xs"
+                        data={[
+                          { value: "netWorth", label: t("planLabChartNetWorth") },
+                          { value: "cash", label: t("planLabChartCash") },
+                          { value: "netCashflow", label: t("planLabChartNetCashflow") },
+                        ]}
+                        value={chartType}
+                        onChange={(value) => setChartType(value as ChartType)}
+                      />
+                      <Button size="xs" variant="light" onClick={() => setChartPreviewOpen(true)}>
+                        {translate("planLabChartPreviewAction", "預覽圖表")}
+                      </Button>
+                    </Group>
                   </Group>
-                  <div style={{ width: "100%", height: 260 }}>
-                    <ResponsiveContainer>
-                      <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
-                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                        <YAxis
-                          tick={{ fontSize: 10 }}
-                          width={72}
-                          tickFormatter={(value) =>
-                            formatCurrency(Number(value), undefined, locale)
-                          }
-                        />
-                        <RechartsTooltip
-                          formatter={(value) =>
-                            formatCurrency(Number(value), undefined, locale)
-                          }
-                          labelFormatter={(label) => t("monthLabel", { month: label })}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="baseline"
-                          stroke="#adb5bd"
-                          strokeWidth={2}
-                          strokeDasharray="6 4"
-                          dot={false}
-                          name={mode === "compare" ? "B" : t("planLabBaselineLabel")}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="option"
-                          stroke="#12b886"
-                          strokeWidth={2}
-                          dot={false}
-                          name={mode === "compare" ? "A" : t("planLabOptionLabel")}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {renderProjectionChart(260)}
                 </Stack>
               </Card>
             </Stack>
@@ -8592,7 +8633,45 @@ export default function PlanLabPanel({
         </Grid>
       )}
 
+      <Modal
+        opened={chartPreviewOpen}
+        onClose={() => setChartPreviewOpen(false)}
+        title={translate("planLabChartPreviewModalTitle", "預覽圖表")}
+        fullScreen
+        centered
+      >
+        <Stack gap="md" h="100%">
+          <Group justify="space-between" align="center" wrap="wrap">
+            <Text fw={600}>{translate("planLabChartPreviewModalTitle", "預覽圖表")}</Text>
+            <SegmentedControl
+              size="sm"
+              data={[
+                { value: "netWorth", label: t("planLabChartNetWorth") },
+                { value: "cash", label: t("planLabChartCash") },
+                { value: "netCashflow", label: t("planLabChartNetCashflow") },
+              ]}
+              value={chartType}
+              onChange={(value) => setChartType(value as ChartType)}
+            />
+          </Group>
+          <Box style={{ flex: 1, minHeight: "70vh" }}>{renderProjectionChart(720)}</Box>
+        </Stack>
+      </Modal>
 
+      <MonthlyBreakdownModalHost
+        months={planLabProjection.months}
+        ledgerByMonth={planLabProjection.ledgerByMonth}
+        summaryByMonth={planLabProjection.summaryByMonth}
+        positionCashflowsByMonth={planLabProjection.positionCashflowsByMonth}
+        projectionNetCashflowByMonth={planLabProjection.projectionNetCashflowByMonth}
+        projectionNetCashflowMode={planLabProjection.projectionNetCashflowMode}
+        netWorthByMonth={planLabNetWorthByMonth}
+        netWorthBreakdownByMonth={planLabProjection.netWorthBreakdownByMonth}
+        currency={scenario.baseCurrency}
+        scenarioId={scenario.id}
+        baseMonth={scenario.assumptions.baseMonth}
+        horizonMonths={scenario.assumptions.horizonMonths}
+      />
 
       <PlanLibraryDrawer
         opened={planLibraryOpen}
