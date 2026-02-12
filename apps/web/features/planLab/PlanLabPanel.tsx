@@ -918,7 +918,7 @@ const PlanLabBundleItemRow = ({
 }: PlanLabBundleItemRowProps) => (
   <Paper
     withBorder
-    radius="md"
+    radius="xs"
     p="sm"
     style={{
       outline: highlighted ? "2px solid rgba(18, 184, 134, 0.7)" : "none",
@@ -5382,7 +5382,7 @@ export default function PlanLabPanel({
     (month: string | null | undefined, fallback: string) =>
       month ? t("monthLabel", { month }) : fallback,
     [t]
-  );
+  ); 
 
   type DeltaDisplay = {
     display: string;
@@ -5497,6 +5497,7 @@ export default function PlanLabPanel({
     return [
       {
         key: "minCash",
+        better: "higher",
         label: translate("planLabKpiMinCash", "最低現金結餘"),
         valueA: minCashAValue,
         valueB: minCashBValue,
@@ -5504,6 +5505,7 @@ export default function PlanLabPanel({
       },
       {
         key: "negativeCash",
+        better: "lower",
         label: translate("planLabKpiNegativeCash", "現金轉負最早月份"),
         valueA: negativeAValue,
         valueB: negativeBValue,
@@ -5514,6 +5516,7 @@ export default function PlanLabPanel({
       },
       {
         key: "endNetWorth",
+        better: "higher",
         label: translate("planLabKpiEndNetWorth", "期末淨資產"),
         valueA: endNetWorthAValue,
         valueB: endNetWorthBValue,
@@ -5521,6 +5524,7 @@ export default function PlanLabPanel({
       },
       {
         key: "targetMonth",
+        better: "lower",
         label: translate("planLabKpiTargetMonth", "目標達標月份"),
         valueA: targetAValue,
         valueB: targetBValue,
@@ -6670,7 +6674,7 @@ export default function PlanLabPanel({
           <Text size="xs" fw={600} c="dimmed">
             {group}
           </Text>
-          <Accordion variant="separated" radius="md" multiple>
+          <Accordion variant="separated" radius="xs" multiple>
             {items.map((item) => {
               const isAffected = isItemImpactedByEnabledExperiment(item);
               const controlId = appliedControlIdByItemId.get(item.id);
@@ -7194,7 +7198,7 @@ export default function PlanLabPanel({
   };
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xs">
       {planToast && (
         <Notification color="teal" onClose={() => setPlanToast(null)}>
           {planToast}
@@ -7220,7 +7224,7 @@ export default function PlanLabPanel({
           {templatePlanUnsupportedNotice}
         </Notification>
       )}
-      <Card withBorder radius="md" padding="lg" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+      <Card withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
         <Group justify="space-between" align="center" wrap="wrap">
           <Stack gap={2}>
             <Group gap="xs" align="center" wrap="wrap">
@@ -7286,7 +7290,7 @@ export default function PlanLabPanel({
             )}
             <SegmentedControl
               size="sm"
-              radius="md"
+              radius="xs"
               data={[
                 {
                   value: "edit",
@@ -7305,15 +7309,15 @@ export default function PlanLabPanel({
         </Group>
       </Card>
 
-      <Card display={"none"} withBorder radius="md" padding="md" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+      <Card display={"none"} withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
         <Text size="sm">{t("planLabSandboxBanner")}</Text>
       </Card>
 
       {(
-        <Grid gutter="lg">
-        <Grid.Col span={{ base: 12, md: 6 }}>
+        <Grid gutter="xs">
+        <Grid.Col span={{ base: 12, md: 7 }}>
           <Stack gap="xs">
-            <Paper withBorder radius="lg" p="md">
+            <Paper withBorder radius="xs" p="xs">
               <Stack gap="xs">
                 <Group justify="space-between" align="center" wrap="wrap">
                   <MantineTooltip
@@ -7338,7 +7342,7 @@ export default function PlanLabPanel({
                       onChange={(event) => setSearchQuery(event.currentTarget.value)}
                       style={{ flex: 1, minWidth: 220 }}
                     />
-                    <Popover position="bottom-end" withArrow shadow="md">
+                    <Popover position="bottom-end" withArrow shadow="xs">
                       <Popover.Target>
                         <Button size="sm" variant="light">
                           {translate("planLabFilterPopoverLabel", "篩選")}
@@ -7476,7 +7480,7 @@ export default function PlanLabPanel({
                     {showBundleSection && (
                       <Accordion
                         variant="separated"
-                        radius="md"
+                        radius="xs"
                         defaultValue={undefined}
                       >
                         <Accordion.Item value="bundles">
@@ -7495,7 +7499,7 @@ export default function PlanLabPanel({
                           </Accordion.Control>
                           <Accordion.Panel>
                             <Stack gap="xs">
-                              <Accordion variant="separated" radius="md" multiple>
+                              <Accordion variant="separated" radius="xs" multiple>
                                 {visibleBundleCards.map((bundle) => {
                                   const bundleItems =
                                     bundleItemsById.get(bundle.id) ?? [];
@@ -7656,7 +7660,7 @@ export default function PlanLabPanel({
                         </Accordion.Item>
                       </Accordion>
                     )}
-                    <Accordion variant="separated" radius="md" defaultValue={undefined}>
+                    <Accordion variant="separated" radius="xs" defaultValue={undefined}>
                       <Accordion.Item value="baseline-items">
                         <Accordion.Control>
                           <Group justify="space-between" align="center" wrap="wrap">
@@ -7681,7 +7685,7 @@ export default function PlanLabPanel({
                       {showBundleSection && (
                         <Accordion
                           variant="separated"
-                          radius="md"
+                          radius="xs"
                           defaultValue="bundles"
                         >
                           <Accordion.Item value="bundles">
@@ -7700,7 +7704,7 @@ export default function PlanLabPanel({
                             </Accordion.Control>
                             <Accordion.Panel>
                               <Stack gap="xs">
-                                <Accordion variant="separated" radius="md" multiple>
+                                <Accordion variant="separated" radius="xs" multiple>
                                   {visibleBundleCards.map((bundle) => {
                                     const bundleItems =
                                       bundleItemsById.get(bundle.id) ?? [];
@@ -7870,7 +7874,7 @@ export default function PlanLabPanel({
 
             <Accordion
               variant="separated"
-              radius="lg"
+              radius="xs"
               value={controlsAccordionValue}
               onChange={(value) => setControlsAccordionValue(value)}
             >
@@ -7899,7 +7903,7 @@ export default function PlanLabPanel({
                     </MantineTooltip>
                     {scenarioIsV2 ? (
                       <>
-                        {experiments.length > 0 && (
+                        {!showExperimentEmptyState && (
                           <Button size="xs" onClick={openExperimentTemplatesDrawer}>
                             {translate("planLabExperimentsAddAction", "新增")}
                           </Button>
@@ -8012,7 +8016,7 @@ export default function PlanLabPanel({
                       </Stack>
                     ) : (
                       <ScrollArea.Autosize mah={320} offsetScrollbars>
-                        <Accordion variant="separated" radius="md" multiple>
+                        <Accordion variant="separated" radius="xs" multiple>
                           {(scenarioIsV2 ? experimentGroups : experiments).map((experiment, index, list) => {
                             if (scenarioIsV2) {
                               const group = experiment as PlanLabExperimentGroup;
@@ -8372,7 +8376,7 @@ export default function PlanLabPanel({
                               <Paper
                                 key={control.id}
                                 withBorder
-                                radius="md"
+                                radius="xs"
                                 p="xs"
                                 ref={(node) => registerAppliedControlRef(control.id, node)}
                                 style={{
@@ -8507,10 +8511,10 @@ export default function PlanLabPanel({
           </Stack>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 6 }}>
+        <Grid.Col span={{ base: 12, md: 5 }}>
           <div style={{ position: "sticky", top: 88 }}>
-            <Stack gap="lg">
-              <Card withBorder radius="md" padding="lg" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+            <Stack gap="xs">
+              <Card withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                 <Stack gap="sm">
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{translate("planLabKpiPanelTitle", "Impact KPIs")}</Text>
@@ -8537,6 +8541,7 @@ export default function PlanLabPanel({
                       }}
                     />
                     <NumberInput
+                      display={"none"}
                       label={translate("planLabScorecardTargetAmount", "目標金額")}
                       value={firstBucketTargetAmount}
                       min={0}
@@ -8550,13 +8555,13 @@ export default function PlanLabPanel({
                       {t("planLabScorecardDisabled")}
                     </Text>
                   ) : (
-                    <SimpleGrid cols={{ base: 1, md: 1 }} spacing="sm">
+                    <SimpleGrid cols={{ base: 2, md: 2 }} spacing="sm">
                       {kpiCards.map((card) => {
-                        const deltaColor =
+                        const deltaColor =  
                           card.delta?.direction === "up"
-                            ? "teal"
+                            ? card.better === "higher" ? "teal" : "red"
                             : card.delta?.direction === "down"
-                            ? "red"
+                            ? card.better === "lower" ? "teal" : "red"
                             : "gray";
                         const labelA =
                           mode === "compare"
@@ -8571,24 +8576,23 @@ export default function PlanLabPanel({
                               })
                             : translate("planLabKpiBaselineLabel", "基準");
                         return (
-                          <Paper key={card.key} withBorder radius="md" p="md" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                          <Paper key={card.key} withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                             <Stack gap={6}>
                               <Text size="sm" fw={600} c="dimmed">
                                 {card.label}
                               </Text>
-                              <SimpleGrid cols={2} spacing="lg">
+                              <SimpleGrid cols={2} spacing="xs">
                                 <Stack gap={2} style={{ minWidth: 0 }} data-testid="kpi-current">
                                   <Text size="xs" c="dimmed">
                                     {labelA}
                                   </Text>
                                   <Text
                                     fw={700}
-                                    size="xl"
+                                    size="sm"
                                     style={{
                                       fontVariantNumeric: "tabular-nums",
                                       whiteSpace: "pre-line",
                                       overflow: "hidden",
-                                      // textOverflow: "ellipsis",
                                     }}
                                   >
                                     {card.valueA}
@@ -8600,13 +8604,12 @@ export default function PlanLabPanel({
                                   </Text>
                                   <Text
                                     fw={700}
-                                    size="xl"
+                                    size="sm"
                                     ta="right"
                                     style={{
                                       fontVariantNumeric: "tabular-nums",
                                       whiteSpace: "pre-line",
                                       overflow: "hidden",
-                                      // textOverflow: "ellipsis",
                                     }}
                                   >
                                     {card.valueB}
@@ -8641,7 +8644,7 @@ export default function PlanLabPanel({
                 </Stack>
               </Card>
 
-              <Card withBorder radius="md" padding="md">
+              <Card withBorder radius="xs" padding="xs">
                 <Stack gap="sm">
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{translate("planLabTopDriversTitle", "Top Drivers / 差異原因")}</Text>
@@ -8695,7 +8698,7 @@ export default function PlanLabPanel({
                 />
               )}
 
-              <Card withBorder radius="md" padding="md">
+              <Card withBorder radius="xs" padding="xs">
                 <Stack gap="sm">
                   <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{t("planLabPreviewTitle")}</Text>
@@ -8968,7 +8971,7 @@ export default function PlanLabPanel({
         styles={drawerStyles}
       >
         {activeBundleCard ? (
-          <Stack gap="md">
+          <Stack gap="xs">
             <Stack gap={4} ref={bundleSummaryRef}>
               <Text size="sm" fw={600}>
                 {moneyT("bundleDetailSummaryTitle")}
@@ -9215,7 +9218,7 @@ export default function PlanLabPanel({
         size="md"
         title={translate("planLabEmptyStateAssumptionsAction", "修改環境假設")}
       >
-        <Stack gap="md">
+        <Stack gap="xs">
           <Text size="sm" c="dimmed">
             {translate(
               "planLabEnvOverrideHint",
@@ -9553,7 +9556,7 @@ export default function PlanLabPanel({
             : translate("planLabExperimentDrawerEditTitle", "編輯實驗")
         }
       >
-        <Stack gap="md">
+        <Stack gap="xs">
           {experimentDrawerMode === "add" && (
             <Stack gap="sm">
               <Text fw={600}>
@@ -9566,7 +9569,7 @@ export default function PlanLabPanel({
                     <Paper
                       key={card.type}
                       withBorder
-                      radius="md"
+                      radius="xs"
                       p="sm"
                       onClick={() => {
                         setExperimentDraft(buildExperimentDefaults(card.type));
@@ -10640,7 +10643,7 @@ export default function PlanLabPanel({
         )}
         centered
       >
-        <Stack gap="md">
+        <Stack gap="xs">
           <Text size="sm">
             {translate(
               "planLabRemoveExperimentConfirmBody",

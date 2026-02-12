@@ -806,7 +806,7 @@
       "payout": "賠付",
       "taxBenefit": "稅務扣減"
     },
-    "monthLabel": "月份 {month}",
+    "monthLabel": "{month}",
     "lowestPointLabel": "最低點",
     "lowestPointSummary": "最低：{value}（{month}）",
     "insightsTitle": "洞察",
