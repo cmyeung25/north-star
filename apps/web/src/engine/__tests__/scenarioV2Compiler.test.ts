@@ -444,6 +444,95 @@ describe("compileScenarioV2ToLedger", () => {
     expect((jan2025?.amount ?? 0) < (jan2024?.amount ?? 0)).toBe(true);
   });
 
+  it("applies custom growth for rental income under mortgage housing events", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        rentAnnualGrowthPct: 8,
+      },
+      events: [
+        {
+          id: "evt-mortgage-rental-growth",
+          type: "housing",
+          kind: "mortgage",
+          startMonth: "2024-01",
+          endMonth: "2025-01",
+          purchasePrice: 1000000,
+          mortgageRatePct: 3,
+          mortgageTermYears: 30,
+          propertyAssetId: "asset-home-growth",
+          mortgageLiabilityId: "liability-home-growth",
+          rental: {
+            enabled: true,
+            rentMonthly: 10000,
+            startMonth: "2024-01",
+            rentGrowthMode: "custom",
+            rentAnnualGrowthPct: -10,
+          },
+        },
+      ],
+    };
+
+    const ledger = compileScenarioV2ToLedger(scenario).filter(
+      (row) => row.sourceEventId === "evt-mortgage-rental-growth" && row.kind === "income"
+    );
+    const jan2024 = ledger.find((row) => row.month === "2024-01");
+    const jan2025 = ledger.find((row) => row.month === "2025-01");
+
+    expect((jan2025?.amount ?? 0) < (jan2024?.amount ?? 0)).toBe(true);
+  });
+
+  it("uses property growth mode when compiling mortgage housing positions", () => {
+    const baseMortgageEvent = {
+      id: "evt-home-growth-mode",
+      type: "housing" as const,
+      kind: "mortgage" as const,
+      startMonth: "2024-01",
+      endMonth: "2025-01",
+      purchasePrice: 1000000,
+      mortgageRatePct: 3,
+      mortgageTermYears: 30,
+      propertyAssetId: "asset-home-growth-mode",
+      mortgageLiabilityId: "liability-home-growth-mode",
+    };
+
+    const scenarioAssumption: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        propertyAppreciationPct: 7,
+      },
+      events: [
+        {
+          ...baseMortgageEvent,
+          propertyGrowthMode: "assumption",
+        },
+      ],
+    };
+
+    const scenarioCustom: ScenarioV2 = {
+      ...scenarioAssumption,
+      events: [
+        {
+          ...baseMortgageEvent,
+          propertyGrowthMode: "custom",
+          propertyAnnualGrowthPct: -3,
+        },
+      ],
+    };
+
+    const projectionAssumption = computeProjection(
+      compileScenarioV2ToProjectionInput(scenarioAssumption)
+    );
+    const projectionCustom = computeProjection(
+      compileScenarioV2ToProjectionInput(scenarioCustom)
+    );
+
+    expect((projectionAssumption.assets.housing.at(-1) ?? 0) > 1000000).toBe(true);
+    expect((projectionCustom.assets.housing.at(-1) ?? 0) < 1000000).toBe(true);
+  });
+
   it("applies car depreciation from assumptions when car asset is flagged", () => {
     const scenario: ScenarioV2 = {
       ...baseScenario,

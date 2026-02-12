@@ -173,6 +173,20 @@ const resolveRentAnnualGrowthPct = (
   return 0;
 };
 
+const resolvePropertyAnnualGrowthPct = (
+  growthMode: "none" | "assumption" | "custom" | undefined,
+  customGrowthPct: number | undefined,
+  assumptions: ScenarioAssumptions
+): number => {
+  if (growthMode === "assumption") {
+    return assumptions.propertyAppreciationPct ?? 0;
+  }
+  if (growthMode === "custom") {
+    return customGrowthPct ?? 0;
+  }
+  return 0;
+};
+
 const buildGrowthSchedule = (
   amount: number,
   months: string[],
@@ -778,7 +792,12 @@ export const compileScenarioV2ToProjectionInput = (
         purchasePrice: propertyMarketValue,
         downPayment,
         purchaseMonth: event.startMonth,
-        annualAppreciationPct: scenario.assumptions.propertyAppreciationPct ?? 0,
+        annualAppreciationPct: resolvePropertyAnnualGrowthPct(
+          event.propertyGrowthMode,
+          event.propertyAnnualGrowthPct,
+          scenario.assumptions
+        ),
+        appreciationMode: event.propertyGrowthMode === "assumption" ? "GLOBAL" : "CUSTOM",
         mortgageRatePct: event.mortgageRatePct ?? 0,
         mortgageTermYears: event.mortgageTermYears ?? 0,
         mortgageBaseValue,

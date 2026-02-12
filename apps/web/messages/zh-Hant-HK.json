@@ -1709,7 +1709,11 @@
     "planLabExperimentGroupCount": "{count}項",
     "planLabUngroupedExperimentTitle": "已新增項目",
     "ledgerEventGrowthModeAssumptionUnset": "跟隨假設（未設定）",
-    "ledgerEventGrowthModeAssumptionUnavailableHint": "請先於「假設」設定租金增長，才可使用此選項。"
+    "ledgerEventGrowthModeAssumptionUnavailableHint": "請先於「假設」設定租金增長，才可使用此選項。",
+    "housingRentalGrowthTitle": "租金成長",
+    "housingPropertyAppreciationGrowthTitle": "房產增值成長",
+    "housingPropertyAppreciationLabel": "房產增值 (%)",
+    "housingPropertyGrowthAssumptionUnavailableHint": "請先於「假設」設定房產增值，才可使用此選項。"
   },
   "entryLauncher": {
     "title": "新增金錢項目",

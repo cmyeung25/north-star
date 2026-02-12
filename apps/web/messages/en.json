@@ -1674,7 +1674,11 @@
     "planLabExperimentGroupCount": "{count} items",
     "planLabUngroupedExperimentTitle": "Added items",
     "ledgerEventGrowthModeAssumptionUnset": "Follow assumption (Not set)",
-    "ledgerEventGrowthModeAssumptionUnavailableHint": "Set rent growth in Assumptions before using this option."
+    "ledgerEventGrowthModeAssumptionUnavailableHint": "Set rent growth in Assumptions before using this option.",
+    "housingRentalGrowthTitle": "Rent growth",
+    "housingPropertyAppreciationGrowthTitle": "Property appreciation growth",
+    "housingPropertyAppreciationLabel": "Property appreciation (%)",
+    "housingPropertyGrowthAssumptionUnavailableHint": "Set property appreciation in Assumptions before using this option."
   },
   "entryLauncher": {
     "title": "Add new money items",
