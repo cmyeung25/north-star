@@ -30,6 +30,10 @@ test.describe("plan lab snapshots", () => {
     await page.getByRole("button", { name: /Save plan|儲存方案/i }).click();
     await page.getByLabel(/Plan name|方案名稱/i).fill("Snapshot A");
     await page.getByRole("button", { name: /Save plan|儲存方案/i }).last().click();
+    await expect(page.getByRole("button", { name: /Plans \(1\)|方案\(1\)/i })).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole("button", { name: /Plans \(1\)|方案\(1\)/i })).toBeVisible();
 
     await page.getByRole("button", { name: /Plans|方案/i }).click();
     await expect(page.getByText("Snapshot A")).toBeVisible();

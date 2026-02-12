@@ -190,6 +190,12 @@ export const PlanLibraryDrawer = ({
                         ))}
                       </Group>
                     )}
+                    <Text size="xs" c="dimmed">
+                      {translate("planLabPlanSummary", "{experiments} experiments / {overrides} env overrides", {
+                        experiments: plan.snapshot.experiments?.length ?? 0,
+                        overrides: Object.keys(plan.snapshot.scenarioV2Patches?.assumptions ?? {}).length,
+                      })}
+                    </Text>
                   </Stack>
                   <Menu withinPortal shadow="md" position="bottom-end">
                     <Menu.Target>

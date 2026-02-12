@@ -11,6 +11,7 @@ import type {
   ScenarioMember,
 } from "../../store/scenarioStore";
 import type { SmartInvestAllocation, SmartInvestPolicy } from "../smartInvest/types";
+import type { PlanLabScenarioV2Patches } from "./scenarioV2Patches";
 
 export type PlanLabEventPatch = {
   isDisabled?: boolean;
@@ -165,6 +166,42 @@ export type PlanLabSnapshot = {
   baselinePatches?: PlanLabBaselinePatches;
   experiments?: PlanLabExperiment[];
   scorecardSettings?: PlanLabScorecardSettings;
+  scenarioV2Patches?: PlanLabScenarioV2Patches;
+  experimentGroups?: Array<{
+    experimentId: string;
+    title: string;
+    kind?: "ADD_EVENT" | "MODIFY_BASELINE_EVENT" | "ENV_OVERRIDE" | "BUNDLE_EXPERIMENT";
+    target?: {
+      baselineEventId?: string;
+      bundleId?: string;
+      envKey?: string;
+    };
+    envOverrides?: Record<string, number | undefined>;
+    changes?: string[];
+    affectedEntities?: Array<{
+      itemId: string;
+      label: string;
+      type: string;
+    }>;
+    isEnabled: boolean;
+    itemIds: string[];
+    removedItems?: Array<{
+      itemId: string;
+      removedAt: number;
+      meta: {
+        label?: string | null;
+        type: string;
+        amount?: number | null;
+        startMonth?: string | null;
+        endMonth?: string | null;
+        memberName?: string | null;
+      };
+    }>;
+    bundleInstanceId?: string;
+    templateId?: string;
+    primaryEventId?: string;
+    createdAt: number;
+  }>;
 };
 
 export type PlanLabEventsPatch = {
@@ -211,6 +248,11 @@ export type PlanSnapshot = {
 };
 
 export type Plan = PlanSnapshot;
+
+export type PlanLabMeta = {
+  planLibrary?: PlanSnapshot[];
+  lastSelectedPlanId?: string;
+};
 
 export type OnboardingDraftBaseline = {
   monthlyIncomeTotal: number;

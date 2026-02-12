@@ -47,7 +47,28 @@ const buildSnapshot = (): PlanSnapshot => ({
   baselineScenarioId: "scenario-1",
   baselineSignature: "sig-1",
   payload: { eventsPatch: { add: [], update: [], remove: [] } },
-  snapshot: {},
+  snapshot: {
+    experiments: [{ id: "exp-1", type: "oneOffExpense", amount: 500, month: "2025-01" }],
+    scenarioV2Patches: {
+      events: { add: [], update: {}, remove: [] },
+      assets: { add: [], update: {}, remove: [] },
+      liabilities: { add: [], update: {}, remove: [] },
+      members: { add: [], update: {}, remove: [] },
+      rules: { add: [], update: {}, remove: [] },
+      assumptions: { inflationRate: 2.8 },
+    },
+    experimentGroups: [
+      {
+        experimentId: "group-1",
+        title: "Env override",
+        kind: "ENV_OVERRIDE",
+        envOverrides: { inflationRate: 2.8 },
+        isEnabled: true,
+        itemIds: [],
+        createdAt: 1700000000000,
+      },
+    ],
+  },
 });
 
 describe("planLibrary storage", () => {
@@ -67,6 +88,8 @@ describe("planLibrary storage", () => {
       baselineScenarioId: "scenario-1",
       baselineSignature: "sig-1",
     });
+    expect(loaded[0]?.snapshot.scenarioV2Patches?.assumptions.inflationRate).toBe(2.8);
+    expect(loaded[0]?.snapshot.experimentGroups?.[0]?.kind).toBe("ENV_OVERRIDE");
   });
 
   it("supports update and delete roundtrip", async () => {
