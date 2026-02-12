@@ -1220,24 +1220,15 @@ export default function PlanLabPanel({
   const showAffectedOnly = listTab === "affected";
   const showRiskyOnly = listTab === "risky";
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
-  const appliedControlRefs = useRef(new Map<string, HTMLDivElement | null>());
   const bundleIdByItemIdRef = useRef(new Map<string, string>());
   const bundleSummaryRef = useRef<HTMLDivElement | null>(null);
   const bundleCashflowRef = useRef<HTMLDivElement | null>(null);
   const bundleMortgageRef = useRef<HTMLDivElement | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
-  const [highlightedControlId, setHighlightedControlId] = useState<string | null>(null);
 
   const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
     itemRefs.current.set(id, node);
   }, []);
-
-  const registerAppliedControlRef = useCallback(
-    (id: string, node: HTMLDivElement | null) => {
-      appliedControlRefs.current.set(id, node);
-    },
-    []
-  );
 
   const closeAllPlanLabDrawers = useCallback(() => {
     setMemberDrawerOpen(false);
@@ -1326,13 +1317,13 @@ export default function PlanLabPanel({
 
   const handleLocateControl = useCallback(
     (controlId: string) => {
-      setControlsAccordionValue("applied-controls");
-      const node = appliedControlRefs.current.get(controlId);
+      setControlsAccordionValue("experiments");
+      const node = itemRefs.current.get(controlId);
       if (!node) {
         return;
       }
       node.scrollIntoView({ behavior: "smooth", block: "center" });
-      setHighlightedControlId((current) =>
+      setHighlightedItemId((current) =>
         current === controlId ? current : controlId
       );
     },
@@ -1347,13 +1338,6 @@ export default function PlanLabPanel({
     return () => clearTimeout(timeout);
   }, [highlightedItemId]);
 
-  useEffect(() => {
-    if (!highlightedControlId) {
-      return;
-    }
-    const timeout = setTimeout(() => setHighlightedControlId(null), 2000);
-    return () => clearTimeout(timeout);
-  }, [highlightedControlId]);
   const drawerStyles = useMemo(
     () => ({
       body: {
@@ -6679,26 +6663,42 @@ export default function PlanLabPanel({
   ]);
 
   const appliedControlIdByItemId = useMemo(() => {
+    if (scenarioIsV2) {
+      const map = new Map<string, string>();
+      experimentIdByPatchItemId.forEach((experimentId, itemId) => {
+        map.set(itemId, `experiment-${experimentId}`);
+      });
+      return map;
+    }
+
     const map = new Map<string, string>();
     appliedControls.forEach((control) => {
+      const experimentControlId = control.id.startsWith("experiment-")
+        ? control.id
+        : control.id.startsWith("env-")
+          ? `experiment-${control.id.slice(4)}`
+          : control.id.startsWith("bundle-override-")
+            ? `experiment-${control.id.slice("bundle-override-".length)}`
+            : null;
+      if (!experimentControlId) {
+        return;
+      }
       control.itemIds?.forEach((itemId) => {
         if (!map.has(itemId)) {
-          map.set(itemId, control.id);
+          map.set(itemId, experimentControlId);
         }
       });
     });
     return map;
-  }, [appliedControls]);
-
-  const enabledAppliedControlsCount = useMemo(
-    () => appliedControls.filter((control) => control.isEnabled).length,
-    [appliedControls]
-  );
+  }, [appliedControls, experimentIdByPatchItemId, scenarioIsV2]);
 
   const isExperimentLibraryEmpty = scenarioIsV2
     ? experimentGroups.length === 0
     : experiments.length === 0;
   const showExperimentEmptyState = isExperimentLibraryEmpty;
+  const enabledExperimentCount = scenarioIsV2
+    ? experimentGroups.filter((group) => group.isEnabled).length
+    : experiments.filter((experiment) => experiment.isEnabled !== false).length;
 
   const showBundleSection = scenarioIsV2 && visibleBundleCards.length > 0;
   const standaloneItemsContent =
@@ -7977,40 +7977,63 @@ export default function PlanLabPanel({
                 </Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="xs">
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <MantineTooltip
-                      label={translate(
-                        "planLabExperimentsTooltip",
-                        "新增假設來觀察財務走勢變化。"
-                      )}
-                      withArrow
-                    >
-                      <Text size="sm" fw={600}>
-                        {translate("planLabControlsTitle", "控制項")}
-                      </Text>
-                    </MantineTooltip>
-                    {scenarioIsV2 ? (
-                      <>
-                        {!showExperimentEmptyState && (
-                          <Button size="xs" onClick={openExperimentTemplatesDrawer}>
-                            {translate("planLabExperimentsAddAction", "新增")}
-                          </Button>
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <MantineTooltip
+                        label={translate(
+                          "planLabExperimentsTooltip",
+                          "新增假設來觀察財務走勢變化。"
                         )}
-                      </>
-                    ) : (
+                        withArrow
+                      >
+                        <Text size="sm" fw={600}>
+                          {translate(
+                            "planLabExperimentsEnabledCount",
+                            "已啟用 {enabled} / 全部 {total}",
+                            {
+                              enabled: enabledExperimentCount,
+                              total: scenarioIsV2 ? experimentGroups.length : experiments.length,
+                            }
+                          )}
+                        </Text>
+                      </MantineTooltip>
                       <Group gap="xs" wrap="wrap">
-                        <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
-                          {translate("planLabAddMemberAction", "新增成員")}
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={handleResetBaseline}
+                          disabled={isExperimentLibraryEmpty}
+                        >
+                          {translate("planLabAppliedRevertBaseline", "還原基準調整")}
                         </Button>
-                        <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
-                          {translate("planLabAddRuleAction", "新增規則")}
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={handleResetAllControls}
+                          disabled={isExperimentLibraryEmpty}
+                        >
+                          {translate("planLabAppliedResetAll", "全部重設")}
                         </Button>
-                        <Button size="xs" onClick={openAddExperimentDrawer}>
-                          {translate("planLabExperimentsAddAction", "新增實驗")}
-                        </Button>
+                        {scenarioIsV2 ? (
+                          !showExperimentEmptyState && (
+                            <Button size="xs" onClick={openExperimentTemplatesDrawer}>
+                              {translate("planLabExperimentsAddAction", "新增")}
+                            </Button>
+                          )
+                        ) : (
+                          <>
+                            <Button size="xs" variant="light" onClick={openAddMemberDrawer}>
+                              {translate("planLabAddMemberAction", "新增成員")}
+                            </Button>
+                            <Button size="xs" variant="light" onClick={() => openAddRuleDrawer()}>
+                              {translate("planLabAddRuleAction", "新增規則")}
+                            </Button>
+                            <Button size="xs" onClick={openAddExperimentDrawer}>
+                              {translate("planLabExperimentsAddAction", "新增實驗")}
+                            </Button>
+                          </>
+                        )}
                       </Group>
-                    )}
-                  </Group>
+                    </Group>
                     {showExperimentEmptyState && (
                       <Stack gap={6}>
                         <Text size="sm" c="dimmed">
@@ -8419,145 +8442,6 @@ export default function PlanLabPanel({
                 </Accordion.Panel>
               </Accordion.Item>
 
-              <Accordion.Item value="applied-controls">
-                <Accordion.Control>
-                  <Group justify="space-between" align="center" wrap="wrap">
-                    <Text fw={600}>{t("planLabAppliedControlsTitle")}</Text>
-                    <Badge variant="light" color="blue">
-                      {enabledAppliedControlsCount}
-                    </Badge>
-                  </Group>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <Stack gap="xs">
-                    <Group justify="space-between" align="center" wrap="wrap">
-                      <MantineTooltip
-                        label={translate(
-                          "planLabAppliedControlsTooltip",
-                          "快速檢視目前啟用的改動，並可逐一關閉。"
-                        )}
-                        withArrow
-                      >
-                        <Text size="sm" fw={600}>
-                          {translate("planLabAppliedSummary", "已套用改動")} (
-                          {enabledAppliedControlsCount})
-                        </Text>
-                      </MantineTooltip>
-                      <Group gap="xs" wrap="wrap">
-                        <Button size="xs" variant="light" onClick={handleResetBaseline}>
-                          {translate("planLabAppliedRevertBaseline", "還原基準調整")}
-                        </Button>
-                        <Button size="xs" variant="light" onClick={handleResetAllControls}>
-                          {translate("planLabAppliedResetAll", "全部重設")}
-                        </Button>
-                      </Group>
-                    </Group>
-                    {appliedControls.length === 0 ? (
-                      <Text size="sm" c="dimmed">
-                        {t("planLabAppliedControlsEmpty")}
-                      </Text>
-                    ) : (
-                      <ScrollArea.Autosize mah={240} offsetScrollbars>
-                        <Stack gap="xs">
-                          {appliedControls.map((control) => {
-                            const content = (
-                              <Paper
-                                key={control.id}
-                                withBorder
-                                radius="xs"
-                                p="xs"
-                                ref={(node) => registerAppliedControlRef(control.id, node)}
-                                style={{
-                                  opacity: control.isEnabled ? 1 : 0.6,
-                                  outline:
-                                    highlightedControlId === control.id
-                                      ? "2px solid rgba(18, 184, 134, 0.7)"
-                                      : "none",
-                                  outlineOffset: 2,
-                                }}
-                              >
-                                <Group
-                                  justify="space-between"
-                                  align="flex-start"
-                                  wrap="nowrap"
-                                >
-                                  <Stack gap={4} style={{ flex: 1 }}>
-                                    <Group gap="xs" wrap="wrap">
-                                      <Text size="sm" fw={600}>
-                                        {control.titleLine}
-                                      </Text>
-                                      {!control.isEnabled && (
-                                        <Badge size="xs" variant="light" color="gray">
-                                          {translate("planLabBadgeDisabled", "已停用")}
-                                        </Badge>
-                                      )}
-                                    </Group>
-                                    {control.diffLines.map((line, index) => (
-                                      <Text
-                                        key={`${control.id}-diff-${index}`}
-                                        size="xs"
-                                        c="dimmed"
-                                      >
-                                        {line}
-                                      </Text>
-                                    ))}
-                                  </Stack>
-                                  <Group gap="xs" wrap="nowrap">
-                                    {control.onToggle && (
-                                      <Switch
-                                        size="xs"
-                                        checked={control.isEnabled}
-                                        onChange={() => control.onToggle?.()}
-                                      />
-                                    )}
-                                    {control.onView && (
-                                      <Button
-                                        size="xs"
-                                        variant="subtle"
-                                        onClick={() => control.onView?.()}
-                                      >
-                                        {translate("planLabAppliedView", "查看")}
-                                      </Button>
-                                    )}
-                                    <Button
-                                      size="xs"
-                                      variant="subtle"
-                                      onClick={() => control.onLocate?.()}
-                                      disabled={!control.onLocate}
-                                    >
-                                      {translate("planLabAppliedLocate", "定位")}
-                                    </Button>
-                                    <Button
-                                      size="xs"
-                                      variant="light"
-                                      color="red"
-                                      onClick={() => control.onRemove()}
-                                    >
-                                      {translate("planLabAppliedRevert", "復原")}
-                                    </Button>
-                                  </Group>
-                                </Group>
-                              </Paper>
-                            );
-                            if (control.tooltip) {
-                              return (
-                                <MantineTooltip
-                                  key={control.id}
-                                  label={control.tooltip}
-                                  withArrow
-                                >
-                                  {content}
-                                </MantineTooltip>
-                              );
-                            }
-                            return content;
-                          })}
-                        </Stack>
-                      </ScrollArea.Autosize>
-                    )}
-                  </Stack>
-                </Accordion.Panel>
-              </Accordion.Item>
 
               <Accordion.Item value="warnings">
                 <Accordion.Control>

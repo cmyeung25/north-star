@@ -102,7 +102,8 @@
     "riskLow": "低",
     "riskMedium": "中",
     "riskHigh": "高",
-    "notAvailable": "不適用"
+    "notAvailable": "不適用",
+    "planLabExperimentsEnabledCount": "已啟用 {enabled} / 全部 {total}"
   },
   "nav": {
     "home": "首頁",
