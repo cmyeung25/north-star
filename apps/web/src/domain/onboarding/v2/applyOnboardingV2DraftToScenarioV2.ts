@@ -354,7 +354,7 @@ const buildLivingSpendEvents = ({
     addMonthlyExpense({
       id: buildOnboardingEventId(scenarioId, "living-fixed"),
       amount: normalizeAmount(livingSpend.fixed.amount),
-      label: "Living expenses",
+      label: "日常支出",
       startMonth: fixedStart,
       endMonth: fixedEnd,
     });
@@ -363,7 +363,7 @@ const buildLivingSpendEvents = ({
   addMonthlyExpense({
     id: buildOnboardingEventId(scenarioId, "living-variable"),
     amount: normalizeAmount(livingSpend.variable.amount),
-    label: "Variable spending",
+    label: "可變動支出",
     startMonth: fixedStart,
     endMonth: fixedEnd,
   });
@@ -393,12 +393,12 @@ const buildLivingSpendEvents = ({
   const annualExpenses = [
     {
       key: "travel",
-      label: "Travel",
+      label: "旅遊支出",
       draft: livingSpend.travel,
     },
     {
       key: "tax",
-      label: "Tax",
+      label: "稅金支出",
       draft: livingSpend.tax,
     },
   ];
@@ -506,7 +506,7 @@ const buildHousingChanges = ({
         rentAnnualGrowthPct:
           normalizeOptionalNumber(housing.rent.rentGrowthPct) ?? inflationRate,
         rentGrowthMode: "assumption",
-        label: "Rent",
+        label: "租金支出",
       });
     }
     return { assets, liabilities, events };
@@ -523,7 +523,7 @@ const buildHousingChanges = ({
     assets.push({
       id: propertyId,
       kind: "home",
-      label: "Property",
+      label: "房屋資產",
       currentValue: propertyMarketValue,
       startMonth: propertyStartMonth,
       source: "eventGenerated",
@@ -553,7 +553,7 @@ const buildHousingChanges = ({
     liabilities.push({
       id: mortgageId,
       kind: "mortgage",
-      label: "Mortgage",
+      label: "房屋貸款",
       principalOutstanding,
       annualInterestRatePct: normalizeAmount(housing.own.mortgageRatePct),
       termYears: mortgageTermYears || undefined,
@@ -641,7 +641,7 @@ const buildHousingChanges = ({
       : undefined,
     propertyAssetId: propertyId,
     mortgageLiabilityId: mortgageId,
-    label: "Mortgage",
+    label: "房屋貸款",
   };
 
   if (event.startMonth && isValidMonthKey(event.startMonth)) {
@@ -794,7 +794,7 @@ const buildInsuranceChanges = ({
         }),
         premiumMonthly: amount,
         premiumAnnualGrowthPct: 0,
-        label: "Insurance premium",
+        label: "保險保費",
       });
     }
 
@@ -819,7 +819,7 @@ const buildInsuranceChanges = ({
         assets.push({
           id: policyAssetId,
           kind: "policy",
-          label: policy.name?.trim() || "Insurance cash value",
+          label: policy.name?.trim() || "保險現金價值",
           ownerMemberId: normalizeMemberId(policy.memberId),
           currentValue: cashValue,
           startMonth,
@@ -857,7 +857,7 @@ const buildInsuranceChanges = ({
       type: "insurance",
       mode: "detailed",
       policies,
-      label: "Insurance",
+      label: "保險",
     });
   }
 
@@ -878,7 +878,7 @@ const buildAssetEntries = ({
     assets.push({
       id: buildAssetsEntityId(scenarioId, "cash"),
       kind: "cash",
-      label: "Cash",
+      label: "現金資產",
       currentValue: cashValue,
       startMonth: normalizeMonth(draft.assets.cash.startMonth) ?? undefined,
       source: "manual",
@@ -907,7 +907,7 @@ const buildAssetEntries = ({
       assets.push({
         id: buildAssetsEntityId(scenarioId, "investment-total"),
         kind: "investment",
-        label: "Investments",
+        label: "投資資產",
         currentValue: totalAmount,
         startMonth: investmentStart ?? undefined,
         source: "manual",
@@ -920,7 +920,7 @@ const buildAssetEntries = ({
     assets.push({
       id: buildAssetsEntityId(scenarioId, "car"),
       kind: "car",
-      label: "Car",
+      label: "汽車資產",
       currentValue: carValue,
       startMonth: normalizeMonth(draft.assets.car.startMonth) ?? undefined,
       source: "manual",
@@ -936,7 +936,7 @@ const buildAssetEntries = ({
     assets.push({
       id: buildAssetsEntityId(scenarioId, `insurance-cash-${entry.id}`),
       kind: "policy",
-      label: "Insurance cash value",
+      label: "保險現金價值",
       ownerMemberId: normalizeMemberId(entry.memberId),
       currentValue: cashValue,
       startMonth: normalizeMonth(entry.startMonth) ?? undefined,
@@ -976,7 +976,7 @@ const buildContributionEvents = ({
       kind: "expense",
       cadence: "monthly",
       amount,
-      label: "Investment contribution",
+      label: "投資貢獻",
       startMonth,
       endMonth: resolveRecurringEndMonth({
         startMonth,
