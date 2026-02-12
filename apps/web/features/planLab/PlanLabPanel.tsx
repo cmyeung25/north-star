@@ -104,6 +104,7 @@ import {
 import { buildScenarioUrl } from "../../src/utils/scenarioContext";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
+import MonthField from "../../components/MonthField";
 import { computePlanLabKpis, diffPlanLabKpis } from "../../src/domain/planLab/kpis";
 import {
   computeCashRiskScorecard,
@@ -774,6 +775,7 @@ const PlanLabAccordionRow = memo(
     },
     ref
   ) {
+    const t = useTranslations("common");
     return (
       <Box
         ref={ref}
@@ -810,7 +812,7 @@ const PlanLabAccordionRow = memo(
                 </Group>
               </Stack>
               {typeof summary === "string" ? (
-                <Text size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
+                <Text display="none" size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
                   {summary || "—"}
                 </Text>
               ) : null}
@@ -827,16 +829,16 @@ const PlanLabAccordionRow = memo(
                   />
                 )}
                 {onEdit && (
-                  <ActionIcon
-                    size="sm"
+                  <Button
+                    size="xs"
                     variant="light"
                     onClick={(event) => {
                       event.stopPropagation();
                       onEdit();
                     }}
                   >
-                    <Text size="sm">✎</Text>
-                  </ActionIcon>
+                    {t("actionEdit")}
+                  </Button>
                 )}
                 {primaryAction && (
                   <Button
@@ -1296,7 +1298,7 @@ export default function PlanLabPanel({
     setEditingFocus(null);
     setViewScenarioItem(null);
   }, []);
-
+  
   const openScenarioItemView = useCallback(
     (item: ScenarioEditorItem) => {
       closeAllPlanLabDrawers();
@@ -7317,14 +7319,14 @@ export default function PlanLabPanel({
                 </Badge>
               )}
             </Group>
-            <Text size="sm" c="dimmed">
+            <Text size="xs" c="dimmed">
               {t("planLabSubtitle")}
             </Text>
           </Stack>
           <Group gap="xs" wrap="wrap">
             {mode === "edit" && (
               <Button
-                size="sm"
+                size="xs"
                 color="aurora"
                 onClick={() => {
                   setSavePlanNotes(undefined);
@@ -7337,7 +7339,7 @@ export default function PlanLabPanel({
             )}
             {mode === "edit" && (
               <Button
-                size="sm"
+                size="xs"
                 variant="outline"
                 color="polar"
                 onClick={handleUpdatePlan}
@@ -7346,7 +7348,7 @@ export default function PlanLabPanel({
                 {translate("planLabUpdatePlan", "Update plan")}
               </Button>
             )}
-            <Button size="sm" variant="subtle" color="polar" onClick={() => setPlanLibraryOpen(true)}>
+            <Button size="xs" variant="subtle" color="polar" onClick={() => setPlanLibraryOpen(true)}>
               {translate("planLabPlansButton", "Plans ({count})", {
                 count: planCount,
               })}
@@ -7359,7 +7361,7 @@ export default function PlanLabPanel({
                 )}
                 withArrow
               >
-                <Button size="sm" variant="outline" color="polar" onClick={handleSave}>
+                <Button size="xs" variant="outline" color="polar" onClick={handleSave}>
                   {translate("planLabSaveScenario", "保存到情境")}
                 </Button>
               </MantineTooltip>
@@ -7391,7 +7393,7 @@ export default function PlanLabPanel({
 
       {(
         <Grid gutter="xs">
-        <Grid.Col span={{ base: 12, md: 7 }}>
+        <Grid.Col span={{ base: 12, md: 6 }}>
           <Stack gap="xs">
             <Paper withBorder radius="xs" p="xs">
               <Stack gap="xs">
@@ -8332,7 +8334,7 @@ export default function PlanLabPanel({
           </Stack>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 5 }}>
+        <Grid.Col span={{ base: 12, md: 6 }}>
           <div style={{ position: "sticky", top: 88 }}>
             <Stack gap="xs">
               <Card withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
@@ -8346,40 +8348,41 @@ export default function PlanLabPanel({
                     </Badge>
                   </Group>
                   <Stack gap="xs">
-                    <Select
-                      label={translate("planLabKpiTargetLabel", "目標淨資產")}
-                      placeholder={translate("planLabScorecardTargetPrompt", "設定目標")}
-                      data={targetPresetOptions}
-                      value={targetSelectValue}
-                      clearable
-                      onChange={(value) => {
-                        if (!value) {
-                          setFirstBucketTargetAmount("");
-                          return;
+                    <SimpleGrid cols={{ base: 2, md: 2 }} spacing="sm">
+                      <Select
+                        label={translate("planLabKpiTargetLabel", "目標淨資產")}
+                        placeholder={translate("planLabScorecardTargetPrompt", "設定目標")}
+                        data={targetPresetOptions}
+                        value={targetSelectValue}
+                        clearable
+                        onChange={(value) => {
+                          if (!value) {
+                            setFirstBucketTargetAmount("");
+                            return;
+                          }
+                          const numeric = Number(value);
+                          setFirstBucketTargetAmount(Number.isFinite(numeric) ? numeric : "");
+                        }}
+                      />
+                      <MonthField
+                        label={translate("planLabKpiTargetMonthLabel", "目標月份")}
+                        value={targetMonthInput}
+                        onChange={(value) => setTargetMonthInput(value)}
+                        onBlur={() => {
+                          const parsed = parseMonthStrict(targetMonthInput);
+                          setTargetMonthInput(parsed.ok ? parsed.month : defaultTargetMonth);
+                        }}
+                      />
+                      <NumberInput
+                        display={"none"}
+                        label={translate("planLabScorecardTargetAmount", "目標金額")}
+                        value={firstBucketTargetAmount}
+                        min={0}
+                        onChange={(value) =>
+                          setFirstBucketTargetAmount(typeof value === "number" ? value : "")
                         }
-                        const numeric = Number(value);
-                        setFirstBucketTargetAmount(Number.isFinite(numeric) ? numeric : "");
-                      }}
-                    />
-                    <TextInput
-                      label={translate("planLabKpiTargetMonthLabel", "目標月份")}
-                      placeholder="YYYY-MM"
-                      value={targetMonthInput}
-                      onChange={(event) => setTargetMonthInput(event.currentTarget.value)}
-                      onBlur={() => {
-                        const parsed = parseMonthStrict(targetMonthInput);
-                        setTargetMonthInput(parsed.ok ? parsed.month : defaultTargetMonth);
-                      }}
-                    />
-                    <NumberInput
-                      display={"none"}
-                      label={translate("planLabScorecardTargetAmount", "目標金額")}
-                      value={firstBucketTargetAmount}
-                      min={0}
-                      onChange={(value) =>
-                        setFirstBucketTargetAmount(typeof value === "number" ? value : "")
-                      }
-                    />
+                      />
+                    </SimpleGrid>
                   </Stack>
                   {!planLabProjection.projection ? (
                     <Text size="sm" c="dimmed">

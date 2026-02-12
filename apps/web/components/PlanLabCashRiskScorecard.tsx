@@ -115,7 +115,7 @@ export const PlanLabCashRiskScorecard = ({
   }
 
   return (
-    <Card withBorder radius="md" padding="md">
+    <Card withBorder radius="xs" padding="xs">
       <Stack gap="sm">
         <Group justify="space-between" align="center" wrap="wrap">
           <Text fw={600}>{t("planLabCashRiskTitle")}</Text>
