@@ -16,7 +16,6 @@ import {
   NumberInput,
   Modal,
   Paper,
-  Popover,
   ScrollArea,
   SegmentedControl,
   Select,
@@ -24,7 +23,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Tabs,
   Text,
   TextInput,
   Title,
@@ -433,6 +431,20 @@ const mergeSeries = (baseline: TimeSeriesPoint[], option: TimeSeriesPoint[]) => 
     baseline: baselineLookup[month] ?? null,
     option: optionLookup[month] ?? null,
   }));
+};
+
+const getCurrentMonth = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const addMonthsToMonth = (baseMonth: string, months: number) => {
+  const [year, month] = baseMonth.split("-").map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month)) {
+    return baseMonth;
+  }
+  const date = new Date(year, month - 1 + months, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 };
 
 const getMonthError = (value: string, message: string) => {
@@ -1102,16 +1114,10 @@ export default function PlanLabPanel({
   const [firstBucketTargetAmount, setFirstBucketTargetAmount] = useState<number | "">(
     ""
   );
-  const [searchQuery, setSearchQuery] = useState("");
-  const [listTab, setListTab] = useState<"affected" | "all" | "risky">("all");
   const [controlsAccordionValue, setControlsAccordionValue] = useState<string | null>(
     "experiments"
   );
-  const [filterKind, setFilterKind] = useState<
-    "all" | "positions" | "assets" | "events" | "rules"
-  >("all");
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [groupBy, setGroupBy] = useState<"category" | "member" | "timeline">("category");
+  const [targetMonthInput, setTargetMonthInput] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
   const [editingFocus, setEditingFocus] = useState<"validity" | null>(null);
@@ -1217,8 +1223,6 @@ export default function PlanLabPanel({
   );
 
   const monthInvalidMessage = t("planLabMonthInvalid");
-  const showAffectedOnly = listTab === "affected";
-  const showRiskyOnly = listTab === "risky";
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>());
   const bundleIdByItemIdRef = useRef(new Map<string, string>());
   const bundleSummaryRef = useRef<HTMLDivElement | null>(null);
@@ -1302,7 +1306,6 @@ export default function PlanLabPanel({
   );
 
   const handleLocateItem = useCallback((id: string) => {
-    setListTab((current) => (current === "affected" ? current : "affected"));
     const bundleId = bundleIdByItemIdRef.current.get(id);
     const resolvedId = bundleId ? buildBundleRowId(bundleId) : id;
     const node = itemRefs.current.get(resolvedId);
@@ -1347,29 +1350,6 @@ export default function PlanLabPanel({
     }),
     []
   );
-
-  useEffect(() => {
-    const stored = localStorage.getItem("planLabActiveOnly");
-    if (stored === "true") {
-      setActiveOnly(true);
-    }
-    if (stored === "false") {
-      setActiveOnly(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("planLabActiveOnly", String(activeOnly));
-  }, [activeOnly]);
-
-  useEffect(() => {
-    if (!scenarioIsV2) {
-      return;
-    }
-    if (filterKind === "positions") {
-      setFilterKind("assets");
-    }
-  }, [filterKind, scenarioIsV2]);
 
   const baselineScenarioV2 = useMemo(
     () => buildScenarioV2FromScenario(scenario, eventLibrary),
@@ -3157,6 +3137,7 @@ export default function PlanLabPanel({
       scorecardSettings: {
         firstBucketTargetAmount:
           typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : undefined,
+        targetMonth: parseMonthStrict(targetMonthInput).ok ? targetMonthInput : undefined,
       },
       additions: {
         members: draftMembers,
@@ -3171,6 +3152,7 @@ export default function PlanLabPanel({
       draftMembers,
       experiments,
       firstBucketTargetAmount,
+      targetMonthInput,
     ]
   );
   const debouncedPlanLabDraft = useDebouncedValue(planLabDraft, 200);
@@ -3184,8 +3166,12 @@ export default function PlanLabPanel({
       scenarioV2Patches: cloneSerializable(scenarioV2Patches),
       experimentGroups: cloneSerializable(experimentGroups),
       scorecardSettings:
-        typeof firstBucketTargetAmount === "number"
-          ? { firstBucketTargetAmount }
+        typeof firstBucketTargetAmount === "number" || parseMonthStrict(targetMonthInput).ok
+          ? {
+              firstBucketTargetAmount:
+                typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : undefined,
+              targetMonth: parseMonthStrict(targetMonthInput).ok ? targetMonthInput : undefined,
+            }
           : undefined,
     };
   }, [
@@ -3194,6 +3180,7 @@ export default function PlanLabPanel({
     experiments,
     firstBucketTargetAmount,
     scenarioV2Patches,
+    targetMonthInput,
   ]);
 
   const baselineScenarioSnapshot = useMemo(() => scenario, [scenario]);
@@ -3510,6 +3497,7 @@ export default function PlanLabPanel({
         scenarioV2Patches,
         experimentGroups,
         firstBucketTargetAmount,
+        targetMonth: parseMonthStrict(targetMonthInput).ok ? targetMonthInput : null,
       }),
     [
       baselinePatches,
@@ -3517,6 +3505,7 @@ export default function PlanLabPanel({
       experiments,
       firstBucketTargetAmount,
       scenarioV2Patches,
+      targetMonthInput,
     ]
   );
   useEffect(() => {
@@ -5048,86 +5037,10 @@ export default function PlanLabPanel({
     [locale, scenario.baseCurrency, translate]
   );
 
-  const filterScenarioItems = useCallback(
-    (
-      items: ScenarioEditorItem[],
-      {
-        affectedOnly,
-        riskyOnly,
-      }: {
-        affectedOnly: boolean;
-        riskyOnly: boolean;
-      }
-    ) => {
-      const query = searchQuery.trim().toLowerCase();
-      return items.filter((item) => {
-        if (filterKind === "events" && item.kind !== "event") {
-          return false;
-        }
-        if (filterKind === "assets") {
-          if (item.kind !== "position") {
-            return false;
-          }
-          if (item.positionKind !== "asset" && item.positionKind !== "liability") {
-            return false;
-          }
-        }
-        if (filterKind === "rules" && item.kind !== "rule") {
-          return false;
-        }
-        if (filterKind === "positions" && item.kind !== "position") {
-          return false;
-        }
-        if (activeOnly && !item.enabled) {
-          return false;
-        }
-        if (affectedOnly && !isItemImpactedByEnabledExperiment(item)) {
-          return false;
-        }
-        if (riskyOnly && !item.risky) {
-          return false;
-        }
-        if (query && !item.title.toLowerCase().includes(query)) {
-          return false;
-        }
-        return true;
-      });
-    },
-    [activeOnly, filterKind, isItemImpactedByEnabledExperiment, searchQuery]
-  );
-
-  const filteredItems = useMemo(() => {
-    return filterScenarioItems(standaloneItems, {
-      affectedOnly: showAffectedOnly,
-      riskyOnly: showRiskyOnly,
-    });
-  }, [filterScenarioItems, showAffectedOnly, showRiskyOnly, standaloneItems]);
-
-  const affectedFilteredItems = useMemo(
-    () =>
-      filterScenarioItems(standaloneItems, {
-        affectedOnly: true,
-        riskyOnly: false,
-      }),
-    [filterScenarioItems, standaloneItems]
-  );
-
-  const affectedBundleCount = useMemo(() => {
-    if (!scenarioIsV2) {
-      return 0;
-    }
-    return baselineBundleCards.filter((bundle) =>
-      enabledBundleExperimentIds.has(bundle.id)
-    ).length;
-  }, [baselineBundleCards, enabledBundleExperimentIds, scenarioIsV2]);
-
-  const affectedCount = affectedFilteredItems.length + affectedBundleCount;
-
   const groupedItems = useMemo(() => {
-    const prioritizeChanges = listTab === "all";
     const groups = new Map<string, ScenarioEditorItem[]>();
-    filteredItems.forEach((item) => {
-      const groupKey = getGroupLabel(groupBy, item);
+    standaloneItems.forEach((item) => {
+      const groupKey = getGroupLabel("category", item);
       if (!groups.has(groupKey)) {
         groups.set(groupKey, []);
       }
@@ -5137,38 +5050,23 @@ export default function PlanLabPanel({
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([group, items]) => {
         const sortedItems = [...items].sort((left, right) => {
-          if (prioritizeChanges) {
-            const leftChanged = Boolean(getScenarioItemChangeStatus(left));
-            const rightChanged = Boolean(getScenarioItemChangeStatus(right));
-            if (leftChanged !== rightChanged) {
-              return leftChanged ? -1 : 1;
-            }
+          const leftChanged = Boolean(getScenarioItemChangeStatus(left));
+          const rightChanged = Boolean(getScenarioItemChangeStatus(right));
+          if (leftChanged !== rightChanged) {
+            return leftChanged ? -1 : 1;
           }
           return left.title.localeCompare(right.title);
         });
         return [group, sortedItems] as [string, ScenarioEditorItem[]];
       });
-  }, [
-    filteredItems,
-    getScenarioItemChangeStatus,
-    groupBy,
-    listTab,
-    combinedMembers,
-    categoryLabels,
-    scenarioIsV2,
-  ]);
+  }, [getScenarioItemChangeStatus, standaloneItems]);
 
   const visibleBundleCards = useMemo(() => {
     if (!scenarioIsV2) {
       return [];
     }
-    if (listTab !== "affected") {
-      return baselineBundleCards;
-    }
-    return baselineBundleCards.filter((bundle) =>
-      enabledBundleExperimentIds.has(bundle.id)
-    );
-  }, [baselineBundleCards, enabledBundleExperimentIds, listTab, scenarioIsV2]);
+    return baselineBundleCards;
+  }, [baselineBundleCards, scenarioIsV2]);
 
   const optionViewModel = useMemo(
     () =>
@@ -5400,6 +5298,90 @@ export default function PlanLabPanel({
     return preset ? preset.value : null;
   }, [firstBucketTargetAmount, targetPresetOptions]);
 
+  useEffect(() => {
+    if (typeof firstBucketTargetAmount === "number") {
+      return;
+    }
+    const firstOption = targetPresetOptions[0];
+    if (!firstOption) {
+      return;
+    }
+    const numeric = Number(firstOption.value);
+    if (Number.isFinite(numeric)) {
+      setFirstBucketTargetAmount(numeric);
+    }
+  }, [firstBucketTargetAmount, targetPresetOptions]);
+
+  const kpiBaseMonth = useMemo(() => {
+    return (
+      planLabProjection.projection?.baseMonth ??
+      baselineProjection.projection?.baseMonth ??
+      scenario.assumptions.baseMonth ??
+      planLabProjection.months[0] ??
+      baselineProjection.months[0] ??
+      getCurrentMonth()
+    );
+  }, [
+    baselineProjection.months,
+    baselineProjection.projection?.baseMonth,
+    planLabProjection.months,
+    planLabProjection.projection?.baseMonth,
+    scenario.assumptions.baseMonth,
+  ]);
+
+  const defaultTargetMonth = useMemo(() => addMonthsToMonth(kpiBaseMonth, 12), [kpiBaseMonth]);
+
+  useEffect(() => {
+    if (parseMonthStrict(targetMonthInput).ok) {
+      return;
+    }
+    setTargetMonthInput(defaultTargetMonth);
+  }, [defaultTargetMonth, targetMonthInput]);
+
+  const targetMonth = useMemo(() => {
+    const parsed = parseMonthStrict(targetMonthInput);
+    return parsed.ok ? parsed.month : defaultTargetMonth;
+  }, [defaultTargetMonth, targetMonthInput]);
+
+  const resolveNetWorthAtTargetMonth = useCallback(
+    (series: TimeSeriesPoint[]) => {
+      if (series.length === 0) {
+        return { value: null as number | null, month: null as string | null, clamped: false };
+      }
+      const monthToUse = series.some((entry) => entry.month === targetMonth)
+        ? targetMonth
+        : series.find((entry) => entry.month > targetMonth)?.month ??
+          series[series.length - 1]?.month ??
+          targetMonth;
+      const matched = series.find((entry) => entry.month === monthToUse) ?? series[series.length - 1];
+      return {
+        value: typeof matched?.value === "number" ? matched.value : null,
+        month: matched?.month ?? null,
+        clamped: matched?.month !== targetMonth,
+      };
+    },
+    [targetMonth]
+  );
+
+  const optionNetWorthAtTargetMonth = useMemo(
+    () => resolveNetWorthAtTargetMonth(optionSeries.netWorth),
+    [optionSeries.netWorth, resolveNetWorthAtTargetMonth]
+  );
+
+  const baselineNetWorthAtTargetMonth = useMemo(
+    () => resolveNetWorthAtTargetMonth(baselineSeries.netWorth),
+    [baselineSeries.netWorth, resolveNetWorthAtTargetMonth]
+  );
+
+  const targetMonthNetWorthDelta = useMemo(() => {
+    const valueA = optionNetWorthAtTargetMonth.value;
+    const valueB = baselineNetWorthAtTargetMonth.value;
+    if (typeof valueA !== "number" || typeof valueB !== "number") {
+      return null;
+    }
+    return valueA - valueB;
+  }, [baselineNetWorthAtTargetMonth.value, optionNetWorthAtTargetMonth.value]);
+
   const formatMonthLabel = useCallback(
     (month: string | null | undefined, fallback: string) =>
       month ? t("monthLabel", { month }) : fallback,
@@ -5492,15 +5474,13 @@ export default function PlanLabPanel({
       negativeNotReached
     );
 
-    const endNetWorthA = optionKpis?.endNetWorth ?? null;
-    const endNetWorthB = baselineKpis?.endNetWorth ?? null;
-    const endNetWorthAValue =
-      endNetWorthA !== null
-        ? formatCurrency(endNetWorthA, scenario.baseCurrency, locale)
+    const targetMonthNetWorthAValue =
+      optionNetWorthAtTargetMonth.value !== null
+        ? formatCurrency(optionNetWorthAtTargetMonth.value, scenario.baseCurrency, locale)
         : notAvailable;
-    const endNetWorthBValue =
-      endNetWorthB !== null
-        ? formatCurrency(endNetWorthB, scenario.baseCurrency, locale)
+    const targetMonthNetWorthBValue =
+      baselineNetWorthAtTargetMonth.value !== null
+        ? formatCurrency(baselineNetWorthAtTargetMonth.value, scenario.baseCurrency, locale)
         : notAvailable;
 
     const targetConfigured = typeof firstBucketTargetValue === "number";
@@ -5537,12 +5517,12 @@ export default function PlanLabPanel({
         ),
       },
       {
-        key: "endNetWorth",
+        key: "targetMonthNetWorth",
         better: "higher",
-        label: translate("planLabKpiEndNetWorth", "期末淨資產"),
-        valueA: endNetWorthAValue,
-        valueB: endNetWorthBValue,
-        delta: formatDeltaDisplay(kpiDiff.endNetWorth, null),
+        label: translate("planLabKpiTargetMonthNetWorth", "目標月份淨資產"),
+        valueA: targetMonthNetWorthAValue,
+        valueB: targetMonthNetWorthBValue,
+        delta: formatDeltaDisplay(targetMonthNetWorthDelta, null),
       },
       {
         key: "targetMonth",
@@ -5561,13 +5541,16 @@ export default function PlanLabPanel({
     ];
   }, [
     baselineKpis,
+    baselineNetWorthAtTargetMonth.value,
     firstBucketTargetValue,
     formatDeltaDisplay,
     formatMonthLabel,
     kpiDiff,
     locale,
     optionKpis,
+    optionNetWorthAtTargetMonth.value,
     scenario.baseCurrency,
+    targetMonthNetWorthDelta,
     translate,
   ]);
 
@@ -6840,6 +6823,11 @@ export default function PlanLabPanel({
         ? snapshot.scorecardSettings.firstBucketTargetAmount
         : ""
     );
+    setTargetMonthInput(
+      parseMonthStrict(snapshot.scorecardSettings?.targetMonth ?? "").ok
+        ? (snapshot.scorecardSettings?.targetMonth as string)
+        : defaultTargetMonth
+    );
     setDraftMembers([]);
     setDraftBudgetRules([]);
     setDraftEvents([]);
@@ -7420,145 +7408,6 @@ export default function PlanLabPanel({
                     </Text>
                   </MantineTooltip>
                 </Group>
-                <Stack gap="xs">
-                  <Group align="flex-end" wrap="wrap">
-                    <TextInput
-                      size="sm"
-                      label={translate("planLabSearchLabel", "搜尋")}
-                      placeholder={translate("planLabSearchPlaceholder", "搜尋項目")}
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                      style={{ flex: 1, minWidth: 220 }}
-                    />
-                    <Popover position="bottom-end" withArrow shadow="xs">
-                      <Popover.Target>
-                        <Button size="sm" variant="light">
-                          {translate("planLabFilterPopoverLabel", "篩選")}
-                        </Button>
-                      </Popover.Target>
-                      <Popover.Dropdown>
-                        <Stack gap="sm">
-                          <MantineTooltip
-                            label={translate(
-                              "planLabFilterActiveTooltip",
-                              "只顯示已啟用的項目。"
-                            )}
-                            withArrow
-                          >
-                            <Switch
-                              size="sm"
-                              label={translate("planLabFilterActiveLabel", "只顯示啟用")}
-                              checked={activeOnly}
-                              onChange={(event) => setActiveOnly(event.currentTarget.checked)}
-                            />
-                          </MantineTooltip>
-                          <Stack gap={4}>
-                            <Text size="xs" fw={600}>
-                              {translate("planLabFilterKindLabel", "分類")}
-                            </Text>
-                            <SegmentedControl
-                              size="sm"
-                              data={
-                                scenarioIsV2
-                                  ? [
-                                      {
-                                        value: "all",
-                                        label: translate("planLabFilterAllLabel", "全部"),
-                                      },
-                                      {
-                                        value: "assets",
-                                        label: translate(
-                                          "planLabFilterPositionsLabel",
-                                          "資產"
-                                        ),
-                                      },
-                                      {
-                                        value: "events",
-                                        label: translate("planLabFilterEventsLabel", "事件"),
-                                      },
-                                      {
-                                        value: "rules",
-                                        label: translate("planLabFilterRulesLabel", "規則"),
-                                      },
-                                    ]
-                                  : [
-                                      {
-                                        value: "all",
-                                        label: translate("planLabFilterAllLabel", "全部"),
-                                      },
-                                      {
-                                        value: "positions",
-                                        label: translate(
-                                          "planLabFilterPositionsLabel",
-                                          "資產"
-                                        ),
-                                      },
-                                      {
-                                        value: "events",
-                                        label: translate("planLabFilterEventsLabel", "事件"),
-                                      },
-                                      {
-                                        value: "rules",
-                                        label: translate("planLabFilterRulesLabel", "規則"),
-                                      },
-                                    ]
-                              }
-                              value={filterKind}
-                              onChange={(value) => setFilterKind(value as typeof filterKind)}
-                            />
-                          </Stack>
-                          <Stack gap={4}>
-                            <Text size="xs" fw={600}>
-                              {translate("planLabGroupLabel", "分組")}
-                            </Text>
-                            <SegmentedControl
-                              size="sm"
-                              data={[
-                                {
-                                  value: "category",
-                                  label: translate("planLabGroupCategoryLabel", "分類"),
-                                },
-                                {
-                                  value: "member",
-                                  label: translate("planLabGroupMemberLabel", "成員"),
-                                },
-                                {
-                                  value: "timeline",
-                                  label: translate("planLabGroupTimelineLabel", "時間"),
-                                },
-                              ]}
-                              value={groupBy}
-                              onChange={(value) => setGroupBy(value as typeof groupBy)}
-                            />
-                          </Stack>
-                        </Stack>
-                      </Popover.Dropdown>
-                    </Popover>
-                  </Group>
-                  <Tabs
-                    value={listTab}
-                    onChange={(value) => value && setListTab(value as typeof listTab)}
-                  >
-                    <Tabs.List
-                      style={{
-                        flexWrap: isMobile ? "nowrap" : "wrap",
-                        overflowX: isMobile ? "auto" : "visible",
-                      }}
-                    >
-                      <Tabs.Tab value="all">
-                        {translate("planLabTabAll", "全部")}
-                      </Tabs.Tab>
-                      <Tabs.Tab value="affected">
-                        {translate("planLabTabAffected", "受影響 ({count})", {
-                          count: affectedCount,
-                        })}
-                      </Tabs.Tab>
-                      <Tabs.Tab value="risky">
-                        {translate("planLabTabRisky", "高風險")}
-                      </Tabs.Tab>
-                    </Tabs.List>
-                  </Tabs>
-                </Stack>
                 {groupedItems.length === 0 && !showBundleSection ? (
                   <Text size="sm" c="dimmed">
                     {translate("planLabFilterEmpty", "沒有符合條件的項目。")}
@@ -7759,7 +7608,7 @@ export default function PlanLabPanel({
                               )}
                             </Text>
                             <Badge variant="light" color="blue">
-                              {filteredItems.length}
+                              {standaloneItems.length}
                             </Badge>
                           </Group>
                         </Accordion.Control>
@@ -8510,6 +8359,16 @@ export default function PlanLabPanel({
                         }
                         const numeric = Number(value);
                         setFirstBucketTargetAmount(Number.isFinite(numeric) ? numeric : "");
+                      }}
+                    />
+                    <TextInput
+                      label={translate("planLabKpiTargetMonthLabel", "目標月份")}
+                      placeholder="YYYY-MM"
+                      value={targetMonthInput}
+                      onChange={(event) => setTargetMonthInput(event.currentTarget.value)}
+                      onBlur={() => {
+                        const parsed = parseMonthStrict(targetMonthInput);
+                        setTargetMonthInput(parsed.ok ? parsed.month : defaultTargetMonth);
                       }}
                     />
                     <NumberInput
