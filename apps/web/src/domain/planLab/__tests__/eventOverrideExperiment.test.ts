@@ -1,50 +1,64 @@
 import { describe, expect, it } from "vitest";
-import { buildEventOverridePatch, type EventOverrideExperimentSpec } from "../eventOverrideExperiment";
-import type { ScenarioEvent } from "../../scenarioV2/events";
+import { buildEventOverridePatch } from "../eventOverrideExperiment";
+import type { CashflowEvent } from "../../scenarioV2/events";
 
-const baseEvent: ScenarioEvent = {
-  id: "salary-1",
+const baseEvent: CashflowEvent = {
+  id: "rent-1",
   type: "cashflow",
-  kind: "income",
+  kind: "expense",
+  label: "Rent",
   cadence: "monthly",
-  amount: 30000,
-  startMonth: "2026-01",
-  endMonth: "2030-12",
-  label: "固定薪金",
+  amount: 12000,
+  startMonth: "2026-02",
+  endMonth: undefined,
 };
 
 describe("buildEventOverridePatch", () => {
-  it("applies amount multiplier and month shift", () => {
-    const spec: EventOverrideExperimentSpec = {
+  it("supports amountSet override", () => {
+    const patch = buildEventOverridePatch(baseEvent, {
       id: "exp-1",
-      title: "薪金 +10%",
+      title: "set amount",
       type: "event_override",
-      targetEventId: "salary-1",
+      targetEventId: "rent-1",
       changes: {
-        amountMultiplier: 1.1,
-        startMonthShift: 2,
+        amountSet: 0,
       },
-    };
-
-    expect(buildEventOverridePatch(baseEvent, spec)).toMatchObject({
-      amount: 33000,
-      startMonth: "2026-03",
     });
+
+    expect(patch).toMatchObject({ amount: 0 });
   });
 
-  it("supports end month override", () => {
-    const spec: EventOverrideExperimentSpec = {
+  it("supports setEndMonth when baseline has no end month", () => {
+    const patch = buildEventOverridePatch(baseEvent, {
       id: "exp-2",
-      title: "提早結束",
+      title: "set end month",
       type: "event_override",
-      targetEventId: "salary-1",
+      targetEventId: "rent-1",
       changes: {
-        endMonthShift: -3,
+        setEndMonth: "2027-01",
       },
-    };
-
-    expect(buildEventOverridePatch(baseEvent, spec)).toMatchObject({
-      endMonth: "2030-09",
     });
+
+    expect(patch).toMatchObject({ endMonth: "2027-01" });
+  });
+
+  it("supports clearing end month explicitly", () => {
+    const patch = buildEventOverridePatch(
+      {
+        ...baseEvent,
+        endMonth: "2028-03",
+      },
+      {
+        id: "exp-3",
+        title: "clear end month",
+        type: "event_override",
+        targetEventId: "rent-1",
+        changes: {
+          setEndMonth: null,
+        },
+      }
+    );
+
+    expect(Object.prototype.hasOwnProperty.call(patch, "endMonth")).toBe(false);
   });
 });

@@ -582,7 +582,7 @@ export const computeProjectionWithSmartInvest = (
 export const useProjectionWithLedger = (
   scenario: Scenario | null | undefined,
   eventLibrary: EventDefinition[],
-  options: { members?: ScenarioMember[]; budgetRules?: BudgetRule[] } = {}
+  options: { members?: ScenarioMember[]; budgetRules?: BudgetRule[]; horizonMonths?: number } = {}
 ): ProjectionWithLedger =>
   useMemo(() => {
     if (!scenario) {
@@ -599,7 +599,17 @@ export const useProjectionWithLedger = (
       smartInvestTransferSeries,
     } = isV2
       ? (() => {
-          const input = compileScenarioV2ToProjectionInput(scenario);
+          const projectionScenario =
+            typeof options.horizonMonths === "number"
+              ? {
+                  ...scenario,
+                  assumptions: {
+                    ...scenario.assumptions,
+                    horizonMonths: options.horizonMonths,
+                  },
+                }
+              : scenario;
+          const input = compileScenarioV2ToProjectionInput(projectionScenario);
           const projection = computeProjection(input);
           return {
             input,
@@ -613,6 +623,7 @@ export const useProjectionWithLedger = (
       : computeProjectionWithSmartInvest(scenario, eventLibrary, {
           members: options.members ?? [],
           budgetRules: options.budgetRules ?? [],
+          horizonMonths: options.horizonMonths,
         });
     const scenarioForLedger = {
       ...scenario,
@@ -771,4 +782,4 @@ export const useProjectionWithLedger = (
       projectionWarnings: warnings,
       smartInvestTransferSeries,
     };
-  }, [eventLibrary, options.budgetRules, options.members, scenario]);
+  }, [eventLibrary, options.budgetRules, options.members, options.horizonMonths, scenario]);

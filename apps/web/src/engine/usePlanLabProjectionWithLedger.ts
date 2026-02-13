@@ -225,6 +225,7 @@ export const usePlanLabProjectionWithLedger = (
     members?: ScenarioMember[];
     budgetRules?: BudgetRule[];
     patches?: PlanPatch[];
+    horizonMonths?: number;
   } = {}
 ): ProjectionWithLedger =>
   useMemo(() => {
@@ -267,6 +268,7 @@ export const usePlanLabProjectionWithLedger = (
     } = computeProjectionWithSmartInvest(applyResult.scenario, combinedEventLibrary, {
       members: planLabMembers,
       budgetRules: planLabBudgetRules,
+      horizonMonths: options.horizonMonths,
     });
 
     const scenarioForLedger = {
@@ -421,5 +423,6 @@ export const usePlanLabProjectionWithLedger = (
     options.budgetRules,
     options.members,
     options.patches,
+    options.horizonMonths,
     scenario,
   ]);

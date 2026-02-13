@@ -209,6 +209,9 @@ import {
   formatScenarioAssumptionSummary,
   getScenarioAssumptionOverrideEntries,
 } from "./experimentSummary";
+import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
+import { buildTimelineItemsForPreview } from "./timelinePreview";
+import { buildMonthScale } from "../../lib/chart/monthScale";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -279,10 +282,17 @@ type ScenarioEditorItem = {
 
 type EventExperimentDraft = {
   targetEventId: string | null;
-  amountMode: "percent" | "hkd";
+  amountMode: "delta" | "set";
+  deltaUnit: "percent" | "hkd";
   amountValue: number;
+  setAmountValue: number | null;
+  startMonthMode: "offset" | "month";
   startShiftMonths: number;
+  startMonthValue: string;
+  endMonthMode: "offset" | "month";
   endShiftMonths: number;
+  endMonthValue: string;
+  clearEndMonth: boolean;
   growthMode: "unchanged" | "assumption" | "custom" | "none";
   growthRate: number;
 };
@@ -330,6 +340,7 @@ type PlanLabTopDriver = {
 };
 
 const TOP_DRIVER_COUNT = 5;
+const PLANLAB_MAX_MONTHS = 360;
 
 const ENV_ASSUMPTION_LABELS: Record<keyof ScenarioAssumptionsOverride, string> = {
   inflationRate: "通脹率",
@@ -1127,6 +1138,8 @@ export default function PlanLabPanel({
   );
   const [targetMonthInput, setTargetMonthInput] = useState("");
   const [chartPreviewOpen, setChartPreviewOpen] = useState(false);
+  const [hoverMonthIdx, setHoverMonthIdx] = useState<number | null>(null);
+  const [lockedMonthIdx, setLockedMonthIdx] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
   const [editingFocus, setEditingFocus] = useState<"validity" | null>(null);
@@ -1206,10 +1219,17 @@ export default function PlanLabPanel({
   const [eventExperimentDrawerOpen, setEventExperimentDrawerOpen] = useState(false);
   const [eventExperimentDraft, setEventExperimentDraft] = useState<EventExperimentDraft>({
     targetEventId: null,
-    amountMode: "percent",
+    amountMode: "delta",
+    deltaUnit: "percent",
     amountValue: 0,
+    setAmountValue: null,
+    startMonthMode: "offset",
     startShiftMonths: 0,
+    startMonthValue: scenario.assumptions.baseMonth ?? "",
+    endMonthMode: "offset",
     endShiftMonths: 0,
+    endMonthValue: "",
+    clearEndMonth: false,
     growthMode: "unchanged",
     growthRate: 0,
   });
@@ -1241,7 +1261,7 @@ export default function PlanLabPanel({
 
   const registerItemRef = useCallback((id: string, node: HTMLDivElement | null) => {
     itemRefs.current.set(id, node);
-  }, []);
+  }, [scenario.assumptions.baseMonth]);
 
   const closeAllPlanLabDrawers = useCallback(() => {
     setMemberDrawerOpen(false);
@@ -1288,10 +1308,17 @@ export default function PlanLabPanel({
     setEventExperimentDrawerOpen(false);
     setEventExperimentDraft({
       targetEventId: null,
-      amountMode: "percent",
+      amountMode: "delta",
+      deltaUnit: "percent",
       amountValue: 0,
+      setAmountValue: null,
+      startMonthMode: "offset",
       startShiftMonths: 0,
+      startMonthValue: scenario.assumptions.baseMonth ?? "",
+      endMonthMode: "offset",
       endShiftMonths: 0,
+      endMonthValue: "",
+      clearEndMonth: false,
       growthMode: "unchanged",
       growthRate: 0,
     });
@@ -3573,27 +3600,43 @@ export default function PlanLabPanel({
     );
   }, [budgetRules, eventLibrary, members, sandboxPatches, scenario, scenarioIsV2, warningsT]);
 
+  const projectionMonths = Math.max(scenario.assumptions.horizonMonths ?? 0, PLANLAB_MAX_MONTHS);
+  const displayMonths = scenario.assumptions.horizonMonths ?? 0;
+
   const legacyPlanLabProjection = usePlanLabProjectionWithLedger(
     scenarioIsV2 ? null : debouncedPlanLabDraft,
     scenarioIsV2 ? null : baselineScenarioSnapshot,
     eventLibrary,
-    { members, budgetRules, patches: scenarioIsV2 ? [] : sandboxPatches }
+    {
+      members,
+      budgetRules,
+      patches: scenarioIsV2 ? [] : sandboxPatches,
+      horizonMonths: projectionMonths,
+    }
   );
   const legacyBaselineProjection = usePlanLabProjectionWithLedger(
     null,
     scenarioIsV2 ? null : baselineScenarioSnapshot,
     eventLibrary,
-    { members, budgetRules, patches: [] }
+    { members, budgetRules, patches: [], horizonMonths: projectionMonths }
   );
   const v2PlanLabProjection = useProjectionWithLedger(
     scenarioIsV2 ? (debouncedSandboxScenarioV2 as unknown as Scenario) : null,
     eventLibrary,
-    { members: sandboxScenarioV2.members ?? [], budgetRules: [] }
+    {
+      members: sandboxScenarioV2.members ?? [],
+      budgetRules: [],
+      horizonMonths: projectionMonths,
+    }
   );
   const v2BaselineProjection = useProjectionWithLedger(
     scenarioIsV2 ? (baselineScenarioV2 as unknown as Scenario) : null,
     eventLibrary,
-    { members: baselineScenarioV2.members ?? [], budgetRules: [] }
+    {
+      members: baselineScenarioV2.members ?? [],
+      budgetRules: [],
+      horizonMonths: projectionMonths,
+    }
   );
 
   const planLabProjection = scenarioIsV2 ? v2PlanLabProjection : legacyPlanLabProjection;
@@ -3663,12 +3706,25 @@ export default function PlanLabPanel({
   const openEventExperimentDrawer = useCallback(
     (eventId?: string) => {
       closeAllPlanLabDrawers();
+      const baselineEvent = (baselineScenarioV2.events ?? []).find((event) => event.id === eventId) ?? null;
+      const baselineStartMonth =
+        baselineEvent && baselineEvent.type === "cashflow"
+          ? baselineEvent.startMonth ?? scenario.assumptions.baseMonth ?? ""
+          : scenario.assumptions.baseMonth ?? "";
+      const baselineEndMonth = baselineEvent && baselineEvent.type === "cashflow" ? baselineEvent.endMonth ?? "" : "";
       setEventExperimentDraft({
         targetEventId: eventId ?? null,
-        amountMode: "percent",
+        amountMode: "delta",
+        deltaUnit: "percent",
         amountValue: 0,
+        setAmountValue: baselineEvent && baselineEvent.type === "cashflow" ? baselineEvent.amount : 0,
+        startMonthMode: "offset",
         startShiftMonths: 0,
+        startMonthValue: baselineStartMonth,
+        endMonthMode: "offset",
         endShiftMonths: 0,
+        endMonthValue: baselineEndMonth,
+        clearEndMonth: false,
         growthMode: "unchanged",
         growthRate: 0,
       });
@@ -3689,27 +3745,66 @@ export default function PlanLabPanel({
       setPlanToast(translate("planLabExperimentEventMissing", "找不到目標事件。"));
       return;
     }
+    const baselineStartMonth =
+      baselineEvent.type === "cashflow"
+        ? baselineEvent.startMonth ?? scenario.assumptions.baseMonth ?? ""
+        : scenario.assumptions.baseMonth ?? "";
+    const baselineEndMonth = baselineEvent.type === "cashflow" ? baselineEvent.endMonth ?? null : null;
+    const resolvedStartMonth =
+      eventExperimentDraft.startMonthMode === "month"
+        ? eventExperimentDraft.startMonthValue || baselineStartMonth
+        : baselineStartMonth;
+    const resolvedEndMonth =
+      eventExperimentDraft.endMonthMode === "month"
+        ? eventExperimentDraft.clearEndMonth
+          ? null
+          : eventExperimentDraft.endMonthValue || baselineEndMonth
+        : baselineEndMonth;
+    const startMonthShift =
+      eventExperimentDraft.startMonthMode === "offset"
+        ? eventExperimentDraft.startShiftMonths
+        : monthIndex(baselineStartMonth, resolvedStartMonth);
+    const endMonthShift =
+      eventExperimentDraft.endMonthMode === "offset" && baselineEndMonth
+        ? eventExperimentDraft.endShiftMonths
+        : undefined;
+
     const spec: EventOverrideExperimentSpec = {
       id: `event_override_${nanoid(8)}`,
       title: `事件實驗：${baselineEvent.label ?? baselineEvent.id}`,
       type: "event_override",
       targetEventId: baselineEvent.id,
       changes: {
+        amountSet:
+          eventExperimentDraft.amountMode === "set" &&
+          typeof eventExperimentDraft.setAmountValue === "number"
+            ? eventExperimentDraft.setAmountValue
+            : undefined,
         amountMultiplier:
-          eventExperimentDraft.amountMode === "percent"
+          eventExperimentDraft.amountMode === "delta" &&
+          eventExperimentDraft.deltaUnit === "percent"
             ? 1 + eventExperimentDraft.amountValue / 100
             : undefined,
         amountDelta:
-          eventExperimentDraft.amountMode === "hkd"
+          eventExperimentDraft.amountMode === "delta" &&
+          eventExperimentDraft.deltaUnit === "hkd"
             ? eventExperimentDraft.amountValue
             : undefined,
-        startMonthShift:
-          eventExperimentDraft.startShiftMonths !== 0
-            ? eventExperimentDraft.startShiftMonths
+        startMonthShift: startMonthShift !== 0 ? startMonthShift : undefined,
+        startMonth:
+          eventExperimentDraft.startMonthMode === "month" &&
+          resolvedStartMonth !== baselineStartMonth
+            ? resolvedStartMonth
             : undefined,
-        endMonthShift:
-          eventExperimentDraft.endShiftMonths !== 0
-            ? eventExperimentDraft.endShiftMonths
+        endMonthShift: endMonthShift !== 0 ? endMonthShift : undefined,
+        setEndMonth:
+          eventExperimentDraft.endMonthMode === "month" &&
+          (eventExperimentDraft.clearEndMonth || !baselineEndMonth)
+            ? resolvedEndMonth
+            : undefined,
+        endMonth:
+          eventExperimentDraft.endMonthMode === "month" && baselineEndMonth
+            ? resolvedEndMonth
             : undefined,
         growthMode:
           eventExperimentDraft.growthMode === "unchanged"
@@ -3773,6 +3868,7 @@ export default function PlanLabPanel({
     baselineScenarioV2.events,
     eventExperimentDraft,
     locale,
+    scenario.assumptions.baseMonth,
     scenario.baseCurrency,
     setScenarioV2Patches,
     translate,
@@ -3818,18 +3914,87 @@ export default function PlanLabPanel({
     [baselineScenarioV2.events, eventExperimentDraft.targetEventId]
   );
 
+  useEffect(() => {
+    if (!selectedEventExperimentEvent || selectedEventExperimentEvent.type !== "cashflow") {
+      return;
+    }
+    setEventExperimentDraft((current) => {
+      if (current.targetEventId !== selectedEventExperimentEvent.id) {
+        return current;
+      }
+      const startMonth =
+        selectedEventExperimentEvent.startMonth ?? scenario.assumptions.baseMonth ?? "";
+      const endMonth = selectedEventExperimentEvent.endMonth ?? "";
+      if (
+        current.startMonthValue === startMonth &&
+        current.endMonthValue === endMonth &&
+        current.setAmountValue !== null
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        startMonthValue: startMonth,
+        endMonthValue: endMonth,
+        setAmountValue:
+          current.setAmountValue === null ? selectedEventExperimentEvent.amount : current.setAmountValue,
+      };
+    });
+  }, [scenario.assumptions.baseMonth, selectedEventExperimentEvent]);
+
   const eventExperimentPreviewAmount = useMemo(() => {
     if (!selectedEventExperimentEvent || selectedEventExperimentEvent.type !== "cashflow") {
       return null;
     }
-    if (eventExperimentDraft.amountMode === "percent") {
+    if (eventExperimentDraft.amountMode === "set") {
+      return typeof eventExperimentDraft.setAmountValue === "number"
+        ? Math.max(0, Math.round(eventExperimentDraft.setAmountValue))
+        : null;
+    }
+    if (eventExperimentDraft.deltaUnit === "percent") {
       return Math.round(
         selectedEventExperimentEvent.amount *
           (1 + eventExperimentDraft.amountValue / 100)
       );
     }
     return Math.round(selectedEventExperimentEvent.amount + eventExperimentDraft.amountValue);
-  }, [eventExperimentDraft.amountMode, eventExperimentDraft.amountValue, selectedEventExperimentEvent]);
+  }, [
+    eventExperimentDraft.amountMode,
+    eventExperimentDraft.amountValue,
+    eventExperimentDraft.deltaUnit,
+    eventExperimentDraft.setAmountValue,
+    selectedEventExperimentEvent,
+  ]);
+
+  const baselineEventStartMonth =
+    selectedEventExperimentEvent && selectedEventExperimentEvent.type === "cashflow"
+      ? selectedEventExperimentEvent.startMonth ?? scenario.assumptions.baseMonth ?? ""
+      : scenario.assumptions.baseMonth ?? "";
+  const resolvedExperimentStartMonth =
+    eventExperimentDraft.startMonthMode === "month"
+      ? eventExperimentDraft.startMonthValue || baselineEventStartMonth
+      : addMonthsToMonth(baselineEventStartMonth, eventExperimentDraft.startShiftMonths);
+  const resolvedExperimentEndMonth =
+    eventExperimentDraft.endMonthMode === "month"
+      ? eventExperimentDraft.clearEndMonth
+        ? null
+        : eventExperimentDraft.endMonthValue || null
+      : selectedEventExperimentEvent && selectedEventExperimentEvent.type === "cashflow" && selectedEventExperimentEvent.endMonth
+        ? addMonthsToMonth(selectedEventExperimentEvent.endMonth, eventExperimentDraft.endShiftMonths)
+        : null;
+  const eventExperimentRangeInvalid =
+    Boolean(resolvedExperimentEndMonth) &&
+    Boolean(resolvedExperimentStartMonth) &&
+    monthIndex(resolvedExperimentStartMonth, resolvedExperimentEndMonth as string) < 0;
+  const eventExperimentPercentOnZero =
+    selectedEventExperimentEvent?.type === "cashflow" &&
+    selectedEventExperimentEvent.amount === 0 &&
+    eventExperimentDraft.amountMode === "delta" &&
+    eventExperimentDraft.deltaUnit === "percent";
+  const canSubmitEventExperiment =
+    Boolean(eventExperimentDraft.targetEventId) &&
+    !eventExperimentRangeInvalid &&
+    !(eventExperimentDraft.amountMode === "set" && typeof eventExperimentDraft.setAmountValue !== "number");
 
   const canCreateExperimentFromItem = useCallback(
     (item: ScenarioEditorItem): boolean => {
@@ -5085,7 +5250,7 @@ export default function PlanLabPanel({
     [planLabProjection.projection]
   );
 
-  const optionSeries = useMemo(() => {
+  const optionFullSeries = useMemo(() => {
     if (!optionViewModel || !planLabProjection.projection) {
       return {
         cash: [],
@@ -5111,6 +5276,51 @@ export default function PlanLabPanel({
     }
     return base;
   }, [deflateSeries, displayMode, optionViewModel, planLabProjection]);
+
+  const optionSeries = useMemo(
+    () => ({
+      cash: optionFullSeries.cash.slice(0, displayMonths),
+      netWorth: optionFullSeries.netWorth.slice(0, displayMonths),
+      netCashflow: optionFullSeries.netCashflow.slice(0, displayMonths),
+    }),
+    [displayMonths, optionFullSeries.cash, optionFullSeries.netCashflow, optionFullSeries.netWorth]
+  );
+
+  const baselineFullSeries = useMemo(
+    () => ({
+      cash: baselineSeries.cash,
+      netWorth:
+        displayMode === "real"
+          ? deflateSeries(
+              baselineProjection.projection
+                ? projectionToOverviewViewModel(baselineProjection.projection).netWorthSeries
+                : []
+            )
+          : baselineProjection.projection
+            ? projectionToOverviewViewModel(baselineProjection.projection).netWorthSeries
+            : [],
+      netCashflow:
+        displayMode === "real"
+          ? deflateSeries(
+              baselineProjection.months.map((month) => ({
+                month,
+                value: baselineProjection.projectionNetCashflowByMonth?.[month] ?? 0,
+              }))
+            )
+          : baselineProjection.months.map((month) => ({
+              month,
+              value: baselineProjection.projectionNetCashflowByMonth?.[month] ?? 0,
+            })),
+    }),
+    [
+      baselineProjection.months,
+      baselineProjection.projection,
+      baselineProjection.projectionNetCashflowByMonth,
+      baselineSeries.cash,
+      deflateSeries,
+      displayMode,
+    ]
+  );
 
   const firstBucketTargetValue =
     typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : null;
@@ -5260,6 +5470,62 @@ export default function PlanLabPanel({
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
 
+  const previewMonthScale = useMemo(
+    () => buildMonthScale(chartData, { isMobile, leftGutterPx: 72, rightPaddingPx: 24 }),
+    [chartData, isMobile]
+  );
+
+  const activeMonthIdx = lockedMonthIdx ?? hoverMonthIdx;
+
+  const activeMonthKey =
+    activeMonthIdx !== null && activeMonthIdx >= 0
+      ? previewMonthScale.months[activeMonthIdx] ?? null
+      : null;
+
+  const cursorX = activeMonthKey ? previewMonthScale.xOfMonth(activeMonthKey) : null;
+
+  useEffect(() => {
+    if (!chartPreviewOpen) {
+      setHoverMonthIdx(null);
+      setLockedMonthIdx(null);
+    }
+  }, [chartPreviewOpen]);
+
+  const previewTimelineRange = useMemo(() => {
+    const startYM =
+      planLabProjection.months[0] ??
+      scenario.assumptions.baseMonth ??
+      baselineProjection.months[0] ??
+      null;
+    const endYM =
+      planLabProjection.months[Math.max(0, displayMonths - 1)] ??
+      baselineProjection.months[Math.max(0, displayMonths - 1)] ??
+      null;
+    if (!startYM || !endYM) {
+      return null;
+    }
+    return { startYM, endYM };
+  }, [baselineProjection.months, displayMonths, planLabProjection.months, scenario.assumptions.baseMonth]);
+
+  const previewTimelineItems = useMemo(() => {
+    if (!previewTimelineRange) {
+      return [];
+    }
+    return buildTimelineItemsForPreview(
+      scenarioItems.map((item) => ({
+        id: item.id,
+        label: item.title,
+        kind: item.kind,
+        category: item.category,
+        startMonth: item.startMonth,
+        endMonth: item.endMonth,
+        enabled: item.enabled,
+        frequency: item.frequency,
+      })),
+      previewTimelineRange
+    );
+  }, [previewTimelineRange, scenarioItems]);
+
   const planLabNetWorthByMonth = useMemo(
     () =>
       planLabProjection.projection?.months.reduce<Record<string, number>>((acc, month, index) => {
@@ -5294,43 +5560,93 @@ export default function PlanLabPanel({
   }, [baselineBundleGroups, bundleInstanceRecords, resolveBundleExperimentTitle]);
 
   const renderProjectionChart = useCallback(
-    (height: number) => (
-      <div style={{ width: "100%", height }}>
-        <ResponsiveContainer>
-          <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-            <YAxis
-              tick={{ fontSize: 10 }}
-              width={72}
-              tickFormatter={(value) => formatCurrency(Number(value), undefined, locale)}
-            />
-            <RechartsTooltip
-              formatter={(value) => formatCurrency(Number(value), undefined, locale)}
-              labelFormatter={(label) => t("monthLabel", { month: label })}
-            />
-            <RechartsLegend verticalAlign="top" height={24} />
-            <Line
-              type="monotone"
-              dataKey="baseline"
-              stroke="#adb5bd"
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={false}
-              name={mode === "compare" ? "B" : t("planLabBaselineLabel")}
-            />
-            <Line
-              type="monotone"
-              dataKey="option"
-              stroke="#12b886"
-              strokeWidth={2}
-              dot={false}
-              name={mode === "compare" ? "A" : t("planLabOptionLabel")}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    ),
-    [chartData, locale, mode, t]
+    (
+      height: number,
+      options?: {
+        hideXAxis?: boolean;
+        syncCrosshair?: boolean;
+        fixedWidth?: number;
+      }
+    ) => {
+      const chart = (
+        <LineChart
+          width={options?.fixedWidth}
+          height={height}
+          data={chartData}
+          margin={{ left: 0, right: options?.syncCrosshair ? previewMonthScale.rightPaddingPx : 12 }}
+          onMouseMove={(state) => {
+            if (!options?.syncCrosshair || lockedMonthIdx !== null) {
+              return;
+            }
+            const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
+            setHoverMonthIdx(idx);
+          }}
+          onMouseLeave={() => {
+            if (!options?.syncCrosshair || lockedMonthIdx !== null) {
+              return;
+            }
+            setHoverMonthIdx(null);
+          }}
+          onClick={(state) => {
+            if (!options?.syncCrosshair) {
+              return;
+            }
+            const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
+            if (idx === null) {
+              return;
+            }
+            setLockedMonthIdx((current) => (current === idx ? null : idx));
+            setHoverMonthIdx(idx);
+          }}
+        >
+          <XAxis
+            dataKey="month"
+            tick={options?.syncCrosshair ? false : { fontSize: 10 }}
+            tickLine={false}
+            axisLine={!options?.syncCrosshair}
+            hide={Boolean(options?.hideXAxis)}
+          />
+          <YAxis
+            tick={{ fontSize: 10 }}
+            width={previewMonthScale.leftGutterPx}
+            tickFormatter={(value) => formatCurrency(Number(value), undefined, locale)}
+          />
+          <RechartsTooltip
+            formatter={(value) => formatCurrency(Number(value), undefined, locale)}
+            labelFormatter={(label) => t("monthLabel", { month: label })}
+          />
+          <RechartsLegend verticalAlign="top" height={24} />
+          <Line
+            type="monotone"
+            dataKey="baseline"
+            stroke="#adb5bd"
+            strokeWidth={2}
+            strokeDasharray="6 4"
+            dot={false}
+            name={mode === "compare" ? "B" : t("planLabBaselineLabel")}
+          />
+          <Line
+            type="monotone"
+            dataKey="option"
+            stroke="#12b886"
+            strokeWidth={2}
+            dot={false}
+            name={mode === "compare" ? "A" : t("planLabOptionLabel")}
+          />
+        </LineChart>
+      );
+
+      if (options?.fixedWidth) {
+        return <div style={{ width: options.fixedWidth, height }}>{chart}</div>;
+      }
+
+      return (
+        <div style={{ width: "100%", height }}>
+          <ResponsiveContainer>{chart}</ResponsiveContainer>
+        </div>
+      );
+    },
+    [chartData, locale, lockedMonthIdx, mode, previewMonthScale.leftGutterPx, previewMonthScale.rightPaddingPx, t]
   );
 
   // Compute cash risk scorecard metrics
@@ -5448,13 +5764,13 @@ export default function PlanLabPanel({
   );
 
   const optionNetWorthAtTargetMonth = useMemo(
-    () => resolveNetWorthAtTargetMonth(optionSeries.netWorth),
-    [optionSeries.netWorth, resolveNetWorthAtTargetMonth]
+    () => resolveNetWorthAtTargetMonth(optionFullSeries.netWorth),
+    [optionFullSeries.netWorth, resolveNetWorthAtTargetMonth]
   );
 
   const baselineNetWorthAtTargetMonth = useMemo(
-    () => resolveNetWorthAtTargetMonth(baselineSeries.netWorth),
-    [baselineSeries.netWorth, resolveNetWorthAtTargetMonth]
+    () => resolveNetWorthAtTargetMonth(baselineFullSeries.netWorth),
+    [baselineFullSeries.netWorth, resolveNetWorthAtTargetMonth]
   );
 
   const targetMonthNetWorthDelta = useMemo(() => {
@@ -8642,9 +8958,10 @@ export default function PlanLabPanel({
         title={translate("planLabChartPreviewModalTitle", "預覽圖表")}
         fullScreen
         centered
+        styles={{ body: { height: "calc(100vh - 64px)", padding: 0 } }}
       >
-        <Stack gap="md" h="100%">
-          <Group justify="space-between" align="center" wrap="wrap">
+        <Stack gap="sm" h="100%" p="sm">
+          <Group justify="space-between" align="center" wrap="nowrap">
             <Text fw={600}>{translate("planLabChartPreviewModalTitle", "預覽圖表")}</Text>
             <SegmentedControl
               size="sm"
@@ -8657,7 +8974,59 @@ export default function PlanLabPanel({
               onChange={(value) => setChartType(value as ChartType)}
             />
           </Group>
-          <Box style={{ flex: 1, minHeight: "70vh" }}>{renderProjectionChart(360)}</Box>
+          <Box style={{ flex: 1, overflowY: "auto" }}>
+            <Box style={{ overflowX: "auto" }}>
+              <Box style={{ position: "relative", minWidth: previewMonthScale.totalWidth }}>
+                <Box style={{ minWidth: previewMonthScale.totalWidth }}>
+                  {renderProjectionChart(isMobile ? 360 : 620, {
+                    hideXAxis: true,
+                    syncCrosshair: true,
+                    fixedWidth: previewMonthScale.totalWidth,
+                  })}
+                </Box>
+                {cursorX !== null && (
+                  <Box
+                    style={{
+                      position: "absolute",
+                      left: cursorX,
+                      top: isMobile ? 16 : 24,
+                      bottom: 24,
+                      width: 1,
+                      borderLeft: "1px dashed var(--mantine-color-blue-7)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+                <Card withBorder radius="xs" padding="sm" mt="sm" style={{ minWidth: previewMonthScale.totalWidth }}>
+                  <Stack gap="xs">
+                    <Group justify="space-between" align="center">
+                      <Text fw={600}>{translate("planLabTimelineTitle", "人生大事件")}</Text>
+                      <Badge variant="light" color="blue">
+                        {previewTimelineItems.length}
+                      </Badge>
+                    </Group>
+                    {previewTimelineRange && previewTimelineItems.length > 0 ? (
+                      <PlanLabTimelinePreview
+                        items={previewTimelineItems}
+                        monthScale={previewMonthScale}
+                        isMobile={isMobile}
+                        activeMonthIdx={activeMonthIdx}
+                        onMonthClick={(monthIdx) => {
+                          setLockedMonthIdx((current) => (current === monthIdx ? null : monthIdx));
+                          setHoverMonthIdx(monthIdx);
+                        }}
+                        height={isMobile ? 260 : 220}
+                      />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {translate("planLabTimelineEmpty", "暫無可展示事件")}
+                      </Text>
+                    )}
+                  </Stack>
+                </Card>
+              </Box>
+            </Box>
+          </Box>
         </Stack>
       </Modal>
 
@@ -9221,6 +9590,7 @@ export default function PlanLabPanel({
             mode={v2EventDrawerMode}
             baseCurrency={scenario.baseCurrency}
             scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
+            scenarioHorizonMonths={scenario.assumptions.horizonMonths ?? null}
             incomeGrowthPct={scenario.assumptions.salaryGrowthRate ?? null}
             inflationPct={scenario.assumptions.inflationRate ?? null}
             rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
@@ -10427,7 +10797,23 @@ export default function PlanLabPanel({
             data={standaloneEventExperimentOptions}
             value={eventExperimentDraft.targetEventId}
             onChange={(value) =>
-              setEventExperimentDraft((current) => ({ ...current, targetEventId: value }))
+              setEventExperimentDraft((current) => {
+                const selected = (baselineScenarioV2.events ?? []).find((event) => event.id === value);
+                const baselineStart =
+                  selected && selected.type === "cashflow"
+                    ? selected.startMonth ?? scenario.assumptions.baseMonth ?? ""
+                    : scenario.assumptions.baseMonth ?? "";
+                const baselineEnd = selected && selected.type === "cashflow" ? selected.endMonth ?? "" : "";
+                return {
+                  ...current,
+                  targetEventId: value,
+                  startMonthValue: baselineStart,
+                  endMonthValue: baselineEnd,
+                  setAmountValue:
+                    selected && selected.type === "cashflow" ? selected.amount : current.setAmountValue,
+                  clearEndMonth: false,
+                };
+              })
             }
             placeholder={translate("planLabEventExperimentTargetPlaceholder", "選擇散件事件")}
           />
@@ -10444,26 +10830,72 @@ export default function PlanLabPanel({
             onChange={(value) =>
               setEventExperimentDraft((current) => ({
                 ...current,
-                amountMode: value as "percent" | "hkd",
+                amountMode: value as "delta" | "set",
               }))
             }
             data={[
-              { label: "%", value: "percent" },
-              { label: "HKD", value: "hkd" },
+              { label: translate("planLabEventExperimentDeltaMode", "增減 Delta"), value: "delta" },
+              { label: translate("planLabEventExperimentSetMode", "設定 Set"), value: "set" },
             ]}
           />
-          <NumberInput
-            label={translate("planLabEventExperimentAmount", "金額變更")}
-            value={eventExperimentDraft.amountValue}
-            onChange={(value) =>
-              setEventExperimentDraft((current) => ({
-                ...current,
-                amountValue: typeof value === "number" ? value : 0,
-              }))
-            }
-            allowDecimal={eventExperimentDraft.amountMode === "percent"}
-            step={eventExperimentDraft.amountMode === "percent" ? 1 : 500}
-          />
+          {eventExperimentDraft.amountMode === "delta" ? (
+            <>
+              <SegmentedControl
+                value={eventExperimentDraft.deltaUnit}
+                onChange={(value) =>
+                  setEventExperimentDraft((current) => ({
+                    ...current,
+                    deltaUnit: value as "percent" | "hkd",
+                  }))
+                }
+                data={[
+                  { label: "%", value: "percent" },
+                  { label: "HKD", value: "hkd" },
+                ]}
+              />
+              <NumberInput
+                label={translate("planLabEventExperimentAmount", "金額變更")}
+                value={eventExperimentDraft.amountValue}
+                onChange={(value) =>
+                  setEventExperimentDraft((current) => ({
+                    ...current,
+                    amountValue: typeof value === "number" ? value : 0,
+                  }))
+                }
+                allowDecimal={eventExperimentDraft.deltaUnit === "percent"}
+                step={eventExperimentDraft.deltaUnit === "percent" ? 1 : 500}
+              />
+            </>
+          ) : (
+            <NumberInput
+              label={translate("planLabEventExperimentSetAmount", "設定為（HKD）")}
+              value={eventExperimentDraft.setAmountValue ?? ""}
+              onChange={(value) =>
+                setEventExperimentDraft((current) => ({
+                  ...current,
+                  setAmountValue: typeof value === "number" ? value : null,
+                }))
+              }
+              min={0}
+              step={500}
+            />
+          )}
+          {selectedEventExperimentEvent?.type === "cashflow" && (
+            <Text size="sm" c="dimmed">
+              {translate("planLabEventExperimentBaselineAmount", "基準：{base}", {
+                base: formatCurrency(
+                  selectedEventExperimentEvent.amount,
+                  scenario.baseCurrency,
+                  locale
+                ),
+              })}
+            </Text>
+          )}
+          {eventExperimentPercentOnZero ? (
+            <Text size="xs" c="orange">
+              {translate("planLabEventExperimentZeroPercentHint", "基準金額為 0，% 變更不會產生效果。")}
+            </Text>
+          ) : null}
           {selectedEventExperimentEvent?.type === "cashflow" &&
             typeof eventExperimentPreviewAmount === "number" && (
               <Text size="sm" c="dimmed">
@@ -10477,30 +10909,101 @@ export default function PlanLabPanel({
                 })}
               </Text>
             )}
-          <NumberInput
-            label={translate("planLabEventExperimentStartShift", "開始月份（提早/延後）")}
-            description={translate("planLabEventExperimentShiftDesc", "負數代表提早；正數代表延後（單位：月）")}
-            value={eventExperimentDraft.startShiftMonths}
+          <SegmentedControl
+            value={eventExperimentDraft.startMonthMode}
             onChange={(value) =>
               setEventExperimentDraft((current) => ({
                 ...current,
-                startShiftMonths: typeof value === "number" ? value : 0,
+                startMonthMode: value as "offset" | "month",
               }))
             }
-            step={1}
+            data={[
+              { label: translate("planLabEventExperimentOffsetMode", "提早/延後"), value: "offset" },
+              { label: translate("planLabEventExperimentMonthMode", "指定月份"), value: "month" },
+            ]}
           />
-          <NumberInput
-            label={translate("planLabEventExperimentEndShift", "結束月份（提前/延後）")}
-            description={translate("planLabEventExperimentShiftDesc", "負數代表提前；正數代表延後（單位：月）")}
-            value={eventExperimentDraft.endShiftMonths}
+          {eventExperimentDraft.startMonthMode === "offset" ? (
+            <NumberInput
+              label={translate("planLabEventExperimentStartShift", "開始月份（提早/延後）")}
+              description={translate("planLabEventExperimentShiftDesc", "負數代表提早；正數代表延後（單位：月）")}
+              value={eventExperimentDraft.startShiftMonths}
+              onChange={(value) =>
+                setEventExperimentDraft((current) => ({
+                  ...current,
+                  startShiftMonths: typeof value === "number" ? value : 0,
+                }))
+              }
+              step={1}
+            />
+          ) : (
+            <MonthField
+              label={translate("planLabEventExperimentStartMonth", "開始月份")}
+              value={eventExperimentDraft.startMonthValue}
+              onChange={(value) =>
+                setEventExperimentDraft((current) => ({ ...current, startMonthValue: value }))
+              }
+            />
+          )}
+          <SegmentedControl
+            value={eventExperimentDraft.endMonthMode}
             onChange={(value) =>
               setEventExperimentDraft((current) => ({
                 ...current,
-                endShiftMonths: typeof value === "number" ? value : 0,
+                endMonthMode: value as "offset" | "month",
               }))
             }
-            step={1}
+            data={[
+              { label: translate("planLabEventExperimentOffsetMode", "提早/延後"), value: "offset" },
+              { label: translate("planLabEventExperimentMonthMode", "指定月份"), value: "month" },
+            ]}
           />
+          {eventExperimentDraft.endMonthMode === "offset" ? (
+            <NumberInput
+              label={translate("planLabEventExperimentEndShift", "結束月份（提前/延後）")}
+              description={translate("planLabEventExperimentShiftDesc", "負數代表提前；正數代表延後（單位：月）")}
+              value={eventExperimentDraft.endShiftMonths}
+              onChange={(value) =>
+                setEventExperimentDraft((current) => ({
+                  ...current,
+                  endShiftMonths: typeof value === "number" ? value : 0,
+                }))
+              }
+              step={1}
+            />
+          ) : (
+            <Stack gap="xs">
+              <MonthField
+                label={translate("planLabEventExperimentEndMonth", "結束月份")}
+                value={eventExperimentDraft.endMonthValue}
+                onChange={(value) =>
+                  setEventExperimentDraft((current) => ({
+                    ...current,
+                    endMonthValue: value,
+                    clearEndMonth: false,
+                  }))
+                }
+                disabled={eventExperimentDraft.clearEndMonth}
+              />
+              <Button
+                variant="light"
+                size="xs"
+                onClick={() =>
+                  setEventExperimentDraft((current) => ({
+                    ...current,
+                    clearEndMonth: true,
+                    endMonthValue: "",
+                  }))
+                }
+              >
+                {translate("planLabEventExperimentClearEnd", "清除結束月份")}
+              </Button>
+            </Stack>
+          )}
+          {eventExperimentRangeInvalid ? (
+            <Text size="xs" c="red">
+              {translate("planLabEventExperimentRangeInvalid", "結束月份不可早於開始月份。")}
+            </Text>
+          ) : null}
           <Select
             label={translate("planLabEventExperimentGrowth", "成長假設")}
             data={[
@@ -10546,7 +11049,7 @@ export default function PlanLabPanel({
             <Button variant="default" onClick={() => setEventExperimentDrawerOpen(false)}>
               {translate("planLabActionCancel", "取消")}
             </Button>
-            <Button onClick={submitEventExperiment}>
+            <Button onClick={submitEventExperiment} disabled={!canSubmitEventExperiment}>
               {translate("planLabEventExperimentCreate", "建立實驗")}
             </Button>
           </Group>
