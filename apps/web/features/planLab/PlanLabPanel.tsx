@@ -212,6 +212,7 @@ import {
 } from "./experimentSummary";
 import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
+import { buildEventExperimentChanges } from "./eventExperimentAdapter";
 import { buildMonthScale } from "../../lib/chart/monthScale";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
@@ -3772,101 +3773,30 @@ export default function PlanLabPanel({
       setPlanToast(translate("planLabExperimentEventMissing", "找不到目標事件。"));
       return;
     }
-    const baselineStartMonth =
-      baselineEvent.type === "cashflow"
-        ? baselineEvent.startMonth ?? scenario.assumptions.baseMonth ?? ""
-        : scenario.assumptions.baseMonth ?? "";
-    const baselineEndMonth = baselineEvent.type === "cashflow" ? baselineEvent.endMonth ?? null : null;
-    const memberBirthMonth = baselineEvent.memberId
-      ? members.find((member) => member.id === baselineEvent.memberId)?.birthMonth
-      : undefined;
-    const resolvedStartMonth =
-      eventExperimentDraft.startMonthMode === "month"
-        ? eventExperimentDraft.startMonthValue || baselineStartMonth
-        : eventExperimentDraft.startMonthMode === "age"
-        ? ageToYYYYMM(
-            memberBirthMonth ?? "",
-            eventExperimentDraft.startAgeYears * 12 + eventExperimentDraft.startAgeMonths
-          ) ?? baselineStartMonth
-        : baselineStartMonth;
-    const resolvedEndMonth =
-      eventExperimentDraft.endMonthMode === "month"
-        ? eventExperimentDraft.clearEndMonth
-          ? null
-          : eventExperimentDraft.endMonthValue || baselineEndMonth
-        : eventExperimentDraft.endMonthMode === "age"
-        ? ageToYYYYMM(
-            memberBirthMonth ?? "",
-            eventExperimentDraft.endAgeYears * 12 + eventExperimentDraft.endAgeMonths
-          )
-        : baselineEndMonth;
-    const startMonthShift =
-      eventExperimentDraft.startMonthMode === "offset"
-        ? eventExperimentDraft.startShiftMonths
-        : monthIndex(baselineStartMonth, resolvedStartMonth);
-    const endMonthShift =
-      eventExperimentDraft.endMonthMode === "offset" && baselineEndMonth
-        ? eventExperimentDraft.endShiftMonths
-        : undefined;
+    if (
+      eventExperimentDraft.endMonthMode === "offset" &&
+      eventExperimentDraft.endShiftMonths !== 0 &&
+      baselineEvent.type === "cashflow" &&
+      !baselineEvent.endMonth
+    ) {
+      setPlanToast(translate("planLabExperimentEndOffsetRequiresBaseline", "原事件未有結束月份，請改用指定月份。"));
+      return;
+    }
+
+    const { changes: experimentChanges, uiMetadata } = buildEventExperimentChanges({
+      draft: eventExperimentDraft,
+      baselineEvent,
+      baseMonth: scenario.assumptions.baseMonth ?? "",
+      members,
+    });
 
     const spec: EventOverrideExperimentSpec = {
       id: `event_override_${nanoid(8)}`,
       title: `事件實驗：${baselineEvent.label ?? baselineEvent.id}`,
       type: "event_override",
       targetEventId: baselineEvent.id,
-      changes: {
-        amountSet:
-          eventExperimentDraft.amountMode === "set" &&
-          typeof eventExperimentDraft.setAmountValue === "number"
-            ? eventExperimentDraft.setAmountValue
-            : undefined,
-        amountMultiplier:
-          eventExperimentDraft.amountMode === "delta" &&
-          eventExperimentDraft.deltaUnit === "percent"
-            ? 1 + eventExperimentDraft.amountValue / 100
-            : undefined,
-        amountDelta:
-          eventExperimentDraft.amountMode === "delta" &&
-          eventExperimentDraft.deltaUnit === "hkd"
-            ? eventExperimentDraft.amountValue
-            : undefined,
-        startMonthShift: startMonthShift !== 0 ? startMonthShift : undefined,
-        startMonth:
-          eventExperimentDraft.startMonthMode !== "offset" &&
-          resolvedStartMonth !== baselineStartMonth
-            ? resolvedStartMonth
-            : undefined,
-        endMonthShift: endMonthShift !== 0 ? endMonthShift : undefined,
-        setEndMonth:
-          eventExperimentDraft.endMonthMode === "month" &&
-          (eventExperimentDraft.clearEndMonth || !baselineEndMonth)
-            ? resolvedEndMonth
-            : undefined,
-        endMonth:
-          eventExperimentDraft.endMonthMode !== "offset" && baselineEndMonth
-            ? resolvedEndMonth
-            : undefined,
-        growthMode:
-          eventExperimentDraft.growthMode === "unchanged"
-            ? undefined
-            : eventExperimentDraft.growthMode,
-        growthRate:
-          eventExperimentDraft.growthMode === "custom"
-            ? eventExperimentDraft.growthRate
-            : undefined,
-      },
-      uiMetadata: {
-        startTimingMode: eventExperimentDraft.startMonthMode,
-        endTimingMode: eventExperimentDraft.endMonthMode,
-        startAgeYears:
-          eventExperimentDraft.startMonthMode === "age" ? eventExperimentDraft.startAgeYears : undefined,
-        startAgeMonths:
-          eventExperimentDraft.startMonthMode === "age" ? eventExperimentDraft.startAgeMonths : undefined,
-        endAgeYears:
-          eventExperimentDraft.endMonthMode === "age" ? eventExperimentDraft.endAgeYears : undefined,
-        endAgeMonths:
-          eventExperimentDraft.endMonthMode === "age" ? eventExperimentDraft.endAgeMonths : undefined,
-      },
+      changes: experimentChanges,
+      uiMetadata,
     };
     const patch = buildEventOverridePatch(baselineEvent, spec);
     const changes = formatExperimentChanges(
