@@ -48,6 +48,7 @@ import {
   Legend as RechartsLegend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
@@ -210,6 +211,7 @@ import {
   getScenarioAssumptionOverrideEntries,
 } from "./experimentSummary";
 import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
+import { getProjectionXDomain } from "./projectionXDomain";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
@@ -1137,6 +1139,8 @@ export default function PlanLabPanel({
   );
   const [targetMonthInput, setTargetMonthInput] = useState("");
   const [chartPreviewOpen, setChartPreviewOpen] = useState(false);
+  const [hoverMonthIdx, setHoverMonthIdx] = useState<number | null>(null);
+  const [lockedMonthIdx, setLockedMonthIdx] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ScenarioEditorItem | null>(null);
   const [editingFocus, setEditingFocus] = useState<"validity" | null>(null);
@@ -5467,6 +5471,22 @@ export default function PlanLabPanel({
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
 
+  const projectionXDomain = useMemo(() => getProjectionXDomain(chartData), [chartData]);
+
+  const activeMonthIdx = lockedMonthIdx ?? hoverMonthIdx;
+
+  const activeMonthKey =
+    activeMonthIdx !== null && activeMonthIdx >= 0
+      ? projectionXDomain.months[activeMonthIdx] ?? null
+      : null;
+
+  useEffect(() => {
+    if (!chartPreviewOpen) {
+      setHoverMonthIdx(null);
+      setLockedMonthIdx(null);
+    }
+  }, [chartPreviewOpen]);
+
   const previewTimelineRange = useMemo(() => {
     const startYM =
       planLabProjection.months[0] ??
@@ -5536,11 +5556,44 @@ export default function PlanLabPanel({
   }, [baselineBundleGroups, bundleInstanceRecords, resolveBundleExperimentTitle]);
 
   const renderProjectionChart = useCallback(
-    (height: number) => (
+    (
+      height: number,
+      options?: {
+        hideXAxis?: boolean;
+        syncCrosshair?: boolean;
+      }
+    ) => (
       <div style={{ width: "100%", height }}>
         <ResponsiveContainer>
-          <LineChart data={chartData} margin={{ left: 8, right: 12 }}>
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+          <LineChart
+            data={chartData}
+            margin={{ left: 8, right: 12 }}
+            onMouseMove={(state) => {
+              if (!options?.syncCrosshair || lockedMonthIdx !== null) {
+                return;
+              }
+              const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
+              setHoverMonthIdx(idx);
+            }}
+            onMouseLeave={() => {
+              if (!options?.syncCrosshair || lockedMonthIdx !== null) {
+                return;
+              }
+              setHoverMonthIdx(null);
+            }}
+            onClick={(state) => {
+              if (!options?.syncCrosshair) {
+                return;
+              }
+              const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
+              if (idx === null) {
+                return;
+              }
+              setLockedMonthIdx((current) => (current === idx ? null : idx));
+              setHoverMonthIdx(idx);
+            }}
+          >
+            <XAxis dataKey="month" tick={{ fontSize: 10 }} hide={Boolean(options?.hideXAxis)} />
             <YAxis
               tick={{ fontSize: 10 }}
               width={72}
@@ -5568,11 +5621,14 @@ export default function PlanLabPanel({
               dot={false}
               name={mode === "compare" ? "A" : t("planLabOptionLabel")}
             />
+            {options?.syncCrosshair && activeMonthKey && (
+              <ReferenceLine x={activeMonthKey} stroke="var(--mantine-color-blue-7)" strokeDasharray="3 3" />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
     ),
-    [chartData, locale, mode, t]
+    [activeMonthKey, chartData, locale, lockedMonthIdx, mode, t]
   );
 
   // Compute cash risk scorecard metrics
@@ -8896,7 +8952,7 @@ export default function PlanLabPanel({
               onChange={(value) => setChartType(value as ChartType)}
             />
           </Group>
-          <Box style={{ flex: 1, minHeight: "50vh" }}>{renderProjectionChart(620)}</Box>
+          <Box style={{ flex: 1, minHeight: "50vh" }}>{renderProjectionChart(620, { hideXAxis: true, syncCrosshair: true })}</Box>
           <Card withBorder radius="xs" padding="sm">
             <Stack gap="xs">
               <Group justify="space-between" align="center">
@@ -8909,6 +8965,18 @@ export default function PlanLabPanel({
                 <PlanLabTimelinePreview
                   items={previewTimelineItems}
                   range={previewTimelineRange}
+                  xDomain={projectionXDomain}
+                  activeMonthIdx={activeMonthIdx}
+                  onActiveMonthChange={(monthIdx) => {
+                    if (lockedMonthIdx !== null) {
+                      return;
+                    }
+                    setHoverMonthIdx(monthIdx);
+                  }}
+                  onMonthClick={(monthIdx) => {
+                    setLockedMonthIdx((current) => (current === monthIdx ? null : monthIdx));
+                    setHoverMonthIdx(monthIdx);
+                  }}
                   height={260}
                 />
               ) : (
