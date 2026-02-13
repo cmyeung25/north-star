@@ -42,6 +42,16 @@ import {
   type TravelMonthMode,
   type WeddingStyle,
 } from "../../../src/domain/eventTemplates/bundles";
+import {
+  DESTINATION_WEDDING_PRESETS,
+  HONEYMOON_PRESETS,
+  WEDDING_STYLE_PRESETS,
+} from "../../../src/domain/eventTemplates/marriageBudgetPresets";
+import {
+  applyHoneymoonPresetToForm,
+  applyTravelPresetToForm,
+  applyWeddingPresetToForm,
+} from "../../../src/domain/eventTemplates/marriagePresetAdapters";
 import { useScenarioStore } from "../../../src/store/scenarioStore";
 
 type BundleWizardDrawerProps = {
@@ -144,15 +154,7 @@ type MarriageDraft = {
   travelTotal: number;
   travellersCount: number;
   perPersonBudget: number;
-};
-
-const WEDDING_STYLE_BUDGET: Record<WeddingStyle, number> = {
-  simple_register: 30000,
-  small_banquet: 120000,
-  hotel_banquet: 300000,
-  luxury_wedding: 600000,
-  destination_wedding: 220000,
-  custom: 0,
+  isCustomized: boolean;
 };
 
 const createDefaultWeddingBreakdown = (t: ReturnType<typeof useTranslations>) => [
@@ -508,11 +510,11 @@ export default function BundleWizardDrawer({
     title: t("bundleMarriageDefaultName"),
     weddingMonth: defaultMonth,
     weddingStyle: "simple_register",
-    totalWeddingBudget: WEDDING_STYLE_BUDGET.simple_register,
+    totalWeddingBudget: 30000,
     breakdownEnabled: false,
     customBreakdown: false,
     breakdownItems: normalizeWeddingBreakdown(
-      WEDDING_STYLE_BUDGET.simple_register,
+      30000,
       createDefaultWeddingBreakdown(t)
     ),
     includeTravel: false,
@@ -522,6 +524,7 @@ export default function BundleWizardDrawer({
     travelTotal: 20000,
     travellersCount: 2,
     perPersonBudget: 10000,
+    isCustomized: false,
   }));
 
   const resolvedTemplateId = template?.id ?? initialWizardInput?.templateId ?? null;
@@ -554,6 +557,7 @@ export default function BundleWizardDrawer({
     setCreatedEventIds(new Set());
     setPackAsExperiment(true);
     setDismissedMortgageWarning(false);
+    setPendingMarriagePreset(null);
     if (mode === "edit") {
       setBundleInstanceId(
         initialBundleInstanceId ??
@@ -591,6 +595,7 @@ export default function BundleWizardDrawer({
       title: t("bundleMarriageDefaultName"),
       weddingMonth: defaultMonth || current.weddingMonth,
       travelCustomMonth: defaultMonth || current.travelCustomMonth,
+      isCustomized: false,
     }));
   }, [
     defaultMonth,
@@ -656,6 +661,10 @@ export default function BundleWizardDrawer({
   }, [scenarioEvents, t]);
 
   const [dismissedMortgageWarning, setDismissedMortgageWarning] = useState(false);
+  const [pendingMarriagePreset, setPendingMarriagePreset] = useState<{
+    kind: "wedding" | "destination" | "honeymoon";
+    id: string;
+  } | null>(null);
 
   const warnings = useMemo(() => {
     if (isNewBabyBundle) {
@@ -2120,13 +2129,12 @@ export default function BundleWizardDrawer({
               value={marriageDraft.weddingStyle}
               onChange={(value) => {
                 const style = value as WeddingStyle;
-                const suggested = WEDDING_STYLE_BUDGET[style];
                 setMarriageDraft((current) => ({
                   ...current,
                   weddingStyle: style,
-                  totalWeddingBudget: style === "custom" ? current.totalWeddingBudget : suggested,
                   includeTravel:
                     style === "destination_wedding" ? true : current.includeTravel,
+                  isCustomized: true,
                 }));
               }}
               data={[
@@ -2138,6 +2146,30 @@ export default function BundleWizardDrawer({
                 { value: "custom", label: t("bundleMarriageStyleCustom") },
               ]}
             />
+            <Stack gap={6}>
+              <Text size="xs" c="dimmed">
+                {t("bundleMarriagePresetQuick")}
+              </Text>
+              <Group gap="xs">
+                {WEDDING_STYLE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.id}
+                    size="xs"
+                    variant="light"
+                    onClick={() => {
+                      const result = applyWeddingPresetToForm(marriageDraft, preset.id);
+                      if (result.needsConfirm) {
+                        setPendingMarriagePreset({ kind: "wedding", id: preset.id });
+                        return;
+                      }
+                      setMarriageDraft((current) => ({ ...current, ...result.draft }));
+                    }}
+                  >
+                    {t(preset.labelKey)}
+                  </Button>
+                ))}
+              </Group>
+            </Stack>
             <NumberInput
               label={t("bundleMarriageBudget")}
               min={0}
@@ -2146,6 +2178,7 @@ export default function BundleWizardDrawer({
                 setMarriageDraft((current) => ({
                   ...current,
                   totalWeddingBudget: Number(value) || 0,
+                  isCustomized: true,
                   breakdownItems: current.customBreakdown
                     ? current.breakdownItems
                     : normalizeWeddingBreakdown(Number(value) || 0, current.breakdownItems),
@@ -2159,6 +2192,7 @@ export default function BundleWizardDrawer({
                 setMarriageDraft((current) => ({
                   ...current,
                   breakdownEnabled: event.currentTarget.checked,
+                  isCustomized: true,
                   breakdownItems: normalizeWeddingBreakdown(
                     current.totalWeddingBudget,
                     current.breakdownItems
@@ -2179,6 +2213,7 @@ export default function BundleWizardDrawer({
                         setMarriageDraft((current) => ({
                           ...current,
                           customBreakdown: true,
+                          isCustomized: true,
                           breakdownItems: current.breakdownItems.map((entry) =>
                             entry.id === item.id
                               ? { ...entry, label: event.currentTarget.value }
@@ -2194,6 +2229,7 @@ export default function BundleWizardDrawer({
                         setMarriageDraft((current) => ({
                           ...current,
                           customBreakdown: true,
+                          isCustomized: true,
                           breakdownItems: current.breakdownItems.map((entry) =>
                             entry.id === item.id
                               ? { ...entry, amount: Number(value) || 0 }
@@ -2210,17 +2246,72 @@ export default function BundleWizardDrawer({
               checked={marriageDraft.includeTravel}
               label={t("bundleMarriageTravelToggle")}
               onChange={(event) =>
-                setMarriageDraft((current) => ({ ...current, includeTravel: event.currentTarget.checked }))
+                setMarriageDraft((current) => ({
+                  ...current,
+                  includeTravel: event.currentTarget.checked,
+                  isCustomized: true,
+                }))
               }
             />
+            {marriageDraft.weddingStyle === "destination_wedding" && (
+              <Stack gap={6}>
+                <Text size="xs" c="dimmed">
+                  {t("bundleMarriagePresetDestination")}
+                </Text>
+                <Group gap="xs">
+                  {DESTINATION_WEDDING_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.id}
+                      size="xs"
+                      variant="default"
+                      onClick={() => {
+                        const result = applyTravelPresetToForm(marriageDraft, preset.id);
+                        if (result.needsConfirm) {
+                          setPendingMarriagePreset({ kind: "destination", id: preset.id });
+                          return;
+                        }
+                        setMarriageDraft((current) => ({ ...current, ...result.draft }));
+                      }}
+                    >
+                      {t(preset.labelKey)}
+                    </Button>
+                  ))}
+                </Group>
+              </Stack>
+            )}
             {marriageDraft.includeTravel && (
               <Stack gap="xs">
+                <Stack gap={6}>
+                  <Text size="xs" c="dimmed">
+                    {t("bundleMarriagePresetHoneymoon")}
+                  </Text>
+                  <Group gap="xs">
+                    {HONEYMOON_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.id}
+                        size="xs"
+                        variant="light"
+                        onClick={() => {
+                          const result = applyHoneymoonPresetToForm(marriageDraft, preset.id);
+                          if (result.needsConfirm) {
+                            setPendingMarriagePreset({ kind: "honeymoon", id: preset.id });
+                            return;
+                          }
+                          setMarriageDraft((current) => ({ ...current, ...result.draft }));
+                        }}
+                      >
+                        {t(preset.labelKey)}
+                      </Button>
+                    ))}
+                  </Group>
+                </Stack>
                 <SegmentedControl
                   value={marriageDraft.travelMonthMode}
                   onChange={(value) =>
                     setMarriageDraft((current) => ({
                       ...current,
                       travelMonthMode: value as TravelMonthMode,
+                      isCustomized: true,
                     }))
                   }
                   data={[
@@ -2235,7 +2326,11 @@ export default function BundleWizardDrawer({
                     value={marriageDraft.travelCustomMonth}
                     error={errors.travelCustomMonth}
                     onChange={(value) =>
-                      setMarriageDraft((current) => ({ ...current, travelCustomMonth: value }))
+                      setMarriageDraft((current) => ({
+                        ...current,
+                        travelCustomMonth: value,
+                        isCustomized: true,
+                      }))
                     }
                   />
                 )}
@@ -2245,6 +2340,7 @@ export default function BundleWizardDrawer({
                     setMarriageDraft((current) => ({
                       ...current,
                       travelBudgetMode: value as TravelBudgetMode,
+                      isCustomized: true,
                     }))
                   }
                   data={[
@@ -2258,7 +2354,11 @@ export default function BundleWizardDrawer({
                     min={0}
                     value={marriageDraft.travelTotal}
                     onChange={(value) =>
-                      setMarriageDraft((current) => ({ ...current, travelTotal: Number(value) || 0 }))
+                      setMarriageDraft((current) => ({
+                        ...current,
+                        travelTotal: Number(value) || 0,
+                        isCustomized: true,
+                      }))
                     }
                   />
                 ) : (
@@ -2271,6 +2371,7 @@ export default function BundleWizardDrawer({
                         setMarriageDraft((current) => ({
                           ...current,
                           travellersCount: Number(value) || 1,
+                          isCustomized: true,
                         }))
                       }
                     />
@@ -2282,6 +2383,7 @@ export default function BundleWizardDrawer({
                         setMarriageDraft((current) => ({
                           ...current,
                           perPersonBudget: Number(value) || 0,
+                          isCustomized: true,
                         }))
                       }
                     />
@@ -2293,6 +2395,42 @@ export default function BundleWizardDrawer({
                   })}
                 </Text>
               </Stack>
+            )}
+            {marriageDraft.customBreakdown && (
+              <Text size="xs" c="dimmed">
+                {t("bundleMarriagePresetBreakdownHint")}
+              </Text>
+            )}
+            {pendingMarriagePreset && (
+              <Alert color="yellow" title={t("bundleMarriagePresetConfirmTitle")}>
+                <Stack gap="xs">
+                  <Text size="sm">{t("bundleMarriagePresetConfirmBody")}</Text>
+                  <Group gap="xs">
+                    <Button
+                      size="xs"
+                      onClick={() => {
+                        const result =
+                          pendingMarriagePreset.kind === "wedding"
+                            ? applyWeddingPresetToForm(marriageDraft, pendingMarriagePreset.id, true)
+                            : pendingMarriagePreset.kind === "destination"
+                              ? applyTravelPresetToForm(marriageDraft, pendingMarriagePreset.id, true)
+                              : applyHoneymoonPresetToForm(
+                                  marriageDraft,
+                                  pendingMarriagePreset.id,
+                                  true
+                                );
+                        setMarriageDraft((current) => ({ ...current, ...result.draft }));
+                        setPendingMarriagePreset(null);
+                      }}
+                    >
+                      {t("bundleMarriagePresetConfirmApply")}
+                    </Button>
+                    <Button size="xs" variant="subtle" onClick={() => setPendingMarriagePreset(null)}>
+                      {t("bundleCancel")}
+                    </Button>
+                  </Group>
+                </Stack>
+              </Alert>
             )}
           </Stack>
         )}
