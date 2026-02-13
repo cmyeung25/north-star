@@ -96,6 +96,7 @@ import type {
 } from "../../src/domain/scenarioV2/events";
 import { ScenarioEventSchema } from "../../src/domain/scenarioV2/events";
 import { normalizeMonthInput, parseMonthStrict } from "../../src/utils/month";
+import { ageToYYYYMM, yyyymmToAge } from "../../src/utils/ageMonth";
 import { formatCurrency } from "../../lib/i18n";
 import { projectionToOverviewViewModel } from "../../src/engine/adapter";
 import { usePlanLabProjectionWithLedger } from "../../src/engine/usePlanLabProjectionWithLedger";
@@ -286,10 +287,14 @@ type EventExperimentDraft = {
   deltaUnit: "percent" | "hkd";
   amountValue: number;
   setAmountValue: number | null;
-  startMonthMode: "offset" | "month";
+  startMonthMode: "offset" | "month" | "age";
+  startAgeYears: number;
+  startAgeMonths: number;
   startShiftMonths: number;
   startMonthValue: string;
-  endMonthMode: "offset" | "month";
+  endMonthMode: "offset" | "month" | "age";
+  endAgeYears: number;
+  endAgeMonths: number;
   endShiftMonths: number;
   endMonthValue: string;
   clearEndMonth: boolean;
@@ -463,6 +468,16 @@ const addMonthsToMonth = (baseMonth: string, months: number) => {
   const date = new Date(year, month - 1 + months, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 };
+
+const formatMonthFriendly = (month: string | null | undefined) => {
+  if (!month || !parseMonthStrict(month).ok) {
+    return "";
+  }
+  const [year, monthValue] = month.split("-").map(Number);
+  return `${year}年${monthValue}月`;
+};
+
+const isMemberLinkedEvent = (event: ScenarioEvent | null) => Boolean(event?.memberId);
 
 const getMonthError = (value: string, message: string) => {
   const status = normalizeMonthInput(value);
@@ -1226,9 +1241,13 @@ export default function PlanLabPanel({
     startMonthMode: "offset",
     startShiftMonths: 0,
     startMonthValue: scenario.assumptions.baseMonth ?? "",
+    startAgeYears: 0,
+    startAgeMonths: 0,
     endMonthMode: "offset",
     endShiftMonths: 0,
     endMonthValue: "",
+    endAgeYears: 0,
+    endAgeMonths: 0,
     clearEndMonth: false,
     growthMode: "unchanged",
     growthRate: 0,
@@ -1315,9 +1334,13 @@ export default function PlanLabPanel({
       startMonthMode: "offset",
       startShiftMonths: 0,
       startMonthValue: scenario.assumptions.baseMonth ?? "",
+      startAgeYears: 0,
+      startAgeMonths: 0,
       endMonthMode: "offset",
       endShiftMonths: 0,
       endMonthValue: "",
+      endAgeYears: 0,
+      endAgeMonths: 0,
       clearEndMonth: false,
       growthMode: "unchanged",
       growthRate: 0,
@@ -3721,9 +3744,13 @@ export default function PlanLabPanel({
         startMonthMode: "offset",
         startShiftMonths: 0,
         startMonthValue: baselineStartMonth,
+        startAgeYears: 0,
+        startAgeMonths: 0,
         endMonthMode: "offset",
         endShiftMonths: 0,
         endMonthValue: baselineEndMonth,
+        endAgeYears: 0,
+        endAgeMonths: 0,
         clearEndMonth: false,
         growthMode: "unchanged",
         growthRate: 0,
@@ -3750,15 +3777,28 @@ export default function PlanLabPanel({
         ? baselineEvent.startMonth ?? scenario.assumptions.baseMonth ?? ""
         : scenario.assumptions.baseMonth ?? "";
     const baselineEndMonth = baselineEvent.type === "cashflow" ? baselineEvent.endMonth ?? null : null;
+    const memberBirthMonth = baselineEvent.memberId
+      ? members.find((member) => member.id === baselineEvent.memberId)?.birthMonth
+      : undefined;
     const resolvedStartMonth =
       eventExperimentDraft.startMonthMode === "month"
         ? eventExperimentDraft.startMonthValue || baselineStartMonth
+        : eventExperimentDraft.startMonthMode === "age"
+        ? ageToYYYYMM(
+            memberBirthMonth ?? "",
+            eventExperimentDraft.startAgeYears * 12 + eventExperimentDraft.startAgeMonths
+          ) ?? baselineStartMonth
         : baselineStartMonth;
     const resolvedEndMonth =
       eventExperimentDraft.endMonthMode === "month"
         ? eventExperimentDraft.clearEndMonth
           ? null
           : eventExperimentDraft.endMonthValue || baselineEndMonth
+        : eventExperimentDraft.endMonthMode === "age"
+        ? ageToYYYYMM(
+            memberBirthMonth ?? "",
+            eventExperimentDraft.endAgeYears * 12 + eventExperimentDraft.endAgeMonths
+          )
         : baselineEndMonth;
     const startMonthShift =
       eventExperimentDraft.startMonthMode === "offset"
@@ -3792,7 +3832,7 @@ export default function PlanLabPanel({
             : undefined,
         startMonthShift: startMonthShift !== 0 ? startMonthShift : undefined,
         startMonth:
-          eventExperimentDraft.startMonthMode === "month" &&
+          eventExperimentDraft.startMonthMode !== "offset" &&
           resolvedStartMonth !== baselineStartMonth
             ? resolvedStartMonth
             : undefined,
@@ -3803,7 +3843,7 @@ export default function PlanLabPanel({
             ? resolvedEndMonth
             : undefined,
         endMonth:
-          eventExperimentDraft.endMonthMode === "month" && baselineEndMonth
+          eventExperimentDraft.endMonthMode !== "offset" && baselineEndMonth
             ? resolvedEndMonth
             : undefined,
         growthMode:
@@ -3814,6 +3854,18 @@ export default function PlanLabPanel({
           eventExperimentDraft.growthMode === "custom"
             ? eventExperimentDraft.growthRate
             : undefined,
+      },
+      uiMetadata: {
+        startTimingMode: eventExperimentDraft.startMonthMode,
+        endTimingMode: eventExperimentDraft.endMonthMode,
+        startAgeYears:
+          eventExperimentDraft.startMonthMode === "age" ? eventExperimentDraft.startAgeYears : undefined,
+        startAgeMonths:
+          eventExperimentDraft.startMonthMode === "age" ? eventExperimentDraft.startAgeMonths : undefined,
+        endAgeYears:
+          eventExperimentDraft.endMonthMode === "age" ? eventExperimentDraft.endAgeYears : undefined,
+        endAgeMonths:
+          eventExperimentDraft.endMonthMode === "age" ? eventExperimentDraft.endAgeMonths : undefined,
       },
     };
     const patch = buildEventOverridePatch(baselineEvent, spec);
@@ -3868,6 +3920,7 @@ export default function PlanLabPanel({
     baselineScenarioV2.events,
     eventExperimentDraft,
     locale,
+    members,
     scenario.assumptions.baseMonth,
     scenario.baseCurrency,
     setScenarioV2Patches,
@@ -3914,6 +3967,17 @@ export default function PlanLabPanel({
     [baselineScenarioV2.events, eventExperimentDraft.targetEventId]
   );
 
+  const selectedEventExperimentMember = useMemo(
+    () =>
+      selectedEventExperimentEvent?.memberId
+        ? members.find((member) => member.id === selectedEventExperimentEvent.memberId) ?? null
+        : null,
+    [members, selectedEventExperimentEvent?.memberId]
+  );
+  const selectedEventExperimentBirthMonth = selectedEventExperimentMember?.birthMonth;
+  const eventExperimentCanUseAgeMode =
+    isMemberLinkedEvent(selectedEventExperimentEvent) && Boolean(selectedEventExperimentBirthMonth);
+
   useEffect(() => {
     if (!selectedEventExperimentEvent || selectedEventExperimentEvent.type !== "cashflow") {
       return;
@@ -3932,15 +3996,27 @@ export default function PlanLabPanel({
       ) {
         return current;
       }
+      const startAge =
+        selectedEventExperimentEvent.memberId && selectedEventExperimentBirthMonth
+          ? yyyymmToAge(selectedEventExperimentBirthMonth, startMonth)
+          : null;
+      const endAge =
+        selectedEventExperimentEvent.memberId && selectedEventExperimentBirthMonth && endMonth
+          ? yyyymmToAge(selectedEventExperimentBirthMonth, endMonth)
+          : null;
       return {
         ...current,
         startMonthValue: startMonth,
         endMonthValue: endMonth,
+        startAgeYears: startAge?.years ?? current.startAgeYears,
+        startAgeMonths: startAge?.months ?? current.startAgeMonths,
+        endAgeYears: endAge?.years ?? current.endAgeYears,
+        endAgeMonths: endAge?.months ?? current.endAgeMonths,
         setAmountValue:
           current.setAmountValue === null ? selectedEventExperimentEvent.amount : current.setAmountValue,
       };
     });
-  }, [scenario.assumptions.baseMonth, selectedEventExperimentEvent]);
+  }, [scenario.assumptions.baseMonth, selectedEventExperimentBirthMonth, selectedEventExperimentEvent]);
 
   const eventExperimentPreviewAmount = useMemo(() => {
     if (!selectedEventExperimentEvent || selectedEventExperimentEvent.type !== "cashflow") {
@@ -3973,12 +4049,22 @@ export default function PlanLabPanel({
   const resolvedExperimentStartMonth =
     eventExperimentDraft.startMonthMode === "month"
       ? eventExperimentDraft.startMonthValue || baselineEventStartMonth
+      : eventExperimentDraft.startMonthMode === "age"
+      ? ageToYYYYMM(
+          selectedEventExperimentBirthMonth ?? "",
+          eventExperimentDraft.startAgeYears * 12 + eventExperimentDraft.startAgeMonths
+        ) ?? baselineEventStartMonth
       : addMonthsToMonth(baselineEventStartMonth, eventExperimentDraft.startShiftMonths);
   const resolvedExperimentEndMonth =
     eventExperimentDraft.endMonthMode === "month"
       ? eventExperimentDraft.clearEndMonth
         ? null
         : eventExperimentDraft.endMonthValue || null
+      : eventExperimentDraft.endMonthMode === "age"
+      ? ageToYYYYMM(
+          selectedEventExperimentBirthMonth ?? "",
+          eventExperimentDraft.endAgeYears * 12 + eventExperimentDraft.endAgeMonths
+        )
       : selectedEventExperimentEvent && selectedEventExperimentEvent.type === "cashflow" && selectedEventExperimentEvent.endMonth
         ? addMonthsToMonth(selectedEventExperimentEvent.endMonth, eventExperimentDraft.endShiftMonths)
         : null;
@@ -3994,6 +4080,8 @@ export default function PlanLabPanel({
   const canSubmitEventExperiment =
     Boolean(eventExperimentDraft.targetEventId) &&
     !eventExperimentRangeInvalid &&
+    !(eventExperimentDraft.startMonthMode === "age" && !eventExperimentCanUseAgeMode) &&
+    !(eventExperimentDraft.endMonthMode === "age" && !eventExperimentCanUseAgeMode) &&
     !(eventExperimentDraft.amountMode === "set" && typeof eventExperimentDraft.setAmountValue !== "number");
 
   const canCreateExperimentFromItem = useCallback(
@@ -10804,11 +10892,23 @@ export default function PlanLabPanel({
                     ? selected.startMonth ?? scenario.assumptions.baseMonth ?? ""
                     : scenario.assumptions.baseMonth ?? "";
                 const baselineEnd = selected && selected.type === "cashflow" ? selected.endMonth ?? "" : "";
+                const selectedBirthMonth =
+                  selected?.memberId
+                    ? members.find((member) => member.id === selected.memberId)?.birthMonth
+                    : undefined;
+                const startAge = selectedBirthMonth ? yyyymmToAge(selectedBirthMonth, baselineStart) : null;
+                const endAge = selectedBirthMonth && baselineEnd
+                  ? yyyymmToAge(selectedBirthMonth, baselineEnd)
+                  : null;
                 return {
                   ...current,
                   targetEventId: value,
                   startMonthValue: baselineStart,
                   endMonthValue: baselineEnd,
+                  startAgeYears: startAge?.years ?? 0,
+                  startAgeMonths: startAge?.months ?? 0,
+                  endAgeYears: endAge?.years ?? 0,
+                  endAgeMonths: endAge?.months ?? 0,
                   setAmountValue:
                     selected && selected.type === "cashflow" ? selected.amount : current.setAmountValue,
                   clearEndMonth: false,
@@ -10914,12 +11014,13 @@ export default function PlanLabPanel({
             onChange={(value) =>
               setEventExperimentDraft((current) => ({
                 ...current,
-                startMonthMode: value as "offset" | "month",
+                startMonthMode: value as "offset" | "month" | "age",
               }))
             }
             data={[
               { label: translate("planLabEventExperimentOffsetMode", "提早/延後"), value: "offset" },
               { label: translate("planLabEventExperimentMonthMode", "指定月份"), value: "month" },
+              { label: translate("planLabEventExperimentAgeMode", "指定歲數"), value: "age", disabled: !eventExperimentCanUseAgeMode },
             ]}
           />
           {eventExperimentDraft.startMonthMode === "offset" ? (
@@ -10935,6 +11036,51 @@ export default function PlanLabPanel({
               }
               step={1}
             />
+          ) : eventExperimentDraft.startMonthMode === "age" ? (
+            <Stack gap="xs">
+              <Group grow>
+                <NumberInput
+                  label={translate("planLabEventExperimentStartAgeYears", "開始年齡（歲）")}
+                  value={eventExperimentDraft.startAgeYears}
+                  min={0}
+                  onChange={(value) =>
+                    setEventExperimentDraft((current) => ({
+                      ...current,
+                      startAgeYears: typeof value === "number" ? value : 0,
+                    }))
+                  }
+                  disabled={!eventExperimentCanUseAgeMode}
+                />
+                <NumberInput
+                  label={translate("planLabEventExperimentStartAgeMonths", "開始年齡（月）")}
+                  value={eventExperimentDraft.startAgeMonths}
+                  min={0}
+                  max={11}
+                  onChange={(value) =>
+                    setEventExperimentDraft((current) => ({
+                      ...current,
+                      startAgeMonths: typeof value === "number" ? Math.max(0, Math.min(11, Math.round(value))) : 0,
+                    }))
+                  }
+                  disabled={!eventExperimentCanUseAgeMode}
+                />
+              </Group>
+              <Text size="xs" c="dimmed">
+                {translate("planLabEventExperimentAgeResult", "→ {month}（{friendly}）", {
+                  month:
+                    ageToYYYYMM(
+                      selectedEventExperimentBirthMonth ?? "",
+                      eventExperimentDraft.startAgeYears * 12 + eventExperimentDraft.startAgeMonths
+                    ) ?? "—",
+                  friendly: formatMonthFriendly(
+                    ageToYYYYMM(
+                      selectedEventExperimentBirthMonth ?? "",
+                      eventExperimentDraft.startAgeYears * 12 + eventExperimentDraft.startAgeMonths
+                    )
+                  ) || "—",
+                })}
+              </Text>
+            </Stack>
           ) : (
             <MonthField
               label={translate("planLabEventExperimentStartMonth", "開始月份")}
@@ -10944,17 +11090,28 @@ export default function PlanLabPanel({
               }
             />
           )}
+          {!isMemberLinkedEvent(selectedEventExperimentEvent) ? (
+            <Text size="xs" c="orange">
+              {translate("planLabEventExperimentAgeNoMember", "此事件未綁定成員，不能用歲數定位。")}
+            </Text>
+          ) : null}
+          {isMemberLinkedEvent(selectedEventExperimentEvent) && !selectedEventExperimentBirthMonth ? (
+            <Text size="xs" c="orange">
+              {translate("planLabEventExperimentAgeMissingBirthMonth", "要用歲數定位，請先在「成員」補充出生年月（YYYY-MM）。")}
+            </Text>
+          ) : null}
           <SegmentedControl
             value={eventExperimentDraft.endMonthMode}
             onChange={(value) =>
               setEventExperimentDraft((current) => ({
                 ...current,
-                endMonthMode: value as "offset" | "month",
+                endMonthMode: value as "offset" | "month" | "age",
               }))
             }
             data={[
               { label: translate("planLabEventExperimentOffsetMode", "提早/延後"), value: "offset" },
               { label: translate("planLabEventExperimentMonthMode", "指定月份"), value: "month" },
+              { label: translate("planLabEventExperimentAgeMode", "指定歲數"), value: "age", disabled: !eventExperimentCanUseAgeMode },
             ]}
           />
           {eventExperimentDraft.endMonthMode === "offset" ? (
@@ -10970,6 +11127,51 @@ export default function PlanLabPanel({
               }
               step={1}
             />
+          ) : eventExperimentDraft.endMonthMode === "age" ? (
+            <Stack gap="xs">
+              <Group grow>
+                <NumberInput
+                  label={translate("planLabEventExperimentEndAgeYears", "結束年齡（歲）")}
+                  value={eventExperimentDraft.endAgeYears}
+                  min={0}
+                  onChange={(value) =>
+                    setEventExperimentDraft((current) => ({
+                      ...current,
+                      endAgeYears: typeof value === "number" ? value : 0,
+                    }))
+                  }
+                  disabled={!eventExperimentCanUseAgeMode}
+                />
+                <NumberInput
+                  label={translate("planLabEventExperimentEndAgeMonths", "結束年齡（月）")}
+                  value={eventExperimentDraft.endAgeMonths}
+                  min={0}
+                  max={11}
+                  onChange={(value) =>
+                    setEventExperimentDraft((current) => ({
+                      ...current,
+                      endAgeMonths: typeof value === "number" ? Math.max(0, Math.min(11, Math.round(value))) : 0,
+                    }))
+                  }
+                  disabled={!eventExperimentCanUseAgeMode}
+                />
+              </Group>
+              <Text size="xs" c="dimmed">
+                {translate("planLabEventExperimentAgeResult", "→ {month}（{friendly}）", {
+                  month:
+                    ageToYYYYMM(
+                      selectedEventExperimentBirthMonth ?? "",
+                      eventExperimentDraft.endAgeYears * 12 + eventExperimentDraft.endAgeMonths
+                    ) ?? "—",
+                  friendly: formatMonthFriendly(
+                    ageToYYYYMM(
+                      selectedEventExperimentBirthMonth ?? "",
+                      eventExperimentDraft.endAgeYears * 12 + eventExperimentDraft.endAgeMonths
+                    )
+                  ) || "—",
+                })}
+              </Text>
+            </Stack>
           ) : (
             <Stack gap="xs">
               <MonthField
@@ -10999,6 +11201,16 @@ export default function PlanLabPanel({
               </Button>
             </Stack>
           )}
+          {!isMemberLinkedEvent(selectedEventExperimentEvent) ? (
+            <Text size="xs" c="orange">
+              {translate("planLabEventExperimentAgeNoMember", "此事件未綁定成員，不能用歲數定位。")}
+            </Text>
+          ) : null}
+          {isMemberLinkedEvent(selectedEventExperimentEvent) && !selectedEventExperimentBirthMonth ? (
+            <Text size="xs" c="orange">
+              {translate("planLabEventExperimentAgeMissingBirthMonth", "要用歲數定位，請先在「成員」補充出生年月（YYYY-MM）。")}
+            </Text>
+          ) : null}
           {eventExperimentRangeInvalid ? (
             <Text size="xs" c="red">
               {translate("planLabEventExperimentRangeInvalid", "結束月份不可早於開始月份。")}

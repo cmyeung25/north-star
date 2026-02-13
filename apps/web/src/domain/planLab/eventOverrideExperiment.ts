@@ -20,6 +20,14 @@ export type EventOverrideExperimentSpec = {
   type: "event_override";
   targetEventId: string;
   changes: EventOverrideChanges;
+  uiMetadata?: {
+    startTimingMode?: "offset" | "month" | "age";
+    endTimingMode?: "offset" | "month" | "age";
+    startAgeYears?: number;
+    startAgeMonths?: number;
+    endAgeYears?: number;
+    endAgeMonths?: number;
+  };
 };
 
 const clampAmount = (value: number) => Math.max(0, Math.round(value));
