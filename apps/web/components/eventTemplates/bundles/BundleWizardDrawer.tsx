@@ -2191,7 +2191,7 @@ export default function BundleWizardDrawer({
               onChange={(event) =>
                 setMarriageDraft((current) => ({
                   ...current,
-                  breakdownEnabled: event.currentTarget.checked,
+                  breakdownEnabled: event.target.checked,
                   isCustomized: true,
                   breakdownItems: normalizeWeddingBreakdown(
                     current.totalWeddingBudget,
@@ -2248,7 +2248,7 @@ export default function BundleWizardDrawer({
               onChange={(event) =>
                 setMarriageDraft((current) => ({
                   ...current,
-                  includeTravel: event.currentTarget.checked,
+                  includeTravel: event.target.checked,
                   isCustomized: true,
                 }))
               }

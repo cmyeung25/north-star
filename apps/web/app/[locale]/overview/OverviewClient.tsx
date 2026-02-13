@@ -647,8 +647,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     { key: "rules", label: sd("completeness.rules", "規則"), done: budgetRules.length > 0, href: `${moneyHubHref}&tab=inputs` },
   ];
   return (
-    <Stack gap="xl" pb={isDesktop ? undefined : 120}>
-      <Stack gap="sm">
+    <Stack gap="sm" pb={isDesktop ? undefined : 120}>
+      <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <div>
             <Title order={2}>{t("title")}</Title>
@@ -675,7 +675,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Button component={Link} href="/scenarios" variant="subtle" display={"none"}>
               {t("backToScenarios")}
             </Button>
-            <Button component={Link} href="/onboarding" variant="light">
+            <Button component={Link} href="/onboarding" variant="light" display={"none"}>
               {common("runOnboardingAgain")}
             </Button>
           </Group>
@@ -707,38 +707,42 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           <Text size="xs" c="dimmed" display={"none"}>
             {t("viewRealHint")}
           </Text>
-          {showCompare ? (
-            <Stack gap={4}>
-              <MultiSelect
-                data={compareScenarioOptions}
-                value={compareScenarioIds}
-                onChange={(value) => setCompareScenarioIds(value.slice(0, 5))}
-                placeholder={t("compareSelectPlaceholder")}
-              />
-              {compareScenarioIds.length < 2 && (
-                <Text size="xs" c="red">
-                  {t("compareSelectHint")}
-                </Text>
+          {scenarios.length > 1 && (
+            <>
+              {showCompare ? (
+                <Stack gap={4}>
+                  <MultiSelect
+                    data={compareScenarioOptions}
+                    value={compareScenarioIds}
+                    onChange={(value) => setCompareScenarioIds(value.slice(0, 5))}
+                    placeholder={t("compareSelectPlaceholder")}
+                  />
+                  {compareScenarioIds.length < 2 && (
+                    <Text size="xs" c="red">
+                      {t("compareSelectHint")}
+                    </Text>
+                  )}
+                </Stack>
+              ) : isDesktop ? (
+                <ScenarioContextSelector
+                  options={scenarios.map((scenario) => ({
+                    label: scenario.name,
+                    value: scenario.id,
+                  }))}
+                  value={selectedScenario.id}
+                  onChange={handleScenarioChange}
+                />
+              ) : (
+                <Group gap="xs">
+                  <Badge variant="light" color="indigo">
+                    {selectedScenario.name}
+                  </Badge>
+                  <Button component={Link} href="/scenarios" variant="subtle" size="xs">
+                    {common("actionChange")}
+                  </Button>
+                </Group>
               )}
-            </Stack>
-          ) : isDesktop ? (
-            <ScenarioContextSelector
-              options={scenarios.map((scenario) => ({
-                label: scenario.name,
-                value: scenario.id,
-              }))}
-              value={selectedScenario.id}
-              onChange={handleScenarioChange}
-            />
-          ) : (
-            <Group gap="xs">
-              <Badge variant="light" color="indigo">
-                {selectedScenario.name}
-              </Badge>
-              <Button component={Link} href="/scenarios" variant="subtle" size="xs">
-                {common("actionChange")}
-              </Button>
-            </Group>
+            </>
           )}
         </Stack>
       </Stack>
@@ -753,7 +757,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </div>
               <Group gap="xs">
                 <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開情景實驗室")}</Button>
-                <Button component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
+                <Button display="none" component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
               </Group>
             </Group>
             {isDesktop ? (
@@ -765,7 +769,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             ) : (
               <KpiCarousel items={kpiItems} />
             )}
-            <Card withBorder radius="md" padding="sm">
+            <Card withBorder radius="md" padding="sm" display="none">
               <Stack gap={6}>
                 <Text fw={600} size="sm">{sd("completeness.title", "資料完整度")}</Text>
                 <Group gap="xs" wrap="wrap">
@@ -777,7 +781,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 </Group>
               </Stack>
             </Card>
-            <Card withBorder radius="md" padding="sm">
+            <Card withBorder radius="md" padding="sm" display="none">
               <Stack gap={6}>
                 <Text fw={600} size="sm">{sd("nextKeyEvent.title", "下一個關鍵點")}</Text>
                 {nextKeyEvent ? (
