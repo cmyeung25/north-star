@@ -4,9 +4,11 @@ import type { ScenarioEvent, CashflowEvent } from "../scenarioV2/events";
 export type EventOverrideChanges = {
   amountDelta?: number;
   amountMultiplier?: number;
+  amountSet?: number;
   startMonthShift?: number;
   startMonth?: string;
   endMonthShift?: number;
+  setEndMonth?: string | null;
   endMonth?: string | null;
   growthMode?: "none" | "assumption" | "custom";
   growthRate?: number;
@@ -23,6 +25,9 @@ export type EventOverrideExperimentSpec = {
 const clampAmount = (value: number) => Math.max(0, Math.round(value));
 
 const applyAmountOverride = (baseAmount: number, changes: EventOverrideChanges) => {
+  if (typeof changes.amountSet === "number") {
+    return clampAmount(changes.amountSet);
+  }
   if (typeof changes.amountMultiplier === "number") {
     return clampAmount(baseAmount * changes.amountMultiplier);
   }
@@ -75,7 +80,7 @@ export const buildEventOverridePatch = (
 
   const nextEndMonth = applyMonthShift(
     event.endMonth,
-    spec.changes.endMonth,
+    spec.changes.setEndMonth ?? spec.changes.endMonth,
     spec.changes.endMonthShift
   );
   if (nextEndMonth !== undefined) {
@@ -99,7 +104,9 @@ export const buildEventOverrideSummary = (
   if (event.type !== "cashflow") {
     return lines;
   }
-  if (typeof spec.changes.amountMultiplier === "number") {
+  if (typeof spec.changes.amountSet === "number") {
+    lines.push(`金額設定為 ${spec.changes.amountSet}`);
+  } else if (typeof spec.changes.amountMultiplier === "number") {
     const pct = Math.round((spec.changes.amountMultiplier - 1) * 100);
     lines.push(`金額 ${pct >= 0 ? "+" : ""}${pct}%`);
   } else if (typeof spec.changes.amountDelta === "number") {
@@ -112,6 +119,8 @@ export const buildEventOverrideSummary = (
   }
   if (typeof spec.changes.endMonthShift === "number") {
     lines.push(`結束月份 ${spec.changes.endMonthShift >= 0 ? "延後" : "提前"} ${Math.abs(spec.changes.endMonthShift)} 個月`);
+  } else if (spec.changes.setEndMonth !== undefined) {
+    lines.push(`結束月份 ${spec.changes.setEndMonth ?? "無"}`);
   } else if (spec.changes.endMonth !== undefined) {
     lines.push(`結束月份 ${spec.changes.endMonth ?? "無"}`);
   }
