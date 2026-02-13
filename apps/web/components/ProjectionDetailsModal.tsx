@@ -352,15 +352,26 @@ export default function ProjectionDetailsModal({
       title={t("breakdownTitle")}
       size={isMobile ? "100%" : 1120}
       fullScreen={Boolean(isMobile)}
-      scrollAreaComponent={ScrollArea.Autosize}
+      styles={{
+        content: { overflow: "hidden" },
+        body: { overflow: "hidden" },
+      }}
     >
       {!resolvedMonth ? (
         <Text size="sm" c="dimmed">
           {t("breakdownEmpty")}
         </Text>
       ) : (
-        <Stack gap="md">
-          <Box pos="sticky" top={0} bg="var(--mantine-color-body)" style={{ zIndex: 2 }} pb="xs">
+        <Box
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            height: isMobile ? "100%" : "85vh",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
+          <Box pb="xs">
             <Group justify="space-between" align="end" wrap="wrap">
               <Group gap="xs">
                 <Button
@@ -410,6 +421,14 @@ export default function ProjectionDetailsModal({
             <Divider mt="xs" />
           </Box>
 
+          <ScrollArea
+            style={{ flex: 1, minHeight: 0 }}
+            viewportProps={{ style: { overscrollBehavior: "contain" } }}
+            onWheelCapture={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <Stack gap="md" pt="md" pr="xs">
           <SimpleGrid cols={{ base: 2, md: 4 }} spacing="xs" verticalSpacing="xs">
             <Stack gap={2}><Text size="xs" c="dimmed">{t("breakdownEndingCash")}</Text><Text fw={600}>{endingCash !== undefined ? formatValue(endingCash) : "—"}</Text></Stack>
             <Stack gap={2}><Text size="xs" c="dimmed">{t("breakdownTotalNet")}</Text><Text fw={600}>{formatValue(netCashflow)}</Text></Stack>
@@ -625,7 +644,9 @@ export default function ProjectionDetailsModal({
               <Stack gap={2}><Text size="xs" c="dimmed">{t("breakdownResidual")}</Text><Text fw={600}>{formatDelta(residualNetWorth, formatValue)}</Text></Stack>
             </SimpleGrid>
           </Stack>
-        </Stack>
+            </Stack>
+          </ScrollArea>
+        </Box>
       )}
     </Modal>
   );
