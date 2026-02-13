@@ -354,14 +354,8 @@ export default function Providers({ children }: { children: ReactNode }) {
 
         <AppShell.Main>
           <Container
-            size="xl"
-            px="md"
+            px="xs"
             fluid 
-            pb={isDesktop ? undefined : "xl"}
-            style={{
-              paddingBottom:
-                isDesktop && !isOnboarding ? desktopToolbarHeight + 32 : undefined,
-            }}
           >
             {children}
           </Container>
