@@ -8461,9 +8461,35 @@ export default function PlanLabPanel({
                         return (
                           <Paper key={card.key} withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                             <Stack gap={6}>
-                              <Text size="sm" fw={600} c="dimmed">
-                                {card.label}
-                              </Text>
+                              <Group justify="space-between" align="center" wrap="wrap">
+                                <Text size="sm" fw={600} c="dimmed">
+                                  {card.label}
+                                </Text>
+                                {"actionLabel" in card && card.actionLabel && (
+                                  <MantineTooltip
+                                    label={card.actionDisabled ? card.actionTooltip : undefined}
+                                    disabled={!card.actionDisabled}
+                                    withArrow
+                                  >
+                                    <span>
+                                      <Button
+                                        size="compact-xs"
+                                        variant="subtle"
+                                        disabled={card.actionDisabled}
+                                        onClick={() =>
+                                          openModal("monthlyBreakdown", {
+                                            month: targetMonth,
+                                            focus: "networth",
+                                          })
+                                        }
+                                      >
+                                        {card.actionLabel}
+                                      </Button>
+                                    </span>
+                                  </MantineTooltip>
+                                )}
+                              </Group>
+                              
                               <SimpleGrid cols={2} spacing="xs">
                                 <Stack gap={2} style={{ minWidth: 0 }} data-testid="kpi-current">
                                   <Text size="xs" c="dimmed">
@@ -8513,29 +8539,6 @@ export default function PlanLabPanel({
                                   </Text>
                                 )}
                               </Group>
-                              {"actionLabel" in card && card.actionLabel && (
-                                <MantineTooltip
-                                  label={card.actionDisabled ? card.actionTooltip : undefined}
-                                  disabled={!card.actionDisabled}
-                                  withArrow
-                                >
-                                  <span>
-                                    <Button
-                                      size="compact-xs"
-                                      variant="subtle"
-                                      disabled={card.actionDisabled}
-                                      onClick={() =>
-                                        openModal("monthlyBreakdown", {
-                                          month: targetMonth,
-                                          focus: "networth",
-                                        })
-                                      }
-                                    >
-                                      {card.actionLabel}
-                                    </Button>
-                                  </span>
-                                </MantineTooltip>
-                              )}
                               {card.helper && (
                                 <Text size="xs" c="dimmed">
                                   {card.helper}
@@ -8654,7 +8657,7 @@ export default function PlanLabPanel({
               onChange={(value) => setChartType(value as ChartType)}
             />
           </Group>
-          <Box style={{ flex: 1, minHeight: "70vh" }}>{renderProjectionChart(720)}</Box>
+          <Box style={{ flex: 1, minHeight: "70vh" }}>{renderProjectionChart(360)}</Box>
         </Stack>
       </Modal>
 
