@@ -129,6 +129,13 @@ export const templateRegistry: TemplateDef[] = [
     chips: ["affectsCashflow", "affectsNetWorth", "requiresLiability"],
     isBundle: true,
   },
+  {
+    id: "life_marriage_plan",
+    categories: ["life_events", "expenses"],
+    drawerType: "bundle",
+    chips: ["affectsCashflow"],
+    isBundle: true,
+  },
 ];
 
 export const listTemplates = () => templateRegistry;
