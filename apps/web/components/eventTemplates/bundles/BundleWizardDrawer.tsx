@@ -28,12 +28,19 @@ import MonthField from "../../MonthField";
 import { addMonths } from "../../../src/domain/members/age";
 import {
   buildHomePurchaseBundleEvent,
+  buildMarriageBundleEvents,
   buildNewBabyBundleEvents,
+  computeTravelTotal,
   deriveStartMonth,
+  normalizeWeddingBreakdown,
   type StartMonthStrategy,
   type BundleWizardInput,
   type HomePurchaseBundleInput,
+  type MarriagePlanInput,
   type NewBabyPlanInput,
+  type TravelBudgetMode,
+  type TravelMonthMode,
+  type WeddingStyle,
 } from "../../../src/domain/eventTemplates/bundles";
 import { useScenarioStore } from "../../../src/store/scenarioStore";
 
@@ -116,6 +123,46 @@ type HomePurchaseDraft = {
   mortgageLiabilityId: string;
   eventId: string;
 };
+
+type MarriageDraft = {
+  title: string;
+  weddingMonth: string;
+  weddingStyle: WeddingStyle;
+  totalWeddingBudget: number;
+  breakdownEnabled: boolean;
+  customBreakdown: boolean;
+  breakdownItems: {
+    id: string;
+    label: string;
+    amount: number;
+    ratio: number;
+  }[];
+  includeTravel: boolean;
+  travelMonthMode: TravelMonthMode;
+  travelCustomMonth: string;
+  travelBudgetMode: TravelBudgetMode;
+  travelTotal: number;
+  travellersCount: number;
+  perPersonBudget: number;
+};
+
+const WEDDING_STYLE_BUDGET: Record<WeddingStyle, number> = {
+  simple_register: 30000,
+  small_banquet: 120000,
+  hotel_banquet: 300000,
+  luxury_wedding: 600000,
+  destination_wedding: 220000,
+  custom: 0,
+};
+
+const createDefaultWeddingBreakdown = (t: ReturnType<typeof useTranslations>) => [
+  { id: "banquet", label: t("bundleMarriageBreakdownBanquet"), amount: 0, ratio: 45 },
+  { id: "photo", label: t("bundleMarriageBreakdownPhoto"), amount: 0, ratio: 10 },
+  { id: "dress", label: t("bundleMarriageBreakdownDress"), amount: 0, ratio: 10 },
+  { id: "rings", label: t("bundleMarriageBreakdownRings"), amount: 0, ratio: 15 },
+  { id: "flowers", label: t("bundleMarriageBreakdownFlowers"), amount: 0, ratio: 10 },
+  { id: "misc", label: t("bundleMarriageBreakdownMisc"), amount: 0, ratio: 10 },
+];
 
 const createFeeDraft = (overrides?: Partial<FeeDraft>): FeeDraft => ({
   id: `fee_${nanoid(6)}`,
@@ -457,10 +504,30 @@ export default function BundleWizardDrawer({
   const [homeDraft, setHomeDraft] = useState<HomePurchaseDraft>(() =>
     createHomeDraft(defaultMonth)
   );
+  const [marriageDraft, setMarriageDraft] = useState<MarriageDraft>(() => ({
+    title: t("bundleMarriageDefaultName"),
+    weddingMonth: defaultMonth,
+    weddingStyle: "simple_register",
+    totalWeddingBudget: WEDDING_STYLE_BUDGET.simple_register,
+    breakdownEnabled: false,
+    customBreakdown: false,
+    breakdownItems: normalizeWeddingBreakdown(
+      WEDDING_STYLE_BUDGET.simple_register,
+      createDefaultWeddingBreakdown(t)
+    ),
+    includeTravel: false,
+    travelMonthMode: "same",
+    travelCustomMonth: defaultMonth,
+    travelBudgetMode: "total",
+    travelTotal: 20000,
+    travellersCount: 2,
+    perPersonBudget: 10000,
+  }));
 
   const resolvedTemplateId = template?.id ?? initialWizardInput?.templateId ?? null;
   const isNewBabyBundle = resolvedTemplateId === "life_new_baby_plan";
   const isHomeBundle = resolvedTemplateId === "life_home_purchase";
+  const isMarriageBundle = resolvedTemplateId === "life_marriage_plan";
   const editingHomeEvent = useMemo(() => {
     if (!editingEventId) {
       return null;
@@ -519,6 +586,12 @@ export default function BundleWizardDrawer({
         startMonth: defaultMonth || current.startMonth,
       }));
     }
+    setMarriageDraft((current) => ({
+      ...current,
+      title: t("bundleMarriageDefaultName"),
+      weddingMonth: defaultMonth || current.weddingMonth,
+      travelCustomMonth: defaultMonth || current.travelCustomMonth,
+    }));
   }, [
     defaultMonth,
     editingHomeEvent,
@@ -528,6 +601,7 @@ export default function BundleWizardDrawer({
     mode,
     opened,
     resolvedTemplateId,
+    t,
   ]);
 
   const hasLivingTotal = useMemo(() => {
@@ -644,6 +718,16 @@ export default function BundleWizardDrawer({
     [t]
   );
 
+  const ongoingCostTemplates = useMemo(
+    () => [
+      { key: "management", label: t("bundleHomeOngoingManagement") },
+      { key: "rates", label: t("bundleHomeOngoingRates") },
+      { key: "insurance", label: t("bundleHomeOngoingInsurance") },
+      { key: "maintenance", label: t("bundleHomeOngoingMaintenance") },
+    ],
+    [t]
+  );
+
   const getEventTypeLabel = (event: ScenarioEventDraft) => {
     if (event.type === "cashflow") {
       return event.kind === "income" ? t("incomeTitle") : t("expensesTitle");
@@ -736,6 +820,28 @@ export default function BundleWizardDrawer({
           : undefined,
         propertyAssetId: homeDraft.propertyAssetId,
         mortgageLiabilityId: homeDraft.mortgageLiabilityId,
+      };
+      return {
+        templateId: resolvedTemplateId,
+        input,
+      };
+    }
+    if (isMarriageBundle) {
+      const input: MarriagePlanInput = {
+        title: marriageDraft.title,
+        weddingMonth: marriageDraft.weddingMonth,
+        weddingStyle: marriageDraft.weddingStyle,
+        totalWeddingBudget: marriageDraft.totalWeddingBudget,
+        breakdownEnabled: marriageDraft.breakdownEnabled,
+        breakdownItems: marriageDraft.breakdownItems,
+        includeTravel: marriageDraft.includeTravel,
+        travelLabel: t("bundleMarriageTravelLabel"),
+        travelMonthMode: marriageDraft.travelMonthMode,
+        travelCustomMonth: marriageDraft.travelCustomMonth,
+        travelBudgetMode: marriageDraft.travelBudgetMode,
+        travelTotal: marriageDraft.travelTotal,
+        travellersCount: marriageDraft.travellersCount,
+        perPersonBudget: marriageDraft.perPersonBudget,
       };
       return {
         templateId: resolvedTemplateId,
@@ -907,6 +1013,41 @@ export default function BundleWizardDrawer({
             : nextEvent,
         ]);
       }
+      if (isMarriageBundle) {
+        const input: MarriagePlanInput = {
+          title: marriageDraft.title,
+          weddingMonth: marriageDraft.weddingMonth,
+          weddingStyle: marriageDraft.weddingStyle,
+          totalWeddingBudget: marriageDraft.totalWeddingBudget,
+          breakdownEnabled: marriageDraft.breakdownEnabled,
+          breakdownItems: marriageDraft.breakdownItems,
+          includeTravel: marriageDraft.includeTravel,
+          travelLabel:
+            marriageDraft.weddingStyle === "destination_wedding"
+              ? t("bundleMarriageDestinationTravelLabel")
+              : t("bundleMarriageTravelLabel"),
+          travelMonthMode: marriageDraft.travelMonthMode,
+          travelCustomMonth: marriageDraft.travelCustomMonth,
+          travelBudgetMode: marriageDraft.travelBudgetMode,
+          travelTotal: marriageDraft.travelTotal,
+          travellersCount: marriageDraft.travellersCount,
+          perPersonBudget: marriageDraft.perPersonBudget,
+        };
+        setPreviewEvents(
+          buildMarriageBundleEvents(
+            input,
+            {
+              weddingMain: marriageDraft.title || t("bundleMarriageDefaultName"),
+              travel: t("bundleMarriageTravelLabel"),
+            },
+            {
+              bundleInstanceId,
+              templateId: resolvedTemplateId ?? "life_marriage_plan",
+              bundleTitle: marriageDraft.title || t("bundleMarriageDefaultName"),
+            }
+          )
+        );
+      }
     }
     setStep((current) => Math.min(current + 1, 2));
   };
@@ -999,6 +1140,29 @@ export default function BundleWizardDrawer({
     if (isHomeBundle && !canAdvanceHome()) {
       return;
     }
+    if (isMarriageBundle) {
+      const nextErrors: Record<string, string> = {};
+      const monthResult = normalizeMonthValue(marriageDraft.weddingMonth);
+      if (monthResult.error) {
+        nextErrors.weddingMonth =
+          monthResult.error === "empty"
+            ? t("bundleMonthRequired")
+            : validation("useYearMonth");
+      }
+      if (marriageDraft.includeTravel && marriageDraft.travelMonthMode === "custom") {
+        const travelMonthResult = normalizeMonthValue(marriageDraft.travelCustomMonth);
+        if (travelMonthResult.error) {
+          nextErrors.travelCustomMonth =
+            travelMonthResult.error === "empty"
+              ? t("bundleMonthRequired")
+              : validation("useYearMonth");
+        }
+      }
+      setErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) {
+        return;
+      }
+    }
     handleNext();
   };
 
@@ -1065,6 +1229,24 @@ export default function BundleWizardDrawer({
       ),
     }));
   };
+
+  const recomputeMarriageBreakdown = () => {
+    setMarriageDraft((current) => ({
+      ...current,
+      customBreakdown: false,
+      breakdownItems: normalizeWeddingBreakdown(
+        current.totalWeddingBudget,
+        current.breakdownItems
+      ),
+    }));
+  };
+
+  const travelTotalPreview = computeTravelTotal({
+    mode: marriageDraft.travelBudgetMode,
+    total: marriageDraft.travelTotal,
+    count: marriageDraft.travellersCount,
+    perPerson: marriageDraft.perPersonBudget,
+  });
 
   const termMonths = homeDraft.termMode === "years"
     ? homeDraft.mortgageTermYears * 12
@@ -1672,6 +1854,40 @@ export default function BundleWizardDrawer({
                     {t("bundleAddOngoing")}
                   </Button>
                 </Group>
+                <Stack gap={6}>
+                  <Text size="xs" c="dimmed">
+                    {t("bundleHomeOngoingQuickAdd")}
+                  </Text>
+                  <Group gap="xs" wrap="wrap">
+                    {ongoingCostTemplates.map((template) => (
+                      <Button
+                        key={template.key}
+                        variant="light"
+                        size="xs"
+                        onClick={() =>
+                          setHomeDraft((current) => ({
+                            ...current,
+                            ongoingCosts: [
+                              ...current.ongoingCosts,
+                              createOngoingCostDraft(),
+                            ].map((item, index, array) =>
+                              index === array.length - 1
+                                ? {
+                                    ...item,
+                                    label: template.label,
+                                    startMonth: current.startMonth,
+                                    monthMode: "purchase",
+                                  }
+                                : item
+                            ),
+                          }))
+                        }
+                      >
+                        {template.label}
+                      </Button>
+                    ))}
+                  </Group>
+                </Stack>
                 {homeDraft.ongoingCosts.length === 0 ? (
                   <Text size="sm" c="dimmed">
                     {t("bundleOngoingEmpty")}
@@ -1872,6 +2088,212 @@ export default function BundleWizardDrawer({
                 )}
               </Stack>
             </Card>
+          </Stack>
+        )}
+
+        {isMarriageBundle && step === 0 && (
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              {t("bundleMarriageIntro")}
+            </Text>
+            <TextInput
+              label={t("bundleMarriageTitle")}
+              value={marriageDraft.title}
+              onChange={(event) =>
+                setMarriageDraft((current) => ({ ...current, title: event.currentTarget.value }))
+              }
+            />
+            <MonthField
+              label={t("bundleMarriageMonth")}
+              value={marriageDraft.weddingMonth}
+              error={errors.weddingMonth}
+              onChange={(value) =>
+                setMarriageDraft((current) => ({ ...current, weddingMonth: value }))
+              }
+            />
+          </Stack>
+        )}
+
+        {isMarriageBundle && step === 1 && (
+          <Stack gap="md">
+            <SegmentedControl
+              value={marriageDraft.weddingStyle}
+              onChange={(value) => {
+                const style = value as WeddingStyle;
+                const suggested = WEDDING_STYLE_BUDGET[style];
+                setMarriageDraft((current) => ({
+                  ...current,
+                  weddingStyle: style,
+                  totalWeddingBudget: style === "custom" ? current.totalWeddingBudget : suggested,
+                  includeTravel:
+                    style === "destination_wedding" ? true : current.includeTravel,
+                }));
+              }}
+              data={[
+                { value: "simple_register", label: t("bundleMarriageStyleSimple") },
+                { value: "small_banquet", label: t("bundleMarriageStyleSmall") },
+                { value: "hotel_banquet", label: t("bundleMarriageStyleHotel") },
+                { value: "luxury_wedding", label: t("bundleMarriageStyleLuxury") },
+                { value: "destination_wedding", label: t("bundleMarriageStyleDestination") },
+                { value: "custom", label: t("bundleMarriageStyleCustom") },
+              ]}
+            />
+            <NumberInput
+              label={t("bundleMarriageBudget")}
+              min={0}
+              value={marriageDraft.totalWeddingBudget}
+              onChange={(value) =>
+                setMarriageDraft((current) => ({
+                  ...current,
+                  totalWeddingBudget: Number(value) || 0,
+                  breakdownItems: current.customBreakdown
+                    ? current.breakdownItems
+                    : normalizeWeddingBreakdown(Number(value) || 0, current.breakdownItems),
+                }))
+              }
+            />
+            <Switch
+              checked={marriageDraft.breakdownEnabled}
+              label={t("bundleMarriageBreakdownToggle")}
+              onChange={(event) =>
+                setMarriageDraft((current) => ({
+                  ...current,
+                  breakdownEnabled: event.currentTarget.checked,
+                  breakdownItems: normalizeWeddingBreakdown(
+                    current.totalWeddingBudget,
+                    current.breakdownItems
+                  ),
+                }))
+              }
+            />
+            {marriageDraft.breakdownEnabled && (
+              <Stack gap="xs">
+                <Button size="xs" variant="light" onClick={recomputeMarriageBreakdown}>
+                  {t("bundleMarriageRecompute")}
+                </Button>
+                {marriageDraft.breakdownItems.map((item) => (
+                  <Group key={item.id} grow>
+                    <TextInput
+                      value={item.label}
+                      onChange={(event) =>
+                        setMarriageDraft((current) => ({
+                          ...current,
+                          customBreakdown: true,
+                          breakdownItems: current.breakdownItems.map((entry) =>
+                            entry.id === item.id
+                              ? { ...entry, label: event.currentTarget.value }
+                              : entry
+                          ),
+                        }))
+                      }
+                    />
+                    <NumberInput
+                      min={0}
+                      value={item.amount}
+                      onChange={(value) =>
+                        setMarriageDraft((current) => ({
+                          ...current,
+                          customBreakdown: true,
+                          breakdownItems: current.breakdownItems.map((entry) =>
+                            entry.id === item.id
+                              ? { ...entry, amount: Number(value) || 0 }
+                              : entry
+                          ),
+                        }))
+                      }
+                    />
+                  </Group>
+                ))}
+              </Stack>
+            )}
+            <Switch
+              checked={marriageDraft.includeTravel}
+              label={t("bundleMarriageTravelToggle")}
+              onChange={(event) =>
+                setMarriageDraft((current) => ({ ...current, includeTravel: event.currentTarget.checked }))
+              }
+            />
+            {marriageDraft.includeTravel && (
+              <Stack gap="xs">
+                <SegmentedControl
+                  value={marriageDraft.travelMonthMode}
+                  onChange={(value) =>
+                    setMarriageDraft((current) => ({
+                      ...current,
+                      travelMonthMode: value as TravelMonthMode,
+                    }))
+                  }
+                  data={[
+                    { value: "same", label: t("bundleMarriageTravelMonthSame") },
+                    { value: "plus1", label: t("bundleMarriageTravelMonthPlusOne") },
+                    { value: "custom", label: t("bundleMarriageTravelMonthCustom") },
+                  ]}
+                />
+                {marriageDraft.travelMonthMode === "custom" && (
+                  <MonthField
+                    label={t("bundleMarriageTravelCustomMonth")}
+                    value={marriageDraft.travelCustomMonth}
+                    error={errors.travelCustomMonth}
+                    onChange={(value) =>
+                      setMarriageDraft((current) => ({ ...current, travelCustomMonth: value }))
+                    }
+                  />
+                )}
+                <SegmentedControl
+                  value={marriageDraft.travelBudgetMode}
+                  onChange={(value) =>
+                    setMarriageDraft((current) => ({
+                      ...current,
+                      travelBudgetMode: value as TravelBudgetMode,
+                    }))
+                  }
+                  data={[
+                    { value: "total", label: t("bundleMarriageTravelModeTotal") },
+                    { value: "perPerson", label: t("bundleMarriageTravelModePerPerson") },
+                  ]}
+                />
+                {marriageDraft.travelBudgetMode === "total" ? (
+                  <NumberInput
+                    label={t("bundleMarriageTravelTotal")}
+                    min={0}
+                    value={marriageDraft.travelTotal}
+                    onChange={(value) =>
+                      setMarriageDraft((current) => ({ ...current, travelTotal: Number(value) || 0 }))
+                    }
+                  />
+                ) : (
+                  <Group grow>
+                    <NumberInput
+                      label={t("bundleMarriageTravelCount")}
+                      min={1}
+                      value={marriageDraft.travellersCount}
+                      onChange={(value) =>
+                        setMarriageDraft((current) => ({
+                          ...current,
+                          travellersCount: Number(value) || 1,
+                        }))
+                      }
+                    />
+                    <NumberInput
+                      label={t("bundleMarriageTravelPerPerson")}
+                      min={0}
+                      value={marriageDraft.perPersonBudget}
+                      onChange={(value) =>
+                        setMarriageDraft((current) => ({
+                          ...current,
+                          perPersonBudget: Number(value) || 0,
+                        }))
+                      }
+                    />
+                  </Group>
+                )}
+                <Text size="xs" c="dimmed">
+                  {t("bundleMarriageTravelComputed", {
+                    total: formatCurrency(travelTotalPreview, baseCurrency, locale),
+                  })}
+                </Text>
+              </Stack>
+            )}
           </Stack>
         )}
 

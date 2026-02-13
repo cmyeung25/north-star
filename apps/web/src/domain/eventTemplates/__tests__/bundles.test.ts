@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { isValidMonthKey } from "../../../utils/monthKey";
 import {
   buildHomePurchaseBundleEvent,
+  buildMarriageBundleEvents,
   buildNewBabyBundleEvents,
+  computeTravelTotal,
+  normalizeWeddingBreakdown,
 } from "../bundles";
 
 describe("event template bundles", () => {
@@ -170,5 +173,52 @@ describe("event template bundles", () => {
       throw new Error("Expected mortgage housing event.");
     }
     expect(customEvent.rental?.startMonth).toBe("2025-10");
+  });
+
+  it("builds marriage events with breakdown and travel", () => {
+    const breakdown = normalizeWeddingBreakdown(120000, [
+      { id: "a", label: "A", amount: 0, ratio: 45 },
+      { id: "b", label: "B", amount: 0, ratio: 10 },
+      { id: "c", label: "C", amount: 0, ratio: 10 },
+      { id: "d", label: "D", amount: 0, ratio: 15 },
+      { id: "e", label: "E", amount: 0, ratio: 10 },
+      { id: "f", label: "F", amount: 0, ratio: 10 },
+    ]);
+    const events = buildMarriageBundleEvents(
+      {
+        title: "Wedding",
+        weddingMonth: "2027-01",
+        weddingStyle: "small_banquet",
+        totalWeddingBudget: 120000,
+        breakdownEnabled: true,
+        breakdownItems: breakdown,
+        includeTravel: true,
+        travelMonthMode: "plus1",
+        travelBudgetMode: "perPerson",
+        travellersCount: 2,
+        perPersonBudget: 12000,
+      },
+      {
+        weddingMain: "Wedding",
+        travel: "Honeymoon",
+      },
+      {
+        bundleInstanceId: "bundle_marriage",
+        templateId: "life_marriage_plan",
+      }
+    );
+    expect(events).toHaveLength(7);
+    const travelEvent = events.at(-1);
+    if (travelEvent?.type !== "cashflow") {
+      throw new Error("Expected cashflow event.");
+    }
+    expect(travelEvent.occurrenceMonth).toBe("2027-02");
+  });
+
+  it("computes travel total", () => {
+    expect(computeTravelTotal({ mode: "total", total: 30000 })).toBe(30000);
+    expect(
+      computeTravelTotal({ mode: "perPerson", count: 3, perPerson: 11000 })
+    ).toBe(33000);
   });
 });

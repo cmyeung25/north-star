@@ -99,7 +99,187 @@ export type BundleWizardInput =
   | {
       templateId: "life_home_purchase";
       input: HomePurchaseBundleInput;
+    }
+  | {
+      templateId: "life_marriage_plan";
+      input: MarriagePlanInput;
     };
+
+export type WeddingStyle =
+  | "simple_register"
+  | "small_banquet"
+  | "hotel_banquet"
+  | "luxury_wedding"
+  | "destination_wedding"
+  | "custom";
+
+export type TravelMonthMode = "same" | "plus1" | "custom";
+
+export type TravelBudgetMode = "total" | "perPerson";
+
+export type WeddingBreakdownItem = {
+  id: string;
+  label: string;
+  amount: number;
+  ratio: number;
+};
+
+export type MarriagePlanInput = {
+  weddingMonth: MonthKey;
+  title?: string;
+  weddingStyle: WeddingStyle;
+  totalWeddingBudget: number;
+  breakdownEnabled: boolean;
+  breakdownItems: WeddingBreakdownItem[];
+  includeTravel: boolean;
+  travelLabel?: string;
+  travelMonthMode?: TravelMonthMode;
+  travelCustomMonth?: MonthKey;
+  travelBudgetMode?: TravelBudgetMode;
+  travelTotal?: number;
+  travellersCount?: number;
+  perPersonBudget?: number;
+};
+
+export type MarriagePlanLabels = {
+  weddingMain: string;
+  travel: string;
+};
+
+export const computeTravelTotal = ({
+  mode,
+  total,
+  count,
+  perPerson,
+}: {
+  mode: TravelBudgetMode;
+  total?: number;
+  count?: number;
+  perPerson?: number;
+}) => {
+  if (mode === "total") {
+    return Math.max(0, Math.round(total ?? 0));
+  }
+  return Math.max(0, Math.round((count ?? 0) * (perPerson ?? 0)));
+};
+
+export const normalizeWeddingBreakdown = (
+  totalWeddingBudget: number,
+  items: WeddingBreakdownItem[]
+) => {
+  const total = Math.max(0, Math.round(totalWeddingBudget));
+  if (items.length === 0) {
+    return [];
+  }
+  const normalized = items.map((item) => ({
+    ...item,
+    amount: Math.max(0, Math.round((total * item.ratio) / 100)),
+  }));
+  const allocated = normalized.reduce((sum, item) => sum + item.amount, 0);
+  const diff = total - allocated;
+  const lastIndex = normalized.length - 1;
+  normalized[lastIndex] = {
+    ...normalized[lastIndex],
+    amount: Math.max(0, normalized[lastIndex].amount + diff),
+  };
+  return normalized;
+};
+
+const resolveTravelMonth = (
+  weddingMonth: MonthKey,
+  mode: TravelMonthMode | undefined,
+  customMonth?: MonthKey
+) => {
+  if (mode === "custom") {
+    return isValidMonthKey(customMonth ?? "") ? customMonth ?? weddingMonth : weddingMonth;
+  }
+  if (mode === "plus1") {
+    return addMonths(weddingMonth, 1);
+  }
+  return weddingMonth;
+};
+
+export const buildMarriageBundleEvents = (
+  input: MarriagePlanInput,
+  labels: MarriagePlanLabels,
+  source: {
+    bundleInstanceId: string;
+    templateId: string;
+    bundleTitle?: string;
+  },
+  createId: () => string = createBundleEventId
+): ScenarioEventDraft[] => {
+  const events: ScenarioEventDraft[] = [];
+  if (!isValidMonthKey(input.weddingMonth)) {
+    return events;
+  }
+
+  if (input.breakdownEnabled) {
+    const breakdown = input.breakdownItems.filter((item) => item.amount > 0);
+    breakdown.forEach((item) => {
+      events.push(
+        buildCashflowEvent({
+          id: createId(),
+          label: item.label,
+          cadence: "oneOff",
+          amount: item.amount,
+          occurrenceMonth: input.weddingMonth,
+          tags: ["wedding"],
+          source: {
+            ...source,
+            componentKey: `weddingBreakdown:${item.id}`,
+          },
+        })
+      );
+    });
+  } else {
+    events.push(
+      buildCashflowEvent({
+        id: createId(),
+        label: input.title || labels.weddingMain,
+        cadence: "oneOff",
+        amount: Math.max(0, Math.round(input.totalWeddingBudget)),
+        occurrenceMonth: input.weddingMonth,
+        tags: ["wedding"],
+        source: {
+          ...source,
+          componentKey: "weddingMain",
+        },
+      })
+    );
+  }
+
+  if (input.includeTravel) {
+    const amount = computeTravelTotal({
+      mode: input.travelBudgetMode ?? "total",
+      total: input.travelTotal,
+      count: input.travellersCount,
+      perPerson: input.perPersonBudget,
+    });
+    if (amount > 0) {
+      events.push(
+        buildCashflowEvent({
+          id: createId(),
+          label: input.travelLabel || labels.travel,
+          cadence: "oneOff",
+          amount,
+          occurrenceMonth: resolveTravelMonth(
+            input.weddingMonth,
+            input.travelMonthMode,
+            input.travelCustomMonth
+          ),
+          tags: ["wedding", "travel"],
+          source: {
+            ...source,
+            componentKey: "weddingTravel",
+          },
+        })
+      );
+    }
+  }
+
+  return events;
+};
 
 const buildCashflowEvent = ({
   id,

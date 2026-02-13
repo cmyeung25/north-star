@@ -1457,6 +1457,15 @@ const cloneBundleWizardInput = (input: BundleWizardInput): BundleWizardInput => 
       },
     };
   }
+  if (input.templateId === "life_marriage_plan") {
+    return {
+      templateId: input.templateId,
+      input: {
+        ...input.input,
+        breakdownItems: input.input.breakdownItems.map((item) => ({ ...item })),
+      },
+    };
+  }
   return input;
 };
 
