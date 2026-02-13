@@ -4380,6 +4380,7 @@ export default function MoneyClient({
                 mode={v2EventDrawerMode}
                 baseCurrency={scenario.baseCurrency}
                 scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
+                scenarioHorizonMonths={scenario.assumptions.horizonMonths ?? null}
                 incomeGrowthPct={incomeGrowthPct}
                 inflationPct={scenario.assumptions.inflationRate ?? null}
                 rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
