@@ -209,6 +209,8 @@ import {
   formatScenarioAssumptionSummary,
   getScenarioAssumptionOverrideEntries,
 } from "./experimentSummary";
+import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
+import { buildTimelineItemsForPreview } from "./timelinePreview";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -5260,6 +5262,41 @@ export default function PlanLabPanel({
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
 
+  const previewTimelineRange = useMemo(() => {
+    const startYM =
+      planLabProjection.months[0] ??
+      scenario.assumptions.baseMonth ??
+      baselineProjection.months[0] ??
+      null;
+    const endYM =
+      planLabProjection.months[planLabProjection.months.length - 1] ??
+      baselineProjection.months[baselineProjection.months.length - 1] ??
+      null;
+    if (!startYM || !endYM) {
+      return null;
+    }
+    return { startYM, endYM };
+  }, [baselineProjection.months, planLabProjection.months, scenario.assumptions.baseMonth]);
+
+  const previewTimelineItems = useMemo(() => {
+    if (!previewTimelineRange) {
+      return [];
+    }
+    return buildTimelineItemsForPreview(
+      scenarioItems.map((item) => ({
+        id: item.id,
+        label: item.title,
+        kind: item.kind,
+        category: item.category,
+        startMonth: item.startMonth,
+        endMonth: item.endMonth,
+        enabled: item.enabled,
+        frequency: item.frequency,
+      })),
+      previewTimelineRange
+    );
+  }, [previewTimelineRange, scenarioItems]);
+
   const planLabNetWorthByMonth = useMemo(
     () =>
       planLabProjection.projection?.months.reduce<Record<string, number>>((acc, month, index) => {
@@ -8654,7 +8691,28 @@ export default function PlanLabPanel({
               onChange={(value) => setChartType(value as ChartType)}
             />
           </Group>
-          <Box style={{ flex: 1, minHeight: "70vh" }}>{renderProjectionChart(720)}</Box>
+          <Box style={{ flex: 1, minHeight: "50vh" }}>{renderProjectionChart(620)}</Box>
+          <Card withBorder radius="xs" padding="sm">
+            <Stack gap="xs">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{translate("planLabTimelineTitle", "人生大事件")}</Text>
+                <Badge variant="light" color="blue">
+                  {previewTimelineItems.length}
+                </Badge>
+              </Group>
+              {previewTimelineRange && previewTimelineItems.length > 0 ? (
+                <PlanLabTimelinePreview
+                  items={previewTimelineItems}
+                  range={previewTimelineRange}
+                  height={260}
+                />
+              ) : (
+                <Text size="sm" c="dimmed">
+                  {translate("planLabTimelineEmpty", "暫無可展示事件")}
+                </Text>
+              )}
+            </Stack>
+          </Card>
         </Stack>
       </Modal>
 
