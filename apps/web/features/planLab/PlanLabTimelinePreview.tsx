@@ -1,15 +1,13 @@
 import { Badge, Box, Group, ScrollArea, Stack, Text, Tooltip } from "@mantine/core";
-import { useMemo, useState, type MouseEvent } from "react";
-import type { ProjectionXDomain } from "./projectionXDomain";
-import type { TimelineChartRange, TimelineItem } from "./timelinePreview";
+import { useState } from "react";
+import type { MonthScale } from "../../lib/chart/monthScale";
+import type { TimelineItem } from "./timelinePreview";
 
 type PlanLabTimelinePreviewProps = {
   items: TimelineItem[];
-  range: TimelineChartRange;
-  xDomain: ProjectionXDomain;
-  plotLeftGutter?: number;
+  monthScale: MonthScale;
+  isMobile: boolean;
   activeMonthIdx: number | null;
-  onActiveMonthChange: (monthIdx: number | null) => void;
   onMonthClick: (monthIdx: number) => void;
   height?: number;
 };
@@ -23,50 +21,19 @@ const KIND_COLORS: Record<TimelineItem["kind"], string> = {
   other: "gray",
 };
 
+const LABEL_COL_WIDTH = 220;
+const ROW_HEIGHT = 24;
+
 export default function PlanLabTimelinePreview({
   items,
-  range,
-  xDomain,
-  plotLeftGutter = 80,
+  monthScale,
+  isMobile,
   activeMonthIdx,
-  onActiveMonthChange,
   onMonthClick,
   height = 250,
 }: PlanLabTimelinePreviewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const totalMonths = Math.max(xDomain.months.length, 1);
-  const monthSpan = Math.max(totalMonths - 1, 1);
-  const monthIndexLookup = useMemo(
-    () =>
-      xDomain.months.reduce<Record<string, number>>((acc, month, index) => {
-        acc[month] = index;
-        return acc;
-      }, {}),
-    [xDomain.months]
-  );
-
-  const ticks = useMemo(() => {
-    const out: Array<{ index: number; label: string }> = [];
-    for (let idx = 0; idx < totalMonths; idx += 12) {
-      const month = xDomain.months[idx] ?? range.startYM;
-      out.push({ index: idx, label: month.slice(0, 4) });
-    }
-    if (out.length === 0 || out[out.length - 1]?.index !== totalMonths - 1) {
-      out.push({ index: totalMonths - 1, label: (xDomain.months[totalMonths - 1] ?? range.endYM).slice(0, 4) });
-    }
-    return out;
-  }, [range.endYM, range.startYM, totalMonths, xDomain.months]);
-
-  const monthFromPointer = (event: MouseEvent<HTMLDivElement>): number | null => {
-    if (xDomain.months.length === 0) {
-      return null;
-    }
-    const rect = event.currentTarget.getBoundingClientRect();
-    const relative = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-    const ratio = rect.width > 0 ? relative / rect.width : 0;
-    const idx = Math.round(ratio * (xDomain.months.length - 1));
-    return Math.min(Math.max(idx, xDomain.startMonthIdx), xDomain.endMonthIdx);
-  };
+  const tickEvery = isMobile ? 24 : 12;
 
   if (items.length === 0) {
     return (
@@ -76,16 +43,25 @@ export default function PlanLabTimelinePreview({
     );
   }
 
+  const axisTicks = monthScale.months
+    .map((month, index) => ({ month, index }))
+    .filter(({ index }) => index % tickEvery === 0);
+  const lastMonth = monthScale.months[monthScale.monthCount - 1];
+  if (lastMonth && axisTicks[axisTicks.length - 1]?.month !== lastMonth) {
+    axisTicks.push({ month: lastMonth, index: monthScale.monthCount - 1 });
+  }
+
   return (
     <Stack gap="xs">
       <ScrollArea h={height} type="auto" offsetScrollbars>
-        <Stack gap={6} pr="xs">
+        <Stack gap={8} pr="xs">
           {items.map((item) => {
-            const startIndex = monthIndexLookup[item.startYM] ?? xDomain.startMonthIdx;
-            const endIndex = monthIndexLookup[item.endYM ?? range.endYM] ?? xDomain.endMonthIdx;
-            const left = ((startIndex - xDomain.startMonthIdx) / monthSpan) * 100;
-            const width = Math.max(((endIndex - startIndex + 1) / totalMonths) * 100, 0.8);
+            const startIdx = monthScale.monthToIndex.get(item.startYM) ?? 0;
+            const endIdx = monthScale.monthToIndex.get(item.endYM ?? monthScale.months[monthScale.monthCount - 1] ?? item.startYM) ?? monthScale.monthCount - 1;
+            const barLeft = monthScale.xOfMonth(monthScale.months[startIdx] ?? item.startYM);
+            const barWidth = Math.max((Math.max(endIdx - startIdx, 0) + 1) * monthScale.pxPerMonth, 8);
             const active = activeId === item.id;
+
             return (
               <Group
                 key={item.id}
@@ -94,7 +70,7 @@ export default function PlanLabTimelinePreview({
                 onClick={() => setActiveId((current) => (current === item.id ? null : item.id))}
                 style={{ cursor: "pointer" }}
               >
-                <Box w={plotLeftGutter} style={{ minWidth: plotLeftGutter }}>
+                <Box w={LABEL_COL_WIDTH} style={{ minWidth: LABEL_COL_WIDTH }}>
                   <Group gap={6} wrap="nowrap">
                     <Badge variant="light" color={KIND_COLORS[item.kind]} size="xs">
                       {item.kind}
@@ -105,41 +81,35 @@ export default function PlanLabTimelinePreview({
                   </Group>
                 </Box>
                 <Box
-                  onMouseMove={(event) => {
-                    const monthIdx = monthFromPointer(event);
-                    if (monthIdx !== null) {
-                      onActiveMonthChange(monthIdx);
-                    }
-                  }}
-                  onMouseLeave={() => onActiveMonthChange(null)}
                   onClick={(event) => {
-                    const monthIdx = monthFromPointer(event);
-                    if (monthIdx !== null) {
-                      onMonthClick(monthIdx);
-                    }
+                    event.stopPropagation();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    const x = Math.max(0, event.clientX - rect.left - monthScale.leftGutterPx);
+                    const monthIdx = Math.min(
+                      Math.max(Math.round(x / monthScale.pxPerMonth), 0),
+                      Math.max(monthScale.monthCount - 1, 0)
+                    );
+                    onMonthClick(monthIdx);
                   }}
                   style={{
                     position: "relative",
-                    flex: 1,
-                    minWidth: 220,
-                    height: 22,
+                    minWidth: monthScale.totalWidth,
+                    width: monthScale.totalWidth,
+                    height: ROW_HEIGHT,
                     borderRadius: 6,
                     background: "var(--mantine-color-gray-0)",
                     border: "1px solid var(--mantine-color-gray-2)",
                   }}
                 >
-                  <Tooltip
-                    label={`${item.label} · ${item.startYM}${item.endYM ? ` → ${item.endYM}` : ""} (${item.kind})`}
-                    withArrow
-                  >
+                  <Tooltip label={`${item.label} · ${item.startYM}${item.endYM ? ` → ${item.endYM}` : ""} (${item.kind})`} withArrow>
                     <Box
                       style={{
                         position: "absolute",
                         top: "50%",
-                        left: `${left}%`,
-                        width: item.isPoint ? 8 : `${width}%`,
+                        left: barLeft,
+                        width: item.isPoint ? 8 : barWidth,
                         height: item.isPoint ? 8 : 10,
-                        transform: "translate(-50%, -50%)",
+                        transform: "translateY(-50%)",
                         borderRadius: item.isPoint ? 999 : 4,
                         background: "var(--mantine-color-blue-6)",
                         outline: active ? "2px solid var(--mantine-color-blue-9)" : undefined,
@@ -150,7 +120,7 @@ export default function PlanLabTimelinePreview({
                     <Box
                       style={{
                         position: "absolute",
-                        left: `${((activeMonthIdx - xDomain.startMonthIdx) / monthSpan) * 100}%`,
+                        left: monthScale.leftGutterPx + activeMonthIdx * monthScale.pxPerMonth,
                         top: 0,
                         bottom: 0,
                         width: 1,
@@ -166,26 +136,27 @@ export default function PlanLabTimelinePreview({
         </Stack>
       </ScrollArea>
 
-      <Box
-        style={{
-          position: "relative",
-          marginLeft: plotLeftGutter,
-          height: 18,
-          borderTop: "1px solid var(--mantine-color-gray-3)",
-        }}
-      >
-        {ticks.map((tick) => {
-          const left = (tick.index / monthSpan) * 100;
-          return (
-            <Box key={`${tick.index}-${tick.label}`} style={{ position: "absolute", left: `${left}%`, top: 0 }}>
+      <Group gap="xs" wrap="nowrap" align="flex-start">
+        <Box w={LABEL_COL_WIDTH} style={{ minWidth: LABEL_COL_WIDTH }} />
+        <Box
+          style={{
+            position: "relative",
+            minWidth: monthScale.totalWidth,
+            width: monthScale.totalWidth,
+            height: 24,
+            borderTop: "1px solid var(--mantine-color-gray-3)",
+          }}
+        >
+          {axisTicks.map((tick) => (
+            <Box key={tick.month} style={{ position: "absolute", left: monthScale.xOfMonth(tick.month), top: 0 }}>
               <Box h={6} w={1} bg="gray.5" />
               <Text size="10px" c="dimmed">
-                {tick.label}
+                {tick.month.slice(0, 4)}
               </Text>
             </Box>
-          );
-        })}
-      </Box>
+          ))}
+        </Box>
+      </Group>
     </Stack>
   );
 }

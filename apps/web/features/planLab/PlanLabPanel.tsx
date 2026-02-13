@@ -48,7 +48,6 @@ import {
   Legend as RechartsLegend,
   Line,
   LineChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
@@ -211,8 +210,8 @@ import {
   getScenarioAssumptionOverrideEntries,
 } from "./experimentSummary";
 import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
-import { getProjectionXDomain } from "./projectionXDomain";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
+import { buildMonthScale } from "../../lib/chart/monthScale";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -5471,14 +5470,19 @@ export default function PlanLabPanel({
     return mergeSeries(baseline, option);
   }, [baselineSeries, chartType, optionSeries]);
 
-  const projectionXDomain = useMemo(() => getProjectionXDomain(chartData), [chartData]);
+  const previewMonthScale = useMemo(
+    () => buildMonthScale(chartData, { isMobile, leftGutterPx: 72, rightPaddingPx: 24 }),
+    [chartData, isMobile]
+  );
 
   const activeMonthIdx = lockedMonthIdx ?? hoverMonthIdx;
 
   const activeMonthKey =
     activeMonthIdx !== null && activeMonthIdx >= 0
-      ? projectionXDomain.months[activeMonthIdx] ?? null
+      ? previewMonthScale.months[activeMonthIdx] ?? null
       : null;
+
+  const cursorX = activeMonthKey ? previewMonthScale.xOfMonth(activeMonthKey) : null;
 
   useEffect(() => {
     if (!chartPreviewOpen) {
@@ -5561,74 +5565,88 @@ export default function PlanLabPanel({
       options?: {
         hideXAxis?: boolean;
         syncCrosshair?: boolean;
+        fixedWidth?: number;
       }
-    ) => (
-      <div style={{ width: "100%", height }}>
-        <ResponsiveContainer>
-          <LineChart
-            data={chartData}
-            margin={{ left: 8, right: 12 }}
-            onMouseMove={(state) => {
-              if (!options?.syncCrosshair || lockedMonthIdx !== null) {
-                return;
-              }
-              const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
-              setHoverMonthIdx(idx);
-            }}
-            onMouseLeave={() => {
-              if (!options?.syncCrosshair || lockedMonthIdx !== null) {
-                return;
-              }
-              setHoverMonthIdx(null);
-            }}
-            onClick={(state) => {
-              if (!options?.syncCrosshair) {
-                return;
-              }
-              const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
-              if (idx === null) {
-                return;
-              }
-              setLockedMonthIdx((current) => (current === idx ? null : idx));
-              setHoverMonthIdx(idx);
-            }}
-          >
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} hide={Boolean(options?.hideXAxis)} />
-            <YAxis
-              tick={{ fontSize: 10 }}
-              width={72}
-              tickFormatter={(value) => formatCurrency(Number(value), undefined, locale)}
-            />
-            <RechartsTooltip
-              formatter={(value) => formatCurrency(Number(value), undefined, locale)}
-              labelFormatter={(label) => t("monthLabel", { month: label })}
-            />
-            <RechartsLegend verticalAlign="top" height={24} />
-            <Line
-              type="monotone"
-              dataKey="baseline"
-              stroke="#adb5bd"
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={false}
-              name={mode === "compare" ? "B" : t("planLabBaselineLabel")}
-            />
-            <Line
-              type="monotone"
-              dataKey="option"
-              stroke="#12b886"
-              strokeWidth={2}
-              dot={false}
-              name={mode === "compare" ? "A" : t("planLabOptionLabel")}
-            />
-            {options?.syncCrosshair && activeMonthKey && (
-              <ReferenceLine x={activeMonthKey} stroke="var(--mantine-color-blue-7)" strokeDasharray="3 3" />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    ),
-    [activeMonthKey, chartData, locale, lockedMonthIdx, mode, t]
+    ) => {
+      const chart = (
+        <LineChart
+          width={options?.fixedWidth}
+          height={height}
+          data={chartData}
+          margin={{ left: 0, right: options?.syncCrosshair ? previewMonthScale.rightPaddingPx : 12 }}
+          onMouseMove={(state) => {
+            if (!options?.syncCrosshair || lockedMonthIdx !== null) {
+              return;
+            }
+            const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
+            setHoverMonthIdx(idx);
+          }}
+          onMouseLeave={() => {
+            if (!options?.syncCrosshair || lockedMonthIdx !== null) {
+              return;
+            }
+            setHoverMonthIdx(null);
+          }}
+          onClick={(state) => {
+            if (!options?.syncCrosshair) {
+              return;
+            }
+            const idx = typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null;
+            if (idx === null) {
+              return;
+            }
+            setLockedMonthIdx((current) => (current === idx ? null : idx));
+            setHoverMonthIdx(idx);
+          }}
+        >
+          <XAxis
+            dataKey="month"
+            tick={options?.syncCrosshair ? false : { fontSize: 10 }}
+            tickLine={false}
+            axisLine={!options?.syncCrosshair}
+            hide={Boolean(options?.hideXAxis)}
+          />
+          <YAxis
+            tick={{ fontSize: 10 }}
+            width={previewMonthScale.leftGutterPx}
+            tickFormatter={(value) => formatCurrency(Number(value), undefined, locale)}
+          />
+          <RechartsTooltip
+            formatter={(value) => formatCurrency(Number(value), undefined, locale)}
+            labelFormatter={(label) => t("monthLabel", { month: label })}
+          />
+          <RechartsLegend verticalAlign="top" height={24} />
+          <Line
+            type="monotone"
+            dataKey="baseline"
+            stroke="#adb5bd"
+            strokeWidth={2}
+            strokeDasharray="6 4"
+            dot={false}
+            name={mode === "compare" ? "B" : t("planLabBaselineLabel")}
+          />
+          <Line
+            type="monotone"
+            dataKey="option"
+            stroke="#12b886"
+            strokeWidth={2}
+            dot={false}
+            name={mode === "compare" ? "A" : t("planLabOptionLabel")}
+          />
+        </LineChart>
+      );
+
+      if (options?.fixedWidth) {
+        return <div style={{ width: options.fixedWidth, height }}>{chart}</div>;
+      }
+
+      return (
+        <div style={{ width: "100%", height }}>
+          <ResponsiveContainer>{chart}</ResponsiveContainer>
+        </div>
+      );
+    },
+    [chartData, locale, lockedMonthIdx, mode, previewMonthScale.leftGutterPx, previewMonthScale.rightPaddingPx, t]
   );
 
   // Compute cash risk scorecard metrics
@@ -8937,9 +8955,10 @@ export default function PlanLabPanel({
         title={translate("planLabChartPreviewModalTitle", "預覽圖表")}
         fullScreen
         centered
+        styles={{ body: { height: "calc(100vh - 64px)", padding: 0 } }}
       >
-        <Stack gap="md" h="100%">
-          <Group justify="space-between" align="center" wrap="wrap">
+        <Stack gap="sm" h="100%" p="sm">
+          <Group justify="space-between" align="center" wrap="nowrap">
             <Text fw={600}>{translate("planLabChartPreviewModalTitle", "預覽圖表")}</Text>
             <SegmentedControl
               size="sm"
@@ -8952,40 +8971,59 @@ export default function PlanLabPanel({
               onChange={(value) => setChartType(value as ChartType)}
             />
           </Group>
-          <Box style={{ flex: 1, minHeight: "50vh" }}>{renderProjectionChart(620, { hideXAxis: true, syncCrosshair: true })}</Box>
-          <Card withBorder radius="xs" padding="sm">
-            <Stack gap="xs">
-              <Group justify="space-between" align="center">
-                <Text fw={600}>{translate("planLabTimelineTitle", "人生大事件")}</Text>
-                <Badge variant="light" color="blue">
-                  {previewTimelineItems.length}
-                </Badge>
-              </Group>
-              {previewTimelineRange && previewTimelineItems.length > 0 ? (
-                <PlanLabTimelinePreview
-                  items={previewTimelineItems}
-                  range={previewTimelineRange}
-                  xDomain={projectionXDomain}
-                  activeMonthIdx={activeMonthIdx}
-                  onActiveMonthChange={(monthIdx) => {
-                    if (lockedMonthIdx !== null) {
-                      return;
-                    }
-                    setHoverMonthIdx(monthIdx);
-                  }}
-                  onMonthClick={(monthIdx) => {
-                    setLockedMonthIdx((current) => (current === monthIdx ? null : monthIdx));
-                    setHoverMonthIdx(monthIdx);
-                  }}
-                  height={260}
-                />
-              ) : (
-                <Text size="sm" c="dimmed">
-                  {translate("planLabTimelineEmpty", "暫無可展示事件")}
-                </Text>
-              )}
-            </Stack>
-          </Card>
+          <Box style={{ flex: 1, overflowY: "auto" }}>
+            <Box style={{ overflowX: "auto" }}>
+              <Box style={{ position: "relative", minWidth: previewMonthScale.totalWidth }}>
+                <Box style={{ minWidth: previewMonthScale.totalWidth }}>
+                  {renderProjectionChart(isMobile ? 360 : 620, {
+                    hideXAxis: true,
+                    syncCrosshair: true,
+                    fixedWidth: previewMonthScale.totalWidth,
+                  })}
+                </Box>
+                {cursorX !== null && (
+                  <Box
+                    style={{
+                      position: "absolute",
+                      left: cursorX,
+                      top: isMobile ? 16 : 24,
+                      bottom: 24,
+                      width: 1,
+                      borderLeft: "1px dashed var(--mantine-color-blue-7)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+                <Card withBorder radius="xs" padding="sm" mt="sm" style={{ minWidth: previewMonthScale.totalWidth }}>
+                  <Stack gap="xs">
+                    <Group justify="space-between" align="center">
+                      <Text fw={600}>{translate("planLabTimelineTitle", "人生大事件")}</Text>
+                      <Badge variant="light" color="blue">
+                        {previewTimelineItems.length}
+                      </Badge>
+                    </Group>
+                    {previewTimelineRange && previewTimelineItems.length > 0 ? (
+                      <PlanLabTimelinePreview
+                        items={previewTimelineItems}
+                        monthScale={previewMonthScale}
+                        isMobile={isMobile}
+                        activeMonthIdx={activeMonthIdx}
+                        onMonthClick={(monthIdx) => {
+                          setLockedMonthIdx((current) => (current === monthIdx ? null : monthIdx));
+                          setHoverMonthIdx(monthIdx);
+                        }}
+                        height={isMobile ? 260 : 220}
+                      />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {translate("planLabTimelineEmpty", "暫無可展示事件")}
+                      </Text>
+                    )}
+                  </Stack>
+                </Card>
+              </Box>
+            </Box>
+          </Box>
         </Stack>
       </Modal>
 
