@@ -971,7 +971,20 @@
         "goMoney": "Go to Money",
         "goPeople": "Go to People"
       }
-    }
+    },
+    "breakdownSummaryDelta": "MoM: Net worth {netWorth}, cash {cash}",
+    "breakdownEndingCash": "Ending cash",
+    "breakdownKpiMoM": "MoM deltas",
+    "breakdownKpiMoMValue": "Cash {cash} · Net worth {netWorth}",
+    "breakdownHighlightsAlerts": "Highlights & alerts",
+    "breakdownAlertExpenseUp": "Expenses are up {pct}% vs last month (main impact {value}).",
+    "breakdownAlertStable": "No major negative spending alert this month.",
+    "breakdownAlertLowestCash": "Lowest cash point this month: {value} ({month}).",
+    "breakdownTopMovers": "Top movers",
+    "breakdownExplainabilityTitle": "Why net worth changed",
+    "breakdownExplainabilityFormula": "ΔNet Worth = Net Cashflow + Valuation / Liability effects (residual)",
+    "breakdownNetWorthDelta": "Δ Net worth",
+    "breakdownResidual": "Residual (valuation/other)"
   },
   "money": {
     "title": "Money hub",

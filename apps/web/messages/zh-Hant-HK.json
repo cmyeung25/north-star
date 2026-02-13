@@ -993,7 +993,20 @@
         "goMoney": "進入金錢專區",
         "goPeople": "進入成員專區"
       }
-    }
+    },
+    "breakdownSummaryDelta": "按月對比：淨資產 {netWorth}、現金 {cash}",
+    "breakdownEndingCash": "期末現金結餘",
+    "breakdownKpiMoM": "按月變化",
+    "breakdownKpiMoMValue": "現金 {cash} · 淨資產 {netWorth}",
+    "breakdownHighlightsAlerts": "重點與提示",
+    "breakdownAlertExpenseUp": "支出較上月上升 {pct}%（主要影響 {value}）。",
+    "breakdownAlertStable": "本月暫無明顯支出異常。",
+    "breakdownAlertLowestCash": "本月最低現金位：{value}（{month}）。",
+    "breakdownTopMovers": "最大變動項目",
+    "breakdownExplainabilityTitle": "淨資產變化解釋",
+    "breakdownExplainabilityFormula": "Δ淨資產 = 淨現金流 + 估值／負債變化（殘差）",
+    "breakdownNetWorthDelta": "Δ淨資產",
+    "breakdownResidual": "殘差（估值／其他）"
   },
   "money": {
     "title": "金錢專區",
