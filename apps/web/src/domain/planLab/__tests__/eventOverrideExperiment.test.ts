@@ -61,4 +61,18 @@ describe("buildEventOverridePatch", () => {
 
     expect(Object.prototype.hasOwnProperty.call(patch, "endMonth")).toBe(false);
   });
+
+  it("supports direct endMonth override on create", () => {
+    const patch = buildEventOverridePatch(baseEvent, {
+      id: "exp-4",
+      title: "direct end month",
+      type: "event_override",
+      targetEventId: "rent-1",
+      changes: {
+        endMonth: "2026-06",
+      },
+    });
+
+    expect(patch).toMatchObject({ endMonth: "2026-06" });
+  });
 });
