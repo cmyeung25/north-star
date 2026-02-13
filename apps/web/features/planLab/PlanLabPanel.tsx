@@ -9587,6 +9587,7 @@ export default function PlanLabPanel({
             mode={v2EventDrawerMode}
             baseCurrency={scenario.baseCurrency}
             scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
+            scenarioHorizonMonths={scenario.assumptions.horizonMonths ?? null}
             incomeGrowthPct={scenario.assumptions.salaryGrowthRate ?? null}
             inflationPct={scenario.assumptions.inflationRate ?? null}
             rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
