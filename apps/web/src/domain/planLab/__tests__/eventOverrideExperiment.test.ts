@@ -59,6 +59,6 @@ describe("buildEventOverridePatch", () => {
       }
     );
 
-    expect(patch).not.toHaveProperty("endMonth");
+    expect(Object.prototype.hasOwnProperty.call(patch, "endMonth")).toBe(false);
   });
 });
