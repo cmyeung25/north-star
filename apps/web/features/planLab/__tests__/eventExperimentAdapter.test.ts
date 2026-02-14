@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildEventExperimentChanges, type EventExperimentDraftInput } from "../eventExperimentAdapter";
+import {
+  buildEventExperimentChanges,
+  normalizeYYYYMM,
+  type EventExperimentDraftInput,
+} from "../eventExperimentAdapter";
 import type { CashflowEvent } from "../../../src/domain/scenarioV2/events";
 
 const baseDraft: EventExperimentDraftInput = {
@@ -32,6 +36,12 @@ const baselineEvent: CashflowEvent = {
   startMonth: "2026-02",
 };
 
+describe("normalizeYYYYMM", () => {
+  it("normalizes CJK month strings", () => {
+    expect(normalizeYYYYMM("2027年2月")).toBe("2027-02");
+  });
+});
+
 describe("buildEventExperimentChanges", () => {
   it("includes endMonth override when baseline has no endMonth", () => {
     const { changes } = buildEventExperimentChanges({
@@ -42,5 +52,19 @@ describe("buildEventExperimentChanges", () => {
     });
 
     expect(changes.endMonth).toBe("2026-06");
+  });
+
+  it("throws when end month cannot be normalized", () => {
+    expect(() =>
+      buildEventExperimentChanges({
+        draft: {
+          ...baseDraft,
+          endMonthValue: "2026/06",
+        },
+        baselineEvent,
+        baseMonth: "2026-01",
+        members: [],
+      })
+    ).toThrow("end-month-invalid");
   });
 });
