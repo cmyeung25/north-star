@@ -111,7 +111,7 @@ describe("buildEventOverridePatch", () => {
       },
     });
 
-    expect(Object.keys(patch).length).toBeGreaterThan(0);
+    expect(Object.keys(patch).length === 0).toBe(false);
     expect(patch).toMatchObject({ endMonth: "2027-06" });
   });
 });
