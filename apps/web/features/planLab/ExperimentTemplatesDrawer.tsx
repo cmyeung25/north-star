@@ -26,6 +26,7 @@ type ExperimentTemplatesDrawerProps = {
   envOptions?: PlanLabExperimentTemplate[];
   onClose: () => void;
   onSelect: (templateId: string) => void;
+  onSelectAddEvent?: () => void;
   onSelectBaselineEvent?: (eventId: string) => void;
   onSelectEnvKey?: (envKey: string) => void;
 };
@@ -44,6 +45,7 @@ export default function ExperimentTemplatesDrawer({
   envOptions,
   onClose,
   onSelect,
+  onSelectAddEvent,
   onSelectBaselineEvent,
   onSelectEnvKey,
 }: ExperimentTemplatesDrawerProps) {
@@ -61,8 +63,21 @@ export default function ExperimentTemplatesDrawer({
   }, [mode, title]);
 
   return (
-    <Drawer opened={opened} onClose={onClose} title={currentTitle} position="right" size="md">
-      <Stack gap="md">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title={currentTitle}
+      position="right"
+      size="md"
+      styles={{
+        body: {
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        },
+      }}
+    >
+      <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
         {!mode && (
           <SimpleGrid cols={{ base: 1, sm: 1 }} spacing="sm">
             {modeCards.map((card) => (
@@ -74,7 +89,18 @@ export default function ExperimentTemplatesDrawer({
                   <Text size="xs" c="dimmed">
                     {card.description}
                   </Text>
-                  <Button size="xs" variant="light" onClick={() => setMode(card.id)}>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => {
+                      if (card.id === "add_event") {
+                        onClose();
+                        onSelectAddEvent?.();
+                        return;
+                      }
+                      setMode(card.id);
+                    }}
+                  >
                     選擇
                   </Button>
                 </Stack>

@@ -4,6 +4,7 @@ import type { LedgerRow } from "../../../engine/scenarioV2Compiler";
 import {
   buildIncomeSummary,
   filterIncomeEvents,
+  groupIncomeEvents,
   sortIncomeEvents,
 } from "../incomeViewModels";
 
@@ -80,4 +81,25 @@ describe("incomeViewModels", () => {
     expect(summary.projectedDelta12m).toBe(-17000);
     expect(summary.expiringCount).toBe(2);
   });
+
+
+  it("groups salary adjustments under parent salary event", () => {
+    const grouped = groupIncomeEvents([
+      events[0],
+      {
+        id: "income-adjust",
+        type: "cashflow",
+        kind: "income",
+        cadence: "monthly",
+        amount: 8000,
+        startMonth: "2027-01",
+        tags: ["salary_adjustment", "salary_parent:income-gary"],
+      },
+    ]);
+
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.baseEvent.id).toBe("income-gary");
+    expect(grouped[0]?.adjustments.map((event) => event.id)).toEqual(["income-adjust"]);
+  });
+
 });

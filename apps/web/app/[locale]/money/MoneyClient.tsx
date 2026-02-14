@@ -81,7 +81,7 @@ import { compileSellLifecycle } from "../../../src/domain/positions/compileSellL
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
-import TemplatePickerDrawer from "../../../components/eventTemplates/TemplatePickerDrawer";
+import AddFlowDrawer from "../../../components/add-flow/AddFlowDrawer";
 import BundleWizardDrawer from "../../../components/eventTemplates/bundles/BundleWizardDrawer";
 import EventCardList from "../../../src/features/money/EventCardList";
 import IncomeEventList from "../../../src/features/money/IncomeEventList";
@@ -131,6 +131,11 @@ import {
   type IncomeSortOption,
   type IncomeStatusFilter,
 } from "../../../src/features/money/incomeViewModels";
+import {
+  buildSalaryAdjustmentTags,
+  getSalaryAdjustmentParentEventId,
+  SALARY_ADJUSTMENT_TAG,
+} from "../../../src/features/money/salaryAdjustmentTags";
 import {
   computeBundleCashflowSummary,
   type BundleMonthlyBreakdownItem,
@@ -1175,6 +1180,28 @@ export default function MoneyClient({
     openCreationDrawer({ templateCategory: activeTemplateCategory });
   }, [activeTemplateCategory, openCreationDrawer]);
 
+
+  const handleCreateSalaryAdjustment = useCallback(
+    (parentEventId: string) => {
+      const parentEvent = v2ScenarioEvents.find((event) => event.id === parentEventId);
+      if (!parentEvent || parentEvent.type !== "cashflow") {
+        return;
+      }
+      setV2EventDefaultKind("income");
+      setTemplateCashflowDraft({
+        kind: "income",
+        cadence: "monthly",
+        growthMode: "none",
+        label: "薪金調整",
+        memberId: parentEvent.memberId ?? "",
+        startMonth: parentEvent.startMonth ?? "",
+        tags: buildSalaryAdjustmentTags(parentEventId),
+      });
+      openV2EventDrawer("create", "cashflow");
+    },
+    [openV2EventDrawer, v2ScenarioEvents]
+  );
+
   const handleSaveV2Event = (draft: ScenarioEventDraft) => {
     if (!scenarioIdValue) {
       return;
@@ -1211,6 +1238,25 @@ export default function MoneyClient({
     }
 
     const amount = Number(draft.amount);
+    const salaryAdjustmentParentId = getSalaryAdjustmentParentEventId({
+      id: draft.id ?? "",
+      type: "cashflow",
+      kind: draft.kind,
+      cadence: draft.cadence,
+      amount,
+      tags: draft.tags,
+    });
+    if (salaryAdjustmentParentId) {
+      const parent = v2ScenarioEvents.find((event) => event.id === salaryAdjustmentParentId);
+      if (!parent || parent.type !== "cashflow" || parent.kind !== "income") {
+        setLedgerActionError("薪金調整需要綁定現有薪金事件");
+        return;
+      }
+      if (draft.startMonth && parent.startMonth && compareMonthKey(draft.startMonth, parent.startMonth) < 0) {
+        setLedgerActionError("生效月份不可早於薪金開始月份");
+        return;
+      }
+    }
     const growthPayload = buildCashflowGrowthPayload({
       kind: draft.kind,
       cadence: draft.cadence,
@@ -1221,14 +1267,18 @@ export default function MoneyClient({
       growthSource: draft.growthSource,
     });
 
+    const isSalaryAdjustment = Boolean(draft.tags?.includes(SALARY_ADJUSTMENT_TAG));
     const payload = {
       type: "cashflow" as const,
-      label: draft.label.trim() || undefined,
-      kind: draft.kind,
-      cadence: draft.cadence,
+      label: draft.label.trim() || (isSalaryAdjustment ? "薪金調整" : undefined),
+      kind: isSalaryAdjustment ? ("income" as const) : draft.kind,
+      cadence: isSalaryAdjustment ? ("monthly" as const) : draft.cadence,
       amount,
       ...growthPayload,
-      startMonth: draft.cadence === "oneOff" ? undefined : draft.startMonth || undefined,
+      growthMode: isSalaryAdjustment ? ("none" as const) : growthPayload.growthMode,
+      customGrowthRatePct: isSalaryAdjustment ? undefined : growthPayload.customGrowthRatePct,
+      growthSource: isSalaryAdjustment ? undefined : growthPayload.growthSource,
+      startMonth: (isSalaryAdjustment || draft.cadence !== "oneOff") ? draft.startMonth || undefined : undefined,
       endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
       everyNMonths:
@@ -3506,6 +3556,7 @@ export default function MoneyClient({
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
               onAdjustEvent={handleAdjustEvent}
+              onCreateSalaryAdjustment={handleCreateSalaryAdjustment}
             />
           </Stack>
         </Tabs.Panel>
@@ -4087,10 +4138,10 @@ export default function MoneyClient({
         currentMonth={currentProjectionMonth}
       />
 
-      <TemplatePickerDrawer
+      <AddFlowDrawer
         opened={templatePickerOpen}
+        mode="money"
         defaultCategory={templatePickerCategory}
-        showIntentScreen
         defaultIntent={templatePickerIntent}
         defaultItemCategory={templatePickerItemCategory}
         onClose={() => setTemplatePickerOpen(false)}

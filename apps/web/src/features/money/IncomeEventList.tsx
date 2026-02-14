@@ -7,7 +7,7 @@ import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
 import { resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
-import type { IncomeSortOption } from "./incomeViewModels";
+import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
 
 type Props = {
   events: ScenarioEvent[];
@@ -22,7 +22,11 @@ type Props = {
   onDuplicateEvent: (eventId: string) => void;
   onDeleteEvent: (eventId: string) => void;
   onAdjustEvent: (row: LedgerRow) => void;
+  onCreateSalaryAdjustment?: (eventId: string) => void;
 };
+
+const isSalaryBase = (event: ScenarioEvent) =>
+  event.type === "cashflow" && event.kind === "income" && event.cadence === "monthly";
 
 export default function IncomeEventList({
   events,
@@ -37,6 +41,7 @@ export default function IncomeEventList({
   onDuplicateEvent,
   onDeleteEvent,
   onAdjustEvent,
+  onCreateSalaryAdjustment,
 }: Props) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -44,6 +49,7 @@ export default function IncomeEventList({
     () => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(incomeGrowthPct ?? 0),
     [incomeGrowthPct, locale]
   );
+  const groupedEvents = useMemo(() => groupIncomeEvents(events), [events]);
 
   if (events.length === 0) {
     return <Text size="sm" c="dimmed">{t("eventCardsEmpty")}</Text>;
@@ -64,43 +70,43 @@ export default function IncomeEventList({
           ]}
         />
       </Group>
-      {events.map((event) => {
-        const primaryAmount = event.type === "cashflow" ? event.amount : 0;
-        const rows = ledgerRowsByEventId.get(event.id) ?? [];
+      {groupedEvents.map(({ baseEvent, adjustments }) => {
+        const primaryAmount = baseEvent.type === "cashflow" ? baseEvent.amount : 0;
+        const rows = ledgerRowsByEventId.get(baseEvent.id) ?? [];
         const projectionRow = rows[0];
-        const startMonth = resolveEventCardStartMonth(event);
-        const endMonth = resolveEventCardEndMonth(event);
+        const startMonth = resolveEventCardStartMonth(baseEvent);
+        const endMonth = resolveEventCardEndMonth(baseEvent);
         const growthLabel =
-          event.type === "cashflow" && event.kind === "income"
-            ? event.growthMode === "assumption"
+          baseEvent.type === "cashflow" && baseEvent.kind === "income"
+            ? baseEvent.growthMode === "assumption"
               ? t("eventCardIncomeGrowth", { pct: formattedIncomeGrowthPct })
-              : event.growthMode === "custom"
-                ? t("eventCardIncomeGrowthCustom", { pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(event.customGrowthRatePct ?? 0) })
+              : baseEvent.growthMode === "custom"
+                ? t("eventCardIncomeGrowthCustom", { pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0) })
                 : t("incomeGrowthNone")
             : null;
         const frequencyLabel =
-          event.type === "cashflow"
+          baseEvent.type === "cashflow"
             ? t(
-                event.cadence === "monthly"
+                baseEvent.cadence === "monthly"
                   ? "ledgerEventCadenceMonthly"
-                  : event.cadence === "yearly"
+                  : baseEvent.cadence === "yearly"
                     ? "ledgerEventCadenceYearly"
-                    : event.cadence === "oneOff"
+                    : baseEvent.cadence === "oneOff"
                       ? "ledgerEventCadenceOneOff"
-                      : event.cadence === "quarterly"
+                      : baseEvent.cadence === "quarterly"
                         ? "ledgerEventCadenceQuarterly"
                         : "ledgerEventCadenceEveryN"
               )
             : t("ledgerEventCadenceOneOff");
         return (
-          <Card key={event.id} withBorder radius="md" padding="md">
+          <Card key={baseEvent.id} withBorder radius="md" padding="md">
             <Group justify="space-between" align="flex-start" wrap="wrap">
               <Stack gap={4}>
-                <Text fw={600}>{event.label ?? t("ledgerRowFallbackLabel")}</Text>
+                <Text fw={600}>{baseEvent.label ?? t("ledgerRowFallbackLabel")}</Text>
                 <Text fw={700}>{formatCurrency(primaryAmount, baseCurrency, locale)}</Text>
                 <Group gap={6}>
                   <Badge variant="light">{frequencyLabel}</Badge>
-                  {event.memberId && <Badge variant="outline">{memberLookupRecord[event.memberId] ?? t("householdLabel")}</Badge>}
+                  {baseEvent.memberId && <Badge variant="outline">{memberLookupRecord[baseEvent.memberId] ?? t("householdLabel")}</Badge>}
                 </Group>
                 {growthLabel && <Text size="sm" c="dimmed">{growthLabel}</Text>}
                 <Text size="sm" c="dimmed">
@@ -117,17 +123,38 @@ export default function IncomeEventList({
                     })}
                   </Text>
                 )}
+                {adjustments.length > 0 && (
+                  <Stack gap={4} mt={4}>
+                    <Text size="sm" fw={600}>調整</Text>
+                    {adjustments.map((adjustment) => (
+                      <Group key={adjustment.id} justify="space-between" wrap="nowrap">
+                        <Text size="sm" c="dimmed">
+                          {(resolveEventCardStartMonth(adjustment) ?? "--")} 起 {formatCurrency(Math.abs(adjustment.type === "cashflow" ? adjustment.amount : 0), baseCurrency, locale)}
+                        </Text>
+                        <Group gap={4}>
+                          <Button size="xs" variant="subtle" onClick={() => onEditEvent(adjustment.id)}>{common("actionEdit")}</Button>
+                          <Button size="xs" variant="subtle" color="red" onClick={() => onDeleteEvent(adjustment.id)}>{common("actionDelete")}</Button>
+                        </Group>
+                      </Group>
+                    ))}
+                  </Stack>
+                )}
               </Stack>
               <Group gap="xs">
-                <Button size="xs" variant="light" onClick={() => onEditEvent(event.id)}>{common("actionEdit")}</Button>
+                {isSalaryBase(baseEvent) && onCreateSalaryAdjustment && (
+                  <Button size="xs" variant="light" onClick={() => onCreateSalaryAdjustment(baseEvent.id)}>
+                    新增調整
+                  </Button>
+                )}
+                <Button size="xs" variant="light" onClick={() => onEditEvent(baseEvent.id)}>{common("actionEdit")}</Button>
                 <Menu position="bottom-end" withinPortal>
                   <Menu.Target>
                     <ActionIcon variant="subtle" size="sm" aria-label={common("actionMore")}>⋯</ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
-                    <Menu.Item onClick={() => onDuplicateEvent(event.id)}>{common("actionDuplicate")}</Menu.Item>
+                    <Menu.Item onClick={() => onDuplicateEvent(baseEvent.id)}>{common("actionDuplicate")}</Menu.Item>
                     <Menu.Item disabled={!projectionRow} onClick={() => projectionRow && onAdjustEvent(projectionRow)}>{common("actionAdjust")}</Menu.Item>
-                    <Menu.Item color="red" onClick={() => onDeleteEvent(event.id)}>{common("actionDelete")}</Menu.Item>
+                    <Menu.Item color="red" onClick={() => onDeleteEvent(baseEvent.id)}>{common("actionDelete")}</Menu.Item>
                   </Menu.Dropdown>
                 </Menu>
               </Group>

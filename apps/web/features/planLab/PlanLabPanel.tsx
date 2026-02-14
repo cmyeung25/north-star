@@ -116,7 +116,7 @@ import {
   computeBufferThresholdFromLedger,
 } from "../../src/domain/planLab/scorecard/cashRisk";
 import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
-import TemplatePickerDrawer from "../../components/eventTemplates/TemplatePickerDrawer";
+import AddFlowDrawer from "../../components/add-flow/AddFlowDrawer";
 import type { TemplateCategory, TemplateDef, TemplateId } from "../../src/domain/eventTemplates/types";
 import BundleWizardDrawer from "../../components/eventTemplates/bundles/BundleWizardDrawer";
 import { buildTemplateDrawerDraftOverrides } from "../../src/domain/eventTemplates/presets";
@@ -220,11 +220,6 @@ const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
-type PlanLabExperimentTemplateId =
-  | "bundle_home"
-  | "bundle_baby"
-  | "income_adjust"
-  | "expense_adjust";
 
 type ScenarioV2DrawerType =
   | "cashflow"
@@ -1404,6 +1399,10 @@ export default function PlanLabPanel({
   const drawerStyles = useMemo(
     () => ({
       body: {
+        minHeight: 0,
+        overscrollBehavior: "contain" as const,
+        WebkitOverflowScrolling: "touch" as const,
+        touchAction: "pan-y" as const,
         paddingBottom:
           "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 16px)",
       },
@@ -2076,6 +2075,22 @@ export default function PlanLabPanel({
     setExperimentTemplatesOpen(true);
   };
 
+  const openPlanLabAddFlowDrawer = useCallback(
+    (options?: {
+      templateCategory?: TemplateCategory;
+      intent?: CreationIntent;
+      itemCategory?: CreationItemCategory;
+    }) => {
+      closeAllPlanLabDrawers();
+      setExperimentTemplatesOpen(false);
+      setTemplatePickerCategory(options?.templateCategory ?? "popular");
+      setTemplatePickerIntent(options?.intent ?? null);
+      setTemplatePickerItemCategory(options?.itemCategory ?? null);
+      setTemplatePickerOpen(true);
+    },
+    [closeAllPlanLabDrawers]
+  );
+
   const handleAddExperimentAction = useCallback(() => {
     if (scenarioIsV2) {
       openExperimentTemplatesDrawer();
@@ -2104,55 +2119,6 @@ export default function PlanLabPanel({
     openEnvAssumptionsExperimentDrawer(null);
   }, [openEnvAssumptionsExperimentDrawer]);
 
-  const handleExperimentTemplateSelect = (templateId: PlanLabExperimentTemplateId) => {
-    closeAllPlanLabDrawers();
-    setExperimentTemplatesOpen(false);
-    if (templateId === "bundle_home" || templateId === "bundle_baby") {
-      const resolvedTemplateId =
-        templateId === "bundle_home" ? "life_home_purchase" : "life_new_baby_plan";
-      const templateDef = getTemplateDef(resolvedTemplateId);
-      if (!templateDef) {
-        return;
-      }
-      setBundleTemplate(templateDef);
-      setBundleWizardMode("create");
-      setBundleWizardInstanceId(null);
-      setBundleWizardInitialInput(null);
-      setBundleWizardExperimentMode(true);
-      setBundleWizardOpen(true);
-      return;
-    }
-    const baseMonth = scenario.assumptions.baseMonth ?? "";
-    if (templateId === "income_adjust") {
-      setExperimentTemplateContext({
-        title: translate("planLabExperimentIncomeTitle", "收入變動"),
-      });
-      setV2EventDefaultKind("income");
-      setTemplateCashflowDraft({
-        kind: "income",
-        cadence: "monthly",
-        amount: "5000",
-        startMonth: baseMonth || "",
-        endMonth: "",
-      });
-      openV2EventDrawer("create", "cashflow");
-      return;
-    }
-    if (templateId === "expense_adjust") {
-      setExperimentTemplateContext({
-        title: translate("planLabExperimentExpenseTitle", "支出變動"),
-      });
-      setV2EventDefaultKind("expense");
-      setTemplateCashflowDraft({
-        kind: "expense",
-        cadence: "monthly",
-        amount: "2000",
-        startMonth: baseMonth || "",
-        endMonth: "",
-      });
-      openV2EventDrawer("create", "cashflow");
-    }
-  };
 
   const openEditExperimentDrawer = (experiment: PlanLabExperiment) => {
     closeAllPlanLabDrawers();
@@ -6054,61 +6020,6 @@ export default function PlanLabPanel({
     [translate]
   );
 
-  const experimentTemplateGroups = useMemo(
-    () => [
-      {
-        id: "bundle",
-        title: translate("planLabExperimentGroupBundles", "人生組合"),
-        templates: [
-          {
-            id: "bundle_home",
-            title: moneyT("templates.life_home_purchase.name"),
-            description: translate(
-              "planLabExperimentTemplateHomeDesc",
-              "置業買樓：房屋按揭 + 成本"
-            ),
-          },
-          {
-            id: "bundle_baby",
-            title: moneyT("templates.life_new_baby_plan.name"),
-            description: translate(
-              "planLabExperimentTemplateBabyDesc",
-              "迎接新生命：育兒/照顧支出"
-            ),
-          },
-        ],
-      },
-      {
-        id: "income",
-        title: translate("planLabExperimentGroupIncome", "收入變數"),
-        templates: [
-          {
-            id: "income_adjust",
-            title: translate("planLabExperimentTemplateIncomeAdjust", "收入上升 / 下降"),
-            description: translate(
-              "planLabExperimentTemplateIncomeAdjustDesc",
-              "調整每月收入（固定額）"
-            ),
-          },
-        ],
-      },
-      {
-        id: "expense",
-        title: translate("planLabExperimentGroupExpense", "支出變數"),
-        templates: [
-          {
-            id: "expense_adjust",
-            title: translate("planLabExperimentTemplateExpenseAdjust", "每月支出上升 / 下降"),
-            description: translate(
-              "planLabExperimentTemplateExpenseAdjustDesc",
-              "調整每月支出（固定額）"
-            ),
-          },
-        ],
-      },
-    ],
-    [moneyT, translate]
-  );
 
   const experimentTypeCards = useMemo(
     () => [
@@ -9540,13 +9451,16 @@ export default function PlanLabPanel({
       <ExperimentTemplatesDrawer
         opened={experimentTemplatesOpen}
         title={translate("planLabExperimentTemplatesTitle", "實驗模板")}
-        groups={experimentTemplateGroups}
+        groups={[]}
         baselineEventOptions={baselineEventTemplateOptions}
         envOptions={environmentTemplateOptions}
         onClose={() => setExperimentTemplatesOpen(false)}
-        onSelect={(templateId) =>
-          handleExperimentTemplateSelect(templateId as PlanLabExperimentTemplateId)
-        }
+        onSelect={() => {
+          // no-op: add-event flow is handled by onSelectAddEvent
+        }}
+        onSelectAddEvent={() => {
+          openPlanLabAddFlowDrawer();
+        }}
         onSelectBaselineEvent={(eventId) => {
           setExperimentTemplatesOpen(false);
           openEventExperimentDrawer(eventId);
@@ -9629,10 +9543,10 @@ export default function PlanLabPanel({
         allowInlineEdit={false}
       />
 
-      <TemplatePickerDrawer
+      <AddFlowDrawer
         opened={templatePickerOpen}
+        mode="planlab"
         defaultCategory={templatePickerCategory}
-        showIntentScreen
         defaultIntent={templatePickerIntent}
         defaultItemCategory={templatePickerItemCategory}
         onClose={() => {
