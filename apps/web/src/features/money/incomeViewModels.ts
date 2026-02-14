@@ -7,6 +7,10 @@ import {
   resolveEventCardEndMonth,
   resolveEventCardStartMonth,
 } from "./eventCardUtils";
+import {
+  getSalaryAdjustmentParentEventId,
+  isSalaryAdjustmentEvent,
+} from "./salaryAdjustmentTags";
 
 export type IncomeStatusFilter = "all" | "ongoing" | "ending";
 export type IncomeSortOption = "amountDesc" | "startMonthAsc" | "endMonthAsc";
@@ -66,6 +70,59 @@ export const filterIncomeEvents = (
     }
     return true;
   });
+
+export type GroupedIncomeEvent = {
+  baseEvent: ScenarioEvent;
+  adjustments: ScenarioEvent[];
+};
+
+const isSalaryBaseIncomeEvent = (event: ScenarioEvent) =>
+  event.type === "cashflow" &&
+  event.kind === "income" &&
+  event.cadence === "monthly" &&
+  !isSalaryAdjustmentEvent(event);
+
+export const groupIncomeEvents = (events: ScenarioEvent[]): GroupedIncomeEvent[] => {
+  const byId = new Map(events.map((event) => [event.id, event]));
+  const groups = new Map<string, GroupedIncomeEvent>();
+
+  events.forEach((event) => {
+    if (isSalaryBaseIncomeEvent(event)) {
+      groups.set(event.id, { baseEvent: event, adjustments: [] });
+    }
+  });
+
+  events.forEach((event) => {
+    if (!isSalaryAdjustmentEvent(event)) {
+      return;
+    }
+    const parentId = getSalaryAdjustmentParentEventId(event);
+    if (!parentId) {
+      groups.set(event.id, { baseEvent: event, adjustments: [] });
+      return;
+    }
+    const parent = byId.get(parentId);
+    if (!parent || !isSalaryBaseIncomeEvent(parent)) {
+      groups.set(event.id, { baseEvent: event, adjustments: [] });
+      return;
+    }
+    const group = groups.get(parentId) ?? { baseEvent: parent, adjustments: [] };
+    group.adjustments.push(event);
+    groups.set(parentId, group);
+  });
+
+  events.forEach((event) => {
+    if (isSalaryBaseIncomeEvent(event) || isSalaryAdjustmentEvent(event)) {
+      return;
+    }
+    groups.set(event.id, { baseEvent: event, adjustments: [] });
+  });
+
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    adjustments: sortIncomeEvents(group.adjustments, "startMonthAsc"),
+  }));
+};
 
 const isMonthlyIncomeEvent = (event: ScenarioEvent) =>
   event.type === "cashflow" && event.kind === "income" && event.cadence === "monthly";
