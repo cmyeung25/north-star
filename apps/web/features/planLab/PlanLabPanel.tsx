@@ -1404,6 +1404,10 @@ export default function PlanLabPanel({
   const drawerStyles = useMemo(
     () => ({
       body: {
+        minHeight: 0,
+        overscrollBehavior: "contain" as const,
+        WebkitOverflowScrolling: "touch" as const,
+        touchAction: "pan-y" as const,
         paddingBottom:
           "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 16px)",
       },

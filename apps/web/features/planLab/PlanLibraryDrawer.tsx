@@ -153,8 +153,15 @@ export const PlanLibraryDrawer = ({
       position="right"
       size="md"
       title={translate("planLabPlanLibraryTitle", "Plan Library")}
+      styles={{
+        body: {
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        },
+      }}
     >
-      <Stack gap="sm">
+      <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
         {sortedPlans.length === 0 && (
           <Text size="sm" c="dimmed">
             {translate("planLabPlanLibraryEmpty", "No plans saved yet.")}

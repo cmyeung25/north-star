@@ -8,8 +8,8 @@ import {
   Divider,
   Group,
   Modal,
+  NativeScrollArea,
   Notification,
-  ScrollArea,
   Select,
   SimpleGrid,
   Stack,
@@ -352,9 +352,18 @@ export default function ProjectionDetailsModal({
       title={t("breakdownTitle")}
       size={isMobile ? "100%" : 1120}
       fullScreen={Boolean(isMobile)}
+      scrollAreaComponent={NativeScrollArea}
       styles={{
-        content: { overflow: "hidden" },
-        body: { overflow: "hidden" },
+        content: {
+          overflow: "hidden",
+          maxHeight: "100dvh",
+        },
+        body: {
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        },
       }}
     >
       {!resolvedMonth ? (
@@ -421,11 +430,15 @@ export default function ProjectionDetailsModal({
             <Divider mt="xs" />
           </Box>
 
-          <ScrollArea
-            style={{ flex: 1, minHeight: 0 }}
-            viewportProps={{ style: { overscrollBehavior: "contain" } }}
-            onWheelCapture={(event) => {
-              event.stopPropagation();
+          <Box
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehavior: "contain",
+              touchAction: "pan-y",
+              paddingBottom: "max(12px, env(safe-area-inset-bottom))",
             }}
           >
             <Stack gap="md" pt="md" pr="xs">
@@ -645,7 +658,7 @@ export default function ProjectionDetailsModal({
             </SimpleGrid>
           </Stack>
             </Stack>
-          </ScrollArea>
+          </Box>
         </Box>
       )}
     </Modal>
