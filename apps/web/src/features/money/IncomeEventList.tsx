@@ -2,13 +2,14 @@
 
 import { ActionIcon, Badge, Button, Card, Group, Menu, Select, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
 import { resolveEventCardAmount, resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
 import { compareMonthKey } from "../../utils/monthKey";
 import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
+import { computeEffectiveRanges } from "./salaryAdjustmentGrouping";
 
 type Props = {
   events: ScenarioEvent[];
@@ -53,6 +54,7 @@ export default function IncomeEventList({
     [incomeGrowthPct, locale]
   );
   const groupedEvents = useMemo(() => groupIncomeEvents(events), [events]);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
   if (events.length === 0) {
     return <Text size="sm" c="dimmed">{t("eventCardsEmpty")}</Text>;
@@ -145,22 +147,34 @@ export default function IncomeEventList({
                     })}
                   </Text>
                 )}
-                {adjustments.length > 0 && (
-                  <Stack gap={4} mt={4}>
-                    <Text size="sm" fw={600}>調整後</Text>
-                    {adjustments.map((adjustment) => (
-                      <Group key={adjustment.id} justify="space-between" wrap="nowrap">
-                        <Text size="sm" c="dimmed">
-                          {(resolveEventCardStartMonth(adjustment) ?? "--")} → {resolveEventCardEndMonth(adjustment) ?? t("eventCardOpenEnded")} · {formatCurrency(Math.abs(adjustment.type === "cashflow" ? adjustment.amount : 0), baseCurrency, locale)}
+                {adjustments.length > 0 && (() => {
+                  const latest = adjustments[adjustments.length - 1];
+                  const ranges = computeEffectiveRanges(baseEvent, adjustments);
+                  const expanded = Boolean(expandedIds[baseEvent.id]);
+                  return (
+                    <Stack gap={4} mt={4}>
+                      <Group justify="space-between">
+                        <Text size="sm" fw={600}>
+                          調整 {adjustments.length} 次 · 最新：{resolveEventCardStartMonth(latest) ?? "--"} {formatCurrency(Math.abs(latest.type === "cashflow" ? latest.amount : 0), baseCurrency, locale)}
                         </Text>
-                        <Group gap={4}>
-                          <Button size="xs" variant="subtle" onClick={() => onEditEvent(adjustment.id)}>{common("actionEdit")}</Button>
-                          <Button size="xs" variant="subtle" color="red" onClick={() => onDeleteEvent(adjustment.id)}>{common("actionDelete")}</Button>
-                        </Group>
+                        <Button size="xs" variant="subtle" onClick={() => setExpandedIds((current) => ({ ...current, [baseEvent.id]: !expanded }))}>
+                          {expanded ? "收起" : "展開"}
+                        </Button>
                       </Group>
-                    ))}
-                  </Stack>
-                )}
+                      {expanded && ranges.slice(1).map((segment) => (
+                        <Group key={segment.event.id} justify="space-between" wrap="nowrap">
+                          <Text size="sm" c="dimmed">
+                            {segment.from ?? "--"} → {segment.to ?? t("eventCardOpenEnded")} · {formatCurrency(Math.abs(segment.event.type === "cashflow" ? segment.event.amount : 0), baseCurrency, locale)}
+                          </Text>
+                          <Group gap={4}>
+                            <Button size="xs" variant="subtle" onClick={() => onEditEvent(segment.event.id)}>{common("actionEdit")}</Button>
+                            <Button size="xs" variant="subtle" color="red" onClick={() => onDeleteEvent(segment.event.id)}>{common("actionDelete")}</Button>
+                          </Group>
+                        </Group>
+                      ))}
+                    </Stack>
+                  );
+                })()}
               </Stack>
               <Group gap="xs">
                 {isSalaryBase(baseEvent) && onCreateSalaryAdjustment && (
