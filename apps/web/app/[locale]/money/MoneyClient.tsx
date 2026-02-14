@@ -81,7 +81,7 @@ import { compileSellLifecycle } from "../../../src/domain/positions/compileSellL
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
-import TemplatePickerDrawer from "../../../components/eventTemplates/TemplatePickerDrawer";
+import AddFlowDrawer from "../../../components/add-flow/AddFlowDrawer";
 import BundleWizardDrawer from "../../../components/eventTemplates/bundles/BundleWizardDrawer";
 import EventCardList from "../../../src/features/money/EventCardList";
 import IncomeEventList from "../../../src/features/money/IncomeEventList";
@@ -4087,10 +4087,10 @@ export default function MoneyClient({
         currentMonth={currentProjectionMonth}
       />
 
-      <TemplatePickerDrawer
+      <AddFlowDrawer
         opened={templatePickerOpen}
+        mode="money"
         defaultCategory={templatePickerCategory}
-        showIntentScreen
         defaultIntent={templatePickerIntent}
         defaultItemCategory={templatePickerItemCategory}
         onClose={() => setTemplatePickerOpen(false)}
