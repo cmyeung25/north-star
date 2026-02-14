@@ -162,12 +162,32 @@ export const buildIncomeSummary = (params: {
   const memberCount = new Set(events.map((event) => event.memberId).filter(Boolean)).size;
   const expiringCount = events.filter((event) => Boolean(resolveEventCardEndMonth(event))).length;
 
-  const topSourcesRaw = events
-    .map((event) => ({
-      id: event.id,
-      label: event.label ?? "—",
-      amount: Math.abs(resolveEventCardAmount(event) ?? 0),
-    }))
+  const sourceMap = new Map<string, { id: string; label: string; amount: number }>();
+  events.forEach((event) => {
+    const parentId = isSalaryAdjustmentEvent(event)
+      ? getSalaryAdjustmentParentEventId(event)
+      : null;
+    const key = parentId ?? event.id;
+    const amount = Math.abs(resolveEventCardAmount(event) ?? 0);
+    const existing = sourceMap.get(key);
+    if (!existing) {
+      sourceMap.set(key, {
+        id: key,
+        label: event.label ?? "—",
+        amount,
+      });
+      return;
+    }
+    if (amount > existing.amount) {
+      sourceMap.set(key, {
+        id: key,
+        label: existing.label,
+        amount,
+      });
+    }
+  });
+
+  const topSourcesRaw = Array.from(sourceMap.values())
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5);
   const topSourcesTotal = topSourcesRaw.reduce((sum, source) => sum + source.amount, 0);
@@ -202,7 +222,7 @@ export const buildIncomeSummary = (params: {
   return {
     baselineMonthlyTotal,
     nonMonthlyIncomeTotal,
-    sourceCount: events.length,
+    sourceCount: sourceMap.size,
     memberCount,
     projectedDelta12m,
     expiringCount,
