@@ -84,6 +84,8 @@ import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import TemplatePickerDrawer from "../../../components/eventTemplates/TemplatePickerDrawer";
 import BundleWizardDrawer from "../../../components/eventTemplates/bundles/BundleWizardDrawer";
 import EventCardList from "../../../src/features/money/EventCardList";
+import IncomeEventList from "../../../src/features/money/IncomeEventList";
+import IncomeSummarySection from "../../../src/features/money/IncomeSummarySection";
 import CashflowEventDrawer, {
   type CashflowEventDraft,
   type ScenarioEventDraft,
@@ -122,6 +124,13 @@ import {
   resolveEventCardStartMonth,
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
+import {
+  buildIncomeSummary,
+  filterIncomeEvents,
+  sortIncomeEvents,
+  type IncomeSortOption,
+  type IncomeStatusFilter,
+} from "../../../src/features/money/incomeViewModels";
 import {
   computeBundleCashflowSummary,
   type BundleMonthlyBreakdownItem,
@@ -576,6 +585,9 @@ export default function MoneyClient({
     ? (initialTab as MoneyTab)
     : "income";
   const [activeTab, setActiveTab] = useState<MoneyTab>(resolvedTab);
+  const [incomeMemberFilter, setIncomeMemberFilter] = useState<string>("all");
+  const [incomeStatusFilter, setIncomeStatusFilter] = useState<IncomeStatusFilter>("all");
+  const [incomeSortBy, setIncomeSortBy] = useState<IncomeSortOption>("amountDesc");
   const [inputsFilter, setInputsFilter] = useState<
     "all" | "rules" | "assets" | "events"
   >("all");
@@ -719,6 +731,23 @@ export default function MoneyClient({
   const standaloneIncomeEvents = useMemo(
     () => incomeEvents.filter((event) => !event.source?.bundleInstanceId),
     [incomeEvents]
+  );
+  const filteredIncomeEvents = useMemo(
+    () => filterIncomeEvents(standaloneIncomeEvents, incomeMemberFilter, incomeStatusFilter),
+    [incomeMemberFilter, incomeStatusFilter, standaloneIncomeEvents]
+  );
+  const visibleIncomeEvents = useMemo(
+    () => sortIncomeEvents(filteredIncomeEvents, incomeSortBy),
+    [filteredIncomeEvents, incomeSortBy]
+  );
+  const incomeSummary = useMemo(
+    () =>
+      buildIncomeSummary({
+        events: filteredIncomeEvents,
+        ledgerRowsByEventId,
+        baseMonth: scenario?.assumptions.baseMonth ?? undefined,
+      }),
+    [filteredIncomeEvents, ledgerRowsByEventId, scenario?.assumptions.baseMonth]
   );
   const standaloneExpenseEvents = useMemo(
     () => expenseEvents.filter((event) => !event.source?.bundleInstanceId),
@@ -3444,16 +3473,35 @@ export default function MoneyClient({
                 ))}
               </Stack>
             )}
+            <IncomeSummarySection
+              locale={locale}
+              currency={scenario?.baseCurrency ?? "USD"}
+              members={members}
+              selectedMemberId={incomeMemberFilter}
+              selectedStatus={incomeStatusFilter}
+              onMemberChange={setIncomeMemberFilter}
+              onStatusChange={setIncomeStatusFilter}
+              baselineMonthlyTotal={incomeSummary.baselineMonthlyTotal}
+              nonMonthlyIncomeTotal={incomeSummary.nonMonthlyIncomeTotal}
+              sourceCount={incomeSummary.sourceCount}
+              memberCount={incomeSummary.memberCount}
+              projectedDelta12m={incomeSummary.projectedDelta12m}
+              expiringCount={incomeSummary.expiringCount}
+              topSources={incomeSummary.topSources}
+            />
             {renderBundleSliceSection(
               bundleSlicesByType.income,
               "bundleSliceIncomeSummary"
             )}
-            <EventCardList
-              events={standaloneIncomeEvents}
+            <IncomeEventList
+              events={visibleIncomeEvents}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
               incomeGrowthPct={incomeGrowthPct}
+              memberLookupRecord={memberLookupRecord}
+              sortBy={incomeSortBy}
+              onSortByChange={setIncomeSortBy}
               onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
