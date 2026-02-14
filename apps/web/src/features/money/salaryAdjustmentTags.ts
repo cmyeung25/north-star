@@ -1,7 +1,10 @@
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
+import {
+  getSalaryAdjustmentParentId,
+  SALARY_ADJUSTMENT_PARENT_PREFIX,
+} from "../../domain/scenarioV2/salaryEffectiveRanges";
 
 export const SALARY_ADJUSTMENT_TAG = "salary_adjustment";
-export const SALARY_ADJUSTMENT_PARENT_PREFIX = "salary_parent:";
 
 export type RecurringEventGroupRole = "base" | "adjustment";
 
@@ -39,13 +42,7 @@ export const resolveRecurringEffectiveMonth = (event: ScenarioEvent): string | u
 };
 
 export const getSalaryAdjustmentParentEventId = (event: ScenarioEvent): string | null => {
-  const parentTag = event.tags?.find((tag) =>
-    tag.startsWith(SALARY_ADJUSTMENT_PARENT_PREFIX)
-  );
-  if (!parentTag) {
-    return null;
-  }
-  return parentTag.slice(SALARY_ADJUSTMENT_PARENT_PREFIX.length) || null;
+  return getSalaryAdjustmentParentId(event);
 };
 
 export const isSalaryAdjustmentEvent = (event: ScenarioEvent): boolean =>

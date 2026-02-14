@@ -767,6 +767,39 @@ describe("income series merge", () => {
     expect((later?.amount ?? 0) > (start?.amount ?? 0)).toBe(true);
   });
 
+
+
+  it("supports parent-child linkage via metadata parentEventId", () => {
+    const ledger = compileScenarioV2ToLedger(
+      createScenario([
+        {
+          id: "salary-base",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 67000,
+          startMonth: "2026-02",
+        },
+        {
+          id: "salary-adj-meta",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 80000,
+          startMonth: "2028-02",
+          meta: { parentEventId: "salary-base", relationType: "adjustment", adjustableKey: "salary" },
+        },
+      ])
+    );
+
+    const m202801 = ledger.filter((row) => row.month === "2028-01" && row.kind === "income");
+    const m202802 = ledger.filter((row) => row.month === "2028-02" && row.kind === "income");
+    expect(m202801).toHaveLength(1);
+    expect(Math.abs(m202801[0]?.amount ?? 0)).toBe(67000);
+    expect(m202802).toHaveLength(1);
+    expect(Math.abs(m202802[0]?.amount ?? 0)).toBe(80000);
+  });
+
   it("supports adjustment growth override", () => {
     const ledger = compileScenarioV2ToLedger(
       createScenario([

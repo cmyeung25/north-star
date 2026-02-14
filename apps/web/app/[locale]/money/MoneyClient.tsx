@@ -1229,6 +1229,10 @@ export default function MoneyClient({
         setLedgerActionError("請填寫薪金調整生效月份");
         return false;
       }
+      if (normalized.issues.includes("adjustment_after_base_end")) {
+        setLedgerActionError("生效月份不可晚於薪金結束月份");
+        return false;
+      }
 
       const normalizedEvents = nextEvents
         .filter(

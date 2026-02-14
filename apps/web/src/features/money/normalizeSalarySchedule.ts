@@ -1,15 +1,14 @@
-import { addMonths } from "../../domain/members/age";
-import { compareMonthKey } from "../../utils/monthKey";
 import type { CashflowEvent } from "../../domain/scenarioV2/events";
+import {
+  computeSalaryEffectiveRangeSegments,
+  type SalaryEffectiveRangeIssue,
+} from "../../domain/scenarioV2/salaryEffectiveRanges";
 import {
   deriveRecurringGroupId,
   resolveRecurringGroupId,
 } from "./salaryAdjustmentTags";
 
-export type SalaryScheduleIssue =
-  | "missing_adjustment_start_month"
-  | "adjustment_before_base_start"
-  | "duplicate_adjustment_start_month";
+export type SalaryScheduleIssue = SalaryEffectiveRangeIssue;
 
 export type NormalizedSalarySchedule = {
   base: CashflowEvent;
@@ -17,110 +16,23 @@ export type NormalizedSalarySchedule = {
   issues: SalaryScheduleIssue[];
 };
 
-const syncGrowthFromBase = (base: CashflowEvent, adjustment: CashflowEvent): CashflowEvent => {
-  return {
-    ...adjustment,
-    growthMode: base.growthMode,
-    growthSource: base.growthSource,
-    customGrowthRatePct: base.customGrowthRatePct,
-  };
-};
-
-const monthBefore = (month: string) => addMonths(month, -1);
-
-const clampEndMonth = (candidate: string | undefined, hardEndMonth: string | undefined) => {
-  if (!candidate) {
-    return hardEndMonth;
-  }
-  if (!hardEndMonth) {
-    return candidate;
-  }
-  return compareMonthKey(candidate, hardEndMonth) > 0 ? hardEndMonth : candidate;
-};
-
-const buildAdjustmentEventId = (baseId: string, month: string) => `${baseId}::adj::${month}`;
-
-export const buildSegmentedRecurringEvents = (
-  baseEvent: CashflowEvent,
-  adjustmentEvents: CashflowEvent[]
-): NormalizedSalarySchedule => {
-  const issues: SalaryScheduleIssue[] = [];
+const markAsAdjustment = (baseEvent: CashflowEvent, event: CashflowEvent): CashflowEvent => {
   const groupId = resolveRecurringGroupId(baseEvent) ?? deriveRecurringGroupId(baseEvent);
-  const sortedAdjustments = [...adjustmentEvents].sort((left, right) =>
-    compareMonthKey(left.startMonth ?? "9999-12", right.startMonth ?? "9999-12")
-  );
-
-  const adjustments: CashflowEvent[] = [];
-  let previousStartMonth: string | null = null;
-
-  sortedAdjustments.forEach((event) => {
-    const startMonth = event.startMonth;
-    if (!startMonth) {
-      issues.push("missing_adjustment_start_month");
-      return;
-    }
-    if (baseEvent.startMonth && compareMonthKey(startMonth, baseEvent.startMonth) <= 0) {
-      issues.push("adjustment_before_base_start");
-      return;
-    }
-    if (previousStartMonth && compareMonthKey(startMonth, previousStartMonth) === 0) {
-      issues.push("duplicate_adjustment_start_month");
-      return;
-    }
-
-    adjustments.push(
-      syncGrowthFromBase(baseEvent, {
-        ...event,
-        id: buildAdjustmentEventId(baseEvent.id, startMonth),
-        seriesId: groupId,
-        parentEventId: baseEvent.id,
-        meta: {
-          ...(event.meta ?? {}),
-          kind: "adjustment",
-          adjustsEventId: baseEvent.id,
-        },
-        groupId,
-        groupRole: "adjustment",
-        effectiveMonth: startMonth,
-      })
-    );
-    previousStartMonth = startMonth;
-  });
-
-  const segmentedAdjustments = adjustments.map((event, index) => {
-    const nextStart = adjustments[index + 1]?.startMonth;
-    const endMonth = clampEndMonth(
-      nextStart ? monthBefore(nextStart) : undefined,
-      baseEvent.endMonth
-    );
-    return {
-      ...event,
-      endMonth,
-    };
-  });
-
-  const firstAdjustmentStartMonth = segmentedAdjustments[0]?.startMonth;
-  const baseEndMonth = clampEndMonth(
-    firstAdjustmentStartMonth ? monthBefore(firstAdjustmentStartMonth) : undefined,
-    baseEvent.endMonth
-  );
-
   return {
-    base: {
-      ...baseEvent,
-      seriesId: groupId,
-      parentEventId: undefined,
-      meta: {
-        ...(baseEvent.meta ?? {}),
-        kind: "base",
-      },
-      groupId,
-      groupRole: "base",
-      effectiveMonth: baseEvent.startMonth,
-      endMonth: baseEndMonth,
+    ...event,
+    seriesId: groupId,
+    parentEventId: baseEvent.id,
+    groupId,
+    groupRole: "adjustment",
+    effectiveMonth: event.startMonth,
+    meta: {
+      ...(event.meta ?? {}),
+      kind: "adjustment",
+      adjustsEventId: baseEvent.id,
+      parentEventId: baseEvent.id,
+      relationType: "adjustment",
+      adjustableKey: "salary",
     },
-    adjustments: segmentedAdjustments,
-    issues,
   };
 };
 
@@ -128,5 +40,33 @@ export const normalizeSalarySchedule = (
   baseEvent: CashflowEvent,
   adjustmentEvents: CashflowEvent[]
 ): NormalizedSalarySchedule => {
-  return buildSegmentedRecurringEvents(baseEvent, adjustmentEvents);
+  const groupId = resolveRecurringGroupId(baseEvent) ?? deriveRecurringGroupId(baseEvent);
+  const baseWithGrouping: CashflowEvent = {
+    ...baseEvent,
+    seriesId: groupId,
+    parentEventId: undefined,
+    groupId,
+    groupRole: "base",
+    effectiveMonth: baseEvent.startMonth,
+    meta: {
+      ...(baseEvent.meta ?? {}),
+      kind: "base",
+      relationType: "adjustment",
+      adjustableKey: "salary",
+    },
+  };
+
+  const adjustments = [...adjustmentEvents]
+    .sort((left, right) => (left.startMonth ?? "9999-12").localeCompare(right.startMonth ?? "9999-12"))
+    .map((event) => markAsAdjustment(baseWithGrouping, event));
+  const normalized = computeSalaryEffectiveRangeSegments([baseWithGrouping, ...adjustments]);
+  const segmentById = new Map(normalized.segments.map((segment) => [segment.sourceEventId, segment.event]));
+
+  return {
+    base: (segmentById.get(baseEvent.id) as CashflowEvent | undefined) ?? baseWithGrouping,
+    adjustments: adjustments
+      .map((event) => segmentById.get(event.id) as CashflowEvent | undefined)
+      .filter((event): event is CashflowEvent => Boolean(event)),
+    issues: normalized.issues,
+  };
 };
