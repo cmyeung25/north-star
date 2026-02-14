@@ -102,4 +102,27 @@ describe("incomeViewModels", () => {
     expect(grouped[0]?.adjustments.map((event) => event.id)).toEqual(["income-adjust"]);
   });
 
+  it("aggregates salary adjustments into a single top source", () => {
+    const summary = buildIncomeSummary({
+      events: [
+        events[0],
+        {
+          id: "income-adjust",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 80000,
+          startMonth: "2028-02",
+          tags: ["salary_adjustment", "salary_parent:income-gary"],
+        },
+      ],
+      ledgerRowsByEventId: new Map(),
+    });
+
+    expect(summary.sourceCount).toBe(1);
+    expect(summary.topSources).toHaveLength(1);
+    expect(summary.topSources[0]?.id).toBe("income-gary");
+    expect(summary.topSources[0]?.amount).toBe(80000);
+  });
+
 });

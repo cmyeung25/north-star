@@ -134,13 +134,15 @@ import {
 import {
   buildSalaryAdjustmentTags,
   getSalaryAdjustmentParentEventId,
+  isSalaryAdjustmentEvent,
   SALARY_ADJUSTMENT_TAG,
 } from "../../../src/features/money/salaryAdjustmentTags";
 import {
   computeBundleCashflowSummary,
   type BundleMonthlyBreakdownItem,
 } from "../../../src/features/money/bundleSummary";
-import type { ScenarioEvent } from "../../../src/domain/scenarioV2/events";
+import { normalizeSalarySchedule } from "../../../src/features/money/normalizeSalarySchedule";
+import type { CashflowEvent, ScenarioEvent } from "../../../src/domain/scenarioV2/events";
 import type { ScenarioEventDraft as ScenarioV2EventDraft } from "../../../src/domain/scenarioV2/events";
 import type { DeleteImpactSummary } from "../../../src/domain/scenarioV2/eventDeleteImpact";
 import {
@@ -1181,6 +1183,62 @@ export default function MoneyClient({
   }, [activeTemplateCategory, openCreationDrawer]);
 
 
+  const applySalaryScheduleNormalization = useCallback(
+    (params: {
+      parentEventId: string;
+      draftEvent?: ScenarioEvent;
+      deletedEventId?: string;
+    }): boolean => {
+      if (!scenarioIdValue) {
+        return false;
+      }
+      const { parentEventId, draftEvent, deletedEventId } = params;
+      const nextEvents = v2ScenarioEvents
+        .filter((event) => event.id !== deletedEventId)
+        .map((event) => (draftEvent && event.id === draftEvent.id ? draftEvent : event));
+      if (draftEvent && !nextEvents.some((event) => event.id === draftEvent.id)) {
+        nextEvents.push(draftEvent);
+      }
+
+      const parent = nextEvents.find((event) => event.id === parentEventId);
+      if (!parent || parent.type !== "cashflow" || parent.kind !== "income" || parent.cadence !== "monthly") {
+        setLedgerActionError("薪金調整需要綁定現有薪金事件");
+        return false;
+      }
+
+      const adjustments = nextEvents.filter(
+        (event): event is CashflowEvent =>
+          event.type === "cashflow" &&
+          isSalaryAdjustmentEvent(event) &&
+          getSalaryAdjustmentParentEventId(event) === parentEventId
+      );
+      const normalized = normalizeSalarySchedule(parent, adjustments);
+      if (normalized.issues.includes("adjustment_before_base_start")) {
+        setLedgerActionError("生效月份不可早於或等於薪金開始月份");
+        return false;
+      }
+      if (normalized.issues.includes("duplicate_adjustment_start_month")) {
+        setLedgerActionError("同月份已有薪金調整");
+        return false;
+      }
+      if (normalized.issues.includes("missing_adjustment_start_month")) {
+        setLedgerActionError("請填寫薪金調整生效月份");
+        return false;
+      }
+
+      const adjustmentsById = new Map(normalized.adjustments.map((event) => [event.id, event]));
+      const normalizedEvents = nextEvents.map((event) => {
+        if (event.id === parent.id) {
+          return normalized.base;
+        }
+        return adjustmentsById.get(event.id) ?? event;
+      });
+      setScenarioEvents(scenarioIdValue, normalizedEvents);
+      return true;
+    },
+    [scenarioIdValue, setScenarioEvents, v2ScenarioEvents, setLedgerActionError]
+  );
+
   const handleCreateSalaryAdjustment = useCallback(
     (parentEventId: string) => {
       const parentEvent = v2ScenarioEvents.find((event) => event.id === parentEventId);
@@ -1191,7 +1249,12 @@ export default function MoneyClient({
       setTemplateCashflowDraft({
         kind: "income",
         cadence: "monthly",
-        growthMode: "none",
+        growthMode: parentEvent.growthMode ?? "assumption",
+        customGrowthRatePct:
+          parentEvent.growthMode === "custom" && typeof parentEvent.customGrowthRatePct === "number"
+            ? String(parentEvent.customGrowthRatePct)
+            : "",
+        growthSource: parentEvent.growthSource,
         label: "薪金調整",
         memberId: parentEvent.memberId ?? "",
         startMonth: parentEvent.startMonth ?? "",
@@ -1269,25 +1332,35 @@ export default function MoneyClient({
 
     const isSalaryAdjustment = Boolean(draft.tags?.includes(SALARY_ADJUSTMENT_TAG));
     const payload = {
+      id: draft.id ?? crypto.randomUUID(),
       type: "cashflow" as const,
       label: draft.label.trim() || (isSalaryAdjustment ? "薪金調整" : undefined),
       kind: isSalaryAdjustment ? ("income" as const) : draft.kind,
       cadence: isSalaryAdjustment ? ("monthly" as const) : draft.cadence,
       amount,
       ...growthPayload,
-      growthMode: isSalaryAdjustment ? ("none" as const) : growthPayload.growthMode,
-      customGrowthRatePct: isSalaryAdjustment ? undefined : growthPayload.customGrowthRatePct,
-      growthSource: isSalaryAdjustment ? undefined : growthPayload.growthSource,
-      startMonth: (isSalaryAdjustment || draft.cadence !== "oneOff") ? draft.startMonth || undefined : undefined,
+      startMonth:
+        (isSalaryAdjustment || draft.cadence !== "oneOff")
+          ? draft.startMonth || undefined
+          : undefined,
       endMonth: draft.cadence === "oneOff" ? undefined : draft.endMonth || undefined,
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
       everyNMonths:
         draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
       memberId: draft.memberId || undefined,
       tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
-    };
+    } satisfies ScenarioEvent;
 
-    if (draft.id) {
+    if (salaryAdjustmentParentId) {
+      if (
+        !applySalaryScheduleNormalization({
+          parentEventId: salaryAdjustmentParentId,
+          draftEvent: payload,
+        })
+      ) {
+        return;
+      }
+    } else if (draft.id) {
       const result = updateEvent(draft.id, payload, scenarioIdValue);
       if (!result.ok) {
         setLedgerActionError(t("ledgerEventUpdateFailed"));
@@ -2831,9 +2904,21 @@ export default function MoneyClient({
     const { type } = deleteConfirmation;
 
     switch (type) {
-      case "eventV2":
+      case "eventV2": {
+        const targetEvent = v2ScenarioEvents.find((event) => event.id === deleteConfirmation.id);
+        if (targetEvent && isSalaryAdjustmentEvent(targetEvent)) {
+          const parentEventId = getSalaryAdjustmentParentEventId(targetEvent);
+          if (parentEventId) {
+            applySalaryScheduleNormalization({
+              parentEventId,
+              deletedEventId: deleteConfirmation.id,
+            });
+            break;
+          }
+        }
         removeEvent(deleteConfirmation.id, scenarioIdValue, { cascade: true });
         break;
+      }
       case "bundle":
       case "bundleItem":
         removeBundleEvents(deleteConfirmation.bundleId, deleteConfirmation.eventIds);

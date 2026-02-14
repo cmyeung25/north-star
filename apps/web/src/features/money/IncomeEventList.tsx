@@ -109,12 +109,18 @@ export default function IncomeEventList({
                   {baseEvent.memberId && <Badge variant="outline">{memberLookupRecord[baseEvent.memberId] ?? t("householdLabel")}</Badge>}
                 </Group>
                 {growthLabel && <Text size="sm" c="dimmed">{growthLabel}</Text>}
-                <Text size="sm" c="dimmed">
-                  {t("eventCardMonths", {
-                    startMonth: startMonth ?? t("amountUnset"),
-                    endMonth: endMonth ?? t("eventCardOpenEnded"),
-                  })}
-                </Text>
+                {isSalaryBase(baseEvent) && adjustments.length > 0 ? (
+                  <Text size="sm" c="dimmed">
+                    基準段：{startMonth ?? t("amountUnset")} → {endMonth ?? t("eventCardOpenEnded")}
+                  </Text>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {t("eventCardMonths", {
+                      startMonth: startMonth ?? t("amountUnset"),
+                      endMonth: endMonth ?? t("eventCardOpenEnded"),
+                    })}
+                  </Text>
+                )}
                 {projectionRow && (
                   <Text size="xs" c="dimmed">
                     {t("incomeProjectedPreview", {
@@ -125,7 +131,7 @@ export default function IncomeEventList({
                 )}
                 {adjustments.length > 0 && (
                   <Stack gap={4} mt={4}>
-                    <Text size="sm" fw={600}>調整</Text>
+                    <Text size="sm" fw={600}>調整後</Text>
                     {adjustments.map((adjustment) => (
                       <Group key={adjustment.id} justify="space-between" wrap="nowrap">
                         <Text size="sm" c="dimmed">
