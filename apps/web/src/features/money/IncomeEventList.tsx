@@ -4,6 +4,7 @@ import { ActionIcon, Badge, Button, Card, Group, Menu, Select, Stack, Text } fro
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
+import { getDefaultCashflowGrowthMode } from "../../domain/scenarioV2/growthPolicy";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
 import { resolveEventCardAmount, resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
@@ -88,11 +89,15 @@ export default function IncomeEventList({
           : Math.abs(resolveEventCardAmount(baseEvent) ?? 0);
         const startMonth = resolveEventCardStartMonth(baseEvent);
         const endMonth = resolveEventCardEndMonth(baseEvent);
+        const baseGrowthMode =
+          baseEvent.type === "cashflow"
+            ? baseEvent.growthMode ?? getDefaultCashflowGrowthMode(baseEvent)
+            : undefined;
         const growthLabel =
           baseEvent.type === "cashflow" && baseEvent.kind === "income"
-            ? baseEvent.growthMode === "assumption"
+            ? baseGrowthMode === "assumption"
               ? t("eventCardIncomeGrowth", { pct: formattedIncomeGrowthPct })
-              : baseEvent.growthMode === "custom"
+              : baseGrowthMode === "custom"
                 ? t("eventCardIncomeGrowthCustom", { pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0) })
                 : t("incomeGrowthNone")
             : null;

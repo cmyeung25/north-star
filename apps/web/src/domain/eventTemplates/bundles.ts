@@ -342,6 +342,8 @@ const buildCashflowEvent = ({
   kind: "expense",
   cadence,
   amount,
+  growthMode: cadence === "oneOff" ? "none" : "assumption",
+  growthSource: cadence === "oneOff" ? undefined : "inflation",
   startMonth: cadence === "oneOff" ? undefined : startMonth,
   occurrenceMonth: cadence === "oneOff" ? occurrenceMonth : undefined,
   tags,

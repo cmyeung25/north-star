@@ -18,6 +18,7 @@ import {
   CashflowEventSchema,
   ScenarioEventSchema,
 } from "../domain/scenarioV2/events";
+import { normalizeCashflowGrowth } from "../domain/scenarioV2/growthPolicy";
 import {
   buildEventDeleteImpact,
   type EventDeleteImpact,
@@ -2375,7 +2376,11 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       ...event,
       id: event.id ?? createScenarioEventId(),
     };
-    const parsed = ScenarioEventSchema.safeParse(candidate);
+    const normalizedCandidate =
+      candidate.type === "cashflow"
+        ? normalizeCashflowGrowth(candidate)
+        : candidate;
+    const parsed = ScenarioEventSchema.safeParse(normalizedCandidate);
     if (!parsed.success) {
       return { ok: false, error: "Invalid event payload." };
     }
@@ -2435,7 +2440,11 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         ...event,
         id: event.id ?? createScenarioEventId(),
       };
-      const parsed = ScenarioEventSchema.safeParse(candidate);
+      const normalizedCandidate =
+        candidate.type === "cashflow"
+          ? normalizeCashflowGrowth(candidate)
+          : candidate;
+      const parsed = ScenarioEventSchema.safeParse(normalizedCandidate);
       if (!parsed.success) {
         return { ok: false, error: "Invalid event payload." };
       }

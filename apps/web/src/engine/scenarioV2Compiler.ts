@@ -16,6 +16,7 @@ import type {
   ScenarioEvent,
 } from "../domain/scenarioV2/events";
 import { applyAnnualRate, resolveCashflowAmountForMonth } from "../domain/cashflowGrowth";
+import { normalizeCashflowGrowth, resolveHousingGrowthMode } from "../domain/scenarioV2/growthPolicy";
 import { computeMonthlyPayment } from "../domain/positions/calculations";
 import type { EventType } from "../features/timeline/schema";
 import type {
@@ -131,12 +132,12 @@ const normalizeCashflowEventSeries = (events: CashflowEvent[]): NormalizedCashfl
       groupEvents.find((event) => getEventSegmentRole(event) === "parent") ?? groupEvents[0];
     return computeDisplaySegments(groupEvents).map((segment) => ({
       sourceEventId: segment.sourceEventId,
-      event: {
+      event: normalizeCashflowGrowth({
         ...segment.event,
         growthMode: segment.event.growthMode ?? parent.growthMode,
         growthSource: segment.event.growthSource ?? parent.growthSource,
         customGrowthRatePct: segment.event.customGrowthRatePct ?? parent.customGrowthRatePct,
-      },
+      }),
     }));
   });
 };
@@ -310,10 +311,11 @@ const resolveRentAnnualGrowthPct = (
   customGrowthPct: number | undefined,
   assumptions: ScenarioAssumptions
 ): number => {
-  if (growthMode === "assumption") {
+  const normalizedGrowthMode = resolveHousingGrowthMode(growthMode);
+  if (normalizedGrowthMode === "assumption") {
     return assumptions.rentAnnualGrowthPct ?? 0;
   }
-  if (growthMode === "custom") {
+  if (normalizedGrowthMode === "custom") {
     return customGrowthPct ?? 0;
   }
   return 0;
@@ -324,10 +326,11 @@ const resolvePropertyAnnualGrowthPct = (
   customGrowthPct: number | undefined,
   assumptions: ScenarioAssumptions
 ): number => {
-  if (growthMode === "assumption") {
+  const normalizedGrowthMode = resolveHousingGrowthMode(growthMode);
+  if (normalizedGrowthMode === "assumption") {
     return assumptions.propertyAppreciationPct ?? 0;
   }
-  if (growthMode === "custom") {
+  if (normalizedGrowthMode === "custom") {
     return customGrowthPct ?? 0;
   }
   return 0;
