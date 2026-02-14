@@ -471,7 +471,7 @@ export default function CashflowEventDrawer({
               onChange={(eventValue) =>
                 setCashflowDraft((current) => ({
                   ...current,
-                  label: eventValue.currentTarget.value,
+                  label: eventValue.target.value,
                 }))
               }
             />
