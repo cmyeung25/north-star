@@ -215,6 +215,55 @@ describe("event template bundles", () => {
     expect(travelEvent.occurrenceMonth).toBe("2027-02");
   });
 
+
+
+  it("builds destination wedding with optional extra honeymoon", () => {
+    const events = buildMarriageBundleEvents(
+      {
+        title: "Wedding",
+        weddingMonth: "2027-01",
+        weddingStyle: "destination_wedding",
+        totalWeddingBudget: 180000,
+        breakdownEnabled: false,
+        breakdownItems: [],
+        includeTravel: true,
+        travelLabel: "Destination wedding travel",
+        travelMonthMode: "same",
+        travelBudgetMode: "perPerson",
+        travellersCount: 2,
+        perPersonBudget: 25000,
+        extraHoneymoonEnabled: true,
+        extraTravelLabel: "Honeymoon travel",
+        extraTravelMonthMode: "plus1",
+        extraTravelBudgetMode: "total",
+        extraTravelTotal: 20000,
+      },
+      {
+        weddingMain: "Wedding",
+        travel: "Travel",
+      },
+      {
+        bundleInstanceId: "bundle_marriage",
+        templateId: "life_marriage_plan",
+      }
+    );
+    expect(events).toHaveLength(3);
+    const destinationEvent = events.find(
+      (event) => event.type === "cashflow" && event.label === "Destination wedding travel"
+    );
+    const honeymoonEvent = events.find(
+      (event) => event.type === "cashflow" && event.label === "Honeymoon travel"
+    );
+    if (!destinationEvent || destinationEvent.type !== "cashflow") {
+      throw new Error("Expected destination travel event.");
+    }
+    if (!honeymoonEvent || honeymoonEvent.type !== "cashflow") {
+      throw new Error("Expected honeymoon event.");
+    }
+    expect(destinationEvent.occurrenceMonth).toBe("2027-01");
+    expect(honeymoonEvent.occurrenceMonth).toBe("2027-02");
+  });
+
   it("computes travel total", () => {
     expect(computeTravelTotal({ mode: "total", total: 30000 })).toBe(30000);
     expect(

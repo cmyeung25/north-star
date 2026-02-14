@@ -139,6 +139,14 @@ export type MarriagePlanInput = {
   travelTotal?: number;
   travellersCount?: number;
   perPersonBudget?: number;
+  extraHoneymoonEnabled?: boolean;
+  extraTravelLabel?: string;
+  extraTravelMonthMode?: TravelMonthMode;
+  extraTravelCustomMonth?: MonthKey;
+  extraTravelBudgetMode?: TravelBudgetMode;
+  extraTravelTotal?: number;
+  extraTravellersCount?: number;
+  extraPerPersonBudget?: number;
 };
 
 export type MarriagePlanLabels = {
@@ -272,6 +280,35 @@ export const buildMarriageBundleEvents = (
           source: {
             ...source,
             componentKey: "weddingTravel",
+          },
+        })
+      );
+    }
+  }
+
+  if (input.extraHoneymoonEnabled) {
+    const amount = computeTravelTotal({
+      mode: input.extraTravelBudgetMode ?? "total",
+      total: input.extraTravelTotal,
+      count: input.extraTravellersCount,
+      perPerson: input.extraPerPersonBudget,
+    });
+    if (amount > 0) {
+      events.push(
+        buildCashflowEvent({
+          id: createId(),
+          label: input.extraTravelLabel || labels.travel,
+          cadence: "oneOff",
+          amount,
+          occurrenceMonth: resolveTravelMonth(
+            input.weddingMonth,
+            input.extraTravelMonthMode,
+            input.extraTravelCustomMonth
+          ),
+          tags: ["wedding", "travel"],
+          source: {
+            ...source,
+            componentKey: "weddingTravelExtra",
           },
         })
       );
