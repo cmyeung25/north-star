@@ -1,5 +1,6 @@
 import type { ScenarioAssumptions } from "../store/scenarioStore";
 import type { CashflowEvent, IncomeGrowthMode } from "./scenarioV2/events";
+import { getDefaultCashflowGrowthMode } from "./scenarioV2/growthPolicy";
 import { monthsBetween } from "./members/age";
 
 const resolveMonthlyGrowthRate = (annualGrowthPct: number): number => {
@@ -58,7 +59,7 @@ export const applyAnnualGrowth = (
 
 export const resolveIncomeGrowthMode = (
   event: CashflowEvent
-): IncomeGrowthMode => event.growthMode ?? "none";
+ ): IncomeGrowthMode => event.growthMode ?? getDefaultCashflowGrowthMode(event);
 
 export const resolveIncomeGrowthPct = (
   event: CashflowEvent,

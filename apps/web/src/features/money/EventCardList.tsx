@@ -14,6 +14,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
+import { getDefaultCashflowGrowthMode } from "../../domain/scenarioV2/growthPolicy";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
 import {
@@ -138,14 +139,18 @@ export default function EventCardList({
         const impact = resolveEventMonthlyImpact(rows);
         const hasIncomeImpact = Boolean(impact && impact.income > 0);
         const hasExpenseImpact = Boolean(impact && impact.expense > 0);
+        const resolvedGrowthMode =
+          event.type === "cashflow"
+            ? event.growthMode ?? getDefaultCashflowGrowthMode(event)
+            : undefined;
         const showIncomeGrowthAssumption =
           event.type === "cashflow" &&
           event.kind === "income" &&
-          event.growthMode === "assumption";
+          resolvedGrowthMode === "assumption";
         const showIncomeGrowthCustom =
           event.type === "cashflow" &&
           event.kind === "income" &&
-          event.growthMode === "custom";
+          resolvedGrowthMode === "custom";
 
         return (
           <Card key={event.id} withBorder radius="md" padding="md">
