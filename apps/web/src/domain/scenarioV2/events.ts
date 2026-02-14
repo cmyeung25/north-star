@@ -23,6 +23,9 @@ const BaseEventSchema = z.object({
   memberId: z.string().optional(),
   tags: EventTagSchema,
   source: EventSourceSchema,
+  groupId: z.string().optional(),
+  groupRole: z.enum(["base", "adjustment"]).optional(),
+  effectiveMonth: MonthKeySchema.optional(),
 });
 
 export const CashflowEventSchemaBase = BaseEventSchema.extend({

@@ -133,8 +133,10 @@ import {
 } from "../../../src/features/money/incomeViewModels";
 import {
   buildSalaryAdjustmentTags,
+  deriveRecurringGroupId,
   getSalaryAdjustmentParentEventId,
   isSalaryAdjustmentEvent,
+  resolveRecurringGroupId,
   SALARY_ADJUSTMENT_TAG,
 } from "../../../src/features/money/salaryAdjustmentTags";
 import {
@@ -1226,13 +1228,17 @@ export default function MoneyClient({
         return false;
       }
 
-      const adjustmentsById = new Map(normalized.adjustments.map((event) => [event.id, event]));
-      const normalizedEvents = nextEvents.map((event) => {
-        if (event.id === parent.id) {
-          return normalized.base;
-        }
-        return adjustmentsById.get(event.id) ?? event;
-      });
+      const normalizedEvents = nextEvents
+        .filter(
+          (event) =>
+            !(
+              event.type === "cashflow" &&
+              isSalaryAdjustmentEvent(event) &&
+              getSalaryAdjustmentParentEventId(event) === parentEventId
+            )
+        )
+        .map((event) => (event.id === parent.id ? normalized.base : event));
+      normalizedEvents.push(...normalized.adjustments);
       setScenarioEvents(scenarioIdValue, normalizedEvents);
       return true;
     },
@@ -1331,7 +1337,14 @@ export default function MoneyClient({
     });
 
     const isSalaryAdjustment = Boolean(draft.tags?.includes(SALARY_ADJUSTMENT_TAG));
-    const payload = {
+    const parentEvent = salaryAdjustmentParentId
+      ? v2ScenarioEvents.find((event) => event.id === salaryAdjustmentParentId)
+      : null;
+    const parentGroupId =
+      parentEvent && parentEvent.type === "cashflow"
+        ? resolveRecurringGroupId(parentEvent) ?? deriveRecurringGroupId(parentEvent)
+        : undefined;
+    const payload: ScenarioEvent = {
       id: draft.id ?? crypto.randomUUID(),
       type: "cashflow" as const,
       label: draft.label.trim() || (isSalaryAdjustment ? "薪金調整" : undefined),
@@ -1349,7 +1362,16 @@ export default function MoneyClient({
         draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
       memberId: draft.memberId || undefined,
       tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
-    } satisfies ScenarioEvent;
+      groupId: isSalaryAdjustment ? parentGroupId : undefined,
+      groupRole: isSalaryAdjustment ? ("adjustment" as const) : undefined,
+      effectiveMonth: isSalaryAdjustment ? draft.startMonth || undefined : undefined,
+    };
+
+    if (payload.type === "cashflow" && payload.kind === "income" && !isSalaryAdjustment) {
+      payload.groupId = resolveRecurringGroupId(payload) ?? deriveRecurringGroupId(payload);
+      payload.groupRole = "base";
+      payload.effectiveMonth = payload.startMonth;
+    }
 
     if (salaryAdjustmentParentId) {
       if (

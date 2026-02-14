@@ -99,7 +99,34 @@ describe("incomeViewModels", () => {
 
     expect(grouped).toHaveLength(1);
     expect(grouped[0]?.baseEvent.id).toBe("income-gary");
+    expect(grouped[0]?.groupId).toBe("income-gary");
+    expect(grouped[0]?.groupStartMonth).toBe("2026-01");
     expect(grouped[0]?.adjustments.map((event) => event.id)).toEqual(["income-adjust"]);
+  });
+
+  it("uses grouped metadata when present", () => {
+    const grouped = groupIncomeEvents([
+      {
+        ...events[0],
+        id: "income-gary-base",
+        groupId: "income-gary",
+        groupRole: "base",
+      },
+      {
+        id: "income-gary::adj::2028-02",
+        type: "cashflow",
+        kind: "income",
+        cadence: "monthly",
+        amount: 80000,
+        startMonth: "2028-02",
+        groupId: "income-gary",
+        groupRole: "adjustment",
+      },
+    ]);
+
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.groupId).toBe("income-gary");
+    expect(grouped[0]?.adjustments[0]?.id).toBe("income-gary::adj::2028-02");
   });
 
   it("aggregates salary adjustments into a single top source", () => {

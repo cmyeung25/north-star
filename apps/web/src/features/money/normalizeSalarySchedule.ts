@@ -1,6 +1,10 @@
 import { addMonths } from "../../domain/members/age";
 import { compareMonthKey } from "../../utils/monthKey";
 import type { CashflowEvent } from "../../domain/scenarioV2/events";
+import {
+  deriveRecurringGroupId,
+  resolveRecurringGroupId,
+} from "./salaryAdjustmentTags";
 
 export type SalaryScheduleIssue =
   | "missing_adjustment_start_month"
@@ -13,18 +17,7 @@ export type NormalizedSalarySchedule = {
   issues: SalaryScheduleIssue[];
 };
 
-const isAdjustmentUsingLegacyDefault = (event: CashflowEvent) =>
-  event.growthMode === "none" &&
-  event.customGrowthRatePct === undefined &&
-  event.growthSource === undefined;
-
 const syncGrowthFromBase = (base: CashflowEvent, adjustment: CashflowEvent): CashflowEvent => {
-  if (adjustment.growthMode === "custom") {
-    return adjustment;
-  }
-  if (adjustment.growthMode !== undefined && !isAdjustmentUsingLegacyDefault(adjustment)) {
-    return adjustment;
-  }
   return {
     ...adjustment,
     growthMode: base.growthMode,
@@ -33,11 +26,26 @@ const syncGrowthFromBase = (base: CashflowEvent, adjustment: CashflowEvent): Cas
   };
 };
 
-export const normalizeSalarySchedule = (
+const monthBefore = (month: string) => addMonths(month, -1);
+
+const clampEndMonth = (candidate: string | undefined, hardEndMonth: string | undefined) => {
+  if (!candidate) {
+    return hardEndMonth;
+  }
+  if (!hardEndMonth) {
+    return candidate;
+  }
+  return compareMonthKey(candidate, hardEndMonth) > 0 ? hardEndMonth : candidate;
+};
+
+const buildAdjustmentEventId = (baseId: string, month: string) => `${baseId}::adj::${month}`;
+
+export const buildSegmentedRecurringEvents = (
   baseEvent: CashflowEvent,
   adjustmentEvents: CashflowEvent[]
 ): NormalizedSalarySchedule => {
   const issues: SalaryScheduleIssue[] = [];
+  const groupId = resolveRecurringGroupId(baseEvent) ?? deriveRecurringGroupId(baseEvent);
   const sortedAdjustments = [...adjustmentEvents].sort((left, right) =>
     compareMonthKey(left.startMonth ?? "9999-12", right.startMonth ?? "9999-12")
   );
@@ -45,7 +53,7 @@ export const normalizeSalarySchedule = (
   const adjustments: CashflowEvent[] = [];
   let previousStartMonth: string | null = null;
 
-  sortedAdjustments.forEach((event, index) => {
+  sortedAdjustments.forEach((event) => {
     const startMonth = event.startMonth;
     if (!startMonth) {
       issues.push("missing_adjustment_start_month");
@@ -60,28 +68,52 @@ export const normalizeSalarySchedule = (
       return;
     }
 
-    const nextStartMonth = sortedAdjustments[index + 1]?.startMonth;
-    const endMonth = nextStartMonth ? addMonths(nextStartMonth, -1) : undefined;
     adjustments.push(
       syncGrowthFromBase(baseEvent, {
         ...event,
-        endMonth,
+        id: buildAdjustmentEventId(baseEvent.id, startMonth),
+        groupId,
+        groupRole: "adjustment",
+        effectiveMonth: startMonth,
       })
     );
     previousStartMonth = startMonth;
   });
 
-  const firstAdjustmentStartMonth = adjustments[0]?.startMonth;
+  const segmentedAdjustments = adjustments.map((event, index) => {
+    const nextStart = adjustments[index + 1]?.startMonth;
+    const endMonth = clampEndMonth(
+      nextStart ? monthBefore(nextStart) : undefined,
+      baseEvent.endMonth
+    );
+    return {
+      ...event,
+      endMonth,
+    };
+  });
+
+  const firstAdjustmentStartMonth = segmentedAdjustments[0]?.startMonth;
+  const baseEndMonth = clampEndMonth(
+    firstAdjustmentStartMonth ? monthBefore(firstAdjustmentStartMonth) : undefined,
+    baseEvent.endMonth
+  );
 
   return {
     base: {
       ...baseEvent,
-      endMonth: firstAdjustmentStartMonth
-        ? addMonths(firstAdjustmentStartMonth, -1)
-        : undefined,
+      groupId,
+      groupRole: "base",
+      effectiveMonth: baseEvent.startMonth,
+      endMonth: baseEndMonth,
     },
-    adjustments,
+    adjustments: segmentedAdjustments,
     issues,
   };
 };
 
+export const normalizeSalarySchedule = (
+  baseEvent: CashflowEvent,
+  adjustmentEvents: CashflowEvent[]
+): NormalizedSalarySchedule => {
+  return buildSegmentedRecurringEvents(baseEvent, adjustmentEvents);
+};
