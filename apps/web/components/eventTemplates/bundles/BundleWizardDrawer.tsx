@@ -2464,7 +2464,7 @@ export default function BundleWizardDrawer({
                       onChange={(event) =>
                         setMarriageDraft((current) => ({
                           ...current,
-                          honeymoonExtraEnabled: event.currentTarget.checked,
+                          honeymoonExtraEnabled: event.target.checked,
                           isCustomized: true,
                         }))
                       }
