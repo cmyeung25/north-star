@@ -1,6 +1,6 @@
 import type { CashflowEvent } from "../../domain/scenarioV2/events";
 import {
-  computeSalaryEffectiveRangeSegments,
+  deriveEffectiveRangesForAdjustableGroup,
   type SalaryEffectiveRangeIssue,
 } from "../../domain/scenarioV2/salaryEffectiveRanges";
 import {
@@ -59,14 +59,12 @@ export const normalizeSalarySchedule = (
   const adjustments = [...adjustmentEvents]
     .sort((left, right) => (left.startMonth ?? "9999-12").localeCompare(right.startMonth ?? "9999-12"))
     .map((event) => markAsAdjustment(baseWithGrouping, event));
-  const normalized = computeSalaryEffectiveRangeSegments([baseWithGrouping, ...adjustments]);
-  const segmentById = new Map(normalized.segments.map((segment) => [segment.sourceEventId, segment.event]));
+  const issues: SalaryEffectiveRangeIssue[] = [];
+  deriveEffectiveRangesForAdjustableGroup([baseWithGrouping, ...adjustments], issues);
 
   return {
-    base: (segmentById.get(baseEvent.id) as CashflowEvent | undefined) ?? baseWithGrouping,
-    adjustments: adjustments
-      .map((event) => segmentById.get(event.id) as CashflowEvent | undefined)
-      .filter((event): event is CashflowEvent => Boolean(event)),
-    issues: normalized.issues,
+    base: baseWithGrouping,
+    adjustments,
+    issues,
   };
 };

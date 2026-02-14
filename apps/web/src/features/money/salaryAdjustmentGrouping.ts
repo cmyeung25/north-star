@@ -1,6 +1,6 @@
-import type { ScenarioEvent } from "../../domain/scenarioV2/events";
+import type { CashflowEvent, ScenarioEvent } from "../../domain/scenarioV2/events";
 import {
-  computeSalaryEffectiveRangeSegments,
+  deriveEffectiveRangesForAdjustableGroup,
   getSalaryAdjustmentParentId,
 } from "../../domain/scenarioV2/salaryEffectiveRanges";
 import {
@@ -63,10 +63,16 @@ export const computeEffectiveRanges = (
   baseEvent: ScenarioEvent,
   adjustments: ScenarioEvent[]
 ): EffectiveRangeSegment[] => {
-  const { segments } = computeSalaryEffectiveRangeSegments([baseEvent, ...adjustments]);
-  return segments.map((segment) => ({
+  const derived = deriveEffectiveRangesForAdjustableGroup(
+    [baseEvent, ...adjustments].filter(
+      (event): event is CashflowEvent =>
+        event.type === "cashflow" && event.kind === "income" && event.cadence === "monthly"
+    )
+  );
+
+  return derived.map((segment) => ({
     event: segment.event,
-    from: segment.from,
-    to: segment.to,
+    from: segment.effectiveStart,
+    to: segment.effectiveEnd,
   }));
 };

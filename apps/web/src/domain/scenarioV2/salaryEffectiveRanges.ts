@@ -19,6 +19,13 @@ export type SalaryEffectiveRangeSegment = {
   to: string | null;
 };
 
+export type DerivedAdjustableRange = {
+  sourceEventId: string;
+  event: CashflowEvent;
+  effectiveStart: string;
+  effectiveEnd: string | null;
+};
+
 const isSalaryEvent = (event: ScenarioEvent): event is CashflowEvent =>
   event.type === "cashflow" && event.kind === "income" && event.cadence === "monthly";
 
@@ -81,84 +88,95 @@ export const computeSalaryEffectiveRangeSegments = (
     grouped.set(event.id, group);
   });
 
-  const segments = Array.from(grouped.entries()).flatMap<SalaryEffectiveRangeSegment>(
-    ([groupId, groupEvents]) => {
-      const parent = byId.get(groupId) ?? groupEvents.find((event) => !isAdjustment(event));
-      if (!parent) {
-        return [];
-      }
-
-      const sorted = [...groupEvents].sort((left, right) => {
-        const startCompare = compareMonthKey(left.startMonth ?? "9999-12", right.startMonth ?? "9999-12");
-        if (startCompare !== 0) {
-          return startCompare;
-        }
-        if (left.id === parent.id) {
-          return -1;
-        }
-        if (right.id === parent.id) {
-          return 1;
-        }
-        return left.id.localeCompare(right.id);
-      });
-
-      const validEvents: CashflowEvent[] = [];
-      const seenStarts = new Set<string>();
-
-      sorted.forEach((event) => {
-        const startMonth = event.startMonth;
-        if (!startMonth || !isValidMonthKey(startMonth)) {
-          if (event.id !== parent.id) {
-            issues.push("missing_adjustment_start_month");
-          }
-          return;
-        }
-        if (seenStarts.has(startMonth)) {
-          issues.push("duplicate_adjustment_start_month");
-          return;
-        }
-        if (event.id !== parent.id && parent.startMonth && compareMonthKey(startMonth, parent.startMonth) < 0) {
-          issues.push("adjustment_before_base_start");
-          return;
-        }
-        if (event.id !== parent.id && parent.endMonth && compareMonthKey(startMonth, parent.endMonth) > 0) {
-          issues.push("adjustment_after_base_end");
-          return;
-        }
-        seenStarts.add(startMonth);
-        validEvents.push(event);
-      });
-
-      return validEvents.flatMap((event, index) => {
-        const startMonth = event.startMonth;
-        if (!startMonth) {
-          return [];
-        }
-        const nextStart = validEvents[index + 1]?.startMonth;
-        const effectiveEnd = minMonth(
-          event.endMonth,
-          nextStart ? monthBefore(nextStart) : undefined,
-          index === validEvents.length - 1 ? parent.endMonth : undefined
-        );
-
-        if (effectiveEnd && compareMonthKey(startMonth, effectiveEnd) > 0) {
-          return [];
-        }
-
-        return [
-          {
-            sourceEventId: event.id,
-            from: startMonth,
-            to: effectiveEnd ?? null,
-            event: syncGrowthFromBase(parent, {
-              ...event,
-              endMonth: effectiveEnd,
-            }),
-          },
-        ];
-      });
+  const segments = Array.from(grouped.entries()).flatMap<SalaryEffectiveRangeSegment>(([groupId, groupEvents]) => {
+    const parent = byId.get(groupId) ?? groupEvents.find((event) => !isAdjustment(event));
+    if (!parent) {
+      return [];
     }
-  );
+
+    const derived = deriveEffectiveRangesForAdjustableGroup(groupEvents, issues);
+    return derived.map((segment) => ({
+        sourceEventId: segment.sourceEventId,
+        from: segment.effectiveStart,
+        to: segment.effectiveEnd,
+        event: syncGrowthFromBase(parent, {
+          ...segment.event,
+          startMonth: segment.effectiveStart,
+          endMonth: segment.effectiveEnd ?? undefined,
+        }),
+      }));
+  });
 
   return { segments, issues };
+};
+
+export const deriveEffectiveRangesForAdjustableGroup = (
+  events: CashflowEvent[],
+  existingIssues: SalaryEffectiveRangeIssue[] = []
+): DerivedAdjustableRange[] => {
+  if (events.length === 0) {
+    return [];
+  }
+  const parent = events.find((event) => !getSalaryAdjustmentParentId(event)) ?? events[0];
+  if (!parent?.startMonth || !isValidMonthKey(parent.startMonth)) {
+    return [];
+  }
+
+  const sorted = [...events].sort((left, right) => {
+    const startCompare = compareMonthKey(left.startMonth ?? "9999-12", right.startMonth ?? "9999-12");
+    if (startCompare !== 0) {
+      return startCompare;
+    }
+    if (left.id === parent.id) {
+      return -1;
+    }
+    if (right.id === parent.id) {
+      return 1;
+    }
+    return left.id.localeCompare(right.id);
+  });
+
+  const validEvents: CashflowEvent[] = [];
+  const seenStarts = new Set<string>();
+
+  sorted.forEach((event) => {
+    const startMonth = event.startMonth;
+    if (!startMonth || !isValidMonthKey(startMonth)) {
+      if (event.id !== parent.id) {
+        existingIssues.push("missing_adjustment_start_month");
+      }
+      return;
+    }
+    if (seenStarts.has(startMonth)) {
+      existingIssues.push("duplicate_adjustment_start_month");
+      return;
+    }
+    if (event.id !== parent.id && compareMonthKey(startMonth, parent.startMonth ?? startMonth) < 0) {
+      existingIssues.push("adjustment_before_base_start");
+      return;
+    }
+    if (event.id !== parent.id && parent.endMonth && compareMonthKey(startMonth, parent.endMonth) > 0) {
+      existingIssues.push("adjustment_after_base_end");
+      return;
+    }
+    seenStarts.add(startMonth);
+    validEvents.push(event);
+  });
+
+  return validEvents.flatMap((event, index) => {
+    const startMonth = event.startMonth;
+    if (!startMonth) {
+      return [];
+    }
+    const nextStart = validEvents[index + 1]?.startMonth;
+    const effectiveEnd = minMonth(
+      event.id === parent.id ? parent.endMonth : event.endMonth,
+      nextStart ? monthBefore(nextStart) : undefined,
+      index === validEvents.length - 1 ? parent.endMonth : undefined
+    );
+    if (effectiveEnd && compareMonthKey(startMonth, effectiveEnd) > 0) {
+      return [];
+    }
+    return [{ sourceEventId: event.id, event, effectiveStart: startMonth, effectiveEnd: effectiveEnd ?? null }];
+  });
 };

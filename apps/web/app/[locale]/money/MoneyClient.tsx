@@ -1197,6 +1197,31 @@ export default function MoneyClient({
         return false;
       }
       const { parentEventId, draftEvent, deletedEventId } = params;
+      if (draftEvent && draftEvent.id === parentEventId && draftEvent.type === "cashflow") {
+        const existingParent = v2ScenarioEvents.find((event) => event.id === parentEventId);
+        if (existingParent && existingParent.type === "cashflow") {
+          const mutatesTemporalRange =
+            existingParent.startMonth !== draftEvent.startMonth ||
+            (existingParent.endMonth ?? null) !== (draftEvent.endMonth ?? null);
+          if (mutatesTemporalRange) {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("[salary-adjustment] blocked baseline temporal mutation", {
+                parentEventId,
+                original: {
+                  startMonth: existingParent.startMonth,
+                  endMonth: existingParent.endMonth ?? null,
+                },
+                attempted: {
+                  startMonth: draftEvent.startMonth,
+                  endMonth: draftEvent.endMonth ?? null,
+                },
+              });
+            }
+            setLedgerActionError("薪金調整不可修改基準薪金的起訖月份");
+            return false;
+          }
+        }
+      }
       const nextEvents = v2ScenarioEvents
         .filter((event) => event.id !== deletedEventId)
         .map((event) => (draftEvent && event.id === draftEvent.id ? draftEvent : event));
@@ -4647,6 +4672,34 @@ export default function MoneyClient({
                 initialCashflowDraft={templateCashflowDraft ?? undefined}
                 onClose={closeV2EventDrawer}
                 onSave={handleSaveV2Event}
+                salaryAdjustmentContext={(() => {
+                  const sourceEvent =
+                    editingV2DrawerEvent && editingV2DrawerEvent.type === "cashflow"
+                      ? editingV2DrawerEvent
+                      : null;
+                  const parentId = sourceEvent
+                    ? getSalaryAdjustmentParentEventId(sourceEvent)
+                    : getSalaryAdjustmentParentEventId({
+                        id: "draft",
+                        type: "cashflow",
+                        kind: templateCashflowDraft?.kind ?? "income",
+                        cadence: templateCashflowDraft?.cadence ?? "monthly",
+                        amount: 0,
+                        tags: templateCashflowDraft?.tags,
+                      });
+                  if (!parentId) {
+                    return null;
+                  }
+                  const parent = v2ScenarioEvents.find((event) => event.id === parentId);
+                  if (!parent || parent.type !== "cashflow") {
+                    return null;
+                  }
+                  return {
+                    parentLabel: parent.label ?? "基準薪金",
+                    parentStartMonth: parent.startMonth ?? null,
+                    parentEndMonth: parent.endMonth ?? null,
+                  };
+                })()}
               />
               <HousingEventDrawer
                 opened={v2EventDrawerOpen && v2EventDrawerType === "housing"}
