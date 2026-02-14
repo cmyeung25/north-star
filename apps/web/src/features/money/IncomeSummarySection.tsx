@@ -69,7 +69,7 @@ export default function IncomeSummarySection({
         </Card>
       </SimpleGrid>
 
-      <Group grow>
+      <Group grow display="none">
         <SegmentedControl data={memberData} value={selectedMemberId} onChange={onMemberChange} />
         <SegmentedControl
           data={[
