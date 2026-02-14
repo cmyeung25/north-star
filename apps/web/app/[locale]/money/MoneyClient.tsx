@@ -127,6 +127,7 @@ import {
 import {
   buildIncomeSummary,
   filterIncomeEvents,
+  groupIncomeEvents,
   sortIncomeEvents,
   type IncomeSortOption,
   type IncomeStatusFilter,
@@ -1826,38 +1827,60 @@ export default function MoneyClient({
       amount: "",
     });
   };
-  const inputEventItems = useMemo(
-    () =>
-      v2ScenarioEvents
-        .filter((event) => !bundleEventIds.has(event.id))
-        .map((event) => {
-          const amount = resolveEventCardAmount(event);
-          const startMonth = resolveEventCardStartMonth(event) ?? t("amountUnset");
-          return {
-            id: event.id,
-            kind: "event" as const,
-            label: event.label ?? t("ledgerRowFallbackLabel"),
-            description: t("inputsEventMeta", {
-              month: startMonth,
-              amount:
-                amount !== null
-                  ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
-                  : t("amountUnset"),
-            }),
-            onEdit: () => openV2EventDrawer("edit", event.type, event.id),
-            onDelete: () => handleDeleteV2Event(event.id),
-          };
-        }),
-    [
-      bundleEventIds,
-      handleDeleteV2Event,
-      locale,
-      openV2EventDrawer,
-      scenario?.baseCurrency,
-      t,
-      v2ScenarioEvents,
-    ]
-  );
+  const inputEventItems = useMemo(() => {
+    const standaloneEvents = v2ScenarioEvents.filter((event) => !bundleEventIds.has(event.id));
+    const groupedIncome = groupIncomeEvents(standaloneEvents.filter((event) => event.type === "cashflow" && event.kind === "income"));
+    const groupedIds = new Set<string>();
+    const groupedItems = groupedIncome.map(({ baseEvent, adjustments, groupStartMonth, groupEndMonth }) => {
+      [baseEvent, ...adjustments].forEach((event) => groupedIds.add(event.id));
+      const amount = resolveEventCardAmount(baseEvent);
+      return {
+        id: baseEvent.id,
+        kind: "event" as const,
+        label: baseEvent.label ?? t("ledgerRowFallbackLabel"),
+        description: t("inputsEventMeta", {
+          month: groupStartMonth ?? resolveEventCardStartMonth(baseEvent) ?? t("amountUnset"),
+          amount:
+            amount !== null
+              ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
+              : t("amountUnset"),
+        }) + (adjustments.length > 0 ? ` · 調整 ${adjustments.length} 次 (${groupStartMonth ?? "--"}→${groupEndMonth ?? t("eventCardOpenEnded")})` : ""),
+        onEdit: () => openV2EventDrawer("edit", baseEvent.type, baseEvent.id),
+        onDelete: () => handleDeleteV2Event(baseEvent.id),
+      };
+    });
+
+    const otherItems = standaloneEvents
+      .filter((event) => !groupedIds.has(event.id))
+      .map((event) => {
+        const amount = resolveEventCardAmount(event);
+        const startMonth = resolveEventCardStartMonth(event) ?? t("amountUnset");
+        return {
+          id: event.id,
+          kind: "event" as const,
+          label: event.label ?? t("ledgerRowFallbackLabel"),
+          description: t("inputsEventMeta", {
+            month: startMonth,
+            amount:
+              amount !== null
+                ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
+                : t("amountUnset"),
+          }),
+          onEdit: () => openV2EventDrawer("edit", event.type, event.id),
+          onDelete: () => handleDeleteV2Event(event.id),
+        };
+      });
+
+    return [...groupedItems, ...otherItems];
+  }, [
+    bundleEventIds,
+    handleDeleteV2Event,
+    locale,
+    openV2EventDrawer,
+    scenario?.baseCurrency,
+    t,
+    v2ScenarioEvents,
+  ]);
   const scenarioAssets = useMemo(() => scenario?.assets ?? [], [scenario?.assets]);
   const cashAsset = useMemo(
     () => scenarioAssets.find((asset) => asset.kind === "cash") ?? null,
@@ -3664,6 +3687,7 @@ export default function MoneyClient({
               onDeleteEvent={handleDeleteV2Event}
               onAdjustEvent={handleAdjustEvent}
               onCreateSalaryAdjustment={handleCreateSalaryAdjustment}
+              anchorMonth={selectedDashboardMonth ?? scenario?.assumptions.baseMonth ?? null}
             />
           </Stack>
         </Tabs.Panel>

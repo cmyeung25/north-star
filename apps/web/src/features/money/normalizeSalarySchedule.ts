@@ -72,6 +72,13 @@ export const buildSegmentedRecurringEvents = (
       syncGrowthFromBase(baseEvent, {
         ...event,
         id: buildAdjustmentEventId(baseEvent.id, startMonth),
+        seriesId: groupId,
+        parentEventId: baseEvent.id,
+        meta: {
+          ...(event.meta ?? {}),
+          kind: "adjustment",
+          adjustsEventId: baseEvent.id,
+        },
         groupId,
         groupRole: "adjustment",
         effectiveMonth: startMonth,
@@ -101,6 +108,12 @@ export const buildSegmentedRecurringEvents = (
   return {
     base: {
       ...baseEvent,
+      seriesId: groupId,
+      parentEventId: undefined,
+      meta: {
+        ...(baseEvent.meta ?? {}),
+        kind: "base",
+      },
       groupId,
       groupRole: "base",
       effectiveMonth: baseEvent.startMonth,

@@ -6,7 +6,8 @@ import { useMemo } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
-import { resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
+import { resolveEventCardAmount, resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
+import { compareMonthKey } from "../../utils/monthKey";
 import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
 
 type Props = {
@@ -23,6 +24,7 @@ type Props = {
   onDeleteEvent: (eventId: string) => void;
   onAdjustEvent: (row: LedgerRow) => void;
   onCreateSalaryAdjustment?: (eventId: string) => void;
+  anchorMonth?: string | null;
 };
 
 const isSalaryBase = (event: ScenarioEvent) =>
@@ -42,6 +44,7 @@ export default function IncomeEventList({
   onDeleteEvent,
   onAdjustEvent,
   onCreateSalaryAdjustment,
+  anchorMonth,
 }: Props) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -71,13 +74,16 @@ export default function IncomeEventList({
         />
       </Group>
       {groupedEvents.map(({ baseEvent, adjustments, groupStartMonth, groupEndMonth }) => {
-        const rows = ledgerRowsByEventId.get(baseEvent.id) ?? [];
-        const projectionRow = rows[0];
+        const groupRows = [baseEvent, ...adjustments]
+          .flatMap((event) => ledgerRowsByEventId.get(event.id) ?? [])
+          .sort((left, right) => compareMonthKey(left.month, right.month));
+        const projectionRow =
+          groupRows.find((row) => (anchorMonth ? row.month === anchorMonth : false)) ??
+          groupRows.find((row) => (anchorMonth ? compareMonthKey(row.month, anchorMonth) <= 0 : false)) ??
+          groupRows[0];
         const primaryAmount = projectionRow
           ? Math.abs(projectionRow.amount)
-          : baseEvent.type === "cashflow"
-            ? Math.abs(baseEvent.amount)
-            : 0;
+          : Math.abs(resolveEventCardAmount(baseEvent) ?? 0);
         const startMonth = resolveEventCardStartMonth(baseEvent);
         const endMonth = resolveEventCardEndMonth(baseEvent);
         const growthLabel =
@@ -145,7 +151,7 @@ export default function IncomeEventList({
                     {adjustments.map((adjustment) => (
                       <Group key={adjustment.id} justify="space-between" wrap="nowrap">
                         <Text size="sm" c="dimmed">
-                          {(resolveEventCardStartMonth(adjustment) ?? "--")} 起 {formatCurrency(Math.abs(adjustment.type === "cashflow" ? adjustment.amount : 0), baseCurrency, locale)}
+                          {(resolveEventCardStartMonth(adjustment) ?? "--")} → {resolveEventCardEndMonth(adjustment) ?? t("eventCardOpenEnded")} · {formatCurrency(Math.abs(adjustment.type === "cashflow" ? adjustment.amount : 0), baseCurrency, locale)}
                         </Text>
                         <Group gap={4}>
                           <Button size="xs" variant="subtle" onClick={() => onEditEvent(adjustment.id)}>{common("actionEdit")}</Button>
