@@ -1,9 +1,10 @@
 "use client";
 
-import { Card, Group, Progress, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Card, Group, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { formatCurrency } from "../../../lib/i18n";
 import type { IncomeStatusFilter } from "./incomeViewModels";
+import StackedContributionBar from "./StackedContributionBar";
 import type { ScenarioMember } from "../../store/scenarioStore";
 
 type IncomeSummarySectionProps = {
@@ -82,22 +83,12 @@ export default function IncomeSummarySection({
         />
       </Group>
 
-      {topSources.length > 0 && (
-        <Card withBorder radius="md" padding="sm">
-          <Stack gap="xs">
-            <Text fw={600}>{t("incomeTopSourcesTitle")}</Text>
-            {topSources.map((source) => (
-              <Stack key={source.id} gap={2}>
-                <Group justify="space-between" wrap="nowrap">
-                  <Text size="sm" lineClamp={1}>{source.label}</Text>
-                  <Text size="sm" fw={600}>{formatCurrency(source.amount, currency, locale)}</Text>
-                </Group>
-                <Progress value={source.share * 100} size="sm" />
-              </Stack>
-            ))}
-          </Stack>
-        </Card>
-      )}
+      <StackedContributionBar
+        title={t("incomeTopSourcesTitle")}
+        data={topSources}
+        currency={currency}
+        locale={locale}
+      />
     </Stack>
   );
 }

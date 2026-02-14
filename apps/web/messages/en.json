@@ -1787,13 +1787,17 @@
     "incomeSummarySourceValue": "{events} events · {members} members",
     "incomeSummaryExpiring": "With end month: {count}",
     "incomeSummaryDelta12m": "Projected change in 12 months",
-    "incomeTopSourcesTitle": "Top sources",
+    "incomeTopSourcesTitle": "Major sources (next 12 months)",
     "incomeSortAmountDesc": "Sort: Amount (high to low)",
     "incomeSortStartMonthAsc": "Sort: Start month",
     "incomeSortEndMonthAsc": "Sort: End month",
     "incomeProjectedPreview": "{month} projection: {amount}",
     "incomeGrowthNone": "No growth",
-    "householdLabel": "Household"
+    "householdLabel": "Household",
+    "expenseSummaryBaselineMonthly": "Baseline monthly expenses",
+    "expenseSummarySources": "Expense sources",
+    "expenseSummaryDelta12m": "Projected 12-month change",
+    "expenseTopSourcesTitle": "Major drivers (next 12 months)"
   },
   "entryLauncher": {
     "title": "Add new money items",

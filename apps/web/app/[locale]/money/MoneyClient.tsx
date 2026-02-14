@@ -86,6 +86,7 @@ import BundleWizardDrawer from "../../../components/eventTemplates/bundles/Bundl
 import EventCardList from "../../../src/features/money/EventCardList";
 import IncomeEventList from "../../../src/features/money/IncomeEventList";
 import IncomeSummarySection from "../../../src/features/money/IncomeSummarySection";
+import ExpenseSummarySection from "../../../src/features/money/ExpenseSummarySection";
 import CashflowEventDrawer, {
   type CashflowEventDraft,
   type ScenarioEventDraft,
@@ -125,6 +126,7 @@ import {
   filterEventsByLedgerImpact,
 } from "../../../src/features/money/eventCardUtils";
 import {
+  buildExpenseSummary,
   buildIncomeSummary,
   filterIncomeEvents,
   groupIncomeEvents,
@@ -728,12 +730,15 @@ export default function MoneyClient({
     return map;
   }, [v2LedgerRows]);
 
-  const incomeEvents = useMemo(() => {
-    const eligibleEvents = v2ScenarioEvents.filter(
-      (event) => event.type === "cashflow" || event.type === "adjustment"
-    );
-    return filterEventsByLedgerImpact(eligibleEvents, ledgerRowsByEventId, "income");
-  }, [ledgerRowsByEventId, v2ScenarioEvents]);
+  const incomeEvents = useMemo(
+    () =>
+      v2ScenarioEvents.filter(
+        (event) =>
+          (event.type === "cashflow" && event.kind === "income") ||
+          event.type === "adjustment"
+      ),
+    [v2ScenarioEvents]
+  );
   const expenseEvents = useMemo(
     () =>
       filterEventsByLedgerImpact(v2ScenarioEvents, ledgerRowsByEventId, "expense"),
@@ -756,13 +761,22 @@ export default function MoneyClient({
       buildIncomeSummary({
         events: filteredIncomeEvents,
         ledgerRowsByEventId,
-        baseMonth: scenario?.assumptions.baseMonth ?? undefined,
+        baseMonth: selectedDashboardMonth ?? scenario?.assumptions.baseMonth ?? undefined,
       }),
-    [filteredIncomeEvents, ledgerRowsByEventId, scenario?.assumptions.baseMonth]
+    [filteredIncomeEvents, ledgerRowsByEventId, scenario?.assumptions.baseMonth, selectedDashboardMonth]
   );
   const standaloneExpenseEvents = useMemo(
     () => expenseEvents.filter((event) => !event.source?.bundleInstanceId),
     [expenseEvents]
+  );
+  const expenseSummary = useMemo(
+    () =>
+      buildExpenseSummary({
+        events: standaloneExpenseEvents,
+        ledgerRowsByEventId,
+        baseMonth: selectedDashboardMonth ?? scenario?.assumptions.baseMonth ?? undefined,
+      }),
+    [ledgerRowsByEventId, scenario?.assumptions.baseMonth, selectedDashboardMonth, standaloneExpenseEvents]
   );
   const derivedIncomeItems = useMemo(() => {
     return v2ScenarioEvents.flatMap((event) => {
@@ -3760,6 +3774,16 @@ export default function MoneyClient({
                 {ledgerActionError}
               </Text>
             )}
+            <ExpenseSummarySection
+              locale={locale}
+              currency={scenario?.baseCurrency ?? "USD"}
+              baselineMonthlyTotal={expenseSummary.baselineMonthlyTotal}
+              sourceCount={expenseSummary.sourceCount}
+              memberCount={expenseSummary.memberCount}
+              projectedDelta12m={expenseSummary.projectedDelta12m}
+              expiringCount={expenseSummary.expiringCount}
+              topSources={expenseSummary.topSources}
+            />
             {renderBundleSliceSection(
               bundleSlicesByType.expenses,
               "bundleSliceExpenseSummary"
