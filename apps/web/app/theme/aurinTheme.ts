@@ -4,6 +4,7 @@ import {
   Card,
   Drawer,
   Modal,
+  NativeScrollArea,
   Paper,
   SegmentedControl,
   Table,
@@ -246,6 +247,18 @@ export const aurinTheme = createTheme({
         radius: "lg",
         padding: "lg",
         shadow: "md",
+        scrollAreaComponent: NativeScrollArea,
+      },
+      styles: {
+        content: {
+          maxHeight: "100dvh",
+        },
+        body: {
+          minHeight: 0,
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
+          touchAction: "pan-y",
+        },
       },
     }),
     Drawer: Drawer.extend({
@@ -253,6 +266,18 @@ export const aurinTheme = createTheme({
         radius: "lg",
         padding: "lg",
         shadow: "md",
+        scrollAreaComponent: NativeScrollArea,
+      },
+      styles: {
+        content: {
+          maxHeight: "100dvh",
+        },
+        body: {
+          minHeight: 0,
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
+          touchAction: "pan-y",
+        },
       },
     }),
   },

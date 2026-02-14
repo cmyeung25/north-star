@@ -61,8 +61,21 @@ export default function ExperimentTemplatesDrawer({
   }, [mode, title]);
 
   return (
-    <Drawer opened={opened} onClose={onClose} title={currentTitle} position="right" size="md">
-      <Stack gap="md">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title={currentTitle}
+      position="right"
+      size="md"
+      styles={{
+        body: {
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        },
+      }}
+    >
+      <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
         {!mode && (
           <SimpleGrid cols={{ base: 1, sm: 1 }} spacing="sm">
             {modeCards.map((card) => (
