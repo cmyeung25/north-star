@@ -63,6 +63,12 @@ export type ScenarioEventDraft =
   | ({ type: "cashflow" } & CashflowEventDraft)
   | ({ type: "adjustment" } & AdjustmentEventDraft);
 
+type SalaryAdjustmentContext = {
+  parentLabel: string;
+  parentStartMonth: string | null;
+  parentEndMonth: string | null;
+};
+
 type CashflowEventDrawerProps = {
   opened: boolean;
   mode: "create" | "edit";
@@ -79,6 +85,7 @@ type CashflowEventDrawerProps = {
   initialAdjustmentDraft?: Partial<AdjustmentEventDraft>;
   onClose: () => void;
   onSave: (draft: ScenarioEventDraft) => void;
+  salaryAdjustmentContext?: SalaryAdjustmentContext | null;
 };
 
 const applyDraftOverrides = <T,>(draft: T, overrides?: Partial<T>): T => {
@@ -180,6 +187,7 @@ export default function CashflowEventDrawer({
   initialAdjustmentDraft,
   onClose,
   onSave,
+  salaryAdjustmentContext,
 }: CashflowEventDrawerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -464,6 +472,13 @@ export default function CashflowEventDrawer({
       <Stack gap="sm">
         {eventType === "cashflow" ? (
           <>
+            {salaryAdjustmentContext && (
+              <Stack gap={2}>
+                <Text size="sm" fw={600}>此為調整事件（child），所屬基準：{salaryAdjustmentContext.parentLabel}</Text>
+                <Text size="xs" c="dimmed">基準原始區間（唯讀）：{salaryAdjustmentContext.parentStartMonth ?? "--"} → {salaryAdjustmentContext.parentEndMonth ?? "持續中"}</Text>
+                <Text size="xs" c="dimmed">此調整會在所選生效月份起覆蓋基準薪金；系統會以投影方式把上一段視為前一個月結束（不會更改基準資料）。</Text>
+              </Stack>
+            )}
             <TextInput
               label={t("ledgerEventLabel")}
               placeholder={t("ledgerEventLabelPlaceholder")}
