@@ -4185,6 +4185,58 @@ export default function PlanLabPanel({
     [openEventExperimentDrawer, openEditingItem, scenarioIsV2, translate]
   );
 
+  const createSegmentDeleteExperiment = useCallback(
+    (segmentEventId: string, baseEventId?: string) => {
+      const baselineEvent = (baselineScenarioV2.events ?? []).find(
+        (event) => event.id === segmentEventId
+      );
+      if (!baselineEvent) {
+        setPlanToast(translate("planLabExperimentEventMissing", "找不到目標事件。"));
+        return;
+      }
+
+      setScenarioV2Patches((current) => ({
+        ...current,
+        events: {
+          ...current.events,
+          remove: Array.from(new Set([...current.events.remove, segmentEventId])),
+          update: Object.fromEntries(
+            Object.entries(current.events.update).filter(([id]) => id !== segmentEventId)
+          ),
+        },
+      }));
+
+      const segmentLabel =
+        baselineEvent.type === "cashflow"
+          ? `${baselineEvent.startMonth ?? "--"}~${baselineEvent.endMonth ?? translate("planLabOpenEnded", "持續中")}`
+          : baselineEvent.id;
+      const itemId = `events:${segmentEventId}`;
+      setExperimentGroups((current) => [
+        ...current,
+        {
+          experimentId: `segment_delete_${nanoid(8)}`,
+          title: `調整：${baselineEvent.label ?? baselineEvent.id}（${segmentLabel}）`,
+          kind: "MODIFY_BASELINE_EVENT",
+          target: { baselineEventId: baseEventId ?? segmentEventId },
+          changes: [translate("planLabSegmentDeleteSummary", "模擬刪除此調整段")],
+          affectedEntities: [
+            {
+              itemId,
+              label: baselineEvent.label ?? baselineEvent.id,
+              type: "cashflow",
+            },
+          ],
+          isEnabled: true,
+          itemIds: [itemId],
+          primaryEventId: segmentEventId,
+          templateId: "segment.delete",
+          createdAt: Date.now(),
+        },
+      ]);
+    },
+    [baselineScenarioV2.events, setScenarioV2Patches, translate]
+  );
+
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
     if (scenarioIsV2) {
       return deriveInputsFromScenarioV2({
@@ -5312,17 +5364,68 @@ export default function PlanLabPanel({
               <Text size="xs" c="dimmed">
                 {formatCurrency(segment.amount, scenario.baseCurrency, locale)}｜{segment.from ?? "--"} → {segment.to ?? translate("planLabOpenEnded", "持續中")}（{segment.isBase ? "Parent" : "Child"}）
               </Text>
-              {!segment.isBase && (
-                <Button size="compact-xs" variant="subtle" onClick={() => handleEditV2Event(segment.eventId)}>
-                  {translate("planLabSegmentEdit", "編輯")}
-                </Button>
-              )}
+              <Group gap={6} wrap="nowrap">
+                {segment.isBase ? (
+                  <Menu withinPortal position="bottom-end">
+                    <Menu.Target>
+                      <Button size="compact-xs" variant="subtle">
+                        {translate("planLabCreateExperimentAction", "建立實驗")}
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => openEventExperimentDrawer(segment.eventId)}>
+                        {translate("planLabParentEditTemplate", "parent.edit（只調整 Parent）")}
+                      </Menu.Item>
+                      <Menu.Item onClick={() => openCreateSalaryAdjustmentFromBase(segment.eventId)}>
+                        {translate("planLabChildrenManageTemplate", "children.manage（管理 Child）")}
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                ) : (
+                  <>
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      onClick={() => openEventExperimentDrawer(segment.eventId)}
+                    >
+                      {translate("planLabCreateExperimentAction", "建立實驗")}
+                    </Button>
+                    <Menu withinPortal position="bottom-end">
+                      <Menu.Target>
+                        <Button size="compact-xs" variant="subtle">
+                          {translate("planLabMoreActions", "更多")}
+                        </Button>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Item onClick={() => openScenarioItemView(item)}>
+                          {translate("planLabViewDetailsAction", "查看")}
+                        </Menu.Item>
+                        <Menu.Item
+                          color="red"
+                          onClick={() => createSegmentDeleteExperiment(segment.eventId, item.eventId ?? undefined)}
+                        >
+                          {translate("planLabSegmentDeleteAction", "segment.delete（模擬刪除）")}
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
+                  </>
+                )}
+              </Group>
             </Group>
           ))}
         </Stack>
       );
     },
-    [getScenarioItemSummary, handleEditV2Event, locale, scenario.baseCurrency, translate]
+    [
+      createSegmentDeleteExperiment,
+      getScenarioItemSummary,
+      locale,
+      openCreateSalaryAdjustmentFromBase,
+      openEventExperimentDrawer,
+      openScenarioItemView,
+      scenario.baseCurrency,
+      translate,
+    ]
   );
 
   const getBundleChildRoleLabel = useCallback(
