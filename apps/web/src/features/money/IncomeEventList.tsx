@@ -70,10 +70,14 @@ export default function IncomeEventList({
           ]}
         />
       </Group>
-      {groupedEvents.map(({ baseEvent, adjustments }) => {
-        const primaryAmount = baseEvent.type === "cashflow" ? baseEvent.amount : 0;
+      {groupedEvents.map(({ baseEvent, adjustments, groupStartMonth, groupEndMonth }) => {
         const rows = ledgerRowsByEventId.get(baseEvent.id) ?? [];
         const projectionRow = rows[0];
+        const primaryAmount = projectionRow
+          ? Math.abs(projectionRow.amount)
+          : baseEvent.type === "cashflow"
+            ? Math.abs(baseEvent.amount)
+            : 0;
         const startMonth = resolveEventCardStartMonth(baseEvent);
         const endMonth = resolveEventCardEndMonth(baseEvent);
         const growthLabel =
@@ -107,11 +111,17 @@ export default function IncomeEventList({
                 <Group gap={6}>
                   <Badge variant="light">{frequencyLabel}</Badge>
                   {baseEvent.memberId && <Badge variant="outline">{memberLookupRecord[baseEvent.memberId] ?? t("householdLabel")}</Badge>}
+                  {adjustments.length > 0 && (
+                    <Badge variant="outline" color="blue">調整 {adjustments.length} 次</Badge>
+                  )}
                 </Group>
                 {growthLabel && <Text size="sm" c="dimmed">{growthLabel}</Text>}
                 {isSalaryBase(baseEvent) && adjustments.length > 0 ? (
                   <Text size="sm" c="dimmed">
-                    基準段：{startMonth ?? t("amountUnset")} → {endMonth ?? t("eventCardOpenEnded")}
+                    {t("eventCardMonths", {
+                      startMonth: groupStartMonth ?? startMonth ?? t("amountUnset"),
+                      endMonth: groupEndMonth ?? endMonth ?? t("eventCardOpenEnded"),
+                    })}
                   </Text>
                 ) : (
                   <Text size="sm" c="dimmed">
