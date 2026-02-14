@@ -108,7 +108,7 @@ describe("incomeViewModels", () => {
     const grouped = groupIncomeEvents([
       {
         ...events[0],
-        id: "income-gary-base",
+        id: "income-gary",
         groupId: "income-gary",
         groupRole: "base",
       },
@@ -121,6 +121,7 @@ describe("incomeViewModels", () => {
         startMonth: "2028-02",
         groupId: "income-gary",
         groupRole: "adjustment",
+        parentEventId: "income-gary",
       },
     ]);
 
