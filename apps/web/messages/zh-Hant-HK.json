@@ -1822,13 +1822,17 @@
     "incomeSummarySourceValue": "{events} 項事件 · {members} 位成員",
     "incomeSummaryExpiring": "有結束月份：{count}",
     "incomeSummaryDelta12m": "12 個月預計變化",
-    "incomeTopSourcesTitle": "主要來源",
+    "incomeTopSourcesTitle": "主要來源（未來12個月）",
     "incomeSortAmountDesc": "排序：金額（高至低）",
     "incomeSortStartMonthAsc": "排序：開始月份",
     "incomeSortEndMonthAsc": "排序：結束月份",
     "incomeProjectedPreview": "{month} 預計：{amount}",
     "incomeGrowthNone": "不成長",
-    "householdLabel": "家庭"
+    "householdLabel": "家庭",
+    "expenseSummaryBaselineMonthly": "基準每月支出",
+    "expenseSummarySources": "支出來源",
+    "expenseSummaryDelta12m": "12個月預計變化",
+    "expenseTopSourcesTitle": "主要來源（未來12個月）"
   },
   "entryLauncher": {
     "title": "新增金錢項目",
