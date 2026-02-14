@@ -214,6 +214,10 @@ import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
 import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
 import { buildMonthScale } from "../../lib/chart/monthScale";
+import {
+  deriveEffectiveRangesForAdjustableGroup,
+  getSalaryAdjustmentParentId,
+} from "../../src/domain/scenarioV2/salaryEffectiveRanges";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -275,6 +279,16 @@ type ScenarioEditorItem = {
   eventRule?: EventRule;
   eventOverrides?: EventRuleOverrides;
   eventSource?: "baseline" | "draft";
+  adjustmentCount?: number;
+  adjustmentNextMonth?: string | null;
+  adjustmentNextAmount?: number | null;
+  adjustmentSegments?: Array<{
+    eventId: string;
+    from: string | null;
+    to: string | null;
+    amount: number;
+    isBase: boolean;
+  }>;
 };
 
 type EventExperimentDraft = {
@@ -602,7 +616,26 @@ const deriveInputsFromScenarioV2 = (params: {
   };
   const items: ScenarioEditorItem[] = [];
 
+  const salaryAdjustmentsByParent = new Map<string, CashflowEvent[]>();
   (scenario.events ?? []).forEach((event) => {
+    if (event.type !== "cashflow" || event.kind !== "income" || event.cadence !== "monthly") {
+      return;
+    }
+    const parentId = getSalaryAdjustmentParentId(event);
+    if (!parentId) {
+      return;
+    }
+    const bucket = salaryAdjustmentsByParent.get(parentId) ?? [];
+    bucket.push(event);
+    salaryAdjustmentsByParent.set(parentId, bucket);
+  });
+
+  (scenario.events ?? []).forEach((event) => {
+    const adjustmentParentId = getSalaryAdjustmentParentId(event);
+    if (adjustmentParentId) {
+      return;
+    }
+
     const memberName = event.memberId ? memberLookup.get(event.memberId) ?? null : null;
     const title = event.label ?? event.type;
     const startMonth =
@@ -626,6 +659,34 @@ const deriveInputsFromScenarioV2 = (params: {
         ? event.amount
         : null;
     const bundleSource = resolveBundleSource(event.id);
+
+    let adjustmentCount = 0;
+    let adjustmentNextMonth: string | null = null;
+    let adjustmentNextAmount: number | null = null;
+    let adjustmentSegments: ScenarioEditorItem["adjustmentSegments"];
+
+    if (event.type === "cashflow" && event.kind === "income" && event.cadence === "monthly") {
+      const adjustments = salaryAdjustmentsByParent.get(event.id) ?? [];
+      if (adjustments.length > 0) {
+        const ranges = deriveEffectiveRangesForAdjustableGroup([event, ...adjustments]);
+        adjustmentCount = adjustments.length;
+        adjustmentSegments = ranges.map((segment) => ({
+          eventId: segment.event.id,
+          from: segment.effectiveStart,
+          to: segment.effectiveEnd,
+          amount: segment.event.amount,
+          isBase: segment.event.id === event.id,
+        }));
+        const futureSegment = ranges.find(
+          (segment) => segment.event.id !== event.id && Boolean(segment.effectiveStart)
+        );
+        if (futureSegment) {
+          adjustmentNextMonth = futureSegment.effectiveStart;
+          adjustmentNextAmount = futureSegment.event.amount;
+        }
+      }
+    }
+
     items.push({
       id: `event:${event.id}`,
       kind: "event",
@@ -653,6 +714,10 @@ const deriveInputsFromScenarioV2 = (params: {
         event.type === "cashflow" && event.cadence === "everyNMonths"
           ? event.everyNMonths ?? null
           : null,
+      adjustmentCount,
+      adjustmentNextMonth,
+      adjustmentNextAmount,
+      adjustmentSegments,
     });
   });
 
@@ -1227,6 +1292,7 @@ export default function PlanLabPanel({
   const [editingV2EventId, setEditingV2EventId] = useState<string | null>(null);
   const [v2EventDefaultKind, setV2EventDefaultKind] =
     useState<CashflowEvent["kind"]>("income");
+  const [salaryAdjustmentParentEventId, setSalaryAdjustmentParentEventId] = useState<string | null>(null);
   const [eventExperimentDrawerOpen, setEventExperimentDrawerOpen] = useState(false);
   const [eventExperimentDraft, setEventExperimentDraft] = useState<EventExperimentDraft>({
     targetEventId: null,
@@ -1320,6 +1386,7 @@ export default function PlanLabPanel({
     setV2EventDrawerType(null);
     setEditingV2EventId(null);
     setV2EventDefaultKind("income");
+    setSalaryAdjustmentParentEventId(null);
     setEventExperimentDrawerOpen(false);
     setEventExperimentDraft({
       targetEventId: null,
@@ -2976,7 +3043,27 @@ export default function PlanLabPanel({
       occurrenceMonth: draft.cadence === "oneOff" ? draft.occurrenceMonth : undefined,
       everyNMonths: draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
       memberId: draft.memberId || undefined,
-      tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
+      parentEventId: salaryAdjustmentParentEventId ?? undefined,
+      groupRole: salaryAdjustmentParentEventId ? "adjustment" : undefined,
+      effectiveMonth:
+        salaryAdjustmentParentEventId && draft.cadence !== "oneOff"
+          ? draft.startMonth || undefined
+          : undefined,
+      meta: salaryAdjustmentParentEventId
+        ? {
+            kind: "adjustment",
+            adjustsEventId: salaryAdjustmentParentEventId,
+            parentEventId: salaryAdjustmentParentEventId,
+            relationType: "adjustment",
+            adjustableKey: "salary",
+          }
+        : undefined,
+      tags:
+        draft.tags && draft.tags.length > 0
+          ? draft.tags
+          : salaryAdjustmentParentEventId
+          ? ["salary_adjustment", `salary_parent:${salaryAdjustmentParentEventId}`]
+          : undefined,
     };
     upsertScenarioV2Event(payload, "create");
     if (!applyExperimentTemplateToEvent(payload.id)) {
@@ -3647,6 +3734,7 @@ export default function PlanLabPanel({
     setV2EventDrawerOpen(false);
     setEditingV2EventId(null);
     setV2EventDrawerType(null);
+    setSalaryAdjustmentParentEventId(null);
     setTemplateCashflowDraft(null);
     setTemplateHousingDraft(null);
     setTemplateLoanDraft(null);
@@ -3692,6 +3780,52 @@ export default function PlanLabPanel({
     },
     [openV2EventDrawer, v2EventLookup]
   );
+
+  const openCreateSalaryAdjustmentFromBase = useCallback(
+    (eventId: string) => {
+      const baseEvent = v2EventLookup.get(eventId);
+      if (!baseEvent || baseEvent.type !== "cashflow") {
+        return;
+      }
+      setSalaryAdjustmentParentEventId(eventId);
+      setV2EventDefaultKind("income");
+      openV2EventDrawer("create", "cashflow");
+    },
+    [openV2EventDrawer, v2EventLookup]
+  );
+
+  const salaryAdjustmentContext = useMemo(() => {
+    if (!salaryAdjustmentParentEventId) {
+      return null;
+    }
+    const parentEvent = v2EventLookup.get(salaryAdjustmentParentEventId);
+    if (!parentEvent || parentEvent.type !== "cashflow") {
+      return null;
+    }
+    return {
+      parentLabel: parentEvent.label ?? parentEvent.id,
+      parentStartMonth: parentEvent.startMonth ?? null,
+      parentEndMonth: parentEvent.endMonth ?? null,
+    };
+  }, [salaryAdjustmentParentEventId, v2EventLookup]);
+
+  const salaryAdjustmentInitialDraft = useMemo<Partial<CashflowEventDraft> | null>(() => {
+    if (!salaryAdjustmentParentEventId) {
+      return null;
+    }
+    const parentEvent = v2EventLookup.get(salaryAdjustmentParentEventId);
+    if (!parentEvent || parentEvent.type !== "cashflow") {
+      return null;
+    }
+    return {
+      kind: "income",
+      cadence: "monthly",
+      startMonth: parentEvent.startMonth ?? "",
+      memberId: parentEvent.memberId ?? "",
+      growthMode: "none",
+      tags: ["salary_adjustment", `salary_parent:${parentEvent.id}`],
+    };
+  }, [salaryAdjustmentParentEventId, v2EventLookup]);
 
   const openEventExperimentDrawer = useCallback(
     (eventId?: string) => {
@@ -5143,6 +5277,52 @@ export default function PlanLabPanel({
   const getScenarioItemSummary = useCallback(
     (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id) ?? "",
     [scenarioItemMetaById]
+  );
+
+  const getScenarioItemScheduleSummary = useCallback(
+    (item: ScenarioEditorItem) => {
+      if (!item.adjustmentCount || item.adjustmentCount <= 0) {
+        return null;
+      }
+      const nextLabel =
+        item.adjustmentNextMonth && typeof item.adjustmentNextAmount === "number"
+          ? ` · ${translate("planLabSalaryNextAdjustment", "下一次：{month} → {amount}", {
+              month: item.adjustmentNextMonth,
+              amount: formatCurrency(item.adjustmentNextAmount, scenario.baseCurrency, locale),
+            })}`
+          : "";
+      return `${translate("planLabSalaryAdjustmentCount", "調整 {count} 次", {
+        count: item.adjustmentCount,
+      })}${nextLabel}`;
+    },
+    [locale, scenario.baseCurrency, translate]
+  );
+
+  const getScenarioItemPanelContent = useCallback(
+    (item: ScenarioEditorItem) => {
+      const summary = getScenarioItemSummary(item) || "—";
+      if (!item.adjustmentSegments || item.adjustmentSegments.length === 0) {
+        return <Text size="xs" c="dimmed">{summary}</Text>;
+      }
+      return (
+        <Stack gap={4}>
+          <Text size="xs" c="dimmed">{summary}</Text>
+          {item.adjustmentSegments.map((segment) => (
+            <Group key={segment.eventId} justify="space-between" wrap="nowrap">
+              <Text size="xs" c="dimmed">
+                {formatCurrency(segment.amount, scenario.baseCurrency, locale)}｜{segment.from ?? "--"} → {segment.to ?? translate("planLabOpenEnded", "持續中")}（{segment.isBase ? "Parent" : "Child"}）
+              </Text>
+              {!segment.isBase && (
+                <Button size="compact-xs" variant="subtle" onClick={() => handleEditV2Event(segment.eventId)}>
+                  {translate("planLabSegmentEdit", "編輯")}
+                </Button>
+              )}
+            </Group>
+          ))}
+        </Stack>
+      );
+    },
+    [getScenarioItemSummary, handleEditV2Event, locale, scenario.baseCurrency, translate]
   );
 
   const getBundleChildRoleLabel = useCallback(
@@ -7083,7 +7263,7 @@ export default function PlanLabPanel({
                   ref={(node) => registerItemRef(item.id, node)}
                   title={item.title}
                   badges={getScenarioItemBadges(item)}
-                  meta={getScenarioItemSummary(item)}
+                  meta={getScenarioItemScheduleSummary(item) ?? getScenarioItemSummary(item)}
                   highlighted={highlightedItemId === item.id}
                   primaryAction={{
                     label: isAffected
@@ -7102,6 +7282,12 @@ export default function PlanLabPanel({
                             controlId ? handleLocateControl(controlId) : undefined,
                           disabled: !controlId,
                         }
+                      : item.adjustmentCount && item.adjustmentCount > 0
+                      ? {
+                          label: translate("planLabAddAdjustmentAction", "新增調整"),
+                          onClick: () => item.eventId && openCreateSalaryAdjustmentFromBase(item.eventId),
+                          disabled: !item.eventId,
+                        }
                       : {
                           label: translate(
                             "planLabCreateExperimentAction",
@@ -7111,11 +7297,7 @@ export default function PlanLabPanel({
                           disabled: !canCreateExperimentFromItem(item),
                         }
                   }
-                  panel={
-                    <Text size="xs" c="dimmed">
-                      {getScenarioItemSummary(item) || "—"}
-                    </Text>
-                  }
+                  panel={getScenarioItemPanelContent(item)}
                 />
               );
             })}
@@ -7950,7 +8132,7 @@ export default function PlanLabPanel({
                                                 key={item.id}
                                                 title={getBundleChildTitle(item)}
                                                 badges={getScenarioItemBadges(item)}
-                                                meta={getScenarioItemSummary(item)}
+                                                meta={getScenarioItemScheduleSummary(item) ?? getScenarioItemSummary(item)}
                                                 highlighted={
                                                   highlightedItemId === item.id
                                                 }
@@ -8155,7 +8337,7 @@ export default function PlanLabPanel({
                                                   key={item.id}
                                                   title={getBundleChildTitle(item)}
                                                   badges={getScenarioItemBadges(item)}
-                                                  meta={getScenarioItemSummary(item)}
+                                                  meta={getScenarioItemScheduleSummary(item) ?? getScenarioItemSummary(item)}
                                                   highlighted={
                                                     highlightedItemId === item.id
                                                   }
@@ -9573,7 +9755,8 @@ export default function PlanLabPanel({
             members={sandboxScenarioV2.members ?? []}
             event={v2EventDrawerMode === "edit" ? editingCashflowEvent : null}
             defaultKind={v2EventDefaultKind}
-            initialCashflowDraft={templateCashflowDraft ?? undefined}
+            initialCashflowDraft={salaryAdjustmentInitialDraft ?? templateCashflowDraft ?? undefined}
+            salaryAdjustmentContext={salaryAdjustmentContext}
             onClose={closeV2EventDrawer}
             onSave={handleSaveV2Event}
           />
