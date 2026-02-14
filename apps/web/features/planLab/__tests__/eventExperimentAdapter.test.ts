@@ -51,7 +51,18 @@ describe("buildEventExperimentChanges", () => {
       members: [],
     });
 
-    expect(changes.endMonth).toBe("2026-06");
+    expect(changes.setEndMonth).toBe("2026-06");
+  });
+
+  it("should not create endMonth property when in month mode", () => {
+    const { changes } = buildEventExperimentChanges({
+      draft: baseDraft,
+      baselineEvent,
+      baseMonth: "2026-01",
+      members: [],
+    });
+
+    expect(changes.endMonth).toBeUndefined();
   });
 
   it("throws when end month cannot be normalized", () => {

@@ -63,18 +63,26 @@ export const buildEventOverridePatch = (
   event: ScenarioEvent,
   spec: EventOverrideExperimentSpec
 ): Partial<ScenarioEvent> => {
+
+  console.log(event, spec);
+
   if (event.id !== spec.targetEventId) {
     return {};
   }
 
-  if (event.type !== "cashflow") {
+  // Only support overrides for cashflow and housing events
+  if (event.type !== "cashflow" && event.type !== "housing") {
     return {};
   }
 
-  const patch: Partial<CashflowEvent> = {};
-  const amount = applyAmountOverride(event.amount, spec.changes);
-  if (typeof amount === "number") {
-    patch.amount = amount;
+  const patch: Partial<CashflowEvent | ScenarioEvent> = {};
+
+  // Apply amount overrides only for cashflow events
+  if (event.type === "cashflow") {
+    const amount = applyAmountOverride((event as CashflowEvent).amount, spec.changes);
+    if (typeof amount === "number") {
+      (patch as Partial<CashflowEvent>).amount = amount;
+    }
   }
 
   const nextStartMonth = applyMonthShift(
@@ -83,7 +91,7 @@ export const buildEventOverridePatch = (
     spec.changes.startMonthShift
   );
   if (nextStartMonth !== undefined) {
-    patch.startMonth = nextStartMonth ?? undefined;
+    (patch as Partial<CashflowEvent>).startMonth = nextStartMonth ?? undefined;
   }
 
   const nextEndMonth = applyMonthShift(
@@ -92,12 +100,13 @@ export const buildEventOverridePatch = (
     spec.changes.endMonthShift
   );
   if (nextEndMonth !== undefined) {
-    patch.endMonth = nextEndMonth ?? undefined;
+    (patch as Partial<CashflowEvent>).endMonth = nextEndMonth ?? undefined;
   }
 
-  if (spec.changes.growthMode) {
-    patch.growthMode = spec.changes.growthMode;
-    patch.customGrowthRatePct =
+  // Apply growth mode overrides only for cashflow events
+  if (event.type === "cashflow" && spec.changes.growthMode) {
+    (patch as Partial<CashflowEvent>).growthMode = spec.changes.growthMode;
+    (patch as Partial<CashflowEvent>).customGrowthRatePct =
       spec.changes.growthMode === "custom" ? spec.changes.growthRate ?? 0 : undefined;
   }
 

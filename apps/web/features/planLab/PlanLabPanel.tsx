@@ -3773,6 +3773,7 @@ export default function PlanLabPanel({
       setPlanToast(translate("planLabExperimentEventMissing", "找不到目標事件。"));
       return;
     }
+
     if (
       eventExperimentDraft.endMonthMode === "offset" &&
       eventExperimentDraft.endShiftMonths !== 0 &&

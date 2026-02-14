@@ -117,8 +117,18 @@ export const buildEventExperimentChanges = ({
         draft.startMonthMode !== "offset" && resolvedStartMonth !== baselineStartMonth
           ? resolvedStartMonth
           : undefined,
-      endMonthShift: endMonthShift !== 0 ? endMonthShift : undefined,
-      endMonth: draft.endMonthMode !== "offset" ? resolvedEndMonth : undefined,
+      setEndMonth:
+        draft.endMonthMode === "month"
+          ? draft.clearEndMonth
+            ? null
+            : resolvedEndMonth
+          : undefined,
+      endMonthShift:
+        draft.endMonthMode === "offset" && typeof endMonthShift === "number" && endMonthShift !== 0
+          ? endMonthShift
+          : undefined,
+      endMonth:
+        draft.endMonthMode === "age" ? resolvedEndMonth : undefined,
       growthMode: draft.growthMode === "unchanged" ? undefined : draft.growthMode,
       growthRate: draft.growthMode === "custom" ? draft.growthRate : undefined,
     },
