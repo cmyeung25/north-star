@@ -116,7 +116,7 @@ import {
   computeBufferThresholdFromLedger,
 } from "../../src/domain/planLab/scorecard/cashRisk";
 import { PlanLabCashRiskScorecard } from "../../components/PlanLabCashRiskScorecard";
-import TemplatePickerDrawer from "../../components/eventTemplates/TemplatePickerDrawer";
+import AddFlowDrawer from "../../components/add-flow/AddFlowDrawer";
 import type { TemplateCategory, TemplateDef, TemplateId } from "../../src/domain/eventTemplates/types";
 import BundleWizardDrawer from "../../components/eventTemplates/bundles/BundleWizardDrawer";
 import { buildTemplateDrawerDraftOverrides } from "../../src/domain/eventTemplates/presets";
@@ -9629,10 +9629,10 @@ export default function PlanLabPanel({
         allowInlineEdit={false}
       />
 
-      <TemplatePickerDrawer
+      <AddFlowDrawer
         opened={templatePickerOpen}
+        mode="planlab"
         defaultCategory={templatePickerCategory}
-        showIntentScreen
         defaultIntent={templatePickerIntent}
         defaultItemCategory={templatePickerItemCategory}
         onClose={() => {
