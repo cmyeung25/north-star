@@ -41,6 +41,8 @@ export type OnboardingV2DraftAnnualExpense = {
   monthlyAmount: number;
   annualAmount: number;
   months: string[];
+  growthMode: "follow_env" | "custom" | "none";
+  growthRate?: number | null;
 };
 
 export type OnboardingV2DraftLivingSpendOtherItem = {

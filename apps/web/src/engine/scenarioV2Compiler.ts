@@ -163,6 +163,94 @@ const normalizeScenarioEventSegments = (events: ScenarioEvent[]): ScenarioEvent[
     return computeDisplaySegments(groupEvents).map((segment) => segment.event);
   });
 };
+
+
+const resolveBudgetOccurrenceCount = (event: CashflowEvent): number | null => {
+  const meta = event.meta as
+    | { budgetKind?: string; occurrenceMonths?: unknown; monthOfYear?: unknown }
+    | undefined;
+  if (!meta?.budgetKind) {
+    return null;
+  }
+
+  const monthOfYear = Array.isArray(meta.monthOfYear)
+    ? meta.monthOfYear.filter(
+        (value): value is number => typeof value === "number" && value >= 1 && value <= 12
+      )
+    : [];
+  const directMonths = Array.isArray(meta.occurrenceMonths)
+    ? meta.occurrenceMonths.filter((month): month is string => isValidMonthKey(month))
+    : [];
+  const selectors = new Set<number>([
+    ...monthOfYear,
+    ...directMonths.map((month) => Number(month.split("-")[1])),
+  ]);
+
+  return selectors.size > 0 ? selectors.size : null;
+};
+
+const resolveBudgetOccurrenceMonths = (
+  event: CashflowEvent,
+  assumptions: ScenarioAssumptions
+): string[] | null => {
+  if (event.cadence !== "yearly") {
+    return null;
+  }
+  const meta = event.meta as
+    | { budgetKind?: string; occurrenceMonths?: unknown; monthOfYear?: unknown }
+    | undefined;
+  if (!meta?.budgetKind) {
+    return null;
+  }
+
+  const monthOfYear = Array.isArray(meta.monthOfYear)
+    ? meta.monthOfYear.filter(
+        (value): value is number => typeof value === "number" && value >= 1 && value <= 12
+      )
+    : [];
+  const directMonths = Array.isArray(meta.occurrenceMonths)
+    ? meta.occurrenceMonths.filter((month): month is string => isValidMonthKey(month))
+    : [];
+
+  const selectors = new Set<number>([
+    ...monthOfYear,
+    ...directMonths.map((month) => Number(month.split("-")[1])),
+  ]);
+  if (selectors.size === 0) {
+    return null;
+  }
+
+  const baseMonths = buildCashflowMonths(event, assumptions);
+  if (baseMonths.length === 0) {
+    return null;
+  }
+
+  const startMonth = event.startMonth;
+  if (!startMonth) {
+    return null;
+  }
+  const horizonEndMonth = resolveHorizonEndMonth(assumptions);
+  const endMonth =
+    event.endMonth && isValidMonthKey(event.endMonth)
+      ? event.endMonth
+      : horizonEndMonth;
+  if (!endMonth || compareMonthKey(startMonth, endMonth) > 0) {
+    return null;
+  }
+
+  const months: string[] = [];
+  let current = startMonth;
+  while (compareMonthKey(current, endMonth) <= 0) {
+    const monthNumber = Number(current.split("-")[1]);
+    if (selectors.has(monthNumber)) {
+      months.push(current);
+    }
+    current = addMonths(current, 1);
+  }
+
+  return months;
+};
+
 const resolvePropertyMarketValue = (event: {
   propertyMarketValue?: number;
   purchasePrice?: number;
@@ -503,7 +591,7 @@ export const compileScenarioV2ToLedger = (
   );
 
   const cashflowRows = normalizedCashflowEvents.flatMap<LedgerRow>(({ event, sourceEventId }) => {
-    const months = buildCashflowMonths(event, assumptions);
+    const months = resolveBudgetOccurrenceMonths(event, assumptions) ?? buildCashflowMonths(event, assumptions);
     if (months.length === 0) {
       return [];
     }
@@ -512,9 +600,11 @@ export const compileScenarioV2ToLedger = (
       return [];
     }
 
+    const amountDivisor = resolveBudgetOccurrenceCount(event) ?? 1;
+
     return months.map((month) => ({
       month,
-      amount: resolveCashflowAmountForMonth({ event, month, assumptions }),
+      amount: resolveCashflowAmountForMonth({ event, month, assumptions }) / amountDivisor,
       sourceEventId,
       label: event.label,
       memberId: event.memberId,
@@ -598,15 +688,17 @@ const buildLegacyEventLibrary = (
   );
 
   const cashflowDefinitions = normalizedCashflowEvents.flatMap<EventDefinition>(({ event, sourceEventId }) => {
-      const months = buildCashflowMonths(event, assumptions);
+      const budgetMonths = resolveBudgetOccurrenceMonths(event, assumptions);
+      const months = budgetMonths ?? buildCashflowMonths(event, assumptions);
       if (months.length === 0) {
         return [];
       }
 
       const type = buildEventTypeForKind(event.kind) as EventType;
+      const amountDivisor = resolveBudgetOccurrenceCount(event) ?? 1;
       const schedule = months.map((month) => ({
         month,
-        amount: Math.abs(resolveCashflowAmountForMonth({ event, month, assumptions })),
+        amount: Math.abs(resolveCashflowAmountForMonth({ event, month, assumptions }) / amountDivisor),
       }));
       const definition: EventDefinition = {
         id: sourceEventId,

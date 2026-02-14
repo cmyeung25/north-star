@@ -404,6 +404,13 @@ const buildLivingSpendEvents = ({
   ];
 
   annualExpenses.forEach(({ key, label, draft }) => {
+    const resolvedGrowthMode =
+      draft.growthMode === "custom"
+        ? "custom"
+        : draft.growthMode === "none"
+          ? "none"
+          : "assumption";
+
     if (draft.mode === "monthly") {
       addMonthlyExpense({
         id: buildOnboardingEventId(scenarioId, `living-${key}-monthly`),
@@ -412,32 +419,50 @@ const buildLivingSpendEvents = ({
         startMonth: fixedStart,
         endMonth: fixedEnd,
       });
+      const latest = events[events.length - 1];
+      if (latest && latest.type === "cashflow" && latest.id.endsWith(`living-${key}-monthly`)) {
+        latest.growthMode = resolvedGrowthMode;
+        latest.growthSource = "inflation";
+        latest.customGrowthRatePct =
+          resolvedGrowthMode === "custom"
+            ? normalizeOptionalNumber(draft.growthRate) ?? undefined
+            : undefined;
+      }
       return;
     }
 
     const annualAmount = normalizeAmount(draft.annualAmount);
-    const startMonths = Array.from(
+    const occurrenceMonths = Array.from(
       new Set(draft.months.filter((month) => isValidMonthKey(month)))
-    );
-    if (annualAmount <= 0 || startMonths.length === 0) {
+    ).sort();
+    if (annualAmount <= 0 || occurrenceMonths.length === 0) {
       return;
     }
-    const perMonthAmount = annualAmount / startMonths.length;
-    startMonths.forEach((startMonth) => {
-      const endMonth = horizonEnd;
-      events.push({
-        id: buildOnboardingEventId(
-          scenarioId,
-          `living-${key}-${startMonth}`
-        ),
-        type: "cashflow",
-        kind: "expense",
-        cadence: "yearly",
-        amount: perMonthAmount,
-        label,
-        startMonth,
-        endMonth,
-      });
+
+    const anchorMonth = occurrenceMonths[0];
+    const monthOfYear = occurrenceMonths.map((month) => Number(month.split("-")[1]));
+
+    events.push({
+      id: buildOnboardingEventId(scenarioId, `living-${key}-annual`),
+      type: "cashflow",
+      kind: "expense",
+      cadence: "yearly",
+      amount: annualAmount,
+      label,
+      startMonth: anchorMonth,
+      endMonth: horizonEnd,
+      growthMode: resolvedGrowthMode,
+      growthSource: "inflation",
+      customGrowthRatePct:
+        resolvedGrowthMode === "custom"
+          ? normalizeOptionalNumber(draft.growthRate) ?? undefined
+          : undefined,
+      meta: {
+        kind: "base",
+        budgetKind: key === "travel" ? "travelBudget" : "taxBudget",
+        occurrenceMonths,
+        monthOfYear,
+      },
     });
   });
 
