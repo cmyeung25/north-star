@@ -214,10 +214,16 @@ import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
 import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
 import { buildMonthScale } from "../../lib/chart/monthScale";
+import { compareMonthKey } from "../../src/utils/monthKey";
 import {
   deriveEffectiveRangesForAdjustableGroup,
   getSalaryAdjustmentParentId,
 } from "../../src/domain/scenarioV2/salaryEffectiveRanges";
+import {
+  computeDisplaySegments,
+  getEventBaseEventId,
+  getEventStartMonth,
+} from "../../src/domain/scenarioV2/eventSegments";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -624,23 +630,24 @@ const deriveInputsFromScenarioV2 = (params: {
   };
   const items: ScenarioEditorItem[] = [];
 
-  const salaryAdjustmentsByParent = new Map<string, CashflowEvent[]>();
+  const eventsByBaseEventId = new Map<string, ScenarioEvent[]>();
   (scenario.events ?? []).forEach((event) => {
-    if (event.type !== "cashflow" || event.kind !== "income" || event.cadence !== "monthly") {
-      return;
-    }
-    const parentId = getSalaryAdjustmentParentId(event);
-    if (!parentId) {
-      return;
-    }
-    const bucket = salaryAdjustmentsByParent.get(parentId) ?? [];
+    const baseEventId = getEventBaseEventId(event);
+    const bucket = eventsByBaseEventId.get(baseEventId) ?? [];
     bucket.push(event);
-    salaryAdjustmentsByParent.set(parentId, bucket);
+    eventsByBaseEventId.set(baseEventId, bucket);
   });
 
+  const eventSegmentByBase = new Map<string, ReturnType<typeof computeDisplaySegments>>();
+  eventsByBaseEventId.forEach((groupEvents, baseEventId) => {
+    eventSegmentByBase.set(baseEventId, computeDisplaySegments(groupEvents));
+  });
+
+  const currentMonth = scenario.assumptions.baseMonth;
+
   (scenario.events ?? []).forEach((event) => {
-    const adjustmentParentId = getSalaryAdjustmentParentId(event);
-    if (adjustmentParentId) {
+    const baseEventId = getEventBaseEventId(event);
+    if (baseEventId !== event.id) {
       return;
     }
 
@@ -673,27 +680,45 @@ const deriveInputsFromScenarioV2 = (params: {
     let adjustmentNextAmount: number | null = null;
     let adjustmentSegments: ScenarioEditorItem["adjustmentSegments"];
 
-    if (event.type === "cashflow" && event.kind === "income" && event.cadence === "monthly") {
-      const adjustments = salaryAdjustmentsByParent.get(event.id) ?? [];
-      if (adjustments.length > 0) {
-        const ranges = deriveEffectiveRangesForAdjustableGroup([event, ...adjustments]);
-        adjustmentCount = adjustments.length;
-        adjustmentSegments = ranges.map((segment) => ({
+    const segmentRanges = eventSegmentByBase.get(event.id) ?? [];
+    if (segmentRanges.length > 1) {
+      adjustmentCount = segmentRanges.length - 1;
+      adjustmentSegments = segmentRanges
+        .filter((segment) => segment.event.type === "cashflow")
+        .map((segment) => ({
           eventId: segment.event.id,
           from: segment.effectiveStart,
           to: segment.effectiveEnd,
-          amount: segment.event.amount,
+          amount: segment.event.type === "cashflow" ? segment.event.amount : 0,
           isBase: segment.event.id === event.id,
         }));
-        const futureSegment = ranges.find(
-          (segment) => segment.event.id !== event.id && Boolean(segment.effectiveStart)
-        );
-        if (futureSegment) {
-          adjustmentNextMonth = futureSegment.effectiveStart;
-          adjustmentNextAmount = futureSegment.event.amount;
-        }
+      const futureSegment = segmentRanges.find(
+        (segment) => segment.event.id !== event.id && Boolean(segment.effectiveStart)
+      );
+      if (futureSegment && futureSegment.event.type === "cashflow") {
+        adjustmentNextMonth = futureSegment.effectiveStart;
+        adjustmentNextAmount = futureSegment.event.amount;
       }
     }
+
+    const currentEffective =
+      currentMonth && segmentRanges.length > 0
+        ? [...segmentRanges]
+            .reverse()
+            .find((segment) => {
+              if (compareMonthKey(segment.effectiveStart, currentMonth) > 0) {
+                return false;
+              }
+              if (segment.effectiveEnd && compareMonthKey(segment.effectiveEnd, currentMonth) < 0) {
+                return false;
+              }
+              return true;
+            })
+        : null;
+    const displayAmount =
+      currentEffective?.event.type === "cashflow"
+        ? currentEffective.event.amount
+        : amount;
 
     items.push({
       id: `event:${event.id}`,
@@ -716,7 +741,7 @@ const deriveInputsFromScenarioV2 = (params: {
       bundleTemplateId: bundleSource.bundleTemplateId,
       eventSource: changed.addedEvents.has(event.id) ? "draft" : "baseline",
       risky: event.type === "housing" || event.type === "loan",
-      amount,
+      amount: displayAmount,
       frequency: event.type === "cashflow" ? event.cadence : undefined,
       intervalMonths:
         event.type === "cashflow" && event.cadence === "everyNMonths"

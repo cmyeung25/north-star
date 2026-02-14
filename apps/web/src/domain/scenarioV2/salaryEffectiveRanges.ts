@@ -1,6 +1,10 @@
-import { addMonths } from "../members/age";
-import { compareMonthKey, isValidMonthKey } from "../../utils/monthKey";
 import type { CashflowEvent, ScenarioEvent } from "./events";
+import {
+  computeDisplaySegments,
+  getEventBaseEventId,
+  getEventSegmentRole,
+  type SegmentIssue,
+} from "./eventSegments";
 
 export const SALARY_ADJUSTMENT_PARENT_PREFIX = "salary_parent:";
 
@@ -29,23 +33,6 @@ export type DerivedAdjustableRange = {
 const isSalaryEvent = (event: ScenarioEvent): event is CashflowEvent =>
   event.type === "cashflow" && event.kind === "income" && event.cadence === "monthly";
 
-export const getSalaryAdjustmentParentId = (event: ScenarioEvent): string | null => {
-  const metaParentId =
-    typeof event.meta?.parentEventId === "string" ? event.meta.parentEventId : undefined;
-  const parentTag = event.tags?.find((tag) => tag.startsWith(SALARY_ADJUSTMENT_PARENT_PREFIX));
-  const taggedParentId = parentTag?.slice(SALARY_ADJUSTMENT_PARENT_PREFIX.length);
-  return (
-    event.parentEventId ??
-    metaParentId ??
-    (typeof event.meta?.adjustsEventId === "string" ? event.meta.adjustsEventId : undefined) ??
-    taggedParentId ??
-    null
-  );
-};
-
-const isAdjustment = (event: ScenarioEvent) => Boolean(getSalaryAdjustmentParentId(event));
-const monthBefore = (month: string) => addMonths(month, -1);
-
 const syncGrowthFromBase = (base: CashflowEvent, event: CashflowEvent): CashflowEvent => ({
   ...event,
   growthMode: event.growthMode ?? base.growthMode,
@@ -53,58 +40,60 @@ const syncGrowthFromBase = (base: CashflowEvent, event: CashflowEvent): Cashflow
   customGrowthRatePct: event.customGrowthRatePct ?? base.customGrowthRatePct,
 });
 
-const minMonth = (...values: Array<string | undefined>): string | undefined => {
-  const valid = values.filter((value): value is string => Boolean(value));
-  if (valid.length === 0) {
-    return undefined;
+const toLegacyIssue = (issue: SegmentIssue): SalaryEffectiveRangeIssue => {
+  switch (issue) {
+    case "missing_segment_start_month":
+      return "missing_adjustment_start_month";
+    case "duplicate_segment_start_month":
+      return "duplicate_adjustment_start_month";
+    case "segment_before_parent_start":
+      return "adjustment_before_base_start";
+    case "segment_after_parent_end":
+      return "adjustment_after_base_end";
+    default:
+      return "missing_parent";
   }
-  return valid.sort((a, b) => compareMonthKey(a, b))[0];
+};
+
+export const getSalaryAdjustmentParentId = (event: ScenarioEvent): string | null => {
+  const parentTag = event.tags?.find((tag) => tag.startsWith(SALARY_ADJUSTMENT_PARENT_PREFIX));
+  const taggedParentId = parentTag?.slice(SALARY_ADJUSTMENT_PARENT_PREFIX.length);
+  const baseEventId = getEventBaseEventId(event);
+  if (baseEventId !== event.id) {
+    return baseEventId;
+  }
+  return taggedParentId ?? null;
 };
 
 export const computeSalaryEffectiveRangeSegments = (
   events: ScenarioEvent[]
 ): { segments: SalaryEffectiveRangeSegment[]; issues: SalaryEffectiveRangeIssue[] } => {
   const salaryEvents = events.filter(isSalaryEvent);
-  const byId = new Map(salaryEvents.map((event) => [event.id, event]));
-  const grouped = new Map<string, CashflowEvent[]>();
-  const issues: SalaryEffectiveRangeIssue[] = [];
-
+  const groupMap = new Map<string, CashflowEvent[]>();
   salaryEvents.forEach((event) => {
-    const parentId = getSalaryAdjustmentParentId(event);
-    if (parentId) {
-      const parent = byId.get(parentId);
-      if (!parent) {
-        issues.push("missing_parent");
-        return;
-      }
-      const group = grouped.get(parentId) ?? [];
-      group.push(event);
-      grouped.set(parentId, group);
-      return;
-    }
-
-    const group = grouped.get(event.id) ?? [];
-    group.push(event);
-    grouped.set(event.id, group);
+    const baseEventId = getEventBaseEventId(event);
+    const bucket = groupMap.get(baseEventId) ?? [];
+    bucket.push(event);
+    groupMap.set(baseEventId, bucket);
   });
 
-  const segments = Array.from(grouped.entries()).flatMap<SalaryEffectiveRangeSegment>(([groupId, groupEvents]) => {
-    const parent = byId.get(groupId) ?? groupEvents.find((event) => !isAdjustment(event));
-    if (!parent) {
-      return [];
-    }
-
-    const derived = deriveEffectiveRangesForAdjustableGroup(groupEvents, issues);
+  const issues: SalaryEffectiveRangeIssue[] = [];
+  const segments = Array.from(groupMap.values()).flatMap<SalaryEffectiveRangeSegment>((groupEvents) => {
+    const parent =
+      groupEvents.find((event) => getEventSegmentRole(event) === "parent") ?? groupEvents[0];
+    const localIssues: SegmentIssue[] = [];
+    const derived = computeDisplaySegments(groupEvents, localIssues);
+    issues.push(...localIssues.map(toLegacyIssue));
     return derived.map((segment) => ({
-        sourceEventId: segment.sourceEventId,
-        from: segment.effectiveStart,
-        to: segment.effectiveEnd,
-        event: syncGrowthFromBase(parent, {
-          ...segment.event,
-          startMonth: segment.effectiveStart,
-          endMonth: segment.effectiveEnd ?? undefined,
-        }),
-      }));
+      sourceEventId: segment.sourceEventId,
+      event: {
+        ...syncGrowthFromBase(parent, segment.event),
+        baseEventId: getEventBaseEventId(segment.event),
+        segmentRole: getEventSegmentRole(segment.event),
+      },
+      from: segment.effectiveStart,
+      to: segment.effectiveEnd,
+    }));
   });
 
   return { segments, issues };
@@ -114,69 +103,13 @@ export const deriveEffectiveRangesForAdjustableGroup = (
   events: CashflowEvent[],
   existingIssues: SalaryEffectiveRangeIssue[] = []
 ): DerivedAdjustableRange[] => {
-  if (events.length === 0) {
-    return [];
-  }
-  const parent = events.find((event) => !getSalaryAdjustmentParentId(event)) ?? events[0];
-  if (!parent?.startMonth || !isValidMonthKey(parent.startMonth)) {
-    return [];
-  }
-
-  const sorted = [...events].sort((left, right) => {
-    const startCompare = compareMonthKey(left.startMonth ?? "9999-12", right.startMonth ?? "9999-12");
-    if (startCompare !== 0) {
-      return startCompare;
-    }
-    if (left.id === parent.id) {
-      return -1;
-    }
-    if (right.id === parent.id) {
-      return 1;
-    }
-    return left.id.localeCompare(right.id);
-  });
-
-  const validEvents: CashflowEvent[] = [];
-  const seenStarts = new Set<string>();
-
-  sorted.forEach((event) => {
-    const startMonth = event.startMonth;
-    if (!startMonth || !isValidMonthKey(startMonth)) {
-      if (event.id !== parent.id) {
-        existingIssues.push("missing_adjustment_start_month");
-      }
-      return;
-    }
-    if (seenStarts.has(startMonth)) {
-      existingIssues.push("duplicate_adjustment_start_month");
-      return;
-    }
-    if (event.id !== parent.id && compareMonthKey(startMonth, parent.startMonth ?? startMonth) < 0) {
-      existingIssues.push("adjustment_before_base_start");
-      return;
-    }
-    if (event.id !== parent.id && parent.endMonth && compareMonthKey(startMonth, parent.endMonth) > 0) {
-      existingIssues.push("adjustment_after_base_end");
-      return;
-    }
-    seenStarts.add(startMonth);
-    validEvents.push(event);
-  });
-
-  return validEvents.flatMap((event, index) => {
-    const startMonth = event.startMonth;
-    if (!startMonth) {
-      return [];
-    }
-    const nextStart = validEvents[index + 1]?.startMonth;
-    const effectiveEnd = minMonth(
-      event.id === parent.id ? parent.endMonth : event.endMonth,
-      nextStart ? monthBefore(nextStart) : undefined,
-      index === validEvents.length - 1 ? parent.endMonth : undefined
-    );
-    if (effectiveEnd && compareMonthKey(startMonth, effectiveEnd) > 0) {
-      return [];
-    }
-    return [{ sourceEventId: event.id, event, effectiveStart: startMonth, effectiveEnd: effectiveEnd ?? null }];
-  });
+  const localIssues: SegmentIssue[] = [];
+  const segments = computeDisplaySegments(events, localIssues);
+  existingIssues.push(...localIssues.map(toLegacyIssue));
+  return segments.map((segment) => ({
+    sourceEventId: segment.sourceEventId,
+    event: segment.event,
+    effectiveStart: segment.effectiveStart,
+    effectiveEnd: segment.effectiveEnd,
+  }));
 };

@@ -19,6 +19,8 @@ export const EventSourceSchema = z
 
 const BaseEventSchema = z.object({
   id: z.string(),
+  baseEventId: z.string().optional(),
+  segmentRole: z.enum(["parent", "child"]).optional(),
   label: z.string().optional(),
   memberId: z.string().optional(),
   tags: EventTagSchema,
