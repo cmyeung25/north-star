@@ -249,6 +249,14 @@ const normalizeAnnualExpenseDraft = (
   months: Array.isArray(existing?.months)
     ? existing.months.filter((month) => isValidMonthKey(month))
     : [],
+  growthMode:
+    existing?.growthMode === "custom" || existing?.growthMode === "none"
+      ? existing.growthMode
+      : "follow_env",
+  growthRate:
+    typeof existing?.growthRate === "number" && Number.isFinite(existing.growthRate)
+      ? existing.growthRate
+      : null,
 });
 
 const buildLivingSpendDraft = ({
@@ -2067,6 +2075,7 @@ export default function OnboardingDraftWizard() {
                 livingSpend={livingSpend}
                 baseMonth={profile.startMonth || resolvedBaseMonth}
                 horizonYears={profile.horizonYears}
+                inflationPct={assumptions.inflationPct}
                 errors={shouldShowStepErrors ? livingSpendErrors : { fixed: {}, travel: {}, tax: {}, otherFixed: {} }}
                 onChange={setLivingSpend}
                 t={t}

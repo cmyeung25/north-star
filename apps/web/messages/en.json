@@ -3078,7 +3078,18 @@
     "laterCta": "Do it later",
     "saveHint": "You can update these details later in Settings and People.",
     "back": "Back",
-    "next": "Next"
+    "next": "Next",
+    "livingRequired": "Required",
+    "livingFixedSummary": "Current fixed monthly total: {amount}",
+    "livingCategorySummary": "Category total: {total} (fixed target: {fixed})",
+    "livingAnnualBudgetsTitle": "Annual / non-fixed budgets",
+    "livingTravelPerOccurrence": "Estimated per-trip amount: {amount}",
+    "livingGrowthModeLabel": "Growth setting",
+    "livingGrowthModeFollowEnv": "Follow environment assumption ({rate}%)",
+    "livingGrowthModeCustom": "Custom growth",
+    "livingGrowthModeNone": "No growth",
+    "livingGrowthCustomRate": "Custom annual growth",
+    "livingGrowthPreview": "Next-year estimate: {amount}"
   },
   "stress": {
     "title": "Stress Test",

@@ -66,8 +66,8 @@ const buildDraft = (overrides: Partial<OnboardingV2Draft> = {}): OnboardingV2Dra
         misc: 0,
       },
     },
-    travel: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [] },
-    tax: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [] },
+    travel: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [], growthMode: "follow_env", growthRate: null },
+    tax: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [], growthMode: "follow_env", growthRate: null },
     otherFixed: [],
     ...overrides.livingSpend,
   },
@@ -184,8 +184,8 @@ describe("applyOnboardingV2DraftToScenarioV2", () => {
             misc: 0,
           },
         },
-        travel: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [] },
-        tax: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [] },
+        travel: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [], growthMode: "follow_env", growthRate: null },
+        tax: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [], growthMode: "follow_env", growthRate: null },
         otherFixed: [],
       },
     });
@@ -202,6 +202,53 @@ describe("applyOnboardingV2DraftToScenarioV2", () => {
     expect((categoryEvents ?? []).length > 0).toBe(true);
   });
 
+
+  it("creates one annual travel budget event with occurrence metadata", () => {
+    const draft = buildDraft({
+      livingSpend: {
+        fixed: { amount: 2000, startMonth: "2024-01" },
+        variable: { amount: 0 },
+        categoryBreakdown: {
+          enabled: false,
+          categories: {
+            food: 0,
+            transport: 0,
+            entertainment: 0,
+            medical: 0,
+            education: 0,
+            misc: 0,
+          },
+        },
+        travel: {
+          mode: "annual",
+          monthlyAmount: 0,
+          annualAmount: 1200,
+          months: ["2024-02", "2024-07"],
+          growthMode: "follow_env",
+          growthRate: null,
+        },
+        tax: { mode: "monthly", monthlyAmount: 0, annualAmount: 0, months: [], growthMode: "none", growthRate: null },
+        otherFixed: [],
+      },
+    });
+
+    const result = applyOnboardingV2DraftToScenarioV2(draft, baseScenario);
+    const travelEvents = (result.events ?? []).filter(
+      (event) => event.type === "cashflow" && event.id.includes("living-travel-annual")
+    );
+
+    expect(travelEvents).toHaveLength(1);
+    expect(travelEvents[0]).toMatchObject({
+      cadence: "yearly",
+      amount: 1200,
+      growthMode: "assumption",
+      growthSource: "inflation",
+    });
+    expect((travelEvents[0] as { meta?: { occurrenceMonths?: string[] } }).meta?.occurrenceMonths).toEqual([
+      "2024-02",
+      "2024-07",
+    ]);
+  });
   it("creates housing mortgage events with stable asset/liability ids", () => {
     const draft = buildDraft({
       housing: {

@@ -86,6 +86,48 @@ describe("compileScenarioV2ToLedger", () => {
     expect(monthlyEntries).toHaveLength(3);
   });
 
+
+  it("expands annual travel budget meta months into split monthly ledger rows", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        inflationRate: 10,
+      },
+      events: [
+        {
+          id: "evt-travel-budget",
+          type: "cashflow",
+          kind: "expense",
+          cadence: "yearly",
+          amount: 1200,
+          startMonth: "2024-02",
+          endMonth: "2025-07",
+          growthMode: "assumption",
+          growthSource: "inflation",
+          meta: {
+            kind: "base",
+            budgetKind: "travelBudget",
+            occurrenceMonths: ["2024-02", "2024-07"],
+            monthOfYear: [2, 7],
+          },
+        },
+      ],
+    };
+
+    const ledger = compileScenarioV2ToLedger(scenario).filter(
+      (entry) => entry.sourceEventId === "evt-travel-budget"
+    );
+
+    expect(ledger.map((entry) => entry.month)).toEqual([
+      "2024-02",
+      "2024-07",
+      "2025-02",
+      "2025-07",
+    ]);
+    expect(ledger.find((entry) => entry.month === "2024-02")?.amount).toBe(-600);
+    expect(ledger.find((entry) => entry.month === "2025-02")?.amount).toBe(-660);
+  });
   it("applies income growth assumptions to recurring income", () => {
     const scenario: ScenarioV2 = {
       ...baseScenario,

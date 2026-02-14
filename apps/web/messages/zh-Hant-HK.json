@@ -3125,7 +3125,18 @@
     "laterCta": "稍後再做",
     "saveHint": "之後可在設定與成員頁面修改。",
     "back": "上一步",
-    "next": "下一步"
+    "next": "下一步",
+    "livingRequired": "必填",
+    "livingFixedSummary": "目前每月固定支出：{amount}",
+    "livingCategorySummary": "分類總和：{total}（固定支出目標：{fixed}）",
+    "livingAnnualBudgetsTitle": "年度／非固定預算",
+    "livingTravelPerOccurrence": "每次旅遊支出（估算）：{amount}",
+    "livingGrowthModeLabel": "成長設定",
+    "livingGrowthModeFollowEnv": "跟隨環境假設（{rate}%）",
+    "livingGrowthModeCustom": "自訂成長",
+    "livingGrowthModeNone": "不成長",
+    "livingGrowthCustomRate": "自訂每年成長",
+    "livingGrowthPreview": "下一年預估：{amount}"
   },
   "stress": {
     "title": "壓力測試",

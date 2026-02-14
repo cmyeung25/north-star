@@ -45,6 +45,7 @@ test.describe("onboarding v2", () => {
     await page.getByLabel("Annual travel total").fill("1200");
     await page.getByLabel("Travel months").click();
     await page.getByRole("option", { name: baseMonth }).click();
+    await page.getByRole("option").nth(1).click();
     await page.getByRole("button", { name: "Monthly" }).first().click();
 
     await annualButtons.nth(1).click();

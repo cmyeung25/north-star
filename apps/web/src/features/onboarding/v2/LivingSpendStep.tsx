@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Accordion,
   Badge,
   Button,
   Card,
@@ -10,6 +9,7 @@ import {
   MultiSelect,
   NumberInput,
   SegmentedControl,
+  Select,
   SimpleGrid,
   Stack,
   Switch,
@@ -43,6 +43,7 @@ type LivingSpendStepProps = {
   livingSpend: OnboardingV2DraftLivingSpend;
   baseMonth: string;
   horizonYears: PlanningHorizonYears;
+  inflationPct: number | null;
   errors: LivingSpendErrors;
   onChange: (next: OnboardingV2DraftLivingSpend) => void;
   t: (key: string, values?: Record<string, number>) => string;
@@ -58,6 +59,7 @@ export default function LivingSpendStep({
   livingSpend,
   baseMonth,
   horizonYears,
+  inflationPct,
   errors,
   onChange,
   t,
@@ -72,6 +74,8 @@ export default function LivingSpendStep({
     return months.map((month) => ({ value: month, label: month }));
   }, [horizonYears, safeBaseMonth]);
 
+  const envGrowthRate = inflationPct ?? 0;
+
   const categoryFields = [
     { key: "food", label: t("livingCategoryFood") },
     { key: "transport", label: t("livingCategoryTransport") },
@@ -80,6 +84,11 @@ export default function LivingSpendStep({
     { key: "education", label: t("livingCategoryEducation") },
     { key: "misc", label: t("livingCategoryMisc") },
   ] as const;
+
+  const categoryTotal = categoryFields.reduce(
+    (sum, field) => sum + toNumber(livingSpend.categoryBreakdown.categories[field.key]),
+    0
+  );
 
   const updateFixed = (patch: Partial<OnboardingV2DraftLivingSpend["fixed"]>) => {
     onChange({
@@ -115,7 +124,10 @@ export default function LivingSpendStep({
     });
   };
 
-  const updateCategoryAmount = (key: keyof typeof livingSpend.categoryBreakdown.categories, amount: number) => {
+  const updateCategoryAmount = (
+    key: keyof typeof livingSpend.categoryBreakdown.categories,
+    amount: number
+  ) => {
     onChange({
       ...livingSpend,
       categoryBreakdown: {
@@ -160,17 +172,70 @@ export default function LivingSpendStep({
     });
   };
 
+  const renderGrowthControls = (key: "travel" | "tax") => {
+    const entry = livingSpend[key];
+    const mode = entry.growthMode;
+    const previewRate =
+      mode === "custom" ? (entry.growthRate ?? 0) : mode === "none" ? 0 : envGrowthRate;
+    const previewNextYear =
+      entry.mode === "annual"
+        ? toNumber(entry.annualAmount) * (1 + previewRate / 100)
+        : toNumber(entry.monthlyAmount) * 12 * (1 + previewRate / 100);
+
+    return (
+      <Stack gap="xs">
+        <Select
+          label={t("livingGrowthModeLabel")}
+          data={[
+            {
+              value: "follow_env",
+              label: t("livingGrowthModeFollowEnv", { rate: envGrowthRate }),
+            },
+            { value: "custom", label: t("livingGrowthModeCustom") },
+            { value: "none", label: t("livingGrowthModeNone") },
+          ]}
+          value={mode}
+          onChange={(value) =>
+            updateAnnualExpense(key, {
+              growthMode:
+                value === "custom" || value === "none" ? value : "follow_env",
+            })
+          }
+        />
+        {mode === "custom" ? (
+          <NumberInput
+            label={t("livingGrowthCustomRate")}
+            suffix="%"
+            value={entry.growthRate ?? 0}
+            onChange={(value) =>
+              updateAnnualExpense(key, {
+                growthRate: typeof value === "number" && Number.isFinite(value) ? value : null,
+              })
+            }
+          />
+        ) : null}
+        <Text size="xs" c="dimmed">
+          {t("livingGrowthPreview", { amount: Math.round(previewNextYear) })}
+        </Text>
+      </Stack>
+    );
+  };
+
   return (
     <Stack gap="md">
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
-          <Title order={4}>{t("livingSpendTitle")}</Title>
-          <Text size="sm" c="dimmed">
-            {t("livingSpendHint")}
-          </Text>
-          <Badge variant="light" color="blue">
-            核心（1 分鐘）
-          </Badge>
+          <Group justify="space-between" align="flex-start">
+            <div>
+              <Title order={4}>{t("livingSpendTitle")}</Title>
+              <Text size="sm" c="dimmed">
+                {t("livingSpendHint")}
+              </Text>
+            </div>
+            <Badge variant="light" color="blue">
+              {t("livingRequired")}
+            </Badge>
+          </Group>
           <Group grow align="flex-start">
             <NumberInput
               label={`${t("livingFixedAmount")}（必填）`}
@@ -195,6 +260,9 @@ export default function LivingSpendStep({
             error={errors.fixed.endMonth}
             onChange={(value) => updateFixed({ endMonth: value })}
           />
+          <Text size="sm" c="dimmed">
+            {t("livingFixedSummary", { amount: Math.round(toNumber(livingSpend.fixed.amount)) })}
+          </Text>
         </Stack>
       </Card>
 
@@ -204,9 +272,6 @@ export default function LivingSpendStep({
             <Title order={5}>{t("livingCategoryTitle")}</Title>
             <Badge variant="light">{t("livingOptional")}</Badge>
           </Group>
-          <Text size="sm" c="dimmed">
-            {t("livingCategoryHint")}
-          </Text>
           <Switch
             label={`${t("livingCategoryToggle")}（可選）`}
             checked={livingSpend.categoryBreakdown.enabled}
@@ -214,32 +279,8 @@ export default function LivingSpendStep({
               updateCategoryBreakdown({ enabled: event.currentTarget.checked })
             }
           />
-        </Stack>
-      </Card>
-
-      <Accordion variant="separated">
-        <Accordion.Item value="advanced">
-          <Accordion.Control>進階設定（可選，不填會使用預設）</Accordion.Control>
-          <Accordion.Panel>
-            <Stack gap="md">
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="sm">
-                  <Group align="center" justify="space-between">
-                    <Title order={5}>{t("livingVariableTitle")}</Title>
-                    <Badge variant="light">{t("livingOptional")}</Badge>
-                  </Group>
-                  <Text size="sm" c="dimmed">
-                    {t("livingVariableHint")}
-                  </Text>
-                  <NumberInput
-                    label={`${t("livingVariableAmount")}（可選）`}
-                    min={0}
-                    value={livingSpend.variable.amount === 0 ? "" : livingSpend.variable.amount}
-                    onChange={(value) => updateVariable({ amount: toNumber(value) })}
-                  />
-                </Stack>
-              </Card>
-
+          {livingSpend.categoryBreakdown.enabled ? (
+            <>
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                 {categoryFields.map((field) => (
                   <NumberInput
@@ -247,131 +288,151 @@ export default function LivingSpendStep({
                     label={`${field.label}（可選）`}
                     min={0}
                     value={livingSpend.categoryBreakdown.categories[field.key]}
-                    disabled={!livingSpend.categoryBreakdown.enabled}
                     onChange={(value) => updateCategoryAmount(field.key, toNumber(value))}
                   />
                 ))}
               </SimpleGrid>
+              <Text size="xs" c="dimmed">
+                {t("livingCategorySummary", {
+                  total: Math.round(categoryTotal),
+                  fixed: Math.round(toNumber(livingSpend.fixed.amount)),
+                })}
+              </Text>
+            </>
+          ) : (
+            <Text size="sm" c="dimmed">
+              {t("livingCategoryHint")}
+            </Text>
+          )}
+        </Stack>
+      </Card>
 
       <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
+        <Stack gap="md">
           <Group align="center" justify="space-between">
-            <Title order={5}>{t("livingTravelTitle")}</Title>
+            <Title order={5}>{t("livingAnnualBudgetsTitle")}</Title>
             <Badge variant="light">{t("livingOptional")}</Badge>
           </Group>
-          <Text size="sm" c="dimmed">
-            {t("livingTravelHint")}
-          </Text>
-          <SegmentedControl
-            value={livingSpend.travel.mode}
-            onChange={(value) =>
-              updateAnnualExpense("travel", {
-                mode: value === "annual" ? "annual" : "monthly",
-              })
-            }
-            data={[
-              { label: t("livingModeMonthly"), value: "monthly" },
-              { label: t("livingModeAnnual"), value: "annual" },
-            ]}
-          />
-          {livingSpend.travel.mode === "monthly" ? (
-            <NumberInput
-              label={t("livingTravelMonthlyAmount")}
-              min={0}
-              value={livingSpend.travel.monthlyAmount}
-              onChange={(value) =>
-                updateAnnualExpense("travel", { monthlyAmount: toNumber(value) })
-              }
-            />
-          ) : (
+
+          <Card withBorder radius="md" padding="sm">
             <Stack gap="sm">
-              <NumberInput
-                label={t("livingTravelAnnualAmount")}
-                min={0}
-                value={livingSpend.travel.annualAmount}
-                onChange={(value) =>
-                  updateAnnualExpense("travel", { annualAmount: toNumber(value) })
-                }
-              />
-              <MultiSelect
-                label={t("livingTravelMonths")}
-                placeholder={t("livingMonthsPlaceholder")}
-                data={monthOptions}
-                searchable
-                value={livingSpend.travel.months}
-                error={errors.travel.months}
-                onChange={(value) =>
-                  updateAnnualExpense("travel", { months: value })
-                }
-              />
-              <Text size="xs" c="dimmed">
+              <Title order={6}>{t("livingTravelTitle")}</Title>
+              <Text size="sm" c="dimmed">
                 {t("livingTravelMonthsHint")}
               </Text>
-            </Stack>
-          )}
-        </Stack>
-      </Card>
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="sm">
-          <Group align="center" justify="space-between">
-            <Title order={5}>{t("livingTaxTitle")}</Title>
-            <Badge variant="light">{t("livingOptional")}</Badge>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {t("livingTaxHint")}
-          </Text>
-          <SegmentedControl
-            value={livingSpend.tax.mode}
-            onChange={(value) =>
-              updateAnnualExpense("tax", {
-                mode: value === "annual" ? "annual" : "monthly",
-              })
-            }
-            data={[
-              { label: t("livingModeMonthly"), value: "monthly" },
-              { label: t("livingModeAnnual"), value: "annual" },
-            ]}
-          />
-          {livingSpend.tax.mode === "monthly" ? (
-            <NumberInput
-              label={t("livingTaxMonthlyAmount")}
-              min={0}
-              value={livingSpend.tax.monthlyAmount}
-              onChange={(value) =>
-                updateAnnualExpense("tax", { monthlyAmount: toNumber(value) })
-              }
-            />
-          ) : (
-            <Stack gap="sm">
-              <NumberInput
-                label={t("livingTaxAnnualAmount")}
-                min={0}
-                value={livingSpend.tax.annualAmount}
+              <SegmentedControl
+                value={livingSpend.travel.mode}
                 onChange={(value) =>
-                  updateAnnualExpense("tax", { annualAmount: toNumber(value) })
+                  updateAnnualExpense("travel", {
+                    mode: value === "annual" ? "annual" : "monthly",
+                  })
                 }
+                data={[
+                  { label: t("livingModeMonthly"), value: "monthly" },
+                  { label: t("livingModeAnnual"), value: "annual" },
+                ]}
               />
-              <MultiSelect
-                label={t("livingTaxMonths")}
-                placeholder={t("livingMonthsPlaceholder")}
-                data={monthOptions}
-                searchable
-                value={livingSpend.tax.months}
-                error={errors.tax.months}
-                onChange={(value) => updateAnnualExpense("tax", { months: value })}
-              />
-              <Text size="xs" c="dimmed">
-                {t("livingTaxMonthsHint")}
-              </Text>
+              {livingSpend.travel.mode === "monthly" ? (
+                <NumberInput
+                  label={t("livingTravelMonthlyAmount")}
+                  min={0}
+                  value={livingSpend.travel.monthlyAmount}
+                  onChange={(value) =>
+                    updateAnnualExpense("travel", { monthlyAmount: toNumber(value) })
+                  }
+                />
+              ) : (
+                <Stack gap="sm">
+                  <NumberInput
+                    label={t("livingTravelAnnualAmount")}
+                    min={0}
+                    value={livingSpend.travel.annualAmount}
+                    onChange={(value) =>
+                      updateAnnualExpense("travel", { annualAmount: toNumber(value) })
+                    }
+                  />
+                  <MultiSelect
+                    label={t("livingTravelMonths")}
+                    placeholder={t("livingMonthsPlaceholder")}
+                    data={monthOptions}
+                    searchable
+                    value={livingSpend.travel.months}
+                    error={errors.travel.months}
+                    onChange={(value) => updateAnnualExpense("travel", { months: value })}
+                  />
+                  <Text size="xs" c="dimmed">
+                    {t("livingTravelPerOccurrence", {
+                      amount: Math.round(
+                        livingSpend.travel.months.length > 0
+                          ? toNumber(livingSpend.travel.annualAmount) /
+                            livingSpend.travel.months.length
+                          : 0
+                      ),
+                    })}
+                  </Text>
+                </Stack>
+              )}
+              {renderGrowthControls("travel")}
             </Stack>
-          )}
+          </Card>
+
+          <Card withBorder radius="md" padding="sm">
+            <Stack gap="sm">
+              <Title order={6}>{t("livingTaxTitle")}</Title>
+              <SegmentedControl
+                value={livingSpend.tax.mode}
+                onChange={(value) =>
+                  updateAnnualExpense("tax", {
+                    mode: value === "annual" ? "annual" : "monthly",
+                  })
+                }
+                data={[
+                  { label: t("livingModeMonthly"), value: "monthly" },
+                  { label: t("livingModeAnnual"), value: "annual" },
+                ]}
+              />
+              {livingSpend.tax.mode === "monthly" ? (
+                <NumberInput
+                  label={t("livingTaxMonthlyAmount")}
+                  min={0}
+                  value={livingSpend.tax.monthlyAmount}
+                  onChange={(value) =>
+                    updateAnnualExpense("tax", { monthlyAmount: toNumber(value) })
+                  }
+                />
+              ) : (
+                <Stack gap="sm">
+                  <NumberInput
+                    label={t("livingTaxAnnualAmount")}
+                    min={0}
+                    value={livingSpend.tax.annualAmount}
+                    onChange={(value) =>
+                      updateAnnualExpense("tax", { annualAmount: toNumber(value) })
+                    }
+                  />
+                  <MultiSelect
+                    label={t("livingTaxMonths")}
+                    placeholder={t("livingMonthsPlaceholder")}
+                    data={monthOptions}
+                    searchable
+                    value={livingSpend.tax.months}
+                    error={errors.tax.months}
+                    onChange={(value) => updateAnnualExpense("tax", { months: value })}
+                  />
+                </Stack>
+              )}
+              {renderGrowthControls("tax")}
+            </Stack>
+          </Card>
+
+          <NumberInput
+            label={`${t("livingVariableAmount")}（可選）`}
+            min={0}
+            value={livingSpend.variable.amount === 0 ? "" : livingSpend.variable.amount}
+            onChange={(value) => updateVariable({ amount: toNumber(value) })}
+          />
         </Stack>
       </Card>
-            </Stack>
-          </Accordion.Panel>
-        </Accordion.Item>
-      </Accordion>
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
@@ -414,9 +475,7 @@ export default function LivingSpendStep({
                   <Card key={item.id} withBorder radius="md" padding="md">
                     <Stack gap="sm">
                       <Group justify="space-between" align="center">
-                        <Text fw={600}>
-                          {t("livingOtherFixedItem", { index: index + 1 })}
-                        </Text>
+                        <Text fw={600}>{t("livingOtherFixedItem", { index: index + 1 })}</Text>
                         <Button
                           variant="subtle"
                           color="red"
@@ -461,9 +520,7 @@ export default function LivingSpendStep({
                           placeholder={t("monthPlaceholder")}
                           value={item.endMonth ?? ""}
                           error={entryErrors.endMonth}
-                          onChange={(value) =>
-                            updateOtherFixed(item.id, { endMonth: value })
-                          }
+                          onChange={(value) => updateOtherFixed(item.id, { endMonth: value })}
                         />
                       </Group>
                     </Stack>
