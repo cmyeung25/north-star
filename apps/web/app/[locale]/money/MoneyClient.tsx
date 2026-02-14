@@ -505,6 +505,7 @@ export default function MoneyClient({
     tab: MortgageDetailTab;
   } | null>(null);
   const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
+  const [ledgerActionSuccess, setLedgerActionSuccess] = useState<string | null>(null);
   const [adjustmentDraft, setAdjustmentDraft] = useState<{
     row: LedgerRow;
     amount: string;
@@ -1363,6 +1364,7 @@ export default function MoneyClient({
         draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
       memberId: draft.memberId || undefined,
       tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
+      parentEventId: isSalaryAdjustment ? salaryAdjustmentParentId ?? undefined : undefined,
       groupId: isSalaryAdjustment ? parentGroupId : undefined,
       groupRole: isSalaryAdjustment ? ("adjustment" as const) : undefined,
       effectiveMonth: isSalaryAdjustment ? draft.startMonth || undefined : undefined,
@@ -1395,6 +1397,13 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventCreateFailed"));
         return;
       }
+    }
+
+    if (salaryAdjustmentParentId) {
+      const fromAmount = parentEvent && parentEvent.type === "cashflow" ? parentEvent.amount : null;
+      setLedgerActionSuccess(
+        `已保存薪金調整：${payload.startMonth ?? "--"} 起 ${fromAmount ?? "--"} → ${payload.amount}`
+      );
     }
 
     setV2EventDrawerOpen(false);
@@ -1834,17 +1843,22 @@ export default function MoneyClient({
     const groupedItems = groupedIncome.map(({ baseEvent, adjustments, groupStartMonth, groupEndMonth }) => {
       [baseEvent, ...adjustments].forEach((event) => groupedIds.add(event.id));
       const amount = resolveEventCardAmount(baseEvent);
+      const latestAdjustment = adjustments[adjustments.length - 1];
       return {
         id: baseEvent.id,
         kind: "event" as const,
         label: baseEvent.label ?? t("ledgerRowFallbackLabel"),
-        description: t("inputsEventMeta", {
-          month: groupStartMonth ?? resolveEventCardStartMonth(baseEvent) ?? t("amountUnset"),
-          amount:
-            amount !== null
-              ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
-              : t("amountUnset"),
-        }) + (adjustments.length > 0 ? ` · 調整 ${adjustments.length} 次 (${groupStartMonth ?? "--"}→${groupEndMonth ?? t("eventCardOpenEnded")})` : ""),
+        description:
+          t("inputsEventMeta", {
+            month: groupStartMonth ?? resolveEventCardStartMonth(baseEvent) ?? t("amountUnset"),
+            amount:
+              amount !== null
+                ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
+                : t("amountUnset"),
+          }) +
+          (adjustments.length > 0
+            ? ` · 調整 ${adjustments.length} 次（最新：${resolveEventCardStartMonth(latestAdjustment) ?? "--"} ${formatCurrency(Math.abs(latestAdjustment?.type === "cashflow" ? latestAdjustment.amount : 0), scenario?.baseCurrency ?? "USD", locale)}） · ${groupStartMonth ?? "--"}→${groupEndMonth ?? t("eventCardOpenEnded")}`
+            : ""),
         onEdit: () => openV2EventDrawer("edit", baseEvent.type, baseEvent.id),
         onDelete: () => handleDeleteV2Event(baseEvent.id),
       };
@@ -3610,6 +3624,11 @@ export default function MoneyClient({
               <Text size="sm" c="red">
                 {ledgerActionError}
               </Text>
+            )}
+            {ledgerActionSuccess && (
+              <Notification color="teal" onClose={() => setLedgerActionSuccess(null)}>
+                {ledgerActionSuccess}
+              </Notification>
             )}
             {derivedIncomeItems.length > 0 && (
               <Stack gap="xs">

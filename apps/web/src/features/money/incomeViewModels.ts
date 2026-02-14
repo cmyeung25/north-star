@@ -8,13 +8,11 @@ import {
   resolveEventCardStartMonth,
 } from "./eventCardUtils";
 import {
-  deriveRecurringGroupId,
   getSalaryAdjustmentParentEventId,
   isSalaryAdjustmentEvent,
-  resolveRecurringEffectiveMonth,
   resolveRecurringGroupId,
-  resolveRecurringGroupRole,
 } from "./salaryAdjustmentTags";
+import { computeEffectiveRanges, groupAdjustmentsByBase } from "./salaryAdjustmentGrouping";
 
 export type IncomeStatusFilter = "all" | "ongoing" | "ending";
 export type IncomeSortOption = "amountDesc" | "startMonthAsc" | "endMonthAsc";
@@ -83,115 +81,15 @@ export type GroupedIncomeEvent = {
   groupEndMonth: string | null;
 };
 
-const isSalaryBaseIncomeEvent = (event: ScenarioEvent) =>
-  event.type === "cashflow" &&
-  event.kind === "income" &&
-  event.cadence === "monthly" &&
-  !isSalaryAdjustmentEvent(event);
-
 export const groupIncomeEvents = (events: ScenarioEvent[]): GroupedIncomeEvent[] => {
-  const byId = new Map(events.map((event) => [event.id, event]));
-  const groups = new Map<string, GroupedIncomeEvent>();
-
-  const resolveGroupIdForEvent = (event: ScenarioEvent) => {
-    const grouped = resolveRecurringGroupId(event);
-    if (grouped) {
-      return grouped;
-    }
-    if (isSalaryAdjustmentEvent(event)) {
-      return getSalaryAdjustmentParentEventId(event) ?? event.id;
-    }
-    return deriveRecurringGroupId(event);
-  };
-
-  events.forEach((event) => {
-    if (isSalaryBaseIncomeEvent(event)) {
-      const groupId = resolveGroupIdForEvent(event);
-      groups.set(groupId, {
-        baseEvent: event,
-        adjustments: [],
-        groupId,
-        groupStartMonth: resolveEventCardStartMonth(event) ?? null,
-        groupEndMonth: resolveEventCardEndMonth(event) ?? null,
-      });
-    }
-  });
-
-  events.forEach((event) => {
-    if (!isSalaryAdjustmentEvent(event)) {
-      return;
-    }
-    const parentId = resolveGroupIdForEvent(event);
-    if (!parentId) {
-      groups.set(event.id, {
-        baseEvent: event,
-        adjustments: [],
-        groupId: event.id,
-        groupStartMonth: resolveEventCardStartMonth(event) ?? null,
-        groupEndMonth: resolveEventCardEndMonth(event) ?? null,
-      });
-      return;
-    }
-    const parent = byId.get(parentId);
-    const existingGroup = groups.get(parentId);
-    if (existingGroup && resolveRecurringGroupRole(existingGroup.baseEvent) === "base") {
-      existingGroup.adjustments.push(event);
-      groups.set(parentId, existingGroup);
-      return;
-    }
-    if (!parent || !isSalaryBaseIncomeEvent(parent)) {
-      groups.set(parentId, {
-        baseEvent: event,
-        adjustments: [],
-        groupId: parentId,
-        groupStartMonth: resolveEventCardStartMonth(event) ?? null,
-        groupEndMonth: resolveEventCardEndMonth(event) ?? null,
-      });
-      return;
-    }
-    const group =
-      groups.get(parentId) ?? {
-        baseEvent: parent,
-        adjustments: [],
-        groupId: parentId,
-        groupStartMonth: resolveEventCardStartMonth(parent) ?? null,
-        groupEndMonth: resolveEventCardEndMonth(parent) ?? null,
-      };
-    group.adjustments.push(event);
-    groups.set(parentId, group);
-  });
-
-  events.forEach((event) => {
-    if (isSalaryBaseIncomeEvent(event) || isSalaryAdjustmentEvent(event)) {
-      return;
-    }
-    groups.set(event.id, {
-      baseEvent: event,
-      adjustments: [],
-      groupId: event.id,
-      groupStartMonth: resolveEventCardStartMonth(event) ?? null,
-      groupEndMonth: resolveEventCardEndMonth(event) ?? null,
-    });
-  });
-
-  return Array.from(groups.values()).map((group) => {
-    const adjustments = [...group.adjustments].sort((left, right) =>
-      compareMonthKey(
-        resolveRecurringEffectiveMonth(left) ?? resolveEventCardStartMonth(left) ?? "9999-12",
-        resolveRecurringEffectiveMonth(right) ?? resolveEventCardStartMonth(right) ?? "9999-12"
-      )
-    );
-    const startMonths = [
-      resolveEventCardStartMonth(group.baseEvent),
-      ...adjustments.map((event) => resolveEventCardStartMonth(event)),
-    ].filter(Boolean) as string[];
-    const endMonths = [
-      resolveEventCardEndMonth(group.baseEvent),
-      ...adjustments.map((event) => resolveEventCardEndMonth(event)),
-    ].filter(Boolean) as string[];
+  return groupAdjustmentsByBase(events).map((group) => {
+    const ranges = computeEffectiveRanges(group.baseEvent, group.adjustments);
+    const startMonths = ranges.map((segment) => segment.from).filter(Boolean) as string[];
+    const endMonths = ranges.map((segment) => segment.to).filter(Boolean) as string[];
     return {
-      ...group,
-      adjustments,
+      baseEvent: group.baseEvent,
+      adjustments: group.adjustments,
+      groupId: group.groupId,
       groupStartMonth:
         startMonths.length > 0
           ? startMonths.sort((a, b) => compareMonthKey(a, b))[0] ?? null
