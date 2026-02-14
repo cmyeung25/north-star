@@ -603,3 +603,199 @@ describe("compileScenarioV2ToLedger", () => {
   });
 
 });
+
+describe("income series merge", () => {
+  const createScenario = (events: CashflowEvent[]): ScenarioV2 => ({
+    ...baseScenario,
+    assumptions: {
+      ...baseScenario.assumptions,
+      baseMonth: "2026-01",
+      horizonMonths: 120,
+      salaryGrowthRate: 3,
+    },
+    events,
+  });
+
+  it("keeps base series when no adjustments", () => {
+    const ledger = compileScenarioV2ToLedger(
+      createScenario([
+        {
+          id: "salary-base",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 67000,
+          startMonth: "2026-02",
+        },
+      ])
+    );
+    expect(ledger.some((row) => row.sourceEventId === "salary-base" && row.month === "2028-02")).toBe(true);
+  });
+
+  it("splits multiple adjustments into non-overlapping segments", () => {
+    const ledger = compileScenarioV2ToLedger(
+      createScenario([
+        {
+          id: "salary-base",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 67000,
+          startMonth: "2026-02",
+          seriesId: "salary-base",
+          meta: { kind: "base" },
+        },
+        {
+          id: "salary-adj-1",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 80000,
+          startMonth: "2028-02",
+          seriesId: "salary-base",
+          parentEventId: "salary-base",
+          meta: { kind: "adjustment", adjustsEventId: "salary-base" },
+        },
+        {
+          id: "salary-adj-2",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 100000,
+          startMonth: "2030-02",
+          seriesId: "salary-base",
+          parentEventId: "salary-base",
+          meta: { kind: "adjustment", adjustsEventId: "salary-base" },
+        },
+      ])
+    );
+
+    const m202801 = ledger.filter((row) => row.month === "2028-01" && row.kind === "income");
+    const m202802 = ledger.filter((row) => row.month === "2028-02" && row.kind === "income");
+    const m203002 = ledger.filter((row) => row.month === "2030-02" && row.kind === "income");
+    expect(m202801).toHaveLength(1);
+    expect(Math.abs(m202801[0]?.amount ?? 0)).toBe(67000);
+    expect(m202802).toHaveLength(1);
+    expect(Math.abs(m202802[0]?.amount ?? 0)).toBe(80000);
+    expect(m203002).toHaveLength(1);
+    expect(Math.abs(m203002[0]?.amount ?? 0)).toBe(100000);
+  });
+
+  it("respects base endMonth when segmenting", () => {
+    const ledger = compileScenarioV2ToLedger(
+      createScenario([
+        {
+          id: "salary-base",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 67000,
+          startMonth: "2026-02",
+          endMonth: "2028-12",
+          seriesId: "salary-base",
+        },
+        {
+          id: "salary-adj-1",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 80000,
+          startMonth: "2028-02",
+          seriesId: "salary-base",
+          parentEventId: "salary-base",
+        },
+      ])
+    );
+    expect(ledger.some((row) => row.month === "2029-01" && row.sourceEventId === "salary-adj-1")).toBe(false);
+  });
+
+  it("respects explicit adjustment endMonth", () => {
+    const ledger = compileScenarioV2ToLedger(
+      createScenario([
+        {
+          id: "salary-base",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 67000,
+          startMonth: "2026-02",
+          seriesId: "salary-base",
+        },
+        {
+          id: "salary-adj-1",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 80000,
+          startMonth: "2028-02",
+          endMonth: "2028-05",
+          seriesId: "salary-base",
+          parentEventId: "salary-base",
+        },
+      ])
+    );
+    expect(ledger.some((row) => row.month === "2028-06" && row.sourceEventId === "salary-adj-1")).toBe(false);
+  });
+
+  it("inherits growth from base by default", () => {
+    const ledger = compileScenarioV2ToLedger(
+      createScenario([
+        {
+          id: "salary-base",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 67000,
+          startMonth: "2026-02",
+          growthMode: "assumption",
+          seriesId: "salary-base",
+        },
+        {
+          id: "salary-adj-1",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 80000,
+          startMonth: "2028-02",
+          seriesId: "salary-base",
+          parentEventId: "salary-base",
+        },
+      ])
+    );
+    const start = ledger.find((row) => row.sourceEventId === "salary-adj-1" && row.month === "2028-02");
+    const later = ledger.find((row) => row.sourceEventId === "salary-adj-1" && row.month === "2029-02");
+    expect((later?.amount ?? 0) > (start?.amount ?? 0)).toBe(true);
+  });
+
+  it("supports adjustment growth override", () => {
+    const ledger = compileScenarioV2ToLedger(
+      createScenario([
+        {
+          id: "salary-base",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 67000,
+          startMonth: "2026-02",
+          growthMode: "assumption",
+          seriesId: "salary-base",
+        },
+        {
+          id: "salary-adj-1",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 80000,
+          startMonth: "2028-02",
+          growthMode: "custom",
+          customGrowthRatePct: 0,
+          seriesId: "salary-base",
+          parentEventId: "salary-base",
+        },
+      ])
+    );
+    const start = ledger.find((row) => row.sourceEventId === "salary-adj-1" && row.month === "2028-02");
+    const later = ledger.find((row) => row.sourceEventId === "salary-adj-1" && row.month === "2029-02");
+    expect(Math.abs(later?.amount ?? 0)).toBe(Math.abs(start?.amount ?? 0));
+  });
+});

@@ -105,6 +105,120 @@ const buildCashflowMonths = (
   return months;
 };
 
+
+
+const SALARY_ADJUSTMENT_PARENT_PREFIX = "salary_parent:";
+
+type NormalizedCashflowLedgerEvent = {
+  event: CashflowEvent;
+  sourceEventId: string;
+};
+
+const resolveSeriesParentFromTags = (event: CashflowEvent): string | null => {
+  const parentTag = event.tags?.find((tag) => tag.startsWith(SALARY_ADJUSTMENT_PARENT_PREFIX));
+  if (!parentTag) {
+    return null;
+  }
+  return parentTag.slice(SALARY_ADJUSTMENT_PARENT_PREFIX.length) || null;
+};
+
+const isSeriesAdjustedEvent = (event: CashflowEvent): boolean => {
+  return (
+    event.meta?.kind === "adjustment" ||
+    event.groupRole === "adjustment" ||
+    Boolean(event.parentEventId) ||
+    Boolean(event.meta?.adjustsEventId) ||
+    Boolean(resolveSeriesParentFromTags(event))
+  );
+};
+
+const resolveSeriesIdForCashflowEvent = (event: CashflowEvent): string => {
+  return (
+    event.seriesId ||
+    event.parentEventId ||
+    event.meta?.adjustsEventId ||
+    event.groupId ||
+    resolveSeriesParentFromTags(event) ||
+    event.id
+  );
+};
+
+const minMonth = (...values: Array<string | undefined>): string | undefined => {
+  const filtered = values.filter((value): value is string => Boolean(value));
+  if (filtered.length === 0) {
+    return undefined;
+  }
+  return filtered.sort((left, right) => compareMonthKey(left, right))[0];
+};
+
+const normalizeCashflowEventSeries = (events: CashflowEvent[]): NormalizedCashflowLedgerEvent[] => {
+  const seriesCandidates = events.filter(
+    (event) => event.kind === "income" && event.cadence === "monthly"
+  );
+  const passthrough = events
+    .filter((event) => !(event.kind === "income" && event.cadence === "monthly"))
+    .map((event) => ({ event, sourceEventId: event.id }));
+
+  const grouped = new Map<string, CashflowEvent[]>();
+  seriesCandidates.forEach((event) => {
+    const key = resolveSeriesIdForCashflowEvent(event);
+    const list = grouped.get(key) ?? [];
+    list.push(event);
+    grouped.set(key, list);
+  });
+
+  const normalized = Array.from(grouped.values()).flatMap<NormalizedCashflowLedgerEvent>((group) => {
+    const baseEvent =
+      group.find((event) => !isSeriesAdjustedEvent(event)) ??
+      [...group].sort((left, right) => compareMonthKey(left.startMonth ?? "9999-12", right.startMonth ?? "9999-12"))[0];
+    const baseEndMonth = baseEvent?.endMonth;
+
+    const sorted = [...group].sort((left, right) => {
+      const startSort = compareMonthKey(left.startMonth ?? "9999-12", right.startMonth ?? "9999-12");
+      if (startSort !== 0) {
+        return startSort;
+      }
+      if (left.id === baseEvent?.id) {
+        return -1;
+      }
+      if (right.id === baseEvent?.id) {
+        return 1;
+      }
+      return left.id.localeCompare(right.id);
+    });
+
+    return sorted.flatMap((event, index) => {
+      if (!event.startMonth) {
+        return [];
+      }
+      const nextStartMonth = sorted[index + 1]?.startMonth;
+      const effectiveEnd = minMonth(
+        event.endMonth,
+        nextStartMonth ? addMonths(nextStartMonth, -1) : undefined,
+        baseEndMonth
+      );
+      if (effectiveEnd && compareMonthKey(event.startMonth, effectiveEnd) > 0) {
+        return [];
+      }
+
+      return [
+        {
+          sourceEventId: event.id,
+          event: {
+            ...event,
+            endMonth: effectiveEnd,
+            growthMode: event.growthMode ?? baseEvent?.growthMode,
+            growthSource: event.growthSource ?? baseEvent?.growthSource,
+            customGrowthRatePct:
+              event.customGrowthRatePct ?? baseEvent?.customGrowthRatePct,
+          },
+        },
+      ];
+    });
+  });
+
+  return [...passthrough, ...normalized];
+};
 const resolvePropertyMarketValue = (event: {
   propertyMarketValue?: number;
   purchasePrice?: number;
@@ -439,8 +553,32 @@ export const compileScenarioV2ToLedger = (
 ): LedgerRow[] => {
   const events = scenario.events ?? [];
   const assumptions = scenario.assumptions;
+  const normalizedCashflowEvents = normalizeCashflowEventSeries(
+    events.filter((event): event is CashflowEvent => event.type === "cashflow")
+  );
 
-  return events.flatMap<LedgerRow>((event) => {
+  const cashflowRows = normalizedCashflowEvents.flatMap<LedgerRow>(({ event, sourceEventId }) => {
+    const months = buildCashflowMonths(event, assumptions);
+    if (months.length === 0) {
+      return [];
+    }
+    const rawAmount = Number(event.amount);
+    if (!Number.isFinite(rawAmount) || rawAmount === 0) {
+      return [];
+    }
+
+    return months.map((month) => ({
+      month,
+      amount: resolveCashflowAmountForMonth({ event, month, assumptions }),
+      sourceEventId,
+      label: event.label,
+      memberId: event.memberId,
+      tags: event.tags ? [...event.tags] : undefined,
+      kind: event.kind,
+    }));
+  });
+
+  const nonCashflowRows = events.flatMap<LedgerRow>((event) => {
     if (event.type !== "cashflow") {
       if (event.type !== "adjustment") {
         if (event.type === "housing") {
@@ -473,25 +611,10 @@ export const compileScenarioV2ToLedger = (
         },
       ];
     }
-    const months = buildCashflowMonths(event, assumptions);
-    if (months.length === 0) {
-      return [];
-    }
-    const rawAmount = Number(event.amount);
-    if (!Number.isFinite(rawAmount) || rawAmount === 0) {
-      return [];
-    }
-
-    return months.map((month) => ({
-      month,
-      amount: resolveCashflowAmountForMonth({ event, month, assumptions }),
-      sourceEventId: event.id,
-      label: event.label,
-      memberId: event.memberId,
-      tags: event.tags ? [...event.tags] : undefined,
-      kind: event.kind,
-    }));
+    return [];
   });
+
+  return [...cashflowRows, ...nonCashflowRows];
 };
 
 const buildLegacyScenarioShell = (
@@ -525,9 +648,11 @@ const buildLegacyEventLibrary = (
   const assumptions = scenario.assumptions;
   const events = scenario.events ?? [];
   const horizonEndMonth = resolveHorizonEndMonth(assumptions);
+  const normalizedCashflowEvents = normalizeCashflowEventSeries(
+    events.filter((event): event is CashflowEvent => event.type === "cashflow")
+  );
 
-  return events.flatMap<EventDefinition>((event) => {
-    if (event.type === "cashflow") {
+  const cashflowDefinitions = normalizedCashflowEvents.flatMap<EventDefinition>(({ event, sourceEventId }) => {
       const months = buildCashflowMonths(event, assumptions);
       if (months.length === 0) {
         return [];
@@ -539,7 +664,7 @@ const buildLegacyEventLibrary = (
         amount: Math.abs(resolveCashflowAmountForMonth({ event, month, assumptions })),
       }));
       const definition: EventDefinition = {
-        id: event.id,
+        id: sourceEventId,
         title: event.label ?? "Cashflow",
         type,
         kind: "cashflow",
@@ -555,6 +680,11 @@ const buildLegacyEventLibrary = (
       };
 
       return [definition];
+    });
+
+  const nonCashflowDefinitions = events.flatMap<EventDefinition>((event) => {
+    if (event.type === "cashflow") {
+      return [];
     }
 
     if (event.type === "housing") {
@@ -768,6 +898,8 @@ const buildLegacyEventLibrary = (
 
     return [];
   });
+
+  return [...cashflowDefinitions, ...nonCashflowDefinitions];
 };
 
 export const compileScenarioV2ToProjectionInput = (
