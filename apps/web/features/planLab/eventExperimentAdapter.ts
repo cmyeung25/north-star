@@ -24,6 +24,28 @@ export type EventExperimentDraftInput = {
   growthRate: number;
 };
 
+const YYYY_MM_PATTERN = /^(\d{4})-(\d{1,2})$/;
+const CJK_YYYY_MM_PATTERN = /^(\d{4})年(\d{1,2})月$/;
+
+export const normalizeYYYYMM = (input: string): string | null => {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const match = YYYY_MM_PATTERN.exec(trimmed) ?? CJK_YYYY_MM_PATTERN.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+
+  const month = Number(match[2]);
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    return null;
+  }
+
+  return `${match[1]}-${String(month).padStart(2, "0")}`;
+};
+
 export const buildEventExperimentChanges = ({
   draft,
   baselineEvent,
@@ -42,21 +64,33 @@ export const buildEventExperimentChanges = ({
     ? members.find((member) => member.id === baselineEvent.memberId)?.birthMonth
     : undefined;
 
-  const resolvedStartMonth =
+  const resolvedStartMonthCandidate =
     draft.startMonthMode === "month"
-      ? draft.startMonthValue || baselineStartMonth
+      ? normalizeYYYYMM(draft.startMonthValue)
       : draft.startMonthMode === "age"
-      ? ageToYYYYMM(memberBirthMonth ?? "", draft.startAgeYears * 12 + draft.startAgeMonths) ?? baselineStartMonth
+      ? ageToYYYYMM(memberBirthMonth ?? "", draft.startAgeYears * 12 + draft.startAgeMonths)
       : baselineStartMonth;
+
+  if (draft.startMonthMode === "month" && resolvedStartMonthCandidate === null) {
+    throw new Error("start-month-invalid");
+  }
+
+  const resolvedStartMonth = resolvedStartMonthCandidate ?? baselineStartMonth;
 
   const resolvedEndMonth =
     draft.endMonthMode === "month"
       ? draft.clearEndMonth
         ? null
-        : draft.endMonthValue || baselineEndMonth
+        : draft.endMonthValue
+        ? normalizeYYYYMM(draft.endMonthValue)
+        : baselineEndMonth
       : draft.endMonthMode === "age"
       ? ageToYYYYMM(memberBirthMonth ?? "", draft.endAgeYears * 12 + draft.endAgeMonths)
       : baselineEndMonth;
+
+  if (draft.endMonthMode === "month" && !draft.clearEndMonth && resolvedEndMonth === null) {
+    throw new Error("end-month-invalid");
+  }
 
   const startMonthShift =
     draft.startMonthMode === "offset"

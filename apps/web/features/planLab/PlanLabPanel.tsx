@@ -212,7 +212,7 @@ import {
 } from "./experimentSummary";
 import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
-import { buildEventExperimentChanges } from "./eventExperimentAdapter";
+import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
 import { buildMonthScale } from "../../lib/chart/monthScale";
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
@@ -3783,12 +3783,26 @@ export default function PlanLabPanel({
       return;
     }
 
-    const { changes: experimentChanges, uiMetadata } = buildEventExperimentChanges({
-      draft: eventExperimentDraft,
-      baselineEvent,
-      baseMonth: scenario.assumptions.baseMonth ?? "",
-      members,
-    });
+    let experimentChanges: EventOverrideExperimentSpec["changes"];
+    let uiMetadata: EventOverrideExperimentSpec["uiMetadata"];
+    try {
+      const built = buildEventExperimentChanges({
+        draft: eventExperimentDraft,
+        baselineEvent,
+        baseMonth: scenario.assumptions.baseMonth ?? "",
+        members,
+      });
+      experimentChanges = built.changes;
+      uiMetadata = built.uiMetadata;
+    } catch (error) {
+      console.info("[plan-lab:event-experiment:create:invalid-config]", {
+        targetEventId: baselineEvent.id,
+        error: error instanceof Error ? error.message : String(error),
+        draft: eventExperimentDraft,
+      });
+      setPlanToast(translate("planLabEventExperimentMonthInvalid", "請輸入有效月份（YYYY-MM）。"));
+      return;
+    }
 
     const spec: EventOverrideExperimentSpec = {
       id: `event_override_${nanoid(8)}`,
@@ -3799,6 +3813,8 @@ export default function PlanLabPanel({
       uiMetadata,
     };
     const patch = buildEventOverridePatch(baselineEvent, spec);
+    console.info("[plan-lab:event-experiment:create:entity]", spec);
+    console.info("[plan-lab:event-experiment:create:patch]", patch);
     const changes = formatExperimentChanges(
       baselineEvent,
       spec,
@@ -3909,6 +3925,25 @@ export default function PlanLabPanel({
     isMemberLinkedEvent(selectedEventExperimentEvent) && Boolean(selectedEventExperimentBirthMonth);
 
   useEffect(() => {
+    if (eventExperimentCanUseAgeMode) {
+      return;
+    }
+    setEventExperimentDraft((current) => {
+      let changed = false;
+      const next: EventExperimentDraft = { ...current };
+      if (next.startMonthMode === "age") {
+        next.startMonthMode = "month";
+        changed = true;
+      }
+      if (next.endMonthMode === "age") {
+        next.endMonthMode = "month";
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [eventExperimentCanUseAgeMode]);
+
+  useEffect(() => {
     if (!selectedEventExperimentEvent || selectedEventExperimentEvent.type !== "cashflow") {
       return;
     }
@@ -3976,9 +4011,15 @@ export default function PlanLabPanel({
     selectedEventExperimentEvent && selectedEventExperimentEvent.type === "cashflow"
       ? selectedEventExperimentEvent.startMonth ?? scenario.assumptions.baseMonth ?? ""
       : scenario.assumptions.baseMonth ?? "";
+  const normalizedStartMonthValue = normalizeYYYYMM(eventExperimentDraft.startMonthValue);
+  const normalizedEndMonthValue = normalizeYYYYMM(eventExperimentDraft.endMonthValue);
+  const startMonthInputInvalid =
+    eventExperimentDraft.startMonthMode === "month" && !normalizedStartMonthValue;
+  const endMonthInputInvalid =
+    eventExperimentDraft.endMonthMode === "month" && !eventExperimentDraft.clearEndMonth && !normalizedEndMonthValue;
   const resolvedExperimentStartMonth =
     eventExperimentDraft.startMonthMode === "month"
-      ? eventExperimentDraft.startMonthValue || baselineEventStartMonth
+      ? normalizedStartMonthValue ?? baselineEventStartMonth
       : eventExperimentDraft.startMonthMode === "age"
       ? ageToYYYYMM(
           selectedEventExperimentBirthMonth ?? "",
@@ -3989,7 +4030,7 @@ export default function PlanLabPanel({
     eventExperimentDraft.endMonthMode === "month"
       ? eventExperimentDraft.clearEndMonth
         ? null
-        : eventExperimentDraft.endMonthValue || null
+        : normalizedEndMonthValue
       : eventExperimentDraft.endMonthMode === "age"
       ? ageToYYYYMM(
           selectedEventExperimentBirthMonth ?? "",
@@ -4012,6 +4053,8 @@ export default function PlanLabPanel({
     !eventExperimentRangeInvalid &&
     !(eventExperimentDraft.startMonthMode === "age" && !eventExperimentCanUseAgeMode) &&
     !(eventExperimentDraft.endMonthMode === "age" && !eventExperimentCanUseAgeMode) &&
+    !startMonthInputInvalid &&
+    !endMonthInputInvalid &&
     !(eventExperimentDraft.amountMode === "set" && typeof eventExperimentDraft.setAmountValue !== "number");
 
   const canCreateExperimentFromItem = useCallback(
@@ -11139,6 +11182,16 @@ export default function PlanLabPanel({
           {isMemberLinkedEvent(selectedEventExperimentEvent) && !selectedEventExperimentBirthMonth ? (
             <Text size="xs" c="orange">
               {translate("planLabEventExperimentAgeMissingBirthMonth", "要用歲數定位，請先在「成員」補充出生年月（YYYY-MM）。")}
+            </Text>
+          ) : null}
+          {startMonthInputInvalid ? (
+            <Text size="xs" c="red">
+              {translate("planLabEventExperimentMonthInvalid", "請輸入有效月份（YYYY-MM）。")}
+            </Text>
+          ) : null}
+          {endMonthInputInvalid ? (
+            <Text size="xs" c="red">
+              {translate("planLabEventExperimentMonthInvalid", "請輸入有效月份（YYYY-MM）。")}
             </Text>
           ) : null}
           {eventExperimentRangeInvalid ? (
