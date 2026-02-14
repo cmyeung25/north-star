@@ -1,6 +1,10 @@
 import type { ProjectionInput } from "@north-star/engine";
 import { addMonths, monthsBetween } from "../domain/members/age";
-import { computeSalaryEffectiveRangeSegments } from "../domain/scenarioV2/salaryEffectiveRanges";
+import {
+  computeDisplaySegments,
+  getEventBaseEventId,
+  getEventSegmentRole,
+} from "../domain/scenarioV2/eventSegments";
 import { mapScenarioToEngineInput } from "./adapter";
 import { isValidMonthKey, compareMonthKey } from "../utils/monthKey";
 import type { EventDefinition } from "../domain/events/types";
@@ -114,16 +118,50 @@ type NormalizedCashflowLedgerEvent = {
 };
 
 const normalizeCashflowEventSeries = (events: CashflowEvent[]): NormalizedCashflowLedgerEvent[] => {
-  const passthrough = events
-    .filter((event) => !(event.kind === "income" && event.cadence === "monthly"))
-    .map((event) => ({ event, sourceEventId: event.id }));
+  const grouped = new Map<string, CashflowEvent[]>();
+  events.forEach((event) => {
+    const baseEventId = getEventBaseEventId(event);
+    const bucket = grouped.get(baseEventId) ?? [];
+    bucket.push(event);
+    grouped.set(baseEventId, bucket);
+  });
 
-  const salaryNormalized = computeSalaryEffectiveRangeSegments(events).segments.map((segment) => ({
-    sourceEventId: segment.sourceEventId,
-    event: segment.event,
-  }));
+  return Array.from(grouped.values()).flatMap<NormalizedCashflowLedgerEvent>((groupEvents) => {
+    const parent =
+      groupEvents.find((event) => getEventSegmentRole(event) === "parent") ?? groupEvents[0];
+    return computeDisplaySegments(groupEvents).map((segment) => ({
+      sourceEventId: segment.sourceEventId,
+      event: {
+        ...segment.event,
+        growthMode: segment.event.growthMode ?? parent.growthMode,
+        growthSource: segment.event.growthSource ?? parent.growthSource,
+        customGrowthRatePct: segment.event.customGrowthRatePct ?? parent.customGrowthRatePct,
+      },
+    }));
+  });
+};
 
-  return [...passthrough, ...salaryNormalized];
+const normalizeScenarioEventSegments = (events: ScenarioEvent[]): ScenarioEvent[] => {
+  const grouped = new Map<string, ScenarioEvent[]>();
+  events.forEach((event) => {
+    const baseEventId = getEventBaseEventId(event);
+    const bucket = grouped.get(baseEventId) ?? [];
+    bucket.push(event);
+    grouped.set(baseEventId, bucket);
+  });
+
+  return Array.from(grouped.values()).flatMap((groupEvents) => {
+    if (groupEvents.length <= 1 || groupEvents[0]?.type === "cashflow") {
+      return groupEvents.map((event) => ({ ...event, baseEventId: getEventBaseEventId(event) }));
+    }
+
+    const sameType = groupEvents.every((event) => event.type === groupEvents[0]?.type);
+    if (!sameType) {
+      return groupEvents;
+    }
+
+    return computeDisplaySegments(groupEvents).map((segment) => segment.event);
+  });
 };
 const resolvePropertyMarketValue = (event: {
   propertyMarketValue?: number;
@@ -458,9 +496,10 @@ export const compileScenarioV2ToLedger = (
   scenario: ScenarioV2
 ): LedgerRow[] => {
   const events = scenario.events ?? [];
+  const normalizedEvents = normalizeScenarioEventSegments(events);
   const assumptions = scenario.assumptions;
   const normalizedCashflowEvents = normalizeCashflowEventSeries(
-    events.filter((event): event is CashflowEvent => event.type === "cashflow")
+    normalizedEvents.filter((event): event is CashflowEvent => event.type === "cashflow")
   );
 
   const cashflowRows = normalizedCashflowEvents.flatMap<LedgerRow>(({ event, sourceEventId }) => {
@@ -484,7 +523,7 @@ export const compileScenarioV2ToLedger = (
     }));
   });
 
-  const nonCashflowRows = events.flatMap<LedgerRow>((event) => {
+  const nonCashflowRows = normalizedEvents.flatMap<LedgerRow>((event) => {
     if (event.type !== "cashflow") {
       if (event.type !== "adjustment") {
         if (event.type === "housing") {
@@ -552,7 +591,7 @@ const buildLegacyEventLibrary = (
   scenario: ScenarioV2
 ): EventDefinition[] => {
   const assumptions = scenario.assumptions;
-  const events = scenario.events ?? [];
+  const events = normalizeScenarioEventSegments(scenario.events ?? []);
   const horizonEndMonth = resolveHorizonEndMonth(assumptions);
   const normalizedCashflowEvents = normalizeCashflowEventSeries(
     events.filter((event): event is CashflowEvent => event.type === "cashflow")

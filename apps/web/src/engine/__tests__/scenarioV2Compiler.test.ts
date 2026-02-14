@@ -832,3 +832,47 @@ describe("income series merge", () => {
     expect(Math.abs(later?.amount ?? 0)).toBe(Math.abs(start?.amount ?? 0));
   });
 });
+
+describe("generic event segment merge", () => {
+  it("avoids double counting for segmented expense cashflow", () => {
+    const ledger = compileScenarioV2ToLedger({
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        baseMonth: "2026-01",
+        horizonMonths: 36,
+      },
+      events: [
+        {
+          id: "expense-base",
+          baseEventId: "expense-base",
+          segmentRole: "parent",
+          type: "cashflow",
+          kind: "expense",
+          cadence: "monthly",
+          amount: -10000,
+          startMonth: "2026-01",
+        },
+        {
+          id: "expense-child",
+          baseEventId: "expense-base",
+          segmentRole: "child",
+          parentEventId: "expense-base",
+          type: "cashflow",
+          kind: "expense",
+          cadence: "monthly",
+          amount: -13000,
+          startMonth: "2027-01",
+        },
+      ],
+    });
+
+    const before = ledger.filter((row) => row.month === "2026-12" && row.kind === "expense");
+    const after = ledger.filter((row) => row.month === "2027-01" && row.kind === "expense");
+
+    expect(before).toHaveLength(1);
+    expect(Math.abs(before[0]?.amount ?? 0)).toBe(10000);
+    expect(after).toHaveLength(1);
+    expect(Math.abs(after[0]?.amount ?? 0)).toBe(13000);
+  });
+});
