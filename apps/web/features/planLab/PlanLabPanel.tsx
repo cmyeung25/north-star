@@ -312,6 +312,14 @@ type EventExperimentDraft = {
   growthRate: number;
 };
 
+type EventExperimentAction = "edit" | "add_adjustment" | "remove";
+
+type EventExperimentTargetContext = {
+  eventId: string;
+  isChild: boolean;
+  parentEventId?: string;
+};
+
 type PlanLabDraftEventAddition = {
   definition: EventDefinition;
   ref: ScenarioEventRef;
@@ -1293,6 +1301,11 @@ export default function PlanLabPanel({
   const [v2EventDefaultKind, setV2EventDefaultKind] =
     useState<CashflowEvent["kind"]>("income");
   const [salaryAdjustmentParentEventId, setSalaryAdjustmentParentEventId] = useState<string | null>(null);
+  const [eventExperimentLandingOpen, setEventExperimentLandingOpen] = useState(false);
+  const [eventExperimentLandingTarget, setEventExperimentLandingTarget] =
+    useState<EventExperimentTargetContext | null>(null);
+  const [eventExperimentLandingPresetAction, setEventExperimentLandingPresetAction] =
+    useState<EventExperimentAction | null>(null);
   const [eventExperimentDrawerOpen, setEventExperimentDrawerOpen] = useState(false);
   const [eventExperimentDraft, setEventExperimentDraft] = useState<EventExperimentDraft>({
     targetEventId: null,
@@ -1387,6 +1400,9 @@ export default function PlanLabPanel({
     setEditingV2EventId(null);
     setV2EventDefaultKind("income");
     setSalaryAdjustmentParentEventId(null);
+    setEventExperimentLandingOpen(false);
+    setEventExperimentLandingTarget(null);
+    setEventExperimentLandingPresetAction(null);
     setEventExperimentDrawerOpen(false);
     setEventExperimentDraft({
       targetEventId: null,
@@ -3781,6 +3797,16 @@ export default function PlanLabPanel({
     [openV2EventDrawer, v2EventLookup]
   );
 
+  const openCreateExperimentFlow = useCallback(
+    (target: EventExperimentTargetContext, presetAction?: EventExperimentAction) => {
+      closeAllPlanLabDrawers();
+      setEventExperimentLandingTarget(target);
+      setEventExperimentLandingPresetAction(presetAction ?? null);
+      setEventExperimentLandingOpen(true);
+    },
+    [closeAllPlanLabDrawers]
+  );
+
   const openCreateSalaryAdjustmentFromBase = useCallback(
     (eventId: string) => {
       const baseEvent = v2EventLookup.get(eventId);
@@ -4006,6 +4032,14 @@ export default function PlanLabPanel({
     [translate]
   );
 
+  const eventExperimentLandingEvent = useMemo(
+    () =>
+      eventExperimentLandingTarget
+        ? (baselineScenarioV2.events ?? []).find((event) => event.id === eventExperimentLandingTarget.eventId) ?? null
+        : null,
+    [baselineScenarioV2.events, eventExperimentLandingTarget]
+  );
+
   const selectedEventExperimentEvent = useMemo(
     () =>
       eventExperimentDraft.targetEventId
@@ -4172,7 +4206,11 @@ export default function PlanLabPanel({
     (item: ScenarioEditorItem) => {
       if (scenarioIsV2) {
         if (item.kind === "event" && item.eventId) {
-          openEventExperimentDrawer(item.eventId);
+          openCreateExperimentFlow({
+            eventId: item.eventId,
+            isChild: Boolean(item.sourceEventId && item.eventId && item.sourceEventId !== item.eventId),
+            parentEventId: item.sourceEventId ?? undefined,
+          });
           return;
         }
         setPlanToast(
@@ -4182,7 +4220,7 @@ export default function PlanLabPanel({
       }
       openEditingItem(item);
     },
-    [openEventExperimentDrawer, openEditingItem, scenarioIsV2, translate]
+    [openCreateExperimentFlow, openEditingItem, scenarioIsV2, translate]
   );
 
   const createSegmentDeleteExperiment = useCallback(
@@ -4235,6 +4273,54 @@ export default function PlanLabPanel({
       ]);
     },
     [baselineScenarioV2.events, setScenarioV2Patches, translate]
+  );
+
+  const handleEventExperimentLandingAction = useCallback(
+    (action: EventExperimentAction) => {
+      if (!eventExperimentLandingTarget) {
+        return;
+      }
+      if (action === "edit") {
+        openEventExperimentDrawer(eventExperimentLandingTarget.eventId);
+        return;
+      }
+      if (action === "add_adjustment") {
+        if (eventExperimentLandingTarget.isChild) {
+          setPlanToast(
+            translate(
+              "planLabChildAddAdjustmentHint",
+              "需在 Parent 事件新增調整。"
+            )
+          );
+          return;
+        }
+        openCreateSalaryAdjustmentFromBase(eventExperimentLandingTarget.eventId);
+        return;
+      }
+      const shouldRemove = window.confirm(
+        translate(
+          "planLabExperimentLandingRemoveConfirm",
+          "此操作會建立一個移除事件的實驗。是否繼續？"
+        )
+      );
+      if (!shouldRemove) {
+        return;
+      }
+      createSegmentDeleteExperiment(
+        eventExperimentLandingTarget.eventId,
+        eventExperimentLandingTarget.parentEventId ?? eventExperimentLandingTarget.eventId
+      );
+      setEventExperimentLandingOpen(false);
+      setEventExperimentLandingTarget(null);
+      setEventExperimentLandingPresetAction(null);
+    },
+    [
+      createSegmentDeleteExperiment,
+      eventExperimentLandingTarget,
+      openCreateSalaryAdjustmentFromBase,
+      openEventExperimentDrawer,
+      translate,
+    ]
   );
 
   const scenarioItems = useMemo<ScenarioEditorItem[]>(() => {
@@ -5365,51 +5451,78 @@ export default function PlanLabPanel({
                 {formatCurrency(segment.amount, scenario.baseCurrency, locale)}｜{segment.from ?? "--"} → {segment.to ?? translate("planLabOpenEnded", "持續中")}（{segment.isBase ? "Parent" : "Child"}）
               </Text>
               <Group gap={6} wrap="nowrap">
-                {segment.isBase ? (
+                <>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    onClick={() =>
+                      openCreateExperimentFlow({
+                        eventId: segment.eventId,
+                        isChild: !segment.isBase,
+                        parentEventId: item.eventId ?? undefined,
+                      })
+                    }
+                  >
+                    {translate("planLabCreateExperimentAction", "建立實驗")}
+                  </Button>
                   <Menu withinPortal position="bottom-end">
                     <Menu.Target>
                       <Button size="compact-xs" variant="subtle">
-                        {translate("planLabCreateExperimentAction", "建立實驗")}
+                        {translate("planLabMoreActions", "更多")}
                       </Button>
                     </Menu.Target>
                     <Menu.Dropdown>
-                      <Menu.Item onClick={() => openEventExperimentDrawer(segment.eventId)}>
+                      <Menu.Item onClick={() => openScenarioItemView(item)}>
+                        {translate("planLabViewDetailsAction", "查看")}
+                      </Menu.Item>
+                      <Menu.Item
+                        onClick={() =>
+                          openCreateExperimentFlow(
+                            {
+                              eventId: segment.eventId,
+                              isChild: !segment.isBase,
+                              parentEventId: item.eventId ?? undefined,
+                            },
+                            "edit"
+                          )
+                        }
+                      >
                         {translate("planLabParentEditTemplate", "parent.edit（只調整 Parent）")}
                       </Menu.Item>
-                      <Menu.Item onClick={() => openCreateSalaryAdjustmentFromBase(segment.eventId)}>
-                        {translate("planLabChildrenManageTemplate", "children.manage（管理 Child）")}
+                      {segment.isBase ? (
+                        <Menu.Item
+                          onClick={() =>
+                            openCreateExperimentFlow(
+                              {
+                                eventId: segment.eventId,
+                                isChild: false,
+                                parentEventId: item.eventId ?? undefined,
+                              },
+                              "add_adjustment"
+                            )
+                          }
+                        >
+                          {translate("planLabChildrenManageTemplate", "children.manage（管理 Child）")}
+                        </Menu.Item>
+                      ) : null}
+                      <Menu.Item
+                        color="red"
+                        onClick={() =>
+                          openCreateExperimentFlow(
+                            {
+                              eventId: segment.eventId,
+                              isChild: !segment.isBase,
+                              parentEventId: item.eventId ?? undefined,
+                            },
+                            "remove"
+                          )
+                        }
+                      >
+                        {translate("planLabSegmentDeleteAction", "segment.delete（模擬刪除）")}
                       </Menu.Item>
                     </Menu.Dropdown>
                   </Menu>
-                ) : (
-                  <>
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      onClick={() => openEventExperimentDrawer(segment.eventId)}
-                    >
-                      {translate("planLabCreateExperimentAction", "建立實驗")}
-                    </Button>
-                    <Menu withinPortal position="bottom-end">
-                      <Menu.Target>
-                        <Button size="compact-xs" variant="subtle">
-                          {translate("planLabMoreActions", "更多")}
-                        </Button>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item onClick={() => openScenarioItemView(item)}>
-                          {translate("planLabViewDetailsAction", "查看")}
-                        </Menu.Item>
-                        <Menu.Item
-                          color="red"
-                          onClick={() => createSegmentDeleteExperiment(segment.eventId, item.eventId ?? undefined)}
-                        >
-                          {translate("planLabSegmentDeleteAction", "segment.delete（模擬刪除）")}
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
-                  </>
-                )}
+                </>
               </Group>
             </Group>
           ))}
@@ -5417,11 +5530,9 @@ export default function PlanLabPanel({
       );
     },
     [
-      createSegmentDeleteExperiment,
       getScenarioItemSummary,
       locale,
-      openCreateSalaryAdjustmentFromBase,
-      openEventExperimentDrawer,
+      openCreateExperimentFlow,
       openScenarioItemView,
       scenario.baseCurrency,
       translate,
@@ -7384,12 +7495,6 @@ export default function PlanLabPanel({
                           onClick: () =>
                             controlId ? handleLocateControl(controlId) : undefined,
                           disabled: !controlId,
-                        }
-                      : item.adjustmentCount && item.adjustmentCount > 0
-                      ? {
-                          label: translate("planLabAddAdjustmentAction", "新增調整"),
-                          onClick: () => item.eventId && openCreateSalaryAdjustmentFromBase(item.eventId),
-                          disabled: !item.eventId,
                         }
                       : {
                           label: translate(
@@ -9748,7 +9853,13 @@ export default function PlanLabPanel({
         }}
         onSelectBaselineEvent={(eventId) => {
           setExperimentTemplatesOpen(false);
-          openEventExperimentDrawer(eventId);
+          const selectedEvent = (baselineScenarioV2.events ?? []).find((event) => event.id === eventId);
+          const parentEventId = selectedEvent ? getSalaryAdjustmentParentId(selectedEvent) ?? undefined : undefined;
+          openCreateExperimentFlow({
+            eventId,
+            isChild: Boolean(parentEventId),
+            parentEventId,
+          });
         }}
         onSelectEnvKey={handleSelectEnvironmentTemplate}
       />
@@ -11041,6 +11152,68 @@ export default function PlanLabPanel({
           </Group>
         </Stack>
       </Modal>
+
+      <Drawer
+        opened={eventExperimentLandingOpen}
+        onClose={() => {
+          setEventExperimentLandingOpen(false);
+          setEventExperimentLandingTarget(null);
+          setEventExperimentLandingPresetAction(null);
+        }}
+        position={isMobile ? "bottom" : "right"}
+        size={isMobile ? "100%" : "md"}
+        title={translate("planLabExperimentLandingTitle", "建立實驗")}
+        styles={drawerStyles}
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {translate(
+              "planLabExperimentLandingHint",
+              "Baseline 只供查看；所有改動會先建立為實驗。"
+            )}
+          </Text>
+          <Card withBorder radius="md" padding="sm">
+            <Stack gap={4}>
+              <Group gap={6}>
+                <Text fw={600}>{eventExperimentLandingEvent?.label ?? eventExperimentLandingTarget?.eventId ?? "—"}</Text>
+                <Badge size="xs" color={eventExperimentLandingTarget?.isChild ? "grape" : "blue"}>
+                  {eventExperimentLandingTarget?.isChild ? "Child" : "Parent"}
+                </Badge>
+              </Group>
+              {eventExperimentLandingEvent?.type === "cashflow" ? (
+                <Text size="xs" c="dimmed">
+                  {formatCurrency(eventExperimentLandingEvent.amount, scenario.baseCurrency, locale)} · {eventExperimentLandingEvent.startMonth ?? "--"} → {eventExperimentLandingEvent.endMonth ?? translate("planLabOpenEnded", "持續中")}
+                </Text>
+              ) : null}
+            </Stack>
+          </Card>
+          <Button
+            variant={eventExperimentLandingPresetAction === "edit" ? "filled" : "light"}
+            onClick={() => handleEventExperimentLandingAction("edit")}
+          >
+            {translate("planLabExperimentLandingEdit", "修改現時揀選事件")}
+          </Button>
+          <Button
+            variant={eventExperimentLandingPresetAction === "add_adjustment" ? "filled" : "light"}
+            disabled={Boolean(eventExperimentLandingTarget?.isChild)}
+            onClick={() => handleEventExperimentLandingAction("add_adjustment")}
+          >
+            {translate("planLabAddAdjustmentAction", "新增調整")}
+          </Button>
+          {eventExperimentLandingTarget?.isChild ? (
+            <Text size="xs" c="orange">
+              {translate("planLabChildAddAdjustmentHint", "需在 Parent 事件新增調整。")}
+            </Text>
+          ) : null}
+          <Button
+            color="red"
+            variant={eventExperimentLandingPresetAction === "remove" ? "filled" : "light"}
+            onClick={() => handleEventExperimentLandingAction("remove")}
+          >
+            {translate("planLabExperimentLandingRemove", "移除事件")}
+          </Button>
+        </Stack>
+      </Drawer>
 
       <Drawer
         opened={eventExperimentDrawerOpen}
