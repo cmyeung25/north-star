@@ -363,6 +363,9 @@ export const buildNewBabyBundleEvents = (
 ): ScenarioEventDraft[] => {
   const events: ScenarioEventDraft[] = [];
   const birthMonth = input.birthMonth;
+  if (!isValidMonthKey(birthMonth)) {
+    return events;
+  }
   const childcareAmount = input.childcareMonthly;
 
   if (input.deliveryCost && input.deliveryCost > 0) {
