@@ -64,7 +64,7 @@ export default function DiffBadge({
         display: "inline-flex",
       }}
       aria-label={[arrow, deltaText, percentText].filter(Boolean).join(" ")}
-      size={compact ? "sm" : "md"}
+      size={compact ? "xs" : "sm"}
     >
       <span style={{ overflowWrap: "anywhere" }}>
         {arrow} {deltaText}

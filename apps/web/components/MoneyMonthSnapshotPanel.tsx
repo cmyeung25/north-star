@@ -191,6 +191,9 @@ export default function MoneyMonthSnapshotPanel({
               <Group key={metric.key} justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
                 <Text size="sm">{labels[metric.labelKey]}</Text>
                 <Stack gap={4} align="flex-end" style={{ minWidth: 0 }}>
+                  <Text fw={600} style={{ overflowWrap: "anywhere", textAlign: "right" }}>
+                    {formatValue(metric.value)}
+                  </Text>
                   {selectedMonthKey !== currentMonthKey ? (
                     <DiffBadge
                       delta={metric.delta}
@@ -199,9 +202,6 @@ export default function MoneyMonthSnapshotPanel({
                       formatter={formatValue}
                     />
                   ) : null}
-                  <Text fw={600} style={{ overflowWrap: "anywhere", textAlign: "right" }}>
-                    {formatValue(metric.value)}
-                  </Text>
                 </Stack>
               </Group>
             ))}
