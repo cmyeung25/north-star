@@ -1158,6 +1158,8 @@
     "eventCardCadence": "頻率：{cadence}",
     "eventCardIncomeGrowth": "跟隨收入成長（{pct}%）",
     "eventCardIncomeGrowthCustom": "自訂成長（{pct}%）",
+    "eventCardIncomeGrowthBadge": "跟隨假設（{pct}%）",
+    "eventCardIncomeGrowthCustomBadge": "自訂（{pct}%）",
     "eventCardMonthlyIncome": "每月收入：{amount}",
     "eventCardMonthlyExpense": "每月支出：{amount}",
     "eventCardMonthlyNet": "每月淨額：{amount}",
@@ -1669,7 +1671,7 @@
       },
       "rent_housing": {
         "name": "租屋",
-        "desc": "每月租金並設定年度增長。"
+        "desc": "每月租金支出（可設定起始／結束月份，預設跟隨假設）。"
       },
       "insurance_quick": {
         "name": "保險（快速）",
@@ -1851,6 +1853,16 @@
     "incomeSortEndMonthAsc": "排序：結束月份",
     "incomeProjectedPreview": "{month} 預計：{amount}",
     "incomeGrowthNone": "不成長",
+    "eventTypeIncome": "收入",
+    "eventTypeExpense": "支出",
+    "eventTypeRent": "租屋",
+    "eventTypeMortgage": "按揭",
+    "eventTypeInsurance": "保險",
+    "eventTypeChildcare": "育兒",
+    "eventTypeLoan": "貸款",
+    "eventTypeCarLoan": "車貸",
+    "eventTypeCreditCard": "信用卡",
+    "eventTypeAdjustment": "調整",
     "householdLabel": "家庭",
     "expenseSummaryBaselineMonthly": "基準每月支出",
     "expenseSummarySources": "支出來源",

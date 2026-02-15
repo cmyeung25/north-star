@@ -23,6 +23,7 @@ import {
   resolveEventCardStartMonth,
   resolveEventMonthlyImpact,
 } from "./eventCardUtils";
+import EventTypeBadge from "./EventTypeBadge";
 
 type EventCardListProps = {
   events: ScenarioEvent[];
@@ -161,18 +162,18 @@ export default function EventCardList({
                   <Text size="sm" c="dimmed">
                     {t("eventCardCadence", { cadence: cadenceLabel })}
                   </Text>
-                  {showIncomeGrowthAssumption && (
-                    <Text size="sm" c="dimmed">
-                      {t("eventCardIncomeGrowth", { pct: formattedIncomeGrowthPct })}
-                    </Text>
-                  )}
-                  {showIncomeGrowthCustom && (
-                    <Text size="sm" c="dimmed">
-                      {t("eventCardIncomeGrowthCustom", {
-                        pct: formatGrowthPct(event.customGrowthRatePct),
-                      })}
-                    </Text>
-                  )}
+                  <EventTypeBadge
+                    event={event}
+                    growthLabel={
+                      showIncomeGrowthAssumption
+                        ? t("eventCardIncomeGrowthBadge", { pct: formattedIncomeGrowthPct })
+                        : showIncomeGrowthCustom
+                          ? t("eventCardIncomeGrowthCustomBadge", {
+                              pct: formatGrowthPct(event.customGrowthRatePct),
+                            })
+                          : null
+                    }
+                  />
                   {impact ? (
                     <>
                       {hasIncomeImpact && (

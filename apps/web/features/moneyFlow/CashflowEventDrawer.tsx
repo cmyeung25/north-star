@@ -25,6 +25,8 @@ import {
   resolveCashflowGrowthAssumption,
   type CashflowGrowthAssumptions,
 } from "./growthMode";
+import EventTypeBadge from "../../src/features/money/EventTypeBadge";
+import type { ScenarioEvent } from "../../src/domain/scenarioV2/events";
 
 export type CashflowEventDraft = {
   id?: string;
@@ -235,6 +237,34 @@ export default function CashflowEventDrawer({
   }, [assumptionRate]);
   const isAssumptionUnavailable =
     growthAssumptionKey === "rentAnnualGrowthPct" && !Number.isFinite(assumptionRate ?? NaN);
+
+  const badgePreviewEvent = useMemo<ScenarioEvent>(() => {
+    if (eventType === "adjustment") {
+      return {
+        id: adjustmentDraft.id ?? "draft-adjustment",
+        type: "adjustment",
+        kind: adjustmentDraft.kind,
+        amount: Number(adjustmentDraft.amount || 0),
+        month: adjustmentDraft.month || scenarioStartMonth || "2025-01",
+      } as ScenarioEvent;
+    }
+    return {
+      id: cashflowDraft.id ?? "draft-cashflow",
+      type: "cashflow",
+      kind: cashflowDraft.kind,
+      cadence: cashflowDraft.cadence,
+      amount: Number(cashflowDraft.amount || 0),
+      growthMode: cashflowDraft.growthMode,
+      customGrowthRatePct:
+        cashflowDraft.growthMode === "custom" ? Number(cashflowDraft.customGrowthRatePct || 0) : undefined,
+      startMonth: cashflowDraft.startMonth || undefined,
+      endMonth: cashflowDraft.endMonth || undefined,
+      occurrenceMonth: cashflowDraft.occurrenceMonth || undefined,
+      everyNMonths: cashflowDraft.cadence === "everyNMonths" ? Number(cashflowDraft.everyNMonths || 1) : undefined,
+      tags: cashflowDraft.tags,
+      growthSource: cashflowDraft.growthSource,
+    } as ScenarioEvent;
+  }, [adjustmentDraft.amount, adjustmentDraft.id, adjustmentDraft.kind, adjustmentDraft.month, cashflowDraft.amount, cashflowDraft.cadence, cashflowDraft.customGrowthRatePct, cashflowDraft.endMonth, cashflowDraft.everyNMonths, cashflowDraft.growthMode, cashflowDraft.growthSource, cashflowDraft.id, cashflowDraft.kind, cashflowDraft.occurrenceMonth, cashflowDraft.startMonth, cashflowDraft.tags, eventType, scenarioStartMonth]);
 
   useEffect(() => {
     setEventType(event?.type === "adjustment" ? "adjustment" : "cashflow");
@@ -470,6 +500,18 @@ export default function CashflowEventDrawer({
       }
     >
       <Stack gap="sm">
+        <EventTypeBadge
+          event={badgePreviewEvent}
+          growthLabel={
+            eventType === "cashflow" && cashflowDraft.cadence !== "oneOff"
+              ? cashflowDraft.growthMode === "assumption"
+                ? t("eventCardIncomeGrowthBadge", { pct: formattedAssumptionPct ?? "0" })
+                : cashflowDraft.growthMode === "custom"
+                  ? t("eventCardIncomeGrowthCustomBadge", { pct: cashflowDraft.customGrowthRatePct || "0" })
+                  : t("incomeGrowthNone")
+              : null
+          }
+        />
         {eventType === "cashflow" ? (
           <>
             {salaryAdjustmentContext && (
