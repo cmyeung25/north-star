@@ -313,6 +313,17 @@ export default function MoneyClient({
   initialShowOnboardingSkipped = false,
 }: MoneyClientProps) {
   const t = useTranslations("money");
+  const safeTRaw = useCallback(
+    (key: string, fallback: string) => {
+      const value = t.raw(key);
+      if (typeof value !== "string") {
+        return fallback;
+      }
+      const trimmed = value.trim();
+      return !trimmed || trimmed === key ? fallback : trimmed;
+    },
+    [t]
+  );
   const timelineText = useTranslations("timeline");
   const homesText = useTranslations("homes");
   const investmentsText = useTranslations("investments");
@@ -4213,7 +4224,10 @@ export default function MoneyClient({
               monthLabel: t("statusMonthLabel"),
               dateLabel: t("statusDateLabel"),
               dateSnapHint: t("statusDateSnapHint"),
-              selectedMonthHint: t("statusSelectedMonthHint"),
+              selectedMonthHint: safeTRaw(
+                "statusSelectedMonthHint",
+                "提示：狀態預覽以月份為單位計算，選擇月份可查看該月期末狀態。"
+              ),
               empty: t("statusEmpty"),
               viewMonthlyDetails: t("statusViewMonthlyDetails"),
               cashEom: t("statusCashEom"),
@@ -4223,7 +4237,10 @@ export default function MoneyClient({
               outflow: t("statusOutflow"),
               assetsTotal: t("statusAssetsTotal"),
               liabilitiesTotal: t("statusLiabilitiesTotal"),
-              diffVsCurrent: t("statusDiffVsCurrent"),
+              diffVsCurrent: safeTRaw(
+                "statusDiffVsCurrent",
+                "與本月差異：現金 {cash}／淨資產 {netWorth}／淨現金流 {netCashflow}"
+              ),
               loading: t("statusLoading"),
             }}
             onSelectMonth={handleSnapshotMonthChange}
