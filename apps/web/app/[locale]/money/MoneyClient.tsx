@@ -182,6 +182,24 @@ type CalculatorModalState = {
 
 type MoneyTab = "income" | "expenses" | "assets" | "liabilities" | "inputs";
 
+const resolveBundleWizardOneOffExpenseTotal = (
+  wizardInput?: BundleWizardInput
+): number | null => {
+  if (!wizardInput) {
+    return null;
+  }
+  if (wizardInput.templateId === "life_new_baby_plan") {
+    const { input } = wizardInput;
+    const deliveryCost = Math.max(0, Math.round(input.deliveryCost ?? 0));
+    const agencyFee =
+      input.helperEnabled && input.agencyFee
+        ? Math.max(0, Math.round(input.agencyFee))
+        : 0;
+    return deliveryCost + agencyFee;
+  }
+  return null;
+};
+
 type MoneyClientProps = {
   scenarioId?: string;
   initialTab?: string;
@@ -2071,6 +2089,31 @@ export default function MoneyClient({
     ledgerRowsByEventId,
     selectedDashboardMonth,
   ]);
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      return;
+    }
+    bundleCardItems.forEach((bundle) => {
+      const wizardInput = bundleInstanceById.get(bundle.id)?.wizardInput;
+      const expectedOneOffExpense = resolveBundleWizardOneOffExpenseTotal(wizardInput);
+      if (expectedOneOffExpense === null) {
+        return;
+      }
+      if (Math.abs(expectedOneOffExpense - bundle.oneOffTotal) < 1) {
+        return;
+      }
+      const warningKey = `${bundle.id}:${expectedOneOffExpense}:${bundle.oneOffTotal}`;
+      if (warnedBundleSummary.current.has(warningKey)) {
+        return;
+      }
+      warnedBundleSummary.current.add(warningKey);
+      console.warn("[bundle summary] Bundle one-off total does not match leaf events.", {
+        bundleId: bundle.id,
+        expectedOneOffExpense,
+        actualOneOffExpense: bundle.oneOffTotal,
+      });
+    });
+  }, [bundleCardItems, bundleInstanceById]);
   const activeBundleCard = useMemo(
     () => bundleCardItems.find((bundle) => bundle.id === bundleViewId) ?? null,
     [bundleCardItems, bundleViewId]
