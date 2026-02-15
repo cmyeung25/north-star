@@ -4226,7 +4226,7 @@ export default function MoneyClient({
               dateSnapHint: t("statusDateSnapHint"),
               selectedMonthHint: safeTRaw(
                 "statusSelectedMonthHint",
-                "提示：狀態預覽以月份為單位計算，選擇月份可查看該月期末狀態。"
+                "提示：狀態預覽以月份為單位計算，選擇月份可查看該月期末狀態（目前顯示 {month}）。"
               ),
               empty: t("statusEmpty"),
               viewMonthlyDetails: t("statusViewMonthlyDetails"),
@@ -4237,10 +4237,6 @@ export default function MoneyClient({
               outflow: t("statusOutflow"),
               assetsTotal: t("statusAssetsTotal"),
               liabilitiesTotal: t("statusLiabilitiesTotal"),
-              diffVsCurrent: safeTRaw(
-                "statusDiffVsCurrent",
-                "與本月差異：現金 {cash}／淨資產 {netWorth}／淨現金流 {netCashflow}"
-              ),
               loading: t("statusLoading"),
             }}
             onSelectMonth={handleSnapshotMonthChange}
