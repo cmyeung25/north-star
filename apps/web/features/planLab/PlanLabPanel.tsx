@@ -6114,13 +6114,14 @@ export default function PlanLabPanel({
 
   const targetPresetOptions = useMemo(() => {
     const netWorthSeries = baselineProjection.projection?.netWorth ?? [];
-    const baselineEndNetWorth = netWorthSeries[netWorthSeries.length - 1];
-    if (!Number.isFinite(baselineEndNetWorth) || baselineEndNetWorth <= 0) {
-      return [];
+    console.log(netWorthSeries);
+    let baselineNetWorth = netWorthSeries[0];
+    if (!Number.isFinite(baselineNetWorth) || baselineNetWorth <= 1000000) {
+      baselineNetWorth = 1000000;
     }
     const multipliers = [0.5, 1, 1.5, 2, 3,4 ,5];
     const rawValues = multipliers.map((multiplier) =>
-      Math.round((baselineEndNetWorth ?? 0) * multiplier)
+      Math.round((baselineNetWorth ?? 0) * multiplier)
     );
     const roundedValues = Array.from(
       new Set(rawValues.map((value) => Math.round(value / 1000000) * 1000000))
