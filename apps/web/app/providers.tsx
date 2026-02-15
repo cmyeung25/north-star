@@ -32,6 +32,7 @@ import { useSettingsStore } from "../src/store/settingsStore";
 import { getActiveScenario, useScenarioStore } from "../src/store/scenarioStore";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import ScenarioSwitcher from "../components/ScenarioSwitcher";
+import BrandLogo from "../components/brand/BrandLogo";
 import {
   desktopToolbarHeight,
 } from "../components/DesktopBottomToolbar";
@@ -208,9 +209,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         >
           {isDesktop ? (
             <Group h="100%" px="md" justify="space-between">
-              <Text fw={600} size="lg">
-                {t("appName")}
-              </Text>
+              <BrandLogo size="md" href="/scenarios" priority />
               <Group gap="xs" align="center">
                 <ScenarioSwitcher />
                 <Button
@@ -246,9 +245,7 @@ export default function Providers({ children }: { children: ReactNode }) {
             </Group>
           ) : (
             <Group h="100%" px="md" justify="space-between">
-              <Text fw={600} size="lg">
-                {t("appName")}
-              </Text>
+              <BrandLogo variant="icon" collapsed size="md" href="/scenarios" priority />
               <Menu position="bottom-end" withinPortal>
                 <Menu.Target>
                   <ActionIcon variant="subtle" color="gray" size="lg" aria-label={t("actionMore")}>
@@ -305,6 +302,7 @@ export default function Providers({ children }: { children: ReactNode }) {
             }}
           >
             <Stack gap="xs">
+              <BrandLogo size="md" href="/scenarios" />
               {navItems.map((item) => (
                 <NavLink
                   key={item.href}
