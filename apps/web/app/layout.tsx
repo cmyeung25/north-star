@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ColorSchemeScript } from "@mantine/core";
 import { cookies, headers } from "next/headers";
 import { defaultLocale, locales, type Locale } from "../src/i18n/routing";
+import RootProviders from "./root-providers";
 
 const resolveLocale = (): Locale => {
   const localeFromHeader = headers().get("x-next-intl-locale");
@@ -27,7 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <ColorSchemeScript defaultColorScheme="light" />
       </head>
-      <body>{children}</body>
+      <body><RootProviders>{children}</RootProviders></body>
     </html>
   );
 }
