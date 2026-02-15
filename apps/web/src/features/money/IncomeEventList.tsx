@@ -8,6 +8,7 @@ import { getDefaultCashflowGrowthMode } from "../../domain/scenarioV2/growthPoli
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
 import { resolveEventCardAmount, resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
+import EventTypeBadge from "./EventTypeBadge";
 import { compareMonthKey } from "../../utils/monthKey";
 import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
 import { computeEffectiveRanges } from "./salaryAdjustmentGrouping";
@@ -93,14 +94,6 @@ export default function IncomeEventList({
           baseEvent.type === "cashflow"
             ? baseEvent.growthMode ?? getDefaultCashflowGrowthMode(baseEvent)
             : undefined;
-        const growthLabel =
-          baseEvent.type === "cashflow" && baseEvent.kind === "income"
-            ? baseGrowthMode === "assumption"
-              ? t("eventCardIncomeGrowth", { pct: formattedIncomeGrowthPct })
-              : baseGrowthMode === "custom"
-                ? t("eventCardIncomeGrowthCustom", { pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0) })
-                : t("incomeGrowthNone")
-            : null;
         const frequencyLabel =
           baseEvent.type === "cashflow"
             ? t(
@@ -128,7 +121,20 @@ export default function IncomeEventList({
                     <Badge variant="outline" color="blue">調整 {adjustments.length} 次</Badge>
                   )}
                 </Group>
-                {growthLabel && <Text size="sm" c="dimmed">{growthLabel}</Text>}
+                <EventTypeBadge
+                  event={baseEvent}
+                  growthLabel={
+                    baseEvent.type === "cashflow" && baseEvent.kind === "income"
+                      ? baseGrowthMode === "assumption"
+                        ? t("eventCardIncomeGrowthBadge", { pct: formattedIncomeGrowthPct })
+                        : baseGrowthMode === "custom"
+                          ? t("eventCardIncomeGrowthCustomBadge", {
+                              pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0),
+                            })
+                          : t("incomeGrowthNone")
+                      : null
+                  }
+                />
                 {isSalaryBase(baseEvent) && adjustments.length > 0 ? (
                   <Text size="sm" c="dimmed">
                     {t("eventCardMonths", {

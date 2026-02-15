@@ -1136,6 +1136,8 @@
     "eventCardCadence": "Cadence: {cadence}",
     "eventCardIncomeGrowth": "Follows income growth ({pct}%)",
     "eventCardIncomeGrowthCustom": "Custom growth ({pct}%)",
+    "eventCardIncomeGrowthBadge": "Assumption ({pct}%)",
+    "eventCardIncomeGrowthCustomBadge": "Custom ({pct}%)",
     "eventCardMonthlyIncome": "Monthly income: {amount}",
     "eventCardMonthlyExpense": "Monthly expense: {amount}",
     "eventCardMonthlyNet": "Monthly net: {amount}",
@@ -1647,7 +1649,7 @@
       },
       "rent_housing": {
         "name": "Rent housing",
-        "desc": "Monthly rent with annual growth."
+        "desc": "Monthly rent expense (set start/end month, follows assumptions by default)."
       },
       "insurance_quick": {
         "name": "Insurance (quick)",
@@ -1816,6 +1818,16 @@
     "incomeSortEndMonthAsc": "Sort: End month",
     "incomeProjectedPreview": "{month} projection: {amount}",
     "incomeGrowthNone": "No growth",
+    "eventTypeIncome": "Income",
+    "eventTypeExpense": "Expense",
+    "eventTypeRent": "Rent",
+    "eventTypeMortgage": "Mortgage",
+    "eventTypeInsurance": "Insurance",
+    "eventTypeChildcare": "Childcare",
+    "eventTypeLoan": "Loan",
+    "eventTypeCarLoan": "Car loan",
+    "eventTypeCreditCard": "Credit card",
+    "eventTypeAdjustment": "Adjustment",
     "householdLabel": "Household",
     "expenseSummaryBaselineMonthly": "Baseline monthly expenses",
     "expenseSummarySources": "Expense sources",
