@@ -302,7 +302,6 @@ export default function Providers({ children }: { children: ReactNode }) {
             }}
           >
             <Stack gap="xs">
-              <BrandLogo size="md" href="/scenarios" />
               {navItems.map((item) => (
                 <NavLink
                   key={item.href}

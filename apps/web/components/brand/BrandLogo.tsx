@@ -55,7 +55,7 @@ export default function BrandLogo({
           priority={priority}
           unoptimized={unoptimized}
         />
-        {showWordmark && (
+        {showWordmark && false && (
           <Image
             src="/aurin-wordmark.png"
             alt="Aurin"
