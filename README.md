@@ -48,6 +48,15 @@ pnpm test
 pnpm --filter @north-star/web dev
 ```
 
+## Supabase auth redirect configuration
+
+When configuring Supabase Auth for this app, set:
+
+- **Site URL:** `https://<domain>`
+- **Redirect URLs:**
+  - `http://localhost:3000/auth/callback`
+  - `https://<domain>/auth/callback`
+
 ## High-level architecture
 
 - **apps/web** provides the PWA shell and UI surfaces.

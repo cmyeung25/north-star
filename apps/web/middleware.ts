@@ -32,6 +32,16 @@ const mapLocale = (input?: string | null): Locale => {
 const hasLocalePrefix = (pathname: string) =>
   locales.some((locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`));
 
+const isSegmentedRoute = (pathname: string) => {
+  if (pathname === "/") {
+    return true;
+  }
+
+  return ["/web", "/app", "/auth", "/account"].some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+};
+
 const updateSupabaseSession = async (request: NextRequest, response: NextResponse) => {
   const supabase = createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
     cookies: {
@@ -57,7 +67,9 @@ export default async function middleware(request: NextRequest) {
 
   let response: NextResponse;
 
-  if (!hasLocalePrefix(pathname)) {
+  if (isSegmentedRoute(pathname)) {
+    response = NextResponse.next();
+  } else if (!hasLocalePrefix(pathname)) {
     const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value;
     const acceptLanguage = request.headers.get("accept-language")?.split(",")[0]?.trim();
     const resolvedLocale = mapLocale(cookieLocale ?? acceptLanguage);
