@@ -17,6 +17,8 @@
     "@mantine/hooks": "^8.3.12",
     "@mantine/next": "^6.0.22",
     "@north-star/engine": "workspace:*",
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.95.3",
     "firebase": "^10.14.1",
     "idb-keyval": "^6.2.1",
     "nanoid": "^5.1.6",

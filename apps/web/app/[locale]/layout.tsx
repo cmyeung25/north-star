@@ -4,6 +4,7 @@ import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import IntlProvider from "./IntlProvider";
 import Providers from "../providers";
+import { createSupabaseServerClient } from "../../src/lib/supabase/server";
 import { defaultLocale, locales, type Locale } from "../../src/i18n/routing";
 
 type LocaleLayoutProps = {
@@ -57,10 +58,14 @@ export default async function LocaleLayout({
   }
 
   const messages = await getMessages({ locale });
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return (
     <IntlProvider messages={messages} locale={locale}>
-      <Providers>{children}</Providers>
+      <Providers initialSupabaseUser={user}>{children}</Providers>
     </IntlProvider>
   );
 }
