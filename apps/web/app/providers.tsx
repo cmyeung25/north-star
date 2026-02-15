@@ -16,6 +16,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { User } from "@supabase/supabase-js";
 import { useLocale, useTranslations } from "next-intl";
 import { isFirebaseConfigured } from "../lib/firebaseClient";
 import { useAuthState } from "../src/hooks/useAuthState";
@@ -38,6 +39,7 @@ import {
 } from "../components/DesktopBottomToolbar";
 import { Link } from "../src/i18n/navigation";
 import { aurinTheme } from "./theme/aurinTheme";
+import { createSupabaseBrowserClient } from "../src/lib/supabase/browser";
 
 
 const stripLocalePrefix = (pathname: string, locale: string) => {
@@ -49,7 +51,12 @@ const stripLocalePrefix = (pathname: string, locale: string) => {
   return nextPath === "" ? "/" : nextPath;
 };
 
-export default function Providers({ children }: { children: ReactNode }) {
+type ProvidersProps = {
+  children: ReactNode;
+  initialSupabaseUser: User | null;
+};
+
+export default function Providers({ children, initialSupabaseUser }: ProvidersProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const pathname = usePathname();
   const router = useRouter();
@@ -62,9 +69,13 @@ export default function Providers({ children }: { children: ReactNode }) {
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const [scenarioHydrated, setScenarioHydrated] = useState(false);
+  const [supabaseUser, setSupabaseUser] = useState<User | null>(initialSupabaseUser);
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const footerRef = useRef<HTMLDivElement | null>(null);
   const normalizedPathname = stripLocalePrefix(pathname, locale);
   const isOnboarding = normalizedPathname.startsWith("/onboarding");
+  const skipScenarioGuard =
+    isOnboarding || normalizedPathname.startsWith("/login") || normalizedPathname.startsWith("/debug");
 
   const activeScenario = useMemo(
     () => getActiveScenario(scenarios, activeScenarioId),
@@ -133,7 +144,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   }, [isDesktop, isOnboarding, normalizedPathname]);
 
   useEffect(() => {
-    if (!scenarioHydrated || normalizedPathname === "/onboarding") {
+    if (!scenarioHydrated || skipScenarioGuard) {
       return;
     }
 
@@ -172,6 +183,7 @@ export default function Providers({ children }: { children: ReactNode }) {
     scenarioHydrated,
     scenarios,
     setActiveScenario,
+    skipScenarioGuard,
   ]);
 
   useEffect(() => {
@@ -191,6 +203,31 @@ export default function Providers({ children }: { children: ReactNode }) {
       stopAutoSync();
     };
   }, [authState.status, authState.user, autoSyncEnabled]);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setSupabaseUser(data.user ?? null);
+    };
+
+    void loadUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseUser(session?.user ?? null);
+      router.refresh();
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, [router, supabase]);
+
+  const handleSupabaseSignOut = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+  };
+
+  const supabaseEmail = supabaseUser?.email ?? null;
 
   return (
     <MantineProvider theme={aurinTheme}>
@@ -241,6 +278,20 @@ export default function Providers({ children }: { children: ReactNode }) {
                   </Button>
                 )}
                 <LanguageSwitcher />
+                {supabaseEmail ? (
+                  <Group gap="xs">
+                    <Text size="xs" c="gray.2">
+                      {supabaseEmail}
+                    </Text>
+                    <Button size="xs" variant="light" onClick={handleSupabaseSignOut}>
+                      Sign out
+                    </Button>
+                  </Group>
+                ) : (
+                  <Button component={Link} href="/login" size="xs" variant="light">
+                    Sign in
+                  </Button>
+                )}
               </Group>
             </Group>
           ) : (
@@ -282,6 +333,20 @@ export default function Providers({ children }: { children: ReactNode }) {
                         fullWidth
                       >
                         {actionLabel}
+                      </Button>
+                    )}
+                    {supabaseEmail ? (
+                      <Group justify="space-between">
+                        <Text size="xs" c="gray.3">
+                          {supabaseEmail}
+                        </Text>
+                        <Button size="xs" variant="light" onClick={handleSupabaseSignOut}>
+                          Sign out
+                        </Button>
+                      </Group>
+                    ) : (
+                      <Button component={Link} href="/login" size="xs" variant="light" fullWidth>
+                        Sign in
                       </Button>
                     )}
                     <LanguageSwitcher />
