@@ -11,6 +11,7 @@ type BrandLogoProps = {
   href?: string;
   className?: string;
   priority?: boolean;
+  unoptimized?: boolean;
 };
 
 const iconSizeByScale: Record<BrandLogoSize, number> = {
@@ -32,6 +33,7 @@ export default function BrandLogo({
   href = "/scenarios",
   className,
   priority = false,
+  unoptimized = true,
 }: BrandLogoProps) {
   const iconSize = iconSizeByScale[size];
   const showWordmark = variant === "full" && !collapsed;
@@ -46,19 +48,21 @@ export default function BrandLogo({
     >
       <Group gap="xs" wrap="nowrap">
         <Image
-          src="/brand/aurin-icon-square.png"
+          src="/aurin-icon-square.png"
           alt=""
           width={iconSize}
           height={iconSize}
           priority={priority}
+          unoptimized={unoptimized}
         />
         {showWordmark && (
           <Image
-            src="/brand/aurin-wordmark.png"
+            src="/aurin-wordmark.png"
             alt="Aurin"
             width={wordmarkSize.width}
             height={wordmarkSize.height}
             priority={priority}
+            unoptimized={unoptimized}
           />
         )}
       </Group>
