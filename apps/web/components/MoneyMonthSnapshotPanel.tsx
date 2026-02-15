@@ -5,6 +5,7 @@ import { useLocale } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "../lib/i18n";
 import type { MonthSnapshot } from "../src/engine/projectionSelectors";
+import DiffBadge from "./DiffBadge";
 
 type MoneyMonthSnapshotPanelProps = {
   title: string;
@@ -33,14 +34,31 @@ type MoneyMonthSnapshotPanelProps = {
     outflow: string;
     assetsTotal: string;
     liabilitiesTotal: string;
-    diffVsCurrent: string;
     loading: string;
   };
   onSelectMonth: (month: string) => void;
   onOpenMonthlyDetails: () => void;
 };
 
-const plusSign = (value: number, formatted: string) => (value > 0 ? `+${formatted}` : formatted);
+type MetricPolarity = "higherIsBetter" | "lowerIsBetter";
+type MetricKey =
+  | "cashEom"
+  | "netWorth"
+  | "netCashflow"
+  | "inflow"
+  | "outflow"
+  | "assetsTotal"
+  | "liabilitiesTotal";
+
+const metricConfigs: Array<{ key: MetricKey; labelKey: MetricKey; polarity: MetricPolarity }> = [
+  { key: "cashEom", labelKey: "cashEom", polarity: "higherIsBetter" },
+  { key: "netWorth", labelKey: "netWorth", polarity: "higherIsBetter" },
+  { key: "netCashflow", labelKey: "netCashflow", polarity: "higherIsBetter" },
+  { key: "inflow", labelKey: "inflow", polarity: "higherIsBetter" },
+  { key: "outflow", labelKey: "outflow", polarity: "lowerIsBetter" },
+  { key: "assetsTotal", labelKey: "assetsTotal", polarity: "higherIsBetter" },
+  { key: "liabilitiesTotal", labelKey: "liabilitiesTotal", polarity: "lowerIsBetter" },
+];
 
 export default function MoneyMonthSnapshotPanel({
   title,
@@ -78,14 +96,18 @@ export default function MoneyMonthSnapshotPanel({
   );
   const formatValue = (value: number) => formatCurrency(value, currency, locale);
 
-  const delta =
-    snapshot && currentSnapshot
-      ? {
-          cash: snapshot.cashEom - currentSnapshot.cashEom,
-          netWorth: snapshot.netWorth - currentSnapshot.netWorth,
-          netCashflow: snapshot.netCashflow - currentSnapshot.netCashflow,
-        }
-      : null;
+  const metricDiffs = useMemo(() => {
+    if (!snapshot || !currentSnapshot) {
+      return [];
+    }
+
+    return metricConfigs.map((config) => ({
+      ...config,
+      value: snapshot[config.key],
+      delta: snapshot[config.key] - currentSnapshot[config.key],
+      base: currentSnapshot[config.key],
+    }));
+  }, [currentSnapshot, snapshot]);
 
   return (
     <Card withBorder radius="md" padding="md">
@@ -156,27 +178,33 @@ export default function MoneyMonthSnapshotPanel({
         ) : null}
 
         {loading ? (
-          <Text size="sm" c="dimmed">{labels.loading}</Text>
+          <Text size="sm" c="dimmed">
+            {labels.loading}
+          </Text>
         ) : !snapshot ? (
-          <Text size="sm" c="dimmed">{labels.empty}</Text>
+          <Text size="sm" c="dimmed">
+            {labels.empty}
+          </Text>
         ) : (
           <Stack gap={6}>
-            <Group justify="space-between"><Text size="sm">{labels.cashEom}</Text><Text fw={600}>{formatValue(snapshot.cashEom)}</Text></Group>
-            <Group justify="space-between"><Text size="sm">{labels.netWorth}</Text><Text fw={600}>{formatValue(snapshot.netWorth)}</Text></Group>
-            <Group justify="space-between"><Text size="sm">{labels.netCashflow}</Text><Text fw={600}>{formatValue(snapshot.netCashflow)}</Text></Group>
-            <Group justify="space-between"><Text size="sm">{labels.inflow}</Text><Text fw={600}>{formatValue(snapshot.inflow)}</Text></Group>
-            <Group justify="space-between"><Text size="sm">{labels.outflow}</Text><Text fw={600}>{formatValue(snapshot.outflow)}</Text></Group>
-            <Group justify="space-between"><Text size="sm">{labels.assetsTotal}</Text><Text fw={600}>{formatValue(snapshot.assetsTotal)}</Text></Group>
-            <Group justify="space-between"><Text size="sm">{labels.liabilitiesTotal}</Text><Text fw={600}>{formatValue(snapshot.liabilitiesTotal)}</Text></Group>
-
-            {delta ? (
-              <Text size="xs" c="dimmed">
-                {labels.diffVsCurrent
-                  .replace("{cash}", plusSign(delta.cash, formatValue(delta.cash)))
-                  .replace("{netWorth}", plusSign(delta.netWorth, formatValue(delta.netWorth)))
-                  .replace("{netCashflow}", plusSign(delta.netCashflow, formatValue(delta.netCashflow)))}
-              </Text>
-            ) : null}
+            {metricDiffs.map((metric) => (
+              <Group key={metric.key} justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
+                <Text size="sm">{labels[metric.labelKey]}</Text>
+                <Stack gap={4} align="flex-end" style={{ minWidth: 0 }}>
+                  {selectedMonthKey !== currentMonthKey ? (
+                    <DiffBadge
+                      delta={metric.delta}
+                      base={metric.base}
+                      polarity={metric.polarity}
+                      formatter={formatValue}
+                    />
+                  ) : null}
+                  <Text fw={600} style={{ overflowWrap: "anywhere", textAlign: "right" }}>
+                    {formatValue(metric.value)}
+                  </Text>
+                </Stack>
+              </Group>
+            ))}
           </Stack>
         )}
 
