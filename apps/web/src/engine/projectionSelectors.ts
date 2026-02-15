@@ -10,6 +10,67 @@ export type ProjectionMonthlyRow = {
   liabilitiesTotal?: number;
 };
 
+export type MonthSnapshot = {
+  month: string;
+  cashEom: number;
+  netWorth: number;
+  netCashflow: number;
+  inflow: number;
+  outflow: number;
+  assetsTotal: number;
+  liabilitiesTotal: number;
+};
+
+type MonthSnapshotParams = {
+  projection: ProjectionResult | null;
+  monthKey: string | null;
+  ledgerByMonth?: Record<string, Array<{ amount: number }>>;
+  positionCashflowsByMonth?: Record<string, Array<{ amount: number }>>;
+};
+
+export const selectMonthSnapshot = ({
+  projection,
+  monthKey,
+  ledgerByMonth,
+  positionCashflowsByMonth,
+}: MonthSnapshotParams): MonthSnapshot | null => {
+  if (!projection || !monthKey) {
+    return null;
+  }
+
+  const monthIndex = projection.months.indexOf(monthKey);
+  if (monthIndex < 0) {
+    return null;
+  }
+
+  const cashEom = projection.cashBalance[monthIndex] ?? 0;
+  const netWorth = projection.netWorth[monthIndex] ?? 0;
+  const assetsTotal = projection.assets?.total?.[monthIndex] ?? cashEom + netWorth;
+  const liabilitiesTotal = projection.liabilities?.total?.[monthIndex] ?? assetsTotal - netWorth;
+  const items = [
+    ...(ledgerByMonth?.[monthKey] ?? []),
+    ...(positionCashflowsByMonth?.[monthKey] ?? []),
+  ];
+  const inflow = items.reduce(
+    (total, item) => total + (item.amount > 0 ? item.amount : 0),
+    0
+  );
+  const outflow = Math.abs(
+    items.reduce((total, item) => total + (item.amount < 0 ? item.amount : 0), 0)
+  );
+
+  return {
+    month: monthKey,
+    cashEom,
+    netWorth,
+    netCashflow: items.reduce((total, item) => total + item.amount, 0),
+    inflow,
+    outflow,
+    assetsTotal,
+    liabilitiesTotal,
+  };
+};
+
 export const getMonthlyRows = (projection: ProjectionResult): ProjectionMonthlyRow[] =>
   projection.months.map((month, index) => ({
     month,

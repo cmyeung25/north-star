@@ -79,7 +79,7 @@ import { buildSmartInvestProjectionBreakdown, type SmartInvestProjectionBreakdow
 import { buildDefaultSmartInvestPolicy } from "../../../src/domain/smartInvest/defaultPolicy";
 import { compileSellLifecycle } from "../../../src/domain/positions/compileSellLifecycle";
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
-import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
+import MoneyMonthSnapshotPanel from "../../../components/MoneyMonthSnapshotPanel";
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import AddFlowDrawer from "../../../components/add-flow/AddFlowDrawer";
 import BundleWizardDrawer from "../../../components/eventTemplates/bundles/BundleWizardDrawer";
@@ -160,7 +160,7 @@ import type { TemplateCategory, TemplateDef, TemplateId } from "../../../src/dom
 import { buildTemplateDrawerDraftOverrides } from "../../../src/domain/eventTemplates/presets";
 import type { BundleWizardInput } from "../../../src/domain/eventTemplates/bundles";
 import { getTemplateDef } from "../../../src/domain/eventTemplates/registry";
-import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
+import { selectMonthSnapshot } from "../../../src/engine/projectionSelectors";
 
 type CashflowModalState = {
   opened: boolean;
@@ -546,6 +546,7 @@ export default function MoneyClient({
   const activeDrawer = useUiStore((state) => state.activeDrawer);
   const openDrawer = useUiStore((state) => state.openDrawer);
   const closeDrawer = useUiStore((state) => state.closeDrawer);
+  const openModal = useUiStore((state) => state.openModal);
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
   const breakdownMonthRange = useUiStore((state) => state.breakdownMonthRange);
@@ -570,23 +571,40 @@ export default function MoneyClient({
     return { fromMonth, toMonth };
   }, [breakdownMonth, breakdownMonthRange, projectionMonths]);
   const selectedDashboardMonth = normalizedRange.toMonth ?? projectionMonths[0] ?? null;
-  const selectedDashboardIndex =
-    selectedDashboardMonth && projectionMonths.includes(selectedDashboardMonth)
-      ? projectionMonths.indexOf(selectedDashboardMonth)
-      : 0;
-  const cashBalanceValue = projection
-    ? projection.cashBalance[selectedDashboardIndex] ?? null
-    : null;
-  const netWorthValue = projection
-    ? projection.netWorth[selectedDashboardIndex] ?? null
-    : null;
-  const netCashflowValue = useMemo(() => {
-    if (!selectedDashboardMonth) {
-      return null;
-    }
-    const items = ledgerByMonth[selectedDashboardMonth] ?? [];
-    return items.reduce((total, item) => total + item.amount, 0);
-  }, [ledgerByMonth, selectedDashboardMonth]);
+  const currentMonthKey = useMemo(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const currentMonthSnapshot = useMemo(
+    () =>
+      selectMonthSnapshot({
+        projection,
+        monthKey: currentMonthKey,
+        ledgerByMonth,
+        positionCashflowsByMonth,
+      }),
+    [currentMonthKey, ledgerByMonth, positionCashflowsByMonth, projection]
+  );
+  const selectedMonthSnapshot = useMemo(
+    () =>
+      selectMonthSnapshot({
+        projection,
+        monthKey: selectedDashboardMonth,
+        ledgerByMonth,
+        positionCashflowsByMonth,
+      }),
+    [ledgerByMonth, positionCashflowsByMonth, projection, selectedDashboardMonth]
+  );
+  const handleSnapshotMonthChange = useCallback(
+    (month: string) => {
+      if (!projectionMonths.includes(month)) {
+        return;
+      }
+      setBreakdownMonthRange({ fromMonth: month, toMonth: month });
+      setBreakdownMonth(month);
+    },
+    [projectionMonths, setBreakdownMonth, setBreakdownMonthRange]
+  );
   const [assetDetails, setAssetDetails] = useState<{
     type: "home" | "investment" | "insurance" | "car" | "loan" | "smartInvest";
     id?: string;
@@ -625,7 +643,6 @@ export default function MoneyClient({
   const [openAssetEditId, setOpenAssetEditId] = useState<string | null>(null);
   const [openLiabilityEditId, setOpenLiabilityEditId] = useState<string | null>(null);
   const [assetHoldingCostNotice, setAssetHoldingCostNotice] = useState(false);
-  const [previewScope, setPreviewScope] = useState<PreviewScope>("month");
 
   useEffect(() => {
     setActiveTab(resolvedTab);
@@ -715,10 +732,6 @@ export default function MoneyClient({
     [budgetText]
   );
 
-  const dashboardMetrics = useMemo(
-    () => computeDashboardMetrics(projection, projectionNetCashflowByMonth, ledgerByMonth),
-    [ledgerByMonth, projection, projectionNetCashflowByMonth]
-  );
   const v2LedgerRows = useMemo<LedgerRow[]>(() => {
     if (!scenario || !scenarioIsV2) {
       return [];
@@ -4183,31 +4196,42 @@ export default function MoneyClient({
           </Stack>
         }
         right={
-          <ProjectionPreviewPanel
-            title={t("previewTitle")}
+          <MoneyMonthSnapshotPanel
+            title={t("statusPreviewTitle")}
             currency={scenario?.baseCurrency ?? "USD"}
-            scope={previewScope}
-            onScopeChange={setPreviewScope}
+            months={projectionMonths}
+            currentMonthKey={currentMonthKey}
+            selectedMonthKey={selectedDashboardMonth}
+            snapshot={selectedMonthSnapshot}
+            currentSnapshot={currentMonthSnapshot}
+            loading={!projection}
             labels={{
-              month: t("previewScopeMonth"),
-              twelveMonths: t("previewScope12m"),
-              horizon: t("previewScopeHorizon"),
-              cashBalance: t("previewCashBalance"),
-              netWorth: t("previewNetWorth"),
-              netCashflow: t("previewNetCashflow"),
-              minCash: t("previewMinCash"),
-              deficitMonths: t("previewDeficitMonths"),
-              runway: t("previewRunway"),
-              firstMillion: t("previewFirstMillion"),
-              endMonthScope: t("previewHorizonScope"),
-              notReached: t("previewNotReached"),
+              modeCurrent: t("statusModeCurrent"),
+              modeSelect: t("statusModeSelect"),
+              inputMonth: t("statusInputMonth"),
+              inputDate: t("statusInputDate"),
+              monthLabel: t("statusMonthLabel"),
+              dateLabel: t("statusDateLabel"),
+              dateSnapHint: t("statusDateSnapHint"),
+              selectedMonthHint: t("statusSelectedMonthHint"),
+              empty: t("statusEmpty"),
+              viewMonthlyDetails: t("statusViewMonthlyDetails"),
+              cashEom: t("statusCashEom"),
+              netWorth: t("statusNetWorth"),
+              netCashflow: t("statusNetCashflow"),
+              inflow: t("statusInflow"),
+              outflow: t("statusOutflow"),
+              assetsTotal: t("statusAssetsTotal"),
+              liabilitiesTotal: t("statusLiabilitiesTotal"),
+              diffVsCurrent: t("statusDiffVsCurrent"),
+              loading: t("statusLoading"),
             }}
-            currentMonth={{
-              cashBalance: cashBalanceValue,
-              netWorth: netWorthValue,
-              netCashflow: netCashflowValue,
+            onSelectMonth={handleSnapshotMonthChange}
+            onOpenMonthlyDetails={() => {
+              openModal("monthlyBreakdown", {
+                month: selectedDashboardMonth,
+              });
             }}
-            metrics={dashboardMetrics}
           />
         }
       />
