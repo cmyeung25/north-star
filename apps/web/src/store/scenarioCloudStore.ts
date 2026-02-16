@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ScenarioSaveStatus = "saved" | "unsaved" | "saving" | "error";
+export type ScenarioSaveStatus = "saved" | "unsaved" | "saving" | "error" | "conflict";
 
 export type ScenarioCloudMeta = {
   caseId: string;
@@ -22,17 +22,33 @@ type InitializeInput = {
   payloadHash: string;
 };
 
+type SaveNowInput = {
+  payload: Record<string, unknown>;
+  payloadHash: string;
+  save: (input: {
+    caseId: string;
+    scenarioId: string;
+    payload: Record<string, unknown>;
+    expectedRevision: number;
+  }) => Promise<{ revision: number; lastSavedAt: string }>;
+};
+
+type SaveNowResult = { ok: true } | { ok: false; reason: "missing-meta" | "already-saving" | "error" | "conflict" };
+
 type ScenarioCloudState = {
   active?: ScenarioCloudMeta;
   initialize: (input: InitializeInput) => void;
   clear: () => void;
+  markDirty: (scenarioId: string) => void;
   markUnsaved: (scenarioId: string, payloadHash: string) => void;
   markSaving: (scenarioId: string) => void;
   markSaved: (scenarioId: string, payloadHash: string, revision: number, lastSavedAt: string) => void;
   markError: (scenarioId: string, message: string) => void;
+  markConflict: (scenarioId: string) => void;
+  saveNow: (input: SaveNowInput) => Promise<SaveNowResult>;
 };
 
-export const useScenarioCloudStore = create<ScenarioCloudState>((set) => ({
+export const useScenarioCloudStore = create<ScenarioCloudState>((set, get) => ({
   active: undefined,
   initialize: (input) =>
     set((state) => {
@@ -58,6 +74,22 @@ export const useScenarioCloudStore = create<ScenarioCloudState>((set) => ({
       };
     }),
   clear: () => set({ active: undefined }),
+  markDirty: (scenarioId) =>
+    set((state) => {
+      if (!state.active || state.active.scenarioId !== scenarioId) {
+        return state;
+      }
+
+      return {
+        active: {
+          ...state.active,
+          dirty: true,
+          saveStatus: state.active.saveStatus === "saving" ? "saving" : "unsaved",
+          lastSaveError: undefined,
+          lastChangeAt: Date.now(),
+        },
+      };
+    }),
   markUnsaved: (scenarioId, payloadHash) =>
     set((state) => {
       if (!state.active || state.active.scenarioId !== scenarioId) {
@@ -131,4 +163,49 @@ export const useScenarioCloudStore = create<ScenarioCloudState>((set) => ({
         },
       };
     }),
+  markConflict: (scenarioId) =>
+    set((state) => {
+      if (!state.active || state.active.scenarioId !== scenarioId) {
+        return state;
+      }
+
+      return {
+        active: {
+          ...state.active,
+          saveStatus: "conflict",
+          lastSaveError: "Revision conflict",
+        },
+      };
+    }),
+  saveNow: async ({ payload, payloadHash, save }) => {
+    const meta = get().active;
+    if (!meta) {
+      return { ok: false, reason: "missing-meta" };
+    }
+    if (meta.saveStatus === "saving") {
+      return { ok: false, reason: "already-saving" };
+    }
+
+    get().markSaving(meta.scenarioId);
+
+    try {
+      const result = await save({
+        caseId: meta.caseId,
+        scenarioId: meta.scenarioId,
+        payload,
+        expectedRevision: meta.revision,
+      });
+      get().markSaved(meta.scenarioId, payloadHash, result.revision, result.lastSavedAt);
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Save failed";
+      if (message === "REVISION_CONFLICT") {
+        get().markConflict(meta.scenarioId);
+        return { ok: false, reason: "conflict" };
+      }
+
+      get().markError(meta.scenarioId, message);
+      return { ok: false, reason: "error" };
+    }
+  },
 }));

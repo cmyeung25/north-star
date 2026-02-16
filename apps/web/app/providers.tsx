@@ -76,6 +76,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
   const isOnboarding = normalizedPathname.startsWith("/onboarding");
   const skipScenarioGuard =
     isOnboarding || normalizedPathname.startsWith("/login") || normalizedPathname.startsWith("/debug");
+  const isWorkspaceAppRoute = normalizedPathname.startsWith("/app/case/");
 
   const activeScenario = useMemo(
     () => getActiveScenario(scenarios, activeScenarioId),
@@ -191,7 +192,8 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
       authState.status !== "signed-in" ||
       !authState.user ||
       !autoSyncEnabled ||
-      !isFirebaseConfigured
+      !isFirebaseConfigured ||
+      isWorkspaceAppRoute
     ) {
       stopAutoSync();
       return;
@@ -202,7 +204,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
     return () => {
       stopAutoSync();
     };
-  }, [authState.status, authState.user, autoSyncEnabled]);
+  }, [authState.status, authState.user, autoSyncEnabled, isWorkspaceAppRoute]);
 
   useEffect(() => {
     const loadUser = async () => {

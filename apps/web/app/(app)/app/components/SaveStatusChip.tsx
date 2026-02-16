@@ -7,6 +7,7 @@ const LABELS: Record<ScenarioSaveStatus, string> = {
   unsaved: "Unsaved",
   saving: "Saving",
   error: "Error",
+  conflict: "Conflict",
 };
 
 const COLORS: Record<ScenarioSaveStatus, string> = {
@@ -14,6 +15,7 @@ const COLORS: Record<ScenarioSaveStatus, string> = {
   unsaved: "#92400e",
   saving: "#1d4ed8",
   error: "#b91c1c",
+  conflict: "#b45309",
 };
 
 export default function SaveStatusChip({ status }: { status: ScenarioSaveStatus }) {
