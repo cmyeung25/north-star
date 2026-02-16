@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import { ActionIcon, Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { createCaseAction, deleteCaseAction, openCaseAction, renameCaseAction } from "../cases/actions";
+import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
 
 const formatDate = (value: string) => new Date(value).toLocaleString();
@@ -64,7 +65,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                     onClick={() =>
                       submit(
                         () => openCaseAction({ caseId: entry.id }),
-                        ({ caseId, scenarioId }) => router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`),
+                        ({ caseId, scenarioId }) => router.push(scenarioOnboardingPath(caseId, scenarioId)),
                       )
                     }
                   >
@@ -103,7 +104,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                   onClick={() =>
                     submit(
                       () => openCaseAction({ caseId: entry.id }),
-                      ({ caseId, scenarioId }) => router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`),
+                      ({ caseId, scenarioId }) => router.push(scenarioOnboardingPath(caseId, scenarioId)),
                     )
                   }
                 >
@@ -143,7 +144,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
               setCreateOpen(false);
               setNewTitle("");
               setCurrency("HKD");
-              router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`);
+              router.push(scenarioOnboardingPath(caseId, scenarioId));
             },
           )
         }
