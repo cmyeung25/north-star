@@ -6,10 +6,42 @@ import type {
 } from "../CaseScenarioRepo";
 import { RevisionConflictError } from "../CaseScenarioRepo";
 import type { SaveScenarioResult, ScenarioPayload } from "../types";
+
 type DbClient = SupabaseClient;
+
+const getSchemaVersion = (state: unknown): number => {
+  if (!state || typeof state !== "object") {
+    return 1;
+  }
+
+  const meta = (state as { meta?: unknown }).meta;
+  if (!meta || typeof meta !== "object") {
+    return 1;
+  }
+
+  const schemaVersion = (meta as { schemaVersion?: unknown }).schemaVersion;
+  return typeof schemaVersion === "number" ? schemaVersion : 1;
+};
 
 export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
   constructor(private readonly client: DbClient) {}
+
+  private async requireOwnerId() {
+    const {
+      data: { user },
+      error,
+    } = await this.client.auth.getUser();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!user) {
+      throw new Error("Authenticated user is required for case/scenario persistence.");
+    }
+
+    return user.id;
+  }
 
   async listCases() {
     const { data, error } = await this.client
@@ -26,9 +58,10 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
   }
 
   async createCase(input: CreateCaseInput) {
+    const ownerId = await this.requireOwnerId();
     const { data, error } = await this.client
       .from("cases")
-      .insert({ title: input.title })
+      .insert({ owner_id: ownerId, title: input.title })
       .select("id,title,created_at,updated_at")
       .single();
     if (error) throw error;
@@ -53,7 +86,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
   async listScenarios(caseId: string) {
     const { data, error } = await this.client
       .from("scenarios")
-      .select("id,case_id,title,schema_version,revision,created_at,updated_at")
+      .select("id,case_id,title,state,revision,created_at,updated_at")
       .eq("case_id", caseId)
       .order("updated_at", { ascending: false });
     if (error) throw error;
@@ -61,7 +94,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
       id: row.id,
       caseId: row.case_id,
       title: row.title,
-      schemaVersion: row.schema_version,
+      schemaVersion: getSchemaVersion(row.state),
       revision: row.revision,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -69,22 +102,23 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
   }
 
   async createScenario(caseId: string, input: CreateScenarioInput) {
+    const ownerId = await this.requireOwnerId();
     const { data, error } = await this.client
       .from("scenarios")
       .insert({
         case_id: caseId,
+        owner_id: ownerId,
         title: input.title,
-        payload: input.payload,
-        schema_version: input.schemaVersion ?? 1,
+        state: input.payload,
       })
-      .select("id,case_id,title,schema_version,revision,created_at,updated_at")
+      .select("id,case_id,title,state,revision,created_at,updated_at")
       .single();
     if (error) throw error;
     return {
       id: data.id,
       caseId: data.case_id,
       title: data.title,
-      schemaVersion: data.schema_version,
+      schemaVersion: getSchemaVersion(data.state),
       revision: data.revision,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
@@ -94,7 +128,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
   async duplicateScenario(caseId: string, scenarioId: string) {
     const { data: existing, error: loadError } = await this.client
       .from("scenarios")
-      .select("title,payload,schema_version")
+      .select("title,state")
       .eq("id", scenarioId)
       .eq("case_id", caseId)
       .single();
@@ -102,8 +136,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
 
     return this.createScenario(caseId, {
       title: `${existing.title} (Copy)`,
-      payload: existing.payload as ScenarioPayload,
-      schemaVersion: existing.schema_version,
+      payload: existing.state as ScenarioPayload,
     });
   }
 
@@ -119,12 +152,12 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
   async loadScenarioPayload(caseId: string, scenarioId: string) {
     const { data, error } = await this.client
       .from("scenarios")
-      .select("payload")
+      .select("state")
       .eq("id", scenarioId)
       .eq("case_id", caseId)
       .single();
     if (error) throw error;
-    return (data.payload ?? {}) as ScenarioPayload;
+    return (data.state ?? {}) as ScenarioPayload;
   }
 
   async saveScenarioPayload(
@@ -136,7 +169,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
     if (typeof expectedRevision !== "number") {
       const { data, error } = await this.client
         .from("scenarios")
-        .update({ payload, updated_at: new Date().toISOString() })
+        .update({ state: payload, updated_at: new Date().toISOString() })
         .eq("id", scenarioId)
         .eq("case_id", caseId)
         .select("revision,updated_at")
@@ -159,7 +192,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
     const nextRevision = expectedRevision + 1;
     const { data, error } = await this.client
       .from("scenarios")
-      .update({ payload, revision: nextRevision, updated_at: new Date().toISOString() })
+      .update({ state: payload, revision: nextRevision, updated_at: new Date().toISOString() })
       .eq("id", scenarioId)
       .eq("case_id", caseId)
       .eq("revision", expectedRevision)

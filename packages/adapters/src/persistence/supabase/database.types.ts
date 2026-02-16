@@ -8,6 +8,8 @@ export type Database = {
           id: string;
           owner_id: string;
           title: string;
+          description: string | null;
+          currency: string;
           created_at: string;
           updated_at: string;
         };
@@ -15,11 +17,15 @@ export type Database = {
           id?: string;
           owner_id?: string;
           title: string;
+          description?: string | null;
+          currency?: string;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           title?: string;
+          description?: string | null;
+          currency?: string;
           updated_at?: string;
         };
       };
@@ -29,8 +35,7 @@ export type Database = {
           case_id: string;
           owner_id: string;
           title: string;
-          payload: Json;
-          schema_version: number;
+          state: Json;
           revision: number;
           created_at: string;
           updated_at: string;
@@ -40,16 +45,14 @@ export type Database = {
           case_id: string;
           owner_id?: string;
           title: string;
-          payload: Json;
-          schema_version?: number;
+          state?: Json;
           revision?: number;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           title?: string;
-          payload?: Json;
-          schema_version?: number;
+          state?: Json;
           revision?: number;
           updated_at?: string;
         };
