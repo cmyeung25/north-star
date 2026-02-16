@@ -1,12 +1,7 @@
-import OverviewClient from "../overview/OverviewClient";
+import { redirect } from "next/navigation";
+import { ensureDefaultCaseAndScenario } from "../../../lib/scenario/pipeline";
 
-type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
-};
-
-export default function Page({ searchParams }: PageProps) {
-  const scenarioId =
-    typeof searchParams?.scenarioId === "string" ? searchParams.scenarioId : undefined;
-
-  return <OverviewClient scenarioId={scenarioId} />;
+export default async function Page() {
+  const { caseId, scenarioId } = await ensureDefaultCaseAndScenario();
+  redirect(`/app/case/${caseId}/scenario/${scenarioId}/dashboard`);
 }
