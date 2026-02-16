@@ -6,6 +6,7 @@ import {
 import type { EventDefinition } from "../domain/events/types";
 import { SCHEMA_VERSION } from "./scenarioSchema";
 import type { AppSettings, BudgetRule, ScenarioMember } from "./scenarioStore";
+import { ensureEventsV2Marker } from "../../lib/scenario/ensureEventsV2Marker";
 
 export type ScenarioStoreSnapshot = {
   scenarios: Scenario[];
@@ -25,6 +26,9 @@ export type ScenarioStatePayload = ScenarioStoreSnapshot & {
     scenarioId?: string;
     lastOpenedAt?: string;
     lastSavedAt?: string;
+    schemaVersion?: number;
+    onboarded?: boolean;
+    onboardedAt?: string;
   };
   revision?: number;
 };
@@ -57,19 +61,20 @@ export const exportScenarioState = (): ScenarioStatePayload => {
 };
 
 export const importScenarioState = (payload: ScenarioStatePayload) => {
-  const normalizedScenarios = normalizeScenarioList(payload.scenarios);
+  const normalizedPayload = ensureEventsV2Marker(payload as unknown as Record<string, unknown>) as ScenarioStatePayload;
+  const normalizedScenarios = normalizeScenarioList(normalizedPayload.scenarios);
   const normalizedActiveScenarioId = normalizeActiveScenarioId(
     normalizedScenarios,
-    payload.activeScenarioId
+    normalizedPayload.activeScenarioId
   );
   const globalHorizonMonths =
-    typeof payload.appSettings?.globalHorizonMonths === "number"
-      ? payload.appSettings.globalHorizonMonths
-      : typeof payload.globalHorizonMonths === "number"
-      ? payload.globalHorizonMonths
+    typeof normalizedPayload.appSettings?.globalHorizonMonths === "number"
+      ? normalizedPayload.appSettings.globalHorizonMonths
+      : typeof normalizedPayload.globalHorizonMonths === "number"
+      ? normalizedPayload.globalHorizonMonths
       : useScenarioStore.getState().appSettings.globalHorizonMonths;
   const nextAppSettings =
-    payload.appSettings ??
+    normalizedPayload.appSettings ??
     ({
       ...useScenarioStore.getState().appSettings,
       globalHorizonMonths,
@@ -77,20 +82,20 @@ export const importScenarioState = (payload: ScenarioStatePayload) => {
 
   useScenarioStore.setState({
     scenarios: normalizedScenarios,
-    eventLibrary: payload.eventLibrary,
+    eventLibrary: normalizedPayload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
     appSettings: nextAppSettings,
-    members: payload.members ?? useScenarioStore.getState().members,
-    budgetRules: payload.budgetRules ?? useScenarioStore.getState().budgetRules,
+    members: normalizedPayload.members ?? useScenarioStore.getState().members,
+    budgetRules: normalizedPayload.budgetRules ?? useScenarioStore.getState().budgetRules,
   });
 
   return {
     scenarios: normalizedScenarios,
-    eventLibrary: payload.eventLibrary,
+    eventLibrary: normalizedPayload.eventLibrary,
     activeScenarioId: normalizedActiveScenarioId,
     appSettings: nextAppSettings,
-    members: payload.members ?? useScenarioStore.getState().members,
-    budgetRules: payload.budgetRules ?? useScenarioStore.getState().budgetRules,
+    members: normalizedPayload.members ?? useScenarioStore.getState().members,
+    budgetRules: normalizedPayload.budgetRules ?? useScenarioStore.getState().budgetRules,
     globalHorizonMonths,
   } satisfies ScenarioStoreSnapshot;
 };

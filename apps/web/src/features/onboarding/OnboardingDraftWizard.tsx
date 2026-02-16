@@ -71,6 +71,7 @@ import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenar
 import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { exportScenarioState } from "../../store/scenarioState";
 import { buildAppScenarioUrl } from "../../../lib/routes";
+import { ensureEventsV2Marker } from "../../../lib/scenario/ensureEventsV2Marker";
 
 const steps = [
   "profile",
@@ -1781,10 +1782,13 @@ export default function OnboardingDraftWizard() {
       scenarioContext &&
       scenarioContext.scenarioId === scenarioId
     ) {
-      const payload = exportScenarioState() as Record<string, unknown>;
+      const nowIso = new Date().toISOString();
+      const payload = ensureEventsV2Marker(exportScenarioState() as Record<string, unknown>);
       const nextMeta = {
         ...(payload.meta && typeof payload.meta === "object" ? payload.meta : {}),
         onboarded: true,
+        onboardedAt: nowIso,
+        lastSavedAt: nowIso,
       };
       payload.meta = nextMeta;
 
