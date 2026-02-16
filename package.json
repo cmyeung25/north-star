@@ -11,7 +11,11 @@
     "typecheck": "turbo run typecheck",
     "build": "turbo run build",
     "test": "turbo run test",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "db:migrate": "pnpm --filter @north-star/db-migrations migrate",
+    "db:status": "pnpm --filter @north-star/db-migrations status",
+    "db:rollback": "pnpm --filter @north-star/db-migrations rollback",
+    "db:create": "pnpm --filter @north-star/db-migrations create"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.18.0",
