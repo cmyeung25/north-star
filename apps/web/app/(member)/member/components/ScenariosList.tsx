@@ -19,24 +19,40 @@ import {
 
 const formatDate = (value: string) => new Date(value).toLocaleString();
 
-function OpenScenarioButton({ caseId, scenarioId }: { caseId: string; scenarioId: string }) {
+function markLastOpened(caseId: string, scenarioId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem("aurin:lastOpened", JSON.stringify({ caseId, scenarioId }));
+}
+
+function OpenScenarioButtons({ caseId, scenarioId }: { caseId: string; scenarioId: string }) {
   const href = buildAppScenarioUrl({ caseId, scenarioId });
+
   return (
-    <Button
-      component={Link}
-      href={href}
-      size="xs"
-      onClick={() => {
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            "aurin:lastOpened",
-            JSON.stringify({ caseId, scenarioId }),
-          );
-        }
-      }}
-    >
-      開啟
-    </Button>
+    <Group gap="xs">
+      <Button
+        component={Link}
+        href={href}
+        size="xs"
+        onClick={() => {
+          markLastOpened(caseId, scenarioId);
+        }}
+      >
+        Open app
+      </Button>
+      <Button
+        size="xs"
+        variant="default"
+        onClick={() => {
+          markLastOpened(caseId, scenarioId);
+          window.open(href, "_blank", "noopener,noreferrer");
+        }}
+      >
+        Open in new window
+      </Button>
+    </Group>
   );
 }
 
@@ -86,7 +102,7 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
               <Table.Td>{scenario.revision}</Table.Td>
               <Table.Td>
                 <Group gap="xs">
-                  <OpenScenarioButton caseId={caseId} scenarioId={scenario.id} />
+                  <OpenScenarioButtons caseId={caseId} scenarioId={scenario.id} />
                   <Button size="xs" variant="default" onClick={() => setDuplicateTarget(scenario)}>
                     Duplicate
                   </Button>
@@ -117,7 +133,7 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
                 Revision {scenario.revision}
               </Text>
               <Group>
-                <OpenScenarioButton caseId={caseId} scenarioId={scenario.id} />
+                <OpenScenarioButtons caseId={caseId} scenarioId={scenario.id} />
                 <Button size="xs" variant="default" onClick={() => setDuplicateTarget(scenario)}>
                   Duplicate
                 </Button>
