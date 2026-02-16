@@ -3677,16 +3677,6 @@ export default function MoneyClient({
                 </Group>
               </Card>
             )}
-            {!scenarioIsV2 && (
-              <Card withBorder radius="md" padding="md">
-                <Stack gap={4}>
-                  <Text fw={600}>{t("unsupportedScenarioTitle")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {t("unsupportedScenarioBody")}
-                  </Text>
-                </Stack>
-              </Card>
-            )}
             <Tabs value={activeTab} onChange={(value) => setActiveTab(value as MoneyTab)}>
               {isMobile ? (
                 <ScrollArea scrollbarSize={4} offsetScrollbars>
