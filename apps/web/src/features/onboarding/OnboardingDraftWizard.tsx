@@ -70,8 +70,8 @@ import { scenarioAssumptionSchema } from "../../domain/scenarioAssumptions";
 import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenarioSave.actions";
 import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { exportScenarioState } from "../../store/scenarioState";
-import { buildAppScenarioUrl } from "../../../lib/routes";
-import { ensureEventsV2Marker } from "../../../lib/scenario/ensureEventsV2Marker";
+import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
+import { ensureEventSchemaMarker } from "@north-star/adapters";
 
 const steps = [
   "profile",
@@ -86,10 +86,13 @@ const steps = [
   "review",
 ] as const;
 
-const DRAFT_STORAGE_KEY = "onboarding:v2:draft";
+const DRAFT_STORAGE_KEY_PREFIX = "onboarding:v2:draft";
 const TELEMETRY_STORAGE_KEY = "onboarding:v2:telemetry";
 const TELEMETRY_EVENT_LIMIT = 50;
 const isDev = process.env.NODE_ENV === "development";
+
+const getDraftStorageKey = (scenarioId?: string) =>
+  scenarioId ? `${DRAFT_STORAGE_KEY_PREFIX}:${scenarioId}` : DRAFT_STORAGE_KEY_PREFIX;
 
 type OnboardingTelemetryEvent = {
   name:
@@ -592,9 +595,11 @@ const normalizeDraftDebts = ({
 const getInitialDraftState = ({
   baseCurrency,
   assumptions,
+  scenarioId,
 }: {
   baseCurrency: string;
   assumptions?: OnboardingV2DraftAssumptions;
+  scenarioId?: string;
 }): DraftStorageState => {
   const assumptionsFallback =
     assumptions ?? buildOnboardingAssumptionsDraft(undefined);
@@ -632,7 +637,7 @@ const getInitialDraftState = ({
   }
 
   try {
-    const stored = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+    const stored = window.localStorage.getItem(getDraftStorageKey(scenarioId));
     if (!stored) {
       return fallback;
     }
@@ -786,8 +791,9 @@ export default function OnboardingDraftWizard() {
       getInitialDraftState({
         baseCurrency: scenario?.baseCurrency ?? defaultCurrency,
         assumptions: buildOnboardingAssumptionsDraft(scenario?.assumptions),
+        scenarioId: scenario?.id,
       }),
-    [scenario?.assumptions, scenario?.baseCurrency]
+    [scenario?.assumptions, scenario?.baseCurrency, scenario?.id]
   );
   const [step, setStep] = useState(
     Math.min(initialState.step, steps.length - 1)
@@ -881,6 +887,26 @@ export default function OnboardingDraftWizard() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !scenarioId) {
+      return;
+    }
+
+    const scopedKey = getDraftStorageKey(scenarioId);
+    const existingScoped = window.localStorage.getItem(scopedKey);
+    if (existingScoped) {
+      return;
+    }
+
+    const legacyDraft = window.localStorage.getItem(DRAFT_STORAGE_KEY_PREFIX);
+    if (!legacyDraft) {
+      return;
+    }
+
+    window.localStorage.setItem(scopedKey, legacyDraft);
+    window.localStorage.removeItem(DRAFT_STORAGE_KEY_PREFIX);
+  }, [scenarioId]);
+
+  useEffect(() => {
     if (hasStartedRef.current || !scenarioId) {
       return;
     }
@@ -935,7 +961,7 @@ export default function OnboardingDraftWizard() {
       debts,
       insurance,
     };
-    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    window.localStorage.setItem(getDraftStorageKey(scenarioId), JSON.stringify(payload));
     setLastAutoSavedAt(new Date().toISOString());
   }, [
     assumptions,
@@ -947,6 +973,7 @@ export default function OnboardingDraftWizard() {
     insurance,
     livingSpend,
     profile,
+    scenarioId,
     step,
   ]);
 
@@ -1783,7 +1810,7 @@ export default function OnboardingDraftWizard() {
       scenarioContext.scenarioId === scenarioId
     ) {
       const nowIso = new Date().toISOString();
-      const payload = ensureEventsV2Marker(exportScenarioState() as Record<string, unknown>);
+      const payload = ensureEventSchemaMarker(exportScenarioState() as Record<string, unknown>);
       const nextMeta = {
         ...(payload.meta && typeof payload.meta === "object" ? payload.meta : {}),
         onboarded: true,
@@ -1804,10 +1831,12 @@ export default function OnboardingDraftWizard() {
         return;
       }
 
-      router.push(`${buildAppScenarioUrl({ caseId: scenarioContext.caseId, scenarioId })}/dashboard`);
+      window.localStorage.removeItem(getDraftStorageKey(scenarioId));
+      router.push(scenarioDashboardPath(scenarioContext.caseId, scenarioId));
       return;
     }
 
+    window.localStorage.removeItem(getDraftStorageKey(scenarioId));
     router.push(`/${locale}/dashboard`);
   };
 
@@ -1833,6 +1862,7 @@ export default function OnboardingDraftWizard() {
     });
     updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+    window.localStorage.removeItem(getDraftStorageKey(scenarioId));
     router.push(`/${locale}${buildScenarioUrl("/dashboard", scenarioId)}`);
   };
 

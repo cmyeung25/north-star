@@ -422,6 +422,7 @@ export type PositionCopyType =
 export type ScenarioMeta = {
   onboardingVersion?: number;
   schemaVersion?: number;
+  onboarded?: boolean;
   isSeeded?: boolean;
   skipOnboarding?: boolean;
   planLab?: PlanLabMeta;
@@ -1983,8 +1984,17 @@ export const isLegacyOnboardingScenario = (scenario?: Scenario | null) => {
   return !onboardingVersion || onboardingVersion < 2;
 };
 
-export const isScenarioV2 = (scenario?: Scenario | null) =>
-  scenario?.meta?.schemaVersion === 2;
+export const isScenarioV2 = (scenario?: Scenario | null) => {
+  if (!scenario) {
+    return false;
+  }
+
+  if (scenario.meta?.schemaVersion === 2) {
+    return true;
+  }
+
+  return scenario.meta?.onboarded === true && Array.isArray(scenario.events);
+};
 
 export const resetAppState = () => {
   const state = useScenarioStore.getState();

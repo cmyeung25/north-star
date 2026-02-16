@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import type { ScenarioSummary } from "@north-star/adapters";
 import { Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { buildAppScenarioUrl } from "../../../../lib/routes";
+import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import {
   createScenarioAction,
   deleteScenarioAction,
@@ -158,7 +159,7 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
             ({ scenarioId }) => {
               setCreateOpen(false);
               setCreateTitle("");
-              router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`);
+              router.push(scenarioOnboardingPath(caseId, scenarioId));
             },
           )
         }

@@ -1,10 +1,14 @@
-import { redirect } from "next/navigation";
-import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
+import { notFound, redirect } from "next/navigation";
+import { scenarioDashboardPath } from "../../../../../../../lib/routes/appRoutes";
 
 type PageProps = {
   params: { caseId: string; scenarioId: string };
 };
 
 export default function AppCaseScenarioPage({ params }: PageProps) {
-  redirect(`${buildAppScenarioUrl({ caseId: params.caseId, scenarioId: params.scenarioId })}/dashboard`);
+  if (!params.caseId || !params.scenarioId) {
+    notFound();
+  }
+
+  redirect(scenarioDashboardPath(params.caseId, params.scenarioId));
 }

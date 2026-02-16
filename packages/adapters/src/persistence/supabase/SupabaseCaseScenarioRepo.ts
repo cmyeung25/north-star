@@ -6,51 +6,9 @@ import type {
 } from "../CaseScenarioRepo";
 import { RevisionConflictError } from "../CaseScenarioRepo";
 import type { SaveScenarioResult, ScenarioPayload } from "../types";
+import { ensureEventSchemaMarker } from "../../scenario/ensureEventSchemaMarker";
 
 type DbClient = SupabaseClient;
-
-const SCENARIO_SCHEMA_VERSION = 2;
-
-const ensureEventsV2Payload = (payload: ScenarioPayload): ScenarioPayload => {
-  const source = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-  const payloadMeta =
-    source.meta && typeof source.meta === "object"
-      ? (source.meta as Record<string, unknown>)
-      : {};
-
-  const scenarios = Array.isArray(source.scenarios)
-    ? source.scenarios.map((scenario) => {
-        if (!scenario || typeof scenario !== "object") {
-          return scenario;
-        }
-        const record = scenario as Record<string, unknown>;
-        const scenarioMeta =
-          record.meta && typeof record.meta === "object"
-            ? (record.meta as Record<string, unknown>)
-            : {};
-        if (scenarioMeta.schemaVersion === SCENARIO_SCHEMA_VERSION) {
-          return scenario;
-        }
-        return {
-          ...record,
-          meta: {
-            ...scenarioMeta,
-            schemaVersion: SCENARIO_SCHEMA_VERSION,
-          },
-        };
-      })
-    : source.scenarios;
-
-  return {
-    ...source,
-    schemaVersion: SCENARIO_SCHEMA_VERSION,
-    scenarios,
-    meta: {
-      ...payloadMeta,
-      schemaVersion: SCENARIO_SCHEMA_VERSION,
-    },
-  };
-};
 
 const getSchemaVersion = (state: unknown): number => {
   if (!state || typeof state !== "object") {
@@ -157,7 +115,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
         case_id: caseId,
         owner_id: ownerId,
         title: input.title,
-        state: ensureEventsV2Payload(input.payload),
+        state: ensureEventSchemaMarker(input.payload),
       })
       .select("id,case_id,title,state,revision,created_at,updated_at")
       .single();
@@ -221,7 +179,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
       .eq("case_id", caseId)
       .single();
     if (error) throw error;
-    return ensureEventsV2Payload((data.state ?? {}) as ScenarioPayload);
+    return ensureEventSchemaMarker((data.state ?? {}) as ScenarioPayload);
   }
 
   async saveScenarioPayload(
@@ -235,7 +193,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
     const { data, error } = await this.client
       .from("scenarios")
       .update({
-        state: ensureEventsV2Payload(payload),
+        state: ensureEventSchemaMarker(payload),
         updated_at: new Date().toISOString(),
         ...(typeof nextRevision === "number" ? { revision: nextRevision } : {}),
       })
