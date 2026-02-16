@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { getMessages, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
-import IntlProvider from "./IntlProvider";
 import Providers from "../providers";
 import { createSupabaseServerClient } from "../../src/lib/supabase/server";
 import { defaultLocale, locales, type Locale } from "../../src/i18n/routing";
@@ -31,7 +30,7 @@ export async function generateMetadata({
     description: t("appDescription"),
     manifest: "/manifest.json",
     applicationName: t("appName"),
-     icons: {
+    icons: {
       icon: [
         { url: "/favicon.ico" },
         { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -57,15 +56,10 @@ export default async function LocaleLayout({
     notFound();
   }
 
-  const messages = await getMessages({ locale });
   const supabase = createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return (
-    <IntlProvider messages={messages} locale={locale}>
-      <Providers initialSupabaseUser={user}>{children}</Providers>
-    </IntlProvider>
-  );
+  return <Providers initialSupabaseUser={user}>{children}</Providers>;
 }

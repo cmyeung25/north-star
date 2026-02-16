@@ -3,8 +3,9 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { ColorSchemeScript } from "@mantine/core";
 import { cookies, headers } from "next/headers";
+import { getMessages } from "next-intl/server";
 import { defaultLocale, locales, type Locale } from "../src/i18n/routing";
-import RootProviders from "./root-providers";
+import AppProviders from "./app-providers";
 
 const resolveLocale = (): Locale => {
   const localeFromHeader = headers().get("x-next-intl-locale");
@@ -20,15 +21,20 @@ const resolveLocale = (): Locale => {
   return defaultLocale;
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = resolveLocale();
+  const messages = await getMessages({ locale });
 
   return (
     <html lang={locale}>
       <head>
         <ColorSchemeScript defaultColorScheme="light" />
       </head>
-      <body><RootProviders>{children}</RootProviders></body>
+      <body>
+        <AppProviders locale={locale} messages={messages}>
+          {children}
+        </AppProviders>
+      </body>
     </html>
   );
 }

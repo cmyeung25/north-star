@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   duplicateScenarioFromLocalPayloadAction,
@@ -64,10 +65,12 @@ export default function ScenarioAppShell({ title, children }: ScenarioAppShellPr
   const caseId = scenarioContext?.caseId ?? "";
   const scenarioId = scenarioContext?.scenarioId ?? "";
 
+  const appScenarioUrl = buildAppScenarioUrl({ caseId, scenarioId });
+
   const tabs: WorkspaceTab[] = [
-    { href: `/app/case/${caseId}/scenario/${scenarioId}/dashboard`, label: "Dashboard" },
-    { href: `/app/case/${caseId}/scenario/${scenarioId}/money`, label: "Money" },
-    { href: `/app/case/${caseId}/scenario/${scenarioId}/planlab`, label: "Plan Lab" },
+    { href: `${appScenarioUrl}/dashboard`, label: "Dashboard" },
+    { href: `${appScenarioUrl}/money`, label: "Money" },
+    { href: `${appScenarioUrl}/planlab`, label: "Plan Lab" },
   ];
 
   const enabled = Boolean(meta && scenarioId && meta.scenarioId === scenarioId);
@@ -141,7 +144,7 @@ export default function ScenarioAppShell({ title, children }: ScenarioAppShellPr
     try {
       const payload = exportScenarioState() as unknown as Record<string, unknown>;
       const result = await duplicateScenarioFromLocalPayloadAction(caseId, scenarioId, payload);
-      router.replace(`/app/case/${caseId}/scenario/${result.scenarioId}/dashboard`);
+      router.replace(`${buildAppScenarioUrl({ caseId, scenarioId: result.scenarioId })}/dashboard`);
       setShowConflict(false);
     } finally {
       setConflictBusy(false);

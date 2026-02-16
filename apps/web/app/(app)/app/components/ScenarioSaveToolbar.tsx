@@ -131,7 +131,7 @@ export default function ScenarioSaveToolbar() {
     try {
       const payload = toPayload();
       const result = await duplicateScenarioFromLocalPayloadAction(caseId, scenarioId, payload);
-      router.replace(buildAppScenarioUrl({ caseId, scenarioId: result.scenarioId }));
+      router.replace(`${buildAppScenarioUrl({ caseId, scenarioId: result.scenarioId })}/dashboard`);
       setShowConflict(false);
     } finally {
       setConflictBusy(false);
