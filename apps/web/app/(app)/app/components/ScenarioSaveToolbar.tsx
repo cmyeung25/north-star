@@ -14,6 +14,7 @@ import { useScenarioCloudStore } from "../../../../src/store/scenarioCloudStore"
 import RevisionConflictModal from "./RevisionConflictModal";
 import SaveButton from "./SaveButton";
 import SaveStatusChip from "./SaveStatusChip";
+import { buildAppScenarioUrl } from "../../../../lib/routes";
 
 const AUTOSAVE_DELAY_MS = 45_000;
 
@@ -113,7 +114,7 @@ export default function ScenarioSaveToolbar() {
     try {
       const payload = toPayload();
       const result = await duplicateScenarioFromLocalPayloadAction(caseId, scenarioId, payload);
-      router.replace(`/app/case/${caseId}/scenario/${result.scenarioId}`);
+      router.replace(buildAppScenarioUrl({ caseId, scenarioId: result.scenarioId }));
       setShowConflict(false);
     } finally {
       setConflictBusy(false);
@@ -132,7 +133,14 @@ export default function ScenarioSaveToolbar() {
           Last saved: {meta.lastSavedAt ? new Date(meta.lastSavedAt).toLocaleString() : "—"}
         </span>
         <span style={{ fontSize: 12, color: "#525252" }}>rev {meta.revision}</span>
-        <SaveButton onClick={() => void save("manual")} disabled={meta.saveStatus === "saving"} />
+        <SaveButton
+          onClick={() => void save("manual")}
+          disabled={meta.saveStatus === "saving" || !scenarioId}
+          title={!scenarioId ? "Scenario ID missing" : undefined}
+        />
+        {meta.saveStatus === "error" && meta.lastSaveError ? (
+          <span style={{ fontSize: 12, color: "#b91c1c" }}>{meta.lastSaveError}</span>
+        ) : null}
       </div>
       <RevisionConflictModal
         open={showConflict}

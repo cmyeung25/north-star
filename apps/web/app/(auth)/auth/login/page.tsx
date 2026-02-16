@@ -4,6 +4,7 @@ import { Alert, Button, Paper, PasswordInput, Stack, Text, TextInput, Title } fr
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../../../src/lib/supabase/browser";
+import { buildAppScenarioUrl } from "../../../../lib/routes";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -43,7 +44,7 @@ const getLastOpenedPath = (): string | null => {
       return null;
     }
 
-    return `/app/case/${parsed.caseId}/scenario/${parsed.scenarioId}`;
+    return buildAppScenarioUrl({ caseId: parsed.caseId, scenarioId: parsed.scenarioId });
   } catch {
     return null;
   }
