@@ -28,14 +28,24 @@ export default function ScenarioMoneyPage({ searchParams }: PageProps) {
       : false;
 
   return (
-    <MoneyClient
-      initialTab={tab}
-      initialAdd={add}
-      initialEditEventId={editEventId}
-      initialEditHomeId={editHomeId}
-      initialEditSmartInvest={editSmartInvest}
-      initialShowOnboardingBanner={showOnboardingBanner}
-      initialShowOnboardingSkipped={showOnboardingSkipped}
-    />
+    <section
+      style={{
+        border: "1px solid #152741",
+        borderRadius: "0.9rem",
+        background: "#0F1D33",
+        color: "#E6F0FF",
+        padding: "1rem",
+      }}
+    >
+      <MoneyClient
+        initialTab={tab}
+        initialAdd={add}
+        initialEditEventId={editEventId}
+        initialEditHomeId={editHomeId}
+        initialEditSmartInvest={editSmartInvest}
+        initialShowOnboardingBanner={showOnboardingBanner}
+        initialShowOnboardingSkipped={showOnboardingSkipped}
+      />
+    </section>
   );
 }
