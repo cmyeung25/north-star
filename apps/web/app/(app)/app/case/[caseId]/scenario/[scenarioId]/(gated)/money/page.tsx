@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MoneyClient from "../../../../../../../[locale]/money/MoneyClient";
+import MoneyClient from "../../../../../../../../[locale]/money/MoneyClient";
 
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
