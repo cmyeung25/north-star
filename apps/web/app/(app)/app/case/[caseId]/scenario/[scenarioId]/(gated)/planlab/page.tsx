@@ -1,4 +1,4 @@
-import PlanLabClient from "../../../../../../../[locale]/plan-lab/PlanLabClient";
+import PlanLabClient from "../../../../../../../../[locale]/plan-lab/PlanLabClient";
 
 const cardStyle = {
   border: "1px solid #152741",

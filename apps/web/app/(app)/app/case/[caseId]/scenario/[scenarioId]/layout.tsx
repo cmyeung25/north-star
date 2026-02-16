@@ -1,9 +1,7 @@
-import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../../../../src/lib/supabase/server";
-import { isScenarioStarted } from "../../../../../../../lib/scenario/isScenarioStarted";
 import ScenarioHydrator from "./ScenarioHydrator";
 import ScenarioAppShellV2 from "./ScenarioAppShellV2";
 
@@ -11,7 +9,6 @@ type LayoutProps = {
   params: { caseId: string; scenarioId: string };
   children: ReactNode;
 };
-
 
 export default async function AppCaseScenarioLayout({ params, children }: LayoutProps) {
   const repo = createCaseScenarioRepo({
@@ -27,12 +24,6 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
   }
 
   const payload = await repo.loadScenarioPayload(params.caseId, params.scenarioId);
-  const requestPath = headers().get("x-invoke-path") ?? headers().get("next-url") ?? "";
-  const isOnboardingRoute = requestPath.includes("/onboarding");
-
-  if (!isOnboardingRoute && !isScenarioStarted(payload)) {
-    redirect(`/app/case/${params.caseId}/scenario/${params.scenarioId}/onboarding`);
-  }
 
   return (
     <ScenarioHydrator
