@@ -65,12 +65,12 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
   const [duplicateTarget, setDuplicateTarget] = useState<ScenarioSummary | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScenarioSummary | null>(null);
 
-  const submit = (fn: () => Promise<void>, onDone?: () => void) => {
+  const submit = <T,>(fn: () => Promise<T>, onDone?: (result: T) => void) => {
     setError(null);
     startTransition(() => {
       fn()
-        .then(() => {
-          onDone?.();
+        .then((result) => {
+          onDone?.(result);
           router.refresh();
         })
         .catch((reason) => setError(reason instanceof Error ? reason.message : "Action failed."));
@@ -155,9 +155,10 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
         onSubmit={() =>
           submit(
             () => createScenarioAction({ caseId, title: createTitle }),
-            () => {
+            ({ scenarioId }) => {
               setCreateOpen(false);
               setCreateTitle("");
+              router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`);
             },
           )
         }

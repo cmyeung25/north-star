@@ -21,12 +21,12 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const [renameTitle, setRenameTitle] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CaseSummary | null>(null);
 
-  const submit = (fn: () => Promise<void>, onDone?: () => void) => {
+  const submit = <T,>(fn: () => Promise<T>, onDone?: (result: T) => void) => {
     setError(null);
     startTransition(() => {
       fn()
-        .then(() => {
-          onDone?.();
+        .then((result) => {
+          onDone?.(result);
           router.refresh();
         })
         .catch((reason) => setError(reason instanceof Error ? reason.message : "Action failed."));
@@ -122,10 +122,11 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
         onSubmit={() =>
           submit(
             () => createCaseAction({ title: newTitle, currency }),
-            () => {
+            ({ caseId, scenarioId }) => {
               setCreateOpen(false);
               setNewTitle("");
               setCurrency("HKD");
+              router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`);
             },
           )
         }

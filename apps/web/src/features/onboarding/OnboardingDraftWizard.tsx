@@ -67,6 +67,10 @@ import {
   isPlanningHorizonYears,
 } from "../../domain/assumptions/planningHorizon";
 import { scenarioAssumptionSchema } from "../../domain/scenarioAssumptions";
+import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenarioSave.actions";
+import { useScenarioContext } from "../../hooks/useScenarioContext";
+import { exportScenarioState } from "../../store/scenarioState";
+import { buildAppScenarioUrl } from "../../../lib/routes";
 
 const steps = [
   "profile",
@@ -746,6 +750,7 @@ export default function OnboardingDraftWizard() {
   const validation = useTranslations("validation");
   const locale = useLocale();
   const router = useRouter();
+  const scenarioContext = useScenarioContext();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const appSettings = useScenarioStore((state) => state.appSettings);
@@ -1714,7 +1719,7 @@ export default function OnboardingDraftWizard() {
     setStep((current) => Math.max(current - 1, 0));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!scenarioId || !canApply) {
       return;
     }
@@ -1771,6 +1776,34 @@ export default function OnboardingDraftWizard() {
 
     updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+
+    if (
+      scenarioContext &&
+      scenarioContext.scenarioId === scenarioId
+    ) {
+      const payload = exportScenarioState() as Record<string, unknown>;
+      const nextMeta = {
+        ...(payload.meta && typeof payload.meta === "object" ? payload.meta : {}),
+        onboarded: true,
+      };
+      payload.meta = nextMeta;
+
+      try {
+        await saveScenarioPayloadAction(
+          scenarioContext.caseId,
+          scenarioContext.scenarioId,
+          payload,
+          scenarioContext.revision,
+        );
+      } catch (error) {
+        console.error("Failed to persist onboarding payload", error);
+        return;
+      }
+
+      router.push(`${buildAppScenarioUrl({ caseId: scenarioContext.caseId, scenarioId })}/dashboard`);
+      return;
+    }
+
     router.push(`/${locale}/dashboard`);
   };
 

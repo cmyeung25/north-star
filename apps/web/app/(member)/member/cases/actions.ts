@@ -1,11 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createCaseScenarioRepo } from "@north-star/adapters";
+import { createCaseScenarioRepo, createEmptyScenarioPayload } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../src/lib/supabase/server";
-import { createEmptyScenarioStatePayload } from "../../../../lib/scenario/payload";
-
-const emptyScenarioState = createEmptyScenarioStatePayload();
 
 const repo = () =>
   createCaseScenarioRepo({
@@ -19,11 +16,26 @@ const normalizeTitle = (title: string, fallback: string) => {
 };
 
 export async function createCaseAction(input: { title: string; currency?: string }) {
-  await repo().createCase({
+  const createdCase = await repo().createCase({
     title: normalizeTitle(input.title, "Untitled Case"),
     currency: input.currency ?? "HKD",
   });
+
+  const createdScenario = await repo().createScenario(createdCase.id, {
+    title: "New Scenario",
+    payload: createEmptyScenarioPayload({
+      currency: input.currency ?? "HKD",
+      caseId: createdCase.id,
+      createdFrom: "member-create-case",
+    }),
+  });
+
   revalidatePath("/member/cases");
+
+  return {
+    caseId: createdCase.id,
+    scenarioId: createdScenario.id,
+  };
 }
 
 export async function renameCaseAction(input: { caseId: string; title: string }) {
@@ -38,11 +50,20 @@ export async function deleteCaseAction(input: { caseId: string }) {
 }
 
 export async function createScenarioAction(input: { caseId: string; title: string }) {
-  await repo().createScenario(input.caseId, {
+  const createdScenario = await repo().createScenario(input.caseId, {
     title: normalizeTitle(input.title, "Untitled Scenario"),
-    payload: emptyScenarioState,
+    payload: createEmptyScenarioPayload({
+      caseId: input.caseId,
+      createdFrom: "member-create-scenario",
+    }),
   });
+
   revalidatePath(`/member/cases/${input.caseId}`);
+
+  return {
+    caseId: input.caseId,
+    scenarioId: createdScenario.id,
+  };
 }
 
 export async function duplicateScenarioAction(input: { caseId: string; scenarioId: string }) {
