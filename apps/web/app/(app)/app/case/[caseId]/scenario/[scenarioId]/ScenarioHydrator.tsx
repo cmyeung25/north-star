@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { importScenarioState } from "../../../../../../../src/store/scenarioState";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
 
@@ -15,9 +15,16 @@ type Props = {
 
 export default function ScenarioHydrator({ caseId, scenarioId, payload, revision, lastSavedAt, children }: Props) {
   const [hydrated, setHydrated] = useState(false);
+  const hydratedRef = useRef(false);
   const initializeCloudMeta = useScenarioCloudStore((state) => state.initialize);
 
   useEffect(() => {
+    if (hydratedRef.current) {
+      return;
+    }
+
+    hydratedRef.current = true;
+
     importScenarioState(payload as never);
     initializeCloudMeta({
       caseId,
@@ -26,12 +33,14 @@ export default function ScenarioHydrator({ caseId, scenarioId, payload, revision
       lastSavedAt,
       payloadHash: JSON.stringify(payload),
     });
+
     if (typeof window !== "undefined") {
       window.localStorage.setItem(
         "aurin:lastOpened",
         JSON.stringify({ caseId, scenarioId, at: new Date().toISOString() }),
       );
     }
+
     setHydrated(true);
   }, [caseId, initializeCloudMeta, lastSavedAt, payload, revision, scenarioId]);
 
