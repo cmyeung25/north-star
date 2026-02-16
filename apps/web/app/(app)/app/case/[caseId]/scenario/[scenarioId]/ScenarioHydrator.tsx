@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { importScenarioState } from "../../../../../../../src/store/scenarioState";
+import { useScenarioStore } from "../../../../../../../src/store/scenarioStore";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
 export default function ScenarioHydrator({ caseId, scenarioId, payload, revision, lastSavedAt, children }: Props) {
   const [hydrated, setHydrated] = useState(false);
   const initializeCloudMeta = useScenarioCloudStore((state) => state.initialize);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
 
   useEffect(() => {
     importScenarioState(payload as never);
@@ -34,6 +36,14 @@ export default function ScenarioHydrator({ caseId, scenarioId, payload, revision
     }
     setHydrated(true);
   }, [caseId, initializeCloudMeta, lastSavedAt, payload, revision, scenarioId]);
+
+  useEffect(() => {
+    if (!scenarioId) {
+      return;
+    }
+
+    setActiveScenario(scenarioId);
+  }, [scenarioId, setActiveScenario]);
 
   if (!hydrated) {
     return <p>Hydrating scenario…</p>;

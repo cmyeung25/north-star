@@ -10,6 +10,7 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Skeleton,
   Switch,
   Text,
   TextInput,
@@ -784,7 +785,7 @@ export default function OnboardingDraftWizard() {
     () => getActiveScenario(scenarios, activeScenarioId),
     [activeScenarioId, scenarios]
   );
-  const scenarioIsV2 = isScenarioV2(scenario);
+  const scenarioIsV2 = scenario ? isScenarioV2(scenario) : false;
   const scenarioId = scenario?.id ?? "";
   const initialState = useMemo(
     () =>
@@ -1704,6 +1705,19 @@ export default function OnboardingDraftWizard() {
     return applyOnboardingV2DraftToScenarioV2(draft, scenario);
   }, [draft, scenario, scenarioId]);
 
+  if (!scenario) {
+    return (
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          Loading scenario…
+        </Text>
+        <Skeleton height={24} radius="sm" />
+        <Skeleton height={48} radius="sm" />
+        <Skeleton height={240} radius="md" />
+      </Stack>
+    );
+  }
+
   const handleNext = () => {
     setStepValidationAttempted((current) => ({ ...current, [step]: true }));
     if (step === 0 && hasProfileError) {
@@ -1811,8 +1825,21 @@ export default function OnboardingDraftWizard() {
     ) {
       const nowIso = new Date().toISOString();
       const payload = ensureEventSchemaMarker(exportScenarioState() as Record<string, unknown>);
+      const payloadScenarios = Array.isArray(payload.scenarios) ? payload.scenarios : [];
+      payload.scenarios = payloadScenarios.map((entry) => {
+        if (!entry || typeof entry !== "object") {
+          return entry;
+        }
+
+        const scenarioEntry = entry as Record<string, unknown>;
+        return {
+          ...scenarioEntry,
+          events: Array.isArray(scenarioEntry.events) ? scenarioEntry.events : [],
+        };
+      });
       const nextMeta = {
         ...(payload.meta && typeof payload.meta === "object" ? payload.meta : {}),
+        schemaVersion: 2,
         onboarded: true,
         onboardedAt: nowIso,
         lastSavedAt: nowIso,
