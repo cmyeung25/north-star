@@ -1,13 +1,36 @@
 const encodePathSegment = (value: string) => encodeURIComponent(value);
 
+const hasPathValue = (value: string | null | undefined): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+const memberCasesPath = (caseId?: string | null) =>
+  hasPathValue(caseId)
+    ? `/member/cases/${encodePathSegment(caseId)}`
+    : "/member/cases";
+
+export const scenarioPath = (
+  caseId: string | null | undefined,
+  scenarioId: string | null | undefined,
+  subpath = ""
+) => {
+  if (!hasPathValue(caseId) || !hasPathValue(scenarioId)) {
+    return memberCasesPath(caseId);
+  }
+
+  const normalizedSubpath = subpath ? `/${subpath.replace(/^\/+/, "")}` : "";
+  return `/app/case/${encodePathSegment(caseId)}/scenario/${encodePathSegment(
+    scenarioId
+  )}${normalizedSubpath}`;
+};
+
 export const scenarioBasePath = (caseId: string, scenarioId: string) =>
-  `/app/case/${encodePathSegment(caseId)}/scenario/${encodePathSegment(scenarioId)}`;
+  scenarioPath(caseId, scenarioId);
 
 export const scenarioOnboardingPath = (caseId: string, scenarioId: string) =>
-  `${scenarioBasePath(caseId, scenarioId)}/onboarding`;
+  scenarioPath(caseId, scenarioId, "onboarding");
 
 export const scenarioDashboardPath = (caseId: string, scenarioId: string) =>
-  `${scenarioBasePath(caseId, scenarioId)}/dashboard`;
+  scenarioPath(caseId, scenarioId, "dashboard");
 
 export const scenarioMoneyPath = (caseId: string, scenarioId: string) =>
-  `${scenarioBasePath(caseId, scenarioId)}/money`;
+  scenarioPath(caseId, scenarioId, "money");

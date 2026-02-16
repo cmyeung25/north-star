@@ -4,6 +4,7 @@ import { createCaseScenarioRepo } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../../../../src/lib/supabase/server";
 import ScenarioHydrator from "./ScenarioHydrator";
 import ScenarioAppShellV2 from "./ScenarioAppShellV2";
+import ScenarioRouteSync from "../../../../../../../components/ScenarioRouteSync";
 
 type LayoutProps = {
   params: { caseId: string; scenarioId: string };
@@ -33,7 +34,10 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
       revision={scenario.revision}
       lastSavedAt={scenario.updatedAt}
     >
-      <ScenarioAppShellV2 title={scenario.title}>{children}</ScenarioAppShellV2>
+      <ScenarioAppShellV2 title={scenario.title}>
+        <ScenarioRouteSync scenarioId={params.scenarioId} />
+        {children}
+      </ScenarioAppShellV2>
     </ScenarioHydrator>
   );
 }

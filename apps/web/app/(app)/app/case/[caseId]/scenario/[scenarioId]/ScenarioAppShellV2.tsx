@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useLocale } from "next-intl";
 import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
-import { formatDateTime } from "../../../../../../../lib/format/formatDateTime";
+import { formatIsoYmdHms } from "../../../../../../../lib/date/format";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   duplicateScenarioFromLocalPayloadAction,
@@ -42,7 +41,6 @@ const POLAR_MUTED = "#95A8C6";
 export default function ScenarioAppShellV2({ title, children }: ScenarioAppShellV2Props) {
   const pathname = usePathname();
   const router = useRouter();
-  const locale = useLocale();
   const scenarioContext = useScenarioContext();
   const meta = useScenarioCloudStore((state) => state.active);
   const saveNow = useScenarioCloudStore((state) => state.saveNow);
@@ -218,7 +216,7 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <SaveStatusChip status={meta.saveStatus} />
               <span style={{ fontSize: 12, color: POLAR_MUTED }}>
-                {meta.lastSavedAt ? `Updated ${formatDateTime(meta.lastSavedAt, locale)}` : "Not saved yet"}
+                {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
               </span>
               <span style={{ fontSize: 12, color: POLAR_MUTED }}>rev {meta.revision}</span>
               <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
