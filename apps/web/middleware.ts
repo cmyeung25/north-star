@@ -28,7 +28,7 @@ const isSegmentedRoute = (pathname: string) =>
   pathname === "/" || ["/web", "/app", "/auth", "/account", "/member"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
 const isProtectedRoute = (pathname: string) =>
-  ["/app", "/member", "/account"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  ["/app", "/member"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
 const updateSupabaseSession = async (request: NextRequest, response: NextResponse) => {
   const supabase = createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
@@ -50,7 +50,7 @@ const updateSupabaseSession = async (request: NextRequest, response: NextRespons
 };
 
 export default async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   let response: NextResponse;
   if (isSegmentedRoute(pathname)) {
@@ -71,7 +71,7 @@ export default async function middleware(request: NextRequest) {
   if (isProtectedRoute(pathname) && !user) {
     const nextUrl = request.nextUrl.clone();
     nextUrl.pathname = "/auth/login";
-    nextUrl.searchParams.set("next", pathname);
+    nextUrl.searchParams.set("redirectTo", `${pathname}${search}`);
     return NextResponse.redirect(nextUrl);
   }
 

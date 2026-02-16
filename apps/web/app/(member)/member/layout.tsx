@@ -9,7 +9,7 @@ export default async function MemberLayout({ children }: { children: ReactNode }
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/auth/login?redirectTo=/member");
   }
 
   return <>{children}</>;
