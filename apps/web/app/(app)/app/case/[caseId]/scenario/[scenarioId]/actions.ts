@@ -1,6 +1,7 @@
 "use server";
 
 import { createCaseScenarioRepo } from "@north-star/adapters";
+import { RevisionConflictError } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../../../../src/lib/supabase/server";
 
 export async function saveScenarioPayloadAction(
@@ -14,5 +15,12 @@ export async function saveScenarioPayloadAction(
     supabaseClient: createSupabaseServerClient(),
   });
 
-  return repo.saveScenarioPayload(caseId, scenarioId, payload, expectedRevision);
+  try {
+    return await repo.saveScenarioPayload(caseId, scenarioId, payload, expectedRevision);
+  } catch (error) {
+    if (error instanceof RevisionConflictError) {
+      throw new Error("REVISION_CONFLICT");
+    }
+    throw error;
+  }
 }

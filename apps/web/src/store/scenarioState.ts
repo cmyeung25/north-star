@@ -18,7 +18,15 @@ export type ScenarioStoreSnapshot = {
 };
 
 export type ScenarioStatePayload = ScenarioStoreSnapshot & {
+  stateVersion?: number;
   schemaVersion: number;
+  meta?: {
+    caseId?: string;
+    scenarioId?: string;
+    lastOpenedAt?: string;
+    lastSavedAt?: string;
+  };
+  revision?: number;
 };
 
 export const normalizeActiveScenarioId = (
@@ -36,6 +44,7 @@ export const exportScenarioState = (): ScenarioStatePayload => {
   const snapshot = useScenarioStore.getState();
 
   return {
+    stateVersion: 1,
     schemaVersion: SCHEMA_VERSION,
     scenarios: snapshot.scenarios,
     eventLibrary: snapshot.eventLibrary,

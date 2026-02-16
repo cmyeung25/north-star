@@ -3,12 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../src/lib/supabase/server";
+import { createEmptyScenarioStatePayload } from "../../../../lib/scenario/payload";
 
-const emptyScenarioState = {
-  scenarios: [],
-  eventLibrary: [],
-  activeScenarioId: "",
-};
+const emptyScenarioState = createEmptyScenarioStatePayload();
 
 const repo = () =>
   createCaseScenarioRepo({

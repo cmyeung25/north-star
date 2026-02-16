@@ -1,11 +1,7 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ensureDefaultCaseAndScenario } from "../../../lib/scenario/pipeline";
 
-export default function AppHomePage() {
-  return (
-    <section>
-      <h1>App Home</h1>
-      <p>Open a cloud scenario from member area.</p>
-      <Link href="/member/cases">Go to Case Manager</Link>
-    </section>
-  );
+export default async function AppHomePage() {
+  const { caseId, scenarioId } = await ensureDefaultCaseAndScenario();
+  redirect(`/app/case/${caseId}/scenario/${scenarioId}`);
 }
