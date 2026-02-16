@@ -16,6 +16,7 @@ export const createEmptyScenarioPayload = (
     schemaVersion: 2,
     scenarios: [],
     eventLibrary: [],
+    events: [],
     activeScenarioId: "",
     members: [],
     budgetRules: [],

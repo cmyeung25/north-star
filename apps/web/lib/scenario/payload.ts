@@ -4,6 +4,7 @@ export type ScenarioStateMeta = {
   lastOpenedAt?: string;
   lastSavedAt?: string;
   schemaVersion?: number;
+  onboarded?: boolean;
 };
 
 export type ScenarioStatePayload = {
@@ -11,6 +12,7 @@ export type ScenarioStatePayload = {
   schemaVersion: number;
   scenarios: unknown[];
   eventLibrary: unknown[];
+  events?: unknown[];
   activeScenarioId: string;
   members?: unknown[];
   budgetRules?: unknown[];
@@ -27,11 +29,13 @@ export const createEmptyScenarioStatePayload = (
   schemaVersion: 2,
   scenarios: [],
   eventLibrary: [],
+  events: [],
   activeScenarioId: "",
   meta: {
     caseId: input?.caseId,
     scenarioId: input?.scenarioId,
     schemaVersion: 2,
+    onboarded: false,
   },
   revision: 0,
 });

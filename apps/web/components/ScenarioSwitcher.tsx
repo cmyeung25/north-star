@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import NewScenarioModal from "../features/scenarios/components/NewScenarioModal";
 import { createEmptyScenarioStatePayload } from "../lib/scenario/payload";
+import { scenarioDashboardPath, scenarioOnboardingPath } from "../lib/routes/appRoutes";
 import { useCaseScenarioRepo } from "../src/contexts/CaseScenarioProvider";
 
 type ScenarioOption = {
@@ -47,7 +48,7 @@ export default function ScenarioSwitcher() {
     });
     setActiveScenarioId(newScenario.id);
     await refreshScenarios();
-    router.push(`/app/case/${ensured.caseId}/scenario/${newScenario.id}/onboarding`);
+    router.push(scenarioOnboardingPath(ensured.caseId, newScenario.id));
   };
 
   const handleSwitchScenario = (scenarioId: string) => {
@@ -55,7 +56,7 @@ export default function ScenarioSwitcher() {
       return;
     }
     setActiveScenarioId(scenarioId);
-    router.push(`/app/case/${caseId}/scenario/${scenarioId}/dashboard`);
+    router.push(scenarioDashboardPath(caseId, scenarioId));
   };
 
   if (scenarios.length === 0) {

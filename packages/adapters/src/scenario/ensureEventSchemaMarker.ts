@@ -14,11 +14,19 @@ const ensureScenarioEventMeta = (scenario: unknown): unknown => {
       : {};
 
   if (currentMeta.schemaVersion === EVENT_SCHEMA_VERSION) {
-    return scenario;
+    if (Array.isArray(scenarioRecord.events)) {
+      return scenario;
+    }
+
+    return {
+      ...scenarioRecord,
+      events: [],
+    };
   }
 
   return {
     ...scenarioRecord,
+    events: Array.isArray(scenarioRecord.events) ? scenarioRecord.events : [],
     meta: {
       ...currentMeta,
       schemaVersion: EVENT_SCHEMA_VERSION,
