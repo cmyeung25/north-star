@@ -26,7 +26,24 @@ export default function ScenarioSaveToolbar() {
   const [showConflict, setShowConflict] = useState(false);
   const [conflictBusy, setConflictBusy] = useState(false);
 
-  const persistedState = useScenarioStore(selectPersistedState);
+  const scenarios = useScenarioStore((state) => state.scenarios);
+  const eventLibrary = useScenarioStore((state) => state.eventLibrary);
+  const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const members = useScenarioStore((state) => state.members);
+  const budgetRules = useScenarioStore((state) => state.budgetRules);
+  const appSettings = useScenarioStore((state) => state.appSettings);
+  const persistedState = useMemo(
+    () => ({
+      scenarios,
+      eventLibrary,
+      activeScenarioId,
+      globalHorizonMonths: appSettings.globalHorizonMonths,
+      members,
+      budgetRules,
+      appSettings,
+    }),
+    [activeScenarioId, appSettings, budgetRules, eventLibrary, members, scenarios],
+  );
   const meta = useScenarioCloudStore((state) => state.active);
   const { markError, markSaved, markSaving, markUnsaved } = useScenarioCloudStore.getState();
 
