@@ -1,4 +1,4 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -12,6 +12,17 @@ const arg = process.argv[3];
 
 const packageRoot = path.resolve(__dirname, "..");
 const migrationsDir = path.resolve(packageRoot, "migrations");
+
+// ✅ 強制讀 repo root .env（monorepo 可靠）
+dotenv.config({
+  path: path.resolve(__dirname, "../../../apps/web/.env"),
+});
+
+// 如果你想同時支援 .env.local（可選）
+dotenv.config({
+  path: path.resolve(__dirname, "../../../apps/web/.env.local"),
+  override: false,
+});
 
 const getDatabaseUrl = () => {
   const value = process.env.DATABASE_URL;

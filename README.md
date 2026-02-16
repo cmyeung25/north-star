@@ -71,3 +71,9 @@ When configuring Supabase Auth for this app, set:
   editing and a modal template picker.
 
 For product phases and scope boundaries, see [SPEC.md](./SPEC.md).
+
+- Add root scripts:
+  - `pnpm db:migrate` -> run latest migrations
+  - `pnpm db:status`
+  - `pnpm db:rollback` (down 1)
+  - `pnpm db:create <name>` (generate timestamp file)
