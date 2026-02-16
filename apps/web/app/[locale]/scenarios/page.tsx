@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useLocale } from "next-intl";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { buildAppScenarioUrl } from "../../../lib/routes";
 
@@ -14,42 +13,38 @@ const FALLBACK_PATH = "/member/cases";
 
 export default function LegacyScenariosRedirectPage() {
   const router = useRouter();
-  const locale = useLocale();
+  const redirected = useRef(false);
 
   useEffect(() => {
-    const redirectToFallback = () => {
-      router.replace(`/${locale}${FALLBACK_PATH}`);
-    };
-
-    if (typeof window === "undefined") {
-      redirectToFallback();
+    if (redirected.current) {
       return;
     }
+    redirected.current = true;
 
-    const raw = window.localStorage.getItem("aurin:lastOpened");
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem("aurin:lastOpened") : null;
+
     if (!raw) {
-      redirectToFallback();
+      router.replace(FALLBACK_PATH);
       return;
     }
 
     try {
       const parsed = JSON.parse(raw) as LastOpened;
       if (!parsed.caseId || !parsed.scenarioId) {
-        redirectToFallback();
+        router.replace(FALLBACK_PATH);
         return;
       }
 
       router.replace(
         buildAppScenarioUrl({
-          locale,
           caseId: parsed.caseId,
           scenarioId: parsed.scenarioId,
         }),
       );
     } catch {
-      redirectToFallback();
+      router.replace(FALLBACK_PATH);
     }
-  }, [locale, router]);
+  }, [router]);
 
   return null;
 }
