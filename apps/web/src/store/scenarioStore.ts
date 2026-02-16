@@ -423,6 +423,8 @@ export type ScenarioMeta = {
   onboardingVersion?: number;
   schemaVersion?: number;
   onboarded?: boolean;
+  onboardedAt?: string;
+  lastSavedAt?: string;
   isSeeded?: boolean;
   skipOnboarding?: boolean;
   planLab?: PlanLabMeta;

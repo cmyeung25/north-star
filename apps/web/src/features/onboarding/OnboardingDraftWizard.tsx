@@ -17,20 +17,19 @@ import {
   Title,
 } from "@mantine/core";
 import { nanoid } from "nanoid";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { defaultCurrency } from "../../../lib/i18n";
 import MonthField from "../../../components/MonthField";
 import { getCurrentMonth } from "./utils";
 import { normalizeMonthStrict } from "../../utils/month";
 import { compareMonthKey, isValidMonthKey } from "../../utils/monthKey";
 import {
-  getActiveScenario,
+  getScenarioById,
   isScenarioV2,
   useScenarioStore,
 } from "../../store/scenarioStore";
-import { buildScenarioUrl } from "../../utils/scenarioContext";
 import OnboardingV2WizardShell from "./v2/OnboardingV2WizardShell";
 import AssumptionsStep from "./v2/AssumptionsStep";
 import IncomeStep from "./v2/IncomeStep";
@@ -71,8 +70,9 @@ import { scenarioAssumptionSchema } from "../../domain/scenarioAssumptions";
 import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenarioSave.actions";
 import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { exportScenarioState } from "../../store/scenarioState";
-import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
+import { scenarioDashboardPath, scenarioPath } from "../../../lib/routes/appRoutes";
 import { ensureEventSchemaMarker } from "@north-star/adapters";
+import { formatIsoYmdHms } from "../../../lib/date/format";
 
 const steps = [
   "profile",
@@ -755,8 +755,8 @@ const normalizeHouseholdCounts = (
 export default function OnboardingDraftWizard() {
   const t = useTranslations("onboardingDraft");
   const validation = useTranslations("validation");
-  const locale = useLocale();
   const router = useRouter();
+  const params = useParams<{ scenarioId?: string }>();
   const scenarioContext = useScenarioContext();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -781,12 +781,17 @@ export default function OnboardingDraftWizard() {
   const createMember = useScenarioStore((state) => state.createMember);
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
-  const scenario = useMemo(
-    () => getActiveScenario(scenarios, activeScenarioId),
-    [activeScenarioId, scenarios]
-  );
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const routeScenarioId = params?.scenarioId ?? scenarioContext?.scenarioId ?? "";
+  const scenario = useMemo(() => {
+    if (routeScenarioId) {
+      return getScenarioById(scenarios, routeScenarioId);
+    }
+
+    return getScenarioById(scenarios, activeScenarioId);
+  }, [activeScenarioId, routeScenarioId, scenarios]);
   const scenarioIsV2 = scenario ? isScenarioV2(scenario) : false;
-  const scenarioId = scenario?.id ?? "";
+  const scenarioId = scenario?.id ?? routeScenarioId;
   const initialState = useMemo(
     () =>
       getInitialDraftState({
@@ -866,6 +871,19 @@ export default function OnboardingDraftWizard() {
   useEffect(() => {
     latestScenarioIdRef.current = scenarioId;
   }, [scenarioId]);
+
+  useEffect(() => {
+    if (!routeScenarioId || activeScenarioId === routeScenarioId) {
+      return;
+    }
+
+    const hasRouteScenario = scenarios.some((entry) => entry.id === routeScenarioId);
+    if (!hasRouteScenario) {
+      return;
+    }
+
+    setActiveScenario(routeScenarioId);
+  }, [activeScenarioId, routeScenarioId, scenarios, setActiveScenario]);
 
   const logTelemetryEvent = useCallback((event: OnboardingTelemetryEvent) => {
     if (typeof window === "undefined" || !isDev) {
@@ -997,7 +1015,7 @@ export default function OnboardingDraftWizard() {
         "JPY",
         "SGD",
         "AUD",
-      ].filter(Boolean)
+      ].filter((value): value is string => Boolean(value))
     );
 
     return Array.from(options).map((value) => ({ value, label: value }));
@@ -1816,14 +1834,20 @@ export default function OnboardingDraftWizard() {
       action: "save",
     });
 
-    updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
+    const nowIso = new Date().toISOString();
+    updateScenarioMeta(scenarioId, {
+      schemaVersion: 2,
+      onboarded: true,
+      onboardedAt: nowIso,
+      onboardingVersion: 2,
+      lastSavedAt: nowIso,
+    });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
 
     if (
       scenarioContext &&
       scenarioContext.scenarioId === scenarioId
     ) {
-      const nowIso = new Date().toISOString();
       const payload = ensureEventSchemaMarker(exportScenarioState() as Record<string, unknown>);
       const payloadScenarios = Array.isArray(payload.scenarios) ? payload.scenarios : [];
       payload.scenarios = payloadScenarios.map((entry) => {
@@ -1864,7 +1888,7 @@ export default function OnboardingDraftWizard() {
     }
 
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-    router.push(`/${locale}/dashboard`);
+    router.push(scenarioPath(scenarioContext?.caseId, scenarioId, "dashboard"));
   };
 
   const handleLater = () => {
@@ -1887,10 +1911,17 @@ export default function OnboardingDraftWizard() {
       scenarioId,
       action: "later",
     });
-    updateScenarioMeta(scenarioId, { onboardingVersion: 2 });
+    const nowIso = new Date().toISOString();
+    updateScenarioMeta(scenarioId, {
+      schemaVersion: 2,
+      onboarded: true,
+      onboardedAt: nowIso,
+      onboardingVersion: 2,
+      lastSavedAt: nowIso,
+    });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-    router.push(`/${locale}${buildScenarioUrl("/dashboard", scenarioId)}`);
+    router.push(scenarioPath(scenarioContext?.caseId, scenarioId, "dashboard"));
   };
 
   return (
@@ -1909,7 +1940,7 @@ export default function OnboardingDraftWizard() {
               {t("draftBadge")}
             </Badge>
             <Badge color="teal" variant="light">
-              {lastAutoSavedAt ? `已自動儲存 · ${new Date(lastAutoSavedAt).toLocaleTimeString()}` : ""}
+              {lastAutoSavedAt ? `已自動儲存 · ${formatIsoYmdHms(lastAutoSavedAt)}` : ""}
             </Badge>
           </Group>
         </Group>
