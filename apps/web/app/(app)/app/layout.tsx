@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { createSupabaseServerClient } from "../../../src/lib/supabase/server";
+import ScenarioSaveToolbar from "./components/ScenarioSaveToolbar";
 
 export default async function AppShellLayout({ children }: { children: ReactNode }) {
   const supabase = createSupabaseServerClient();
@@ -23,7 +24,20 @@ export default async function AppShellLayout({ children }: { children: ReactNode
           <Link href="/auth/logout">Logout</Link>
         </nav>
       </aside>
-      <main style={{ padding: "1.5rem" }}>{children}</main>
+      <main style={{ padding: "1.5rem" }}>
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            minHeight: "2.2rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <ScenarioSaveToolbar />
+        </header>
+        {children}
+      </main>
     </div>
   );
 }
