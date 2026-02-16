@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../../../../src/lib/supabase/server";
 import ScenarioCloudClient from "./ScenarioCloudClient";
+import ScenarioHydrator from "./ScenarioHydrator";
 
 type PageProps = { params: { caseId: string; scenarioId: string } };
 
@@ -21,13 +22,15 @@ export default async function AppCaseScenarioPage({ params }: PageProps) {
   const payload = await repo.loadScenarioPayload(params.caseId, params.scenarioId);
 
   return (
-    <ScenarioCloudClient
-      caseId={params.caseId}
-      scenarioId={params.scenarioId}
-      initialPayload={payload}
-      initialRevision={scenario.revision}
-      title={scenario.title}
-      updatedAt={scenario.updatedAt}
-    />
+    <ScenarioHydrator caseId={params.caseId} scenarioId={params.scenarioId} payload={payload}>
+      <ScenarioCloudClient
+        caseId={params.caseId}
+        scenarioId={params.scenarioId}
+        initialPayload={payload}
+        initialRevision={scenario.revision}
+        title={scenario.title}
+        updatedAt={scenario.updatedAt}
+      />
+    </ScenarioHydrator>
   );
 }

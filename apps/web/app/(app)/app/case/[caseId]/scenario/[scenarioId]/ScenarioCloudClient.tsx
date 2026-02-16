@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { selectPersistedState, useScenarioStore } from "../../../../../../../src/store/scenarioStore";
-import { importScenarioPayload } from "../../../../../../../src/persistence/scenarioPayload";
 import { saveScenarioPayloadAction } from "./actions";
 
 type Props = {
@@ -26,8 +25,7 @@ export default function ScenarioCloudClient(props: Props) {
   const dirty = currentHash !== initialHash;
 
   const openApp = () => {
-    importScenarioPayload(props.initialPayload as never);
-    router.push("/en/dashboard");
+    router.push(`/en/dashboard?scenarioId=${props.scenarioId}`);
   };
 
   const save = async () => {
@@ -48,7 +46,7 @@ export default function ScenarioCloudClient(props: Props) {
       <h1>{props.title}</h1>
       <p>Cloud status: {dirty ? "dirty" : status}</p>
       <p>Last saved at: {lastSavedAt}</p>
-      <button onClick={openApp}>Hydrate and open app</button>
+      <button onClick={openApp}>Open app</button>
       <button onClick={save}>Save to cloud</button>
     </section>
   );
