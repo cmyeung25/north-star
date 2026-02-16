@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import {
   duplicateScenarioFromLocalPayloadAction,
   reloadScenarioPayloadAction,
@@ -15,6 +16,7 @@ import RevisionConflictModal from "./RevisionConflictModal";
 import SaveButton from "./SaveButton";
 import SaveStatusChip from "./SaveStatusChip";
 import { buildAppScenarioUrl } from "../../../../lib/routes";
+import { formatDateTime } from "../../../../lib/format/formatDateTime";
 
 const AUTOSAVE_DELAY_MS = 45_000;
 
@@ -23,6 +25,7 @@ const toPayload = () => selectPersistedState(useScenarioStore.getState()) as unk
 export default function ScenarioSaveToolbar() {
   const params = useParams<{ caseId?: string; scenarioId?: string }>();
   const router = useRouter();
+  const locale = useLocale();
   const [showConflict, setShowConflict] = useState(false);
   const [conflictBusy, setConflictBusy] = useState(false);
 
@@ -147,7 +150,7 @@ export default function ScenarioSaveToolbar() {
       <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
         <SaveStatusChip status={meta.saveStatus} />
         <span style={{ fontSize: 12, color: "#525252" }}>
-          Last saved: {meta.lastSavedAt ? new Date(meta.lastSavedAt).toLocaleString() : "—"}
+          Last saved: {meta.lastSavedAt ? formatDateTime(meta.lastSavedAt, locale) : "—"}
         </span>
         <span style={{ fontSize: 12, color: "#525252" }}>rev {meta.revision}</span>
         <SaveButton

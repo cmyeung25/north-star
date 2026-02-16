@@ -2,6 +2,7 @@
 
 import { createCaseScenarioRepo, RevisionConflictError } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../src/lib/supabase/server";
+import { ensureEventsV2Marker } from "../../../../lib/scenario/ensureEventsV2Marker";
 
 const repo = () =>
   createCaseScenarioRepo({
@@ -16,7 +17,12 @@ export async function saveScenarioPayloadAction(
   expectedRevision: number,
 ) {
   try {
-    return await repo().saveScenarioPayload(caseId, scenarioId, payload, expectedRevision);
+    return await repo().saveScenarioPayload(
+      caseId,
+      scenarioId,
+      ensureEventsV2Marker(payload),
+      expectedRevision,
+    );
   } catch (error) {
     if (error instanceof RevisionConflictError) {
       throw new Error("REVISION_CONFLICT");
@@ -51,7 +57,12 @@ export async function duplicateScenarioFromLocalPayloadAction(
 ) {
   const scenarioRepo = repo();
   const duplicate = await scenarioRepo.duplicateScenario(caseId, scenarioId);
-  const saved = await scenarioRepo.saveScenarioPayload(caseId, duplicate.id, payload, duplicate.revision);
+  const saved = await scenarioRepo.saveScenarioPayload(
+    caseId,
+    duplicate.id,
+    ensureEventsV2Marker(payload),
+    duplicate.revision,
+  );
 
   return {
     scenarioId: duplicate.id,

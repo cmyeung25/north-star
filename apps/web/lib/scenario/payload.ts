@@ -3,6 +3,7 @@ export type ScenarioStateMeta = {
   scenarioId?: string;
   lastOpenedAt?: string;
   lastSavedAt?: string;
+  schemaVersion?: number;
 };
 
 export type ScenarioStatePayload = {
@@ -23,13 +24,14 @@ export const createEmptyScenarioStatePayload = (
   input?: Pick<ScenarioStateMeta, "caseId" | "scenarioId">
 ): ScenarioStatePayload => ({
   stateVersion: 1,
-  schemaVersion: 1,
+  schemaVersion: 2,
   scenarios: [],
   eventLibrary: [],
   activeScenarioId: "",
   meta: {
     caseId: input?.caseId,
     scenarioId: input?.scenarioId,
+    schemaVersion: 2,
   },
   revision: 0,
 });
