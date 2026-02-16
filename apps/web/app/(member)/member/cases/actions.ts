@@ -53,6 +53,7 @@ export async function createScenarioAction(input: { caseId: string; title: strin
   const createdScenario = await repo().createScenario(input.caseId, {
     title: normalizeTitle(input.title, "Untitled Scenario"),
     payload: createEmptyScenarioPayload({
+      currency: "HKD",
       caseId: input.caseId,
       createdFrom: "member-create-scenario",
     }),
@@ -74,4 +75,45 @@ export async function duplicateScenarioAction(input: { caseId: string; scenarioI
 export async function deleteScenarioAction(input: { caseId: string; scenarioId: string }) {
   await repo().deleteScenario(input.caseId, input.scenarioId);
   revalidatePath(`/member/cases/${input.caseId}`);
+}
+
+const pickDefaultScenario = <T extends { updatedAt?: string }>(scenarios: T[]) => {
+  if (scenarios.length === 0) {
+    return null;
+  }
+
+  return [...scenarios].sort((left, right) => {
+    const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.NEGATIVE_INFINITY;
+    const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.NEGATIVE_INFINITY;
+    return rightTime - leftTime;
+  })[0];
+};
+
+export async function openCaseAction(input: { caseId: string; caseCurrency?: string }) {
+  const scenarios = await repo().listScenarios(input.caseId);
+  const defaultScenario = pickDefaultScenario(scenarios);
+
+  if (defaultScenario) {
+    return {
+      caseId: input.caseId,
+      scenarioId: defaultScenario.id,
+    };
+  }
+
+  const createdScenario = await repo().createScenario(input.caseId, {
+    title: "Scenario 1",
+    payload: createEmptyScenarioPayload({
+      currency: input.caseCurrency ?? "HKD",
+      caseId: input.caseId,
+      createdFrom: "member-open-case",
+    }),
+  });
+
+  revalidatePath("/member/cases");
+  revalidatePath(`/member/cases/${input.caseId}`);
+
+  return {
+    caseId: input.caseId,
+    scenarioId: createdScenario.id,
+  };
 }

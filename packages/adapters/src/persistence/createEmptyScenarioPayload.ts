@@ -10,7 +10,8 @@ type CreateEmptyScenarioPayloadInput = {
 export const createEmptyScenarioPayload = (
   input: CreateEmptyScenarioPayloadInput = {},
 ): ScenarioPayload => ({
-  schemaVersion: 1,
+  stateVersion: 1,
+  schemaVersion: 2,
   scenarios: [],
   eventLibrary: [],
   activeScenarioId: "",
@@ -25,7 +26,7 @@ export const createEmptyScenarioPayload = (
   meta: {
     caseId: input.caseId,
     scenarioId: input.scenarioId,
-    currency: input.currency,
+    currency: input.currency ?? "HKD",
     onboarded: false,
     createdFrom: input.createdFrom ?? "member-create-case",
   },

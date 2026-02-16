@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import { ActionIcon, Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
-import { createCaseAction, deleteCaseAction, renameCaseAction } from "../cases/actions";
+import { createCaseAction, deleteCaseAction, openCaseAction, renameCaseAction } from "../cases/actions";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
 
 const formatDate = (value: string) => new Date(value).toLocaleString();
@@ -58,8 +58,17 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
               <Table.Td>{formatDate(entry.updatedAt)}</Table.Td>
               <Table.Td>
                 <Group gap="xs">
-                  <Button component={Link} href={`/member/cases/${entry.id}`} variant="light" size="xs">
-                    Open
+                  <Button
+                    variant="light"
+                    size="xs"
+                    onClick={() =>
+                      submit(
+                        () => openCaseAction({ caseId: entry.id }),
+                        ({ caseId, scenarioId }) => router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`),
+                      )
+                    }
+                  >
+                    Open / Continue
                   </Button>
                   <ActionIcon
                     variant="subtle"
@@ -89,8 +98,16 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                 Updated {formatDate(entry.updatedAt)}
               </Text>
               <Group>
-                <Button component={Link} href={`/member/cases/${entry.id}`} size="xs">
-                  Open
+                <Button
+                  size="xs"
+                  onClick={() =>
+                    submit(
+                      () => openCaseAction({ caseId: entry.id }),
+                      ({ caseId, scenarioId }) => router.push(`/app/case/${caseId}/scenario/${scenarioId}/onboarding`),
+                    )
+                  }
+                >
+                  Open / Continue
                 </Button>
                 <Button
                   variant="default"
