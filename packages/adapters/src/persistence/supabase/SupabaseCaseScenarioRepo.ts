@@ -61,7 +61,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
     const ownerId = await this.requireOwnerId();
     const { data, error } = await this.client
       .from("cases")
-      .insert({ owner_id: ownerId, title: input.title })
+      .insert({ owner_id: ownerId, title: input.title, currency: input.currency ?? "HKD" })
       .select("id,title,created_at,updated_at")
       .single();
     if (error) throw error;
@@ -134,8 +134,24 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
       .single();
     if (loadError) throw loadError;
 
+    const copyBaseTitle = `${existing.title} (Copy)`;
+    const { data: sameTitleRows, error: listError } = await this.client
+      .from("scenarios")
+      .select("title")
+      .eq("case_id", caseId)
+      .ilike("title", `${copyBaseTitle}%`);
+    if (listError) throw listError;
+
+    const existingTitles = new Set((sameTitleRows ?? []).map((row) => row.title));
+    let nextTitle = copyBaseTitle;
+    let counter = 2;
+    while (existingTitles.has(nextTitle)) {
+      nextTitle = `${copyBaseTitle} ${counter}`;
+      counter += 1;
+    }
+
     return this.createScenario(caseId, {
-      title: `${existing.title} (Copy)`,
+      title: nextTitle,
       payload: existing.state as ScenarioPayload,
     });
   }

@@ -1,6 +1,6 @@
 import type { CaseSummary, SaveScenarioResult, ScenarioPayload, ScenarioSummary } from "./types";
 
-export type CreateCaseInput = { title: string };
+export type CreateCaseInput = { title: string; currency?: string };
 export type CreateScenarioInput = { title: string; payload: ScenarioPayload; schemaVersion?: number };
 
 export class RevisionConflictError extends Error {
