@@ -35,12 +35,10 @@ export default function LegacyScenariosRedirectPage() {
         return;
       }
 
-      router.replace(
-        buildAppScenarioUrl({
-          caseId: parsed.caseId,
-          scenarioId: parsed.scenarioId,
-        }),
-      );
+      router.replace(`${buildAppScenarioUrl({
+        caseId: parsed.caseId,
+        scenarioId: parsed.scenarioId,
+      })}/dashboard`);
     } catch {
       router.replace(FALLBACK_PATH);
     }
