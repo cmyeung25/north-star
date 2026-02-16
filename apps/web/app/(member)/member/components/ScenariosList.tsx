@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ScenarioSummary } from "@north-star/adapters";
 import { Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
+import { buildAppScenarioUrl } from "../../../../lib/routes";
 import {
   createScenarioAction,
   deleteScenarioAction,
@@ -18,10 +19,8 @@ import {
 
 const formatDate = (value: string) => new Date(value).toLocaleString();
 
-const openScenarioHref = (caseId: string, scenarioId: string) => `/app/case/${caseId}/scenario/${scenarioId}`;
-
 function OpenScenarioButton({ caseId, scenarioId }: { caseId: string; scenarioId: string }) {
-  const href = openScenarioHref(caseId, scenarioId);
+  const href = buildAppScenarioUrl({ caseId, scenarioId });
   return (
     <Button
       component={Link}
