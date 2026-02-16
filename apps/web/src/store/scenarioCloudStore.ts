@@ -65,6 +65,14 @@ export const useScenarioCloudStore = create<ScenarioCloudState>((set) => ({
       }
 
       if (state.active.lastSavedHash === payloadHash) {
+        if (
+          state.active.dirty === false &&
+          state.active.saveStatus === "saved" &&
+          state.active.lastSaveError === undefined
+        ) {
+          return state;
+        }
+
         return {
           active: {
             ...state.active,
@@ -73,6 +81,10 @@ export const useScenarioCloudStore = create<ScenarioCloudState>((set) => ({
             lastSaveError: undefined,
           },
         };
+      }
+
+      if (state.active.dirty && state.active.saveStatus === "unsaved") {
+        return state;
       }
 
       return {
