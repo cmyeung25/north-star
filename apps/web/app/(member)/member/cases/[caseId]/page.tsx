@@ -1,7 +1,8 @@
-import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { createSupabaseServerClient } from "../../../../../src/lib/supabase/server";
-import { createScenario, deleteScenario, duplicateScenario } from "../actions";
+import { MemberShell } from "../../components/MemberShell";
+import { ScenariosList } from "../../components/ScenariosList";
 
 type PageProps = { params: { caseId: string } };
 
@@ -11,29 +12,16 @@ export default async function CaseScenariosPage({ params }: PageProps) {
     supabaseClient: createSupabaseServerClient(),
   });
 
-  const scenarios = await repo.listScenarios(params.caseId);
+  const [cases, scenarios] = await Promise.all([repo.listCases(), repo.listScenarios(params.caseId)]);
+  const activeCase = cases.find((entry) => entry.id === params.caseId);
+
+  if (!activeCase) {
+    notFound();
+  }
 
   return (
-    <section>
-      <h1>Scenarios</h1>
-      <form action={createScenario.bind(null, params.caseId)} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <input name="title" placeholder="New scenario title" />
-        <button type="submit">Create Scenario</button>
-      </form>
-      <ul>
-        {scenarios.map((scenario) => (
-          <li key={scenario.id} style={{ marginBottom: 8 }}>
-            <strong>{scenario.title}</strong>{" "}
-            <Link href={`/app/case/${params.caseId}/scenario/${scenario.id}`}>Open</Link>{" "}
-            <form action={duplicateScenario.bind(null, params.caseId, scenario.id)} style={{ display: "inline-block" }}>
-              <button type="submit">Duplicate</button>
-            </form>{" "}
-            <form action={deleteScenario.bind(null, params.caseId, scenario.id)} style={{ display: "inline-block" }}>
-              <button type="submit">Delete</button>
-            </form>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <MemberShell title={activeCase.title} description={`Case ID: ${activeCase.id}`}>
+      <ScenariosList caseId={params.caseId} scenarios={scenarios} />
+    </MemberShell>
   );
 }
