@@ -40,6 +40,7 @@ import {
 import { Link } from "../src/i18n/navigation";
 import { aurinTheme } from "./theme/aurinTheme";
 import { createSupabaseBrowserClient } from "../src/lib/supabase/browser";
+import { CaseScenarioProvider } from "../src/contexts/CaseScenarioProvider";
 
 
 const stripLocalePrefix = (pathname: string, locale: string) => {
@@ -89,7 +90,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
     { label: nav("money"), href: "/money" },
     { label: nav("people"), href: "/people" },
     { label: nav("settings"), href: "/settings" },
-    { label: nav("scenarios"), href: "/scenarios" },
+    { label: nav("scenarios"), href: "/member/cases" },
   ];
 
   const isSignedIn = authState.status === "signed-in";
@@ -232,7 +233,8 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
   const supabaseEmail = supabaseUser?.email ?? null;
 
   return (
-    <MantineProvider theme={aurinTheme}>
+    <CaseScenarioProvider>
+      <MantineProvider theme={aurinTheme}>
       <AppShell
         header={{ height: 64 }}
         navbar={isDesktop ? { width: 220, breakpoint: 0 } : undefined}
@@ -248,7 +250,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
         >
           {isDesktop ? (
             <Group h="100%" px="md" justify="space-between">
-              <BrandLogo size="md" href="/scenarios" priority />
+              <BrandLogo size="md" href="/member/cases" priority />
               <Group gap="xs" align="center">
                 <ScenarioSwitcher />
                 <Button
@@ -298,7 +300,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
             </Group>
           ) : (
             <Group h="100%" px="md" justify="space-between">
-              <BrandLogo variant="icon" collapsed size="md" href="/scenarios" priority />
+              <BrandLogo variant="icon" collapsed size="md" href="/member/cases" priority />
               <Menu position="bottom-end" withinPortal>
                 <Menu.Target>
                   <ActionIcon variant="subtle" color="gray" size="lg" aria-label={t("actionMore")}>
@@ -426,6 +428,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
         </AppShell.Main>
         {/* {isDesktop && !isOnboarding && <DesktopBottomToolbar />} */}
       </AppShell>
-    </MantineProvider>
+      </MantineProvider>
+    </CaseScenarioProvider>
   );
 }
