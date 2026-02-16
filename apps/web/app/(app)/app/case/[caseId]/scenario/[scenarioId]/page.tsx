@@ -22,14 +22,15 @@ export default async function AppCaseScenarioPage({ params }: PageProps) {
   const payload = await repo.loadScenarioPayload(params.caseId, params.scenarioId);
 
   return (
-    <ScenarioHydrator caseId={params.caseId} scenarioId={params.scenarioId} payload={payload}>
+    <ScenarioHydrator
+      caseId={params.caseId}
+      scenarioId={params.scenarioId}
+      payload={payload}
+      revision={scenario.revision}
+      lastSavedAt={scenario.updatedAt}
+    >
       <ScenarioCloudClient
-        caseId={params.caseId}
-        scenarioId={params.scenarioId}
-        initialPayload={payload}
-        initialRevision={scenario.revision}
         title={scenario.title}
-        updatedAt={scenario.updatedAt}
       />
     </ScenarioHydrator>
   );

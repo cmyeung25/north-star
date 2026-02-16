@@ -182,40 +182,30 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
     payload: ScenarioPayload,
     expectedRevision?: number,
   ): Promise<SaveScenarioResult> {
-    if (typeof expectedRevision !== "number") {
-      const { data, error } = await this.client
-        .from("scenarios")
-        .update({ state: payload, updated_at: new Date().toISOString() })
-        .eq("id", scenarioId)
-        .eq("case_id", caseId)
-        .select("revision,updated_at")
-        .single();
-      if (error) throw error;
-      return { revision: data.revision, lastSavedAt: data.updated_at };
-    }
-
-    const { data: current, error: currentError } = await this.client
-      .from("scenarios")
-      .select("revision")
-      .eq("id", scenarioId)
-      .eq("case_id", caseId)
-      .single();
-    if (currentError) throw currentError;
-    if (current.revision !== expectedRevision) {
-      throw new RevisionConflictError();
-    }
-
-    const nextRevision = expectedRevision + 1;
+    const nextRevision =
+      typeof expectedRevision === "number" ? expectedRevision + 1 : undefined;
     const { data, error } = await this.client
       .from("scenarios")
-      .update({ state: payload, revision: nextRevision, updated_at: new Date().toISOString() })
+      .update({
+        state: payload,
+        updated_at: new Date().toISOString(),
+        ...(typeof nextRevision === "number" ? { revision: nextRevision } : {}),
+      })
       .eq("id", scenarioId)
       .eq("case_id", caseId)
-      .eq("revision", expectedRevision)
+      .match(
+        typeof expectedRevision === "number"
+          ? { revision: expectedRevision }
+          : {},
+      )
       .select("revision,updated_at")
-      .single();
+      .maybeSingle();
 
     if (error) {
+      throw error;
+    }
+
+    if (!data) {
       throw new RevisionConflictError();
     }
 
