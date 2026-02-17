@@ -72,11 +72,12 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
   const appScenarioUrl = buildAppScenarioUrl({ caseId, scenarioId });
 
   const tabs: WorkspaceTab[] = [
-    { href: `${appScenarioUrl}/dashboard`, label: "Dashboard" },
-    { href: `${appScenarioUrl}/planlab`, label: "Plan Lab" },
-    { href: `${appScenarioUrl}/money`, label: "Money" },
-    { href: scenarioSettingsPath(caseId, scenarioId), label: "Scenario Setting" },
+    { href: `${appScenarioUrl}/dashboard`, label: "儀表板" },
+    { href: `${appScenarioUrl}/planlab`, label: "人生規劃" },
+    { href: `${appScenarioUrl}/money`, label: "金錢專區" },
+    { href: scenarioSettingsPath(caseId, scenarioId), label: "情境設定" },
   ];
+  const mobileTabs = tabs.slice(0, 3);
 
   const enabled = Boolean(meta && scenarioId && meta.scenarioId === scenarioId);
 
@@ -196,7 +197,7 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
         >
           <div>
             <Link href={memberCasesPath(caseId)} style={{ fontSize: 12, color: "#334155", textDecoration: "none" }}>
-              ← 返回 Member Cases
+              ← 返回 Cases
             </Link>
             <h1 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>{title}</h1>
           </div>
@@ -208,12 +209,45 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
                   {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
                 </span>
               ) : null}
+              {isMobile ? (
+                <Link
+                  href={scenarioSettingsPath(caseId, scenarioId)}
+                  style={{ fontSize: 12, color: "#334155", textDecoration: "none" }}
+                >
+                  情境設定
+                </Link>
+              ) : null}
               <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
             </div>
           ) : null}
         </header>
         <div style={{ padding: "1rem 1.1rem", minWidth: 0 }}>{children}</div>
-        {isMobile ? <div style={{ borderTop: "1px solid #e5e7eb", padding: "0.6rem 0.8rem" }}>{sideNav}</div> : null}
+        {isMobile ? (
+          <div style={{ borderTop: "1px solid #e5e7eb", padding: "0.6rem 0.8rem" }}>
+            <nav style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.5rem" }}>
+              {mobileTabs.map((tab) => {
+                const active = pathname === tab.href;
+                return (
+                  <Link
+                    key={tab.href}
+                    href={tab.href}
+                    style={{
+                      borderRadius: "0.5rem",
+                      textDecoration: "none",
+                      color: active ? "#0b355d" : "#334155",
+                      fontWeight: active ? 600 : 500,
+                      padding: "0.45rem 0.55rem",
+                      textAlign: "center",
+                      background: active ? "#e8f2ff" : "transparent",
+                    }}
+                  >
+                    {tab.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ) : null}
       </div>
       <RevisionConflictModal
         open={showConflict}
