@@ -4,6 +4,22 @@ import { createCaseScenarioRepo, RevisionConflictError } from "@north-star/adapt
 import { createSupabaseServerClient } from "../../../../src/lib/supabase/server";
 import { ensureEventsV2Marker } from "../../../../lib/scenario/ensureEventsV2Marker";
 
+
+const ensureScenarioSaveMeta = (payload: Record<string, unknown>) => {
+  const next = { ...payload };
+  next.events = Array.isArray(next.events) ? next.events : [];
+  const now = new Date().toISOString();
+  const meta = next.meta && typeof next.meta === "object" ? (next.meta as Record<string, unknown>) : {};
+  next.meta = {
+    ...meta,
+    schemaVersion: 2,
+    lastSavedAt: now,
+    onboarded: meta.onboarded === true,
+  };
+  next.schemaVersion = 2;
+  return next;
+};
+
 const repo = () =>
   createCaseScenarioRepo({
     mode: "cloud",
@@ -20,7 +36,7 @@ export async function saveScenarioPayloadAction(
     return await repo().saveScenarioPayload(
       caseId,
       scenarioId,
-      ensureEventsV2Marker(payload),
+      ensureEventsV2Marker(ensureScenarioSaveMeta(payload)),
       expectedRevision,
     );
   } catch (error) {
@@ -60,7 +76,7 @@ export async function duplicateScenarioFromLocalPayloadAction(
   const saved = await scenarioRepo.saveScenarioPayload(
     caseId,
     duplicate.id,
-    ensureEventsV2Marker(payload),
+    ensureEventsV2Marker(ensureScenarioSaveMeta(payload)),
     duplicate.revision,
   );
 

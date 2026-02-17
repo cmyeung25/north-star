@@ -12,6 +12,7 @@ export class LocalCaseScenarioRepo implements CaseScenarioRepo {
   async listScenarios() { return this.notImplemented(); }
   async createScenario() { return this.notImplemented(); }
   async duplicateScenario() { return this.notImplemented(); }
+  async renameScenario() { return this.notImplemented(); }
   async deleteScenario() { return this.notImplemented(); }
   async loadScenarioPayload() { return this.notImplemented(); }
   async saveScenarioPayload() { return this.notImplemented(); }

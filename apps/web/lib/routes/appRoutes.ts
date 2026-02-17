@@ -3,7 +3,7 @@ const encodePathSegment = (value: string) => encodeURIComponent(value);
 const hasPathValue = (value: string | null | undefined): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
-const memberCasesPath = (caseId?: string | null) =>
+export const memberCasesPath = (caseId?: string | null) =>
   hasPathValue(caseId)
     ? `/member/cases/${encodePathSegment(caseId)}`
     : "/member/cases";
@@ -34,3 +34,9 @@ export const scenarioDashboardPath = (caseId: string, scenarioId: string) =>
 
 export const scenarioMoneyPath = (caseId: string, scenarioId: string) =>
   scenarioPath(caseId, scenarioId, "money");
+
+export const scenarioPlanLabPath = (caseId: string, scenarioId: string) =>
+  scenarioPath(caseId, scenarioId, "planlab");
+
+export const scenarioSettingsPath = (caseId: string, scenarioId: string) =>
+  scenarioPath(caseId, scenarioId, "settings");

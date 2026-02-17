@@ -18,6 +18,7 @@ export interface CaseScenarioRepo {
   listScenarios(caseId: string): Promise<ScenarioSummary[]>;
   createScenario(caseId: string, input: CreateScenarioInput): Promise<ScenarioSummary>;
   duplicateScenario(caseId: string, scenarioId: string): Promise<ScenarioSummary>;
+  renameScenario(caseId: string, scenarioId: string, title: string): Promise<void>;
   deleteScenario(caseId: string, scenarioId: string): Promise<void>;
   loadScenarioPayload(caseId: string, scenarioId: string): Promise<ScenarioPayload>;
   saveScenarioPayload(

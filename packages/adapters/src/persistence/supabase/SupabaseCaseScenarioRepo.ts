@@ -162,6 +162,16 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
     });
   }
 
+
+  async renameScenario(caseId: string, scenarioId: string, title: string) {
+    const { error } = await this.client
+      .from("scenarios")
+      .update({ title })
+      .eq("id", scenarioId)
+      .eq("case_id", caseId);
+    if (error) throw error;
+  }
+
   async deleteScenario(caseId: string, scenarioId: string) {
     const { error } = await this.client
       .from("scenarios")

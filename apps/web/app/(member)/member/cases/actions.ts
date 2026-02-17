@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createCaseScenarioRepo, createEmptyScenarioPayload } from "@north-star/adapters";
+import { scenarioDashboardPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { createSupabaseServerClient } from "../../../../src/lib/supabase/server";
 
 const repo = () =>
@@ -64,7 +65,14 @@ export async function createScenarioAction(input: { caseId: string; title: strin
   return {
     caseId: input.caseId,
     scenarioId: createdScenario.id,
+    redirectPath: scenarioOnboardingPath(input.caseId, createdScenario.id),
   };
+}
+
+export async function renameScenarioAction(input: { caseId: string; scenarioId: string; title: string }) {
+  await repo().renameScenario(input.caseId, input.scenarioId, normalizeTitle(input.title, "Untitled Scenario"));
+  revalidatePath(`/member/cases/${input.caseId}`);
+  revalidatePath(`/app/case/${input.caseId}/scenario/${input.scenarioId}/settings`);
 }
 
 export async function duplicateScenarioAction(input: { caseId: string; scenarioId: string }) {
@@ -94,9 +102,16 @@ export async function openCaseAction(input: { caseId: string; caseCurrency?: str
   const defaultScenario = pickDefaultScenario(scenarios);
 
   if (defaultScenario) {
+    const payload = await repo().loadScenarioPayload(input.caseId, defaultScenario.id);
+    const meta = payload && typeof payload === "object" ? (payload as { meta?: unknown }).meta : null;
+    const onboarded = Boolean(meta && typeof meta === "object" && (meta as { onboarded?: unknown }).onboarded === true);
+
     return {
       caseId: input.caseId,
       scenarioId: defaultScenario.id,
+      redirectPath: onboarded
+        ? scenarioDashboardPath(input.caseId, defaultScenario.id)
+        : scenarioOnboardingPath(input.caseId, defaultScenario.id),
     };
   }
 
@@ -115,5 +130,6 @@ export async function openCaseAction(input: { caseId: string; caseCurrency?: str
   return {
     caseId: input.caseId,
     scenarioId: createdScenario.id,
+    redirectPath: scenarioOnboardingPath(input.caseId, createdScenario.id),
   };
 }
