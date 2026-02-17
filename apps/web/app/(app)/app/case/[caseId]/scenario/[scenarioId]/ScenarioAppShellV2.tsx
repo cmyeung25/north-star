@@ -20,6 +20,9 @@ import { useScenarioAutosave } from "./hooks/useScenarioAutosave";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
 import RevisionConflictModal from "./components/RevisionConflictModal";
 import { memberCasesPath, scenarioSettingsPath } from "../../../../../../../lib/routes/appRoutes";
+import BrandLogo from "../../../../../../../components/brand/BrandLogo";
+import BottomNav from "../../../../../../../components/BottomNav";
+import classes from "./ScenarioAppShell.module.css";
 
 const AUTOSAVE_DELAY_MS = 45_000;
 
@@ -72,10 +75,10 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
   const appScenarioUrl = buildAppScenarioUrl({ caseId, scenarioId });
 
   const tabs: WorkspaceTab[] = [
-    { href: `${appScenarioUrl}/dashboard`, label: "儀表板" },
-    { href: `${appScenarioUrl}/planlab`, label: "人生規劃" },
-    { href: `${appScenarioUrl}/money`, label: "金錢專區" },
-    { href: scenarioSettingsPath(caseId, scenarioId), label: "情境設定" },
+    { href: `${appScenarioUrl}/dashboard`, label: "Dashboard" },
+    { href: `${appScenarioUrl}/planlab`, label: "PlanLab" },
+    { href: `${appScenarioUrl}/money`, label: "Money" },
+    { href: scenarioSettingsPath(caseId, scenarioId), label: "Scenario Settings" },
   ];
   const mobileTabs = tabs.slice(0, 3);
 
@@ -157,95 +160,67 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
     }
   };
 
-  const sideNav = (
-    <nav style={{ display: "grid", gap: "0.5rem" }}>
-      {tabs.map((tab) => {
-        const active = pathname === tab.href;
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            style={{
-              borderRadius: "0.5rem",
-              textDecoration: "none",
-              color: active ? "#0b355d" : "#334155",
-              fontWeight: active ? 600 : 500,
-              padding: "0.45rem 0.55rem",
-              background: active ? "#e8f2ff" : "transparent",
-            }}
-          >
-            {tab.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  const backToCasesHref = memberCasesPath(caseId);
 
   return (
-    <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", minHeight: "calc(100vh - 6rem)" }}>
-      {!isMobile ? <aside style={{ borderRight: "1px solid #e5e7eb", padding: "1rem" }}>{sideNav}</aside> : null}
-      <div style={{ display: "grid", gridTemplateRows: "auto 1fr auto", minWidth: 0 }}>
-        <header
-          style={{
-            borderBottom: "1px solid #e5e7eb",
-            padding: "0.9rem 1.1rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "0.8rem",
-          }}
-        >
-          <div>
-            <Link href={memberCasesPath(caseId)} style={{ fontSize: 12, color: "#334155", textDecoration: "none" }}>
-              ← 返回 Cases
-            </Link>
-            <h1 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>{title}</h1>
-          </div>
-          {meta ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-              {!isMobile ? <SaveStatusChip status={meta.saveStatus} /> : null}
-              {!isMobile ? (
-                <span style={{ fontSize: 12, color: "#64748b" }}>
-                  {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
-                </span>
-              ) : null}
-              {isMobile ? (
-                <Link
-                  href={scenarioSettingsPath(caseId, scenarioId)}
-                  style={{ fontSize: 12, color: "#334155", textDecoration: "none" }}
-                >
-                  情境設定
-                </Link>
-              ) : null}
-              <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
+    <section className={`${classes.shell} ${isMobile ? classes.shellMobile : ""}`}>
+      {!isMobile ? (
+        <aside className={classes.sidebar}>
+          <div className={classes.sidebarTop}>
+            <div className={classes.logoWrap}>
+              <BrandLogo href={backToCasesHref} size="md" />
             </div>
-          ) : null}
-        </header>
-        <div style={{ padding: "1rem 1.1rem", minWidth: 0 }}>{children}</div>
-        {isMobile ? (
-          <div style={{ borderTop: "1px solid #e5e7eb", padding: "0.6rem 0.8rem" }}>
-            <nav style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.5rem" }}>
-              {mobileTabs.map((tab) => {
+            <nav className={classes.navList}>
+              {tabs.map((tab) => {
                 const active = pathname === tab.href;
                 return (
                   <Link
                     key={tab.href}
                     href={tab.href}
-                    style={{
-                      borderRadius: "0.5rem",
-                      textDecoration: "none",
-                      color: active ? "#0b355d" : "#334155",
-                      fontWeight: active ? 600 : 500,
-                      padding: "0.45rem 0.55rem",
-                      textAlign: "center",
-                      background: active ? "#e8f2ff" : "transparent",
-                    }}
+                    className={`${classes.navLink} ${active ? classes.navLinkActive : ""}`}
                   >
                     {tab.label}
                   </Link>
                 );
               })}
             </nav>
+          </div>
+          <Link href={backToCasesHref} className={classes.backLink}>
+            ← Back to Cases
+          </Link>
+        </aside>
+      ) : null}
+      <div className={classes.main}>
+        <header className={classes.topBar}>
+          <h1 className={classes.title}>{title}</h1>
+          {meta ? (
+            <div className={classes.topRight}>
+              {!isMobile ? <SaveStatusChip status={meta.saveStatus} /> : null}
+              {!isMobile ? (
+                <span className={classes.updatedAt}>
+                  {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
+                </span>
+              ) : null}
+              {isMobile ? (
+                <div className={classes.mobileActions}>
+                  <Link href={scenarioSettingsPath(caseId, scenarioId)} className={classes.mobileActionLink}>
+                    設定
+                  </Link>
+                  <Link href={backToCasesHref} className={classes.mobileActionLink}>
+                    返回 Cases
+                  </Link>
+                </div>
+              ) : null}
+              <div className={classes.saveButtonWrap}>
+                <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
+              </div>
+            </div>
+          ) : null}
+        </header>
+        <div className={classes.content}>{children}</div>
+        {isMobile ? (
+          <div className={classes.bottomWrap}>
+            <BottomNav items={mobileTabs} />
           </div>
         ) : null}
       </div>
