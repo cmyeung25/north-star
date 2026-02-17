@@ -70,7 +70,7 @@ import { scenarioAssumptionSchema } from "../../domain/scenarioAssumptions";
 import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenarioSave.actions";
 import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { exportScenarioState } from "../../store/scenarioState";
-import { scenarioDashboardPath, scenarioPath } from "../../../lib/routes/appRoutes";
+import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
 import { ensureEventSchemaMarker } from "@north-star/adapters";
 import { formatIsoYmdHms } from "../../../lib/date/format";
 
@@ -756,7 +756,7 @@ export default function OnboardingDraftWizard() {
   const t = useTranslations("onboardingDraft");
   const validation = useTranslations("validation");
   const router = useRouter();
-  const params = useParams<{ scenarioId?: string }>();
+  const params = useParams<{ caseId?: string; scenarioId?: string }>();
   const scenarioContext = useScenarioContext();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -782,6 +782,7 @@ export default function OnboardingDraftWizard() {
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const routeCaseId = params?.caseId ?? scenarioContext?.caseId ?? "";
   const routeScenarioId = params?.scenarioId ?? scenarioContext?.scenarioId ?? "";
   const scenario = useMemo(() => {
     if (routeScenarioId) {
@@ -797,9 +798,9 @@ export default function OnboardingDraftWizard() {
       getInitialDraftState({
         baseCurrency: scenario?.baseCurrency ?? defaultCurrency,
         assumptions: buildOnboardingAssumptionsDraft(scenario?.assumptions),
-        scenarioId: scenario?.id,
+        scenarioId,
       }),
-    [scenario?.assumptions, scenario?.baseCurrency, scenario?.id]
+    [scenario?.assumptions, scenario?.baseCurrency, scenarioId]
   );
   const [step, setStep] = useState(
     Math.min(initialState.step, steps.length - 1)
@@ -1888,7 +1889,9 @@ export default function OnboardingDraftWizard() {
     }
 
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-    router.push(scenarioPath(scenarioContext?.caseId, scenarioId, "dashboard"));
+    if (routeCaseId) {
+      router.push(scenarioDashboardPath(routeCaseId, scenarioId));
+    }
   };
 
   const handleLater = () => {
@@ -1921,7 +1924,9 @@ export default function OnboardingDraftWizard() {
     });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-    router.push(scenarioPath(scenarioContext?.caseId, scenarioId, "dashboard"));
+    if (routeCaseId) {
+      router.push(scenarioDashboardPath(routeCaseId, scenarioId));
+    }
   };
 
   return (

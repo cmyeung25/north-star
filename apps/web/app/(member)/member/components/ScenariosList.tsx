@@ -7,6 +7,7 @@ import type { ScenarioSummary } from "@north-star/adapters";
 import { Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { buildAppScenarioUrl } from "../../../../lib/routes";
 import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
+import { formatIsoYmdHms } from "../../../../lib/date/format";
 import {
   createScenarioAction,
   deleteScenarioAction,
@@ -18,7 +19,7 @@ import {
   DuplicateScenarioDialog,
 } from "./ScenarioDialogs";
 
-const formatDate = (value: string) => new Date(value).toLocaleString();
+const formatDate = (value: string) => formatIsoYmdHms(value);
 
 function markLastOpened(caseId: string, scenarioId: string) {
   if (typeof window === "undefined") {

@@ -7,9 +7,10 @@ import type { CaseSummary } from "@north-star/adapters";
 import { ActionIcon, Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { createCaseAction, deleteCaseAction, openCaseAction, renameCaseAction } from "../cases/actions";
 import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
+import { formatIsoYmdHms } from "../../../../lib/date/format";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
 
-const formatDate = (value: string) => new Date(value).toLocaleString();
+const formatDate = (value: string) => formatIsoYmdHms(value);
 
 export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const router = useRouter();
