@@ -25,8 +25,12 @@ export default async function CaseScenariosPage({ params }: PageProps) {
   }
 
   const scenarios = await repo.listScenarios(params.caseId);
-  const scenario = scenarios[0]
-    ? scenarios[0]
+  const scenario = scenarios.length > 0
+    ? [...scenarios].sort((left, right) => {
+        const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.NEGATIVE_INFINITY;
+        const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.NEGATIVE_INFINITY;
+        return rightTime - leftTime;
+      })[0]
     : await repo.createScenario(params.caseId, {
         title: "Scenario 1",
         payload: createEmptyScenarioPayload({

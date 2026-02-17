@@ -13,7 +13,7 @@ const isScenarioStarted = (payload: Record<string, unknown>) => {
   const meta = payload.meta;
   const onboarded = Boolean(meta && typeof meta === "object" && (meta as { onboarded?: unknown }).onboarded === true);
   const events = payload.events;
-  return onboarded && Array.isArray(events) && events.length > 0;
+  return onboarded && Array.isArray(events);
 };
 
 export default async function AppCaseScenarioGatedLayout({ params, children }: LayoutProps) {

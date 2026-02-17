@@ -36,7 +36,7 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
       lastSavedAt={scenario.updatedAt}
     >
       <ScenarioAppShellV2 title={scenario.title}>
-        <ScenarioRouteSync scenarioId={params.scenarioId} />
+        <ScenarioRouteSync scenarioId={params.scenarioId} payload={payload as Record<string, unknown>} />
         {children}
       </ScenarioAppShellV2>
     </ScenarioHydrator>
