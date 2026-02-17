@@ -30,6 +30,7 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
     <ScenarioHydrator
       caseId={params.caseId}
       scenarioId={params.scenarioId}
+      scenarioTitle={scenario.title}
       payload={payload}
       revision={scenario.revision}
       lastSavedAt={scenario.updatedAt}
