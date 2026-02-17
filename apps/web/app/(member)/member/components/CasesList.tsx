@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import { ActionIcon, Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { createCaseAction, deleteCaseAction, openCaseAction, renameCaseAction } from "../cases/actions";
-import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { formatIsoYmdHms } from "../../../../lib/date/format";
+import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
@@ -38,7 +37,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
   return (
     <Stack>
       <Group justify="space-between">
-        <Text c="dimmed">Manage your cases and jump into a scenario in one click.</Text>
+        <Text c="dimmed">Manage your cases and jump into planning in one click.</Text>
         <Button onClick={() => setCreateOpen(true)}>Create case</Button>
       </Group>
       {error ? <Alert color="red">{error}</Alert> : null}
@@ -55,7 +54,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
           {cases.map((entry) => (
             <Table.Tr key={entry.id}>
               <Table.Td>
-                <Link href={`/member/cases/${entry.id}`}>{entry.title}</Link>
+                {entry.title}
               </Table.Td>
               <Table.Td>{formatDate(entry.updatedAt)}</Table.Td>
               <Table.Td>
@@ -66,11 +65,11 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                     onClick={() =>
                       submit(
                         () => openCaseAction({ caseId: entry.id }),
-                        ({ caseId, scenarioId }) => router.push(scenarioOnboardingPath(caseId, scenarioId)),
+                        ({ redirectPath }) => router.push(redirectPath),
                       )
                     }
                   >
-                    Open / Continue
+                    進入計劃
                   </Button>
                   <ActionIcon
                     variant="subtle"
@@ -105,11 +104,11 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                   onClick={() =>
                     submit(
                       () => openCaseAction({ caseId: entry.id }),
-                      ({ caseId, scenarioId }) => router.push(scenarioOnboardingPath(caseId, scenarioId)),
+                      ({ redirectPath }) => router.push(redirectPath),
                     )
                   }
                 >
-                  Open / Continue
+                  進入計劃
                 </Button>
                 <Button
                   variant="default"

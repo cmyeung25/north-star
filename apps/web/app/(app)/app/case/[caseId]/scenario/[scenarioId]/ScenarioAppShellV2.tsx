@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useMediaQuery } from "@mantine/hooks";
 import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
 import { formatIsoYmdHms } from "../../../../../../../lib/date/format";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -18,6 +19,7 @@ import { useScenarioContext } from "../../../../../../../src/hooks/useScenarioCo
 import { useScenarioAutosave } from "./hooks/useScenarioAutosave";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
 import RevisionConflictModal from "./components/RevisionConflictModal";
+import { memberCasesPath, scenarioSettingsPath } from "../../../../../../../lib/routes/appRoutes";
 
 const AUTOSAVE_DELAY_MS = 45_000;
 
@@ -31,16 +33,10 @@ type WorkspaceTab = {
   label: string;
 };
 
-const AURORA = "#7CFFB2";
-const POLAR_BG = "#091425";
-const POLAR_SURFACE = "#0F1D33";
-const POLAR_SURFACE_ALT = "#152741";
-const POLAR_TEXT = "#E6F0FF";
-const POLAR_MUTED = "#95A8C6";
-
 export default function ScenarioAppShellV2({ title, children }: ScenarioAppShellV2Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const scenarioContext = useScenarioContext();
   const meta = useScenarioCloudStore((state) => state.active);
   const saveNow = useScenarioCloudStore((state) => state.saveNow);
@@ -77,8 +73,9 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
 
   const tabs: WorkspaceTab[] = [
     { href: `${appScenarioUrl}/dashboard`, label: "Dashboard" },
-    { href: `${appScenarioUrl}/money`, label: "Money" },
     { href: `${appScenarioUrl}/planlab`, label: "Plan Lab" },
+    { href: `${appScenarioUrl}/money`, label: "Money" },
+    { href: scenarioSettingsPath(caseId, scenarioId), label: "Scenario Setting" },
   ];
 
   const enabled = Boolean(meta && scenarioId && meta.scenarioId === scenarioId);
@@ -159,71 +156,64 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
     }
   };
 
+  const sideNav = (
+    <nav style={{ display: "grid", gap: "0.5rem" }}>
+      {tabs.map((tab) => {
+        const active = pathname === tab.href;
+        return (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            style={{
+              borderRadius: "0.5rem",
+              textDecoration: "none",
+              color: active ? "#0b355d" : "#334155",
+              fontWeight: active ? 600 : 500,
+              padding: "0.45rem 0.55rem",
+              background: active ? "#e8f2ff" : "transparent",
+            }}
+          >
+            {tab.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
   return (
-    <section
-      style={{
-        display: "grid",
-        gridTemplateColumns: "240px 1fr",
-        minHeight: "calc(100vh - 6rem)",
-        background: POLAR_BG,
-        color: POLAR_TEXT,
-      }}
-    >
-      <aside style={{ borderRight: `1px solid ${POLAR_SURFACE_ALT}`, padding: "1rem", background: POLAR_SURFACE }}>
-        <div style={{ padding: "0.75rem 0.5rem 1rem", fontSize: 12, letterSpacing: "0.14em", color: AURORA, fontWeight: 700 }}>
-          AURIN
-        </div>
-        <nav style={{ display: "grid", gap: "0.5rem" }}>
-          {tabs.map((tab) => {
-            const active = pathname === tab.href;
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                style={{
-                  borderRadius: "0.7rem",
-                  textDecoration: "none",
-                  color: active ? "#031425" : POLAR_TEXT,
-                  fontWeight: active ? 700 : 500,
-                  padding: "0.6rem 0.7rem",
-                  background: active ? AURORA : "transparent",
-                  border: active ? "none" : `1px solid ${POLAR_SURFACE_ALT}`,
-                }}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-      <div style={{ display: "grid", gridTemplateRows: "auto 1fr", minWidth: 0 }}>
+    <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", minHeight: "calc(100vh - 6rem)" }}>
+      {!isMobile ? <aside style={{ borderRight: "1px solid #e5e7eb", padding: "1rem" }}>{sideNav}</aside> : null}
+      <div style={{ display: "grid", gridTemplateRows: "auto 1fr auto", minWidth: 0 }}>
         <header
           style={{
-            borderBottom: `1px solid ${POLAR_SURFACE_ALT}`,
+            borderBottom: "1px solid #e5e7eb",
             padding: "0.9rem 1.1rem",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             gap: "0.8rem",
-            background: POLAR_SURFACE,
           }}
         >
-          <div style={{ display: "grid", gap: 2 }}>
-            <div style={{ fontSize: 12, letterSpacing: "0.1em", color: AURORA, fontWeight: 700 }}>AURIN</div>
+          <div>
+            <Link href={memberCasesPath(caseId)} style={{ fontSize: 12, color: "#334155", textDecoration: "none" }}>
+              ← 返回 Member Cases
+            </Link>
             <h1 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>{title}</h1>
           </div>
           {meta ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <SaveStatusChip status={meta.saveStatus} />
-              <span style={{ fontSize: 12, color: POLAR_MUTED }}>
-                {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
-              </span>
-              <span style={{ fontSize: 12, color: POLAR_MUTED }}>rev {meta.revision}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              {!isMobile ? <SaveStatusChip status={meta.saveStatus} /> : null}
+              {!isMobile ? (
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
+                </span>
+              ) : null}
               <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
             </div>
           ) : null}
         </header>
-        <div style={{ padding: "1rem 1.1rem", minWidth: 0, background: POLAR_BG }}>{children}</div>
+        <div style={{ padding: "1rem 1.1rem", minWidth: 0 }}>{children}</div>
+        {isMobile ? <div style={{ borderTop: "1px solid #e5e7eb", padding: "0.6rem 0.8rem" }}>{sideNav}</div> : null}
       </div>
       <RevisionConflictModal
         open={showConflict}

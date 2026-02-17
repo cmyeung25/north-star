@@ -30,6 +30,7 @@ export const createEmptyScenarioPayload = (
       caseId: input.caseId,
       scenarioId: input.scenarioId,
       currency: input.currency ?? "HKD",
+      schemaVersion: 2,
       onboarded: false,
       createdFrom: input.createdFrom ?? "member-create-case",
     },
