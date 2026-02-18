@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createCaseScenarioRepo, createEmptyScenarioPayload } from "@north-star/adapters";
 import { scenarioDashboardPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
+import { isScenarioOnboarded } from "../../../../lib/scenario/isScenarioOnboarded";
 import { createSupabaseServerClient } from "../../../../src/lib/supabase/server";
 
 const repo = () =>
@@ -103,8 +104,7 @@ export async function openCaseAction(input: { caseId: string; caseCurrency?: str
 
   if (defaultScenario) {
     const payload = await repo().loadScenarioPayload(input.caseId, defaultScenario.id);
-    const meta = payload && typeof payload === "object" ? (payload as { meta?: unknown }).meta : null;
-    const onboarded = Boolean(meta && typeof meta === "object" && (meta as { onboarded?: unknown }).onboarded === true);
+    const onboarded = isScenarioOnboarded(payload, defaultScenario.id);
 
     return {
       caseId: input.caseId,
