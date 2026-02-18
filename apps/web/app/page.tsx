@@ -1,4 +1,4 @@
-import MarketingLanding from "../../components/marketing/MarketingLanding";
+import MarketingLanding from "../components/marketing/MarketingLanding";
 
 export const dynamic = "force-dynamic";
 

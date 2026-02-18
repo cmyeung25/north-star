@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { MantineProvider } from "@mantine/core";
-import { aurinTheme } from "../../app/theme/aurinTheme";
+import { aurinTheme } from "../../lib/theme/aurinTheme";
 
 type AurinProvidersProps = {
   children: ReactNode;

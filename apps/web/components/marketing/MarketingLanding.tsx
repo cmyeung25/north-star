@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Anchor, Button, Container, Group, Stack, Text, Title } from "@mantine/core";
-import BrandLogo from "../../components/brand/BrandLogo";
+import BrandLogo from "../brand/BrandLogo";
 
-export default function MarketingLandingPage() {
+export default function MarketingLanding() {
   return (
     <Container size="sm" py={56}>
       <Stack gap="lg" align="flex-start">
