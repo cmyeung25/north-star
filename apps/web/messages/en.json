@@ -9,7 +9,7 @@
     "syncSettings": "Sync settings",
     "signInToSync": "Sign in to sync",
     "languageSwitcherLabel": "Language switcher",
-    "languageZhHant": "Chinese (Traditional)",
+    "languageZhHant": "繁體中文",
     "languageEn": "English",
     "actionCancel": "Cancel",
     "actionSave": "Save",
@@ -3562,5 +3562,21 @@
     "doubleCountingHomeRent": "Rent and home purchase overlap; double counting may occur.",
     "doubleCountingPlanPatch": "Plan changes include overlapping housing updates; double counting may occur.",
     "planLabInvalidPatch": "Plan change is invalid or no longer applies."
+  },
+  "marketing": {
+    "hero": {
+      "title": "North Star",
+      "subtitle": "Plan your financial future with scenario-based simulations powered by Aurin's Polar Night and Aurora design language."
+    },
+    "cta": {
+      "start": "Go to marketing overview",
+      "login": "Sign in",
+      "goCases": "Open cases"
+    },
+    "section": {
+      "features": "Features",
+      "flow": "How it works",
+      "faq": "FAQ"
+    }
   }
 }

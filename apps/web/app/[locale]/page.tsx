@@ -1,7 +1,1 @@
-import MarketingLanding from "../../components/marketing/MarketingLanding";
-
-export const dynamic = "force-dynamic";
-
-export default function HomePage() {
-  return <MarketingLanding />;
-}
+export { default } from './(marketing)/page';
