@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { AppShell, Button, Group, NavLink, Stack, Text, Title } from "@mantine/core";
+import { AppShell, AppShellMain, AppShellNavbar, Button, Group, NavLink, Stack, Text, Title } from "@mantine/core";
 import { getTranslations } from "next-intl/server";
 import { createSupabaseServerClient } from '../../../../src/lib/supabase/server';
 
@@ -22,7 +22,7 @@ export default async function MemberLayout({ children, params }: Props) {
 
   return (
     <AppShell navbar={{ width: 260, breakpoint: "sm" }} padding="md">
-      <AppShell.Navbar p="sm">
+      <AppShellNavbar p="sm">
         <Stack h="100%" gap="xs">
           <div>
             <Title order={4}>會員專區</Title>
@@ -38,8 +38,8 @@ export default async function MemberLayout({ children, params }: Props) {
             </Button>
           </Group>
         </Stack>
-      </AppShell.Navbar>
-      <AppShell.Main>{children}</AppShell.Main>
+      </AppShellNavbar>
+      <AppShellMain>{children}</AppShellMain>
     </AppShell>
   );
 }
