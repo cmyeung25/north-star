@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
-import Providers from "../providers";
-import { createSupabaseServerClient } from "../../src/lib/supabase/server";
 import { defaultLocale, locales, type Locale } from "../../src/i18n/routing";
 
 type LocaleLayoutProps = {
@@ -56,10 +54,5 @@ export default async function LocaleLayout({
     notFound();
   }
 
-  const supabase = createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return <Providers initialSupabaseUser={user}>{children}</Providers>;
+  return <>{children}</>;
 }

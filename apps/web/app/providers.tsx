@@ -7,7 +7,6 @@ import {
   Button,
   Container,
   Group,
-  MantineProvider,
   Menu,
   NavLink,
   Stack,
@@ -38,7 +37,6 @@ import {
   desktopToolbarHeight,
 } from "../components/DesktopBottomToolbar";
 import { Link } from "../src/i18n/navigation";
-import { aurinTheme } from "./theme/aurinTheme";
 import { createSupabaseBrowserClient } from "../src/lib/supabase/browser";
 import { CaseScenarioProvider } from "../src/contexts/CaseScenarioProvider";
 
@@ -234,7 +232,6 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
 
   return (
     <CaseScenarioProvider>
-      <MantineProvider theme={aurinTheme}>
       <AppShell
         header={{ height: 64 }}
         navbar={isDesktop ? { width: 220, breakpoint: 0 } : undefined}
@@ -428,7 +425,6 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
         </AppShell.Main>
         {/* {isDesktop && !isOnboarding && <DesktopBottomToolbar />} */}
       </AppShell>
-      </MantineProvider>
     </CaseScenarioProvider>
   );
 }
