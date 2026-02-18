@@ -19,8 +19,7 @@
   background: var(--aur-card-0);
   padding: 1rem 0.85rem;
   height: 100dvh;
-  position: fixed;
-  left: 0;
+  position: sticky;
   top: 0;
   overflow: hidden;
 }
@@ -81,7 +80,6 @@
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
-  margin-left: 240px;
   background: var(--aur-surface-50);
 }
 
