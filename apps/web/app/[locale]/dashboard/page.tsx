@@ -1,20 +1,27 @@
 import { redirect } from "next/navigation";
-import { memberCasesPath, scenarioDashboardPath } from "../../../lib/routes/appRoutes";
+import {
+  memberCasesPath,
+  scenarioDashboardPath,
+} from "../../../lib/routes/canonicalRoutes";
+import { type Locale } from "../../../src/i18n/routing";
 
 type PageProps = {
+  params: { locale: Locale };
   searchParams: {
     caseId?: string;
     scenarioId?: string;
   };
 };
 
-export default async function Page({ searchParams }: PageProps) {
-  const caseId = searchParams.caseId;
-  const scenarioId = searchParams.scenarioId;
+export default async function LegacyDashboardRedirectPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const { caseId, scenarioId } = searchParams;
 
   if (!caseId || !scenarioId) {
-    redirect(memberCasesPath());
+    redirect(memberCasesPath(params.locale));
   }
 
-  redirect(scenarioDashboardPath(caseId, scenarioId));
+  redirect(scenarioDashboardPath(caseId, scenarioId, params.locale));
 }

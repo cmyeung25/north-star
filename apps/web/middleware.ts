@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import createMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 import { defaultLocale, locales, type Locale } from "./src/i18n/routing";
+import { marketingHomePath, memberCasesPath } from "./lib/routes/canonicalRoutes";
 import { getSupabasePublishableKey, getSupabaseUrl } from "./src/lib/supabase/env";
 
 const handleI18n = createMiddleware({
@@ -40,6 +41,25 @@ const isLegacyUnlocalizedRoute = (pathname: string) =>
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
+const resolveLegacyRedirect = (
+  pathnameWithoutLocale: string,
+  locale: Locale,
+): string | null => {
+  if (pathnameWithoutLocale === "/scenarios") {
+    return memberCasesPath(locale);
+  }
+
+  if (["/dashboard", "/app"].includes(pathnameWithoutLocale)) {
+    return memberCasesPath(locale);
+  }
+
+  if (pathnameWithoutLocale === "/overview") {
+    return marketingHomePath(locale);
+  }
+
+  return null;
+};
+
 const updateSupabaseSession = async (request: NextRequest, response: NextResponse) => {
   const supabase = createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
     cookies: {
@@ -63,6 +83,14 @@ export default async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const locale = resolveLocaleFromPath(pathname);
   const pathnameWithoutLocale = stripLocalePrefix(pathname);
+
+  const legacyRedirectPath = resolveLegacyRedirect(pathnameWithoutLocale, locale);
+  if (legacyRedirectPath && legacyRedirectPath !== pathname) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = legacyRedirectPath;
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
 
   const response = isLegacyUnlocalizedRoute(pathname) ? NextResponse.next() : handleI18n(request);
   const { response: updatedResponse, user } = await updateSupabaseSession(request, response);

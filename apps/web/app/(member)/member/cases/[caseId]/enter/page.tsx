@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createCaseScenarioRepo, createEmptyScenarioPayload } from "@north-star/adapters";
 import { isScenarioOnboarded } from "../../../../../../lib/scenario/isScenarioOnboarded";
+import { memberCasesPath, scenarioDashboardPath, scenarioOnboardingPath } from "../../../../../../lib/routes/canonicalRoutes";
 import { createSupabaseServerClient } from "../../../../../../src/lib/supabase/server";
 
 const repo = () =>
@@ -26,7 +27,7 @@ export default async function CaseEnterPage({ params }: { params: { caseId: stri
   const activeCase = (await scenarioRepo.listCases()).find((entry) => entry.id === params.caseId);
 
   if (!activeCase) {
-    redirect(`/member/cases`);
+    redirect(memberCasesPath());
   }
 
   const listedScenarios = await scenarioRepo.listScenarios(params.caseId);
@@ -44,8 +45,9 @@ export default async function CaseEnterPage({ params }: { params: { caseId: stri
 
   const payload = await scenarioRepo.loadScenarioPayload(params.caseId, targetScenario.id);
   const onboarded = isScenarioOnboarded(payload, targetScenario.id);
-  const destination = onboarded ? "/dashboard" : "/onboarding";
-  const search = `?scenarioId=${encodeURIComponent(targetScenario.id)}&caseId=${encodeURIComponent(params.caseId)}`;
+  const destination = onboarded
+    ? scenarioDashboardPath(params.caseId, targetScenario.id)
+    : scenarioOnboardingPath(params.caseId, targetScenario.id);
 
-  redirect(`${destination}${search}`);
+  redirect(destination);
 }

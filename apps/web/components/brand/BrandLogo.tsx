@@ -30,7 +30,7 @@ export default function BrandLogo({
   variant = "full",
   size = "md",
   collapsed = false,
-  href = "/scenarios",
+  href = "/member/cases",
   className,
   priority = false,
   unoptimized = true,

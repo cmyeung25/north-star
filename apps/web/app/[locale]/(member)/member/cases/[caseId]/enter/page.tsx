@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createCaseScenarioRepo, createEmptyScenarioPayload } from "@north-star/adapters";
 import { isScenarioOnboarded } from "../../../../../../../lib/scenario/isScenarioOnboarded";
-import { defaultLocale, type Locale } from "../../../../../../../src/i18n/routing";
+import { memberCasesPath, scenarioDashboardPath, scenarioOnboardingPath } from "../../../../../../../lib/routes/canonicalRoutes";
+import { type Locale } from "../../../../../../../src/i18n/routing";
 import { createSupabaseServerClient } from "../../../../../../../src/lib/supabase/server";
 
 const repo = () =>
@@ -9,8 +10,6 @@ const repo = () =>
     mode: "cloud",
     supabaseClient: createSupabaseServerClient(),
   });
-
-const resolveLocalePrefix = (locale: Locale) => (locale === defaultLocale ? "" : `/${locale}`);
 
 const pickDefaultScenario = <T extends { updatedAt?: string }>(scenarios: T[]) => {
   if (scenarios.length === 0) {
@@ -29,7 +28,7 @@ export default async function CaseEnterPage({ params }: { params: { locale: Loca
   const activeCase = (await scenarioRepo.listCases()).find((entry) => entry.id === params.caseId);
 
   if (!activeCase) {
-    redirect(`${resolveLocalePrefix(params.locale)}/member/cases`);
+    redirect(memberCasesPath(params.locale));
   }
 
   const listedScenarios = await scenarioRepo.listScenarios(params.caseId);
@@ -47,8 +46,9 @@ export default async function CaseEnterPage({ params }: { params: { locale: Loca
 
   const payload = await scenarioRepo.loadScenarioPayload(params.caseId, targetScenario.id);
   const onboarded = isScenarioOnboarded(payload, targetScenario.id);
-  const destination = onboarded ? "/dashboard" : "/onboarding";
-  const search = `?scenarioId=${encodeURIComponent(targetScenario.id)}&caseId=${encodeURIComponent(params.caseId)}`;
+  const destination = onboarded
+    ? scenarioDashboardPath(params.caseId, targetScenario.id, params.locale)
+    : scenarioOnboardingPath(params.caseId, targetScenario.id, params.locale);
 
-  redirect(`${resolveLocalePrefix(params.locale)}${destination}${search}`);
+  redirect(destination);
 }
