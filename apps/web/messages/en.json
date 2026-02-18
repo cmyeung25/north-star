@@ -3564,19 +3564,172 @@
     "planLabInvalidPatch": "Plan change is invalid or no longer applies."
   },
   "marketing": {
-    "hero": {
-      "title": "North Star",
-      "subtitle": "Plan your financial future with scenario-based simulations powered by Aurin's Polar Night and Aurora design language."
+    "web": {
+      "hero": {
+        "badge": "Aurin Financial Planning",
+        "title": "Plan with clarity, decide with confidence",
+        "subtitle": "Use isolated scenarios to model income, spending, assets, and liabilities on a monthly timeline."
+      },
+      "cta": {
+        "start": "Get started free",
+        "login": "Log in",
+        "goCases": "Go to my cases"
+      },
+      "snapshot": {
+        "title": "Simulation snapshot",
+        "case": "Case: Career switch at 35 + home purchase",
+        "detail": "Scenario A: Steady growth / Scenario B: Early home purchase, with net worth differences in view.",
+        "points": {
+          "cashflow": "Monthly cashflow trend",
+          "netWorth": "Net worth movement",
+          "guardrails": "Risk guardrail alerts"
+        }
+      },
+      "section": {
+        "features": "Feature highlights",
+        "flow": "How it works",
+        "faq": "FAQ"
+      },
+      "features": {
+        "isolation": {
+          "icon": "🧭",
+          "title": "Scenario isolation",
+          "description": "Keep each life plan independent for cleaner comparisons."
+        },
+        "quickStart": {
+          "icon": "⚡",
+          "title": "Quick start",
+          "description": "Build a baseline in about five minutes and start modeling."
+        },
+        "dashboard": {
+          "icon": "📊",
+          "title": "Overview dashboard",
+          "description": "Track cashflow, net worth, and risk signals in one place."
+        },
+        "planLab": {
+          "icon": "🧪",
+          "title": "Plan lab",
+          "description": "Adjust assumptions and see monthly impact instantly."
+        },
+        "comparison": {
+          "icon": "🔍",
+          "title": "Plan comparison",
+          "description": "Spot differences across scenarios at a glance."
+        },
+        "guardrails": {
+          "icon": "🛡️",
+          "title": "Risk guardrails",
+          "description": "Catch baseline drift and double counting risks early."
+        }
+      },
+      "flow": {
+        "step": "Step {number}",
+        "one": "Create a case",
+        "two": "Create scenarios and complete setup",
+        "three": "Review in dashboard, then test in plan lab"
+      },
+      "faq": {
+        "one": {
+          "q": "Do scenarios affect each other?",
+          "a": "No. Every scenario runs in isolation so you can compare safely."
+        },
+        "two": {
+          "q": "Can I edit assumptions later?",
+          "a": "Yes. You can update assumptions anytime and projections refresh immediately."
+        },
+        "three": {
+          "q": "How is data stored and can I export it?",
+          "a": "Your planning data is saved to your account environment, and exports can be requested through support."
+        },
+        "four": {
+          "q": "Can one case contain multiple scenarios?",
+          "a": "Yes. A single case can include multiple scenarios for different life decisions."
+        }
+      }
     },
-    "cta": {
-      "start": "Go to marketing overview",
-      "login": "Sign in",
-      "goCases": "Open cases"
+    "footer": {
+      "tagline": "Scenario-first financial planning platform",
+      "links": {
+        "features": "Features",
+        "pricing": "Pricing",
+        "privacy": "Privacy",
+        "support": "Support"
+      }
     },
-    "section": {
-      "features": "Features",
-      "flow": "How it works",
-      "faq": "FAQ"
+    "pages": {
+      "features": {
+        "title": "Features",
+        "description": "Aurin helps turn complex decisions into scenario-based plans you can compare and act on.",
+        "cards": {
+          "isolation": {
+            "title": "Scenario isolation",
+            "description": "Each scenario is computed independently to avoid overlap."
+          },
+          "quickStart": {
+            "title": "Quick start",
+            "description": "Guided setup gets your baseline ready quickly."
+          },
+          "dashboard": {
+            "title": "Overview dashboard",
+            "description": "Track KPI, cashflow, and net worth in one view."
+          },
+          "planLab": {
+            "title": "Plan lab",
+            "description": "Tune assumptions and evaluate impact instantly."
+          },
+          "comparison": {
+            "title": "Plan comparison",
+            "description": "Compare multiple options side by side."
+          },
+          "guardrails": {
+            "title": "Risk guardrails",
+            "description": "Get prompts for drift and duplicate counting risks."
+          }
+        }
+      },
+      "pricing": {
+        "title": "Pricing",
+        "description": "Start simple and upgrade when you need more support.",
+        "plans": {
+          "free": {
+            "name": "Free",
+            "price": "HK$0 / month",
+            "description": "Create core cases and scenarios with essential tools."
+          },
+          "pro": {
+            "name": "Pro",
+            "price": "HK$98 / month",
+            "description": "Advanced scenario comparison and deeper planning support."
+          }
+        }
+      },
+      "privacy": {
+        "title": "Privacy",
+        "description": "We handle your data with clarity and care.",
+        "items": {
+          "storage": {
+            "title": "Data storage",
+            "description": "Your planning data is stored in your account environment and accessible by you."
+          },
+          "export": {
+            "title": "Data export",
+            "description": "Need exports? Contact support and we will help you arrange it."
+          },
+          "statement": {
+            "title": "Usage statement",
+            "description": "Aurin provides planning support and informational tools, not investment advice."
+          }
+        }
+      },
+      "support": {
+        "title": "Support",
+        "description": "Need help? Reach out and we will assist.",
+        "contact": {
+          "title": "Contact",
+          "email": "Email: support@aurin.app",
+          "faq": "You can also start with the FAQ on the home page."
+        }
+      }
     }
   }
 }

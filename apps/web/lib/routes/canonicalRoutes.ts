@@ -12,7 +12,7 @@ const withLocale = (path: string, locale?: Locale | null) =>
   `${localizedPrefix(locale)}${path}`;
 
 export const marketingHomePath = (locale?: Locale | null) =>
-  withLocale("/", locale);
+  withLocale("/web", locale);
 
 export const memberCasesPath = (locale?: Locale | null) =>
   withLocale("/member/cases", locale);

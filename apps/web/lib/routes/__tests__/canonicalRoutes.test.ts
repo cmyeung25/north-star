@@ -10,7 +10,7 @@ import {
 
 describe("canonicalRoutes", () => {
   it("uses localePrefix as-needed", () => {
-    expect(marketingHomePath("zh-HK")).toBe("/");
+    expect(marketingHomePath("zh-HK")).toBe("/web");
     expect(memberCasesPath("zh-HK")).toBe("/member/cases");
     expect(memberCasesPath("en")).toBe("/en/member/cases");
   });
