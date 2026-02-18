@@ -3,11 +3,11 @@
 import { Select } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { locales } from "../src/i18n/routing";
+import { defaultLocale, locales } from "../src/i18n/routing";
 
 const getPathWithoutLocale = (pathname: string) => {
   const localePrefix = locales.find(
-    (locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)
+    (locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`),
   );
 
   if (!localePrefix) {
@@ -32,9 +32,8 @@ export default function LanguageSwitcher() {
 
     const restPath = getPathWithoutLocale(pathname);
     const query = searchParams.toString();
-    const nextUrl = query
-      ? `/${nextLocale}${restPath}?${query}`
-      : `/${nextLocale}${restPath}`;
+    const localizedPath = nextLocale === defaultLocale ? restPath : `/${nextLocale}${restPath}`;
+    const nextUrl = query ? `${localizedPath}?${query}` : localizedPath;
 
     router.replace(nextUrl);
   };
@@ -46,7 +45,7 @@ export default function LanguageSwitcher() {
       onChange={handleChange}
       data={locales.map((option) => ({
         value: option,
-        label: option === "zh-Hant-HK" ? t("languageZhHant") : t("languageEn"),
+        label: option === defaultLocale ? t("languageZhHant") : t("languageEn"),
       }))}
       aria-label={t("languageSwitcherLabel")}
     />
