@@ -62,6 +62,7 @@ export default async function middleware(request: NextRequest) {
     const nextUrl = request.nextUrl.clone();
     nextUrl.pathname = `/${resolvedLocale}${pathname}`;
     response = NextResponse.redirect(nextUrl);
+    response.cookies.set("NEXT_LOCALE", resolvedLocale, { path: "/" });
   } else {
     response = handleI18n(request);
   }

@@ -7,8 +7,8 @@ export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/app");
+    router.replace("/member/cases");
   }, [router]);
 
-  return <p>Signed in. Redirecting to app…</p>;
+  return <p>Signed in. Redirecting to cases…</p>;
 }

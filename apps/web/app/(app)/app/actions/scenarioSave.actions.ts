@@ -41,6 +41,7 @@ const ensureScenarioSaveMeta = (payload: Record<string, unknown>, scenarioId: st
       meta: {
         ...scenarioMeta,
         schemaVersion: 2,
+        onboardingVersion: 2,
         lastSavedAt: now,
         onboarded,
         onboardedAt: onboarded ? onboardedAt ?? now : null,
@@ -58,6 +59,7 @@ const ensureScenarioSaveMeta = (payload: Record<string, unknown>, scenarioId: st
   next.meta = {
     ...meta,
     schemaVersion: 2,
+    onboardingVersion: 2,
     lastSavedAt: now,
     onboarded: rootOnboarded,
     onboardedAt: rootOnboarded ? rootOnboardedAt ?? now : null,

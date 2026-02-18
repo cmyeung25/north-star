@@ -5,6 +5,36 @@ import { importScenarioState } from "../../../../../../../src/store/scenarioStat
 import { normalizeScenario } from "../../../../../../../src/store/scenarioStore";
 import { useScenarioStore } from "../../../../../../../src/store/scenarioStore";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
+import { isScenarioOnboardedV2 } from "../../../../../../../lib/scenario/isScenarioOnboarded";
+
+
+const normalizeHydratedPayload = (payload: Record<string, unknown>, scenarioId: string) => {
+  const nextPayload = { ...payload };
+  const scenarios = Array.isArray(nextPayload.scenarios) ? nextPayload.scenarios : [];
+  const routeScenario = scenarios.find(
+    (entry) => entry && typeof entry === "object" && (entry as { id?: unknown }).id === scenarioId,
+  );
+  const selectedScenario = routeScenario && typeof routeScenario === "object"
+    ? (routeScenario as Parameters<typeof isScenarioOnboardedV2>[0])
+    : null;
+
+  if (!isScenarioOnboardedV2(selectedScenario)) {
+    return nextPayload;
+  }
+
+  const meta =
+    nextPayload.meta && typeof nextPayload.meta === "object"
+      ? (nextPayload.meta as Record<string, unknown>)
+      : {};
+
+  nextPayload.meta = {
+    ...meta,
+    schemaVersion: 2,
+    onboarded: true,
+  };
+
+  return nextPayload;
+};
 
 type Props = {
   caseId: string;
@@ -31,13 +61,14 @@ export default function ScenarioHydrator({
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
 
   useEffect(() => {
-    importScenarioState(payload as never);
+    const normalizedPayload = normalizeHydratedPayload(payload, scenarioId);
+    importScenarioState(normalizedPayload as never);
     initializeCloudMeta({
       caseId,
       scenarioId,
       revision,
       lastSavedAt,
-      payloadHash: JSON.stringify(payload),
+      payloadHash: JSON.stringify(normalizedPayload),
     });
     if (typeof window !== "undefined") {
       window.localStorage.setItem(
