@@ -3611,19 +3611,172 @@
     "planLabInvalidPatch": "方案變更無效或已不適用。"
   },
   "marketing": {
-    "hero": {
-      "title": "North Star",
-      "subtitle": "以情境化模擬規劃你的理財未來，讓每個決策更清晰。"
+    "web": {
+      "hero": {
+        "badge": "Aurin 財務規劃平台",
+        "title": "以極光般的清晰，照亮你的理財決策",
+        "subtitle": "以情境隔離不同人生方案，把收入、支出、資產與負債投影成月度時間線，讓每一步更有把握。"
+      },
+      "cta": {
+        "start": "免費開始",
+        "login": "登入",
+        "goCases": "進入我的案例"
+      },
+      "snapshot": {
+        "title": "決策模擬快照",
+        "case": "案例：35 歲轉職 + 置業規劃",
+        "detail": "方案 A：穩健增長／方案 B：提前置業，淨值差異一眼掌握。",
+        "points": {
+          "cashflow": "每月現金流趨勢",
+          "netWorth": "資產淨值變化",
+          "guardrails": "風險護欄提醒"
+        }
+      },
+      "section": {
+        "features": "功能亮點",
+        "flow": "使用流程",
+        "faq": "常見問題"
+      },
+      "features": {
+        "isolation": {
+          "icon": "🧭",
+          "title": "情境隔離",
+          "description": "每個人生方案互不污染，比較更準確。"
+        },
+        "quickStart": {
+          "icon": "⚡",
+          "title": "快速開局",
+          "description": "約 5 分鐘建立 baseline，立即開始推演。"
+        },
+        "dashboard": {
+          "icon": "📊",
+          "title": "總覽儀表板",
+          "description": "現金流、資產淨值與風險指標集中檢視。"
+        },
+        "planLab": {
+          "icon": "🧪",
+          "title": "方案實驗室",
+          "description": "調整假設與參數，即時觀察月度變化。"
+        },
+        "comparison": {
+          "icon": "🔍",
+          "title": "方案比較",
+          "description": "快速看清多個方案差異，決策更有把握。"
+        },
+        "guardrails": {
+          "icon": "🛡️",
+          "title": "風險護欄",
+          "description": "提醒 baseline drift 與 double counting 風險。"
+        }
+      },
+      "flow": {
+        "step": "步驟 {number}",
+        "one": "建立案例",
+        "two": "建立情境並完成初始化",
+        "three": "在總覽儀表板檢視，再到方案實驗室試方案"
+      },
+      "faq": {
+        "one": {
+          "q": "不同情境會互相影響嗎？",
+          "a": "不會。每個情境都以隔離狀態運作，方便你在同一案例下安全比較。"
+        },
+        "two": {
+          "q": "我可以之後再改假設或收支嗎？",
+          "a": "可以，任何時候都可調整參數，系統會即時更新投影。"
+        },
+        "three": {
+          "q": "資料會如何保存？可否匯出？",
+          "a": "資料會保存於你的帳號環境，匯出可透過支援流程提出。"
+        },
+        "four": {
+          "q": "一個案例可以有多個情境嗎？",
+          "a": "可以，一個案例可建立多個情境，用於測試不同人生決策路徑。"
+        }
+      }
     },
-    "cta": {
-      "start": "前往產品介紹",
-      "login": "登入",
-      "goCases": "進入我的個案"
+    "footer": {
+      "tagline": "Scenario-first 財務規劃平台",
+      "links": {
+        "features": "功能",
+        "pricing": "價格",
+        "privacy": "隱私",
+        "support": "支援"
+      }
     },
-    "section": {
-      "features": "功能亮點",
-      "flow": "使用流程",
-      "faq": "FAQ"
+    "pages": {
+      "features": {
+        "title": "功能總覽",
+        "description": "Aurin 以情境為核心，協助你把複雜財務決策拆解成可比較、可行動的方案。",
+        "cards": {
+          "isolation": {
+            "title": "情境隔離",
+            "description": "每個情境獨立運算，避免不同方案互相污染。"
+          },
+          "quickStart": {
+            "title": "快速開局",
+            "description": "以引導流程快速完成初始資料，立即展開推演。"
+          },
+          "dashboard": {
+            "title": "總覽儀表板",
+            "description": "把 KPI、現金流與資產變化集中到同一視圖。"
+          },
+          "planLab": {
+            "title": "方案實驗室",
+            "description": "即時調整參數，觀察不同假設對結果的影響。"
+          },
+          "comparison": {
+            "title": "方案比較",
+            "description": "並排比較多個方案，快速找出差異重點。"
+          },
+          "guardrails": {
+            "title": "風險護欄",
+            "description": "自動提示可能的重複計算與假設偏移。"
+          }
+        }
+      },
+      "pricing": {
+        "title": "價格方案",
+        "description": "先以簡單方案開始；日後可按需要升級。",
+        "plans": {
+          "free": {
+            "name": "Free",
+            "price": "HK$0／月",
+            "description": "建立基本案例與情境，體驗核心功能。"
+          },
+          "pro": {
+            "name": "Pro",
+            "price": "HK$98／月",
+            "description": "進階方案比較與更完整的規劃支援。"
+          }
+        }
+      },
+      "privacy": {
+        "title": "隱私與資料",
+        "description": "我們重視你的個人資料，並以清晰原則處理保存與使用。",
+        "items": {
+          "storage": {
+            "title": "資料保存",
+            "description": "你的規劃資料會保存於帳號環境，僅供你本人存取。"
+          },
+          "export": {
+            "title": "資料匯出",
+            "description": "如需資料匯出，可透過支援聯絡我們安排處理。"
+          },
+          "statement": {
+            "title": "使用聲明",
+            "description": "Aurin 提供規劃工具與資訊輔助，不構成投資建議。"
+          }
+        }
+      },
+      "support": {
+        "title": "支援",
+        "description": "如你在使用中遇到問題，歡迎隨時聯絡我們。",
+        "contact": {
+          "title": "聯絡方式",
+          "email": "電郵：support@aurin.app",
+          "faq": "你亦可先參考首頁 FAQ，快速找到常見問題答案。"
+        }
+      }
     }
   }
 }
