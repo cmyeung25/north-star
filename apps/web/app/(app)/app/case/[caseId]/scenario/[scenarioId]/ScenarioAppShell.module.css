@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100dvh;
   background: var(--aur-surface-50);
   color: var(--aur-text-title);
@@ -18,7 +18,11 @@
   border-right: 1px solid var(--aur-border-200);
   background: var(--aur-card-0);
   padding: 1rem 0.85rem;
-  min-height: 100dvh;
+  height: 100dvh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  overflow: hidden;
 }
 
 .sidebarTop {
@@ -68,12 +72,16 @@
   color: var(--aur-primary-900);
   margin-top: 0.8rem;
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  background: var(--aur-card-0);
 }
 
 .main {
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
+  margin-left: 240px;
   background: var(--aur-surface-50);
 }
 
@@ -134,4 +142,17 @@
 
 .saveButtonWrap :global(button) {
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .main {
+    margin-left: 0;
+  }
 }
