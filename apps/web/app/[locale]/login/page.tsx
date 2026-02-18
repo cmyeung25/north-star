@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
 
@@ -9,6 +9,7 @@ type AuthMode = "sign-in" | "sign-up";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +40,10 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    const callbackUrl = searchParams.get("callbackUrl");
+    const destination = callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : "/member/cases";
+
+    router.push(destination);
     router.refresh();
   };
 

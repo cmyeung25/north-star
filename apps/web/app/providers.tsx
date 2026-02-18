@@ -37,6 +37,7 @@ import {
 } from "../components/DesktopBottomToolbar";
 import { Link } from "../src/i18n/navigation";
 import { createSupabaseBrowserClient } from "../src/lib/supabase/browser";
+import { isScenarioOnboarded } from "../lib/onboarding/isScenarioOnboarded";
 import { CaseScenarioProvider } from "../src/contexts/CaseScenarioProvider";
 
 
@@ -166,7 +167,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
     }
 
     const shouldSkipOnboarding =
-      activeScenario?.clientComputed?.onboardingCompleted === true ||
+      isScenarioOnboarded(activeScenario) ||
       activeScenario?.meta?.skipOnboarding === true ||
       activeScenario?.meta?.isSeeded === true;
 

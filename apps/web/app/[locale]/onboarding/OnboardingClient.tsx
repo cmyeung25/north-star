@@ -2,37 +2,63 @@
 
 import { Skeleton, Stack } from "@mantine/core";
 import { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import OnboardingEntry from "../../../src/features/onboarding/OnboardingEntry";
+import { isScenarioOnboarded as isScenarioOnboardedHelper } from "../../../lib/onboarding/isScenarioOnboarded";
 import {
   getActiveScenario,
+  getScenarioById,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
 
 export default function OnboardingClient() {
   const router = useRouter();
   const locale = useLocale();
+  const searchParams = useSearchParams();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const didHydrate = useScenarioStore((state) => state.didHydrate);
   const isHydrating = useScenarioStore((state) => state.isHydrating);
 
+  const routeScenarioId = searchParams.get("scenarioId");
+  const routeCaseId = searchParams.get("caseId");
+
   const activeScenario = useMemo(
-    () => getActiveScenario(scenarios, activeScenarioId),
-    [activeScenarioId, scenarios]
+    () => (routeScenarioId ? getScenarioById(scenarios, routeScenarioId) : getActiveScenario(scenarios, activeScenarioId)),
+    [activeScenarioId, routeScenarioId, scenarios],
   );
+
+  useEffect(() => {
+    if (!didHydrate || isHydrating || !routeScenarioId || activeScenarioId === routeScenarioId) {
+      return;
+    }
+
+    if (scenarios.some((entry) => entry.id === routeScenarioId)) {
+      setActiveScenario(routeScenarioId);
+    }
+  }, [activeScenarioId, didHydrate, isHydrating, routeScenarioId, scenarios, setActiveScenario]);
 
   useEffect(() => {
     if (!didHydrate || isHydrating) {
       return;
     }
-    if (!activeScenario) {
-      router.replace(`/${locale}/scenarios`);
-    }
-  }, [activeScenario, didHydrate, isHydrating, locale, router]);
 
-  if (!didHydrate || isHydrating) {
+    if (!activeScenario) {
+      router.replace(`/${locale}/member/cases`);
+      return;
+    }
+
+    if (isScenarioOnboardedHelper(activeScenario)) {
+      const query = routeCaseId && activeScenario.id
+        ? `?caseId=${encodeURIComponent(routeCaseId)}&scenarioId=${encodeURIComponent(activeScenario.id)}`
+        : "";
+      router.replace(`/${locale}/dashboard${query}`);
+    }
+  }, [activeScenario, didHydrate, isHydrating, locale, routeCaseId, router]);
+
+  if (!didHydrate || isHydrating || (routeScenarioId && !activeScenario)) {
     return (
       <Stack gap="xl">
         <Stack gap={4}>

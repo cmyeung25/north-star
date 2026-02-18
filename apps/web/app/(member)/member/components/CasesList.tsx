@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import { ActionIcon, Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
-import { createCaseAction, deleteCaseAction, openCaseAction, renameCaseAction } from "../cases/actions";
+import { createCaseAction, deleteCaseAction, renameCaseAction } from "../cases/actions";
 import { formatIsoYmdHms } from "../../../../lib/date/format";
-import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
+import { memberCaseEnterPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
@@ -62,12 +63,8 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                   <Button
                     variant="light"
                     size="xs"
-                    onClick={() =>
-                      submit(
-                        () => openCaseAction({ caseId: entry.id }),
-                        ({ redirectPath }) => router.push(redirectPath),
-                      )
-                    }
+                    component={Link}
+                    href={memberCaseEnterPath(entry.id)}
                   >
                     進入計劃
                   </Button>
@@ -101,12 +98,8 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
               <Group>
                 <Button
                   size="xs"
-                  onClick={() =>
-                    submit(
-                      () => openCaseAction({ caseId: entry.id }),
-                      ({ redirectPath }) => router.push(redirectPath),
-                    )
-                  }
+                  component={Link}
+                  href={memberCaseEnterPath(entry.id)}
                 >
                   進入計劃
                 </Button>
