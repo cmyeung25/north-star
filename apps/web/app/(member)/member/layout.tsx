@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { AppShell, Button, Group, NavLink, Stack, Text, Title } from "@mantine/core";
 import { createSupabaseServerClient } from "../../../src/lib/supabase/server";
 
 export default async function MemberLayout({ children }: { children: ReactNode }) {
@@ -14,26 +15,25 @@ export default async function MemberLayout({ children }: { children: ReactNode }
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--aur-surface-50)" }}>
-      <aside
-        style={{
-          width: 240,
-          borderRight: "1px solid var(--aur-border-200)",
-          padding: "1rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.5rem",
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: "1.25rem" }}>Member</h2>
-        <p style={{ margin: 0, color: "var(--aur-text-muted)", fontSize: "0.875rem" }}>
-          Case / scenario management
-        </p>
-        <Link href="/member/cases">Cases</Link>
-        <Link href="/account">Account settings</Link>
-        <Link href="/auth/logout">Logout</Link>
-      </aside>
-      <main style={{ flex: 1 }}>{children}</main>
-    </div>
+    <AppShell navbar={{ width: 260, breakpoint: "sm" }} padding="md">
+      <AppShell.Navbar p="sm">
+        <Stack h="100%" gap="xs">
+          <div>
+            <Title order={4}>會員專區</Title>
+            <Text size="sm" c="dimmed">
+              案例與情境管理
+            </Text>
+          </div>
+          <NavLink component={Link} href="/member/cases" label="Cases" />
+          <NavLink component={Link} href="/account" label="Account settings" />
+          <Group mt="auto">
+            <Button component={Link} href="/auth/logout" variant="subtle" fullWidth justify="flex-start">
+              Logout
+            </Button>
+          </Group>
+        </Stack>
+      </AppShell.Navbar>
+      <AppShell.Main>{children}</AppShell.Main>
+    </AppShell>
   );
 }

@@ -22,37 +22,37 @@ import {
 const features = [
   {
     icon: "🧭",
-    title: "Scenario 隔離",
-    description: "每個人生方案互不污染，A/B 比較更準確。",
+    title: "情境隔離",
+    description: "每個人生方案互不污染，方案比較更準確。",
   },
   {
     icon: "⚡",
-    title: "快速 Onboarding",
+    title: "快速開局",
     description: "約 5 分鐘建立 baseline，立即開始推演。",
   },
   {
     icon: "📊",
-    title: "Dashboard",
+    title: "總覽儀表板",
     description: "現金流、資產淨值、風險指標集中檢視。",
   },
   {
     icon: "🧪",
-    title: "Plan Lab",
+    title: "方案實驗室",
     description: "調整假設與實驗參數，即時投影月度變化。",
   },
   {
     icon: "🔍",
-    title: "A/B 比較",
+    title: "方案比較",
     description: "兩個方案差異一眼看清，決策更有把握。",
   },
   {
     icon: "🛡️",
-    title: "Guardrails",
+    title: "風險護欄",
     description: "提醒 baseline drift 與 double counting 風險。",
   },
 ];
 
-const steps = ["建立 Case", "建立 Scenario 並完成 Onboarding", "Dashboard 檢視 → Plan Lab 試方案"];
+const steps = ["建立 Case", "建立 Scenario 並完成 Onboarding", "總覽儀表板 檢視 → 方案實驗室 試方案"];
 
 const faqs = [
   {
@@ -100,14 +100,14 @@ export default function MarketingWebPage() {
                 </Text>
               </Stack>
               <Group gap="sm" wrap="wrap">
-                <Button component={Link} href="/auth/login" size="md" color="aurora">
+                <Button component={Link} href="/auth/login?intent=register" size="md" color="aurora">
                   免費開始
                 </Button>
                 <Button component={Link} href="/auth/login" size="md" variant="outline" c="white">
                   登入
                 </Button>
                 <Anchor component={Link} href="/member/cases" c="aurora.2" fw={600}>
-                  進入我的 Plans（Cases）
+                  進入我的案例
                 </Anchor>
               </Group>
             </Stack>
@@ -162,14 +162,14 @@ export default function MarketingWebPage() {
 
           <Stack gap="md">
             <Title order={2} c="white">
-              How it works
+              使用流程
             </Title>
             <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
               {steps.map((step, index) => (
                 <Card key={step} bg="rgba(255,255,255,0.96)">
                   <Stack gap="xs">
                     <Badge variant="filled" color="aurora" w="fit-content">
-                      Step {index + 1}
+                      步驟 {index + 1}
                     </Badge>
                     <Text fw={600}>{step}</Text>
                   </Stack>
