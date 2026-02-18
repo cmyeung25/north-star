@@ -5,7 +5,6 @@ import {
   AppShell,
   Badge,
   Button,
-  Container,
   Group,
   Menu,
   NavLink,
@@ -415,13 +414,15 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
           </AppShell.Footer>
         )}
 
-        <AppShell.Main>
-          <Container
-            px="xs"
-            fluid 
-          >
-            {children}
-          </Container>
+        <AppShell.Main
+          style={{
+            width: "100%",
+            maxWidth: "none",
+            flex: 1,
+            paddingInline: "var(--mantine-spacing-xs)",
+          }}
+        >
+          {children}
         </AppShell.Main>
         {/* {isDesktop && !isOnboarding && <DesktopBottomToolbar />} */}
       </AppShell>
