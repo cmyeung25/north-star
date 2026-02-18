@@ -1,7 +1,7 @@
-import MarketingLanding from "../components/marketing/MarketingLanding";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default function HomePage() {
-  return <MarketingLanding />;
+  redirect("/web");
 }
