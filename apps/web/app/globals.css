@@ -1,15 +1,6 @@
 :root {
   color-scheme: light;
   --bottom-nav-height: 0px;
-  --aur-primary-900: #0b1b3a;
-  --aur-accent-500: #23d5ab;
-  --aur-info-500: #5bc0eb;
-  --aur-border-200: #e2e8f0;
-  --aur-surface-50: #f8fafc;
-  --aur-card-0: #ffffff;
-  --aur-text-title: #0f172a;
-  --aur-text-body: #334155;
-  --aur-text-muted: #64748b;
 }
 
 *,
@@ -25,8 +16,8 @@ body {
 
 body {
   margin: 0;
-  background: #F8FAFC;
-  color: #0F172A;
+  background: var(--aur-surface-50);
+  color: var(--aur-text-900);
   line-height: 1.5;
 }
 

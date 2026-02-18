@@ -1,11 +1,12 @@
 import "@mantine/core/styles.css";
+import "./styles/tokens.css";
 import "./globals.css";
 import type { ReactNode } from "react";
 import { ColorSchemeScript } from "@mantine/core";
 import { cookies, headers } from "next/headers";
 import { getMessages } from "next-intl/server";
 import { defaultLocale, locales, type Locale } from "../src/i18n/routing";
-import AppProviders from "./app-providers";
+import RootProviders from "./_providers/RootProviders";
 
 const resolveLocale = (): Locale => {
   const localeFromHeader = headers().get("x-next-intl-locale");
@@ -31,9 +32,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <ColorSchemeScript defaultColorScheme="light" />
       </head>
       <body>
-        <AppProviders locale={locale} messages={messages}>
+        <RootProviders locale={locale} messages={messages}>
           {children}
-        </AppProviders>
+        </RootProviders>
       </body>
     </html>
   );

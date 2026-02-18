@@ -1,0 +1,12 @@
+:root {
+  --aur-primary-900: #0b1b3a;
+  --aur-accent-500: #23d5ab;
+  --aur-info-500: #5bc0eb;
+  --aur-border-200: #e2e8f0;
+  --aur-surface-50: #f8fafc;
+  --aur-card-0: #ffffff;
+  --aur-text-900: #0f172a;
+  --aur-text-700: #334155;
+  --aur-text-500: #64748b;
+  --aur-radius-md: 10px;
+}
