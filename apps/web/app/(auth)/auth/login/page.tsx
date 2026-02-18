@@ -1,58 +1,16 @@
 "use client";
 
 import { Alert, Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../../../src/lib/supabase/browser";
-import { buildAppScenarioUrl } from "../../../../lib/routes";
 
 type AuthMode = "sign-in" | "sign-up";
 
-type LastOpened = {
-  caseId: string;
-  scenarioId: string;
-};
-
 const DEFAULT_SIGN_IN_REDIRECT = "/member/cases";
-
-const resolveRedirectPath = (redirectTo: string | null): string | null => {
-  if (!redirectTo) {
-    return null;
-  }
-
-  const trimmed = redirectTo.trim();
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-    return null;
-  }
-
-  return trimmed;
-};
-
-const getLastOpenedPath = (): string | null => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const rawLastOpened = window.localStorage.getItem("aurin:lastOpened");
-  if (!rawLastOpened) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawLastOpened) as Partial<LastOpened>;
-    if (!parsed.caseId || !parsed.scenarioId) {
-      return null;
-    }
-
-    return buildAppScenarioUrl({ caseId: parsed.caseId, scenarioId: parsed.scenarioId });
-  } catch {
-    return null;
-  }
-};
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -83,12 +41,8 @@ export default function LoginPage() {
       return;
     }
 
-    const redirectTo = resolveRedirectPath(searchParams.get("redirectTo"));
-    const lastOpenedPath = getLastOpenedPath();
-
     window.localStorage.setItem("aurin:lastLoginAt", new Date().toISOString());
-
-    router.replace(redirectTo ?? lastOpenedPath ?? DEFAULT_SIGN_IN_REDIRECT);
+    router.replace(DEFAULT_SIGN_IN_REDIRECT);
     router.refresh();
   };
 

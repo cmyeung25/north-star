@@ -1,7 +1,7 @@
 .shell {
   display: grid;
   grid-template-columns: 240px 1fr;
-  min-height: calc(100vh - 6rem);
+  min-height: 100dvh;
   background: var(--mantine-color-polar-9);
   color: var(--mantine-color-polar-0);
 }
@@ -15,14 +15,17 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   border-right: 1px solid var(--mantine-color-polar-7);
   background: var(--mantine-color-polar-9);
   padding: 1rem 0.85rem;
+  min-height: 100dvh;
 }
 
 .sidebarTop {
-  display: grid;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
   gap: 0.9rem;
 }
 
@@ -33,6 +36,10 @@
 .navList {
   display: grid;
   gap: 0.45rem;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
 }
 
 .navLink,
@@ -54,6 +61,8 @@
 
 .backLink {
   color: var(--mantine-color-aurora-3);
+  margin-top: 0.8rem;
+  flex-shrink: 0;
 }
 
 .main {
