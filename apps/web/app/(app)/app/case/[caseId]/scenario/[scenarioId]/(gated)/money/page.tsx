@@ -28,15 +28,7 @@ export default function ScenarioMoneyPage({ searchParams }: PageProps) {
       : false;
 
   return (
-    <section
-      style={{
-        border: "1px solid #152741",
-        borderRadius: "0.9rem",
-        background: "#0F1D33",
-        color: "#E6F0FF",
-        padding: "1rem",
-      }}
-    >
+    <section>
       <MoneyClient
         initialTab={tab}
         initialAdd={add}
