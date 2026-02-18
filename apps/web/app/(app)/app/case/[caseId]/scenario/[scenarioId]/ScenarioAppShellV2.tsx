@@ -171,7 +171,7 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
     }
   };
 
-  const backToCasesHref = memberCasesPath(caseId);
+  const backToCasesHref = memberCasesPath();
 
   return (
     <>
@@ -182,7 +182,12 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
       >
         <AppShell.Header>
           <Group justify="space-between" h="100%" px="md" wrap="nowrap">
-            <Title order={4}>{title}</Title>
+            <Group>
+              <Box px="xs" py={4}>
+                <BrandLogo href={backToCasesHref} size="md" />
+              </Box>
+              <Title order={4}>{title}</Title>
+            </Group>
             {meta ? (
               <Group gap="xs" wrap="nowrap">
                 {!isMobile ? <SaveStatusChip status={meta.saveStatus} /> : null}
@@ -200,9 +205,6 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
         {!isMobile ? (
           <AppShell.Navbar p="sm">
             <Stack h="100%" gap="sm">
-              <Box px="xs" py={4}>
-                <BrandLogo href={backToCasesHref} size="md" />
-              </Box>
               <ScrollArea type="auto" flex={1}>
                 <Stack gap={4} pr="xs">
                   {tabs.map((tab) => (
@@ -217,7 +219,7 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
                 </Stack>
               </ScrollArea>
               <Button component={Link} href={backToCasesHref} variant="subtle" justify="flex-start">
-                ← Back to Cases
+                ← 返回案例列表
               </Button>
             </Stack>
           </AppShell.Navbar>

@@ -25,7 +25,6 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
   }
 
   const payload = await repo.loadScenarioPayload(params.caseId, params.scenarioId);
-
   return (
     <ScenarioHydrator
       caseId={params.caseId}
