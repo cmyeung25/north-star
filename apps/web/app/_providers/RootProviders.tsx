@@ -3,8 +3,7 @@
 import type { AbstractIntlMessages } from "next-intl";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
-import { MantineProvider } from "@mantine/core";
-import { aurinTheme } from "../theme/aurinTheme";
+import AurinProviders from "../../components/providers/AurinProviders";
 
 type RootProvidersProps = {
   children: ReactNode;
@@ -14,7 +13,7 @@ type RootProvidersProps = {
 
 export default function RootProviders({ children, locale, messages }: RootProvidersProps) {
   return (
-    <MantineProvider theme={aurinTheme}>
+    <AurinProviders>
       <NextIntlClientProvider
         locale={locale}
         messages={messages}
@@ -28,7 +27,6 @@ export default function RootProviders({ children, locale, messages }: RootProvid
       >
         {children}
       </NextIntlClientProvider>
-    </MantineProvider>
+    </AurinProviders>
   );
 }
-
