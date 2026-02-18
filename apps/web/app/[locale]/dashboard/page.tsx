@@ -1,7 +1,20 @@
 import { redirect } from "next/navigation";
-import { ensureDefaultCaseAndScenario } from "../../../lib/scenario/pipeline";
+import { memberCasesPath, scenarioDashboardPath } from "../../../lib/routes/appRoutes";
 
-export default async function Page() {
-  const { caseId, scenarioId } = await ensureDefaultCaseAndScenario();
-  redirect(`/app/case/${caseId}/scenario/${scenarioId}/dashboard`);
+type PageProps = {
+  searchParams: {
+    caseId?: string;
+    scenarioId?: string;
+  };
+};
+
+export default async function Page({ searchParams }: PageProps) {
+  const caseId = searchParams.caseId;
+  const scenarioId = searchParams.scenarioId;
+
+  if (!caseId || !scenarioId) {
+    redirect(memberCasesPath());
+  }
+
+  redirect(scenarioDashboardPath(caseId, scenarioId));
 }

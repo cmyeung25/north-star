@@ -19,7 +19,7 @@ import {
 import { nanoid } from "nanoid";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { defaultCurrency } from "../../../lib/i18n";
 import MonthField from "../../../components/MonthField";
 import { getCurrentMonth } from "./utils";
@@ -757,6 +757,7 @@ export default function OnboardingDraftWizard() {
   const validation = useTranslations("validation");
   const router = useRouter();
   const params = useParams<{ caseId?: string; scenarioId?: string }>();
+  const searchParams = useSearchParams();
   const scenarioContext = useScenarioContext();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
@@ -782,8 +783,8 @@ export default function OnboardingDraftWizard() {
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
-  const routeCaseId = params?.caseId ?? scenarioContext?.caseId ?? "";
-  const routeScenarioId = params?.scenarioId ?? scenarioContext?.scenarioId ?? "";
+  const routeCaseId = searchParams.get("caseId") ?? params?.caseId ?? scenarioContext?.caseId ?? "";
+  const routeScenarioId = searchParams.get("scenarioId") ?? params?.scenarioId ?? scenarioContext?.scenarioId ?? "";
   const scenario = useMemo(() => {
     if (routeScenarioId) {
       return getScenarioById(scenarios, routeScenarioId);
@@ -1883,14 +1884,16 @@ export default function OnboardingDraftWizard() {
         return;
       }
 
+      setActiveScenario(scenarioId);
       window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-      router.push(scenarioDashboardPath(scenarioContext.caseId, scenarioId));
+      router.replace(scenarioDashboardPath(scenarioContext.caseId, scenarioId));
       return;
     }
 
+    setActiveScenario(scenarioId);
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
     if (routeCaseId) {
-      router.push(scenarioDashboardPath(routeCaseId, scenarioId));
+      router.replace(`/dashboard?caseId=${encodeURIComponent(routeCaseId)}&scenarioId=${encodeURIComponent(scenarioId)}`);
     }
   };
 
@@ -1923,9 +1926,10 @@ export default function OnboardingDraftWizard() {
       lastSavedAt: nowIso,
     });
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+    setActiveScenario(scenarioId);
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
     if (routeCaseId) {
-      router.push(scenarioDashboardPath(routeCaseId, scenarioId));
+      router.replace(`/dashboard?caseId=${encodeURIComponent(routeCaseId)}&scenarioId=${encodeURIComponent(scenarioId)}`);
     }
   };
 

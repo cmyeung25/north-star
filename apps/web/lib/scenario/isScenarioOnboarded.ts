@@ -1,24 +1,19 @@
 import type { ScenarioPayload } from "@north-star/adapters";
+import { isScenarioOnboarded as isOnboardedByScenario } from "../onboarding/isScenarioOnboarded";
 
 type ScenarioRecord = {
   id?: string;
   meta?: {
-    schemaVersion?: unknown;
     onboarded?: unknown;
+    onboardedAt?: unknown;
   };
   clientComputed?: {
     onboardingCompleted?: unknown;
   };
-  events?: unknown[];
 };
 
-export const isScenarioOnboardedV2 = (scenario: ScenarioRecord | null) => {
-  if (!scenario || scenario.meta?.schemaVersion !== 2 || !Array.isArray(scenario.events)) {
-    return false;
-  }
-
-  return scenario.meta?.onboarded === true || scenario.clientComputed?.onboardingCompleted === true;
-};
+export const isScenarioOnboardedV2 = (scenario: ScenarioRecord | null) =>
+  isOnboardedByScenario(scenario);
 
 const resolveScenario = (payload: Record<string, unknown>, scenarioId?: string) => {
   const scenarios = payload.scenarios;
@@ -48,5 +43,5 @@ const resolveScenario = (payload: Record<string, unknown>, scenarioId?: string) 
 export const isScenarioOnboarded = (payload: ScenarioPayload, scenarioId?: string) => {
   const source = payload as Record<string, unknown>;
   const selectedScenario = resolveScenario(source, scenarioId);
-  return isScenarioOnboardedV2(selectedScenario);
+  return isOnboardedByScenario(selectedScenario);
 };

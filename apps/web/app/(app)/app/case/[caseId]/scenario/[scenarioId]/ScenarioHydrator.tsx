@@ -5,7 +5,7 @@ import { importScenarioState } from "../../../../../../../src/store/scenarioStat
 import { normalizeScenario } from "../../../../../../../src/store/scenarioStore";
 import { useScenarioStore } from "../../../../../../../src/store/scenarioStore";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
-import { isScenarioOnboardedV2 } from "../../../../../../../lib/scenario/isScenarioOnboarded";
+import { isScenarioOnboarded } from "../../../../../../../lib/onboarding/isScenarioOnboarded";
 
 
 const normalizeHydratedPayload = (payload: Record<string, unknown>, scenarioId: string) => {
@@ -15,10 +15,10 @@ const normalizeHydratedPayload = (payload: Record<string, unknown>, scenarioId: 
     (entry) => entry && typeof entry === "object" && (entry as { id?: unknown }).id === scenarioId,
   );
   const selectedScenario = routeScenario && typeof routeScenario === "object"
-    ? (routeScenario as Parameters<typeof isScenarioOnboardedV2>[0])
+    ? (routeScenario as Parameters<typeof isScenarioOnboarded>[0])
     : null;
 
-  if (!isScenarioOnboardedV2(selectedScenario)) {
+  if (!isScenarioOnboarded(selectedScenario)) {
     return nextPayload;
   }
 

@@ -26,6 +26,9 @@ export const scenarioPath = (
 export const scenarioBasePath = (caseId: string, scenarioId: string) =>
   scenarioPath(caseId, scenarioId);
 
+export const memberCaseEnterPath = (caseId: string) =>
+  `/member/cases/${encodePathSegment(caseId)}/enter`;
+
 export const scenarioOnboardingPath = (caseId: string, scenarioId: string) =>
   scenarioPath(caseId, scenarioId, "onboarding");
 

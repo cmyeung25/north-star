@@ -2,32 +2,29 @@ import { describe, expect, it } from "vitest";
 import { isScenarioOnboarded, isScenarioOnboardedV2 } from "./isScenarioOnboarded";
 
 describe("isScenarioOnboardedV2", () => {
-  it("returns true when scenario meta is onboarded and uses V2 events", () => {
+  it("returns true when scenario meta is onboarded", () => {
     expect(
       isScenarioOnboardedV2({
-        meta: { schemaVersion: 2, onboarded: true },
-        events: [],
+        meta: { onboarded: true },
       }),
     ).toBe(true);
   });
 
-  it("returns true when onboardingCompleted is true and schema/event requirements are satisfied", () => {
+  it("returns true when onboardingCompleted is true", () => {
     expect(
       isScenarioOnboardedV2({
-        meta: { schemaVersion: 2, onboarded: false },
+        meta: { onboarded: false },
         clientComputed: { onboardingCompleted: true },
-        events: [],
       }),
     ).toBe(true);
   });
 
-  it("returns false when schema version is not v2", () => {
+  it("returns true when onboardedAt is set", () => {
     expect(
       isScenarioOnboardedV2({
-        meta: { schemaVersion: 1, onboarded: true },
-        events: [],
+        meta: { onboardedAt: "2026-01-01T00:00:00.000Z" },
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -37,13 +34,11 @@ describe("isScenarioOnboarded", () => {
       isScenarioOnboarded(
         {
           meta: { onboarded: false },
-          events: [],
           activeScenarioId: "scenario-1",
           scenarios: [
             {
               id: "scenario-1",
-              meta: { schemaVersion: 2, onboarded: true },
-              events: [],
+              meta: { onboarded: true },
             },
           ],
         },
@@ -56,13 +51,12 @@ describe("isScenarioOnboarded", () => {
     expect(
       isScenarioOnboarded({
         meta: { onboarded: true },
-        events: [],
         scenarios: [],
       }),
     ).toBe(false);
   });
 
-  it("returns false when onboarded but events is not an array", () => {
+  it("returns true when active scenario has onboardedAt", () => {
     expect(
       isScenarioOnboarded(
         {
@@ -70,12 +64,12 @@ describe("isScenarioOnboarded", () => {
           scenarios: [
             {
               id: "scenario-1",
-              meta: { schemaVersion: 2, onboarded: true },
+              meta: { onboardedAt: "2026-01-01T00:00:00.000Z" },
             },
           ],
         },
         "scenario-1",
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
