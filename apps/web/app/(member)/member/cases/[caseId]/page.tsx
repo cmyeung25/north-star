@@ -6,6 +6,7 @@ import {
   scenarioDashboardPath,
   scenarioOnboardingPath,
 } from "../../../../../lib/routes/appRoutes";
+import { isScenarioOnboarded } from "../../../../../lib/scenario/isScenarioOnboarded";
 import { createSupabaseServerClient } from "../../../../../src/lib/supabase/server";
 import { MemberShell } from "../../components/MemberShell";
 
@@ -41,8 +42,7 @@ export default async function CaseScenariosPage({ params }: PageProps) {
       });
 
   const payload = await repo.loadScenarioPayload(params.caseId, scenario.id);
-  const meta = payload && typeof payload === "object" ? (payload as { meta?: unknown }).meta : null;
-  const onboarded = Boolean(meta && typeof meta === "object" && (meta as { onboarded?: unknown }).onboarded === true);
+  const onboarded = isScenarioOnboarded(payload, scenario.id);
   const redirectPath = onboarded
     ? scenarioDashboardPath(params.caseId, scenario.id)
     : scenarioOnboardingPath(params.caseId, scenario.id);
