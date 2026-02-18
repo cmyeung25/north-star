@@ -2,6 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  AppShell,
+  Box,
+  Button,
+  Group,
+  NavLink,
+  ScrollArea,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
 import { formatIsoYmdHms } from "../../../../../../../lib/date/format";
@@ -22,9 +33,9 @@ import RevisionConflictModal from "./components/RevisionConflictModal";
 import { memberCasesPath, scenarioSettingsPath } from "../../../../../../../lib/routes/appRoutes";
 import BrandLogo from "../../../../../../../components/brand/BrandLogo";
 import BottomNav from "../../../../../../../components/BottomNav";
-import classes from "./ScenarioAppShell.module.css";
 
 const AUTOSAVE_DELAY_MS = 45_000;
+const NAVBAR_WIDTH = 264;
 
 type ScenarioAppShellV2Props = {
   title: string;
@@ -163,67 +174,67 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
   const backToCasesHref = memberCasesPath(caseId);
 
   return (
-    <section className={`${classes.shell} ${isMobile ? classes.shellMobile : ""}`}>
-      {!isMobile ? (
-        <aside className={classes.sidebar}>
-          <div className={classes.sidebarTop}>
-            <div className={classes.logoWrap}>
-              <BrandLogo href={backToCasesHref} size="md" />
-            </div>
-            <nav className={classes.navList}>
-              {tabs.map((tab) => {
-                const active = pathname === tab.href;
-                return (
-                  <Link
-                    key={tab.href}
-                    href={tab.href}
-                    className={`${classes.navLink} ${active ? classes.navLinkActive : ""}`}
-                  >
-                    {tab.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-          <Link href={backToCasesHref} className={classes.backLink}>
-            ← Back to Cases
-          </Link>
-        </aside>
-      ) : null}
-      <div className={classes.main}>
-        <header className={classes.topBar}>
-          <h1 className={classes.title}>{title}</h1>
-          {meta ? (
-            <div className={classes.topRight}>
-              {!isMobile ? <SaveStatusChip status={meta.saveStatus} /> : null}
-              {!isMobile ? (
-                <span className={classes.updatedAt}>
-                  {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
-                </span>
-              ) : null}
-              {isMobile ? (
-                <div className={classes.mobileActions}>
-                  <Link href={scenarioSettingsPath(caseId, scenarioId)} className={classes.mobileActionLink}>
-                    設定
-                  </Link>
-                  <Link href={backToCasesHref} className={classes.mobileActionLink}>
-                    返回 Cases
-                  </Link>
-                </div>
-              ) : null}
-              <div className={classes.saveButtonWrap}>
+    <>
+      <AppShell
+        header={{ height: 64 }}
+        navbar={isMobile ? undefined : { width: NAVBAR_WIDTH, breakpoint: "md" }}
+        padding="md"
+      >
+        <AppShell.Header>
+          <Group justify="space-between" h="100%" px="md" wrap="nowrap">
+            <Title order={4}>{title}</Title>
+            {meta ? (
+              <Group gap="xs" wrap="nowrap">
+                {!isMobile ? <SaveStatusChip status={meta.saveStatus} /> : null}
+                {!isMobile ? (
+                  <Text size="xs" c="dimmed" visibleFrom="sm">
+                    {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
+                  </Text>
+                ) : null}
                 <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
-              </div>
-            </div>
-          ) : null}
-        </header>
-        <div className={classes.content}>{children}</div>
-        {isMobile ? (
-          <div className={classes.bottomWrap}>
-            <BottomNav items={mobileTabs} />
-          </div>
+              </Group>
+            ) : null}
+          </Group>
+        </AppShell.Header>
+
+        {!isMobile ? (
+          <AppShell.Navbar p="sm">
+            <Stack h="100%" gap="sm">
+              <Box px="xs" py={4}>
+                <BrandLogo href={backToCasesHref} size="md" />
+              </Box>
+              <ScrollArea type="auto" flex={1}>
+                <Stack gap={4} pr="xs">
+                  {tabs.map((tab) => (
+                    <NavLink
+                      key={tab.href}
+                      component={Link}
+                      href={tab.href}
+                      active={pathname === tab.href}
+                      label={tab.label}
+                    />
+                  ))}
+                </Stack>
+              </ScrollArea>
+              <Button component={Link} href={backToCasesHref} variant="subtle" justify="flex-start">
+                ← Back to Cases
+              </Button>
+            </Stack>
+          </AppShell.Navbar>
         ) : null}
-      </div>
+
+        <AppShell.Main>
+          <Box mih="calc(100dvh - 64px)" maw="none" w="100%">
+            {children}
+          </Box>
+          {isMobile ? (
+            <Box mt="md">
+              <BottomNav items={mobileTabs} />
+            </Box>
+          ) : null}
+        </AppShell.Main>
+      </AppShell>
+
       <RevisionConflictModal
         open={showConflict}
         onClose={() => setShowConflict(false)}
@@ -231,6 +242,6 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
         onSaveAsNew={() => void handleSaveAsNew()}
         busy={conflictBusy}
       />
-    </section>
+    </>
   );
 }
