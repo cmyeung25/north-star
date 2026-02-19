@@ -6,7 +6,7 @@ import { Link } from "../../src/i18n/navigation";
 type BrandLogoSize = "sm" | "md" | "lg";
 
 type BrandLogoProps = {
-  variant?: "icon" | "full";
+  variant?: "icon" | "full" | "white";
   size?: BrandLogoSize;
   collapsed?: boolean;
   href?: string;
@@ -38,8 +38,7 @@ export default function BrandLogo({
 }: BrandLogoProps) {
   const t = useTranslations("nav.brand");
   const iconSize = iconSizeByScale[size];
-  const showWordmark = variant === "full" && !collapsed;
-  const wordmarkSize = wordmarkSizeByScale[size];
+
 
   return (
     <Link
@@ -49,23 +48,22 @@ export default function BrandLogo({
       style={{ display: "inline-flex", alignItems: "center" }}
     >
       <Group gap="xs" wrap="nowrap">
-        <Image
-          src="/aurin-icon-square.png"
-          alt=""
-          width={iconSize}
-          height={iconSize}
+        {variant === "white" ? (
+          <Image
+            src="/aurin-icon-square-white.png"
+            alt=""
+            width={iconSize}
+            height={iconSize}
           priority={priority}
           unoptimized={unoptimized}
-        />
-        {showWordmark && false && (
+        />) : (
           <Image
-            src="/aurin-wordmark.png"
-            alt="Aurin"
-            width={wordmarkSize.width}
-            height={wordmarkSize.height}
-            priority={priority}
-            unoptimized={unoptimized}
-          />
+            src="/aurin-icon-square.png"
+            alt=""
+            width={iconSize}
+            height={iconSize}
+          priority={priority}
+          unoptimized={unoptimized} />
         )}
       </Group>
     </Link>
