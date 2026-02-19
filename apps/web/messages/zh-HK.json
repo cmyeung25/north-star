@@ -3852,5 +3852,13 @@
         }
       }
     }
+  },
+  "memberShell": {
+    "console": "會員專區",
+    "cases": "個案",
+    "accountSettings": "帳戶設定",
+    "member": "會員",
+    "signedIn": "已登入",
+    "logout": "登出"
   }
 }

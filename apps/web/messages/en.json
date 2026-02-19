@@ -3805,5 +3805,13 @@
         }
       }
     }
+  },
+  "memberShell": {
+    "console": "Member Console",
+    "cases": "Cases",
+    "accountSettings": "Account settings",
+    "member": "Member",
+    "signedIn": "Signed in",
+    "logout": "Logout"
   }
 }
