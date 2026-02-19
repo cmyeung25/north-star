@@ -17,7 +17,8 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
     supabaseClient: createSupabaseServerClient(),
   });
 
-  const scenarios = await repo.listScenarios(params.caseId);
+  const [cases, scenarios] = await Promise.all([repo.listCases(), repo.listScenarios(params.caseId)]);
+  const activeCase = cases.find((entry) => entry.id === params.caseId);
   const scenario = scenarios.find((entry) => entry.id === params.scenarioId);
 
   if (!scenario) {
@@ -34,7 +35,7 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
       revision={scenario.revision}
       lastSavedAt={scenario.updatedAt}
     >
-      <ScenarioAppShellV2 title={scenario.title}>
+      <ScenarioAppShellV2 caseTitle={activeCase?.title} scenarioTitle={scenario.title}>
         <ScenarioRouteSync scenarioId={params.scenarioId} payload={payload as Record<string, unknown>} />
         {children}
       </ScenarioAppShellV2>

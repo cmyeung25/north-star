@@ -1,9 +1,10 @@
+import { Stack } from "@mantine/core";
 import OverviewClient from "../../../../../../../../[locale]/overview/OverviewClient";
 
 export default function ScenarioDashboardPage() {
   return (
-    <section>
+    <Stack component="section" gap="lg" px="sm" py="xs">
       <OverviewClient />
-    </section>
+    </Stack>
   );
 }

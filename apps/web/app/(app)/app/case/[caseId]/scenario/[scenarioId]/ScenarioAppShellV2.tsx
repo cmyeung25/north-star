@@ -1,17 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   AppShell,
   Box,
-  Button,
   Group,
-  NavLink,
-  ScrollArea,
-  Stack,
   Text,
-  Title,
+  alpha,
+  useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
@@ -33,12 +29,15 @@ import RevisionConflictModal from "./components/RevisionConflictModal";
 import { memberCasesPath, scenarioSettingsPath } from "../../../../../../../lib/routes/appRoutes";
 import BrandLogo from "../../../../../../../components/brand/BrandLogo";
 import BottomNav from "../../../../../../../components/BottomNav";
+import AppHeaderTitle from "./components/AppHeaderTitle";
+import AppSidebar from "./components/AppSidebar";
 
 const AUTOSAVE_DELAY_MS = 45_000;
 const NAVBAR_WIDTH = 264;
 
 type ScenarioAppShellV2Props = {
-  title: string;
+  caseTitle?: string;
+  scenarioTitle: string;
   children: ReactNode;
 };
 
@@ -47,7 +46,8 @@ type WorkspaceTab = {
   label: string;
 };
 
-export default function ScenarioAppShellV2({ title, children }: ScenarioAppShellV2Props) {
+export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children }: ScenarioAppShellV2Props) {
+  const theme = useMantineTheme();
   const pathname = usePathname();
   const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -186,7 +186,7 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
               <Box px="xs" py={4}>
                 <BrandLogo href={backToCasesHref} size="md" />
               </Box>
-              <Title order={4}>{title}</Title>
+              <AppHeaderTitle caseTitle={caseTitle} scenarioTitle={scenarioTitle} />
             </Group>
             {meta ? (
               <Group gap="xs" wrap="nowrap">
@@ -202,30 +202,17 @@ export default function ScenarioAppShellV2({ title, children }: ScenarioAppShell
           </Group>
         </AppShell.Header>
 
-        {!isMobile ? (
-          <AppShell.Navbar p="sm">
-            <Stack h="100%" gap="sm">
-              <ScrollArea type="auto" flex={1}>
-                <Stack gap={4} pr="xs">
-                  {tabs.map((tab) => (
-                    <NavLink
-                      key={tab.href}
-                      component={Link}
-                      href={tab.href}
-                      active={pathname === tab.href}
-                      label={tab.label}
-                    />
-                  ))}
-                </Stack>
-              </ScrollArea>
-              <Button component={Link} href={backToCasesHref} variant="subtle" justify="flex-start">
-                ← 返回案例列表
-              </Button>
-            </Stack>
-          </AppShell.Navbar>
-        ) : null}
+        {!isMobile ? <AppSidebar tabs={tabs} pathname={pathname} backToCasesHref={backToCasesHref} /> : null}
 
-        <AppShell.Main>
+        <AppShell.Main
+          style={{
+            backgroundColor: theme.colors.neutral[0],
+            backgroundImage: `
+              radial-gradient(circle at 16% 18%, ${alpha(theme.colors.aurora[6], 0.05)} 0, transparent 48%),
+              radial-gradient(circle at 88% 8%, ${alpha(theme.colors.ice[4], 0.04)} 0, transparent 42%)
+            `,
+          }}
+        >
           <Box mih="calc(100dvh - 64px)" maw="none" w="100%">
             {children}
           </Box>
