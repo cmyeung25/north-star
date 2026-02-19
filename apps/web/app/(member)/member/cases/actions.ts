@@ -51,6 +51,35 @@ export async function deleteCaseAction(input: { caseId: string }) {
   revalidatePath("/member/cases");
 }
 
+export async function duplicateCaseAction(input: { caseId: string }) {
+  const sourceCases = await repo().listCases();
+  const sourceCase = sourceCases.find((entry) => entry.id === input.caseId);
+
+  if (!sourceCase) {
+    throw new Error("Case not found.");
+  }
+
+  const duplicatedCase = await repo().createCase({
+    title: `${sourceCase.title} (Copy)`,
+  });
+
+  const scenarios = await repo().listScenarios(input.caseId);
+
+  await Promise.all(
+    scenarios.map(async (scenario) => {
+      const payload = await repo().loadScenarioPayload(input.caseId, scenario.id);
+      await repo().createScenario(duplicatedCase.id, {
+        title: `${scenario.title} (Copy)`,
+        payload,
+      });
+    }),
+  );
+
+  revalidatePath("/member/cases");
+
+  return duplicatedCase;
+}
+
 export async function createScenarioAction(input: { caseId: string; title: string }) {
   const createdScenario = await repo().createScenario(input.caseId, {
     title: normalizeTitle(input.title, "Untitled Scenario"),
