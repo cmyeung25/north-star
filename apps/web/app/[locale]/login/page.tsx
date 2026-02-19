@@ -1,6 +1,7 @@
 "use client";
 
 import { Alert, Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
@@ -8,6 +9,7 @@ import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
 type AuthMode = "sign-in" | "sign-up";
 
 export default function LoginPage() {
+  const t = useTranslations("auth.login");
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -42,7 +44,7 @@ export default function LoginPage() {
 
     if (mode === "sign-up") {
       setLoading(false);
-      setMessage("Sign-up succeeded. Check your inbox if email confirmation is enabled.");
+      setMessage(t("messages.signUpSuccess"));
       return;
     }
 
@@ -84,44 +86,44 @@ export default function LoginPage() {
     setError(null);
     await supabase.auth.signOut();
     setLoading(false);
-    setMessage("Signed out.");
+    setMessage(t("messages.signedOut"));
     router.refresh();
   };
 
   return (
     <Stack maw={420} mx="auto" mt="xl">
-      <Title order={2}>Supabase Account</Title>
+      <Title order={2}>{t("title")}</Title>
       <Text c="dimmed" size="sm">
-        Email/password sign-in for Supabase smoke testing.
+        {t("description")}
       </Text>
       {error && <Alert color="red">{error}</Alert>}
       {message && <Alert color="green">{message}</Alert>}
       <Paper withBorder radius="md" p="md">
         <Stack>
           <TextInput
-            label="Email"
+            label={t("emailLabel")}
             type="email"
             value={email}
             onChange={(event) => setEmail(event.currentTarget.value)}
             required
           />
           <PasswordInput
-            label="Password"
+            label={t("passwordLabel")}
             value={password}
             onChange={(event) => setPassword(event.currentTarget.value)}
             required
           />
           <Button loading={loading} onClick={handleAuth}>
-            {mode === "sign-in" ? "Sign in" : "Sign up"}
+            {mode === "sign-in" ? t("actions.signIn") : t("actions.signUp")}
           </Button>
           <Button
             variant="subtle"
             onClick={() => setMode((current) => (current === "sign-in" ? "sign-up" : "sign-in"))}
           >
-            {mode === "sign-in" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+            {mode === "sign-in" ? t("actions.needAccount") : t("actions.haveAccount")}
           </Button>
           <Button variant="outline" color="gray" onClick={handleSignOut}>
-            Sign out
+            {t("actions.signOut")}
           </Button>
         </Stack>
       </Paper>

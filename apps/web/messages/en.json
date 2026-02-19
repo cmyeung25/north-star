@@ -115,7 +115,13 @@
     "timeline": "Timeline",
     "stress": "Stress",
     "settings": "Settings",
-    "planLab": "Plan Lab"
+    "planLab": "Plan Lab",
+    "bottom": {
+      "ariaLabel": "Bottom navigation"
+    },
+    "brand": {
+      "ariaLabel": "Go to scenarios"
+    }
   },
   "toolbar": {
     "addButton": "+ Add",
@@ -1832,7 +1838,8 @@
     "expenseSummaryBaselineMonthly": "Baseline monthly expenses",
     "expenseSummarySources": "Expense sources",
     "expenseSummaryDelta12m": "Projected 12-month change",
-    "expenseTopSourcesTitle": "Major drivers (next 12 months)"
+    "expenseTopSourcesTitle": "Major drivers (next 12 months)",
+    "planLabPlanActionsAriaLabel": "Plan actions"
   },
   "entryLauncher": {
     "title": "Add new money items",
@@ -3813,5 +3820,24 @@
     "member": "Member",
     "signedIn": "Signed in",
     "logout": "Logout"
+  },
+  "auth": {
+    "login": {
+      "title": "Supabase Account",
+      "description": "Email/password sign-in for Supabase smoke testing.",
+      "emailLabel": "Email",
+      "passwordLabel": "Password",
+      "actions": {
+        "signIn": "Sign in",
+        "signUp": "Sign up",
+        "needAccount": "Need an account? Sign up",
+        "haveAccount": "Already have an account? Sign in",
+        "signOut": "Sign out"
+      },
+      "messages": {
+        "signUpSuccess": "Sign-up succeeded. Check your inbox if email confirmation is enabled.",
+        "signedOut": "Signed out."
+      }
+    }
   }
 }
