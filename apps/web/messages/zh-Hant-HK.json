@@ -3609,5 +3609,13 @@
     "doubleCountingHomeRent": "租屋與買樓同時存在，可能重複計算。",
     "doubleCountingPlanPatch": "方案變更同時包含住屋事件與資產，可能重複計算。",
     "planLabInvalidPatch": "方案變更無效或已不適用。"
+  },
+  "memberShell": {
+    "console": "會員專區",
+    "cases": "個案",
+    "accountSettings": "帳戶設定",
+    "member": "會員",
+    "signedIn": "已登入",
+    "logout": "登出"
   }
 }
