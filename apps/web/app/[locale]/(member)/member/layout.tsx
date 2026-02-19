@@ -34,7 +34,7 @@ export default async function MemberLayout({ children, params }: Props) {
           <NavLink component={Link} href="/member/cases" label={t("scenarios")} />
           <NavLink component={Link} href="/account" label="Account settings" />
           <Group mt="auto">
-            <Button component={Link} href="/auth/logout" variant="subtle" fullWidth justify="flex-start">
+            <Button component={Link} href="/auth/logout" variant="subtle" fullWidth justify="flex-start" prefetch={false}>
               Logout
             </Button>
           </Group>

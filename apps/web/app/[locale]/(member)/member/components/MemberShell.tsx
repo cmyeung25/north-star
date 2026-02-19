@@ -83,7 +83,7 @@ export function MemberShell({ children, userEmail, title, description }: MemberS
                   {t("accountSettings")}
                 </Menu.Item>
                 <Menu.Divider />
-                <Menu.Item component={Link} href="/auth/logout" color="red">
+                <Menu.Item component={Link} href="/auth/logout" color="red" prefetch={false}>
                   {t("logout")}
                 </Menu.Item>
               </Menu.Dropdown>
