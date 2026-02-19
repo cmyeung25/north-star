@@ -3885,6 +3885,74 @@
         "signUpSuccess": "註冊成功。若已啟用 Email 驗證，請檢查你的信箱。",
         "signedOut": "已登出。"
       }
+  "app": {
+    "conflict": {
+      "title": "版本衝突",
+      "description": "雲端版本已更新。請選擇重新載入雲端版本，或將目前內容另存為新情境。",
+      "actions": {
+        "cancel": "取消",
+        "reloadFromCloud": "重新載入雲端版本",
+        "saveAsNewScenario": "另存為新情境"
+      }
+    },
+    "hydrator": {
+      "loading": "正在載入情境…"
+    }
+  },
+  "auth": {
+    "callback": {
+      "redirecting": "已登入，正在跳轉到情境列表…"
+  "member": {
+    "caseDialogs": {
+      "createTitle": "建立案例",
+      "renameTitle": "重新命名案例",
+      "deleteTitle": "刪除案例",
+      "caseTitleLabel": "案例標題",
+      "caseTitlePlaceholder": "我的退休計劃",
+      "currencyLabel": "貨幣",
+      "cancel": "取消",
+      "create": "建立",
+      "save": "儲存",
+      "delete": "刪除",
+      "deleteConfirm": "刪除此案例及所有情境？此操作無法復原。"
+    },
+    "scenarioDialogs": {
+      "createTitle": "建立情境",
+      "duplicateTitle": "複製情境",
+      "deleteTitle": "刪除情境",
+      "scenarioTitleLabel": "情境標題",
+      "copyTitleLabel": "副本標題",
+      "cancel": "取消",
+      "create": "建立",
+      "duplicate": "複製",
+      "delete": "刪除",
+      "deleteConfirm": "刪除此情境？此操作無法復原。"
+    },
+    "list": {
+      "heading": "案例",
+      "subheading": "案例與帳務管理入口。深入操作請進入規劃。",
+      "createCase": "建立案例",
+      "emptyTitle": "尚未建立任何案例",
+      "emptyDescription": "建立第一個案例後，你可以快速進入規劃，並在後續管理情境與設定。",
+      "columns": {
+        "title": "標題",
+        "updated": "更新時間",
+        "revision": "版本",
+        "actions": "操作"
+      },
+      "openPlanning": "進入規劃",
+      "moreActionsAriaLabel": "更多操作",
+      "rename": "重新命名",
+      "duplicate": "複製",
+      "delete": "刪除",
+      "actionFailed": "操作失敗。",
+      "scenariosDescription": "在此案例中建立、複製與開啟情境。",
+      "createScenario": "建立情境",
+      "openApp": "開啟應用",
+      "openInNewWindow": "在新視窗開啟",
+      "updatedAt": "更新於 {value}",
+      "revisionValue": "版本 {value}",
+      "copyTitleValue": "{title}（副本）"
     }
   }
 }

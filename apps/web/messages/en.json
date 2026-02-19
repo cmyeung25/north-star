@@ -3838,6 +3838,74 @@
         "signUpSuccess": "Sign-up succeeded. Check your inbox if email confirmation is enabled.",
         "signedOut": "Signed out."
       }
+  "app": {
+    "conflict": {
+      "title": "Revision conflict",
+      "description": "The cloud revision changed. Reload from cloud or save your work as a new scenario.",
+      "actions": {
+        "cancel": "Cancel",
+        "reloadFromCloud": "Reload from cloud",
+        "saveAsNewScenario": "Save as new scenario"
+      }
+    },
+    "hydrator": {
+      "loading": "Hydrating scenario…"
+    }
+  },
+  "auth": {
+    "callback": {
+      "redirecting": "Signed in. Redirecting to cases…"
+  "member": {
+    "caseDialogs": {
+      "createTitle": "Create case",
+      "renameTitle": "Rename case",
+      "deleteTitle": "Delete case",
+      "caseTitleLabel": "Case title",
+      "caseTitlePlaceholder": "My retirement plan",
+      "currencyLabel": "Currency",
+      "cancel": "Cancel",
+      "create": "Create",
+      "save": "Save",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this case and all scenarios? This cannot be undone."
+    },
+    "scenarioDialogs": {
+      "createTitle": "Create scenario",
+      "duplicateTitle": "Duplicate scenario",
+      "deleteTitle": "Delete scenario",
+      "scenarioTitleLabel": "Scenario title",
+      "copyTitleLabel": "Copy title",
+      "cancel": "Cancel",
+      "create": "Create",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this scenario? This cannot be undone."
+    },
+    "list": {
+      "heading": "Cases",
+      "subheading": "Case and ledger management entry point. Enter planning for deeper operations.",
+      "createCase": "Create case",
+      "emptyTitle": "No cases yet",
+      "emptyDescription": "Create your first case to jump into planning quickly and manage scenarios and settings later.",
+      "columns": {
+        "title": "Title",
+        "updated": "Updated",
+        "revision": "Revision",
+        "actions": "Actions"
+      },
+      "openPlanning": "Open planning",
+      "moreActionsAriaLabel": "More actions",
+      "rename": "Rename",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "actionFailed": "Action failed.",
+      "scenariosDescription": "Create, duplicate and open scenarios in this case.",
+      "createScenario": "Create scenario",
+      "openApp": "Open app",
+      "openInNewWindow": "Open in new window",
+      "updatedAt": "Updated {value}",
+      "revisionValue": "Revision {value}",
+      "copyTitleValue": "{title} (Copy)"
     }
   }
 }
