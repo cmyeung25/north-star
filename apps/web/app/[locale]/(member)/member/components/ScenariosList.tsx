@@ -1,3 +1,1 @@
-"use client";
-
-export { ScenariosList } from "../../../../(member)/member/components/ScenariosList";
+export * from "../../../../(member)/member/components/ScenariosList";
