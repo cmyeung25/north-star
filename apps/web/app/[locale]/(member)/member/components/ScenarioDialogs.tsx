@@ -1,7 +1,1 @@
-"use client";
-
-export {
-  CreateScenarioDialog,
-  DeleteScenarioDialog,
-  DuplicateScenarioDialog,
-} from "../../../../(member)/member/components/ScenarioDialogs";
+export * from "../../../../(member)/member/components/ScenarioDialogs";

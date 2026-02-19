@@ -1,3 +1,1 @@
-"use client";
-
-export { CasesList } from "../../../../(member)/member/components/CasesList";
+export * from "../../../../(member)/member/components/CasesList";
