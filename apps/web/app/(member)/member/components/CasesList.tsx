@@ -4,9 +4,25 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
-import { ActionIcon, Alert, Button, Group, Menu, Paper, Stack, Table, Text, ThemeIcon } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Group,
+  Menu,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
 import { useTranslations } from "next-intl";
-import { createCaseAction, deleteCaseAction, duplicateCaseAction, renameCaseAction } from "../cases/actions";
+import {
+  createCaseAction,
+  deleteCaseAction,
+  duplicateCaseAction,
+  renameCaseAction,
+} from "../cases/actions";
 import { formatIsoYmdHms } from "../../../../lib/date/format";
 import { memberCaseEnterPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
@@ -73,56 +89,66 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
         <EmptyState onCreate={() => setCreateOpen(true)} />
       ) : (
         <Paper p={0}>
-          <Table highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t("columns.title")}</Table.Th>
-                <Table.Th>{t("columns.updated")}</Table.Th>
-                <Table.Th>{t("columns.actions")}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {cases.map((entry) => (
-                <Table.Tr key={entry.id}>
-                  <Table.Td>{entry.title}</Table.Td>
-                  <Table.Td>{formatDate(entry.updatedAt)}</Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      <Button variant="light" color="gray" size="xs" component={Link} href={memberCaseEnterPath(entry.id)}>
-                        {t("openPlanning")}
-                      </Button>
-                      <Menu withinPortal position="bottom-end">
-                        <Menu.Target>
-                          <ActionIcon variant="subtle" aria-label={t("moreActionsAriaLabel")}>
-                            ⋯
-                          </ActionIcon>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Item
-                            onClick={() => {
-                              setRenameTarget(entry);
-                              setRenameTitle(entry.title);
-                            }}
-                          >
-                            {t("rename")}
-                          </Menu.Item>
-                          <Menu.Item
-                            onClick={() => submit(() => duplicateCaseAction({ caseId: entry.id }))}
-                          >
-                            {t("duplicate")}
-                          </Menu.Item>
-                          <Menu.Divider />
-                          <Menu.Item color="red" onClick={() => setDeleteTarget(entry)}>
-                            {t("delete")}
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
-                    </Group>
-                  </Table.Td>
+          <Table.ScrollContainer minWidth={720}>
+            <Table highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t("columns.title")}</Table.Th>
+                  <Table.Th>{t("columns.updated")}</Table.Th>
+                  <Table.Th>{t("columns.actions")}</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {cases.map((entry) => (
+                  <Table.Tr key={entry.id}>
+                    <Table.Td>{entry.title}</Table.Td>
+                    <Table.Td>{formatDate(entry.updatedAt)}</Table.Td>
+                    <Table.Td>
+                      <Group gap="xs">
+                        <Button
+                          variant="light"
+                          color="gray"
+                          size="xs"
+                          component={Link}
+                          href={memberCaseEnterPath(entry.id)}
+                        >
+                          {t("openPlanning")}
+                        </Button>
+                        <Menu withinPortal position="bottom-end">
+                          <Menu.Target>
+                            <ActionIcon variant="subtle" aria-label={t("moreActionsAriaLabel")}>
+                              ⋯
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item
+                              onClick={() => {
+                                setRenameTarget(entry);
+                                setRenameTitle(entry.title);
+                              }}
+                            >
+                              {t("rename")}
+                            </Menu.Item>
+                            <Menu.Item
+                              onClick={() =>
+                                submit(() => duplicateCaseAction({ caseId: entry.id }))
+                              }
+                            >
+                              {t("duplicate")}
+                            </Menu.Item>
+                            <Menu.Divider />
+                            <Menu.Item color="red" onClick={() => setDeleteTarget(entry)}>
+                              {t("delete")}
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         </Paper>
       )}
 
@@ -155,7 +181,10 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
         onTitleChange={setRenameTitle}
         onSubmit={() =>
           renameTarget
-            ? submit(() => renameCaseAction({ caseId: renameTarget.id, title: renameTitle }), () => setRenameTarget(null))
+            ? submit(
+                () => renameCaseAction({ caseId: renameTarget.id, title: renameTitle }),
+                () => setRenameTarget(null),
+              )
             : undefined
         }
       />
@@ -166,7 +195,10 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
         onClose={() => setDeleteTarget(null)}
         onSubmit={() =>
           deleteTarget
-            ? submit(() => deleteCaseAction({ caseId: deleteTarget.id }), () => setDeleteTarget(null))
+            ? submit(
+                () => deleteCaseAction({ caseId: deleteTarget.id }),
+                () => setDeleteTarget(null),
+              )
             : undefined
         }
       />
