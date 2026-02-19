@@ -48,8 +48,8 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
     >
       <AppShell.Header bg="polar.9" withBorder={false}>
         <Group h="100%" px="md" justify="space-between">
-          <Group gap="xs" wrap="nowrap">
-            <BrandLogo size="sm" />
+          <Group gap="xs"wrap="nowrap">
+            <BrandLogo size="sm" variant="white" />
             <Text c="white" fw={700} fz="sm">
               {t("console")}
             </Text>
