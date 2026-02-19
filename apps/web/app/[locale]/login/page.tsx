@@ -18,6 +18,12 @@ export default function LoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const debugLog = (...args: unknown[]) => {
+    if (process.env.NODE_ENV === "development") {
+      console.info("[login]", ...args);
+    }
+  };
+
   const handleAuth = async () => {
     setLoading(true);
     setError(null);
@@ -28,22 +34,48 @@ export default function LoginPage() {
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
 
-    setLoading(false);
-
     if (response.error) {
+      setLoading(false);
       setError(response.error.message);
       return;
     }
 
     if (mode === "sign-up") {
+      setLoading(false);
       setMessage("Sign-up succeeded. Check your inbox if email confirmation is enabled.");
       return;
     }
 
+    debugLog("signIn response has session", Boolean(response.data.session));
+
+    const waitForSession = async () => {
+      const timeoutMs = 2000;
+      const intervalMs = 100;
+      const startedAt = Date.now();
+      let session = response.data.session;
+
+      while (!session && Date.now() - startedAt < timeoutMs) {
+        const { data } = await supabase.auth.getSession();
+        session = data.session;
+
+        if (!session) {
+          await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        }
+      }
+
+      return session;
+    };
+
+    const session = await waitForSession();
+    debugLog("getSession result", Boolean(session));
+
     const callbackUrl = searchParams.get("callbackUrl");
     const destination = callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : "/member/cases";
 
-    router.push(destination);
+    debugLog("navigation start", destination);
+    setLoading(false);
+
+    router.replace(destination);
     router.refresh();
   };
 
