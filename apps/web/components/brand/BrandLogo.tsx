@@ -30,7 +30,6 @@ const wordmarkSizeByScale: Record<BrandLogoSize, { width: number; height: number
 export default function BrandLogo({
   variant = "full",
   size = "md",
-  collapsed = false,
   href = "/member/cases",
   className,
   priority = false,
