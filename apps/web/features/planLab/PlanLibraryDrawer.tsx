@@ -206,7 +206,11 @@ export const PlanLibraryDrawer = ({
                   </Stack>
                   <Menu withinPortal shadow="md" position="bottom-end">
                     <Menu.Target>
-                      <ActionIcon variant="subtle" size="sm" aria-label="Plan actions">
+                      <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={translate("planLabPlanActionsAriaLabel", "Plan actions")}
+                      >
                         •••
                       </ActionIcon>
                     </Menu.Target>

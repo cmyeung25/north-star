@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
 type BottomNavItem = {
@@ -14,10 +15,11 @@ type BottomNavProps = {
 
 export default function BottomNav({ items }: BottomNavProps) {
   const pathname = usePathname();
+  const t = useTranslations("nav.bottom");
 
   return (
     <nav
-      aria-label="Bottom navigation"
+      aria-label={t("ariaLabel")}
       style={{ display: "grid", gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: "0.5rem" }}
     >
       {items.map((item) => {

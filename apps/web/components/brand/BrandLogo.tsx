@@ -1,4 +1,5 @@
 import { Group } from "@mantine/core";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { Link } from "../../src/i18n/navigation";
 
@@ -35,6 +36,7 @@ export default function BrandLogo({
   priority = false,
   unoptimized = true,
 }: BrandLogoProps) {
+  const t = useTranslations("nav.brand");
   const iconSize = iconSizeByScale[size];
   const showWordmark = variant === "full" && !collapsed;
   const wordmarkSize = wordmarkSizeByScale[size];
@@ -43,7 +45,7 @@ export default function BrandLogo({
     <Link
       href={href}
       className={className}
-      aria-label="Go to scenarios"
+      aria-label={t("ariaLabel")}
       style={{ display: "inline-flex", alignItems: "center" }}
     >
       <Group gap="xs" wrap="nowrap">
