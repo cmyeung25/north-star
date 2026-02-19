@@ -21,11 +21,6 @@ const iconSizeByScale: Record<BrandLogoSize, number> = {
   lg: 40,
 };
 
-const wordmarkSizeByScale: Record<BrandLogoSize, { width: number; height: number }> = {
-  sm: { width: 70, height: 42 },
-  md: { width: 80, height: 52 },
-  lg: { width: 94, height: 62 },
-};
 
 export default function BrandLogo({
   variant = "full",
