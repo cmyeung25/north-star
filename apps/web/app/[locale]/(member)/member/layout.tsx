@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { AppShell, AppShellMain, AppShellNavbar, Button, Group, NavLink, Stack, Text, Title } from "@mantine/core";
+import { AppShell, AppShellMain, AppShellNavbar, Box, Button, Group, NavLink, Stack, Text, Title } from "@mantine/core";
 import { getTranslations } from "next-intl/server";
 import { createSupabaseServerClient } from '../../../../src/lib/supabase/server';
+import BrandLogo from "../../../../components/brand/BrandLogo";
 
 type Props = { children: ReactNode; params: { locale: string } };
 
@@ -24,12 +25,12 @@ export default async function MemberLayout({ children, params }: Props) {
     <AppShell navbar={{ width: 260, breakpoint: "sm" }} padding="md">
       <AppShellNavbar p="sm">
         <Stack h="100%" gap="xs">
-          <div>
-            <Title order={4}>會員專區</Title>
-            <Text size="sm" c="dimmed">
-              案例與情境管理
-            </Text>
-          </div>
+          <Group>
+            <Box px="xs" py={4}>
+              <BrandLogo size="md" />
+            </Box>
+            <Title order={4}>AURIN 財務規劃平台</Title>
+          </Group>
           <NavLink component={Link} href="/member/cases" label={t("scenarios")} />
           <NavLink component={Link} href="/account" label="Account settings" />
           <Group mt="auto">
