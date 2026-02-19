@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 type Props = {
   open: boolean;
   onReload: () => void;
@@ -15,6 +17,8 @@ export default function RevisionConflictModal({
   onClose,
   busy,
 }: Props) {
+  const t = useTranslations("app.conflict");
+
   if (!open) {
     return null;
   }
@@ -31,12 +35,12 @@ export default function RevisionConflictModal({
       }}
     >
       <div style={{ background: "white", borderRadius: 8, width: 460, padding: "1rem" }}>
-        <h3>Revision conflict</h3>
-        <p>雲端版本已更新。請選擇重載雲端版本，或另存為新 scenario。</p>
+        <h3>{t("title")}</h3>
+        <p>{t("description")}</p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button onClick={onClose} disabled={busy}>取消</button>
-          <button onClick={onReload} disabled={busy}>Reload from cloud</button>
-          <button onClick={onSaveAsNew} disabled={busy}>Save as new scenario</button>
+          <button onClick={onClose} disabled={busy}>{t("actions.cancel")}</button>
+          <button onClick={onReload} disabled={busy}>{t("actions.reloadFromCloud")}</button>
+          <button onClick={onSaveAsNew} disabled={busy}>{t("actions.saveAsNewScenario")}</button>
         </div>
       </div>
     </div>
