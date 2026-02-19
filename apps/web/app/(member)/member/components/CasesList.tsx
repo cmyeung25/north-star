@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import { ActionIcon, Alert, Button, Group, Menu, Paper, Stack, Table, Text, ThemeIcon } from "@mantine/core";
+import { useTranslations } from "next-intl";
 import { createCaseAction, deleteCaseAction, duplicateCaseAction, renameCaseAction } from "../cases/actions";
 import { formatIsoYmdHms } from "../../../../lib/date/format";
 import { memberCaseEnterPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
@@ -13,25 +14,26 @@ import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDial
 const formatDate = (value: string) => formatIsoYmdHms(value);
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const t = useTranslations("member.list");
+
   return (
     <Paper p="xl">
       <Stack align="center" gap="sm">
         <ThemeIcon size={44} radius="xl" variant="light" color="polar">
           <Text>📁</Text>
         </ThemeIcon>
-        <Text fw={600}>尚未建立任何案例</Text>
+        <Text fw={600}>{t("emptyTitle")}</Text>
         <Text c="dimmed" ta="center" maw={380}>
-          建立第一個案例後，你可以快速進入規劃，並在後續管理情境與設定。
+          {t("emptyDescription")}
         </Text>
-        <Button onClick={onCreate}>
-          建立案例
-        </Button>
+        <Button onClick={onCreate}>{t("createCase")}</Button>
       </Stack>
     </Paper>
   );
 }
 
 export function CasesList({ cases }: { cases: CaseSummary[] }) {
+  const t = useTranslations("member.list");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
           onDone?.(result);
           router.refresh();
         })
-        .catch((reason) => setError(reason instanceof Error ? reason.message : "Action failed."));
+        .catch((reason) => setError(reason instanceof Error ? reason.message : t("actionFailed")));
     });
   };
 
@@ -58,12 +60,12 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
     <Stack gap="md">
       <Group justify="space-between" align="end">
         <div>
-          <Text fw={600}>Cases</Text>
+          <Text fw={600}>{t("heading")}</Text>
           <Text c="dimmed" size="sm">
-            Case 與帳務管理入口。深入操作請進入規劃。
+            {t("subheading")}
           </Text>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>建立案例</Button>
+        <Button onClick={() => setCreateOpen(true)}>{t("createCase")}</Button>
       </Group>
       {error ? <Alert color="red">{error}</Alert> : null}
 
@@ -74,9 +76,9 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
           <Table highlightOnHover>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>標題</Table.Th>
-                <Table.Th>更新時間</Table.Th>
-                <Table.Th>操作</Table.Th>
+                <Table.Th>{t("columns.title")}</Table.Th>
+                <Table.Th>{t("columns.updated")}</Table.Th>
+                <Table.Th>{t("columns.actions")}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -87,11 +89,11 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                   <Table.Td>
                     <Group gap="xs">
                       <Button variant="light" color="gray" size="xs" component={Link} href={memberCaseEnterPath(entry.id)}>
-                        進入規劃
+                        {t("openPlanning")}
                       </Button>
                       <Menu withinPortal position="bottom-end">
                         <Menu.Target>
-                          <ActionIcon variant="subtle" aria-label="更多操作">
+                          <ActionIcon variant="subtle" aria-label={t("moreActionsAriaLabel")}>
                             ⋯
                           </ActionIcon>
                         </Menu.Target>
@@ -102,16 +104,16 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                               setRenameTitle(entry.title);
                             }}
                           >
-                            Rename
+                            {t("rename")}
                           </Menu.Item>
                           <Menu.Item
                             onClick={() => submit(() => duplicateCaseAction({ caseId: entry.id }))}
                           >
-                            Duplicate
+                            {t("duplicate")}
                           </Menu.Item>
                           <Menu.Divider />
                           <Menu.Item color="red" onClick={() => setDeleteTarget(entry)}>
-                            Delete
+                            {t("delete")}
                           </Menu.Item>
                         </Menu.Dropdown>
                       </Menu>

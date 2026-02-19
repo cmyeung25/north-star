@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Group, Modal, Stack, TextInput } from "@mantine/core";
+import { useTranslations } from "next-intl";
 
 type ScenarioDialogBase = {
   opened: boolean;
@@ -12,17 +13,19 @@ type ScenarioDialogBase = {
 };
 
 export function CreateScenarioDialog(props: ScenarioDialogBase) {
+  const t = useTranslations("member.scenarioDialogs");
+
   return (
-    <Modal opened={props.opened} onClose={props.onClose} title="Create scenario" centered>
+    <Modal opened={props.opened} onClose={props.onClose} title={t("createTitle")} centered>
       <Stack>
         <TextInput
-          label="Scenario title"
+          label={t("scenarioTitleLabel")}
           value={props.title}
           onChange={(event) => props.onTitleChange(event.currentTarget.value)}
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={props.onClose}>Cancel</Button>
-          <Button loading={props.loading} onClick={props.onSubmit}>Create</Button>
+          <Button variant="default" onClick={props.onClose}>{t("cancel")}</Button>
+          <Button loading={props.loading} onClick={props.onSubmit}>{t("create")}</Button>
         </Group>
       </Stack>
     </Modal>
@@ -30,18 +33,20 @@ export function CreateScenarioDialog(props: ScenarioDialogBase) {
 }
 
 export function DuplicateScenarioDialog(props: ScenarioDialogBase) {
+  const t = useTranslations("member.scenarioDialogs");
+
   return (
-    <Modal opened={props.opened} onClose={props.onClose} title="Duplicate scenario" centered>
+    <Modal opened={props.opened} onClose={props.onClose} title={t("duplicateTitle")} centered>
       <Stack>
         <TextInput
-          label="Copy title"
+          label={t("copyTitleLabel")}
           value={props.title}
           onChange={(event) => props.onTitleChange(event.currentTarget.value)}
           disabled
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={props.onClose}>Cancel</Button>
-          <Button loading={props.loading} onClick={props.onSubmit}>Duplicate</Button>
+          <Button variant="default" onClick={props.onClose}>{t("cancel")}</Button>
+          <Button loading={props.loading} onClick={props.onSubmit}>{t("duplicate")}</Button>
         </Group>
       </Stack>
     </Modal>
@@ -56,13 +61,15 @@ type DeleteScenarioDialogProps = {
 };
 
 export function DeleteScenarioDialog(props: DeleteScenarioDialogProps) {
+  const t = useTranslations("member.scenarioDialogs");
+
   return (
-    <Modal opened={props.opened} onClose={props.onClose} title="Delete scenario" centered>
+    <Modal opened={props.opened} onClose={props.onClose} title={t("deleteTitle")} centered>
       <Stack>
-        <div>Delete this scenario? This cannot be undone.</div>
+        <div>{t("deleteConfirm")}</div>
         <Group justify="flex-end">
-          <Button variant="default" onClick={props.onClose}>Cancel</Button>
-          <Button color="red" loading={props.loading} onClick={props.onSubmit}>Delete</Button>
+          <Button variant="default" onClick={props.onClose}>{t("cancel")}</Button>
+          <Button color="red" loading={props.loading} onClick={props.onSubmit}>{t("delete")}</Button>
         </Group>
       </Stack>
     </Modal>

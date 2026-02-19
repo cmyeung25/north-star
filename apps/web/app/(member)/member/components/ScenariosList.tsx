@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ScenarioSummary } from "@north-star/adapters";
 import { Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
+import { useTranslations } from "next-intl";
 import { buildAppScenarioUrl } from "../../../../lib/routes";
 import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { formatIsoYmdHms } from "../../../../lib/date/format";
@@ -30,6 +31,7 @@ function markLastOpened(caseId: string, scenarioId: string) {
 }
 
 function OpenScenarioButtons({ caseId, scenarioId }: { caseId: string; scenarioId: string }) {
+  const t = useTranslations("member.list");
   const href = buildAppScenarioUrl({ caseId, scenarioId });
 
   return (
@@ -42,7 +44,7 @@ function OpenScenarioButtons({ caseId, scenarioId }: { caseId: string; scenarioI
           markLastOpened(caseId, scenarioId);
         }}
       >
-        Open app
+        {t("openApp")}
       </Button>
       <Button
         size="xs"
@@ -52,13 +54,14 @@ function OpenScenarioButtons({ caseId, scenarioId }: { caseId: string; scenarioI
           window.open(href, "_blank", "noopener,noreferrer");
         }}
       >
-        Open in new window
+        {t("openInNewWindow")}
       </Button>
     </Group>
   );
 }
 
 export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios: ScenarioSummary[] }) {
+  const t = useTranslations("member.list");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -75,25 +78,25 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
           onDone?.(result);
           router.refresh();
         })
-        .catch((reason) => setError(reason instanceof Error ? reason.message : "Action failed."));
+        .catch((reason) => setError(reason instanceof Error ? reason.message : t("actionFailed")));
     });
   };
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Text c="dimmed">Create, duplicate and open scenarios in this case.</Text>
-        <Button onClick={() => setCreateOpen(true)}>Create scenario</Button>
+        <Text c="dimmed">{t("scenariosDescription")}</Text>
+        <Button onClick={() => setCreateOpen(true)}>{t("createScenario")}</Button>
       </Group>
       {error ? <Alert color="red">{error}</Alert> : null}
 
       <Table withTableBorder striped visibleFrom="sm">
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Title</Table.Th>
-            <Table.Th>Updated</Table.Th>
-            <Table.Th>Revision</Table.Th>
-            <Table.Th>Actions</Table.Th>
+            <Table.Th>{t("columns.title")}</Table.Th>
+            <Table.Th>{t("columns.updated")}</Table.Th>
+            <Table.Th>{t("columns.revision")}</Table.Th>
+            <Table.Th>{t("columns.actions")}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -106,7 +109,7 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
                 <Group gap="xs">
                   <OpenScenarioButtons caseId={caseId} scenarioId={scenario.id} />
                   <Button size="xs" variant="default" onClick={() => setDuplicateTarget(scenario)}>
-                    Duplicate
+                    {t("duplicate")}
                   </Button>
                   <Button
                     size="xs"
@@ -114,7 +117,7 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
                     variant="light"
                     onClick={() => setDeleteTarget(scenario)}
                   >
-                    Delete
+                    {t("delete")}
                   </Button>
                 </Group>
               </Table.Td>
@@ -129,18 +132,18 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
             <Stack gap="xs">
               <Text fw={600}>{scenario.title}</Text>
               <Text size="sm" c="dimmed">
-                Updated {formatDate(scenario.updatedAt)}
+                {t("updatedAt", { value: formatDate(scenario.updatedAt) })}
               </Text>
               <Text size="sm" c="dimmed">
-                Revision {scenario.revision}
+                {t("revisionValue", { value: scenario.revision })}
               </Text>
               <Group>
                 <OpenScenarioButtons caseId={caseId} scenarioId={scenario.id} />
                 <Button size="xs" variant="default" onClick={() => setDuplicateTarget(scenario)}>
-                  Duplicate
+                  {t("duplicate")}
                 </Button>
                 <Button size="xs" color="red" variant="light" onClick={() => setDeleteTarget(scenario)}>
-                  Delete
+                  {t("delete")}
                 </Button>
               </Group>
             </Stack>
@@ -168,7 +171,7 @@ export function ScenariosList({ caseId, scenarios }: { caseId: string; scenarios
 
       <DuplicateScenarioDialog
         opened={Boolean(duplicateTarget)}
-        title={duplicateTarget ? `${duplicateTarget.title} (Copy)` : ""}
+        title={duplicateTarget ? t("copyTitleValue", { title: duplicateTarget.title }) : ""}
         loading={isPending}
         onClose={() => setDuplicateTarget(null)}
         onTitleChange={() => undefined}
