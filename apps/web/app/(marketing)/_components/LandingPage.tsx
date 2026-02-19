@@ -2,23 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Accordion,
-  Anchor,
-  Badge,
-  Button,
-  Card,
-  Group,
-  Paper,
-  SimpleGrid,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-  useMantineTheme,
-} from "@mantine/core";
+import { Accordion, Anchor, Badge, Button, Card, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title, useMantineTheme } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
+import PersonaBannerSection from "./PersonaBannerSection";
 
 export default function LandingPage() {
   const t = useTranslations("marketing.web");
@@ -52,7 +39,6 @@ export default function LandingPage() {
     };
   }, [supabase]);
 
-  const personaKeys = ["officeSaver", "coupleHome", "newParents", "mortgageOwner", "freelancer", "sandwich"] as const;
   const pillarKeys = ["clarity", "control", "confidence"] as const;
   const stepKeys = ["one", "two", "three"] as const;
   const faqKeys = ["one", "two", "three", "four", "five", "six", "seven", "eight"] as const;
@@ -122,26 +108,8 @@ export default function LandingPage() {
         </Card>
       </SimpleGrid>
 
-      <Stack gap="md">
-        <Title order={2} c="white">
-          {t("section.persona")}
-        </Title>
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-          {personaKeys.map((key) => (
-            <Card key={key} bg="white" h="100%">
-              <Stack gap="xs">
-                <Text fw={700}>{t(`personas.${key}.title`)}</Text>
-                <Text size="sm" c="dimmed">
-                  {t(`personas.${key}.pain`)}
-                </Text>
-                <Text size="sm" fw={600} c="aurora.8">
-                  {t(`personas.${key}.help`)}
-                </Text>
-              </Stack>
-            </Card>
-          ))}
-        </SimpleGrid>
-      </Stack>
+
+      <PersonaBannerSection isSignedIn={isSignedIn} />
 
       <Stack gap="md">
         <Title order={2} c="white">

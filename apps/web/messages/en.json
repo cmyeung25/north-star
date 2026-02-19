@@ -3589,31 +3589,55 @@
         }
       },
       "section": {
-        "persona": "Built for real life scenarios—not perfect spreadsheets.",
+        "persona": "Life is not a straight line",
         "pillars": "You do not need more data—you need clearer answers.",
         "flow": "Three steps to build your life scenarios",
         "faq": "Questions you may have"
       },
       "personas": {
         "officeSaver": {
-          "title": "Salaried renter saving up",
-          "pain": "Pain: Saving monthly, but unclear how far from the target.",
-          "help": "Aurin: Turn your savings goal into a timeline and see when things start easing."
+          "tag": "Saving monthly, but unsure if it is enough",
+          "title": "Saving is not the problem. Unclear direction is.",
+          "tagline": "See when money pressure eases, when cash gets tight, and whether your goal is realistic.",
+          "bullets": [
+            "Turn your savings goal into a timeline",
+            "Spot tight or deficit months before they happen",
+            "Compare renting longer vs buying earlier side-by-side"
+          ],
+          "cta": "Start with this scenario"
         },
         "coupleHome": {
-          "title": "Dual-income couple buying/upgrading home",
-          "pain": "Pain: Down payment, mortgage, renovation, moving costs arrive together.",
-          "help": "Aurin: Separate one-off and recurring costs to reveal the tightest months."
+          "tag": "Down payment, mortgage, renovation, moving costs all at once",
+          "title": "Buying a home is not only about affordability. It is about pressure timing.",
+          "tagline": "Split one-off costs and monthly repayment clearly so you can avoid stress peaks early.",
+          "bullets": [
+            "Break down one-off and recurring housing costs",
+            "Identify the tightest months in advance",
+            "Compare buy this year vs next year in one view"
+          ],
+          "cta": "Try buy vs rent"
         },
         "newParents": {
-          "title": "Expecting parents planning child costs",
-          "pain": "Pain: Tuition, tutoring, helper, insurance—total cost is hard to estimate.",
-          "help": "Aurin: Test timing and spending scenarios to see whether household rhythm stays stable."
+          "tag": "Education, childcare, helper, insurance: total cost is hard to estimate",
+          "title": "With a new child, cost is not the only issue. Timing is.",
+          "tagline": "Know which years expenses jump and whether your household cash flow can handle it.",
+          "bullets": [
+            "Stress-test education, helper, and insurance costs instantly",
+            "Prepare early instead of reacting late",
+            "Compare conservative vs aggressive plans clearly"
+          ],
+          "cta": "Try the new family scenario"
         },
         "mortgageOwner": {
-          "title": "Homeowner with ongoing mortgage",
-          "pain": "Pain: Property value rises while mortgage remains—what is the real position?",
-          "help": "Aurin: Track assets and liabilities separately for a truer net worth view."
+          "tag": "Property value is up, mortgage is still ongoing",
+          "title": "Net worth is not one number. It is asset-liability truth.",
+          "tagline": "Price changes do not automatically make you safer. Repayment pressure still matters.",
+          "bullets": [
+            "Track home value and mortgage balance separately",
+            "See risk points early (rate hikes / deficit months)",
+            "Test early repayment vs keeping liquidity"
+          ],
+          "cta": "Review mortgage pressure points"
         },
         "freelancer": {
           "title": "Freelancer with variable income",
