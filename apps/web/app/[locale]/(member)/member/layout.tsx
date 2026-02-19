@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { AppShell, AppShellMain, AppShellNavbar, Box, Button, Group, NavLink, Stack, Text, Title } from "@mantine/core";
+import { AppShell, AppShellMain, AppShellNavbar, Box, Button, Group, NavLink, Stack, Title } from "@mantine/core";
 import { getTranslations } from "next-intl/server";
 import { createSupabaseServerClient } from '../../../../src/lib/supabase/server';
 import BrandLogo from "../../../../components/brand/BrandLogo";

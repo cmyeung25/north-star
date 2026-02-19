@@ -4,13 +4,32 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
-import { ActionIcon, Alert, Button, Card, Group, SimpleGrid, Stack, Table, Text } from "@mantine/core";
-import { createCaseAction, deleteCaseAction, renameCaseAction } from "../cases/actions";
+import { ActionIcon, Alert, Button, Group, Menu, Paper, Stack, Table, Text, ThemeIcon } from "@mantine/core";
+import { createCaseAction, deleteCaseAction, duplicateCaseAction, renameCaseAction } from "../cases/actions";
 import { formatIsoYmdHms } from "../../../../lib/date/format";
 import { memberCaseEnterPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <Paper p="xl">
+      <Stack align="center" gap="sm">
+        <ThemeIcon size={44} radius="xl" variant="light" color="polar">
+          <Text>📁</Text>
+        </ThemeIcon>
+        <Text fw={600}>尚未建立任何案例</Text>
+        <Text c="dimmed" ta="center" maw={380}>
+          建立第一個案例後，你可以快速進入規劃，並在後續管理情境與設定。
+        </Text>
+        <Button onClick={onCreate}>
+          建立案例
+        </Button>
+      </Stack>
+    </Paper>
+  );
+}
 
 export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const router = useRouter();
@@ -36,91 +55,74 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
   };
 
   return (
-    <Stack>
-      <Group justify="space-between">
-        <Text c="dimmed">Manage your cases and jump into planning in one click.</Text>
-        <Button onClick={() => setCreateOpen(true)}>Create case</Button>
+    <Stack gap="md">
+      <Group justify="space-between" align="end">
+        <div>
+          <Text fw={600}>Cases</Text>
+          <Text c="dimmed" size="sm">
+            Case 與帳務管理入口。深入操作請進入規劃。
+          </Text>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>建立案例</Button>
       </Group>
       {error ? <Alert color="red">{error}</Alert> : null}
 
-      <Table withTableBorder striped visibleFrom="sm">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Title</Table.Th>
-            <Table.Th>Updated</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {cases.map((entry) => (
-            <Table.Tr key={entry.id}>
-              <Table.Td>
-                {entry.title}
-              </Table.Td>
-              <Table.Td>{formatDate(entry.updatedAt)}</Table.Td>
-              <Table.Td>
-                <Group gap="xs">
-                  <Button
-                    variant="light"
-                    size="xs"
-                    component={Link}
-                    href={memberCaseEnterPath(entry.id)}
-                  >
-                    進入計劃
-                  </Button>
-                  <ActionIcon
-                    variant="subtle"
-                    onClick={() => {
-                      setRenameTarget(entry);
-                      setRenameTitle(entry.title);
-                    }}
-                  >
-                    ✏️
-                  </ActionIcon>
-                  <ActionIcon color="red" variant="subtle" onClick={() => setDeleteTarget(entry)}>
-                    🗑️
-                  </ActionIcon>
-                </Group>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-
-      <SimpleGrid cols={{ base: 1, sm: 2 }} hiddenFrom="sm">
-        {cases.map((entry) => (
-          <Card key={entry.id} withBorder>
-            <Stack gap="xs">
-              <Text fw={600}>{entry.title}</Text>
-              <Text size="sm" c="dimmed">
-                Updated {formatDate(entry.updatedAt)}
-              </Text>
-              <Group>
-                <Button
-                  size="xs"
-                  component={Link}
-                  href={memberCaseEnterPath(entry.id)}
-                >
-                  進入計劃
-                </Button>
-                <Button
-                  variant="default"
-                  size="xs"
-                  onClick={() => {
-                    setRenameTarget(entry);
-                    setRenameTitle(entry.title);
-                  }}
-                >
-                  Rename
-                </Button>
-                <Button color="red" variant="light" size="xs" onClick={() => setDeleteTarget(entry)}>
-                  Delete
-                </Button>
-              </Group>
-            </Stack>
-          </Card>
-        ))}
-      </SimpleGrid>
+      {cases.length === 0 ? (
+        <EmptyState onCreate={() => setCreateOpen(true)} />
+      ) : (
+        <Paper p={0}>
+          <Table highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>標題</Table.Th>
+                <Table.Th>更新時間</Table.Th>
+                <Table.Th>操作</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {cases.map((entry) => (
+                <Table.Tr key={entry.id}>
+                  <Table.Td>{entry.title}</Table.Td>
+                  <Table.Td>{formatDate(entry.updatedAt)}</Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <Button variant="light" color="gray" size="xs" component={Link} href={memberCaseEnterPath(entry.id)}>
+                        進入規劃
+                      </Button>
+                      <Menu withinPortal position="bottom-end">
+                        <Menu.Target>
+                          <ActionIcon variant="subtle" aria-label="更多操作">
+                            ⋯
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item
+                            onClick={() => {
+                              setRenameTarget(entry);
+                              setRenameTitle(entry.title);
+                            }}
+                          >
+                            Rename
+                          </Menu.Item>
+                          <Menu.Item
+                            onClick={() => submit(() => duplicateCaseAction({ caseId: entry.id }))}
+                          >
+                            Duplicate
+                          </Menu.Item>
+                          <Menu.Divider />
+                          <Menu.Item color="red" onClick={() => setDeleteTarget(entry)}>
+                            Delete
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Paper>
+      )}
 
       <CreateCaseDialog
         opened={createOpen}
