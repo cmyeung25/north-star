@@ -1,5 +1,5 @@
-import WebLanding from "../../../components/marketing/WebLanding";
+import LandingPage from "../_components/LandingPage";
 
 export default function MarketingWebPage() {
-  return <WebLanding />;
+  return <LandingPage />;
 }
