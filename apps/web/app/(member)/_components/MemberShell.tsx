@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   AppShell,
   Avatar,
@@ -25,6 +26,7 @@ type MemberShellProps = {
 
 export function MemberShell({ children, userEmail }: MemberShellProps) {
   const pathname = usePathname();
+  const t = useTranslations("memberShell");
   const [opened, { toggle, close }] = useDisclosure(false);
 
   const navLinkStyles = {
@@ -49,7 +51,7 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
           <Group gap="xs" wrap="nowrap">
             <BrandLogo size="sm" />
             <Text c="white" fw={700} fz="sm">
-              會員區
+              {t("console")}
             </Text>
           </Group>
           <Burger
@@ -58,7 +60,7 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
             color="#E2E8F0"
             hiddenFrom="sm"
             size="sm"
-            aria-label="Toggle navigation"
+            aria-label={t("toggleNavigation")}
           />
         </Group>
       </AppShell.Header>
@@ -66,13 +68,13 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
       <AppShell.Navbar bg="polar.9" p="md">
         <Stack h="100%" gap="xs">
           <Text c="white" fw={700} fz="sm" px="xs" pb="xs" visibleFrom="sm">
-            Member Console
+            {t("console")}
           </Text>
 
           <NavLink
             component={Link}
             href="/member/cases"
-            label="個案"
+            label={t("cases")}
             active={pathname === "/member/cases" || pathname.startsWith("/member/cases/")}
             color="aurora"
             styles={navLinkStyles}
@@ -81,7 +83,7 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
           <NavLink
             component={Link}
             href="/account"
-            label="帳戶設定"
+            label={t("accountSettings")}
             active={pathname.startsWith("/account")}
             color="aurora"
             styles={navLinkStyles}
@@ -109,10 +111,10 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
                     </Avatar>
                     <Stack gap={0}>
                       <Text size="sm" fw={600} c="#F8FAFC" lineClamp={1}>
-                        {userEmail ?? "會員"}
+                        {userEmail ?? t("member")}
                       </Text>
                       <Text size="xs" c="#94A3B8">
-                        已登入
+                        {t("signedIn")}
                       </Text>
                     </Stack>
                   </Group>
@@ -120,11 +122,11 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Item component={Link} href="/account" onClick={close}>
-                  帳戶設定
+                  {t("accountSettings")}
                 </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item component={Link} href="/auth/logout" color="red" prefetch={false} onClick={close}>
-                  Logout
+                  {t("logout")}
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
