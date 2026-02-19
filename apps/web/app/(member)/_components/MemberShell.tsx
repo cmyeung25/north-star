@@ -123,7 +123,7 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
                   帳戶設定
                 </Menu.Item>
                 <Menu.Divider />
-                <Menu.Item component={Link} href="/auth/logout" color="red" onClick={close}>
+                <Menu.Item component={Link} href="/auth/logout" color="red" prefetch={false} onClick={close}>
                   Logout
                 </Menu.Item>
               </Menu.Dropdown>
