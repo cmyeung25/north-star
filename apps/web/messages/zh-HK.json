@@ -3885,6 +3885,11 @@
         "signUpSuccess": "註冊成功。若已啟用 Email 驗證，請檢查你的信箱。",
         "signedOut": "已登出。"
       }
+    },
+    "callback": {
+      "redirecting": "已登入，正在跳轉到情境列表…"
+    }
+  },
   "app": {
     "conflict": {
       "title": "版本衝突",
@@ -3899,9 +3904,6 @@
       "loading": "正在載入情境…"
     }
   },
-  "auth": {
-    "callback": {
-      "redirecting": "已登入，正在跳轉到情境列表…"
   "member": {
     "caseDialogs": {
       "createTitle": "建立案例",
