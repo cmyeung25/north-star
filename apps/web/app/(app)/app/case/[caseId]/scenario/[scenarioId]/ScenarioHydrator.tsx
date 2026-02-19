@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState, type ReactNode } from "react";
 import { importScenarioState } from "../../../../../../../src/store/scenarioState";
 import { normalizeScenario } from "../../../../../../../src/store/scenarioStore";
@@ -7,16 +8,16 @@ import { useScenarioStore } from "../../../../../../../src/store/scenarioStore";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
 import { isScenarioOnboarded } from "../../../../../../../lib/onboarding/isScenarioOnboarded";
 
-
 const normalizeHydratedPayload = (payload: Record<string, unknown>, scenarioId: string) => {
   const nextPayload = { ...payload };
   const scenarios = Array.isArray(nextPayload.scenarios) ? nextPayload.scenarios : [];
   const routeScenario = scenarios.find(
     (entry) => entry && typeof entry === "object" && (entry as { id?: unknown }).id === scenarioId,
   );
-  const selectedScenario = routeScenario && typeof routeScenario === "object"
-    ? (routeScenario as Parameters<typeof isScenarioOnboarded>[0])
-    : null;
+  const selectedScenario =
+    routeScenario && typeof routeScenario === "object"
+      ? (routeScenario as Parameters<typeof isScenarioOnboarded>[0])
+      : null;
 
   if (!isScenarioOnboarded(selectedScenario)) {
     return nextPayload;
@@ -55,6 +56,7 @@ export default function ScenarioHydrator({
   lastSavedAt,
   children,
 }: Props) {
+  const t = useTranslations("app.hydrator");
   const [hydrated, setHydrated] = useState(false);
   const initializeCloudMeta = useScenarioCloudStore((state) => state.initialize);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
@@ -108,7 +110,7 @@ export default function ScenarioHydrator({
           },
           meta: { schemaVersion: 2 },
           events: [],
-        })
+        }),
       );
     }
 
@@ -116,7 +118,7 @@ export default function ScenarioHydrator({
   }, [replaceScenario, scenarioId, scenarioTitle, setActiveScenario]);
 
   if (!hydrated) {
-    return <p>Hydrating scenario…</p>;
+    return <p>{t("loading")}</p>;
   }
 
   return <>{children}</>;

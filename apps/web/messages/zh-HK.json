@@ -3861,6 +3861,23 @@
     "signedIn": "已登入",
     "logout": "登出"
   },
+  "app": {
+    "conflict": {
+      "title": "版本衝突",
+      "description": "雲端版本已更新。請選擇重新載入雲端版本，或將目前內容另存為新情境。",
+      "actions": {
+        "cancel": "取消",
+        "reloadFromCloud": "重新載入雲端版本",
+        "saveAsNewScenario": "另存為新情境"
+      }
+    },
+    "hydrator": {
+      "loading": "正在載入情境…"
+    }
+  },
+  "auth": {
+    "callback": {
+      "redirecting": "已登入，正在跳轉到情境列表…"
   "member": {
     "caseDialogs": {
       "createTitle": "建立案例",

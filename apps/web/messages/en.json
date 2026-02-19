@@ -3814,6 +3814,23 @@
     "signedIn": "Signed in",
     "logout": "Logout"
   },
+  "app": {
+    "conflict": {
+      "title": "Revision conflict",
+      "description": "The cloud revision changed. Reload from cloud or save your work as a new scenario.",
+      "actions": {
+        "cancel": "Cancel",
+        "reloadFromCloud": "Reload from cloud",
+        "saveAsNewScenario": "Save as new scenario"
+      }
+    },
+    "hydrator": {
+      "loading": "Hydrating scenario…"
+    }
+  },
+  "auth": {
+    "callback": {
+      "redirecting": "Signed in. Redirecting to cases…"
   "member": {
     "caseDialogs": {
       "createTitle": "Create case",
