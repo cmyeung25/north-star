@@ -3566,85 +3566,135 @@
   "marketing": {
     "web": {
       "hero": {
-        "badge": "Aurin Financial Planning",
-        "title": "Plan with clarity, decide with confidence",
-        "subtitle": "Use isolated scenarios to model income, spending, assets, and liabilities on a monthly timeline."
+        "badge": "AURIN Financial Planning Platform",
+        "title": "See the roadmap before you decide.",
+        "subtitle": "In Hong Kong, mortgages, rate changes, education costs, moving plans—everything is connected. Aurin helps you turn income, expenses, assets and liabilities into comparable scenarios, so you can decide with clarity, not guesses."
       },
       "cta": {
-        "start": "Get started free",
-        "login": "Log in",
-        "goCases": "Go to my cases"
+        "start": "Start free",
+        "login": "Sign in",
+        "goCases": "Go to my cases",
+        "startHint": "Build your baseline in 5 minutes and see cashflow direction first.",
+        "loginHint": "Already have cases? Jump back in directly.",
+        "createCase": "Create my first case"
       },
       "snapshot": {
-        "title": "Simulation snapshot",
-        "case": "Case: Career switch at 35 + home purchase",
-        "detail": "Scenario A: Steady growth / Scenario B: Early home purchase, with net worth differences in view.",
+        "title": "Decision simulation snapshot",
+        "case": "Case: Age 35 home-buying plan",
+        "detail": "Option A: Buy now (down payment + mortgage) / Option B: Rent one more year. Differences are visible at a glance.",
         "points": {
           "cashflow": "Monthly cashflow trend",
           "netWorth": "Net worth movement",
-          "guardrails": "Risk guardrail alerts"
+          "guardrails": "Risk and pressure alerts"
         }
       },
       "section": {
-        "features": "Feature highlights",
-        "flow": "How it works",
-        "faq": "FAQ"
+        "persona": "Built for real life scenarios—not perfect spreadsheets.",
+        "pillars": "You do not need more data—you need clearer answers.",
+        "flow": "Three steps to build your life scenarios",
+        "faq": "Questions you may have"
       },
-      "features": {
-        "isolation": {
-          "icon": "🧭",
-          "title": "Scenario isolation",
-          "description": "Keep each life plan independent for cleaner comparisons."
+      "personas": {
+        "officeSaver": {
+          "title": "Salaried renter saving up",
+          "pain": "Pain: Saving monthly, but unclear how far from the target.",
+          "help": "Aurin: Turn your savings goal into a timeline and see when things start easing."
         },
-        "quickStart": {
-          "icon": "⚡",
-          "title": "Quick start",
-          "description": "Build a baseline in about five minutes and start modeling."
+        "coupleHome": {
+          "title": "Dual-income couple buying/upgrading home",
+          "pain": "Pain: Down payment, mortgage, renovation, moving costs arrive together.",
+          "help": "Aurin: Separate one-off and recurring costs to reveal the tightest months."
         },
-        "dashboard": {
-          "icon": "📊",
-          "title": "Overview dashboard",
-          "description": "Track cashflow, net worth, and risk signals in one place."
+        "newParents": {
+          "title": "Expecting parents planning child costs",
+          "pain": "Pain: Tuition, tutoring, helper, insurance—total cost is hard to estimate.",
+          "help": "Aurin: Test timing and spending scenarios to see whether household rhythm stays stable."
         },
-        "planLab": {
-          "icon": "🧪",
-          "title": "Plan lab",
-          "description": "Adjust assumptions and see monthly impact instantly."
+        "mortgageOwner": {
+          "title": "Homeowner with ongoing mortgage",
+          "pain": "Pain: Property value rises while mortgage remains—what is the real position?",
+          "help": "Aurin: Track assets and liabilities separately for a truer net worth view."
         },
-        "comparison": {
-          "icon": "🔍",
-          "title": "Plan comparison",
-          "description": "Spot differences across scenarios at a glance."
+        "freelancer": {
+          "title": "Freelancer with variable income",
+          "pain": "Pain: Income volatility makes long commitments stressful.",
+          "help": "Aurin: Stress-test worst months first before committing to major expenses."
         },
-        "guardrails": {
-          "icon": "🛡️",
-          "title": "Risk guardrails",
-          "description": "Catch baseline drift and double counting risks early."
+        "sandwich": {
+          "title": "Mid-career sandwich generation",
+          "pain": "Pain: Parents’ care, mortgage, education expenses can hit at the same time.",
+          "help": "Aurin: Prepare multiple plans in advance so changes do not force a full restart."
+        }
+      },
+      "pillars": {
+        "clarity": {
+          "icon": "🔎",
+          "title": "Clarity",
+          "description": "See monthly cashflow, net worth, and key years in one understandable timeline."
+        },
+        "control": {
+          "icon": "🎛️",
+          "title": "Control",
+          "description": "Test each choice safely—add costs, change income, delay a purchase—and see impact instantly."
+        },
+        "confidence": {
+          "icon": "🛟",
+          "title": "Confidence",
+          "description": "Compare A/B plans side by side with explainable differences before you commit."
         }
       },
       "flow": {
         "step": "Step {number}",
-        "one": "Create a case",
-        "two": "Create scenarios and complete setup",
-        "three": "Review in dashboard, then test in plan lab"
+        "one": {
+          "title": "Create a case",
+          "description": "One case equals one life theme (home, family, retirement). Keep decisions organized without cross-noise."
+        },
+        "two": {
+          "title": "Create scenarios and set your baseline",
+          "description": "Each scenario is one assumption set: income, expenses, assets, liabilities. Start from a clear baseline in minutes."
+        },
+        "three": {
+          "title": "Review overview, then test in Plan Lab",
+          "description": "After seeing the full picture, run “what if” experiments and compare without guesswork."
+        }
       },
       "faq": {
         "one": {
-          "q": "Do scenarios affect each other?",
-          "a": "No. Every scenario runs in isolation so you can compare safely."
+          "q": "Will scenarios affect each other?",
+          "a": "No. Each scenario is isolated. You can compare them, but edits never leak across."
         },
         "two": {
-          "q": "Can I edit assumptions later?",
-          "a": "Yes. You can update assumptions anytime and projections refresh immediately."
+          "q": "Can I change assumptions later?",
+          "a": "Yes. Update the baseline anytime, or test changes in Plan Lab first."
         },
         "three": {
-          "q": "How is data stored and can I export it?",
-          "a": "Your planning data is saved to your account environment, and exports can be requested through support."
+          "q": "Will Plan Lab overwrite my original data?",
+          "a": "No. Plan Lab is a sandbox. Save as a plan—or discard."
         },
         "four": {
-          "q": "Can one case contain multiple scenarios?",
-          "a": "Yes. A single case can include multiple scenarios for different life decisions."
+          "q": "How is my data saved? Can I export?",
+          "a": "Export options (e.g., CSV/JSON) are available based on current support. We are improving storage and cross-device sync progressively."
+        },
+        "five": {
+          "q": "How many scenarios can one case have?",
+          "a": "No hard limit. Most people create 2–6 to compare key decisions."
+        },
+        "six": {
+          "q": "Is Aurin financial advice?",
+          "a": "Aurin is a planning tool to help you understand outcomes. It is not investment advice."
+        },
+        "seven": {
+          "q": "Why not just use spreadsheets?",
+          "a": "Spreadsheets are powerful, but version drift, formula errors, and comparison overhead are common. Aurin turns this into a repeatable workflow."
+        },
+        "eight": {
+          "q": "How do mortgages and property value get represented realistically?",
+          "a": "Assets and liabilities are tracked separately (e.g., market value vs mortgage balance) so net worth and repayment pressure stay transparent."
         }
+      },
+      "finalCta": {
+        "title": "Stop guessing life decisions—see clearly first, then decide.",
+        "subtitle": "Use scenario planning to handle Hong Kong rate cycles, job moves, and family changes with confidence."
       }
     },
     "footer": {

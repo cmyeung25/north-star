@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Accordion,
@@ -17,14 +18,44 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { useTranslations } from "next-intl";
+import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
 
 export default function LandingPage() {
   const t = useTranslations("marketing.web");
   const theme = useMantineTheme();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [isSignedIn, setIsSignedIn] = useState(false);
 
-  const featureKeys = ["isolation", "quickStart", "dashboard", "planLab", "comparison", "guardrails"] as const;
+  useEffect(() => {
+    let mounted = true;
+
+    const loadUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (mounted) {
+        setIsSignedIn(Boolean(user));
+      }
+    };
+
+    void loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsSignedIn(Boolean(session?.user));
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  const personaKeys = ["officeSaver", "coupleHome", "newParents", "mortgageOwner", "freelancer", "sandwich"] as const;
+  const pillarKeys = ["clarity", "control", "confidence"] as const;
   const stepKeys = ["one", "two", "three"] as const;
-  const faqKeys = ["one", "two", "three", "four"] as const;
+  const faqKeys = ["one", "two", "three", "four", "five", "six", "seven", "eight"] as const;
 
   return (
     <Stack gap={56}>
@@ -41,17 +72,29 @@ export default function LandingPage() {
               {t("hero.subtitle")}
             </Text>
           </Stack>
-          <Group gap="sm" wrap="wrap">
-            <Button component={Link} href="/auth/login?intent=register" size="md" color="aurora">
-              {t("cta.start")}
-            </Button>
-            <Button component={Link} href="/auth/login" size="md" variant="outline" c="white">
-              {t("cta.login")}
-            </Button>
-            <Anchor component={Link} href="/member/cases" c="aurora.2" fw={600}>
-              {t("cta.goCases")}
-            </Anchor>
-          </Group>
+          <Stack gap="xs">
+            <Group gap="sm" wrap="wrap">
+              <Button component={Link} href="/auth/login?intent=register" size="md" color="aurora">
+                {t("cta.start")}
+              </Button>
+              <Button component={Link} href="/auth/login" size="md" variant="outline" c="white">
+                {t("cta.login")}
+              </Button>
+              {isSignedIn ? (
+                <Anchor component={Link} href="/member/cases" c="aurora.2" fw={600}>
+                  {t("cta.goCases")}
+                </Anchor>
+              ) : null}
+            </Group>
+            <Group gap="lg">
+              <Text size="sm" c="var(--mantine-color-polar-2)">
+                {t("cta.startHint")}
+              </Text>
+              <Text size="sm" c="var(--mantine-color-polar-2)">
+                {t("cta.loginHint")}
+              </Text>
+            </Group>
+          </Stack>
         </Stack>
         <Card
           bg="rgba(11, 27, 58, 0.45)"
@@ -81,20 +124,41 @@ export default function LandingPage() {
 
       <Stack gap="md">
         <Title order={2} c="white">
-          {t("section.features")}
+          {t("section.persona")}
         </Title>
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-          {featureKeys.map((key) => (
+          {personaKeys.map((key) => (
             <Card key={key} bg="white" h="100%">
-              <Stack gap="sm">
+              <Stack gap="xs">
+                <Text fw={700}>{t(`personas.${key}.title`)}</Text>
+                <Text size="sm" c="dimmed">
+                  {t(`personas.${key}.pain`)}
+                </Text>
+                <Text size="sm" fw={600} c="aurora.8">
+                  {t(`personas.${key}.help`)}
+                </Text>
+              </Stack>
+            </Card>
+          ))}
+        </SimpleGrid>
+      </Stack>
+
+      <Stack gap="md">
+        <Title order={2} c="white">
+          {t("section.pillars")}
+        </Title>
+        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+          {pillarKeys.map((key) => (
+            <Card key={key} bg="rgba(255,255,255,0.96)">
+              <Stack gap="xs">
                 <Group gap="xs" align="center">
                   <ThemeIcon radius="xl" color="aurora" variant="light" size="lg">
-                    <Text>{t(`features.${key}.icon`)}</Text>
+                    <Text>{t(`pillars.${key}.icon`)}</Text>
                   </ThemeIcon>
-                  <Text fw={600}>{t(`features.${key}.title`)}</Text>
+                  <Text fw={700}>{t(`pillars.${key}.title`)}</Text>
                 </Group>
                 <Text size="sm" c="dimmed">
-                  {t(`features.${key}.description`)}
+                  {t(`pillars.${key}.description`)}
                 </Text>
               </Stack>
             </Card>
@@ -113,7 +177,10 @@ export default function LandingPage() {
                 <Badge variant="filled" color="aurora" w="fit-content">
                   {t("flow.step", { number: index + 1 })}
                 </Badge>
-                <Text fw={600}>{t(`flow.${key}`)}</Text>
+                <Text fw={700}>{t(`flow.${key}.title`)}</Text>
+                <Text size="sm" c="dimmed">
+                  {t(`flow.${key}.description`)}
+                </Text>
               </Stack>
             </Card>
           ))}
@@ -163,6 +230,23 @@ export default function LandingPage() {
           </Accordion>
         </Paper>
       </Stack>
+
+      <Paper p="xl" radius="lg" bg="rgba(35, 213, 171, 0.12)" style={{ border: "1px solid rgba(35, 213, 171, 0.35)" }}>
+        <Stack gap="sm" align="flex-start">
+          <Title order={3} c="white">
+            {t("finalCta.title")}
+          </Title>
+          <Text c="var(--mantine-color-polar-1)">{t("finalCta.subtitle")}</Text>
+          <Group gap="sm" wrap="wrap">
+            <Button component={Link} href="/auth/login?intent=register" color="aurora">
+              {t("cta.start")}
+            </Button>
+            <Button component={Link} href={isSignedIn ? "/member/cases" : "/auth/login?intent=register"} variant="outline" c="white">
+              {t("cta.createCase")}
+            </Button>
+          </Group>
+        </Stack>
+      </Paper>
     </Stack>
   );
 }
