@@ -82,6 +82,34 @@ describe("incomeViewModels", () => {
     expect(summary.expiringCount).toBe(2);
   });
 
+  it("uses base month ledger rows for baseline monthly income", () => {
+    const summary = buildIncomeSummary({
+      events: [
+        {
+          id: "income-step",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 88000,
+          startMonth: "2028-02",
+          memberId: "gary",
+        },
+      ],
+      ledgerRowsByEventId: new Map([
+        [
+          "income-step",
+          [
+            { month: "2028-01", amount: 67000, sourceEventId: "income-step", kind: "income" },
+            { month: "2028-02", amount: 88000, sourceEventId: "income-step", kind: "income" },
+          ],
+        ],
+      ]),
+      baseMonth: "2028-01",
+    });
+
+    expect(summary.baselineMonthlyTotal).toBe(67000);
+  });
+
 
   it("groups salary adjustments under parent salary event", () => {
     const grouped = groupIncomeEvents([

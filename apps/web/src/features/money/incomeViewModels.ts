@@ -213,11 +213,20 @@ export const buildIncomeSummary = (params: {
   baseMonth?: string;
 }): IncomeSummaryModel => {
   const { events, ledgerRowsByEventId, baseMonth } = params;
-  const monthlyEvents = events.filter(isMonthlyIncomeEvent);
-  const baselineMonthlyTotal = monthlyEvents.reduce(
-    (sum, event) => sum + Math.abs(resolveEventCardAmount(event) ?? 0),
-    0
-  );
+  const baselineMonthlyTotal = baseMonth
+    ? events.reduce((sum, event) => {
+        const rows = ledgerRowsByEventId.get(event.id) ?? [];
+        const eventMonthSum = rows
+          .filter((row) => row.month === baseMonth)
+          .reduce((eventSum, row) => {
+            const isIncome = row.kind === "income" || (!row.kind && row.amount > 0);
+            return isIncome ? eventSum + Math.abs(row.amount) : eventSum;
+          }, 0);
+        return sum + eventMonthSum;
+      }, 0)
+    : events
+        .filter(isMonthlyIncomeEvent)
+        .reduce((sum, event) => sum + Math.abs(resolveEventCardAmount(event) ?? 0), 0);
 
   const nonMonthlyIncomeTotal = baseMonth
     ? buildContributionsByEvent({ events: events.filter(isNonMonthlyIncomeEvent), ledgerRowsByEventId, baseMonth, kind: "income" })
