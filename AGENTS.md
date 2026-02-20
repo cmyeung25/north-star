@@ -27,7 +27,8 @@ These rules exist to ensure tasks reliably complete and can be pushed to GitHub.
 Run these at the start of a task:
 
 ```bash\
-git remote add origin https://github.com/cmyeung25/north-star.git
+git remote add origin git@github.com:cmyeung25/north-star.git
+
 git rev-parse --show-toplevel
 git rev-parse --abbrev-ref HEAD
 git remote -v || true
