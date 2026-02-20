@@ -54,6 +54,9 @@ export const getEventSegmentRole = (event: ScenarioEvent): SegmentRole => {
 };
 
 export const getEventStartMonth = (event: ScenarioEvent): string | null => {
+  if (getEventSegmentRole(event) === "child" && event.effectiveMonth) {
+    return event.effectiveMonth;
+  }
   if (event.type === "adjustment") {
     return event.month ?? null;
   }
@@ -72,6 +75,16 @@ export const getEventEndMonth = (event: ScenarioEvent): string | null => {
   }
   if (event.type === "housing" || event.type === "insurance") {
     return event.endMonth ?? null;
+  }
+  if (event.type === "loan") {
+    const termMonths = Math.max(0, Math.round((event.termYears ?? 0) * 12));
+    if (!event.startMonth || termMonths <= 0) {
+      return null;
+    }
+    return addMonths(event.startMonth, termMonths - 1);
+  }
+  if (event.type === "adjustment") {
+    return event.month ?? null;
   }
   return null;
 };
@@ -102,6 +115,15 @@ const withEffectiveRange = <TEvent extends ScenarioEvent>(
     } as TEvent;
   }
   if (event.type === "housing" || event.type === "insurance") {
+    return {
+      ...event,
+      startMonth,
+      endMonth: endMonth ?? undefined,
+      baseEventId: getEventBaseEventId(event),
+      segmentRole: getEventSegmentRole(event),
+    } as TEvent;
+  }
+  if (event.type === "loan") {
     return {
       ...event,
       startMonth,

@@ -9,7 +9,7 @@ const baseSpec = {
 };
 
 describe("createEventAdjustmentPayload", () => {
-  it("builds cashflow-adjustment payload with salary metadata for monthly income cashflow", () => {
+  it("requires effective month", () => {
     const event: ScenarioEvent = {
       id: "salary",
       type: "cashflow",
@@ -17,6 +17,19 @@ describe("createEventAdjustmentPayload", () => {
       cadence: "monthly",
       amount: 50000,
       startMonth: "2026-01",
+    };
+    expect(createEventAdjustmentPayload(event, { ...baseSpec, effectiveMonth: undefined })).toBeNull();
+  });
+
+  it("builds cashflow-adjustment payload with parent linkage", () => {
+    const event: ScenarioEvent = {
+      id: "salary",
+      type: "cashflow",
+      kind: "income",
+      cadence: "monthly",
+      amount: 50000,
+      startMonth: "2026-01",
+      endMonth: "2028-12",
     };
 
     const payload = createEventAdjustmentPayload(event, baseSpec);
@@ -31,89 +44,42 @@ describe("createEventAdjustmentPayload", () => {
         groupId: "salary",
         groupRole: "adjustment",
         effectiveMonth: "2026-01",
+        meta: { kind: "adjustment", parentEventId: "salary", adjustsEventId: "salary" },
+        parentStartMonth: "2026-01",
+        parentEndMonth: "2028-12",
       },
       spec: baseSpec,
     });
   });
 
-  it("builds cashflow-adjustment payload for non-salary cashflow", () => {
-    const event: ScenarioEvent = {
-      id: "expense",
-      type: "cashflow",
-      kind: "expense",
-      cadence: "monthly",
-      amount: 8000,
-      startMonth: "2026-01",
-    };
-
-    const payload = createEventAdjustmentPayload(event, baseSpec);
-
-    expect(payload).toEqual({
-      type: "cashflow-adjustment",
-      baseEvent: { id: "expense", type: "cashflow" },
-      spec: baseSpec,
-    });
-  });
-
-  it("builds housing-adjustment payload", () => {
-    const event: ScenarioEvent = {
+  it("builds parent linkage metadata for non-cashflow types", () => {
+    const housing: ScenarioEvent = {
       id: "housing-1",
       type: "housing",
       kind: "rent",
       startMonth: "2026-01",
+      endMonth: "2027-12",
       rentMonthly: 30000,
     };
-
-    const payload = createEventAdjustmentPayload(event, baseSpec);
-
-    expect(payload).toEqual({
-      type: "housing-adjustment",
-      baseEvent: { id: "housing-1", type: "housing" },
-      spec: baseSpec,
-    });
-  });
-
-  it("builds loan-adjustment payload", () => {
-    const event: ScenarioEvent = {
+    const loan: ScenarioEvent = {
       id: "loan-1",
       type: "loan",
       loanKind: "personal",
       startMonth: "2026-01",
       principal: 100000,
       annualInterestRatePct: 2,
-      termYears: 5,
+      termYears: 2,
       liabilityId: "liability-1",
     };
-
-    const payload = createEventAdjustmentPayload(event, baseSpec);
-
-    expect(payload).toEqual({
-      type: "loan-adjustment",
-      baseEvent: { id: "loan-1", type: "loan" },
-      spec: baseSpec,
-    });
-  });
-
-  it("builds insurance-adjustment payload", () => {
-    const event: ScenarioEvent = {
+    const insurance: ScenarioEvent = {
       id: "insurance-1",
       type: "insurance",
       mode: "quick",
       startMonth: "2026-01",
+      endMonth: "2026-12",
       premiumMonthly: 2000,
     };
-
-    const payload = createEventAdjustmentPayload(event, baseSpec);
-
-    expect(payload).toEqual({
-      type: "insurance-adjustment",
-      baseEvent: { id: "insurance-1", type: "insurance" },
-      spec: baseSpec,
-    });
-  });
-
-  it("builds adjustment-adjustment payload", () => {
-    const event: ScenarioEvent = {
+    const adjustment: ScenarioEvent = {
       id: "balance-adjustment",
       type: "adjustment",
       kind: "cash",
@@ -121,12 +87,9 @@ describe("createEventAdjustmentPayload", () => {
       amount: 3000,
     };
 
-    const payload = createEventAdjustmentPayload(event, baseSpec);
-
-    expect(payload).toEqual({
-      type: "adjustment-adjustment",
-      baseEvent: { id: "balance-adjustment", type: "adjustment" },
-      spec: baseSpec,
-    });
+    expect(createEventAdjustmentPayload(housing, baseSpec)?.baseEvent.parentEventId).toBe("housing-1");
+    expect(createEventAdjustmentPayload(loan, baseSpec)?.baseEvent.parentEndMonth).toBe("2027-12");
+    expect(createEventAdjustmentPayload(insurance, baseSpec)?.baseEvent.parentEndMonth).toBe("2026-12");
+    expect(createEventAdjustmentPayload(adjustment, baseSpec)?.baseEvent.parentEndMonth).toBe("2026-01");
   });
 });
