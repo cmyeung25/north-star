@@ -3840,6 +3840,43 @@
         "signedOut": "Signed out."
       }
     },
+    "modal": {
+      "title": {
+        "login": "Sign in",
+        "register": "Create account"
+      },
+      "tabs": {
+        "login": "Login",
+        "register": "Register"
+      },
+      "social": {
+        "google": "Continue with Google",
+        "facebook": "Continue with Facebook",
+        "comingSoon": "Coming soon",
+        "tooltip": "Coming soon: we are preparing social login"
+      },
+      "divider": {
+        "or": "Or"
+      },
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "login": {
+        "cta": "Sign in",
+        "switchHint": "No account yet? Switch to Register."
+      },
+      "register": {
+        "cta": "Create account",
+        "switchHint": "Already have an account? Switch to Login."
+      },
+      "error": {
+        "invalidCredentials": "Invalid email or password.",
+        "passwordMismatch": "Passwords do not match."
+      },
+      "notice": {
+        "checkEmail": "Registration submitted. Please check your email."
+      }
+    },
     "callback": {
       "redirecting": "Signed in. Redirecting to cases…"
     }

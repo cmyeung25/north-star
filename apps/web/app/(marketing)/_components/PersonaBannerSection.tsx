@@ -1,6 +1,9 @@
-import Link from "next/link";
+"use client";
+
 import { Badge, Box, Button, Group, List, Overlay, Paper, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useAuthModal } from "./AuthModalController";
 
 type PersonaKey = "officeSaver" | "coupleHome" | "newParents" | "mortgageOwner";
 
@@ -15,7 +18,9 @@ const personaImages: Record<PersonaKey, string> = {
 
 export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boolean }) {
   const t = useTranslations("marketing.web");
-  const ctaHref = isSignedIn ? "/member/cases" : "/auth/login?intent=register";
+  const locale = useLocale();
+  const router = useRouter();
+  const { openAuthModal } = useAuthModal();
 
   return (
     <Stack gap="md">
@@ -79,7 +84,11 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                   <List.Item c="gray.1">{t(`personas.${key}.bullets.2`)}</List.Item>
                 </List>
                 <Group mt="xs">
-                  <Button component={Link} href={ctaHref} variant="light" color="gray">
+                  <Button
+                    variant="light"
+                    color="gray"
+                    onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthModal("register"))}
+                  >
                     {t(`personas.${key}.cta`)}
                   </Button>
                 </Group>
