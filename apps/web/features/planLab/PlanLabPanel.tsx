@@ -8219,7 +8219,7 @@ export default function PlanLabPanel({
                               <Text size="sm" fw={600}>
                                 {translate(
                                   "planLabBundlesSectionTitle",
-                                  "人生組合（Bundles）"
+                                  "人生組合"
                                 )}
                               </Text>
                               <Badge variant="light" color="blue">
@@ -8424,7 +8424,7 @@ export default function PlanLabPanel({
                                 <Text size="sm" fw={600}>
                                   {translate(
                                     "planLabBundlesSectionTitle",
-                                    "人生組合（Bundles）"
+                                    "人生組合"
                                   )}
                                 </Text>
                                 <Badge variant="light" color="blue">

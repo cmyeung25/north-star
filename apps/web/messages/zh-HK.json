@@ -403,7 +403,7 @@
     "planLabEmptyStateBundleAction": "修改人生組合",
     "planLabEmptyStateItemAction": "修改獨立事件",
     "planLabEmptyStateAssumptionsAction": "修改環境假設",
-    "planLabBundlesSectionTitle": "人生組合（Bundles）",
+    "planLabBundlesSectionTitle": "人生組合",
     "planLabBundleRowOneOff": "一次性 {amount}",
     "planLabBundleRowMonthlyNet": "每月淨影響 {amount}",
     "planLabBundleRowItemsCount": "包含 {count} 項",
