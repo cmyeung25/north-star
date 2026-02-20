@@ -55,14 +55,11 @@ export default function ExpenseEventList({
         const groupRows = [baseEvent, ...adjustments]
           .flatMap((event) => ledgerRowsByEventId.get(event.id) ?? [])
           .sort((left, right) => compareMonthKey(right.month, left.month));
+        const primaryRow = groupRows[0];
         const amount = resolveEventCardAmount(baseEvent);
         const startMonth = resolveEventCardStartMonth(baseEvent);
         const endMonth = resolveEventCardEndMonth(baseEvent);
-        const projectionRow =
-          groupRows.find((row) => (anchorMonth ? row.month === anchorMonth : false)) ??
-          groupRows.find((row) => (anchorMonth ? compareMonthKey(row.month, anchorMonth) <= 0 : false)) ??
-          groupRows[0];
-        const impact = resolveEventMonthlyImpact(groupRows, anchorMonth);
+        const impact = resolveEventMonthlyImpact(groupRows);
         const expanded = Boolean(expandedIds[baseEvent.id]);
         const latestAdjustment = adjustments[adjustments.length - 1];
 
@@ -106,7 +103,7 @@ export default function ExpenseEventList({
                     <Badge variant="outline" color="blue">調整 {adjustments.length} 次</Badge>
                   )}
                 </Group>
-                {projectionRow && (
+                {primaryRow && (
                   <Badge variant="light" color="red">
                     {t("incomeProjectedPreview", {
                       month: projectionRow.month,
@@ -149,7 +146,7 @@ export default function ExpenseEventList({
                     <Menu.Item
                       disabled={!projectionRow}
                       onClick={() =>
-                        projectionRow &&
+                        primaryRow &&
                         onCreateEventAdjustment(baseEvent, {
                           mode: "override",
                           amount: projectionRow.amount,
