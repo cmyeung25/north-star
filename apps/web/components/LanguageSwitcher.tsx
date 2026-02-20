@@ -45,7 +45,12 @@ export default function LanguageSwitcher() {
       onChange={handleChange}
       data={locales.map((option) => ({
         value: option,
-        label: option === defaultLocale ? t("languageZhHant") : t("languageEn"),
+        label:
+          option === "en"
+            ? t("languageEn")
+            : option === "zh-Hant"
+              ? `${t("languageZhHant")} (HK)`
+              : t("languageZhHant"),
       }))}
       aria-label={t("languageSwitcherLabel")}
     />
