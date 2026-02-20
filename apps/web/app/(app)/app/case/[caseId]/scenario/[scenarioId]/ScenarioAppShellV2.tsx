@@ -40,6 +40,7 @@ type ScenarioAppShellV2Props = {
   caseTitle?: string;
   scenarioTitle: string;
   children: ReactNode;
+  loading?: boolean;
 };
 
 type WorkspaceTab = {
@@ -47,7 +48,7 @@ type WorkspaceTab = {
   label: string;
 };
 
-export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children }: ScenarioAppShellV2Props) {
+export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children, loading = false }: ScenarioAppShellV2Props) {
   const theme = useMantineTheme();
   const pathname = usePathname();
   const router = useRouter();
@@ -97,6 +98,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children 
   const mobileTabs = tabs.slice(0, 3);
 
   const enabled = Boolean(meta && scenarioId && meta.scenarioId === scenarioId);
+  const headerLoading = loading && !enabled;
 
   useEffect(() => {
     if (enabled) {
@@ -189,7 +191,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children 
               <Box px="xs" py={4}>
                 <BrandLogo href={backToCasesHref} size="md" />
               </Box>
-              <AppHeaderTitle caseTitle={caseTitle} scenarioTitle={scenarioTitle} />
+              <AppHeaderTitle caseTitle={caseTitle} scenarioTitle={scenarioTitle} loading={headerLoading} />
             </Group>
             {meta ? (
               <Group gap="xs" wrap="nowrap">
