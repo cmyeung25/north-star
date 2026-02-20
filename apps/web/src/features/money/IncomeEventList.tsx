@@ -200,7 +200,11 @@ export default function IncomeEventList({
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Item onClick={() => onDuplicateEvent(baseEvent.id)}>{common("actionDuplicate")}</Menu.Item>
-                    <Menu.Item disabled={!projectionRow} onClick={() => projectionRow && onAdjustEvent(projectionRow)}>{common("actionAdjust")}</Menu.Item>
+                    {!isSalaryBase(baseEvent) && (
+                      <Menu.Item disabled={!projectionRow} onClick={() => projectionRow && onAdjustEvent(projectionRow)}>
+                        {common("actionAdjust")}
+                      </Menu.Item>
+                    )}
                     <Menu.Item color="red" onClick={() => onDeleteEvent(baseEvent.id)}>{common("actionDelete")}</Menu.Item>
                   </Menu.Dropdown>
                 </Menu>

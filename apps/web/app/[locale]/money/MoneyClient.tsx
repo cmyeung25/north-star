@@ -1925,6 +1925,15 @@ export default function MoneyClient({
       setLedgerActionError(t("ledgerEventUpdateFailed"));
       return;
     }
+    if (
+      sourceEvent.type === "cashflow" &&
+      sourceEvent.kind === "income" &&
+      sourceEvent.cadence === "monthly" &&
+      sourceEvent.groupRole !== "adjustment"
+    ) {
+      handleCreateSalaryAdjustment(sourceEvent.id);
+      return;
+    }
     const month =
       sourceEvent.type === "cashflow"
         ? sourceEvent.cadence === "oneOff"
