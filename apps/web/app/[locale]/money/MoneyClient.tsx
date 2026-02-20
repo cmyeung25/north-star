@@ -1919,23 +1919,40 @@ export default function MoneyClient({
         setLedgerActionError(t("ledgerEventUpdateFailed"));
         return;
       }
+
       if (payload.type === "salary-adjustment") {
         handleCreateSalaryAdjustment(payload.baseEvent.id);
         return;
       }
-      if (!payload.row.sourceEventId) {
-        setLedgerActionError(t("ledgerEventUpdateFailed"));
+
+      if (payload.type === "cashflow-adjustment") {
+        setLedgerActionError(null);
+        openV2EventDrawer("edit", "cashflow", payload.baseEvent.id);
         return;
       }
-      const sourceEvent = v2ScenarioEvents.find((event) => event.id === payload.row.sourceEventId);
-      if (!sourceEvent) {
-        setLedgerActionError(t("ledgerEventUpdateFailed"));
+
+      if (payload.type === "housing-adjustment") {
+        setLedgerActionError(null);
+        openV2EventDrawer("edit", "housing", payload.baseEvent.id);
         return;
       }
+
+      if (payload.type === "loan-adjustment") {
+        setLedgerActionError(null);
+        openV2EventDrawer("edit", "loan", payload.baseEvent.id);
+        return;
+      }
+
+      if (payload.type === "insurance-adjustment") {
+        setLedgerActionError(null);
+        openV2EventDrawer("edit", "insurance", payload.baseEvent.id);
+        return;
+      }
+
       setLedgerActionError(null);
-      openV2EventDrawer("edit", sourceEvent.type, sourceEvent.id);
+      openV2EventDrawer("edit", "adjustment", payload.baseEvent.id);
     },
-    [handleCreateSalaryAdjustment, openV2EventDrawer, t, v2ScenarioEvents]
+    [handleCreateSalaryAdjustment, openV2EventDrawer, t]
   );
   const inputEventItems = useMemo(() => {
     const standaloneEvents = v2ScenarioEvents.filter((event) => !bundleEventIds.has(event.id));

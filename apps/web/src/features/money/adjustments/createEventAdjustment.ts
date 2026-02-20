@@ -9,12 +9,20 @@ export type EventAdjustmentSpec = {
   row?: LedgerRow;
 };
 
+type EventAdjustmentBasePayload<TType extends ScenarioEvent["type"]> = {
+  baseEvent: {
+    id: string;
+    type: TType;
+  };
+  spec: EventAdjustmentSpec;
+};
+
 export type EventAdjustmentPayload =
   | {
       type: "salary-adjustment";
       baseEvent: {
         id: string;
-        type: ScenarioEvent["type"];
+        type: "cashflow";
         cadence?: string;
         amount: number;
         startMonth?: string;
@@ -22,31 +30,21 @@ export type EventAdjustmentPayload =
       };
       spec: EventAdjustmentSpec;
     }
-  | {
-      type: "event-adjustment";
-      row: LedgerRow;
-      spec: EventAdjustmentSpec;
-    };
-
-const isCashflowEvent = (
-  event: ScenarioEvent
-): event is Extract<ScenarioEvent, { type: "cashflow" }> =>
-  event.type === "cashflow";
-
-const isSalaryBaseEvent = (
-  event: ScenarioEvent
-): event is Extract<ScenarioEvent, { type: "cashflow" }> =>
-  isCashflowEvent(event) && event.kind === "income" && event.cadence === "monthly";
+  | ({ type: "cashflow-adjustment" } & EventAdjustmentBasePayload<"cashflow">)
+  | ({ type: "housing-adjustment" } & EventAdjustmentBasePayload<"housing">)
+  | ({ type: "loan-adjustment" } & EventAdjustmentBasePayload<"loan">)
+  | ({ type: "insurance-adjustment" } & EventAdjustmentBasePayload<"insurance">)
+  | ({ type: "adjustment-adjustment" } & EventAdjustmentBasePayload<"adjustment">);
 
 export const createEventAdjustmentPayload = (
   baseEvent: ScenarioEvent,
   spec: EventAdjustmentSpec
 ): EventAdjustmentPayload | null => {
-  if (!isCashflowEvent(baseEvent)) {
-    return null;
-  }
-
-  if (isSalaryBaseEvent(baseEvent)) {
+  if (
+    baseEvent.type === "cashflow" &&
+    baseEvent.kind === "income" &&
+    baseEvent.cadence === "monthly"
+  ) {
     return {
       type: "salary-adjustment",
       baseEvent: {
@@ -61,14 +59,60 @@ export const createEventAdjustmentPayload = (
     };
   }
 
-  if (!spec.row) {
-    return null;
+  if (baseEvent.type === "cashflow") {
+    return {
+      type: "cashflow-adjustment",
+      baseEvent: {
+        id: baseEvent.id,
+        type: baseEvent.type,
+      },
+      spec,
+    };
   }
 
-  return {
-    type: "event-adjustment",
-    row: spec.row,
-    spec,
-  };
-};
+  if (baseEvent.type === "housing") {
+    return {
+      type: "housing-adjustment",
+      baseEvent: {
+        id: baseEvent.id,
+        type: baseEvent.type,
+      },
+      spec,
+    };
+  }
 
+  if (baseEvent.type === "loan") {
+    return {
+      type: "loan-adjustment",
+      baseEvent: {
+        id: baseEvent.id,
+        type: baseEvent.type,
+      },
+      spec,
+    };
+  }
+
+  if (baseEvent.type === "insurance") {
+    return {
+      type: "insurance-adjustment",
+      baseEvent: {
+        id: baseEvent.id,
+        type: baseEvent.type,
+      },
+      spec,
+    };
+  }
+
+  if (baseEvent.type === "adjustment") {
+    return {
+      type: "adjustment-adjustment",
+      baseEvent: {
+        id: baseEvent.id,
+        type: baseEvent.type,
+      },
+      spec,
+    };
+  }
+
+  return null;
+};
