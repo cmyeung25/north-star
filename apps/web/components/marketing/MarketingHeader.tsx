@@ -2,12 +2,47 @@
 
 import Image from "next/image";
 import { Button, Group, Paper, Text } from "@mantine/core";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "../../src/i18n/navigation";
+import { createSupabaseBrowserClient } from "../../src/lib/supabase/browser";
 import LanguageSwitcher from "../LanguageSwitcher";
+import { useAuthModal } from "../../app/(marketing)/_components/AuthModalController";
 
 export default function MarketingHeader() {
   const t = useTranslations("marketing.web");
+  const locale = useLocale();
+  const router = useRouter();
+  const { openAuthModal } = useAuthModal();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (mounted) {
+        setIsSignedIn(Boolean(user));
+      }
+    };
+
+    void loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsSignedIn(Boolean(session?.user));
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   return (
     <Paper
@@ -29,10 +64,20 @@ export default function MarketingHeader() {
 
         <Group gap="xs">
           <LanguageSwitcher />
-          <Button component={Link} href="/auth/login" variant="subtle" color="gray" size="xs">
+          <Button variant="subtle" color="gray" size="xs" onClick={() => openAuthModal("login")}>
             {t("cta.login")}
           </Button>
-          <Button component={Link} href="/auth/login?intent=register" color="aurora" size="xs">
+          <Button
+            color="aurora"
+            size="xs"
+            onClick={() => {
+              if (isSignedIn) {
+                router.push(`/${locale}/member/cases`);
+                return;
+              }
+              openAuthModal("register");
+            }}
+          >
             {t("cta.start")}
           </Button>
         </Group>

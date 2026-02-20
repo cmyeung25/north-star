@@ -6,6 +6,6 @@ const resolveMarketingBasePath = () => {
   return locale === "en" ? "/en/web" : "/web";
 };
 
-export default function LegacyAuthLoginPage() {
-  redirect(`${resolveMarketingBasePath()}?auth=login`);
+export default function LegacyAuthRegisterPage() {
+  redirect(`${resolveMarketingBasePath()}?auth=register`);
 }
