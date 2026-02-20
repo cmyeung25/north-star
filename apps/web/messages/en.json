@@ -4001,7 +4001,7 @@
     }
   },
   "loading": {
-    "openingCase": "Opening “{{title}}”…",
+    "openingCase": "Opening “{title}”…",
     "loadingPlanningData": "Loading your planning data…",
     "loadingScenario": "Loading scenario…"
   }
