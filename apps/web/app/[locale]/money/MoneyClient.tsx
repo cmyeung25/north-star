@@ -17,6 +17,7 @@ import {
   Stack,
   Tabs,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -538,7 +539,8 @@ export default function MoneyClient({
   const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
   const [ledgerActionSuccess, setLedgerActionSuccess] = useState<string | null>(null);
   const [adjustmentDraft, setAdjustmentDraft] = useState<{
-    row: LedgerRow;
+    sourceEventId: string;
+    month: string;
     amount: string;
     error?: string;
   } | null>(null);
@@ -1915,10 +1917,45 @@ export default function MoneyClient({
     [bundleGroupById, resolveBundleTitle, scenario, scenarioIsV2, t, v2ScenarioEvents]
   );
   const handleAdjustEvent = (row: LedgerRow) => {
+    if (!row.sourceEventId) {
+      return;
+    }
+    const sourceEvent = v2ScenarioEvents.find((event) => event.id === row.sourceEventId);
+    if (!sourceEvent) {
+      setLedgerActionError(t("ledgerEventUpdateFailed"));
+      return;
+    }
+    const month =
+      sourceEvent.type === "cashflow"
+        ? sourceEvent.cadence === "oneOff"
+          ? sourceEvent.occurrenceMonth ?? row.month
+          : sourceEvent.startMonth ?? row.month
+        : sourceEvent.type === "adjustment"
+          ? sourceEvent.month
+          : sourceEvent.type === "insurance" && sourceEvent.mode === "quick"
+            ? sourceEvent.startMonth ?? row.month
+            : sourceEvent.startMonth ?? row.month;
+    const amount =
+      sourceEvent.type === "cashflow" || sourceEvent.type === "adjustment"
+        ? sourceEvent.amount
+        : sourceEvent.type === "housing"
+          ? sourceEvent.kind === "rent"
+            ? sourceEvent.rentMonthly
+            : sourceEvent.mortgagePayment
+          : sourceEvent.type === "loan"
+            ? sourceEvent.monthlyPayment
+            : sourceEvent.type === "insurance" && sourceEvent.mode === "quick"
+              ? sourceEvent.premiumMonthly
+              : null;
+    if (!month || !Number.isFinite(amount ?? NaN)) {
+      setLedgerActionError(t("ledgerEventUpdateFailed"));
+      return;
+    }
     setLedgerActionError(null);
     setAdjustmentDraft({
-      row,
-      amount: "",
+      sourceEventId: row.sourceEventId,
+      month,
+      amount: String(amount),
     });
   };
   const inputEventItems = useMemo(() => {
@@ -3133,21 +3170,84 @@ export default function MoneyClient({
       });
       return;
     }
-    const { row } = adjustmentDraft;
-    const result = addEvent(
-      {
-        type: "adjustment",
-        kind: "cash",
-        month: row.month,
-        amount: amountValue,
-        label: `[Adjustment] ${row.label ?? t("ledgerRowFallbackLabel")}`,
-        memberId: row.memberId,
-        tags: ["adjustment"],
-      },
-      scenarioIdValue
+    const sourceEvent = v2ScenarioEvents.find(
+      (event) => event.id === adjustmentDraft.sourceEventId
     );
+    if (!sourceEvent) {
+      setLedgerActionError(t("ledgerEventMissing"));
+      return;
+    }
+
+    if (!isValidMonthStr(adjustmentDraft.month)) {
+      setLedgerActionError(t("ledgerEventStartRequired"));
+      return;
+    }
+
+    let payload: ScenarioEvent | null = null;
+    switch (sourceEvent.type) {
+      case "cashflow":
+        payload = {
+          ...sourceEvent,
+          amount: amountValue,
+          startMonth:
+            sourceEvent.cadence === "oneOff"
+              ? sourceEvent.startMonth
+              : adjustmentDraft.month,
+          occurrenceMonth:
+            sourceEvent.cadence === "oneOff"
+              ? adjustmentDraft.month
+              : sourceEvent.occurrenceMonth,
+          effectiveMonth: sourceEvent.groupRole === "adjustment" ? adjustmentDraft.month : sourceEvent.effectiveMonth,
+        };
+        break;
+      case "adjustment":
+        payload = {
+          ...sourceEvent,
+          amount: amountValue,
+          month: adjustmentDraft.month,
+        };
+        break;
+      case "housing":
+        payload = {
+          ...sourceEvent,
+          startMonth: adjustmentDraft.month,
+          rentMonthly:
+            sourceEvent.kind === "rent" ? amountValue : sourceEvent.rentMonthly,
+          mortgagePayment:
+            sourceEvent.kind === "mortgage" ? amountValue : sourceEvent.mortgagePayment,
+        };
+        break;
+      case "loan":
+        payload = {
+          ...sourceEvent,
+          startMonth: adjustmentDraft.month,
+          monthlyPayment: amountValue,
+          paymentMethod: "manual",
+          paymentIsEstimated: false,
+        };
+        break;
+      case "insurance":
+        if (sourceEvent.mode !== "quick") {
+          setLedgerActionError(t("ledgerEventUpdateFailed"));
+          return;
+        }
+        payload = {
+          ...sourceEvent,
+          startMonth: adjustmentDraft.month,
+          premiumMonthly: amountValue,
+        };
+        break;
+      default:
+        payload = null;
+    }
+    if (!payload) {
+      setLedgerActionError(t("ledgerEventUpdateFailed"));
+      return;
+    }
+
+    const result = updateEvent(sourceEvent.id, payload, scenarioIdValue);
     if (!result.ok) {
-      setLedgerActionError(t("ledgerEventCreateFailed"));
+      setLedgerActionError(t("ledgerEventUpdateFailed"));
       return;
     }
     setAdjustmentDraft(null);
@@ -5024,9 +5124,25 @@ export default function MoneyClient({
             <Stack gap="sm">
               <Text size="sm" c="dimmed">
                 {t("ledgerAdjustHint", {
-                  month: adjustmentDraft?.row.month ?? "--",
+                  month: adjustmentDraft?.month ?? "--",
                 })}
               </Text>
+              <TextInput
+                type="month"
+                label={t("ledgerEventStart")}
+                value={adjustmentDraft?.month ?? ""}
+                onChange={(event) =>
+                  setAdjustmentDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          month: event.currentTarget.value,
+                          error: undefined,
+                        }
+                      : null
+                  )
+                }
+              />
               <NumberInput
                 label={t("ledgerAdjustAmount")}
                 value={adjustmentDraft?.amount ?? ""}
