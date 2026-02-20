@@ -3887,6 +3887,43 @@
         "signedOut": "已登出。"
       }
     },
+    "modal": {
+      "title": {
+        "login": "登入",
+        "register": "建立帳戶"
+      },
+      "tabs": {
+        "login": "登入",
+        "register": "註冊"
+      },
+      "social": {
+        "google": "使用 Google 繼續",
+        "facebook": "使用 Facebook 繼續",
+        "comingSoon": "即將推出",
+        "tooltip": "即將推出：我們正在準備社交登入"
+      },
+      "divider": {
+        "or": "或"
+      },
+      "email": "Email",
+      "password": "密碼",
+      "confirmPassword": "確認密碼",
+      "login": {
+        "cta": "登入",
+        "switchHint": "未有帳戶？切換到註冊。"
+      },
+      "register": {
+        "cta": "建立帳戶",
+        "switchHint": "已有帳戶？切換到登入。"
+      },
+      "error": {
+        "invalidCredentials": "電郵或密碼不正確。",
+        "passwordMismatch": "兩次輸入的密碼不一致。"
+      },
+      "notice": {
+        "checkEmail": "註冊已提交，請到電郵完成驗證。"
+      }
+    },
     "callback": {
       "redirecting": "已登入，正在跳轉到情境列表…"
     }

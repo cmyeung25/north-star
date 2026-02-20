@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { Accordion, Anchor, Badge, Button, Card, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title, useMantineTheme } from "@mantine/core";
-import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useAuthModal } from "./AuthModalController";
 import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
 import PersonaBannerSection from "./PersonaBannerSection";
 
 export default function LandingPage() {
   const t = useTranslations("marketing.web");
+  const locale = useLocale();
+  const router = useRouter();
+  const { openAuthModal } = useAuthModal();
   const theme = useMantineTheme();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -60,14 +64,14 @@ export default function LandingPage() {
           </Stack>
           <Stack gap="xs">
             <Group gap="sm" wrap="wrap">
-              <Button component={Link} href="/auth/login?intent=register" size="md" color="aurora">
+              <Button size="md" color="aurora" onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthModal("register"))}>
                 {t("cta.start")}
               </Button>
-              <Button component={Link} href="/auth/login" size="md" variant="outline" c="white">
+              <Button size="md" variant="outline" c="white" onClick={() => openAuthModal("login")}>
                 {t("cta.login")}
               </Button>
               {isSignedIn ? (
-                <Anchor component={Link} href="/member/cases" c="aurora.2" fw={600}>
+                <Anchor c="aurora.2" fw={600} onClick={() => router.push(`/${locale}/member/cases`)} style={{ cursor: "pointer" }}>
                   {t("cta.goCases")}
                 </Anchor>
               ) : null}
@@ -206,10 +210,10 @@ export default function LandingPage() {
           </Title>
           <Text c="var(--mantine-color-polar-1)">{t("finalCta.subtitle")}</Text>
           <Group gap="sm" wrap="wrap">
-            <Button component={Link} href="/auth/login?intent=register" color="aurora">
+            <Button color="aurora" onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthModal("register"))}>
               {t("cta.start")}
             </Button>
-            <Button component={Link} href={isSignedIn ? "/member/cases" : "/auth/login?intent=register"} variant="outline" c="white">
+            <Button onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthModal("register"))} variant="outline" c="white">
               {t("cta.createCase")}
             </Button>
           </Group>
