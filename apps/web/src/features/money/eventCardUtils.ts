@@ -34,25 +34,34 @@ export const resolveEventCardAmount = (event: ScenarioEvent): number | null => {
 };
 
 export const resolveEventMonthlyImpact = (
-  rows: LedgerRow[]
+  rows: LedgerRow[],
+  anchorMonth?: string | null
 ): EventMonthlyImpact | null => {
   if (!rows || rows.length === 0) {
     return null;
   }
-  const latestMonth = rows.reduce<string | null>((current, row) => {
-    if (!row.month) {
-      return current;
-    }
-    if (!current) {
-      return row.month;
-    }
-    return compareMonthKey(row.month, current) > 0 ? row.month : current;
-  }, null);
-  if (!latestMonth) {
+  const months = Array.from(new Set(rows.map((row) => row.month).filter(Boolean))).sort(compareMonthKey);
+  if (months.length === 0) {
     return null;
   }
+
+  let targetMonth: string | null = months[months.length - 1] ?? null;
+  if (anchorMonth) {
+    const exact = months.find((month) => month === anchorMonth);
+    if (exact) {
+      targetMonth = exact;
+    } else {
+      const onOrBefore = [...months].reverse().find((month) => compareMonthKey(month, anchorMonth) <= 0);
+      targetMonth = onOrBefore ?? (months[0] ?? null);
+    }
+  }
+
+  if (!targetMonth) {
+    return null;
+  }
+
   const totals = rows
-    .filter((row) => row.month === latestMonth)
+    .filter((row) => row.month === targetMonth)
     .reduce(
       (acc, row) => {
         if (row.kind === "income" || (!row.kind && row.amount >= 0)) {
@@ -68,7 +77,7 @@ export const resolveEventMonthlyImpact = (
     income: totals.income,
     expense: totals.expense,
     net: totals.income - totals.expense,
-    month: latestMonth,
+    month: targetMonth,
   };
 };
 

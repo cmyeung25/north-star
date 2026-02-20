@@ -4007,6 +4007,7 @@ export default function MoneyClient({
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
               onCreateEventAdjustment={handleCreateEventAdjustment}
+              anchorMonth={selectedDashboardMonth ?? scenario?.assumptions.baseMonth ?? null}
             />
           </Stack>
         </Tabs.Panel>

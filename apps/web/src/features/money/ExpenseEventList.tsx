@@ -26,6 +26,7 @@ type Props = {
   onDuplicateEvent: (eventId: string) => void;
   onDeleteEvent: (eventId: string) => void;
   onCreateEventAdjustment: (baseEvent: ScenarioEvent, spec: EventAdjustmentSpec) => void;
+  anchorMonth?: string | null;
 };
 
 export default function ExpenseEventList({
@@ -37,6 +38,7 @@ export default function ExpenseEventList({
   onDuplicateEvent,
   onDeleteEvent,
   onCreateEventAdjustment,
+  anchorMonth,
 }: Props) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -104,8 +106,8 @@ export default function ExpenseEventList({
                 {primaryRow && (
                   <Badge variant="light" color="red">
                     {t("incomeProjectedPreview", {
-                      month: primaryRow.month,
-                      amount: formatCurrency(Math.abs(primaryRow.amount), baseCurrency, locale),
+                      month: projectionRow.month,
+                      amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
                     })}
                   </Badge>
                 )}
@@ -142,14 +144,14 @@ export default function ExpenseEventList({
                   <Menu.Dropdown>
                     <Menu.Item onClick={() => onDuplicateEvent(baseEvent.id)}>{common("actionDuplicate")}</Menu.Item>
                     <Menu.Item
-                      disabled={!primaryRow}
+                      disabled={!projectionRow}
                       onClick={() =>
                         primaryRow &&
                         onCreateEventAdjustment(baseEvent, {
                           mode: "override",
-                          amount: primaryRow.amount,
-                          effectiveMonth: primaryRow.month,
-                          row: primaryRow,
+                          amount: projectionRow.amount,
+                          effectiveMonth: projectionRow.month,
+                          row: projectionRow,
                         })
                       }
                     >
