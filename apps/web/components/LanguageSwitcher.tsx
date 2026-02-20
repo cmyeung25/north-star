@@ -48,7 +48,7 @@ export default function LanguageSwitcher() {
         label:
           option === "en"
             ? t("languageEn")
-            : option === "zh-Hant"
+            : option === "zh-HK"
               ? `${t("languageZhHant")} (HK)`
               : t("languageZhHant"),
       }))}
