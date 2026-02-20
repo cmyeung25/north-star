@@ -3,6 +3,7 @@ import type { ScenarioEvent } from "../../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../../engine/scenarioV2Compiler";
 import {
   filterEventsByLedgerImpact,
+  resolveEventMonthlyImpact,
   resolveEventCardAmount,
   resolveEventCardEndMonth,
   resolveEventCardStartMonth,
@@ -75,4 +76,22 @@ describe("eventCardUtils", () => {
     expect(resolveEventCardStartMonth(event)).toBe("2024-03");
     expect(resolveEventCardEndMonth(event)).toBe("2024-03");
   });
+
+  it("resolves monthly impact at anchor month instead of future month", () => {
+    const rows: LedgerRow[] = [
+      { month: "2026-01", amount: -1000, sourceEventId: "evt", kind: "expense" },
+      { month: "2026-06", amount: -1200, sourceEventId: "evt", kind: "expense" },
+      { month: "2027-01", amount: -1500, sourceEventId: "evt", kind: "expense" },
+    ];
+
+    const impact = resolveEventMonthlyImpact(rows, "2026-06");
+
+    expect(impact).toEqual({
+      income: 0,
+      expense: 1200,
+      net: -1200,
+      month: "2026-06",
+    });
+  });
+
 });
