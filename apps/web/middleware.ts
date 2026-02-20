@@ -5,6 +5,8 @@ import { defaultLocale, locales, type Locale } from "./src/i18n/routing";
 import { marketingHomePath, memberCasesPath } from "./lib/routes/canonicalRoutes";
 import { getSupabasePublishableKey, getSupabaseUrl } from "./src/lib/supabase/env";
 
+const LOCALE_COOKIE_NAME = "aurin_locale";
+
 const handleI18n = createMiddleware({
   locales,
   defaultLocale,
@@ -32,6 +34,17 @@ const resolveLocaleFromPath = (pathname: string): Locale => {
 
   return localePrefix ?? defaultLocale;
 };
+
+const resolveMemberLocaleFromPath = (pathname: string): Locale | null => {
+  const localePrefix = locales.find(
+    (locale) => pathname === `/${locale}/member` || pathname.startsWith(`/${locale}/member/`),
+  );
+
+  return localePrefix ?? null;
+};
+
+const isUnlocalizedMemberPath = (pathname: string) =>
+  pathname === "/member" || pathname.startsWith("/member/");
 
 const isProtectedRoute = (pathname: string) =>
   ["/app", "/member"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -84,6 +97,14 @@ export default async function middleware(request: NextRequest) {
   const locale = resolveLocaleFromPath(pathname);
   const pathnameWithoutLocale = stripLocalePrefix(pathname);
 
+  if (isUnlocalizedMemberPath(pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = `/${defaultLocale}${pathname}`;
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  const memberLocale = resolveMemberLocaleFromPath(pathname);
+
   const legacyRedirectPath = resolveLegacyRedirect(pathnameWithoutLocale, locale);
   if (legacyRedirectPath && legacyRedirectPath !== pathname) {
     const redirectUrl = request.nextUrl.clone();
@@ -92,7 +113,21 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  const response = isLegacyUnlocalizedRoute(pathname) ? NextResponse.next() : handleI18n(request);
+  const response = memberLocale
+    ? (() => {
+        const rewriteUrl = request.nextUrl.clone();
+        rewriteUrl.pathname = pathnameWithoutLocale;
+        const rewriteResponse = NextResponse.rewrite(rewriteUrl);
+        rewriteResponse.cookies.set(LOCALE_COOKIE_NAME, memberLocale, {
+          path: "/",
+          sameSite: "lax",
+        });
+        return rewriteResponse;
+      })()
+    : isLegacyUnlocalizedRoute(pathname)
+      ? NextResponse.next()
+      : handleI18n(request);
+
   const { response: updatedResponse, user } = await updateSupabaseSession(request, response);
 
   if (isProtectedRoute(pathnameWithoutLocale) && !user) {

@@ -18,16 +18,61 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import type { ReactNode } from "react";
 import BrandLogo from "../../../components/brand/BrandLogo";
+import { defaultLocale, locales, type Locale } from "../../../src/i18n/routing";
+
+const LOCALE_COOKIE_NAME = "aurin_locale";
 
 type MemberShellProps = {
   children: ReactNode;
   userEmail?: string;
 };
 
+const isLocale = (value: string): value is Locale =>
+  locales.includes(value as Locale);
+
+const getLocaleFromPathname = (pathname: string): Locale | null => {
+  const segment = pathname.split("/").filter(Boolean)[0];
+  if (!segment) {
+    return null;
+  }
+
+  return isLocale(segment) ? segment : null;
+};
+
+const getLocaleFromCookie = (): Locale | null => {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const localeCookie = document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(`${LOCALE_COOKIE_NAME}=`));
+
+  if (!localeCookie) {
+    return null;
+  }
+
+  const value = decodeURIComponent(localeCookie.split("=")[1] ?? "");
+  return isLocale(value) ? value : null;
+};
+
+const localizedMemberPath = (locale: Locale, path: string) =>
+  `/${locale}${path.startsWith("/") ? path : `/${path}`}`;
+
 export function MemberShell({ children, userEmail }: MemberShellProps) {
   const pathname = usePathname();
   const t = useTranslations("memberShell");
   const [opened, { toggle, close }] = useDisclosure(false);
+
+  const locale = getLocaleFromPathname(pathname) ?? getLocaleFromCookie() ?? defaultLocale;
+  const normalizedPathname = getLocaleFromPathname(pathname)
+    ? pathname.replace(/^\/(?:[^/]+)(?=\/|$)/, "") || "/"
+    : pathname;
+
+  const memberCasesHref = localizedMemberPath(locale, "/member/cases");
+  const memberAccountHref = localizedMemberPath(locale, "/member/account");
+  const logoutHref = localizedMemberPath(locale, "/auth/logout");
 
   const navLinkStyles = {
     root: {
@@ -48,7 +93,7 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
     >
       <AppShell.Header bg="polar.9" withBorder={false}>
         <Group h="100%" px="md" justify="space-between">
-          <Group gap="xs"wrap="nowrap">
+          <Group gap="xs" wrap="nowrap">
             <BrandLogo size="sm" variant="white" />
             <Text c="white" fw={700} fz="sm">
               {t("console")}
@@ -69,18 +114,20 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
         <Stack h="100%" gap="xs">
           <NavLink
             component={Link}
-            href="/member/cases"
+            href={memberCasesHref}
             label={t("cases")}
-            active={pathname === "/member/cases" || pathname.startsWith("/member/cases/")}
+            active={
+              normalizedPathname === "/member/cases" || normalizedPathname.startsWith("/member/cases/")
+            }
             color="aurora"
             styles={navLinkStyles}
             onClick={close}
           />
           <NavLink
             component={Link}
-            href="/account"
+            href={memberAccountHref}
             label={t("accountSettings")}
-            active={pathname.startsWith("/account")}
+            active={normalizedPathname === "/member/account"}
             color="aurora"
             styles={navLinkStyles}
             onClick={close}
@@ -117,11 +164,11 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item component={Link} href="/account" onClick={close}>
+                <Menu.Item component={Link} href={memberAccountHref} onClick={close}>
                   {t("accountSettings")}
                 </Menu.Item>
                 <Menu.Divider />
-                <Menu.Item component={Link} href="/auth/logout" color="red" prefetch={false} onClick={close}>
+                <Menu.Item component={Link} href={logoutHref} color="red" prefetch={false} onClick={close}>
                   {t("logout")}
                 </Menu.Item>
               </Menu.Dropdown>

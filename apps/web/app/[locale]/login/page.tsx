@@ -6,6 +6,32 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
 
+import { defaultLocale, locales, type Locale } from "../../../src/i18n/routing";
+
+const LOCALE_COOKIE_NAME = "aurin_locale";
+
+const isLocale = (value: string): value is Locale => locales.includes(value as Locale);
+
+const getLocaleFromCookie = (): Locale | null => {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const localeCookie = document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(`${LOCALE_COOKIE_NAME}=`));
+
+  if (!localeCookie) {
+    return null;
+  }
+
+  const value = decodeURIComponent(localeCookie.split("=")[1] ?? "");
+  return isLocale(value) ? value : null;
+};
+
+const withLocale = (locale: Locale, path: string) => `/${locale}${path.startsWith("/") ? path : `/${path}`}`;
+
 type AuthMode = "sign-in" | "sign-up";
 
 export default function LoginPage() {
@@ -71,8 +97,15 @@ export default function LoginPage() {
     const session = await waitForSession();
     debugLog("getSession result", Boolean(session));
 
-    const callbackUrl = searchParams.get("callbackUrl");
-    const destination = callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : "/member/cases";
+    const callbackUrl = searchParams.get("callbackUrl") ?? searchParams.get("redirectTo");
+    const resolvedLocale = getLocaleFromCookie() ?? defaultLocale;
+    const localizedCasesPath = withLocale(resolvedLocale, "/member/cases");
+
+    const destination = callbackUrl && callbackUrl.startsWith("/")
+      ? callbackUrl.startsWith("/member/")
+        ? withLocale(resolvedLocale, callbackUrl)
+        : callbackUrl
+      : localizedCasesPath;
 
     debugLog("navigation start", destination);
     setLoading(false);
