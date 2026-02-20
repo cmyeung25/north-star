@@ -87,6 +87,7 @@ import IncomeEventList from "../../../src/features/money/IncomeEventList";
 import IncomeSummarySection from "../../../src/features/money/IncomeSummarySection";
 import ExpenseSummarySection from "../../../src/features/money/ExpenseSummarySection";
 import CashflowEventDrawer, {
+  type AdjustmentEventDraft,
   type CashflowEventDraft,
   type ScenarioEventDraft,
 } from "../../../features/moneyFlow/CashflowEventDrawer";
@@ -242,6 +243,14 @@ type MoneyAddAction =
 
 type CreationIntent = "plan" | "item";
 type CreationItemCategory = "income" | "expenses" | "assets" | "liabilities";
+
+type AdjustmentCreateContext = {
+  parentEventId: string;
+  parentType: ScenarioEvent["type"];
+  parentStartMonth: string | null;
+  parentEndMonth: string | null;
+  effectiveMonth: string;
+};
 
 type DeleteConfirmation =
   | {
@@ -528,12 +537,15 @@ export default function MoneyClient({
   } | null>(null);
   const [templateCashflowDraft, setTemplateCashflowDraft] =
     useState<Partial<CashflowEventDraft> | null>(null);
+  const [templateAdjustmentDraft, setTemplateAdjustmentDraft] =
+    useState<Partial<AdjustmentEventDraft> | null>(null);
   const [templateHousingDraft, setTemplateHousingDraft] =
     useState<Partial<HousingEventDraft> | null>(null);
   const [templateLoanDraft, setTemplateLoanDraft] =
     useState<Partial<LoanEventDraft> | null>(null);
   const [templateInsuranceDraft, setTemplateInsuranceDraft] =
     useState<Partial<InsuranceEventDraft> | null>(null);
+  const [adjustmentCreateContext, setAdjustmentCreateContext] = useState<AdjustmentCreateContext | null>(null);
   const [mortgageDetail, setMortgageDetail] = useState<{
     eventId: string;
     tab: MortgageDetailTab;
@@ -1099,9 +1111,11 @@ export default function MoneyClient({
     setEditingV2EventId(null);
     setV2EventDrawerType(null);
     setTemplateCashflowDraft(null);
+    setTemplateAdjustmentDraft(null);
     setTemplateHousingDraft(null);
     setTemplateLoanDraft(null);
     setTemplateInsuranceDraft(null);
+    setAdjustmentCreateContext(null);
   }, []);
 
   const openCreationDrawer = useCallback(
@@ -1137,6 +1151,7 @@ export default function MoneyClient({
         label,
       });
       setTemplateCashflowDraft(null);
+      setTemplateAdjustmentDraft(null);
       setTemplateHousingDraft(null);
       setTemplateLoanDraft(null);
       setTemplateInsuranceDraft(null);
@@ -1337,7 +1352,8 @@ export default function MoneyClient({
     setLedgerActionError(null);
     if (draft.type === "adjustment") {
       const amount = Number(draft.amount);
-      const payload = {
+      const payload: ScenarioEvent = {
+        id: draft.id ?? crypto.randomUUID(),
         type: "adjustment" as const,
         label: draft.label.trim() || undefined,
         kind: draft.kind,
@@ -1346,6 +1362,28 @@ export default function MoneyClient({
         memberId: draft.memberId || undefined,
         tags: draft.tags && draft.tags.length > 0 ? draft.tags : ["adjustment"],
       };
+      if (!draft.id && adjustmentCreateContext?.parentType === "adjustment") {
+        if (!draft.month) {
+          setLedgerActionError("請填寫調整生效月份");
+          return;
+        }
+        if (adjustmentCreateContext.parentStartMonth && compareMonthKey(draft.month, adjustmentCreateContext.parentStartMonth) < 0) {
+          setLedgerActionError("生效月份不可早於父事件開始月份");
+          return;
+        }
+        if (adjustmentCreateContext.parentEndMonth && compareMonthKey(draft.month, adjustmentCreateContext.parentEndMonth) > 0) {
+          setLedgerActionError("生效月份不可晚於父事件結束月份");
+          return;
+        }
+        payload.parentEventId = adjustmentCreateContext.parentEventId;
+        payload.effectiveMonth = draft.month;
+        payload.meta = {
+          ...(payload.meta ?? {}),
+          kind: "adjustment",
+          parentEventId: adjustmentCreateContext.parentEventId,
+          adjustsEventId: adjustmentCreateContext.parentEventId,
+        };
+      }
       if (draft.id) {
         const result = updateEvent(draft.id, payload, scenarioIdValue);
         if (!result.ok) {
@@ -1426,6 +1464,30 @@ export default function MoneyClient({
       groupRole: isSalaryAdjustment ? ("adjustment" as const) : undefined,
       effectiveMonth: isSalaryAdjustment ? draft.startMonth || undefined : undefined,
     };
+
+    if (!draft.id && adjustmentCreateContext?.parentType === "cashflow" && !isSalaryAdjustment) {
+      if (!draft.startMonth) {
+        setLedgerActionError("請填寫調整生效月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentStartMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentStartMonth) < 0) {
+        setLedgerActionError("生效月份不可早於父事件開始月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentEndMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentEndMonth) > 0) {
+        setLedgerActionError("生效月份不可晚於父事件結束月份");
+        return;
+      }
+      payload.parentEventId = adjustmentCreateContext.parentEventId;
+      payload.groupRole = "adjustment";
+      payload.effectiveMonth = draft.startMonth;
+      payload.meta = {
+        ...(payload.meta ?? {}),
+        kind: "adjustment",
+        parentEventId: adjustmentCreateContext.parentEventId,
+        adjustsEventId: adjustmentCreateContext.parentEventId,
+      };
+    }
 
     if (payload.type === "cashflow" && payload.kind === "income" && !isSalaryAdjustment) {
       payload.groupId = resolveRecurringGroupId(payload) ?? deriveRecurringGroupId(payload);
@@ -1542,7 +1604,31 @@ export default function MoneyClient({
       mortgageLiabilityId:
         draft.kind === "mortgage" ? draft.mortgageLiabilityId : undefined,
       memberId: draft.memberId || undefined,
+      parentEventId: !draft.id && adjustmentCreateContext?.parentType === "housing" ? adjustmentCreateContext.parentEventId : undefined,
+      effectiveMonth: !draft.id && adjustmentCreateContext?.parentType === "housing" ? draft.startMonth || undefined : undefined,
+      meta: !draft.id && adjustmentCreateContext?.parentType === "housing"
+        ? {
+            kind: "adjustment" as const,
+            parentEventId: adjustmentCreateContext.parentEventId,
+            adjustsEventId: adjustmentCreateContext.parentEventId,
+          }
+        : undefined,
     };
+
+    if (!draft.id && adjustmentCreateContext?.parentType === "housing") {
+      if (!draft.startMonth) {
+        setLedgerActionError("請填寫調整生效月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentStartMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentStartMonth) < 0) {
+        setLedgerActionError("生效月份不可早於父事件開始月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentEndMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentEndMonth) > 0) {
+        setLedgerActionError("生效月份不可晚於父事件結束月份");
+        return;
+      }
+    }
 
     if (draft.id) {
       const result = updateEvent(draft.id, payload, scenarioIdValue);
@@ -1614,7 +1700,31 @@ export default function MoneyClient({
         : undefined,
       liabilityId: draft.liabilityId,
       memberId: draft.memberId || undefined,
+      parentEventId: !draft.id && adjustmentCreateContext?.parentType === "loan" ? adjustmentCreateContext.parentEventId : undefined,
+      effectiveMonth: !draft.id && adjustmentCreateContext?.parentType === "loan" ? draft.startMonth || undefined : undefined,
+      meta: !draft.id && adjustmentCreateContext?.parentType === "loan"
+        ? {
+            kind: "adjustment" as const,
+            parentEventId: adjustmentCreateContext.parentEventId,
+            adjustsEventId: adjustmentCreateContext.parentEventId,
+          }
+        : undefined,
     };
+
+    if (!draft.id && adjustmentCreateContext?.parentType === "loan") {
+      if (!draft.startMonth) {
+        setLedgerActionError("請填寫調整生效月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentStartMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentStartMonth) < 0) {
+        setLedgerActionError("生效月份不可早於父事件開始月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentEndMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentEndMonth) > 0) {
+        setLedgerActionError("生效月份不可晚於父事件結束月份");
+        return;
+      }
+    }
 
     if (draft.id) {
       const result = updateEvent(draft.id, payload, scenarioIdValue);
@@ -1688,7 +1798,31 @@ export default function MoneyClient({
             }))
           : undefined,
       memberId: draft.memberId || undefined,
+      parentEventId: !draft.id && adjustmentCreateContext?.parentType === "insurance" ? adjustmentCreateContext.parentEventId : undefined,
+      effectiveMonth: !draft.id && adjustmentCreateContext?.parentType === "insurance" ? draft.startMonth || undefined : undefined,
+      meta: !draft.id && adjustmentCreateContext?.parentType === "insurance"
+        ? {
+            kind: "adjustment" as const,
+            parentEventId: adjustmentCreateContext.parentEventId,
+            adjustsEventId: adjustmentCreateContext.parentEventId,
+          }
+        : undefined,
     };
+
+    if (!draft.id && adjustmentCreateContext?.parentType === "insurance") {
+      if (!draft.startMonth) {
+        setLedgerActionError("請填寫調整生效月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentStartMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentStartMonth) < 0) {
+        setLedgerActionError("生效月份不可早於父事件開始月份");
+        return;
+      }
+      if (adjustmentCreateContext.parentEndMonth && compareMonthKey(draft.startMonth, adjustmentCreateContext.parentEndMonth) > 0) {
+        setLedgerActionError("生效月份不可晚於父事件結束月份");
+        return;
+      }
+    }
 
     if (draft.id) {
       const result = updateEvent(draft.id, payload, scenarioIdValue);
@@ -1889,66 +2023,114 @@ export default function MoneyClient({
   const handleCreateEventAdjustment = useCallback(
     (baseEvent: ScenarioEvent, spec: EventAdjustmentSpec) => {
       const payload = createEventAdjustmentPayload(baseEvent, spec);
-      if (!payload) {
-        setLedgerActionError(t("ledgerEventUpdateFailed"));
+      if (!payload?.baseEvent.effectiveMonth) {
+        setLedgerActionError("請填寫調整生效月份");
         return;
       }
 
+      const effectiveMonth = payload.baseEvent.effectiveMonth;
+      const parentStart = payload.baseEvent.parentStartMonth ?? null;
+      const parentEnd = payload.baseEvent.parentEndMonth ?? null;
+      if (parentStart && compareMonthKey(effectiveMonth, parentStart) < 0) {
+        setLedgerActionError("生效月份不可早於父事件開始月份");
+        return;
+      }
+      if (parentEnd && compareMonthKey(effectiveMonth, parentEnd) > 0) {
+        setLedgerActionError("生效月份不可晚於父事件結束月份");
+        return;
+      }
+
+      setAdjustmentCreateContext({
+        parentEventId: payload.baseEvent.parentEventId ?? baseEvent.id,
+        parentType: baseEvent.type,
+        parentStartMonth: parentStart,
+        parentEndMonth: parentEnd,
+        effectiveMonth,
+      });
+
       if (payload.type === "cashflow-adjustment") {
-        if (payload.baseEvent.groupRole === "adjustment" && payload.baseEvent.parentEventId) {
-          const parentEvent = v2ScenarioEvents.find((event) => event.id === payload.baseEvent.parentEventId);
-          if (!parentEvent || parentEvent.type !== "cashflow" || parentEvent.kind !== "income") {
-            setLedgerActionError("薪金調整需要綁定現有薪金事件");
-            return;
-          }
+        const cashflowBase = baseEvent as Extract<ScenarioEvent, { type: "cashflow" }>;
+        if (cashflowBase.kind === "income" && cashflowBase.cadence === "monthly") {
           setLedgerActionError(null);
           setV2EventDefaultKind("income");
           setTemplateCashflowDraft({
             kind: "income",
             cadence: "monthly",
-            growthMode: parentEvent.growthMode ?? "assumption",
+            growthMode: cashflowBase.growthMode ?? "assumption",
             customGrowthRatePct:
-              parentEvent.growthMode === "custom" && typeof parentEvent.customGrowthRatePct === "number"
-                ? String(parentEvent.customGrowthRatePct)
+              cashflowBase.growthMode === "custom" && typeof cashflowBase.customGrowthRatePct === "number"
+                ? String(cashflowBase.customGrowthRatePct)
                 : "",
-            growthSource: parentEvent.growthSource,
+            growthSource: cashflowBase.growthSource,
             label: "薪金調整",
             amount: String(spec.amount),
-            memberId: parentEvent.memberId ?? "",
-            startMonth: payload.baseEvent.effectiveMonth ?? spec.effectiveMonth ?? parentEvent.startMonth ?? "",
-            tags: payload.baseEvent.tags ?? buildSalaryAdjustmentTags(payload.baseEvent.parentEventId),
+            memberId: cashflowBase.memberId ?? "",
+            startMonth: effectiveMonth,
+            endMonth: cashflowBase.endMonth ?? "",
+            tags: payload.baseEvent.tags ?? buildSalaryAdjustmentTags(payload.baseEvent.parentEventId ?? baseEvent.id),
           });
           openV2EventDrawer("create", "cashflow");
           return;
         }
 
+        setV2EventDefaultKind(cashflowBase.kind);
+        setTemplateCashflowDraft({
+          kind: cashflowBase.kind,
+          cadence: cashflowBase.cadence,
+          amount: String(spec.amount),
+          growthMode: cashflowBase.growthMode ?? "none",
+          customGrowthRatePct: typeof cashflowBase.customGrowthRatePct === "number" ? String(cashflowBase.customGrowthRatePct) : "",
+          growthSource: cashflowBase.growthSource,
+          startMonth: effectiveMonth,
+          endMonth: cashflowBase.endMonth ?? "",
+          occurrenceMonth: effectiveMonth,
+          everyNMonths: cashflowBase.everyNMonths ? String(cashflowBase.everyNMonths) : "",
+          memberId: cashflowBase.memberId ?? "",
+          tags: cashflowBase.tags,
+          label: cashflowBase.label ?? "",
+        });
         setLedgerActionError(null);
-        openV2EventDrawer("edit", "cashflow", payload.baseEvent.id);
+        openV2EventDrawer("create", "cashflow");
         return;
       }
 
       if (payload.type === "housing-adjustment") {
+        const housingBase = baseEvent as Extract<ScenarioEvent, { type: "housing" }>;
+        setTemplateHousingDraft({ ...housingBase, id: undefined, startMonth: effectiveMonth } as Partial<HousingEventDraft>);
         setLedgerActionError(null);
-        openV2EventDrawer("edit", "housing", payload.baseEvent.id);
+        openV2EventDrawer("create", "housing");
         return;
       }
 
       if (payload.type === "loan-adjustment") {
+        const loanBase = baseEvent as Extract<ScenarioEvent, { type: "loan" }>;
+        setTemplateLoanDraft({ ...loanBase, id: undefined, startMonth: effectiveMonth } as unknown as Partial<LoanEventDraft>);
         setLedgerActionError(null);
-        openV2EventDrawer("edit", "loan", payload.baseEvent.id);
+        openV2EventDrawer("create", "loan");
         return;
       }
 
       if (payload.type === "insurance-adjustment") {
+        const insuranceBase = baseEvent as Extract<ScenarioEvent, { type: "insurance" }>;
+        setTemplateInsuranceDraft({ ...insuranceBase, id: undefined, startMonth: effectiveMonth } as Partial<InsuranceEventDraft>);
         setLedgerActionError(null);
-        openV2EventDrawer("edit", "insurance", payload.baseEvent.id);
+        openV2EventDrawer("create", "insurance");
         return;
       }
 
+      const adjustmentBase = baseEvent as Extract<ScenarioEvent, { type: "adjustment" }>;
+      setTemplateAdjustmentDraft({
+        label: adjustmentBase.label ?? "",
+        kind: adjustmentBase.kind,
+        amount: String(spec.amount),
+        month: effectiveMonth,
+        memberId: adjustmentBase.memberId ?? "",
+        tags: adjustmentBase.tags,
+      });
       setLedgerActionError(null);
-      openV2EventDrawer("edit", "adjustment", payload.baseEvent.id);
+      openV2EventDrawer("create", "adjustment");
     },
-    [openV2EventDrawer, t, v2ScenarioEvents]
+    [openV2EventDrawer, setLedgerActionError]
   );
   const inputEventItems = useMemo(() => {
     const standaloneEvents = v2ScenarioEvents.filter((event) => !bundleEventIds.has(event.id));
@@ -4758,6 +4940,8 @@ export default function MoneyClient({
                 }
                 defaultKind={v2EventDefaultKind}
                 initialCashflowDraft={templateCashflowDraft ?? undefined}
+                initialAdjustmentDraft={templateAdjustmentDraft ?? undefined}
+                initialEventType={v2EventDrawerType === "adjustment" ? "adjustment" : "cashflow"}
                 onClose={closeV2EventDrawer}
                 onSave={handleSaveV2Event}
                 salaryAdjustmentContext={(() => {

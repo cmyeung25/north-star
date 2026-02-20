@@ -120,4 +120,56 @@ describe("eventSegments", () => {
     expect(issues).toContain("duplicate_segment_start_month");
     expect(segments).toHaveLength(2);
   });
+
+  it("uses effectiveMonth for child start", () => {
+    const segments = computeDisplaySegments([
+      {
+        id: "base",
+        type: "cashflow",
+        kind: "expense",
+        cadence: "monthly",
+        amount: -100,
+        startMonth: "2026-01",
+      },
+      {
+        id: "child",
+        type: "cashflow",
+        kind: "expense",
+        cadence: "monthly",
+        amount: -200,
+        startMonth: "2026-03",
+        effectiveMonth: "2026-06",
+        parentEventId: "base",
+      },
+    ]);
+    expect(segments.map((segment) => segment.effectiveStart)).toEqual(["2026-01", "2026-06"]);
+  });
+
+  it("caps loan child segment at parent term end", () => {
+    const segments = computeDisplaySegments([
+      {
+        id: "loan-base",
+        type: "loan",
+        loanKind: "personal",
+        startMonth: "2026-01",
+        principal: 12000,
+        annualInterestRatePct: 0,
+        termYears: 1,
+        liabilityId: "l1",
+      },
+      {
+        id: "loan-child",
+        type: "loan",
+        loanKind: "personal",
+        startMonth: "2026-06",
+        principal: 6000,
+        annualInterestRatePct: 0,
+        termYears: 2,
+        liabilityId: "l1",
+        parentEventId: "loan-base",
+      },
+    ]);
+    expect(segments.find((segment) => segment.sourceEventId === "loan-child")?.effectiveEnd).toBe("2026-12");
+  });
+
 });

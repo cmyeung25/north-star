@@ -511,9 +511,14 @@ const buildLoanLedgerRows = (
       termMonths
     );
   const termEndMonth = buildTermEndMonth(event.startMonth, termMonths);
+  const segmentEndMonth = (event as LoanEvent & { endMonth?: string }).endMonth;
+  const endMonth =
+    termEndMonth && segmentEndMonth
+      ? (compareMonthKey(termEndMonth, segmentEndMonth) <= 0 ? termEndMonth : segmentEndMonth)
+      : termEndMonth ?? segmentEndMonth;
   const months = buildRangeMonths({
     startMonth: event.startMonth,
-    endMonth: termEndMonth,
+    endMonth,
     assumptions,
   });
   return months.map((month) => ({

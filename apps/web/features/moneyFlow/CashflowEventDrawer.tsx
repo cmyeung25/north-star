@@ -85,6 +85,7 @@ type CashflowEventDrawerProps = {
   defaultKind?: CashflowEvent["kind"];
   initialCashflowDraft?: Partial<CashflowEventDraft>;
   initialAdjustmentDraft?: Partial<AdjustmentEventDraft>;
+  initialEventType?: "cashflow" | "adjustment";
   onClose: () => void;
   onSave: (draft: ScenarioEventDraft) => void;
   salaryAdjustmentContext?: SalaryAdjustmentContext | null;
@@ -187,6 +188,7 @@ export default function CashflowEventDrawer({
   defaultKind,
   initialCashflowDraft,
   initialAdjustmentDraft,
+  initialEventType,
   onClose,
   onSave,
   salaryAdjustmentContext,
@@ -194,7 +196,7 @@ export default function CashflowEventDrawer({
   const t = useTranslations("money");
   const common = useTranslations("common");
   const [eventType, setEventType] = useState<"cashflow" | "adjustment">(
-    event?.type === "adjustment" ? "adjustment" : "cashflow"
+    event?.type === "adjustment" ? "adjustment" : initialEventType ?? "cashflow"
   );
   const [cashflowDraft, setCashflowDraft] = useState<CashflowEventDraft>(() =>
     applyDraftOverrides(
@@ -267,7 +269,7 @@ export default function CashflowEventDrawer({
   }, [adjustmentDraft.amount, adjustmentDraft.id, adjustmentDraft.kind, adjustmentDraft.month, cashflowDraft.amount, cashflowDraft.cadence, cashflowDraft.customGrowthRatePct, cashflowDraft.endMonth, cashflowDraft.everyNMonths, cashflowDraft.growthMode, cashflowDraft.growthSource, cashflowDraft.id, cashflowDraft.kind, cashflowDraft.occurrenceMonth, cashflowDraft.startMonth, cashflowDraft.tags, eventType, scenarioStartMonth]);
 
   useEffect(() => {
-    setEventType(event?.type === "adjustment" ? "adjustment" : "cashflow");
+    setEventType(event?.type === "adjustment" ? "adjustment" : initialEventType ?? "cashflow");
     setCashflowDraft(
       applyDraftOverrides(
         buildCashflowDraft(event?.type === "cashflow" ? event : null, defaultKind),

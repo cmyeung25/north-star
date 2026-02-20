@@ -5,6 +5,8 @@ import {
   deriveRecurringGroupId,
   resolveRecurringGroupId,
 } from "../salaryAdjustmentTags";
+import { addMonths } from "../../../domain/members/age";
+import { isValidMonthKey } from "../../../utils/monthKey";
 
 export type EventAdjustmentSpec = {
   effectiveMonth?: string;
@@ -23,8 +25,35 @@ type EventAdjustmentBasePayload<TType extends ScenarioEvent["type"]> = {
     groupId?: string;
     groupRole?: "base" | "adjustment";
     effectiveMonth?: string;
+    meta?: {
+      kind?: "adjustment";
+      parentEventId?: string;
+      adjustsEventId?: string;
+    };
+    parentStartMonth?: string;
+    parentEndMonth?: string;
   };
   spec: EventAdjustmentSpec;
+};
+
+const resolveParentWindow = (event: ScenarioEvent): { startMonth?: string; endMonth?: string } => {
+  if (event.type === "cashflow") {
+    if (event.cadence === "oneOff") {
+      return { startMonth: event.occurrenceMonth, endMonth: event.occurrenceMonth };
+    }
+    return { startMonth: event.startMonth, endMonth: event.endMonth };
+  }
+  if (event.type === "housing" || event.type === "insurance") {
+    return { startMonth: event.startMonth, endMonth: event.endMonth };
+  }
+  if (event.type === "loan") {
+    const startMonth = event.startMonth;
+    const termMonths = Math.max(0, Math.round((event.termYears ?? 0) * 12));
+    const endMonth =
+      startMonth && termMonths > 0 ? addMonths(startMonth, termMonths - 1) : undefined;
+    return { startMonth, endMonth };
+  }
+  return { startMonth: event.month, endMonth: event.month };
 };
 
 export type EventAdjustmentPayload =
@@ -38,6 +67,22 @@ export const createEventAdjustmentPayload = (
   baseEvent: ScenarioEvent,
   spec: EventAdjustmentSpec
 ): EventAdjustmentPayload | null => {
+  if (!spec.effectiveMonth || !isValidMonthKey(spec.effectiveMonth)) {
+    return null;
+  }
+  const parentWindow = resolveParentWindow(baseEvent);
+  const baseMeta = {
+    parentEventId: baseEvent.id,
+    effectiveMonth: spec.effectiveMonth,
+    meta: {
+      kind: "adjustment" as const,
+      parentEventId: baseEvent.id,
+      adjustsEventId: baseEvent.id,
+    },
+    parentStartMonth: parentWindow.startMonth,
+    parentEndMonth: parentWindow.endMonth,
+  };
+
   if (
     baseEvent.type === "cashflow" &&
     baseEvent.kind === "income" &&
@@ -49,11 +94,10 @@ export const createEventAdjustmentPayload = (
       baseEvent: {
         id: baseEvent.id,
         type: baseEvent.type,
-        parentEventId: baseEvent.id,
         tags: buildSalaryAdjustmentTags(baseEvent.id),
         groupId,
         groupRole: "adjustment",
-        effectiveMonth: spec.effectiveMonth,
+        ...baseMeta,
       },
       spec,
     };
@@ -65,6 +109,7 @@ export const createEventAdjustmentPayload = (
       baseEvent: {
         id: baseEvent.id,
         type: baseEvent.type,
+        ...baseMeta,
       },
       spec,
     };
@@ -76,6 +121,7 @@ export const createEventAdjustmentPayload = (
       baseEvent: {
         id: baseEvent.id,
         type: baseEvent.type,
+        ...baseMeta,
       },
       spec,
     };
@@ -87,6 +133,7 @@ export const createEventAdjustmentPayload = (
       baseEvent: {
         id: baseEvent.id,
         type: baseEvent.type,
+        ...baseMeta,
       },
       spec,
     };
@@ -98,6 +145,7 @@ export const createEventAdjustmentPayload = (
       baseEvent: {
         id: baseEvent.id,
         type: baseEvent.type,
+        ...baseMeta,
       },
       spec,
     };
@@ -109,6 +157,7 @@ export const createEventAdjustmentPayload = (
       baseEvent: {
         id: baseEvent.id,
         type: baseEvent.type,
+        ...baseMeta,
       },
       spec,
     };

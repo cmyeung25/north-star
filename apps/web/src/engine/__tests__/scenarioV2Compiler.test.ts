@@ -1006,4 +1006,113 @@ describe("generic event segment merge", () => {
     expect(after).toHaveLength(1);
     expect(Math.abs(after[0]?.amount ?? 0)).toBe(13000);
   });
+
+  it("applies child override for housing, loan, insurance, and adjustment only within parent lifecycle", () => {
+    const ledger = compileScenarioV2ToLedger({
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        baseMonth: "2026-01",
+        horizonMonths: 48,
+      },
+      events: [
+        {
+          id: "housing-base",
+          type: "housing",
+          kind: "rent",
+          startMonth: "2026-01",
+          endMonth: "2026-12",
+          rentMonthly: 1000,
+        },
+        {
+          id: "housing-child",
+          type: "housing",
+          kind: "rent",
+          startMonth: "2026-06",
+          rentMonthly: 1500,
+          parentEventId: "housing-base",
+          effectiveMonth: "2026-06",
+          meta: { kind: "adjustment", adjustsEventId: "housing-base" },
+        },
+        {
+          id: "loan-base",
+          type: "loan",
+          loanKind: "personal",
+          startMonth: "2026-01",
+          principal: 12000,
+          annualInterestRatePct: 0,
+          termYears: 1,
+          monthlyPayment: 1000,
+          paymentMethod: "manual",
+          liabilityId: "loan-liability-1",
+        },
+        {
+          id: "loan-child",
+          type: "loan",
+          loanKind: "personal",
+          startMonth: "2026-06",
+          principal: 6000,
+          annualInterestRatePct: 0,
+          termYears: 1,
+          monthlyPayment: 500,
+          paymentMethod: "manual",
+          liabilityId: "loan-liability-1",
+          parentEventId: "loan-base",
+          effectiveMonth: "2026-06",
+          meta: { kind: "adjustment", adjustsEventId: "loan-base" },
+        },
+        {
+          id: "insurance-base",
+          type: "insurance",
+          mode: "quick",
+          startMonth: "2026-01",
+          endMonth: "2026-12",
+          premiumMonthly: 200,
+        },
+        {
+          id: "insurance-child",
+          type: "insurance",
+          mode: "quick",
+          startMonth: "2026-06",
+          premiumMonthly: 350,
+          parentEventId: "insurance-base",
+          effectiveMonth: "2026-06",
+          meta: { kind: "adjustment", adjustsEventId: "insurance-base" },
+        },
+        {
+          id: "adj-base",
+          type: "adjustment",
+          kind: "cash",
+          month: "2026-06",
+          amount: -100,
+        },
+        {
+          id: "adj-child",
+          type: "adjustment",
+          kind: "cash",
+          month: "2026-06",
+          amount: -300,
+          parentEventId: "adj-base",
+          effectiveMonth: "2026-06",
+          meta: { kind: "adjustment", adjustsEventId: "adj-base" },
+        },
+      ],
+    });
+
+    expect(ledger.some((row) => row.sourceEventId === "housing-base" && row.month === "2026-07")).toBe(false);
+    expect(ledger.some((row) => row.sourceEventId === "housing-child" && row.month === "2026-05")).toBe(false);
+    expect(ledger.some((row) => row.sourceEventId === "housing-child" && row.month === "2027-01")).toBe(false);
+
+        expect(ledger.some((row) => row.sourceEventId === "loan-child" && row.month === "2026-06" && row.kind === "expense")).toBe(true);
+    expect(ledger.some((row) => row.sourceEventId === "loan-child" && row.month === "2026-05" && row.kind === "expense")).toBe(false);
+    expect(ledger.some((row) => row.sourceEventId === "loan-child" && row.month === "2027-01" && row.kind === "expense")).toBe(false);
+
+    expect(ledger.some((row) => row.sourceEventId === "insurance-base" && row.month === "2026-06")).toBe(false);
+    expect(ledger.some((row) => row.sourceEventId === "insurance-child" && row.month === "2026-05")).toBe(false);
+    expect(ledger.some((row) => row.sourceEventId === "insurance-child" && row.month === "2027-01")).toBe(false);
+
+    expect(ledger.some((row) => row.sourceEventId === "adj-base" && row.month === "2026-06")).toBe(false);
+    expect(ledger.some((row) => row.sourceEventId === "adj-child" && row.month === "2026-06")).toBe(true);
+  });
+
 });
