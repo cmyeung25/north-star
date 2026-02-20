@@ -1,22 +1,25 @@
 "use client";
 
-import { Card, Container, Stack, Tabs, Text, Title } from "@mantine/core";
+import { Button, Card, Container, Group, Stack, Tabs, Text, Title } from "@mantine/core";
+import { useTranslations } from "next-intl";
 
-const sections = [
-  { value: "profile", label: "Profile", description: "Manage your personal and contact details." },
-  { value: "security", label: "Security", description: "Update password, MFA, and session controls." },
-  { value: "connected", label: "Connected", description: "Manage connected apps and integrations." },
-  { value: "data", label: "Data", description: "Review export, retention, and privacy controls." },
-  { value: "billing", label: "Billing", description: "Manage plans, invoices, and payment methods." },
-] as const;
+const sectionValues = ["profile", "security", "connected", "data", "billing"] as const;
 
 export default function MemberAccountPage() {
+  const t = useTranslations("member.account");
+
+  const sections = sectionValues.map((value) => ({
+    value,
+    label: t(`tabs.${value}`),
+    description: t(`sections.${value}.description`),
+  }));
+
   return (
     <Container size="xl" px={0}>
       <Stack gap="md">
         <div>
-          <Title order={2}>Account</Title>
-          <Text c="dimmed">Centralized account management for member settings.</Text>
+          <Title order={2}>{t("title")}</Title>
+          <Text c="dimmed">{t("subtitle")}</Text>
         </div>
 
         <Tabs defaultValue="profile" keepMounted={false}>
@@ -31,11 +34,25 @@ export default function MemberAccountPage() {
           {sections.map((section) => (
             <Tabs.Panel key={section.value} value={section.value} pt="md">
               <Card withBorder radius="md" p="lg">
-                <Stack gap="xs">
+                <Stack gap="sm">
                   <Text fw={600}>{section.label}</Text>
                   <Text size="sm" c="dimmed">
                     {section.description}
                   </Text>
+
+                  {section.value === "profile" ? (
+                    <Text size="sm">{t("profile.signedInAs", { email: "member@example.com" })}</Text>
+                  ) : null}
+
+                  <Group>
+                    {section.value === "security" ? (
+                      <Button variant="light" color="red">
+                        {t("security.logout")}
+                      </Button>
+                    ) : (
+                      <Button variant="light">{t("common.comingSoon")}</Button>
+                    )}
+                  </Group>
                 </Stack>
               </Card>
             </Tabs.Panel>

@@ -3909,6 +3909,43 @@
       "updatedAt": "Updated {value}",
       "revisionValue": "Revision {value}",
       "copyTitleValue": "{title} (Copy)"
+    },
+    "account": {
+      "title": "Account settings",
+      "subtitle": "Manage your sign-in method, data, and security.",
+      "tabs": {
+        "profile": "Profile",
+        "security": "Security",
+        "connected": "Connected accounts",
+        "data": "Data & export",
+        "billing": "Plan & billing"
+      },
+      "sections": {
+        "profile": {
+          "description": "Manage your personal and contact details."
+        },
+        "security": {
+          "description": "Update password, MFA, and session controls."
+        },
+        "connected": {
+          "description": "Manage connected apps and integrations."
+        },
+        "data": {
+          "description": "Review export, retention, and privacy controls."
+        },
+        "billing": {
+          "description": "Manage plans, invoices, and payment methods."
+        }
+      },
+      "profile": {
+        "signedInAs": "Signed in as: {email}"
+      },
+      "security": {
+        "logout": "Sign out"
+      },
+      "common": {
+        "comingSoon": "Coming soon"
+      }
     }
   }
 }

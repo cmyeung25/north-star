@@ -8,15 +8,19 @@ import { getMessages } from "next-intl/server";
 import { defaultLocale, locales, type Locale } from "../src/i18n/routing";
 import AppProviders from "./_providers/AppProviders";
 
+const LOCALE_COOKIE_NAMES = ["NEXT_LOCALE", "aurin_locale"] as const;
+
 const resolveLocale = (): Locale => {
   const localeFromHeader = headers().get("x-next-intl-locale");
   if (localeFromHeader && locales.includes(localeFromHeader as Locale)) {
     return localeFromHeader as Locale;
   }
 
-  const localeFromCookie = cookies().get("NEXT_LOCALE")?.value;
-  if (localeFromCookie && locales.includes(localeFromCookie as Locale)) {
-    return localeFromCookie as Locale;
+  for (const cookieName of LOCALE_COOKIE_NAMES) {
+    const localeFromCookie = cookies().get(cookieName)?.value;
+    if (localeFromCookie && locales.includes(localeFromCookie as Locale)) {
+      return localeFromCookie as Locale;
+    }
   }
 
   return defaultLocale;
