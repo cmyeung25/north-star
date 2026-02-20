@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AppShell, Box, Button, NavLink, ScrollArea, Stack, alpha, useMantineTheme } from "@mantine/core";
+import { useTranslations } from "next-intl";
 
 type WorkspaceTab = {
   href: string;
@@ -16,6 +17,7 @@ type AppSidebarProps = {
 
 export default function AppSidebar({ tabs, pathname, backToCasesHref }: AppSidebarProps) {
   const theme = useMantineTheme();
+  const t = useTranslations("app.shell");
 
   return (
     <AppShell.Navbar
@@ -67,7 +69,7 @@ export default function AppSidebar({ tabs, pathname, backToCasesHref }: AppSideb
             c={alpha(theme.white, 0.86)}
             styles={{ root: { width: "100%" } }}
           >
-            ← 返回案例列表
+            {t("backToCases")}
           </Button>
         </Box>
       </Stack>

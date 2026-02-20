@@ -3940,6 +3940,20 @@
     },
     "hydrator": {
       "loading": "正在載入情境…"
+    },
+    "shell": {
+      "saveToCloud": "保存到雲端",
+      "workspace": "情境工作區",
+      "backToCases": "← 返回案例列表",
+      "notSavedYet": "尚未儲存",
+      "updatedAt": "更新於 {time}",
+      "status": {
+        "saved": "已儲存",
+        "unsaved": "未儲存",
+        "saving": "儲存中",
+        "error": "錯誤",
+        "conflict": "衝突"
+      }
     }
   },
   "member": {

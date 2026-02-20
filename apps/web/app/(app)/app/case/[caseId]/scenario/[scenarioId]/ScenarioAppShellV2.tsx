@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   AppShell,
   Box,
@@ -52,6 +53,8 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children 
   const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const scenarioContext = useScenarioContext();
+  const t = useTranslations("app.shell");
+  const nav = useTranslations("nav");
   const meta = useScenarioCloudStore((state) => state.active);
   const saveNow = useScenarioCloudStore((state) => state.saveNow);
   const markUnsaved = useScenarioCloudStore((state) => state.markUnsaved);
@@ -86,10 +89,10 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children 
   const appScenarioUrl = buildAppScenarioUrl({ caseId, scenarioId });
 
   const tabs: WorkspaceTab[] = [
-    { href: `${appScenarioUrl}/dashboard`, label: "Dashboard" },
-    { href: `${appScenarioUrl}/planlab`, label: "PlanLab" },
-    { href: `${appScenarioUrl}/money`, label: "Money" },
-    { href: scenarioSettingsPath(caseId, scenarioId), label: "Scenario Settings" },
+    { href: `${appScenarioUrl}/dashboard`, label: nav("dashboard") },
+    { href: `${appScenarioUrl}/planlab`, label: nav("planLab") },
+    { href: `${appScenarioUrl}/money`, label: nav("money") },
+    { href: scenarioSettingsPath(caseId, scenarioId), label: nav("scenarioSettings") },
   ];
   const mobileTabs = tabs.slice(0, 3);
 
@@ -193,7 +196,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children 
                 {!isMobile ? <SaveStatusChip status={meta.saveStatus} /> : null}
                 {!isMobile ? (
                   <Text size="xs" c="dimmed" visibleFrom="sm">
-                    {meta.lastSavedAt ? `Updated ${formatIsoYmdHms(meta.lastSavedAt)}` : "Not saved yet"}
+                    {meta.lastSavedAt ? t("updatedAt", { time: formatIsoYmdHms(meta.lastSavedAt) }) : t("notSavedYet")}
                   </Text>
                 ) : null}
                 <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
