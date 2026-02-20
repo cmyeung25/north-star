@@ -115,6 +115,7 @@
     "timeline": "時間線",
     "stress": "壓力測試",
     "settings": "設定",
+    "scenarioSettings": "情境設定",
     "planLab": "實驗室",
     "bottom": {
       "ariaLabel": "底部導覽"
