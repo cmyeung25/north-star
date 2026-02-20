@@ -3999,5 +3999,10 @@
         "comingSoon": "Coming soon"
       }
     }
+  },
+  "loading": {
+    "openingCase": "Opening “{{title}}”…",
+    "loadingPlanningData": "Loading your planning data…",
+    "loadingScenario": "Loading scenario…"
   }
 }

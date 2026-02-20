@@ -3729,5 +3729,10 @@
       "revisionValue": "版本 {value}",
       "copyTitleValue": "{title}（副本）"
     }
+  },
+  "loading": {
+    "openingCase": "正在打開「{{title}}」",
+    "loadingPlanningData": "載入你的規劃資料中…",
+    "loadingScenario": "正在載入情境…"
   }
 }

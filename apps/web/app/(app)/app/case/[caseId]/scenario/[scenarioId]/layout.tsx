@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "../../../../../../../src/lib/supabas
 import ScenarioHydrator from "./ScenarioHydrator";
 import ScenarioAppShellV2 from "./ScenarioAppShellV2";
 import ScenarioRouteSync from "../../../../../../../components/ScenarioRouteSync";
+import { AppSkeleton } from "../../../../../../../src/features/app-shell/app-skeleton";
 
 type LayoutProps = {
   params: { caseId: string; scenarioId: string };
@@ -26,19 +27,21 @@ export default async function AppCaseScenarioLayout({ params, children }: Layout
   }
 
   const payload = await repo.loadScenarioPayload(params.caseId, params.scenarioId);
+
   return (
-    <ScenarioHydrator
-      caseId={params.caseId}
-      scenarioId={params.scenarioId}
-      scenarioTitle={scenario.title}
-      payload={payload}
-      revision={scenario.revision}
-      lastSavedAt={scenario.updatedAt}
-    >
-      <ScenarioAppShellV2 caseTitle={activeCase?.title} scenarioTitle={scenario.title}>
+    <ScenarioAppShellV2 caseTitle={activeCase?.title} scenarioTitle={scenario.title} loading>
+      <ScenarioHydrator
+        caseId={params.caseId}
+        scenarioId={params.scenarioId}
+        scenarioTitle={scenario.title}
+        payload={payload}
+        revision={scenario.revision}
+        lastSavedAt={scenario.updatedAt}
+        fallback={<AppSkeleton />}
+      >
         <ScenarioRouteSync scenarioId={params.scenarioId} payload={payload as Record<string, unknown>} />
         {children}
-      </ScenarioAppShellV2>
-    </ScenarioHydrator>
+      </ScenarioHydrator>
+    </ScenarioAppShellV2>
   );
 }

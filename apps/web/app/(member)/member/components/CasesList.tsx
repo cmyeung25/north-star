@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import {
@@ -17,6 +16,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import {
   createCaseAction,
   deleteCaseAction,
@@ -24,8 +24,10 @@ import {
   renameCaseAction,
 } from "../cases/actions";
 import { formatIsoYmdHms } from "../../../../lib/date/format";
-import { memberCaseEnterPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
+import { caseEnterPath, scenarioOnboardingPath } from "../../../../lib/routes/canonicalRoutes";
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
+import { RouteLoadingOverlay } from "../../../../src/components/loading/route-loading-overlay";
+import type { Locale } from "../../../../src/i18n/routing";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
 
@@ -50,7 +52,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 
 export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const t = useTranslations("member.list");
+  const loadingT = useTranslations("loading");
   const router = useRouter();
+  const locale = useLocale();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -59,6 +63,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const [renameTarget, setRenameTarget] = useState<CaseSummary | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CaseSummary | null>(null);
+  const [openingCase, setOpeningCase] = useState<CaseSummary | null>(null);
 
   const submit = <T,>(fn: () => Promise<T>, onDone?: (result: T) => void) => {
     setError(null);
@@ -74,6 +79,11 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
 
   return (
     <Stack gap="md">
+      <RouteLoadingOverlay
+        opened={Boolean(openingCase)}
+        title={loadingT("openingCase", { title: openingCase?.title ?? "" })}
+        description={loadingT("loadingPlanningData")}
+      />
       <Group justify="space-between" align="end">
         <div>
           <Text fw={600}>{t("heading")}</Text>
@@ -109,8 +119,23 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                           variant="light"
                           color="gray"
                           size="xs"
-                          component={Link}
-                          href={memberCaseEnterPath(entry.id)}
+                          disabled={isPending || Boolean(openingCase)}
+                          onClick={() => {
+                            setError(null);
+                            setOpeningCase(entry);
+                            window.requestAnimationFrame(() => {
+                              try {
+                                router.push(caseEnterPath(entry.id, locale as Locale));
+                              } catch (reason) {
+                                setOpeningCase(null);
+                                setError(
+                                  reason instanceof Error
+                                    ? reason.message
+                                    : t("actionFailed"),
+                                );
+                              }
+                            });
+                          }}
                         >
                           {t("openPlanning")}
                         </Button>
@@ -167,7 +192,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
               setCreateOpen(false);
               setNewTitle("");
               setCurrency("HKD");
-              router.push(scenarioOnboardingPath(caseId, scenarioId));
+              router.push(scenarioOnboardingPath(caseId, scenarioId, locale as Locale));
             },
           )
         }

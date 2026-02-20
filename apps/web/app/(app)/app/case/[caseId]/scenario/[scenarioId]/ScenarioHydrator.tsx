@@ -1,6 +1,5 @@
 "use client";
 
-import { useTranslations } from "next-intl";
 import { useEffect, useState, type ReactNode } from "react";
 import { importScenarioState } from "../../../../../../../src/store/scenarioState";
 import { normalizeScenario } from "../../../../../../../src/store/scenarioStore";
@@ -45,6 +44,7 @@ type Props = {
   revision: number;
   lastSavedAt: string;
   children: ReactNode;
+  fallback?: ReactNode;
 };
 
 export default function ScenarioHydrator({
@@ -55,8 +55,8 @@ export default function ScenarioHydrator({
   revision,
   lastSavedAt,
   children,
+  fallback,
 }: Props) {
-  const t = useTranslations("app.hydrator");
   const [hydrated, setHydrated] = useState(false);
   const initializeCloudMeta = useScenarioCloudStore((state) => state.initialize);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
@@ -118,7 +118,7 @@ export default function ScenarioHydrator({
   }, [replaceScenario, scenarioId, scenarioTitle, setActiveScenario]);
 
   if (!hydrated) {
-    return <p>{t("loading")}</p>;
+    return <>{fallback ?? null}</>;
   }
 
   return <>{children}</>;
