@@ -55,8 +55,12 @@ export default function ExpenseEventList({
         const groupRows = [baseEvent, ...adjustments]
           .flatMap((event) => ledgerRowsByEventId.get(event.id) ?? [])
           .sort((left, right) => compareMonthKey(right.month, left.month));
-        const primaryRow = groupRows[0];
+        const projectionRow =
+          groupRows.find((row) => (anchorMonth ? row.month === anchorMonth : false)) ??
+          groupRows.find((row) => (anchorMonth ? compareMonthKey(row.month, anchorMonth) <= 0 : false)) ??
+          groupRows[0];
         const amount = resolveEventCardAmount(baseEvent);
+        const primaryAmount = Math.abs(amount ?? 0);
         const startMonth = resolveEventCardStartMonth(baseEvent);
         const endMonth = resolveEventCardEndMonth(baseEvent);
         const impact = resolveEventMonthlyImpact(groupRows);
@@ -68,6 +72,7 @@ export default function ExpenseEventList({
             <Group justify="space-between" align="flex-start" wrap="wrap">
               <Stack gap={4}>
                 <Text fw={600}>{baseEvent.label ?? t("ledgerRowFallbackLabel")}</Text>
+                <Text fw={700}>{formatCurrency(primaryAmount, baseCurrency, locale)}</Text>
                 {impact ? (
                   <>
                     <Text size="sm" c="dimmed">
@@ -103,7 +108,7 @@ export default function ExpenseEventList({
                     <Badge variant="outline" color="blue">調整 {adjustments.length} 次</Badge>
                   )}
                 </Group>
-                {primaryRow && (
+                {projectionRow && (
                   <Badge variant="light" color="red">
                     {t("incomeProjectedPreview", {
                       month: projectionRow.month,
@@ -146,7 +151,7 @@ export default function ExpenseEventList({
                     <Menu.Item
                       disabled={!projectionRow}
                       onClick={() =>
-                        primaryRow &&
+                        projectionRow &&
                         onCreateEventAdjustment(baseEvent, {
                           mode: "override",
                           amount: projectionRow.amount,
