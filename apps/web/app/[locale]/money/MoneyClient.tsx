@@ -10,14 +10,12 @@ import {
   Group,
   Modal,
   Notification,
-  NumberInput,
   ScrollArea,
   SegmentedControl,
   Select,
   Stack,
   Tabs,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -84,7 +82,7 @@ import MoneyMonthSnapshotPanel from "../../../components/MoneyMonthSnapshotPanel
 import TwoPaneLayout from "../../../components/TwoPaneLayout";
 import AddFlowDrawer from "../../../components/add-flow/AddFlowDrawer";
 import BundleWizardDrawer from "../../../components/eventTemplates/bundles/BundleWizardDrawer";
-import EventCardList from "../../../src/features/money/EventCardList";
+import ExpenseEventList from "../../../src/features/money/ExpenseEventList";
 import IncomeEventList from "../../../src/features/money/IncomeEventList";
 import IncomeSummarySection from "../../../src/features/money/IncomeSummarySection";
 import ExpenseSummarySection from "../../../src/features/money/ExpenseSummarySection";
@@ -148,6 +146,10 @@ import {
   type BundleMonthlyBreakdownItem,
 } from "../../../src/features/money/bundleSummary";
 import { normalizeSalarySchedule } from "../../../src/features/money/normalizeSalarySchedule";
+import {
+  createEventAdjustmentPayload,
+  type EventAdjustmentSpec,
+} from "../../../src/features/money/adjustments/createEventAdjustment";
 import type { CashflowEvent, ScenarioEvent } from "../../../src/domain/scenarioV2/events";
 import type { ScenarioEventDraft as ScenarioV2EventDraft } from "../../../src/domain/scenarioV2/events";
 import type { DeleteImpactSummary } from "../../../src/domain/scenarioV2/eventDeleteImpact";
@@ -538,12 +540,6 @@ export default function MoneyClient({
   } | null>(null);
   const [ledgerActionError, setLedgerActionError] = useState<string | null>(null);
   const [ledgerActionSuccess, setLedgerActionSuccess] = useState<string | null>(null);
-  const [adjustmentDraft, setAdjustmentDraft] = useState<{
-    sourceEventId: string;
-    month: string;
-    amount: string;
-    error?: string;
-  } | null>(null);
   const [creatingHome, setCreatingHome] = useState<HomePositionDraft | null>(null);
   const [creatingCar, setCreatingCar] = useState<CarPositionDraft | null>(null);
   const [creatingInvestment, setCreatingInvestment] =
@@ -1916,48 +1912,31 @@ export default function MoneyClient({
     },
     [bundleGroupById, resolveBundleTitle, scenario, scenarioIsV2, t, v2ScenarioEvents]
   );
-  const handleAdjustEvent = (row: LedgerRow) => {
-    if (!row.sourceEventId) {
-      return;
-    }
-    const sourceEvent = v2ScenarioEvents.find((event) => event.id === row.sourceEventId);
-    if (!sourceEvent) {
-      setLedgerActionError(t("ledgerEventUpdateFailed"));
-      return;
-    }
-    const month =
-      sourceEvent.type === "cashflow"
-        ? sourceEvent.cadence === "oneOff"
-          ? sourceEvent.occurrenceMonth ?? row.month
-          : sourceEvent.startMonth ?? row.month
-        : sourceEvent.type === "adjustment"
-          ? sourceEvent.month
-          : sourceEvent.type === "insurance" && sourceEvent.mode === "quick"
-            ? sourceEvent.startMonth ?? row.month
-            : sourceEvent.startMonth ?? row.month;
-    const amount =
-      sourceEvent.type === "cashflow" || sourceEvent.type === "adjustment"
-        ? sourceEvent.amount
-        : sourceEvent.type === "housing"
-          ? sourceEvent.kind === "rent"
-            ? sourceEvent.rentMonthly
-            : sourceEvent.mortgagePayment
-          : sourceEvent.type === "loan"
-            ? sourceEvent.monthlyPayment
-            : sourceEvent.type === "insurance" && sourceEvent.mode === "quick"
-              ? sourceEvent.premiumMonthly
-              : null;
-    if (!month || !Number.isFinite(amount ?? NaN)) {
-      setLedgerActionError(t("ledgerEventUpdateFailed"));
-      return;
-    }
-    setLedgerActionError(null);
-    setAdjustmentDraft({
-      sourceEventId: row.sourceEventId,
-      month,
-      amount: String(amount),
-    });
-  };
+  const handleCreateEventAdjustment = useCallback(
+    (baseEvent: ScenarioEvent, spec: EventAdjustmentSpec) => {
+      const payload = createEventAdjustmentPayload(baseEvent, spec);
+      if (!payload) {
+        setLedgerActionError(t("ledgerEventUpdateFailed"));
+        return;
+      }
+      if (payload.type === "salary-adjustment") {
+        handleCreateSalaryAdjustment(payload.baseEvent.id);
+        return;
+      }
+      if (!payload.row.sourceEventId) {
+        setLedgerActionError(t("ledgerEventUpdateFailed"));
+        return;
+      }
+      const sourceEvent = v2ScenarioEvents.find((event) => event.id === payload.row.sourceEventId);
+      if (!sourceEvent) {
+        setLedgerActionError(t("ledgerEventUpdateFailed"));
+        return;
+      }
+      setLedgerActionError(null);
+      openV2EventDrawer("edit", sourceEvent.type, sourceEvent.id);
+    },
+    [handleCreateSalaryAdjustment, openV2EventDrawer, t, v2ScenarioEvents]
+  );
   const inputEventItems = useMemo(() => {
     const standaloneEvents = v2ScenarioEvents.filter((event) => !bundleEventIds.has(event.id));
     const groupedIncome = groupIncomeEvents(standaloneEvents.filter((event) => event.type === "cashflow" && event.kind === "income"));
@@ -3158,101 +3137,6 @@ export default function MoneyClient({
     setDeleteConfirmation(null);
   };
 
-  const handleConfirmAdjustment = () => {
-    if (!adjustmentDraft || !scenarioIdValue) {
-      return;
-    }
-    const amountValue = Number(adjustmentDraft.amount);
-    if (!Number.isFinite(amountValue) || amountValue === 0) {
-      setAdjustmentDraft({
-        ...adjustmentDraft,
-        error: t("ledgerAdjustmentAmountRequired"),
-      });
-      return;
-    }
-    const sourceEvent = v2ScenarioEvents.find(
-      (event) => event.id === adjustmentDraft.sourceEventId
-    );
-    if (!sourceEvent) {
-      setLedgerActionError(t("ledgerEventMissing"));
-      return;
-    }
-
-    if (!isValidMonthStr(adjustmentDraft.month)) {
-      setLedgerActionError(t("ledgerEventStartRequired"));
-      return;
-    }
-
-    let payload: ScenarioEvent | null = null;
-    switch (sourceEvent.type) {
-      case "cashflow":
-        payload = {
-          ...sourceEvent,
-          amount: amountValue,
-          startMonth:
-            sourceEvent.cadence === "oneOff"
-              ? sourceEvent.startMonth
-              : adjustmentDraft.month,
-          occurrenceMonth:
-            sourceEvent.cadence === "oneOff"
-              ? adjustmentDraft.month
-              : sourceEvent.occurrenceMonth,
-          effectiveMonth: sourceEvent.groupRole === "adjustment" ? adjustmentDraft.month : sourceEvent.effectiveMonth,
-        };
-        break;
-      case "adjustment":
-        payload = {
-          ...sourceEvent,
-          amount: amountValue,
-          month: adjustmentDraft.month,
-        };
-        break;
-      case "housing":
-        payload = {
-          ...sourceEvent,
-          startMonth: adjustmentDraft.month,
-          rentMonthly:
-            sourceEvent.kind === "rent" ? amountValue : sourceEvent.rentMonthly,
-          mortgagePayment:
-            sourceEvent.kind === "mortgage" ? amountValue : sourceEvent.mortgagePayment,
-        };
-        break;
-      case "loan":
-        payload = {
-          ...sourceEvent,
-          startMonth: adjustmentDraft.month,
-          monthlyPayment: amountValue,
-          paymentMethod: "manual",
-          paymentIsEstimated: false,
-        };
-        break;
-      case "insurance":
-        if (sourceEvent.mode !== "quick") {
-          setLedgerActionError(t("ledgerEventUpdateFailed"));
-          return;
-        }
-        payload = {
-          ...sourceEvent,
-          startMonth: adjustmentDraft.month,
-          premiumMonthly: amountValue,
-        };
-        break;
-      default:
-        payload = null;
-    }
-    if (!payload) {
-      setLedgerActionError(t("ledgerEventUpdateFailed"));
-      return;
-    }
-
-    const result = updateEvent(sourceEvent.id, payload, scenarioIdValue);
-    if (!result.ok) {
-      setLedgerActionError(t("ledgerEventUpdateFailed"));
-      return;
-    }
-    setAdjustmentDraft(null);
-  };
-  
   const editingHome = homes.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = cars.find((car) => car.id === editingCarId) ?? null;
   const editingInvestment =
@@ -3904,8 +3788,7 @@ export default function MoneyClient({
               onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
-              onAdjustEvent={handleAdjustEvent}
-              onCreateSalaryAdjustment={handleCreateSalaryAdjustment}
+              onCreateEventAdjustment={handleCreateEventAdjustment}
               anchorMonth={selectedDashboardMonth ?? scenario?.assumptions.baseMonth ?? null}
             />
           </Stack>
@@ -3945,16 +3828,15 @@ export default function MoneyClient({
               bundleSlicesByType.expenses,
               "bundleSliceExpenseSummary"
             )}
-            <EventCardList
+            <ExpenseEventList
               events={standaloneExpenseEvents}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
-              incomeGrowthPct={incomeGrowthPct}
               onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
-              onAdjustEvent={handleAdjustEvent}
+              onCreateEventAdjustment={handleCreateEventAdjustment}
             />
           </Stack>
         </Tabs.Panel>
@@ -4853,8 +4735,7 @@ export default function MoneyClient({
                 baseCurrency={scenario.baseCurrency}
                 scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
                 scenarioHorizonMonths={scenario.assumptions.horizonMonths ?? null}
-                incomeGrowthPct={incomeGrowthPct}
-                inflationPct={scenario.assumptions.inflationRate ?? null}
+                  inflationPct={scenario.assumptions.inflationRate ?? null}
                 rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
                 members={members}
                 event={
@@ -5114,68 +4995,6 @@ export default function MoneyClient({
             bucketValueSeries={calculatorModal.bucketValueSeries}
             bucketCurrentRows={calculatorModal.bucketCurrentRows}
           />
-
-          <Modal
-            opened={Boolean(adjustmentDraft)}
-            onClose={() => setAdjustmentDraft(null)}
-            title={t("ledgerAdjustTitle")}
-            centered
-          >
-            <Stack gap="sm">
-              <Text size="sm" c="dimmed">
-                {t("ledgerAdjustHint", {
-                  month: adjustmentDraft?.month ?? "--",
-                })}
-              </Text>
-              <TextInput
-                type="month"
-                label={t("ledgerEventStart")}
-                value={adjustmentDraft?.month ?? ""}
-                onChange={(event) =>
-                  setAdjustmentDraft((current) =>
-                    current
-                      ? {
-                          ...current,
-                          month: event.currentTarget.value,
-                          error: undefined,
-                        }
-                      : null
-                  )
-                }
-              />
-              <NumberInput
-                label={t("ledgerAdjustAmount")}
-                value={adjustmentDraft?.amount ?? ""}
-                onChange={(value) =>
-                  setAdjustmentDraft((current) =>
-                    current
-                      ? {
-                          ...current,
-                          amount:
-                            value === "" || value === undefined
-                              ? ""
-                              : String(value),
-                          error: undefined,
-                        }
-                      : null
-                  )
-                }
-                error={adjustmentDraft?.error}
-                allowNegative
-              />
-              <Group justify="flex-end" gap="sm">
-                <Button
-                  variant="subtle"
-                  onClick={() => setAdjustmentDraft(null)}
-                >
-                  {common("actionCancel")}
-                </Button>
-                <Button onClick={handleConfirmAdjustment}>
-                  {t("ledgerAdjustConfirm")}
-                </Button>
-              </Group>
-            </Stack>
-          </Modal>
 
           <Modal
             opened={Boolean(deleteConfirmation)}

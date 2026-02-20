@@ -12,10 +12,7 @@ import EventTypeBadge from "./EventTypeBadge";
 import { compareMonthKey } from "../../utils/monthKey";
 import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
 import { computeEffectiveRanges } from "./salaryAdjustmentGrouping";
-import {
-  createEventAdjustmentPayload,
-  type EventAdjustmentSpec,
-} from "./adjustments/createEventAdjustment";
+import { type EventAdjustmentSpec } from "./adjustments/createEventAdjustment";
 
 type Props = {
   events: ScenarioEvent[];
@@ -29,8 +26,7 @@ type Props = {
   onEditEvent: (eventId: string) => void;
   onDuplicateEvent: (eventId: string) => void;
   onDeleteEvent: (eventId: string) => void;
-  onAdjustEvent: (row: LedgerRow) => void;
-  onCreateSalaryAdjustment?: (eventId: string) => void;
+  onCreateEventAdjustment: (baseEvent: ScenarioEvent, spec: EventAdjustmentSpec) => void;
   anchorMonth?: string | null;
 };
 
@@ -49,8 +45,7 @@ export default function IncomeEventList({
   onEditEvent,
   onDuplicateEvent,
   onDeleteEvent,
-  onAdjustEvent,
-  onCreateSalaryAdjustment: onCreateSalaryAdjustmentLegacy,
+  onCreateEventAdjustment,
   anchorMonth,
 }: Props) {
   const t = useTranslations("money");
@@ -61,21 +56,6 @@ export default function IncomeEventList({
   );
   const groupedEvents = useMemo(() => groupIncomeEvents(events), [events]);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
-
-  const onCreateEventAdjustment = (baseEvent: ScenarioEvent, spec: EventAdjustmentSpec) => {
-    const payload = createEventAdjustmentPayload(baseEvent, spec);
-    if (!payload) {
-      return;
-    }
-    if (payload.type === "salary-adjustment") {
-      onCreateSalaryAdjustmentLegacy?.(payload.baseEvent.id);
-      return;
-    }
-    onAdjustEvent(payload.row);
-  };
-
-  const onCreateSalaryAdjustment = (baseSalaryEvent: ScenarioEvent, spec: EventAdjustmentSpec) =>
-    onCreateEventAdjustment(baseSalaryEvent, spec);
 
   if (events.length === 0) {
     return <Text size="sm" c="dimmed">{t("eventCardsEmpty")}</Text>;
@@ -207,22 +187,6 @@ export default function IncomeEventList({
                 })()}
               </Stack>
               <Group gap="xs">
-                {isSalaryBase(baseEvent) && onCreateSalaryAdjustmentLegacy && (
-                  <Button
-                    size="xs"
-                    variant="light"
-                    onClick={() =>
-                      onCreateSalaryAdjustment(baseEvent, {
-                        mode: "override",
-                        amount: baseEvent.type === "cashflow" ? baseEvent.amount : 0,
-                        effectiveMonth: resolveEventCardStartMonth(baseEvent) ?? undefined,
-                        endMonth: resolveEventCardEndMonth(baseEvent) ?? undefined,
-                      })
-                    }
-                  >
-                    新增調整
-                  </Button>
-                )}
                 <Button size="xs" variant="light" onClick={() => onEditEvent(baseEvent.id)}>{common("actionEdit")}</Button>
                 <Menu position="bottom-end" withinPortal>
                   <Menu.Target>
@@ -242,7 +206,7 @@ export default function IncomeEventList({
                         })
                       }
                     >
-                      {common("actionAdjust")}
+                      新增調整
                     </Menu.Item>
                     <Menu.Item color="red" onClick={() => onDeleteEvent(baseEvent.id)}>{common("actionDelete")}</Menu.Item>
                   </Menu.Dropdown>
