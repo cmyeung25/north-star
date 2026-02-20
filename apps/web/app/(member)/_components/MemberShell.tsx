@@ -14,6 +14,8 @@ import {
   NavLink,
   Stack,
   Text,
+  alpha,
+  useMantineTheme,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { ReactNode } from "react";
@@ -61,6 +63,8 @@ const localizedMemberPath = (locale: Locale, path: string) =>
   `/${locale}${path.startsWith("/") ? path : `/${path}`}`;
 
 export function MemberShell({ children, userEmail }: MemberShellProps) {
+  const theme = useMantineTheme();
+
   const pathname = usePathname();
   const t = useTranslations("memberShell");
   const [opened, { toggle, close }] = useDisclosure(false);
@@ -80,6 +84,9 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
       borderRadius: 10,
       paddingTop: 10,
       paddingBottom: 10,
+      "&:hover": {
+        backgroundColor: alpha(theme.white, 0.06),
+      },
     },
     label: { color: "inherit", fontWeight: 600, fontSize: "0.875rem" },
     section: { color: "inherit" },
