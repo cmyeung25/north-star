@@ -28,7 +28,6 @@ Run these at the start of a task:
 
 ```bash\
 git remote add origin git@github.com:cmyeung25/north-star.git
-
 git rev-parse --show-toplevel
 git rev-parse --abbrev-ref HEAD
 git remote -v || true
