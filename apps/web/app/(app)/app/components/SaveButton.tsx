@@ -1,5 +1,8 @@
 "use client";
 
+import { Button } from "@mantine/core";
+import { useTranslations } from "next-intl";
+
 type Props = {
   disabled?: boolean;
   onClick: () => void;
@@ -7,9 +10,18 @@ type Props = {
 };
 
 export default function SaveButton({ disabled, onClick, title }: Props) {
+  const t = useTranslations("app.shell");
+
   return (
-    <button title={title} onClick={onClick} disabled={disabled} style={{ padding: "0.35rem 0.75rem" }}>
-      保存到雲端
-    </button>
+    <Button
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      size="sm"
+      variant="default"
+      styles={{ root: { minHeight: 36, fontWeight: 600 } }}
+    >
+      {t("saveToCloud")}
+    </Button>
   );
 }

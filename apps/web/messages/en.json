@@ -3893,6 +3893,20 @@
     },
     "hydrator": {
       "loading": "Hydrating scenario…"
+    },
+    "shell": {
+      "saveToCloud": "Save to cloud",
+      "workspace": "Scenario workspace",
+      "backToCases": "← Back to cases",
+      "notSavedYet": "Not saved yet",
+      "updatedAt": "Updated {time}",
+      "status": {
+        "saved": "Saved",
+        "unsaved": "Unsaved",
+        "saving": "Saving",
+        "error": "Error",
+        "conflict": "Conflict"
+      }
     }
   },
   "member": {

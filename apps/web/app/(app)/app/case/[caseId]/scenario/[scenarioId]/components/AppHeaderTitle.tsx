@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton, Stack, Text, Title } from "@mantine/core";
+import { useTranslations } from "next-intl";
 
 type AppHeaderTitleProps = {
   caseTitle?: string;
@@ -8,6 +9,7 @@ type AppHeaderTitleProps = {
 };
 
 export default function AppHeaderTitle({ caseTitle, scenarioTitle }: AppHeaderTitleProps) {
+  const t = useTranslations("app.shell");
   if (!caseTitle) {
     return (
       <Stack gap={4} maw={520} miw={0}>
@@ -23,7 +25,7 @@ export default function AppHeaderTitle({ caseTitle, scenarioTitle }: AppHeaderTi
         {caseTitle} — {scenarioTitle}
       </Title>
       <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        Scenario workspace
+        {t("workspace")}
       </Text>
     </Stack>
   );

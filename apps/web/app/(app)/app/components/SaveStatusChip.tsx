@@ -1,14 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { ScenarioSaveStatus } from "../../../../src/store/scenarioCloudStore";
-
-const LABELS: Record<ScenarioSaveStatus, string> = {
-  saved: "Saved",
-  unsaved: "Unsaved",
-  saving: "Saving",
-  error: "Error",
-  conflict: "Conflict",
-};
 
 const COLORS: Record<ScenarioSaveStatus, string> = {
   saved: "#0f766e",
@@ -19,6 +12,8 @@ const COLORS: Record<ScenarioSaveStatus, string> = {
 };
 
 export default function SaveStatusChip({ status }: { status: ScenarioSaveStatus }) {
+  const t = useTranslations("app.shell.status");
+
   return (
     <span
       style={{
@@ -30,7 +25,7 @@ export default function SaveStatusChip({ status }: { status: ScenarioSaveStatus 
         fontWeight: 600,
       }}
     >
-      {LABELS[status]}
+      {t(status)}
     </span>
   );
 }
