@@ -67,10 +67,6 @@ export function MemberShell({ children, userEmail }: MemberShellProps) {
 
       <AppShell.Navbar bg="polar.9" p="md">
         <Stack h="100%" gap="xs">
-          <Text c="white" fw={700} fz="sm" px="xs" pb="xs" visibleFrom="sm">
-            {t("console")}
-          </Text>
-
           <NavLink
             component={Link}
             href="/member/cases"
