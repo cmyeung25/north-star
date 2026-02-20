@@ -1330,32 +1330,6 @@ export default function MoneyClient({
     [scenarioIdValue, setScenarioEvents, v2ScenarioEvents, setLedgerActionError]
   );
 
-  const handleCreateSalaryAdjustment = useCallback(
-    (parentEventId: string) => {
-      const parentEvent = v2ScenarioEvents.find((event) => event.id === parentEventId);
-      if (!parentEvent || parentEvent.type !== "cashflow") {
-        return;
-      }
-      setV2EventDefaultKind("income");
-      setTemplateCashflowDraft({
-        kind: "income",
-        cadence: "monthly",
-        growthMode: parentEvent.growthMode ?? "assumption",
-        customGrowthRatePct:
-          parentEvent.growthMode === "custom" && typeof parentEvent.customGrowthRatePct === "number"
-            ? String(parentEvent.customGrowthRatePct)
-            : "",
-        growthSource: parentEvent.growthSource,
-        label: "薪金調整",
-        memberId: parentEvent.memberId ?? "",
-        startMonth: parentEvent.startMonth ?? "",
-        tags: buildSalaryAdjustmentTags(parentEventId),
-      });
-      openV2EventDrawer("create", "cashflow");
-    },
-    [openV2EventDrawer, v2ScenarioEvents]
-  );
-
   const handleSaveV2Event = (draft: ScenarioEventDraft) => {
     if (!scenarioIdValue) {
       return;
@@ -1920,12 +1894,34 @@ export default function MoneyClient({
         return;
       }
 
-      if (payload.type === "salary-adjustment") {
-        handleCreateSalaryAdjustment(payload.baseEvent.id);
-        return;
-      }
-
       if (payload.type === "cashflow-adjustment") {
+        if (payload.baseEvent.groupRole === "adjustment" && payload.baseEvent.parentEventId) {
+          const parentEvent = v2ScenarioEvents.find((event) => event.id === payload.baseEvent.parentEventId);
+          if (!parentEvent || parentEvent.type !== "cashflow" || parentEvent.kind !== "income") {
+            setLedgerActionError("薪金調整需要綁定現有薪金事件");
+            return;
+          }
+          setLedgerActionError(null);
+          setV2EventDefaultKind("income");
+          setTemplateCashflowDraft({
+            kind: "income",
+            cadence: "monthly",
+            growthMode: parentEvent.growthMode ?? "assumption",
+            customGrowthRatePct:
+              parentEvent.growthMode === "custom" && typeof parentEvent.customGrowthRatePct === "number"
+                ? String(parentEvent.customGrowthRatePct)
+                : "",
+            growthSource: parentEvent.growthSource,
+            label: "薪金調整",
+            amount: String(spec.amount),
+            memberId: parentEvent.memberId ?? "",
+            startMonth: payload.baseEvent.effectiveMonth ?? spec.effectiveMonth ?? parentEvent.startMonth ?? "",
+            tags: payload.baseEvent.tags ?? buildSalaryAdjustmentTags(payload.baseEvent.parentEventId),
+          });
+          openV2EventDrawer("create", "cashflow");
+          return;
+        }
+
         setLedgerActionError(null);
         openV2EventDrawer("edit", "cashflow", payload.baseEvent.id);
         return;
@@ -1952,7 +1948,7 @@ export default function MoneyClient({
       setLedgerActionError(null);
       openV2EventDrawer("edit", "adjustment", payload.baseEvent.id);
     },
-    [handleCreateSalaryAdjustment, openV2EventDrawer, t]
+    [openV2EventDrawer, t, v2ScenarioEvents]
   );
   const inputEventItems = useMemo(() => {
     const standaloneEvents = v2ScenarioEvents.filter((event) => !bundleEventIds.has(event.id));

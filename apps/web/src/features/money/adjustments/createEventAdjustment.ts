@@ -1,5 +1,10 @@
 import type { ScenarioEvent } from "../../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../../engine/scenarioV2Compiler";
+import {
+  buildSalaryAdjustmentTags,
+  deriveRecurringGroupId,
+  resolveRecurringGroupId,
+} from "../salaryAdjustmentTags";
 
 export type EventAdjustmentSpec = {
   effectiveMonth?: string;
@@ -13,23 +18,16 @@ type EventAdjustmentBasePayload<TType extends ScenarioEvent["type"]> = {
   baseEvent: {
     id: string;
     type: TType;
+    parentEventId?: string;
+    tags?: string[];
+    groupId?: string;
+    groupRole?: "base" | "adjustment";
+    effectiveMonth?: string;
   };
   spec: EventAdjustmentSpec;
 };
 
 export type EventAdjustmentPayload =
-  | {
-      type: "salary-adjustment";
-      baseEvent: {
-        id: string;
-        type: "cashflow";
-        cadence?: string;
-        amount: number;
-        startMonth?: string;
-        endMonth?: string;
-      };
-      spec: EventAdjustmentSpec;
-    }
   | ({ type: "cashflow-adjustment" } & EventAdjustmentBasePayload<"cashflow">)
   | ({ type: "housing-adjustment" } & EventAdjustmentBasePayload<"housing">)
   | ({ type: "loan-adjustment" } & EventAdjustmentBasePayload<"loan">)
@@ -45,15 +43,17 @@ export const createEventAdjustmentPayload = (
     baseEvent.kind === "income" &&
     baseEvent.cadence === "monthly"
   ) {
+    const groupId = resolveRecurringGroupId(baseEvent) ?? deriveRecurringGroupId(baseEvent);
     return {
-      type: "salary-adjustment",
+      type: "cashflow-adjustment",
       baseEvent: {
         id: baseEvent.id,
         type: baseEvent.type,
-        cadence: baseEvent.cadence,
-        amount: baseEvent.amount,
-        startMonth: baseEvent.startMonth,
-        endMonth: baseEvent.endMonth,
+        parentEventId: baseEvent.id,
+        tags: buildSalaryAdjustmentTags(baseEvent.id),
+        groupId,
+        groupRole: "adjustment",
+        effectiveMonth: spec.effectiveMonth,
       },
       spec,
     };

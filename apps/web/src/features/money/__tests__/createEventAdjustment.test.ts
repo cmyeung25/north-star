@@ -9,7 +9,7 @@ const baseSpec = {
 };
 
 describe("createEventAdjustmentPayload", () => {
-  it("builds salary-adjustment payload for monthly income cashflow", () => {
+  it("builds cashflow-adjustment payload with salary metadata for monthly income cashflow", () => {
     const event: ScenarioEvent = {
       id: "salary",
       type: "cashflow",
@@ -21,8 +21,19 @@ describe("createEventAdjustmentPayload", () => {
 
     const payload = createEventAdjustmentPayload(event, baseSpec);
 
-    expect(payload?.type).toBe("salary-adjustment");
-    expect(payload?.baseEvent.id).toBe("salary");
+    expect(payload).toEqual({
+      type: "cashflow-adjustment",
+      baseEvent: {
+        id: "salary",
+        type: "cashflow",
+        parentEventId: "salary",
+        tags: ["adjustment", "salary_adjustment", "salary_parent:salary"],
+        groupId: "salary",
+        groupRole: "adjustment",
+        effectiveMonth: "2026-01",
+      },
+      spec: baseSpec,
+    });
   });
 
   it("builds cashflow-adjustment payload for non-salary cashflow", () => {
