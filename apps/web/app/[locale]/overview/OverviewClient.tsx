@@ -756,7 +756,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 <Text size="xs" c="dimmed">{sd("healthSummary.subtitle", "以未來 12 個月投影評估風險與可承受度。")}</Text>
               </div>
               <Group gap="xs">
-                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開情景實驗室")}</Button>
+                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開實驗室")}</Button>
                 <Button display="none" component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
               </Group>
             </Group>

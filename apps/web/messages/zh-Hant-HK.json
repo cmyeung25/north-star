@@ -115,7 +115,7 @@
     "timeline": "時間線",
     "stress": "壓力測試",
     "settings": "設定",
-    "planLab": "情景實驗室",
+    "planLab": "實驗室",
     "bottom": {
       "ariaLabel": "底部導覽"
     },
@@ -280,7 +280,7 @@
     "peopleSummaryMembers": "{count, plural, =0 {尚未新增成員} one {# 位成員} other {# 位成員}}",
     "peopleSummaryMilestone": "{label} · {name} · {month}",
     "peopleSummaryEmpty": "尚未有即將到期的里程碑。",
-    "planLabTitle": "情景實驗室",
+    "planLabTitle": "實驗室",
     "planLabSubtitle": "在沙盒環境中測試你的理財方案，無風險地比較不同策略的效果。",
     "planLabPreviewBadge": "預覽",
     "planLabPreviewNotice": "預覽模式，只作比較，不會改動現有資料。",
@@ -938,7 +938,7 @@
         "subtitle": "以未來 12 個月投影評估風險與可承受度。"
       },
       "cta": {
-        "openPlanLab": "打開情景實驗室",
+        "openPlanLab": "打開實驗室",
         "completeData": "補齊資料"
       },
       "kpi": {
@@ -3458,7 +3458,7 @@
     "compareTemplateCarOwnershipHint": "加入預設的汽車資產項目。",
     "seeds": {
       "sectionTitle": "快速開始（測試情景）",
-      "sectionDescription": "一鍵建立預設資料，直接進入情景實驗室。",
+      "sectionDescription": "一鍵建立預設資料，直接進入實驗室。",
       "useSeed": "使用此測試情景",
       "preview": "預覽內容",
       "previewTitle": "測試情景預覽",
