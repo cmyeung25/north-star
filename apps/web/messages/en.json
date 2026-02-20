@@ -115,6 +115,7 @@
     "timeline": "Timeline",
     "stress": "Stress",
     "settings": "Settings",
+    "scenarioSettings": "Scenario settings",
     "planLab": "Plan Lab",
     "bottom": {
       "ariaLabel": "Bottom navigation"
