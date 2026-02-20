@@ -28,21 +28,21 @@ export type EventAdjustmentPayload =
       spec: EventAdjustmentSpec;
     };
 
-const isIncomeCashflowEvent = (
+const isCashflowEvent = (
   event: ScenarioEvent
 ): event is Extract<ScenarioEvent, { type: "cashflow" }> =>
-  event.type === "cashflow" && event.kind === "income";
+  event.type === "cashflow";
 
 const isSalaryBaseEvent = (
   event: ScenarioEvent
 ): event is Extract<ScenarioEvent, { type: "cashflow" }> =>
-  isIncomeCashflowEvent(event) && event.cadence === "monthly";
+  isCashflowEvent(event) && event.kind === "income" && event.cadence === "monthly";
 
 export const createEventAdjustmentPayload = (
   baseEvent: ScenarioEvent,
   spec: EventAdjustmentSpec
 ): EventAdjustmentPayload | null => {
-  if (!isIncomeCashflowEvent(baseEvent)) {
+  if (!isCashflowEvent(baseEvent)) {
     return null;
   }
 
