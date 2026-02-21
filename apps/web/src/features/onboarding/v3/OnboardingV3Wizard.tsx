@@ -264,7 +264,7 @@ export default function OnboardingV3Wizard() {
   };
 
   return (
-    <Stack>
+    <Stack gap="md">
       {validationMessages.length > 0 ? <Alert color="red">{validationMessages.join("\n")}</Alert> : null}
       <OnboardingV2WizardShell
         steps={steps}
