@@ -43,7 +43,11 @@ export const resolveScenarioFromPayload = (payload: Record<string, unknown>, sce
 };
 
 export const isScenarioOnboarded = (payload: ScenarioPayload, scenarioId?: string) => {
+  return resolveScenarioLifecycleFromPayload(payload, scenarioId) === "active";
+};
+
+export const resolveScenarioLifecycleFromPayload = (payload: ScenarioPayload, scenarioId?: string) => {
   const source = payload as Record<string, unknown>;
   const selectedScenario = resolveScenarioFromPayload(source, scenarioId);
-  return resolveScenarioLifecycle(selectedScenario) === "active";
+  return resolveScenarioLifecycle(selectedScenario);
 };
