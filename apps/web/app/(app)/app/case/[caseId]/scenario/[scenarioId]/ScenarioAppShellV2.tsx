@@ -14,7 +14,11 @@ import { useMediaQuery } from "@mantine/hooks";
 import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
 import { formatIsoYmdHms } from "../../../../../../../lib/date/format";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { resolveWorkspaceMode, type WorkspaceMode } from "../../../../../../../src/domain/scenarioStateModel";
+import {
+  resolveScenarioLifecycle,
+  resolveWorkspaceMode,
+  type WorkspaceMode,
+} from "../../../../../../../src/domain/scenarioStateModel";
 import {
   duplicateScenarioFromLocalPayloadAction,
   reloadScenarioPayloadAction,
@@ -23,6 +27,7 @@ import {
 import SaveButton from "../../../../components/SaveButton";
 import SaveStatusChip from "../../../../components/SaveStatusChip";
 import { exportScenarioState, importScenarioState } from "../../../../../../../src/store/scenarioState";
+import { serializeScenarioPayloadForSave } from "../../../../../../../src/persistence/scenarioSavePayloadSerializer";
 import { useScenarioStore } from "../../../../../../../src/store/scenarioStore";
 import { useScenarioContext } from "../../../../../../../src/hooks/useScenarioContext";
 import { useScenarioAutosave } from "./hooks/useScenarioAutosave";
@@ -34,6 +39,7 @@ import BottomNav from "../../../../../../../components/BottomNav";
 import AppHeaderTitle from "./components/AppHeaderTitle";
 import AppSidebar from "./components/AppSidebar";
 import { useUiStore } from "../../../../../../../src/store/uiStore";
+import { resolveScenarioFromPayload } from "../../../../../../../lib/scenario/isScenarioOnboarded";
 
 const AUTOSAVE_DELAY_MS = 45_000;
 const NAVBAR_WIDTH = 264;
@@ -123,7 +129,10 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
         return;
       }
 
-      const payload = exportScenarioState() as unknown as Record<string, unknown>;
+      const payload = serializeScenarioPayloadForSave(
+        exportScenarioState() as unknown as Record<string, unknown>,
+        scenarioId,
+      );
       const nextHash = JSON.stringify(payload);
       const result = await saveNow({
         payload,
@@ -143,7 +152,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
         console.warn("Autosave failed");
       }
     },
-    [enabled, saveNow],
+    [enabled, saveNow, scenarioId],
   );
 
   useScenarioAutosave({
@@ -165,6 +174,14 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
       const result = await reloadScenarioPayloadAction(caseId, scenarioId);
       importScenarioState(result.payload as never);
       markSaved(scenarioId, JSON.stringify(result.payload), result.revision, result.lastSavedAt);
+
+      const selectedScenario = resolveScenarioFromPayload(result.payload as Record<string, unknown>, scenarioId);
+      const lifecycle = resolveScenarioLifecycle(selectedScenario);
+      if (lifecycle === "draft") {
+        router.replace(`${appScenarioUrl}/onboarding`);
+      }
+
+      setWorkspaceMode(resolveWorkspaceMode(pathname));
       setShowConflict(false);
     } finally {
       setConflictBusy(false);
@@ -178,7 +195,10 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
 
     setConflictBusy(true);
     try {
-      const payload = exportScenarioState() as unknown as Record<string, unknown>;
+      const payload = serializeScenarioPayloadForSave(
+        exportScenarioState() as unknown as Record<string, unknown>,
+        scenarioId,
+      );
       const result = await duplicateScenarioFromLocalPayloadAction(caseId, scenarioId, payload);
       router.replace(`${buildAppScenarioUrl({ caseId, scenarioId: result.scenarioId })}/dashboard`);
       setShowConflict(false);
