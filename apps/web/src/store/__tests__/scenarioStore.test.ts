@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { EventDefinition } from "../../domain/events/types";
+import { resolveScenarioLifecycle } from "../../domain/scenarioStateModel";
+import type { ScenarioSeedPayload } from "../../scenarios/scenarioSeeds";
 import {
   normalizeScenario,
   hydrateFromPersistedState,
@@ -770,5 +772,50 @@ describe("resetAppState", () => {
     const stateAfter = useScenarioStore.getState();
     expect(stateAfter.scenarios).toHaveLength(stateBefore.scenarios.length);
     expect(stateAfter.activeScenarioId).toBe(scenarioId);
+  });
+});
+
+describe("createScenarioFromSeed", () => {
+  it("creates a seeded scenario that passes onboarding gate and opens core", () => {
+    const { createScenarioFromSeed } = useScenarioStore.getState();
+
+    const seed: ScenarioSeedPayload = {
+      baseMonth: "2025-01",
+      initialCash: 25000,
+      assumptions: {
+        horizonMonths: 180,
+      },
+      members: [
+        {
+          id: "primary",
+          name: "Alex",
+          kind: "person",
+        },
+      ],
+      assets: [
+        {
+          id: "cash-1",
+          kind: "cash",
+          label: "Emergency fund",
+          currentValue: 25000,
+          startMonth: "2025-01",
+        },
+      ],
+      liabilities: [],
+      events: [],
+      bundleInstances: [],
+      bundleSummaries: [],
+    };
+
+    const created = createScenarioFromSeed("Seeded plan", seed);
+
+    expect(created).not.toBeNull();
+    expect(created?.meta?.isSeeded).toBe(true);
+    expect(created?.meta?.skipOnboarding).toBe(true);
+    expect(created?.meta?.schemaVersion).toBe(2);
+    expect(created?.meta?.onboardingVersion).toBe(2);
+    expect(created?.clientComputed?.onboardingCompleted).toBe(true);
+    expect(created?.members?.[0]?.id).toContain(":member:primary");
+    expect(resolveScenarioLifecycle(created)).toBe("active");
   });
 });
