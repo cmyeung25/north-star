@@ -72,8 +72,7 @@ import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { exportScenarioState } from "../../store/scenarioState";
 import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
 import { formatIsoYmdHms } from "../../../lib/date/format";
-import { compileScenarioCreatePayload } from "../../domain/scenarioDraft/compile";
-import type { ScenarioDraft } from "../../domain/scenarioDraft/types";
+import { submitScenarioDraft } from "../../domain/scenarioDraft/submitScenarioDraft";
 
 const steps = [
   "profile",
@@ -1811,8 +1810,10 @@ export default function OnboardingDraftWizard() {
     });
 
     const nowIso = new Date().toISOString();
-    const compiledPayload = compileScenarioCreatePayload(
-      {
+    const submitResult = submitScenarioDraft({
+      source: "onboarding",
+      target: { scenarioId },
+      draft: {
         assumptions: scenarioPreview.assumptions,
         members: scenarioPreview.members,
         assets: scenarioPreview.assets,
@@ -1827,21 +1828,30 @@ export default function OnboardingDraftWizard() {
         },
         clientComputed: { onboardingCompleted: true },
         baseCurrency: scenarioPreview.baseCurrency,
-      } satisfies ScenarioDraft,
-      {
+      },
+      context: {
         assumptionsBase: scenario.assumptions,
         metaBase: scenario.meta,
         clientComputedBase: scenario.clientComputed,
         nowIso,
-      }
-    );
+      },
+      persistence: {
+        applyStore: (payload) => {
+          updateScenarioBaseCurrency(scenarioId, payload.baseCurrency);
+          updateScenarioAssumptions(scenarioId, payload.assumptions);
+          setScenarioMembers(scenarioId, payload.members);
+          setScenarioAssets(scenarioId, payload.assets);
+          setScenarioLiabilities(scenarioId, payload.liabilities);
+          setScenarioEvents(scenarioId, payload.events);
+        },
+      },
+    });
 
-    updateScenarioBaseCurrency(scenarioId, compiledPayload.baseCurrency);
-    updateScenarioAssumptions(scenarioId, compiledPayload.assumptions);
-    setScenarioMembers(scenarioId, compiledPayload.members);
-    setScenarioAssets(scenarioId, compiledPayload.assets);
-    setScenarioLiabilities(scenarioId, compiledPayload.liabilities);
-    setScenarioEvents(scenarioId, compiledPayload.events);
+    if (!submitResult.ok) {
+      return;
+    }
+
+    const compiledPayload = submitResult.payload;
 
     hasCompletedRef.current = true;
     logTelemetryEvent({
