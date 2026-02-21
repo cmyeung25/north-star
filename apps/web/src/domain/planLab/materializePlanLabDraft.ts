@@ -3,6 +3,8 @@ import type { BudgetRule, Scenario, ScenarioMember } from "../../store/scenarioS
 import { normalizeMonthStrict } from "../../utils/month";
 import type { PlanLabDraft } from "./types";
 import { applyPlanLabDraftToScenario } from "./applyPlanLabDraftToScenario";
+import { compileScenarioCreatePayload } from "../scenarioDraft/compile";
+import type { ScenarioDraft } from "../scenarioDraft/types";
 
 export type PlanLabMaterializeResult = {
   scenario: Scenario;
@@ -36,6 +38,23 @@ export const materializePlanLabDraft = (
   });
 
   const additions = draft.additions ?? {};
+  const compiledScenarioPayload = compileScenarioCreatePayload(
+    {
+      assumptions: result.scenario.assumptions,
+      members: result.scenario.members,
+      assets: result.scenario.assets,
+      liabilities: result.scenario.liabilities,
+      events: result.scenario.events,
+      meta: result.scenario.meta,
+      clientComputed: result.scenario.clientComputed,
+      baseCurrency: result.scenario.baseCurrency,
+    } satisfies ScenarioDraft,
+    {
+      assumptionsBase: baseScenario.assumptions,
+      metaBase: baseScenario.meta,
+      clientComputedBase: baseScenario.clientComputed,
+    }
+  );
   const addedMembers: ScenarioMember[] = [];
   const addedBudgetRules: BudgetRule[] = [];
   const errors = [...result.errors];
@@ -86,8 +105,28 @@ export const materializePlanLabDraft = (
 
   return {
     ...result,
+    scenario: {
+      ...result.scenario,
+      assumptions: compiledScenarioPayload.assumptions,
+      members: compiledScenarioPayload.members,
+      assets: compiledScenarioPayload.assets,
+      liabilities: compiledScenarioPayload.liabilities,
+      events: compiledScenarioPayload.events,
+      meta: compiledScenarioPayload.meta,
+      clientComputed: compiledScenarioPayload.clientComputed,
+      baseCurrency: compiledScenarioPayload.baseCurrency,
+    },
     addedMembers,
     addedBudgetRules,
-    errors,
+    errors: [
+      ...errors,
+      ...compiledScenarioPayload.validationIssues
+        .filter((issue) => issue.code === "invalid-month" || issue.code === "required")
+        .map((issue) => ({
+          code: issue.code === "required" ? "missing-month" as const : "invalid-month" as const,
+          field: issue.field,
+          message: issue.message,
+        })),
+    ],
   };
 };
