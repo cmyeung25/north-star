@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
+import { Alert, Button, Card, Divider, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
@@ -48,6 +48,16 @@ export default function IncomeStep({
     onAddManualItem({ label: t(labelKey), amount: 0 });
   };
 
+  const primaryTemplates = [
+    { id: "rent", label: t("addRentIncome"), rule: "property.rent.income.v1", labelKey: "manualRentIncome" },
+    { id: "manual", label: t("addManual"), rule: undefined, labelKey: "manualIncome" },
+  ] as const;
+
+  const addonTemplates = [
+    { id: "bonus", label: "新增獎金", rule: undefined, labelKey: "manualIncome" },
+    { id: "allowance", label: "新增津貼", rule: undefined, labelKey: "manualIncome" },
+  ] as const;
+
   return (
     <Stack gap="md">
       <Card withBorder radius="md" padding="md">
@@ -60,10 +70,37 @@ export default function IncomeStep({
           <Stack gap="md">
             <Text size="sm">{t("incomeHint")}</Text>
             {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
+
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>常用模板</Text>
+              <Group>
+                {primaryTemplates.map((template) => (
+                  <Button
+                    key={template.id}
+                    size="xs"
+                    variant="light"
+                    onClick={() => addManual(template.rule, template.labelKey)}
+                  >
+                    {template.label}
+                  </Button>
+                ))}
+              </Group>
+            </Stack>
+
+            <Divider label="更多快速新增" />
             <Group>
-              <Button size="xs" variant="light" onClick={() => addManual("property.rent.income.v1", "manualRentIncome")}>{t("addRentIncome")}</Button>
-              <Button size="xs" onClick={() => addManual(undefined, "manualIncome")}>{t("addManual")}</Button>
+              {addonTemplates.map((template) => (
+                <Button
+                  key={template.id}
+                  size="xs"
+                  variant="default"
+                  onClick={() => addManual(template.rule, template.labelKey)}
+                >
+                  {template.label}
+                </Button>
+              ))}
             </Group>
+
             <Table>
               <Table.Thead>
                 <Table.Tr>
@@ -89,10 +126,10 @@ export default function IncomeStep({
               </Table.Tbody>
             </Table>
 
-            {manualRows.length > 0 ? (
-              <Stack gap="md">
-                <Text size="sm" fw={600}>{t("manualSection")}</Text>
-                {manualRows.map((row) => (
+            <Stack gap="md">
+              <Text size="sm" fw={600}>{t("manualSection")}</Text>
+              {manualRows.length > 0 ? (
+                manualRows.map((row) => (
                   <Card key={row.id} withBorder radius="md" padding="md">
                     <Stack gap="md">
                       <Group justify="space-between" align="flex-start">
@@ -101,17 +138,29 @@ export default function IncomeStep({
                           {t("remove")}
                         </Button>
                       </Group>
-                      <Stack gap="md">
-                        <Group grow>
-                          <TextInput value={row.label ?? ""} onChange={(event) => onUpdateManualItem(row.id, { label: event.currentTarget.value })} />
-                          <NumberInput value={row.amount} onChange={(value) => onUpdateManualItem(row.id, { amount: typeof value === "number" ? value : 0 })} />
-                        </Group>
-                      </Stack>
+                      <Group grow>
+                        <TextInput
+                          value={row.label ?? ""}
+                          onChange={(event) => onUpdateManualItem(row.id, { label: event.currentTarget.value })}
+                        />
+                        <NumberInput
+                          value={row.amount}
+                          onChange={(value) =>
+                            onUpdateManualItem(row.id, {
+                              amount: typeof value === "number" ? value : 0,
+                            })
+                          }
+                        />
+                      </Group>
                     </Stack>
                   </Card>
-                ))}
-              </Stack>
-            ) : null}
+                ))
+              ) : (
+                <Card withBorder radius="md" padding="md">
+                  <Text size="sm" c="dimmed">尚未新增手動收入項目，可使用上方模板快速建立。</Text>
+                </Card>
+              )}
+            </Stack>
           </Stack>
         </Stack>
       </Card>
