@@ -12,6 +12,8 @@ import type { CompileScenarioContext } from "./compile";
 import type { ScenarioDraft, ValidationIssue } from "./types";
 import { recordScenarioMigrationEvent } from "../../lib/telemetry/scenarioMigrationTelemetry";
 import { isMigrationProtectionEnabled } from "../../lib/featureFlags";
+import { detectDuplicateScenarioEventWarnings } from "../warnings/duplicateCashflowGuardrails";
+import { WarningCode } from "../warnings/types";
 
 export type ScenarioDraftSource = "onboarding" | "seed" | "plan-lab";
 
@@ -100,7 +102,23 @@ export const submitScenarioDraft = (
   };
 
   const errors = [...compiled.validationIssues];
-  const warnings: SubmitScenarioDraftIssue[] = [];
+  const warnings: SubmitScenarioDraftIssue[] = detectDuplicateScenarioEventWarnings(
+    compiled.events
+  ).flatMap((warning) => {
+    if (
+      warning.code !== WarningCode.DuplicateMortgageCashflow &&
+      warning.code !== WarningCode.RentalIncomeDuplicated
+    ) {
+      return [];
+    }
+    return [
+      {
+        code: warning.code,
+        field: warning.refs?.eventId ? `events.${warning.refs.eventId}` : "events",
+        message: warning.defaultMessage,
+      },
+    ];
+  });
 
   if (migrationProtectionEnabled && errors.length > 0) {
     recordScenarioMigrationEvent({
