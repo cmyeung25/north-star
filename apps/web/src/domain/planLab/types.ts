@@ -167,6 +167,7 @@ export type PlanLabSnapshot = {
   baselinePatches?: PlanLabBaselinePatches;
   experiments?: PlanLabExperiment[];
   scorecardSettings?: PlanLabScorecardSettings;
+  additions?: PlanLabDraftAdditions;
   scenarioV2Patches?: PlanLabScenarioV2Patches;
   experimentGroups?: Array<{
     experimentId: string;

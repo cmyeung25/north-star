@@ -52,6 +52,11 @@ const synthesizeAssetsFromEvents = (events: ScenarioEvent[] | undefined): Scenar
         source: "eventGenerated" as const,
         createdByEventId: event.id,
         createdByTemplate: "housing_mortgage" as const,
+        metadata: {
+          source: "plan-lab" as const,
+          origin: event.id,
+          ruleId: "plan-lab.housing.asset.v1",
+        },
       },
     ];
   });
@@ -82,6 +87,11 @@ const synthesizeLiabilitiesFromEvents = (
         source: "eventGenerated" as const,
         createdByEventId: event.id,
         createdByTemplate: "housing_mortgage" as const,
+        metadata: {
+          source: "plan-lab" as const,
+          origin: event.id,
+          ruleId: "plan-lab.housing.liability.v1",
+        },
       },
     ];
   });

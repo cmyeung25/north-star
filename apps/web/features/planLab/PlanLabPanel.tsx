@@ -146,6 +146,7 @@ import {
   materializePlanLabDraft,
 } from "../../src/domain/planLab/materializePlanLabDraft";
 import { submitScenarioDraft } from "../../src/domain/scenarioDraft/submitScenarioDraft";
+import { submitPlanLabScenarioDraft } from "../../src/domain/planLab/submissionFacade";
 import { recordScenarioMigrationEvent } from "../../src/lib/telemetry/scenarioMigrationTelemetry";
 import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
@@ -3321,6 +3322,11 @@ export default function PlanLabPanel({
     return {
       baselinePatches: cloneSerializable(baselinePatches ?? {}),
       experiments: cloneSerializable(experiments ?? []),
+      additions: cloneSerializable({
+        members: draftMembers,
+        budgetRules: draftBudgetRules,
+        events: draftEvents,
+      }),
       scenarioV2Patches: cloneSerializable(scenarioV2Patches),
       experimentGroups: cloneSerializable(experimentGroups),
       scorecardSettings:
@@ -3334,6 +3340,9 @@ export default function PlanLabPanel({
     };
   }, [
     baselinePatches,
+    draftBudgetRules,
+    draftEvents,
+    draftMembers,
     experimentGroups,
     experiments,
     firstBucketTargetAmount,
@@ -7751,20 +7760,8 @@ export default function PlanLabPanel({
 
   const handleSave = () => {
     setSaveError(null);
-    const created = createScenario(`${scenario.name} (Copy)`, { onboardingCompleted: true });
 
-    const baseScenario = {
-      ...scenario,
-      id: created.id,
-      name: created.name,
-      updatedAt: created.updatedAt,
-      snapshots: [],
-      plans: [],
-      clientComputed: undefined,
-    };
-
-    const buildResult = buildScenarioDraftFromPlanLab(baseScenario, planLabDraft, {
-      scenarioId: created.id,
+    const buildResult = buildScenarioDraftFromPlanLab(planSnapshot, scenario, {
       budgetRules,
     });
 
@@ -7773,7 +7770,7 @@ export default function PlanLabPanel({
         name: "scenario_save_failed",
         ts: new Date().toISOString(),
         route: "plan-lab",
-        scenarioId: created.id,
+        scenarioId: scenario.id,
         source: "plan-lab",
         details: { errorCount: buildResult.errors.length },
       });
@@ -7783,12 +7780,12 @@ export default function PlanLabPanel({
 
     const submitResult = submitScenarioDraft({
       source: "plan-lab",
-      target: { scenarioId: created.id },
+      target: { scenarioId: scenario.id },
       draft: buildResult.scenarioDraft,
       context: {
-        assumptionsBase: baseScenario.assumptions,
-        metaBase: baseScenario.meta,
-        clientComputedBase: baseScenario.clientComputed,
+        assumptionsBase: scenario.assumptions,
+        metaBase: scenario.meta,
+        clientComputedBase: scenario.clientComputed,
       },
     });
 
@@ -7797,7 +7794,7 @@ export default function PlanLabPanel({
         name: "scenario_save_failed",
         ts: new Date().toISOString(),
         route: "plan-lab",
-        scenarioId: created.id,
+        scenarioId: scenario.id,
         source: "plan-lab",
         details: { errorCount: submitResult.errors.length },
       });
@@ -7805,40 +7802,25 @@ export default function PlanLabPanel({
       return;
     }
 
-    buildResult.eventDefinitions.forEach((definition) => {
-      upsertEventDefinition(definition);
-    });
-    buildResult.budgetRules?.forEach((rule) => {
-      updateBudgetRule(rule.id, rule);
-    });
-    buildResult.addedMembers.forEach((member) => {
-      createMember(member);
-    });
-    buildResult.addedBudgetRules.forEach((rule) => {
-      createBudgetRule(rule);
+    const savedScenario = submitPlanLabScenarioDraft({
+      baselineScenario: scenario,
+      scenarioName: `${scenario.name} (Copy)`,
+      payload: submitResult.payload,
+      eventDefinitions: buildResult.eventDefinitions,
+      budgetRules: buildResult.budgetRules,
+      addedMembers: buildResult.addedMembers,
+      addedBudgetRules: buildResult.addedBudgetRules,
+      facade: {
+        createScenario,
+        replaceScenario,
+        setActiveScenario,
+        upsertEventDefinition,
+        updateBudgetRule,
+        createMember,
+        createBudgetRule,
+      },
     });
 
-    const payload = submitResult.payload;
-    const savedScenario = {
-      ...baseScenario,
-      assumptions: payload.assumptions,
-      members: payload.members,
-      assets: payload.assets,
-      liabilities: payload.liabilities,
-      events: payload.events,
-      meta: {
-        ...payload.meta,
-        onboarded: true,
-      },
-      clientComputed: {
-        ...payload.clientComputed,
-        onboardingCompleted: true,
-      },
-      baseCurrency: payload.baseCurrency,
-    };
-
-    replaceScenario(savedScenario);
-    setActiveScenario(savedScenario.id);
     router.push(`/${locale}${buildScenarioUrl("/dashboard", savedScenario.id)}`);
   };
 
