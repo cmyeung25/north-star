@@ -1,13 +1,34 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useLocale } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useScenarioStore, getScenarioById } from "../../../src/store/scenarioStore";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { projectionToOverviewViewModel } from "../../../src/engine/adapter";
 import type { TimeSeriesPoint } from "../../../features/overview/types";
 import PlanLabPanel from "../../../features/planLab/PlanLabPanel";
+import { migrationFlags } from "../../../src/lib/featureFlags";
+import { recordScenarioMigrationEvent } from "../../../src/lib/telemetry/scenarioMigrationTelemetry";
 
 export default function PlanLabClient() {
+  const router = useRouter();
+  const locale = useLocale();
+  const planLabMigrationEnabled = migrationFlags.planLab;
+
+  useEffect(() => {
+    if (planLabMigrationEnabled) {
+      return;
+    }
+    recordScenarioMigrationEvent({
+      name: "route_redirect_anomaly",
+      ts: new Date().toISOString(),
+      route: "plan-lab",
+      reason: "feature-flag-disabled-redirect-dashboard",
+    });
+    router.replace(`/${locale}/dashboard`);
+  }, [locale, planLabMigrationEnabled, router]);
+
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);
@@ -67,6 +88,10 @@ export default function PlanLabClient() {
   }, [deflateSeries, displayMode, projectionState.months, projectionState.projectionNetCashflowByMonth]);
 
   if (!scenario) {
+    return null;
+  }
+
+  if (!planLabMigrationEnabled) {
     return null;
   }
 

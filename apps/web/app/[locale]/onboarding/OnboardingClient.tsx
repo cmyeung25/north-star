@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import OnboardingEntry from "../../../src/features/onboarding/OnboardingEntry";
 import { isScenarioOnboarded as isScenarioOnboardedHelper } from "../../../lib/onboarding/isScenarioOnboarded";
+import { recordScenarioMigrationEvent } from "../../../src/lib/telemetry/scenarioMigrationTelemetry";
 import {
   getActiveScenario,
   getScenarioById,
@@ -46,11 +47,24 @@ export default function OnboardingClient() {
     }
 
     if (!activeScenario) {
+      recordScenarioMigrationEvent({
+        name: "route_redirect_anomaly",
+        ts: new Date().toISOString(),
+        route: "onboarding",
+        reason: "missing-active-scenario",
+      });
       router.replace(`/${locale}/member/cases`);
       return;
     }
 
     if (isScenarioOnboardedHelper(activeScenario)) {
+      recordScenarioMigrationEvent({
+        name: "route_redirect_anomaly",
+        ts: new Date().toISOString(),
+        route: "onboarding",
+        scenarioId: activeScenario.id,
+        reason: "already-onboarded-redirect-dashboard",
+      });
       const query = routeCaseId && activeScenario.id
         ? `?caseId=${encodeURIComponent(routeCaseId)}&scenarioId=${encodeURIComponent(activeScenario.id)}`
         : "";

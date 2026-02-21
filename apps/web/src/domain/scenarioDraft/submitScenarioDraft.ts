@@ -10,6 +10,8 @@ import type { ScenarioEvent, ScenarioEventDraft } from "../scenarioV2/events";
 import { compileScenarioCreatePayload } from "./compile";
 import type { CompileScenarioContext } from "./compile";
 import type { ScenarioDraft, ValidationIssue } from "./types";
+import { recordScenarioMigrationEvent } from "../../lib/telemetry/scenarioMigrationTelemetry";
+import { isMigrationProtectionEnabled } from "../../lib/featureFlags";
 
 export type ScenarioDraftSource = "onboarding" | "seed" | "plan-lab";
 
@@ -70,6 +72,17 @@ const toCompilerDraft = (draft: SubmitScenarioDraftInput["draft"]): ScenarioDraf
 export const submitScenarioDraft = (
   input: SubmitScenarioDraftInput
 ): SubmitScenarioDraftResult => {
+  const migrationProtectionEnabled = isMigrationProtectionEnabled(input.source);
+
+  if (migrationProtectionEnabled) {
+    recordScenarioMigrationEvent({
+      name: "scenario_submission_source",
+      ts: new Date().toISOString(),
+      scenarioId: input.target.scenarioId,
+      source: input.source,
+    });
+  }
+
   const compiled = compileScenarioCreatePayload(
     toCompilerDraft(input.draft),
     input.context
@@ -89,6 +102,18 @@ export const submitScenarioDraft = (
   const errors = [...compiled.validationIssues];
   const warnings: SubmitScenarioDraftIssue[] = [];
 
+  if (migrationProtectionEnabled && errors.length > 0) {
+    recordScenarioMigrationEvent({
+      name: "scenario_draft_compile_failed",
+      ts: new Date().toISOString(),
+      scenarioId: input.target.scenarioId,
+      source: input.source,
+      details: {
+        errorCount: errors.length,
+      },
+    });
+  }
+
   if (errors.length === 0) {
     input.persistence?.applyStore?.(payload);
   }
@@ -102,4 +127,3 @@ export const submitScenarioDraft = (
     warnings,
   };
 };
-

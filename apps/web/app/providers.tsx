@@ -39,6 +39,8 @@ import { Link } from "../src/i18n/navigation";
 import { createSupabaseBrowserClient } from "../src/lib/supabase/browser";
 import { isScenarioOnboarded } from "../lib/onboarding/isScenarioOnboarded";
 import { CaseScenarioProvider } from "../src/contexts/CaseScenarioProvider";
+import { resolveScenarioLifecycle } from "../src/domain/scenarioStateModel";
+import { recordScenarioMigrationEvent } from "../src/lib/telemetry/scenarioMigrationTelemetry";
 
 
 const stripLocalePrefix = (pathname: string, locale: string) => {
@@ -148,6 +150,16 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
       return;
     }
 
+    if (activeScenario) {
+      recordScenarioMigrationEvent({
+        name: "lifecycle_resolved",
+        ts: new Date().toISOString(),
+        scenarioId: activeScenario.id,
+        route: normalizedPathname,
+        lifecycle: resolveScenarioLifecycle(activeScenario),
+      });
+    }
+
     if (scenarios.length === 0) {
       if (normalizedPathname !== "/scenarios") {
         router.replace(`/${locale}/onboarding`);
@@ -172,6 +184,13 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
       activeScenario?.meta?.isSeeded === true;
 
     if (activeScenario && !shouldSkipOnboarding) {
+      recordScenarioMigrationEvent({
+        name: "route_redirect_anomaly",
+        ts: new Date().toISOString(),
+        route: normalizedPathname,
+        scenarioId: activeScenario.id,
+        reason: "required-onboarding-redirect",
+      });
       router.replace(`/${locale}/onboarding`);
     }
   }, [
