@@ -71,8 +71,9 @@ import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenar
 import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { exportScenarioState } from "../../store/scenarioState";
 import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
-import { ensureEventSchemaMarker } from "@north-star/adapters";
 import { formatIsoYmdHms } from "../../../lib/date/format";
+import { compileScenarioCreatePayload } from "../../domain/scenarioDraft/compile";
+import type { ScenarioDraft } from "../../domain/scenarioDraft/types";
 
 const steps = [
   "profile",
@@ -1809,15 +1810,38 @@ export default function OnboardingDraftWizard() {
       }
     });
 
-    if (scenarioPreview.baseCurrency) {
-      updateScenarioBaseCurrency(scenarioId, scenarioPreview.baseCurrency);
-    }
+    const nowIso = new Date().toISOString();
+    const compiledPayload = compileScenarioCreatePayload(
+      {
+        assumptions: scenarioPreview.assumptions,
+        members: scenarioPreview.members,
+        assets: scenarioPreview.assets,
+        liabilities: scenarioPreview.liabilities,
+        events: scenarioPreview.events,
+        meta: {
+          schemaVersion: 2,
+          onboarded: true,
+          onboardedAt: nowIso,
+          onboardingVersion: 2,
+          lastSavedAt: nowIso,
+        },
+        clientComputed: { onboardingCompleted: true },
+        baseCurrency: scenarioPreview.baseCurrency,
+      } satisfies ScenarioDraft,
+      {
+        assumptionsBase: scenario.assumptions,
+        metaBase: scenario.meta,
+        clientComputedBase: scenario.clientComputed,
+        nowIso,
+      }
+    );
 
-    updateScenarioAssumptions(scenarioId, scenarioPreview.assumptions);
-    setScenarioMembers(scenarioId, scenarioPreview.members ?? []);
-    setScenarioAssets(scenarioId, scenarioPreview.assets ?? []);
-    setScenarioLiabilities(scenarioId, scenarioPreview.liabilities ?? []);
-    setScenarioEvents(scenarioId, scenarioPreview.events ?? []);
+    updateScenarioBaseCurrency(scenarioId, compiledPayload.baseCurrency);
+    updateScenarioAssumptions(scenarioId, compiledPayload.assumptions);
+    setScenarioMembers(scenarioId, compiledPayload.members);
+    setScenarioAssets(scenarioId, compiledPayload.assets);
+    setScenarioLiabilities(scenarioId, compiledPayload.liabilities);
+    setScenarioEvents(scenarioId, compiledPayload.events);
 
     hasCompletedRef.current = true;
     logTelemetryEvent({
@@ -1836,21 +1860,11 @@ export default function OnboardingDraftWizard() {
       action: "save",
     });
 
-    const nowIso = new Date().toISOString();
-    updateScenarioMeta(scenarioId, {
-      schemaVersion: 2,
-      onboarded: true,
-      onboardedAt: nowIso,
-      onboardingVersion: 2,
-      lastSavedAt: nowIso,
-    });
-    updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+    updateScenarioMeta(scenarioId, compiledPayload.meta);
+    updateScenarioClientComputed(scenarioId, compiledPayload.clientComputed);
 
-    if (
-      scenarioContext &&
-      scenarioContext.scenarioId === scenarioId
-    ) {
-      const payload = ensureEventSchemaMarker(exportScenarioState() as Record<string, unknown>);
+    if (scenarioContext && scenarioContext.scenarioId === scenarioId) {
+      const payload = exportScenarioState() as Record<string, unknown>;
       const payloadScenarios = Array.isArray(payload.scenarios) ? payload.scenarios : [];
       payload.scenarios = payloadScenarios.map((entry) => {
         if (!entry || typeof entry !== "object") {
@@ -1865,10 +1879,7 @@ export default function OnboardingDraftWizard() {
       });
       const nextMeta = {
         ...(payload.meta && typeof payload.meta === "object" ? payload.meta : {}),
-        schemaVersion: 2,
-        onboarded: true,
-        onboardedAt: nowIso,
-        lastSavedAt: nowIso,
+        ...compiledPayload.meta,
       };
       payload.meta = nextMeta;
 

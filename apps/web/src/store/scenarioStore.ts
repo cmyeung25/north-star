@@ -49,6 +49,8 @@ import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 import { buildMonthDateRef } from "../domain/dateRef";
 import type { ScenarioSeedPayload } from "../scenarios/scenarioSeeds";
+import { compileScenarioCreatePayload } from "../domain/scenarioDraft/compile";
+import type { ScenarioDraft } from "../domain/scenarioDraft/types";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -2091,95 +2093,60 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       return null;
     }
 
-    const resolveSeedMemberId = (roleKey: string) =>
-      `${scenarioId}:member:${roleKey}`;
-
+    const resolveSeedMemberId = (roleKey: string) => `${scenarioId}:member:${roleKey}`;
     const seedMemberIdMap = new Map(
       seed.members.map((member) => [member.id, resolveSeedMemberId(member.id)])
     );
-    const seededMembers = seed.members.map((member) => ({
-      ...member,
-      id: seedMemberIdMap.get(member.id) ?? member.id,
-    }));
-    const seededEvents = seed.events.map((event) =>
-      event.memberId
-        ? {
-            ...event,
-            memberId: seedMemberIdMap.get(event.memberId) ?? event.memberId,
-          }
-        : event
-    );
 
-    const seedAssumptions: Partial<ScenarioAssumptions> = {
-      ...seed.assumptions,
-      baseMonth: seed.assumptions?.baseMonth ?? seed.baseMonth,
-      initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
-    };
+    const draft = {
+      assumptions: {
+        ...seed.assumptions,
+        baseMonth: seed.assumptions?.baseMonth ?? seed.baseMonth,
+        initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
+      },
+      members: seed.members.map((member) => ({
+        ...member,
+        id: seedMemberIdMap.get(member.id) ?? member.id,
+      })),
+      assets: seed.assets,
+      liabilities: seed.liabilities,
+      events: seed.events.map((event) =>
+        event.memberId
+          ? {
+              ...event,
+              memberId: seedMemberIdMap.get(event.memberId) ?? event.memberId,
+            }
+          : event
+      ),
+      meta: {
+        isSeeded: true,
+        skipOnboarding: true,
+        onboardingVersion: 2,
+        schemaVersion: 2,
+      },
+      clientComputed: { onboardingCompleted: true },
+      baseCurrency: seed.baseCurrency,
+    } satisfies ScenarioDraft;
 
-    const assumptionPatch: Partial<ScenarioAssumptions> = {};
-    const assumptionPatchRecord = assumptionPatch as Record<
-      keyof ScenarioAssumptions,
-      ScenarioAssumptions[keyof ScenarioAssumptions] | undefined
-    >;
-    (
-      Object.entries(seedAssumptions) as [
-        keyof ScenarioAssumptions,
-        ScenarioAssumptions[keyof ScenarioAssumptions] | undefined,
-      ][]
-    ).forEach(([assumptionKey, value]) => {
-      if (value === undefined) {
-        return;
-      }
-      const currentValue = scenario.assumptions[assumptionKey];
-      const defaultValue = (defaultAssumptions as Partial<ScenarioAssumptions>)[
-        assumptionKey
-      ];
-      const shouldApply =
-        currentValue === undefined ||
-        currentValue === null ||
-        (defaultValue !== undefined && currentValue === defaultValue);
-      if (shouldApply) {
-        assumptionPatchRecord[assumptionKey] = value;
-      }
+    const compiled = compileScenarioCreatePayload(draft, {
+      assumptionsBase: scenario.assumptions,
+      metaBase: scenario.meta,
+      clientComputedBase: scenario.clientComputed,
     });
 
-    if (seed.baseCurrency && seed.baseCurrency !== scenario.baseCurrency) {
-      get().updateScenarioBaseCurrency(scenarioId, seed.baseCurrency);
-    }
-
-    if (Object.keys(assumptionPatch).length > 0) {
-      get().updateScenarioAssumptions(scenarioId, assumptionPatch);
-    }
-
-    if (seed.members.length > 0) {
-      if (!scenario.members?.length) {
-        get().setScenarioMembers(scenarioId, seededMembers);
-      }
-    }
-
-    if (seed.assets.length > 0) {
-      get().setScenarioAssets(scenarioId, seed.assets);
-    }
-
-    if (seed.liabilities.length > 0) {
-      get().setScenarioLiabilities(scenarioId, seed.liabilities);
-    }
+    get().updateScenarioBaseCurrency(scenarioId, compiled.baseCurrency);
+    get().updateScenarioAssumptions(scenarioId, compiled.assumptions);
+    get().setScenarioMembers(scenarioId, compiled.members);
+    get().setScenarioAssets(scenarioId, compiled.assets);
+    get().setScenarioLiabilities(scenarioId, compiled.liabilities);
+    get().setScenarioEvents(scenarioId, compiled.events);
 
     seed.bundleInstances.forEach((record) => {
       get().upsertBundleInstanceRecord(scenarioId, record);
     });
 
-    seededEvents.forEach((event) => {
-      get().addEvent(event, scenarioId);
-    });
-
-    get().updateScenarioMeta(scenarioId, {
-      isSeeded: true,
-      skipOnboarding: true,
-      onboardingVersion: 2,
-      schemaVersion: 2,
-    });
-    get().updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
+    get().updateScenarioMeta(scenarioId, compiled.meta);
+    get().updateScenarioClientComputed(scenarioId, compiled.clientComputed);
 
     return get().scenarios.find((scenario) => scenario.id === scenarioId) ?? null;
   },
