@@ -1,0 +1,1 @@
+export const YEAR_MONTH_PLACEHOLDER = "YYYY-MM";

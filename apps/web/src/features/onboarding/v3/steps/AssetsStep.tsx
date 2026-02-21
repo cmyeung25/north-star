@@ -9,6 +9,7 @@ type Props = {
 };
 
 export default function AssetsStep({ assets, startMonth, onChange }: Props) {
+  // NOTE: If month inputs are added in this step, use MonthField + YEAR_MONTH_PLACEHOLDER from ./monthFieldConstants.
   return (
     <Stack>
       {assets.map((asset) => (
