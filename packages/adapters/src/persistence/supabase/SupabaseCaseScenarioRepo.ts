@@ -7,6 +7,7 @@ import type {
 import { RevisionConflictError } from "../CaseScenarioRepo";
 import type { SaveScenarioResult, ScenarioPayload } from "../types";
 import { ensureEventSchemaMarker } from "../../scenario/ensureEventSchemaMarker";
+import { normalizeScenarioPayloadSchema } from "../../scenario/normalizeScenarioPayloadSchema";
 
 type DbClient = SupabaseClient;
 
@@ -115,7 +116,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
         case_id: caseId,
         owner_id: ownerId,
         title: input.title,
-        state: ensureEventSchemaMarker(input.payload),
+        state: normalizeScenarioPayloadSchema(ensureEventSchemaMarker(input.payload)),
       })
       .select("id,case_id,title,state,revision,created_at,updated_at")
       .single();
@@ -189,7 +190,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
       .eq("case_id", caseId)
       .single();
     if (error) throw error;
-    return ensureEventSchemaMarker((data.state ?? {}) as ScenarioPayload);
+    return normalizeScenarioPayloadSchema(ensureEventSchemaMarker((data.state ?? {}) as ScenarioPayload));
   }
 
   async saveScenarioPayload(
@@ -203,7 +204,7 @@ export class SupabaseCaseScenarioRepo implements CaseScenarioRepo {
     const { data, error } = await this.client
       .from("scenarios")
       .update({
-        state: ensureEventSchemaMarker(payload),
+        state: normalizeScenarioPayloadSchema(ensureEventSchemaMarker(payload)),
         updated_at: new Date().toISOString(),
         ...(typeof nextRevision === "number" ? { revision: nextRevision } : {}),
       })
