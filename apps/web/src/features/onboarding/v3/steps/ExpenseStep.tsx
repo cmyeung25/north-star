@@ -1,4 +1,4 @@
-import { Alert, Button, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
+import { Alert, Button, Card, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
@@ -49,51 +49,73 @@ export default function ExpenseStep({
   };
 
   return (
-    <Stack>
-      <Text size="sm">{t("expenseHint")}</Text>
-      {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
-      <Group>
-        <Button size="xs" variant="light" onClick={() => addManual("property.mortgage.payment.v1", "manualMortgagePayment")}>{t("addMortgagePayment")}</Button>
-        <Button size="xs" variant="light" onClick={() => addManual("property.holding-cost.v1", "manualHoldingCost")}>{t("addHoldingCost")}</Button>
-        <Button size="xs" onClick={() => addManual(undefined, "manualExpense")}>{t("addManual")}</Button>
-      </Group>
-      <Table>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t("source")}</Table.Th>
-            <Table.Th>{t("baseValue")}</Table.Th>
-            <Table.Th>{t("overrideValue")}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {rows.map((row) => (
-            <GeneratedCashflowRow
-              key={row.id}
-              id={row.id}
-              rule={row.metadata?.generatedByRule}
-              baseAmount={row.amount}
-              overrideAmount={overrides[row.id]?.amount}
-              disabled={overrides[row.id]?.disabled}
-              onOverrideAmount={(value) => onOverrideAmount(row.id, value)}
-              onRestoreSuggested={() => onRestoreSuggested(row.id)}
-              onToggleDisabled={(value) => onToggleDisabled(row.id, value)}
-            />
-          ))}
-        </Table.Tbody>
-      </Table>
+    <Stack gap="md">
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="md">
+          <Stack gap={4}>
+            <Text fw={600}>Expense assumptions</Text>
+            <Text size="sm" c="dimmed">Review generated expenses and add manual adjustments.</Text>
+          </Stack>
 
-      {manualRows.length > 0 ? (
-        <Stack gap="xs">
-          <Text size="sm" fw={600}>{t("manualSection")}</Text>
-          {manualRows.map((row) => (
-            <Group key={row.id} grow>
-              <TextInput value={row.label ?? ""} onChange={(event) => onUpdateManualItem(row.id, { label: event.currentTarget.value })} />
-              <NumberInput value={row.amount} onChange={(value) => onUpdateManualItem(row.id, { amount: typeof value === "number" ? value : 0 })} />
-              <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>{t("remove")}</Button>
+          <Stack gap="md">
+            <Text size="sm">{t("expenseHint")}</Text>
+            {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
+            <Group>
+              <Button size="xs" variant="light" onClick={() => addManual("property.mortgage.payment.v1", "manualMortgagePayment")}>{t("addMortgagePayment")}</Button>
+              <Button size="xs" variant="light" onClick={() => addManual("property.holding-cost.v1", "manualHoldingCost")}>{t("addHoldingCost")}</Button>
+              <Button size="xs" onClick={() => addManual(undefined, "manualExpense")}>{t("addManual")}</Button>
             </Group>
-          ))}
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t("source")}</Table.Th>
+                  <Table.Th>{t("baseValue")}</Table.Th>
+                  <Table.Th>{t("overrideValue")}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.map((row) => (
+                  <GeneratedCashflowRow
+                    key={row.id}
+                    id={row.id}
+                    rule={row.metadata?.generatedByRule}
+                    baseAmount={row.amount}
+                    overrideAmount={overrides[row.id]?.amount}
+                    disabled={overrides[row.id]?.disabled}
+                    onOverrideAmount={(value) => onOverrideAmount(row.id, value)}
+                    onRestoreSuggested={() => onRestoreSuggested(row.id)}
+                    onToggleDisabled={(value) => onToggleDisabled(row.id, value)}
+                  />
+                ))}
+              </Table.Tbody>
+            </Table>
+
+            {manualRows.length > 0 ? (
+              <Stack gap="md">
+                <Text size="sm" fw={600}>{t("manualSection")}</Text>
+                {manualRows.map((row) => (
+                  <Card key={row.id} withBorder radius="md" padding="md">
+                    <Stack gap="md">
+                      <Group justify="space-between" align="flex-start">
+                        <Text size="sm" fw={600}>Manual expense row</Text>
+                        <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>
+                          {t("remove")}
+                        </Button>
+                      </Group>
+                      <Stack gap="md">
+                        <Group grow>
+                          <TextInput value={row.label ?? ""} onChange={(event) => onUpdateManualItem(row.id, { label: event.currentTarget.value })} />
+                          <NumberInput value={row.amount} onChange={(value) => onUpdateManualItem(row.id, { amount: typeof value === "number" ? value : 0 })} />
+                        </Group>
+                      </Stack>
+                    </Stack>
+                  </Card>
+                ))}
+              </Stack>
+            ) : null}
+          </Stack>
         </Stack>
-      ) : null}
+      </Card>
     </Stack>
   );
 }
