@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { WorkspaceMode } from "../domain/scenarioStateModel";
+import type { WorkspaceMode } from "../../lib/scenario/lifecycle";
 
 type DrawerType = "smartInvest";
 type ModalType = "monthlyBreakdown";

@@ -5,6 +5,7 @@ import {
   scenarioOnboardingPath,
   scenarioPlanLabPath,
 } from "../routes/appRoutes";
+import { resolveScenarioLifecyclePath } from "./lifecycle";
 import { resolveScenarioLifecycleFromPayload } from "./isScenarioOnboarded";
 
 const resolveScenarioRoute = (
@@ -13,40 +14,26 @@ const resolveScenarioRoute = (
   scenarioId: string,
   destination: "dashboard" | "money" | "planlab",
 ) => {
-  if (resolveScenarioLifecycleFromPayload(payload, scenarioId) !== "active") {
-    return scenarioOnboardingPath(caseId, scenarioId);
-  }
-
-  if (destination === "dashboard") {
-    return scenarioDashboardPath(caseId, scenarioId);
-  }
-
-  if (destination === "money") {
-    return scenarioMoneyPath(caseId, scenarioId);
-  }
-
-  return scenarioPlanLabPath(caseId, scenarioId);
+  const lifecycle = resolveScenarioLifecycleFromPayload(payload, scenarioId);
+  return resolveScenarioLifecyclePath(caseId, scenarioId, lifecycle, destination);
 };
 
 describe("scenario route integration", () => {
   const caseId = "case-1";
   const scenarioId = "scenario-1";
 
-  it("redirects incomplete onboarding to onboarding route", () => {
-    const route = resolveScenarioRoute(
-      {
-        activeScenarioId: scenarioId,
-        scenarios: [{ id: scenarioId, meta: { onboarded: false } }],
-      },
-      caseId,
-      scenarioId,
-      "dashboard",
-    );
+  it("draft can only route to onboarding", () => {
+    const payload = {
+      activeScenarioId: scenarioId,
+      scenarios: [{ id: scenarioId, meta: { onboarded: false } }],
+    };
 
-    expect(route).toBe(scenarioOnboardingPath(caseId, scenarioId));
+    expect(resolveScenarioRoute(payload, caseId, scenarioId, "dashboard")).toBe(scenarioOnboardingPath(caseId, scenarioId));
+    expect(resolveScenarioRoute(payload, caseId, scenarioId, "money")).toBe(scenarioOnboardingPath(caseId, scenarioId));
+    expect(resolveScenarioRoute(payload, caseId, scenarioId, "planlab")).toBe(scenarioOnboardingPath(caseId, scenarioId));
   });
 
-  it("allows active scenario into dashboard/money/planlab routes", () => {
+  it("active can route to dashboard/money/planlab", () => {
     const payload = {
       activeScenarioId: scenarioId,
       scenarios: [{ id: scenarioId, meta: { onboarded: true } }],
