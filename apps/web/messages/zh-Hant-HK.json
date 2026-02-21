@@ -3674,7 +3674,11 @@
         "saving": "儲存中",
         "error": "錯誤",
         "conflict": "衝突"
-      }
+      },
+      "applyToNewScenario": "套用到新情境",
+      "planLabWorkspace": "Plan Lab 工作區",
+      "backToCoreWorkspace": "返回核心工作區",
+      "planLabSaveHint": "將 Plan Lab 變更套用成新的情境快照。"
     }
   },
   "member": {

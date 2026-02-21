@@ -7,9 +7,10 @@ type Props = {
   disabled?: boolean;
   onClick: () => void;
   title?: string;
+  label?: string;
 };
 
-export default function SaveButton({ disabled, onClick, title }: Props) {
+export default function SaveButton({ disabled, onClick, title, label }: Props) {
   const t = useTranslations("app.shell");
 
   return (
@@ -21,7 +22,7 @@ export default function SaveButton({ disabled, onClick, title }: Props) {
       variant="default"
       styles={{ root: { minHeight: 36, fontWeight: 600 } }}
     >
-      {t("saveToCloud")}
+      {label ?? t("saveToCloud")}
     </Button>
   );
 }

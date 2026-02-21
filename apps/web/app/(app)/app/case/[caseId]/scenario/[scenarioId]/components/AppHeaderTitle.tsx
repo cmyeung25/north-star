@@ -1,15 +1,22 @@
 "use client";
 
 import { Skeleton, Stack, Text, Title } from "@mantine/core";
+import type { WorkspaceMode } from "../../../../../../../../src/domain/scenarioStateModel";
 import { useTranslations } from "next-intl";
 
 type AppHeaderTitleProps = {
   caseTitle?: string;
   scenarioTitle: string;
   loading?: boolean;
+  workspaceMode?: WorkspaceMode;
 };
 
-export default function AppHeaderTitle({ caseTitle, scenarioTitle, loading = false }: AppHeaderTitleProps) {
+export default function AppHeaderTitle({
+  caseTitle,
+  scenarioTitle,
+  loading = false,
+  workspaceMode = "core",
+}: AppHeaderTitleProps) {
   const t = useTranslations("app.shell");
 
   if (!caseTitle) {
@@ -27,7 +34,7 @@ export default function AppHeaderTitle({ caseTitle, scenarioTitle, loading = fal
         {caseTitle} — {loading ? "..." : scenarioTitle}
       </Title>
       <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {t("workspace")}
+        {workspaceMode === "plan_lab" ? t("planLabWorkspace") : t("workspace")}
       </Text>
     </Stack>
   );

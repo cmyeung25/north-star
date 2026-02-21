@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AppShell, Box, Button, NavLink, ScrollArea, Stack, alpha, useMantineTheme } from "@mantine/core";
 import { useTranslations } from "next-intl";
+import type { WorkspaceMode } from "../../../../../../../../src/domain/scenarioStateModel";
 
 type WorkspaceTab = {
   href: string;
@@ -13,9 +14,10 @@ type AppSidebarProps = {
   tabs: WorkspaceTab[];
   pathname: string;
   backToCasesHref: string;
+  workspaceMode?: WorkspaceMode;
 };
 
-export default function AppSidebar({ tabs, pathname, backToCasesHref }: AppSidebarProps) {
+export default function AppSidebar({ tabs, pathname, backToCasesHref, workspaceMode = "core" }: AppSidebarProps) {
   const theme = useMantineTheme();
   const t = useTranslations("app.shell");
 
@@ -69,7 +71,7 @@ export default function AppSidebar({ tabs, pathname, backToCasesHref }: AppSideb
             c={alpha(theme.white, 0.86)}
             styles={{ root: { width: "100%" } }}
           >
-            {t("backToCases")}
+            {workspaceMode === "plan_lab" ? t("backToCoreWorkspace") : t("backToCases")}
           </Button>
         </Box>
       </Stack>
