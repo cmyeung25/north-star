@@ -2787,12 +2787,111 @@
   },
   "onboardingV3": {
     "steps": {
-      "scenarioSetup": "情境設定",
-      "household": "家庭",
-      "assets": "資產",
-      "income": "收入",
-      "expense": "支出",
-      "review": "檢視"
+      "scenarioSetup": {
+        "title": "情境基礎設定",
+        "description": "設定所有 projection 共用的基礎假設。",
+        "fields": {
+          "baseCurrency": "基準貨幣",
+          "startMonth": "開始月份",
+          "horizonMonths": "規劃月數"
+        }
+      },
+      "household": {
+        "title": "家庭成員",
+        "description": "加入此情境內的所有成員。",
+        "memberCard": {
+          "title": "成員資料",
+          "description": "姓名與出生月份會用於時間軸規劃。"
+        },
+        "fields": {
+          "memberName": "成員名稱",
+          "birthMonth": "出生月份"
+        },
+        "actions": {
+          "add": "新增成員",
+          "remove": "移除",
+          "removeAria": "移除成員"
+        }
+      },
+      "assets": {
+        "title": "資產設定",
+        "description": "新增房產／現金／投資資產，再開啟你要納入計算的欄位。",
+        "actions": {
+          "addProperty": "新增房產",
+          "addCash": "新增現金",
+          "addInvestment": "新增投資項",
+          "remove": "移除"
+        },
+        "card": {
+          "kind": {
+            "property": "房產設定",
+            "investment": "投資設定",
+            "cash": "現金設定",
+            "asset": "資產設定"
+          },
+          "kindLabel": "類型：{kind}"
+        },
+        "usage": {
+          "self": "自住",
+          "rent": "出租"
+        },
+        "fields": {
+          "assetLabel": "資產名稱",
+          "currentValue": "目前價值",
+          "rentMonthly": "每月租金",
+          "holdingCostMonthly": "每月持有成本",
+          "mortgagePrincipal": "按揭本金餘額",
+          "mortgageRate": "利率 %",
+          "mortgageTermYears": "按揭年期"
+        },
+        "switches": {
+          "enableRentIncome": "啟用租金收入",
+          "enableHoldingCost": "啟用每月持有成本",
+          "enableMortgage": "啟用按揭資訊"
+        },
+        "hints": {
+          "investment": "可先填寫投資名稱與目前市值；其餘明細可後續補充。",
+          "cash": "建議填寫現金用途（例如：緊急備用金 / 活存）。"
+        }
+      },
+      "income": {
+        "title": "收入假設",
+        "description": "檢查系統產生收入，並在需要時補充手動項目。",
+        "quickAdd": {
+          "bonus": "新增獎金",
+          "allowance": "新增津貼"
+        },
+        "manualRowTitle": "手動收入項目",
+        "emptyManualHint": "尚未新增手動收入項目，可使用上方模板快速建立。"
+      },
+      "expense": {
+        "title": "支出假設",
+        "description": "檢查系統產生支出，並加入手動調整。",
+        "quickAdd": {
+          "transport": "新增交通費",
+          "medical": "新增醫療費"
+        },
+        "manualRowTitle": "手動支出項目",
+        "emptyManualHint": "尚未新增手動支出項目，可使用上方模板快速建立。"
+      },
+      "review": {
+        "title": "完整度檢查",
+        "badge": {
+          "ok": "完成",
+          "todo": "待處理"
+        },
+        "items": {
+          "startMonth": "已設定開始月份",
+          "baseCurrency": "已設定基準貨幣",
+          "members": "成員資料已填寫",
+          "assets": "已新增資產資料",
+          "generatedCashflow": "已有衍生現金流"
+        }
+      },
+      "common": {
+        "frequentTemplates": "常用模板",
+        "moreQuickAdd": "更多快速新增"
+      }
     },
     "reviewWarnings": {
       "startMonthMissing": "尚未填寫開始月份",
@@ -2808,6 +2907,9 @@
     },
     "footer": {
       "localDraftHint": "V3 流程只會更新本地 ScenarioDraftV3 分段 state，最後一步才一次提交。"
+    },
+    "defaults": {
+      "memberName": "本人"
     }
   },
   "onboardingDraft": {
@@ -3234,7 +3336,15 @@
     "livingGrowthModeCustom": "自訂成長",
     "livingGrowthModeNone": "不成長",
     "livingGrowthCustomRate": "自訂每年成長",
-    "livingGrowthPreview": "下一年預估：{amount}"
+    "livingGrowthPreview": "下一年預估：{amount}",
+    "overviewTitle": "總覽",
+    "wizardShell": {
+      "stepProgress": "步驟 {current}/{total} · {title}",
+      "viewAllSteps": "查看全部步驟",
+      "allStepsTitle": "全部步驟",
+      "stepListItem": "{index}. {title}",
+      "stepErrorIndicator": "⚠"
+    }
   },
   "stress": {
     "title": "壓力測試",

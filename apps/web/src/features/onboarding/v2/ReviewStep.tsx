@@ -13,8 +13,8 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { useLocale } from "next-intl";
-import type { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import type { useTranslations as UseTranslationsFn } from "next-intl";
 import { useMemo } from "react";
 import { computeProjection } from "@north-star/engine";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,7 @@ type ReviewStepProps = {
   onApplyDraft: () => void;
   onApplyLater: () => void;
   canApplyDraft: boolean;
-  t: ReturnType<typeof useTranslations<"onboardingDraft">>;
+  t: ReturnType<typeof UseTranslationsFn<"onboardingDraft">>;
 };
 
 type DataQualityFlag = {
@@ -79,6 +79,7 @@ export default function ReviewStep({
   t,
 }: ReviewStepProps) {
   const locale = useLocale();
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 47.99em)");
 
@@ -309,7 +310,7 @@ export default function ReviewStep({
 
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
-          <Text fw={600}>總覽</Text>
+          <Text fw={600}>{t("overviewTitle")}</Text>
           {[
             { key: "profile", label: t("step.profile"), step: stepIndex.profile },
             { key: "household", label: t("step.household"), step: stepIndex.household },
@@ -324,7 +325,7 @@ export default function ReviewStep({
             <Group key={entry.key} justify="space-between">
               <Text size="sm">{entry.label}</Text>
               <Button variant="subtle" size="compact-sm" onClick={() => onJumpToStep(entry.step)}>
-                編輯
+                {tCommon("actionEdit")}
               </Button>
             </Group>
           ))}

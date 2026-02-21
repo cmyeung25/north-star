@@ -3179,7 +3179,15 @@
     "livingGrowthModeCustom": "自訂成長",
     "livingGrowthModeNone": "不成長",
     "livingGrowthCustomRate": "自訂每年成長",
-    "livingGrowthPreview": "下一年預估：{amount}"
+    "livingGrowthPreview": "下一年預估：{amount}",
+    "overviewTitle": "總覽",
+    "wizardShell": {
+      "stepProgress": "步驟 {current}/{total} · {title}",
+      "viewAllSteps": "查看全部步驟",
+      "allStepsTitle": "全部步驟",
+      "stepListItem": "{index}. {title}",
+      "stepErrorIndicator": "⚠"
+    }
   },
   "stress": {
     "title": "壓力測試",

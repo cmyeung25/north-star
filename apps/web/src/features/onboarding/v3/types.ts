@@ -18,13 +18,19 @@ export type ScenarioDraftV3State = {
   events: ScenarioEventDraft[];
 };
 
-export const createInitialScenarioDraftV3State = (): ScenarioDraftV3State => ({
+export type ScenarioDraftV3LocaleStrings = {
+  defaultMemberName: string;
+};
+
+export const createInitialScenarioDraftV3State = (
+  localeStrings: ScenarioDraftV3LocaleStrings
+): ScenarioDraftV3State => ({
   profile: {
     baseCurrency: "HKD",
     startMonth: "2025-01",
     horizonMonths: 360,
   },
-  members: [{ id: "self", name: "本人", kind: "person" }],
+  members: [{ id: "self", name: localeStrings.defaultMemberName, kind: "person" }],
   assets: [],
   events: [],
 });

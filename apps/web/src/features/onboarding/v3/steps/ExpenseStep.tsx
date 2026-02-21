@@ -36,37 +36,38 @@ export default function ExpenseStep({
   onUpdateManualItem,
   onRemoveManualItem,
 }: Props) {
-  const t = useTranslations("onboarding.generatedCashflow");
+  const tGenerated = useTranslations("onboarding.generatedCashflow");
+  const t = useTranslations("onboardingV3.steps");
   const [duplicateMessage, setDuplicateMessage] = useState<string>("");
 
   const addManual = (rule: string | undefined, labelKey: string) => {
     if (rule && rows.some((row) => row.metadata?.generatedByRule === rule)) {
-      setDuplicateMessage(t("duplicateBlocked"));
+      setDuplicateMessage(tGenerated("duplicateBlocked"));
       return;
     }
     setDuplicateMessage("");
-    onAddManualItem({ label: t(labelKey), amount: 0 });
+    onAddManualItem({ label: tGenerated(labelKey), amount: 0 });
   };
 
   const primaryTemplates = [
     {
       id: "mortgage",
-      label: t("addMortgagePayment"),
+      label: tGenerated("addMortgagePayment"),
       rule: "property.mortgage.payment.v1",
       labelKey: "manualMortgagePayment",
     },
     {
       id: "holding",
-      label: t("addHoldingCost"),
+      label: tGenerated("addHoldingCost"),
       rule: "property.holding-cost.v1",
       labelKey: "manualHoldingCost",
     },
-    { id: "manual", label: t("addManual"), rule: undefined, labelKey: "manualExpense" },
+    { id: "manual", label: tGenerated("addManual"), rule: undefined, labelKey: "manualExpense" },
   ] as const;
 
   const addonTemplates = [
-    { id: "transport", label: "新增交通費", rule: undefined, labelKey: "manualExpense" },
-    { id: "medical", label: "新增醫療費", rule: undefined, labelKey: "manualExpense" },
+    { id: "transport", label: t("expense.quickAdd.transport"), rule: undefined, labelKey: "manualExpense" },
+    { id: "medical", label: t("expense.quickAdd.medical"), rule: undefined, labelKey: "manualExpense" },
   ] as const;
 
   return (
@@ -74,16 +75,16 @@ export default function ExpenseStep({
       <Card withBorder radius="md" padding="md">
         <Stack gap="md">
           <Stack gap={4}>
-            <Text fw={600}>Expense assumptions</Text>
-            <Text size="sm" c="dimmed">Review generated expenses and add manual adjustments.</Text>
+            <Text fw={600}>{t("expense.title")}</Text>
+            <Text size="sm" c="dimmed">{t("expense.description")}</Text>
           </Stack>
 
           <Stack gap="md">
-            <Text size="sm">{t("expenseHint")}</Text>
+            <Text size="sm">{tGenerated("expenseHint")}</Text>
             {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
 
             <Stack gap="xs">
-              <Text size="sm" fw={600}>常用模板</Text>
+              <Text size="sm" fw={600}>{t("common.frequentTemplates")}</Text>
               <Group>
                 {primaryTemplates.map((template) => (
                   <Button
@@ -98,7 +99,7 @@ export default function ExpenseStep({
               </Group>
             </Stack>
 
-            <Divider label="更多快速新增" />
+            <Divider label={t("common.moreQuickAdd")} />
             <Group>
               {addonTemplates.map((template) => (
                 <Button
@@ -115,9 +116,9 @@ export default function ExpenseStep({
             <Table>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>{t("source")}</Table.Th>
-                  <Table.Th>{t("baseValue")}</Table.Th>
-                  <Table.Th>{t("overrideValue")}</Table.Th>
+                  <Table.Th>{tGenerated("source")}</Table.Th>
+                  <Table.Th>{tGenerated("baseValue")}</Table.Th>
+                  <Table.Th>{tGenerated("overrideValue")}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -138,15 +139,15 @@ export default function ExpenseStep({
             </Table>
 
             <Stack gap="md">
-              <Text size="sm" fw={600}>{t("manualSection")}</Text>
+              <Text size="sm" fw={600}>{tGenerated("manualSection")}</Text>
               {manualRows.length > 0 ? (
                 manualRows.map((row) => (
                   <Card key={row.id} withBorder radius="md" padding="md">
                     <Stack gap="md">
                       <Group justify="space-between" align="flex-start">
-                        <Text size="sm" fw={600}>Manual expense row</Text>
+                        <Text size="sm" fw={600}>{t("expense.manualRowTitle")}</Text>
                         <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>
-                          {t("remove")}
+                          {tGenerated("remove")}
                         </Button>
                       </Group>
                       <Group grow>
@@ -168,7 +169,7 @@ export default function ExpenseStep({
                 ))
               ) : (
                 <Card withBorder radius="md" padding="md">
-                  <Text size="sm" c="dimmed">尚未新增手動支出項目，可使用上方模板快速建立。</Text>
+                  <Text size="sm" c="dimmed">{t("expense.emptyManualHint")}</Text>
                 </Card>
               )}
             </Stack>

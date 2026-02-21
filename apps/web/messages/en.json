@@ -2740,12 +2740,111 @@
   },
   "onboardingV3": {
     "steps": {
-      "scenarioSetup": "Scenario setup",
-      "household": "Household",
-      "assets": "Assets",
-      "income": "Income",
-      "expense": "Expense",
-      "review": "Review"
+      "scenarioSetup": {
+        "title": "Scenario basics",
+        "description": "Set base assumptions used across all projections.",
+        "fields": {
+          "baseCurrency": "Base currency",
+          "startMonth": "Start month",
+          "horizonMonths": "Horizon months"
+        }
+      },
+      "household": {
+        "title": "Household members",
+        "description": "Add everyone included in this scenario.",
+        "memberCard": {
+          "title": "Member details",
+          "description": "Name and birth month are used for timeline planning."
+        },
+        "fields": {
+          "memberName": "Member name",
+          "birthMonth": "Birth month"
+        },
+        "actions": {
+          "add": "Add member",
+          "remove": "Remove",
+          "removeAria": "Remove member"
+        }
+      },
+      "assets": {
+        "title": "Assets setup",
+        "description": "Add property / cash / investment assets, then enable only the details you want to include.",
+        "actions": {
+          "addProperty": "Add property",
+          "addCash": "Add cash",
+          "addInvestment": "Add investment",
+          "remove": "Remove"
+        },
+        "card": {
+          "kind": {
+            "property": "Property setup",
+            "investment": "Investment setup",
+            "cash": "Cash setup",
+            "asset": "Asset setup"
+          },
+          "kindLabel": "Kind: {kind}"
+        },
+        "usage": {
+          "self": "Self-use",
+          "rent": "Rent out"
+        },
+        "fields": {
+          "assetLabel": "Asset label",
+          "currentValue": "Current value",
+          "rentMonthly": "Rent monthly",
+          "holdingCostMonthly": "Holding cost monthly",
+          "mortgagePrincipal": "Mortgage principal",
+          "mortgageRate": "Rate %",
+          "mortgageTermYears": "Term years"
+        },
+        "switches": {
+          "enableRentIncome": "Enable rental income",
+          "enableHoldingCost": "Enable monthly holding cost",
+          "enableMortgage": "Enable mortgage details"
+        },
+        "hints": {
+          "investment": "Start with investment name and current market value; you can fill in details later.",
+          "cash": "Consider adding cash purpose (for example: emergency fund / savings account)."
+        }
+      },
+      "income": {
+        "title": "Income assumptions",
+        "description": "Review generated income and add manual items when needed.",
+        "quickAdd": {
+          "bonus": "Add bonus",
+          "allowance": "Add allowance"
+        },
+        "manualRowTitle": "Manual income row",
+        "emptyManualHint": "No manual income items yet. Use templates above for quick add."
+      },
+      "expense": {
+        "title": "Expense assumptions",
+        "description": "Review generated expenses and add manual adjustments.",
+        "quickAdd": {
+          "transport": "Add transport cost",
+          "medical": "Add medical cost"
+        },
+        "manualRowTitle": "Manual expense row",
+        "emptyManualHint": "No manual expense items yet. Use templates above for quick add."
+      },
+      "review": {
+        "title": "Completeness checklist",
+        "badge": {
+          "ok": "OK",
+          "todo": "TODO"
+        },
+        "items": {
+          "startMonth": "Start month is set",
+          "baseCurrency": "Base currency is set",
+          "members": "Household members are filled",
+          "assets": "Assets are added",
+          "generatedCashflow": "Generated cashflow is available"
+        }
+      },
+      "common": {
+        "frequentTemplates": "Frequent templates",
+        "moreQuickAdd": "More quick add"
+      }
     },
     "reviewWarnings": {
       "startMonthMissing": "Start month is not filled in yet",
@@ -2761,6 +2860,9 @@
     },
     "footer": {
       "localDraftHint": "V3 flow only updates local ScenarioDraftV3 staged state and submits once at the final step."
+    },
+    "defaults": {
+      "memberName": "Me"
     }
   },
   "onboardingDraft": {
@@ -3187,7 +3289,15 @@
     "livingGrowthModeCustom": "Custom growth",
     "livingGrowthModeNone": "No growth",
     "livingGrowthCustomRate": "Custom annual growth",
-    "livingGrowthPreview": "Next-year estimate: {amount}"
+    "livingGrowthPreview": "Next-year estimate: {amount}",
+    "overviewTitle": "Overview",
+    "wizardShell": {
+      "stepProgress": "Step {current}/{total} · {title}",
+      "viewAllSteps": "View all steps",
+      "allStepsTitle": "All steps",
+      "stepListItem": "{index}. {title}",
+      "stepErrorIndicator": "⚠"
+    }
   },
   "stress": {
     "title": "Stress Test",
