@@ -141,7 +141,11 @@ import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
 import { applySmartInvestPatch } from "../../src/domain/planLab/smartInvestAdjust";
 import { appliesToScenario } from "../../src/domain/applyScope";
 import { buildChildBudgetRuleTemplates } from "../../src/domain/planLab/childBudgetTemplates";
-import { materializePlanLabDraft } from "../../src/domain/planLab/materializePlanLabDraft";
+import {
+  buildScenarioDraftFromPlanLab,
+  materializePlanLabDraft,
+} from "../../src/domain/planLab/materializePlanLabDraft";
+import { submitScenarioDraft } from "../../src/domain/scenarioDraft/submitScenarioDraft";
 import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
@@ -1121,10 +1125,9 @@ export default function PlanLabPanel({
   const isMobile = useMediaQuery("(max-width: 48em)");
   const openModal = useUiStore((state) => state.openModal);
   const router = useRouter();
-  const duplicateScenario = useScenarioStore((state) => state.duplicateScenario);
-  const deleteScenario = useScenarioStore((state) => state.deleteScenario);
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const createScenario = useScenarioStore((state) => state.createScenario);
   const updateScenarioMeta = useScenarioStore((state) => state.updateScenarioMeta);
   const upsertEventDefinition = useScenarioStore((state) => state.upsertEventDefinition);
   const createMember = useScenarioStore((state) => state.createMember);
@@ -7730,43 +7733,96 @@ export default function PlanLabPanel({
     setPlanLibrary(nextPlans);
   };
 
+  const resolveSaveValidationError = (
+    errors: Array<{ code: string; field: string }>
+  ) => {
+    if (errors.some((error) => error.code === "required" && error.field === "assumptions.baseMonth")) {
+      return t("planLabSaveMissingDraft");
+    }
+    if (errors.some((error) => error.code === "missing-month")) {
+      return t("planLabSaveMissingDraft");
+    }
+    if (errors.some((error) => error.code === "invalid-month")) {
+      return t("planLabSaveInvalidMonths");
+    }
+    return t("planLabSaveFailed");
+  };
+
   const handleSave = () => {
     setSaveError(null);
-    const duplicated = duplicateScenario(scenario.id);
-    if (!duplicated) {
-      setSaveError(t("planLabSaveFailed"));
-      return;
-    }
-    const sanitizedDuplicate = {
-      ...duplicated,
-      clientComputed: undefined,
+    const created = createScenario(`${scenario.name} (Copy)`, { onboardingCompleted: true });
+
+    const baseScenario = {
+      ...scenario,
+      id: created.id,
+      name: created.name,
+      updatedAt: created.updatedAt,
       snapshots: [],
+      plans: [],
+      clientComputed: undefined,
     };
-    const result = materializePlanLabDraft(sanitizedDuplicate, planLabDraft, {
-      scenarioId: duplicated.id,
+
+    const buildResult = buildScenarioDraftFromPlanLab(baseScenario, planLabDraft, {
+      scenarioId: created.id,
       budgetRules,
     });
-    if (result.errors.length > 0) {
-      setSaveError(t("planLabSaveInvalidMonths"));
-      deleteScenario(duplicated.id);
-      setActiveScenario(scenario.id);
+
+    if (buildResult.errors.length > 0) {
+      setSaveError(resolveSaveValidationError(buildResult.errors));
       return;
     }
-    result.eventDefinitions.forEach((definition) => {
+
+    const submitResult = submitScenarioDraft({
+      source: "plan-lab",
+      target: { scenarioId: created.id },
+      draft: buildResult.scenarioDraft,
+      context: {
+        assumptionsBase: baseScenario.assumptions,
+        metaBase: baseScenario.meta,
+        clientComputedBase: baseScenario.clientComputed,
+      },
+    });
+
+    if (!submitResult.ok) {
+      setSaveError(resolveSaveValidationError(submitResult.errors));
+      return;
+    }
+
+    buildResult.eventDefinitions.forEach((definition) => {
       upsertEventDefinition(definition);
     });
-    result.budgetRules?.forEach((rule) => {
+    buildResult.budgetRules?.forEach((rule) => {
       updateBudgetRule(rule.id, rule);
     });
-    result.addedMembers.forEach((member) => {
+    buildResult.addedMembers.forEach((member) => {
       createMember(member);
     });
-    result.addedBudgetRules.forEach((rule) => {
+    buildResult.addedBudgetRules.forEach((rule) => {
       createBudgetRule(rule);
     });
-    replaceScenario(result.scenario);
-    setActiveScenario(result.scenario.id);
-    router.push(`/${locale}${buildScenarioUrl("/dashboard", result.scenario.id)}`);
+
+    const payload = submitResult.payload;
+    const savedScenario = {
+      ...baseScenario,
+      assumptions: payload.assumptions,
+      members: payload.members,
+      assets: payload.assets,
+      liabilities: payload.liabilities,
+      events: payload.events,
+      meta: {
+        ...payload.meta,
+        onboarded: true,
+      },
+      clientComputed: {
+        ...payload.clientComputed,
+        onboardingCompleted: true,
+      },
+      baseCurrency: payload.baseCurrency,
+    };
+
+    replaceScenario(savedScenario);
+    setActiveScenario(savedScenario.id);
+    router.push(`/${locale}${buildScenarioUrl("/dashboard", savedScenario.id)}`);
   };
 
   const validationMonthFields = useMemo(() => {
