@@ -18,6 +18,7 @@ export type OnboardingV2Step = {
   id: string;
   title: string;
   content: ReactNode;
+  hasError?: boolean;
 };
 
 type OnboardingV2WizardShellProps = {
@@ -76,6 +77,7 @@ export default function OnboardingV2WizardShell({
                       }}
                     >
                       {index + 1}. {step.title}
+                      {step.hasError ? " ⚠" : ""}
                     </Button>
                   ))}
                 </Stack>
@@ -84,7 +86,11 @@ export default function OnboardingV2WizardShell({
           ) : (
             <Stepper active={clampedStep} onStepClick={onStepChange}>
               {steps.map((step) => (
-                <Stepper.Step key={step.id} label={step.title} />
+                <Stepper.Step
+                  key={step.id}
+                  label={step.title}
+                  color={step.hasError ? "red" : undefined}
+                />
               ))}
             </Stepper>
           )}

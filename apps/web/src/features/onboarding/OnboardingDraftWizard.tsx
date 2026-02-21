@@ -73,6 +73,8 @@ import { exportScenarioState } from "../../store/scenarioState";
 import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
 import { formatIsoYmdHms } from "../../../lib/date/format";
 import { submitScenarioDraft } from "../../domain/scenarioDraft/submitScenarioDraft";
+import type { ValidationIssue } from "../../domain/scenarioDraft/types";
+import { buildScenarioDraftFromOnboardingState } from "./buildScenarioDraftFromOnboardingState";
 
 const steps = [
   "profile",
@@ -834,6 +836,7 @@ export default function OnboardingDraftWizard() {
     initialState.insurance
   );
   const [stepValidationAttempted, setStepValidationAttempted] = useState<Record<number, boolean>>({});
+  const [submitValidationIssues, setSubmitValidationIssues] = useState<ValidationIssue[]>([]);
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<string | null>(null);
   const [telemetryEvents, setTelemetryEvents] = useState<OnboardingTelemetryEvent[]>(
     []
@@ -996,6 +999,24 @@ export default function OnboardingDraftWizard() {
     profile,
     scenarioId,
     step,
+  ]);
+
+  useEffect(() => {
+    if (submitValidationIssues.length === 0) {
+      return;
+    }
+    setSubmitValidationIssues([]);
+  }, [
+    assumptions,
+    assets,
+    debts,
+    household,
+    housing,
+    incomes,
+    insurance,
+    livingSpend,
+    profile,
+    submitValidationIssues.length,
   ]);
 
   const resolvedBaseMonth = useMemo(() => {
@@ -1678,6 +1699,28 @@ export default function OnboardingDraftWizard() {
 
   const hasDebtsErrors = Object.keys(debtsErrors.debts).length > 0;
 
+  const validationIssueStepMap: Array<{ prefix: string; stepIndex: number }> = [
+    { prefix: "assumptions.", stepIndex: 2 },
+    { prefix: "members.", stepIndex: 1 },
+    { prefix: "assets.", stepIndex: 6 },
+    { prefix: "liabilities.", stepIndex: 7 },
+    { prefix: "events.", stepIndex: 9 },
+    { prefix: "baseCurrency", stepIndex: 0 },
+  ];
+
+  const mapIssueToStepIndex = (issue: ValidationIssue) => {
+    const matched = validationIssueStepMap.find((entry) =>
+      issue.field.startsWith(entry.prefix)
+    );
+    return matched?.stepIndex ?? 9;
+  };
+
+  const validationIssueStepIndexes = Array.from(
+    new Set(submitValidationIssues.map((issue) => mapIssueToStepIndex(issue)))
+  );
+
+  const reviewHasValidationIssues = submitValidationIssues.length > 0;
+
   const canProceed =
     !hasProfileError &&
     !hasMemberMonthErrors &&
@@ -1813,22 +1856,10 @@ export default function OnboardingDraftWizard() {
     const submitResult = submitScenarioDraft({
       source: "onboarding",
       target: { scenarioId },
-      draft: {
-        assumptions: scenarioPreview.assumptions,
-        members: scenarioPreview.members,
-        assets: scenarioPreview.assets,
-        liabilities: scenarioPreview.liabilities,
-        events: scenarioPreview.events,
-        meta: {
-          schemaVersion: 2,
-          onboarded: true,
-          onboardedAt: nowIso,
-          onboardingVersion: 2,
-          lastSavedAt: nowIso,
-        },
-        clientComputed: { onboardingCompleted: true },
-        baseCurrency: scenarioPreview.baseCurrency,
-      },
+      draft: buildScenarioDraftFromOnboardingState({
+        scenarioPreview,
+        nowIso,
+      }),
       context: {
         assumptionsBase: scenario.assumptions,
         metaBase: scenario.meta,
@@ -1848,8 +1879,24 @@ export default function OnboardingDraftWizard() {
     });
 
     if (!submitResult.ok) {
+      const issueStepIndexes = Array.from(
+        new Set(submitResult.errors.map((issue) => mapIssueToStepIndex(issue)))
+      );
+      setSubmitValidationIssues(submitResult.errors);
+      setStepValidationAttempted((current) => {
+        const next = { ...current };
+        issueStepIndexes.forEach((index) => {
+          next[index] = true;
+        });
+        return next;
+      });
+      if (issueStepIndexes.length > 0) {
+        setStep(Math.min(...issueStepIndexes));
+      }
       return;
     }
+
+    setSubmitValidationIssues([]);
 
     const compiledPayload = submitResult.payload;
 
@@ -2014,6 +2061,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "profile",
             title: t("step.profile"),
+            hasError: hasProfileError || validationIssueStepIndexes.includes(0),
             content: (
               <Card withBorder radius="md" padding="md">
                 <Stack gap="md">
@@ -2091,6 +2139,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "household",
             title: t("step.household"),
+            hasError: hasMemberMonthErrors || validationIssueStepIndexes.includes(1),
             content: (
               <Stack gap="md">
                 <Card withBorder radius="md" padding="md">
@@ -2196,6 +2245,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "assumptions",
             title: t("step.assumptions"),
+            hasError: hasAssumptionErrors || validationIssueStepIndexes.includes(2),
             content: (
               <AssumptionsStep
                 assumptions={assumptions}
@@ -2210,6 +2260,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "income",
             title: t("step.income"),
+            hasError: hasIncomeErrors || validationIssueStepIndexes.includes(3),
             content: (
               <IncomeStep
                 incomes={incomes}
@@ -2225,6 +2276,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "livingSpend",
             title: t("step.livingSpend"),
+            hasError: hasLivingSpendErrors || validationIssueStepIndexes.includes(4),
             content: (
               <LivingSpendStep
                 livingSpend={livingSpend}
@@ -2240,6 +2292,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "housing",
             title: t("step.housing"),
+            hasError: hasHousingErrors || validationIssueStepIndexes.includes(5),
             content: (
               <HousingStep
                 housing={housing}
@@ -2253,6 +2306,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "assets",
             title: t("step.assets"),
+            hasError: hasAssetsErrors || validationIssueStepIndexes.includes(6),
             content: (
               <AssetsStep
                 assets={assets}
@@ -2267,6 +2321,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "debts",
             title: t("step.debts"),
+            hasError: hasDebtsErrors || validationIssueStepIndexes.includes(7),
             content: (
               <DebtsStep
                 debts={debts}
@@ -2280,6 +2335,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "insurance",
             title: t("step.insurance"),
+            hasError: hasInsuranceErrors || validationIssueStepIndexes.includes(8),
             content: (
               <InsuranceStep
                 insurance={insurance}
@@ -2294,6 +2350,7 @@ export default function OnboardingDraftWizard() {
           {
             id: "review",
             title: t("step.review"),
+            hasError: reviewHasValidationIssues || validationIssueStepIndexes.includes(9),
             content: (
               <ReviewStep
                 draft={draft}
