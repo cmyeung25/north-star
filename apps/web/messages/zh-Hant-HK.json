@@ -2753,6 +2753,36 @@
       "income": "收入",
       "timeline": "事件",
       "review": "確認"
+    },
+    "generatedCashflow": {
+      "badge": "由系統產生：{source}",
+      "source": {
+        "label": "來源",
+        "system": "由物業建立",
+        "mortgagePayment": "按揭供款",
+        "holdingCost": "持有成本",
+        "rentIncome": "租金收入"
+      },
+      "baseValue": "基礎值",
+      "overrideValue": "覆寫",
+      "restoreSuggested": "恢復系統建議",
+      "autoEnabled": "使用系統產生項目",
+      "disableRisk": "關閉此項目可能令 projection 偏差。",
+      "duplicateBlocked": "此項目已由系統產生，請改為覆寫該列，避免新增重複項。",
+      "manualSection": "手動項目",
+      "addMortgagePayment": "新增按揭供款",
+      "addHoldingCost": "新增持有成本",
+      "addRentIncome": "新增租金收入",
+      "addManual": "新增手動項目",
+      "remove": "移除",
+      "manualMortgagePayment": "手動按揭供款",
+      "manualHoldingCost": "手動持有成本",
+      "manualRentIncome": "手動租金收入",
+      "manualExpense": "手動支出",
+      "manualIncome": "手動收入",
+      "expenseHint": "由規則產生的支出（按揭供款／持有成本）可覆寫或關閉。",
+      "incomeHint": "由物業規則產生的收入可覆寫或關閉。",
+      "ruleFallback": "系統規則"
     }
   },
   "onboardingDraft": {

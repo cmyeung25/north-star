@@ -3,6 +3,8 @@
 import { Alert, Button, Stack, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
+import type { GeneratedItemMetadata } from "../../../domain/scenarioDraft/types";
 import OnboardingV2WizardShell from "../v2/OnboardingV2WizardShell";
 import { compileScenarioCreatePayload } from "../../../domain/scenarioDraft/compileScenarioCreatePayload";
 import { deriveFromProperty } from "../../../domain/scenarioDraft/rules/deriveFromProperty";
@@ -16,6 +18,12 @@ import ReviewStep from "./steps/ReviewStep";
 import { createInitialScenarioDraftV3State } from "./types";
 import { submitOnboardingV3Payload } from "./submissionFacade";
 
+type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
+type CashflowDraftWithId = CashflowDraft & { id: string };
+type AutoCashflowRow = Extract<ScenarioEvent, { type: "cashflow" }> & {
+  metadata?: GeneratedItemMetadata;
+};
+
 const stepDefs = [
   { id: "scenarioSetup", title: "Scenario setup" },
   { id: "household", title: "Household" },
@@ -24,6 +32,12 @@ const stepDefs = [
   { id: "expense", title: "Expense" },
   { id: "review", title: "Review" },
 ] as const;
+
+const isCashflowDraft = (event: ScenarioEventDraft): event is CashflowDraft =>
+  event.type === "cashflow";
+
+const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: string } =>
+  typeof event.id === "string" && event.id.length > 0;
 
 export default function OnboardingV3Wizard() {
   const params = useParams<{ scenarioId?: string | string[] }>();
@@ -34,40 +48,48 @@ export default function OnboardingV3Wizard() {
   const [draft, setDraft] = useState(createInitialScenarioDraftV3State);
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
 
-  const derived = useMemo(
-    () => deriveFromProperty({ profile: draft.profile, assets: draft.assets }),
-    [draft.assets, draft.profile]
-  );
+  const derived = useMemo(() => deriveFromProperty({ profile: draft.profile, assets: draft.assets }), [draft.assets, draft.profile]);
 
-  const incomeRows = useMemo(
-    () =>
-      derived.events.filter(
-        (event): event is typeof event & { type: "cashflow"; kind: "income" } =>
-          event.type === "cashflow" && event.kind === "income"
-      ),
-    [derived.events]
-  );
+  const autoRows = useMemo(() => derived.events as AutoCashflowRow[], [derived.events]);
+  const autoEventIds = useMemo(() => new Set(autoRows.map((event) => event.id)), [autoRows]);
 
-  const expenseRows = useMemo(
+  const autoOverridesById = useMemo(() => {
+    const overrides = new Map<string, { amount?: number; disabled?: boolean }>();
+    draft.events.forEach((event) => {
+      if (!hasId(event) || !isCashflowDraft(event) || !autoEventIds.has(event.id)) {
+        return;
+      }
+      overrides.set(event.id, {
+        amount: typeof event.amount === "number" ? event.amount : undefined,
+        disabled: Boolean(event.meta?.disabledAuto),
+      });
+    });
+    return overrides;
+  }, [autoEventIds, draft.events]);
+
+  const incomeRows = useMemo(() => autoRows.filter((event) => event.kind === "income"), [autoRows]);
+  const expenseRows = useMemo(() => autoRows.filter((event) => event.kind === "expense"), [autoRows]);
+
+  const manualCashflowEvents = useMemo(
     () =>
-      derived.events.filter(
-        (event): event is typeof event & { type: "cashflow"; kind: "expense" } =>
-          event.type === "cashflow" && event.kind === "expense"
+      draft.events.filter(
+        (event): event is CashflowDraftWithId =>
+          hasId(event) && isCashflowDraft(event) && !autoEventIds.has(event.id)
       ),
-    [derived.events]
+    [autoEventIds, draft.events]
   );
 
   const mergedEvents = useMemo(() => {
-    const byId = new Map((draft.events ?? []).filter((event) => event.id).map((event) => [event.id as string, event]));
-    return derived.events.map((event) => {
-      const override = event.id ? byId.get(event.id) : undefined;
-      if (!override || event.type !== "cashflow") {
-        return event;
+    const mergedAutoEvents: ScenarioEvent[] = autoRows.flatMap((event) => {
+      const override = autoOverridesById.get(event.id);
+      if (override?.disabled) {
+        return [];
       }
-      const overrideAmount = override.type === "cashflow" ? override.amount : undefined;
-      return { ...event, amount: overrideAmount ?? event.amount };
+      return [{ ...event, amount: override?.amount ?? event.amount }];
     });
-  }, [derived.events, draft.events]);
+
+    return [...mergedAutoEvents, ...manualCashflowEvents] as Array<ScenarioEvent | ScenarioEventDraft>;
+  }, [autoOverridesById, autoRows, manualCashflowEvents]);
 
   const reviewItems = [
     { label: "profile.startMonth", completed: Boolean(draft.profile.startMonth), warning: "尚未填寫開始月份" },
@@ -77,36 +99,79 @@ export default function OnboardingV3Wizard() {
     { label: "generated.income/expense", completed: mergedEvents.length > 0, warning: "沒有可衍生現金流" },
   ];
 
+  const upsertAutoOverride = (eventId: string, kind: "income" | "expense", patch: { amount?: number; disabled?: boolean }) => {
+    setDraft((current) => {
+      const existing = current.events.find(
+        (event): event is CashflowDraftWithId => hasId(event) && isCashflowDraft(event) && event.id === eventId
+      );
+
+      const nextEvent: CashflowDraftWithId = {
+        ...(existing ?? {
+          id: eventId,
+          type: "cashflow",
+          kind,
+          cadence: "monthly",
+          startMonth: current.profile.startMonth ?? "",
+          amount: 0,
+        }),
+        amount: patch.amount ?? existing?.amount ?? 0,
+        meta: {
+          ...(existing?.meta ?? {}),
+          ...(patch.disabled === undefined ? {} : { disabledAuto: patch.disabled }),
+        },
+      };
+
+      return {
+        ...current,
+        events: [...current.events.filter((event) => event.id !== eventId), nextEvent],
+      };
+    });
+  };
+
+  const addManual = (kind: "income" | "expense", item: { label: string; amount: number }) => {
+    setDraft((current) => ({
+      ...current,
+      events: [
+        ...current.events,
+        {
+          id: `manual:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+          type: "cashflow",
+          kind,
+          label: item.label,
+          amount: item.amount,
+          cadence: "monthly",
+          startMonth: current.profile.startMonth ?? "",
+        },
+      ],
+    }));
+  };
+
   const steps = [
-    {
-      ...stepDefs[0],
-      content: <ScenarioSetupStep profile={draft.profile} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} />,
-    },
-    {
-      ...stepDefs[1],
-      content: <HouseholdStep members={draft.members} onChange={(members) => setDraft((current) => ({ ...current, members }))} />,
-    },
-    {
-      ...stepDefs[2],
-      content: (
-        <AssetsStep
-          assets={draft.assets}
-          startMonth={draft.profile.startMonth ?? ""}
-          onChange={(assets) => setDraft((current) => ({ ...current, assets }))}
-        />
-      ),
-    },
+    { ...stepDefs[0], content: <ScenarioSetupStep profile={draft.profile} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} /> },
+    { ...stepDefs[1], content: <HouseholdStep members={draft.members} onChange={(members) => setDraft((current) => ({ ...current, members }))} /> },
+    { ...stepDefs[2], content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} onChange={(assets) => setDraft((current) => ({ ...current, assets }))} /> },
     {
       ...stepDefs[3],
       content: (
         <IncomeStep
           rows={incomeRows}
-          onOverrideAmount={(eventId, amount) =>
+          manualRows={manualCashflowEvents.filter((event) => event.kind === "income")}
+          overrides={Object.fromEntries(autoOverridesById.entries())}
+          onOverrideAmount={(eventId, amount) => upsertAutoOverride(eventId, "income", { amount })}
+          onRestoreSuggested={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
+          onToggleDisabled={(eventId, disabled) => upsertAutoOverride(eventId, "income", { disabled })}
+          onAddManualItem={(item) => addManual("income", item)}
+          onUpdateManualItem={(eventId, patch) =>
             setDraft((current) => ({
               ...current,
-              events: [...current.events.filter((event) => event.id !== eventId), { ...(current.events.find((event) => event.id === eventId) ?? { id: eventId }), amount, type: "cashflow", kind: "income", cadence: "monthly", startMonth: current.profile.startMonth ?? "" }],
+              events: current.events.map((event) =>
+                hasId(event) && isCashflowDraft(event) && event.id === eventId
+                  ? { ...event, label: patch.label ?? event.label, amount: patch.amount ?? event.amount }
+                  : event
+              ),
             }))
           }
+          onRemoveManualItem={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
         />
       ),
     },
@@ -115,12 +180,23 @@ export default function OnboardingV3Wizard() {
       content: (
         <ExpenseStep
           rows={expenseRows}
-          onOverrideAmount={(eventId, amount) =>
+          manualRows={manualCashflowEvents.filter((event) => event.kind === "expense")}
+          overrides={Object.fromEntries(autoOverridesById.entries())}
+          onOverrideAmount={(eventId, amount) => upsertAutoOverride(eventId, "expense", { amount })}
+          onRestoreSuggested={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
+          onToggleDisabled={(eventId, disabled) => upsertAutoOverride(eventId, "expense", { disabled })}
+          onAddManualItem={(item) => addManual("expense", item)}
+          onUpdateManualItem={(eventId, patch) =>
             setDraft((current) => ({
               ...current,
-              events: [...current.events.filter((event) => event.id !== eventId), { ...(current.events.find((event) => event.id === eventId) ?? { id: eventId }), amount, type: "cashflow", kind: "expense", cadence: "monthly", startMonth: current.profile.startMonth ?? "" }],
+              events: current.events.map((event) =>
+                hasId(event) && isCashflowDraft(event) && event.id === eventId
+                  ? { ...event, label: patch.label ?? event.label, amount: patch.amount ?? event.amount }
+                  : event
+              ),
             }))
           }
+          onRemoveManualItem={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
         />
       ),
     },
@@ -168,11 +244,7 @@ export default function OnboardingV3Wizard() {
         navigation={
           <>
             <Button variant="default" onClick={() => setStep((current) => Math.max(current - 1, 0))}>Back</Button>
-            {step < steps.length - 1 ? (
-              <Button onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>Next</Button>
-            ) : (
-              <Button onClick={handleSubmit}>完成並寫入 Core</Button>
-            )}
+            {step < steps.length - 1 ? <Button onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>Next</Button> : <Button onClick={handleSubmit}>完成並寫入 Core</Button>}
           </>
         }
       />

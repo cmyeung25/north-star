@@ -2706,6 +2706,36 @@
       "income": "Income",
       "timeline": "Events",
       "review": "Review"
+    },
+    "generatedCashflow": {
+      "badge": "Auto-generated: {source}",
+      "source": {
+        "label": "Source",
+        "system": "Created by property",
+        "mortgagePayment": "Mortgage payment",
+        "holdingCost": "Holding cost",
+        "rentIncome": "Rental income"
+      },
+      "baseValue": "Base value",
+      "overrideValue": "Override",
+      "restoreSuggested": "Restore suggested",
+      "autoEnabled": "Use auto item",
+      "disableRisk": "Turning this off may make the projection less accurate.",
+      "duplicateBlocked": "This item is already auto-generated. Please override the suggested row instead of adding a duplicate.",
+      "manualSection": "Manual items",
+      "addMortgagePayment": "Add mortgage payment",
+      "addHoldingCost": "Add holding cost",
+      "addRentIncome": "Add rental income",
+      "addManual": "Add manual item",
+      "remove": "Remove",
+      "manualMortgagePayment": "Manual mortgage payment",
+      "manualHoldingCost": "Manual holding cost",
+      "manualRentIncome": "Manual rental income",
+      "manualExpense": "Manual expense",
+      "manualIncome": "Manual income",
+      "expenseHint": "Auto-generated expenses (mortgage payment / holding cost) can be overridden or disabled.",
+      "incomeHint": "Auto-generated incomes from property rules can be overridden or disabled.",
+      "ruleFallback": "System rule"
     }
   },
   "onboardingDraft": {
