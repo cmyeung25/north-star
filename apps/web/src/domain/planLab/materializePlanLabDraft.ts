@@ -3,8 +3,7 @@ import type { BudgetRule, Scenario, ScenarioMember } from "../../store/scenarioS
 import { normalizeMonthStrict } from "../../utils/month";
 import type { PlanLabDraft } from "./types";
 import { applyPlanLabDraftToScenario } from "./applyPlanLabDraftToScenario";
-import { compileScenarioCreatePayload } from "../scenarioDraft/compile";
-import type { ScenarioDraft } from "../scenarioDraft/types";
+import { submitScenarioDraft } from "../scenarioDraft/submitScenarioDraft";
 
 export type PlanLabMaterializeResult = {
   scenario: Scenario;
@@ -38,8 +37,10 @@ export const materializePlanLabDraft = (
   });
 
   const additions = draft.additions ?? {};
-  const compiledScenarioPayload = compileScenarioCreatePayload(
-    {
+  const submitResult = submitScenarioDraft({
+    source: "plan-lab",
+    target: { scenarioId: options.scenarioId },
+    draft: {
       assumptions: result.scenario.assumptions,
       members: result.scenario.members,
       assets: result.scenario.assets,
@@ -48,13 +49,14 @@ export const materializePlanLabDraft = (
       meta: result.scenario.meta,
       clientComputed: result.scenario.clientComputed,
       baseCurrency: result.scenario.baseCurrency,
-    } satisfies ScenarioDraft,
-    {
+    },
+    context: {
       assumptionsBase: baseScenario.assumptions,
       metaBase: baseScenario.meta,
       clientComputedBase: baseScenario.clientComputed,
-    }
-  );
+    },
+  });
+  const compiledScenarioPayload = submitResult.payload;
   const addedMembers: ScenarioMember[] = [];
   const addedBudgetRules: BudgetRule[] = [];
   const errors = [...result.errors];
@@ -120,7 +122,7 @@ export const materializePlanLabDraft = (
     addedBudgetRules,
     errors: [
       ...errors,
-      ...compiledScenarioPayload.validationIssues
+      ...submitResult.errors
         .filter((issue) => issue.code === "invalid-month" || issue.code === "required")
         .map((issue) => ({
           code: issue.code === "required" ? "missing-month" as const : "invalid-month" as const,

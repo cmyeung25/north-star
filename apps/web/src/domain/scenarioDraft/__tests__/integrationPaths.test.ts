@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Scenario } from "../../../store/scenarioStore";
-import { compileScenarioCreatePayload } from "../compile";
-import type { ScenarioDraft } from "../types";
+import { submitScenarioDraft } from "../submitScenarioDraft";
 import type { OnboardingV2Draft } from "../../onboarding/v2/draftTypes";
 import { applyOnboardingV2DraftToScenarioV2 } from "../../onboarding/v2/applyOnboardingV2DraftToScenarioV2";
 import { materializePlanLabDraft } from "../../planLab/materializePlanLabDraft";
@@ -76,27 +75,31 @@ describe("scenario create payload integration parity", () => {
   it("keeps assumptions/events/meta/clientComputed consistent across onboarding, seed, and plan-lab", () => {
     const base = buildBaseScenario();
     const onboardingScenario = applyOnboardingV2DraftToScenarioV2(buildOnboardingDraft(), base);
-    const onboardingPayload = compileScenarioCreatePayload(
-      {
+    const onboardingPayload = submitScenarioDraft({
+      source: "onboarding",
+      target: { scenarioId: base.id },
+      draft: {
         assumptions: onboardingScenario.assumptions,
         events: onboardingScenario.events,
         meta: { schemaVersion: 2, onboardingVersion: 2, onboarded: true },
         clientComputed: { onboardingCompleted: true },
         baseCurrency: onboardingScenario.baseCurrency,
       },
-      { assumptionsBase: base.assumptions }
-    );
+      context: { assumptionsBase: base.assumptions },
+    }).payload;
 
-    const seedPayload = compileScenarioCreatePayload(
-      {
+    const seedPayload = submitScenarioDraft({
+      source: "seed",
+      target: { scenarioId: base.id },
+      draft: {
         assumptions: { ...onboardingScenario.assumptions },
         events: [...(onboardingScenario.events ?? [])],
         meta: { schemaVersion: 2, onboardingVersion: 2, isSeeded: true, skipOnboarding: true },
         clientComputed: { onboardingCompleted: true },
         baseCurrency: onboardingScenario.baseCurrency,
-      } satisfies ScenarioDraft,
-      { assumptionsBase: base.assumptions, metaBase: base.meta, clientComputedBase: base.clientComputed }
-    );
+      },
+      context: { assumptionsBase: base.assumptions, metaBase: base.meta, clientComputedBase: base.clientComputed },
+    }).payload;
 
     const planLabScenario = materializePlanLabDraft(
       { ...onboardingScenario, meta: { schemaVersion: 2, onboardingVersion: 2, onboarded: true }, clientComputed: { onboardingCompleted: true } },

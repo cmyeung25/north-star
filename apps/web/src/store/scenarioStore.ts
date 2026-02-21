@@ -49,8 +49,7 @@ import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 import { buildMonthDateRef } from "../domain/dateRef";
 import type { ScenarioSeedPayload } from "../scenarios/scenarioSeeds";
-import { compileScenarioCreatePayload } from "../domain/scenarioDraft/compile";
-import type { ScenarioDraft } from "../domain/scenarioDraft/types";
+import { submitScenarioDraft } from "../domain/scenarioDraft/submitScenarioDraft";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
 
@@ -2098,48 +2097,60 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       seed.members.map((member) => [member.id, resolveSeedMemberId(member.id)])
     );
 
-    const draft = {
-      assumptions: {
-        ...seed.assumptions,
-        baseMonth: seed.assumptions?.baseMonth ?? seed.baseMonth,
-        initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
+    const submitResult = submitScenarioDraft({
+      source: "seed",
+      target: { scenarioId },
+      draft: {
+        assumptions: {
+          ...seed.assumptions,
+          baseMonth: seed.assumptions?.baseMonth ?? seed.baseMonth,
+          initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
+        },
+        members: seed.members.map((member) => ({
+          ...member,
+          id: seedMemberIdMap.get(member.id) ?? member.id,
+        })),
+        assets: seed.assets,
+        liabilities: seed.liabilities,
+        events: seed.events.map((event) =>
+          event.memberId
+            ? {
+                ...event,
+                memberId: seedMemberIdMap.get(event.memberId) ?? event.memberId,
+              }
+            : event
+        ),
+        meta: {
+          isSeeded: true,
+          skipOnboarding: true,
+          onboardingVersion: 2,
+          schemaVersion: 2,
+        },
+        clientComputed: { onboardingCompleted: true },
+        baseCurrency: seed.baseCurrency,
       },
-      members: seed.members.map((member) => ({
-        ...member,
-        id: seedMemberIdMap.get(member.id) ?? member.id,
-      })),
-      assets: seed.assets,
-      liabilities: seed.liabilities,
-      events: seed.events.map((event) =>
-        event.memberId
-          ? {
-              ...event,
-              memberId: seedMemberIdMap.get(event.memberId) ?? event.memberId,
-            }
-          : event
-      ),
-      meta: {
-        isSeeded: true,
-        skipOnboarding: true,
-        onboardingVersion: 2,
-        schemaVersion: 2,
+      context: {
+        assumptionsBase: scenario.assumptions,
+        metaBase: scenario.meta,
+        clientComputedBase: scenario.clientComputed,
       },
-      clientComputed: { onboardingCompleted: true },
-      baseCurrency: seed.baseCurrency,
-    } satisfies ScenarioDraft;
-
-    const compiled = compileScenarioCreatePayload(draft, {
-      assumptionsBase: scenario.assumptions,
-      metaBase: scenario.meta,
-      clientComputedBase: scenario.clientComputed,
+      persistence: {
+        applyStore: (payload) => {
+          get().updateScenarioBaseCurrency(scenarioId, payload.baseCurrency);
+          get().updateScenarioAssumptions(scenarioId, payload.assumptions);
+          get().setScenarioMembers(scenarioId, payload.members);
+          get().setScenarioAssets(scenarioId, payload.assets);
+          get().setScenarioLiabilities(scenarioId, payload.liabilities);
+          get().setScenarioEvents(scenarioId, payload.events);
+        },
+      },
     });
 
-    get().updateScenarioBaseCurrency(scenarioId, compiled.baseCurrency);
-    get().updateScenarioAssumptions(scenarioId, compiled.assumptions);
-    get().setScenarioMembers(scenarioId, compiled.members);
-    get().setScenarioAssets(scenarioId, compiled.assets);
-    get().setScenarioLiabilities(scenarioId, compiled.liabilities);
-    get().setScenarioEvents(scenarioId, compiled.events);
+    if (!submitResult.ok) {
+      return null;
+    }
+
+    const compiled = submitResult.payload;
 
     seed.bundleInstances.forEach((record) => {
       get().upsertBundleInstanceRecord(scenarioId, record);
