@@ -8,6 +8,10 @@ import type {
 import type { ScenarioEvent } from "../scenarioV2/events";
 import { dedupeGeneratedAndManual } from "./rules/dedupeGeneratedAndManual";
 import { deriveFromProperty } from "./rules/deriveFromProperty";
+import {
+  deriveScenarioLifecycleState,
+  type ScenarioLifecycleSource,
+} from "./lifecycle";
 import { validateScenarioDraftV3 } from "./validateScenarioDraftV3";
 import type { ScenarioCreatePayload, ScenarioDraftV3 } from "./types";
 
@@ -34,6 +38,7 @@ export type CompileScenarioContext = {
   metaBase?: ScenarioMeta;
   clientComputedBase?: ScenarioClientComputed;
   nowIso?: string;
+  lifecycleSource?: ScenarioLifecycleSource;
 };
 
 export const compileScenarioCreatePayload = (
@@ -75,6 +80,18 @@ export const compileScenarioCreatePayload = (
     ...(derived.events as ScenarioEvent[]),
   ]);
 
+  const lifecycle = context.lifecycleSource
+    ? deriveScenarioLifecycleState({
+        source: context.lifecycleSource,
+        meta: normalizedDraft.meta,
+        clientComputed: normalizedDraft.clientComputed,
+        nowIso,
+      })
+    : {
+        meta: normalizedDraft.meta ?? {},
+        clientComputed: normalizedDraft.clientComputed ?? {},
+      };
+
   return {
     assumptions,
     members: normalizedDraft.members ?? [],
@@ -83,14 +100,13 @@ export const compileScenarioCreatePayload = (
     events: mergedEvents,
     meta: {
       ...(context.metaBase ?? {}),
-      ...(normalizedDraft.meta ?? {}),
+      ...lifecycle.meta,
       schemaVersion: 2,
-      onboardingVersion: 2,
       lastSavedAt: nowIso,
     },
     clientComputed: {
       ...(context.clientComputedBase ?? {}),
-      ...(normalizedDraft.clientComputed ?? {}),
+      ...lifecycle.clientComputed,
     },
     baseCurrency: normalizedDraft.baseCurrency ?? defaultCurrency,
     validationIssues: issues,

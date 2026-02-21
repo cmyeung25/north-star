@@ -22,7 +22,11 @@ describe("buildScenarioDraftFromSeed", () => {
 
     expect(draft.assumptions?.baseMonth).toBe("2025-01");
     expect(draft.assumptions?.initialCash).toBe(120000);
-    expect(draft.meta).toEqual({ isSeeded: true, skipOnboarding: true });
+    expect(draft.meta).toEqual({
+      isSeeded: true,
+      skipOnboarding: true,
+      onboardingVersion: 2,
+    });
     expect(draft.meta?.schemaVersion).toBeUndefined();
     expect(draft.clientComputed).toEqual({ onboardingCompleted: true });
   });

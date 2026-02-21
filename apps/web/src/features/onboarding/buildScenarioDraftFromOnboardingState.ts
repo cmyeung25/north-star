@@ -1,4 +1,5 @@
 import type { SubmitScenarioDraftInput } from "../../domain/scenarioDraft/submitScenarioDraft";
+import { deriveScenarioLifecycleState } from "../../domain/scenarioDraft/lifecycle";
 import type { Scenario } from "../../store/scenarioStore";
 
 export const buildScenarioDraftFromOnboardingState = ({
@@ -7,19 +8,17 @@ export const buildScenarioDraftFromOnboardingState = ({
 }: {
   scenarioPreview: Scenario;
   nowIso: string;
-}): SubmitScenarioDraftInput["draft"] => ({
-  assumptions: scenarioPreview.assumptions,
-  members: scenarioPreview.members,
-  assets: scenarioPreview.assets,
-  liabilities: scenarioPreview.liabilities,
-  events: scenarioPreview.events,
-  meta: {
-    schemaVersion: 2,
-    onboarded: true,
-    onboardedAt: nowIso,
-    onboardingVersion: 2,
-    lastSavedAt: nowIso,
-  },
-  clientComputed: { onboardingCompleted: true },
-  baseCurrency: scenarioPreview.baseCurrency,
-});
+}): SubmitScenarioDraftInput["draft"] => {
+  const lifecycle = deriveScenarioLifecycleState({ source: "onboarding", nowIso });
+
+  return {
+    assumptions: scenarioPreview.assumptions,
+    members: scenarioPreview.members,
+    assets: scenarioPreview.assets,
+    liabilities: scenarioPreview.liabilities,
+    events: scenarioPreview.events,
+    meta: lifecycle.meta,
+    clientComputed: lifecycle.clientComputed,
+    baseCurrency: scenarioPreview.baseCurrency,
+  };
+};

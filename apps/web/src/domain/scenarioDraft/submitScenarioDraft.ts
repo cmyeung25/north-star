@@ -87,7 +87,10 @@ export const submitScenarioDraft = (
 
   const compiled = compileScenarioCreatePayload(
     toCompilerDraft(input.draft),
-    input.context
+    {
+      ...(input.context ?? {}),
+      lifecycleSource: input.source,
+    }
   );
 
   const payload: SubmitScenarioDraftPayload = {
