@@ -1,7 +1,7 @@
 "use client";
 
 import { Skeleton, Stack } from "@mantine/core";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import OnboardingEntry from "../../../src/features/onboarding/OnboardingEntry";
@@ -25,6 +25,7 @@ export default function OnboardingClient() {
 
   const routeScenarioId = searchParams.get("scenarioId");
   const routeCaseId = searchParams.get("caseId");
+  const onboardingStartedScenarioRef = useRef<string | null>(null);
 
   const activeScenario = useMemo(
     () => (routeScenarioId ? getScenarioById(scenarios, routeScenarioId) : getActiveScenario(scenarios, activeScenarioId)),
@@ -71,6 +72,25 @@ export default function OnboardingClient() {
       router.replace(`/${locale}/dashboard${query}`);
     }
   }, [activeScenario, didHydrate, isHydrating, locale, routeCaseId, router]);
+
+
+  useEffect(() => {
+    if (!didHydrate || isHydrating || !activeScenario?.id) {
+      return;
+    }
+    if (onboardingStartedScenarioRef.current === activeScenario.id) {
+      return;
+    }
+
+    onboardingStartedScenarioRef.current = activeScenario.id;
+    recordScenarioMigrationEvent({
+      name: "onboarding_started",
+      ts: new Date().toISOString(),
+      scenarioId: activeScenario.id,
+      source: "onboarding",
+      route: "onboarding",
+    });
+  }, [activeScenario?.id, didHydrate, isHydrating]);
 
   if (!didHydrate || isHydrating || (routeScenarioId && !activeScenario)) {
     return (

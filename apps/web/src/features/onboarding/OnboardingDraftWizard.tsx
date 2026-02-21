@@ -1907,6 +1907,15 @@ export default function OnboardingDraftWizard() {
 
     setSubmitValidationIssues([]);
 
+    recordScenarioMigrationEvent({
+      name: "onboarding_completed",
+      ts: new Date().toISOString(),
+      route: "onboarding",
+      scenarioId,
+      source: "onboarding",
+      details: { action: "save" },
+    });
+
     const compiledPayload = submitResult.payload;
 
     hasCompletedRef.current = true;
@@ -2001,6 +2010,14 @@ export default function OnboardingDraftWizard() {
       stepIndex: step,
       scenarioId,
       action: "later",
+    });
+    recordScenarioMigrationEvent({
+      name: "onboarding_completed",
+      ts: new Date().toISOString(),
+      route: "onboarding",
+      scenarioId,
+      source: "onboarding",
+      details: { action: "later" },
     });
     const nowIso = new Date().toISOString();
     updateScenarioMeta(scenarioId, {

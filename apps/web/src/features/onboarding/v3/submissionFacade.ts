@@ -1,19 +1,19 @@
-import type { ScenarioCreatePayload } from "../../../domain/scenarioDraft/types";
+import type { SubmitScenarioDraftPayload } from "../../../domain/scenarioDraft/submitScenarioDraft";
 
 export type OnboardingV3SubmissionFacade = {
   updateScenarioBaseCurrency: (id: string, baseCurrency: string) => void;
-  updateScenarioAssumptions: (id: string, assumptions: ScenarioCreatePayload["assumptions"]) => void;
-  setScenarioMembers: (id: string, members: ScenarioCreatePayload["members"]) => void;
-  setScenarioAssets: (id: string, assets: ScenarioCreatePayload["assets"]) => void;
-  setScenarioLiabilities: (id: string, liabilities: ScenarioCreatePayload["liabilities"]) => void;
-  setScenarioEvents: (id: string, events: ScenarioCreatePayload["events"]) => void;
-  updateScenarioMeta: (id: string, meta: ScenarioCreatePayload["meta"]) => void;
-  updateScenarioClientComputed: (id: string, clientComputed: ScenarioCreatePayload["clientComputed"]) => void;
+  updateScenarioAssumptions: (id: string, assumptions: SubmitScenarioDraftPayload["assumptions"]) => void;
+  setScenarioMembers: (id: string, members: SubmitScenarioDraftPayload["members"]) => void;
+  setScenarioAssets: (id: string, assets: SubmitScenarioDraftPayload["assets"]) => void;
+  setScenarioLiabilities: (id: string, liabilities: SubmitScenarioDraftPayload["liabilities"]) => void;
+  setScenarioEvents: (id: string, events: SubmitScenarioDraftPayload["events"]) => void;
+  updateScenarioMeta: (id: string, meta: SubmitScenarioDraftPayload["meta"]) => void;
+  updateScenarioClientComputed: (id: string, clientComputed: SubmitScenarioDraftPayload["clientComputed"]) => void;
 };
 
 export const submitOnboardingV3Payload = (
   scenarioId: string,
-  payload: ScenarioCreatePayload,
+  payload: SubmitScenarioDraftPayload,
   facade: OnboardingV3SubmissionFacade
 ) => {
   facade.updateScenarioBaseCurrency(scenarioId, payload.baseCurrency);

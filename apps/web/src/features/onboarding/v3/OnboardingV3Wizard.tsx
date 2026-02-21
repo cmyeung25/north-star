@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
 import type { GeneratedItemMetadata } from "../../../domain/scenarioDraft/types";
 import OnboardingV2WizardShell from "../v2/OnboardingV2WizardShell";
-import { compileScenarioCreatePayload } from "../../../domain/scenarioDraft/compileScenarioCreatePayload";
 import { deriveFromProperty } from "../../../domain/scenarioDraft/rules/deriveFromProperty";
 import { getScenarioById, useScenarioStore } from "../../../store/scenarioStore";
 import ScenarioSetupStep from "./steps/ScenarioSetupStep";
@@ -17,6 +16,8 @@ import ExpenseStep from "./steps/ExpenseStep";
 import ReviewStep from "./steps/ReviewStep";
 import { createInitialScenarioDraftV3State } from "./types";
 import { submitOnboardingV3Payload } from "./submissionFacade";
+import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenarioDraft";
+import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -207,21 +208,35 @@ export default function OnboardingV3Wizard() {
     if (!scenarioId || !scenario) {
       return;
     }
-    const payload = compileScenarioCreatePayload({
-      profile: draft.profile,
-      members: draft.members,
-      assets: draft.assets,
-      events: mergedEvents,
-      meta: { onboardingVersion: 3, onboarded: true },
-      clientComputed: { onboardingCompleted: true },
+
+    const submitResult = submitScenarioDraft({
+      source: "onboarding",
+      target: { scenarioId },
+      draft: {
+        assumptions: {
+          baseMonth: draft.profile.startMonth,
+          horizonMonths: draft.profile.horizonMonths,
+        },
+        members: draft.members,
+        assets: draft.assets,
+        events: mergedEvents,
+        meta: { onboardingVersion: 3, onboarded: true },
+        clientComputed: { onboardingCompleted: true },
+        baseCurrency: draft.profile.baseCurrency,
+      },
+      context: {
+        assumptionsBase: scenario.assumptions,
+        metaBase: scenario.meta,
+        clientComputedBase: scenario.clientComputed,
+      },
     });
 
-    if (payload.validationIssues.length > 0) {
-      setValidationMessages(payload.validationIssues.map((issue) => issue.message));
+    if (!submitResult.ok) {
+      setValidationMessages(submitResult.errors.map((issue) => issue.message));
       return;
     }
 
-    submitOnboardingV3Payload(scenarioId, payload, {
+    submitOnboardingV3Payload(scenarioId, submitResult.payload, {
       updateScenarioBaseCurrency: useScenarioStore.getState().updateScenarioBaseCurrency,
       updateScenarioAssumptions: useScenarioStore.getState().updateScenarioAssumptions,
       setScenarioMembers: useScenarioStore.getState().setScenarioMembers,
@@ -231,6 +246,16 @@ export default function OnboardingV3Wizard() {
       updateScenarioMeta: useScenarioStore.getState().updateScenarioMeta,
       updateScenarioClientComputed: useScenarioStore.getState().updateScenarioClientComputed,
     });
+
+    recordScenarioMigrationEvent({
+      name: "onboarding_completed",
+      ts: new Date().toISOString(),
+      route: "onboarding",
+      scenarioId,
+      source: "onboarding",
+      details: { action: "save", onboardingVersion: 3 },
+    });
+
     setValidationMessages([]);
   };
 
