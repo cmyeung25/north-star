@@ -147,6 +147,13 @@ export type BudgetCategory =
   | "eldercare"
   | "petcare";
 
+export type ScenarioGeneratedMetadata = {
+  source?: "plan-lab" | "scenario-draft";
+  origin?: string;
+  ruleId?: string;
+  [key: string]: unknown;
+};
+
 export type BudgetRule = {
   id: string;
   name: string;
@@ -164,6 +171,7 @@ export type BudgetRule = {
   applyScope?: ApplyScope;
   source?: "manual" | "eventGenerated" | "derived";
   generatedByEventId?: string;
+  metadata?: ScenarioGeneratedMetadata;
   generatedBy?: {
     type: "assetCost";
     assetId: string;
@@ -238,6 +246,7 @@ export type HomePosition = {
   rental?: RentalDetails;
   source?: "manual" | "eventGenerated" | "derived";
   generatedByEventId?: string;
+  metadata?: ScenarioGeneratedMetadata;
 };
 
 export type HomePositionDraft = HomePosition & {
@@ -380,6 +389,7 @@ export type ScenarioAsset = {
   createdByEventId?: string;
   createdByTemplate?: ScenarioEntityTemplate;
   depreciationSource?: "carDepreciation";
+  metadata?: ScenarioGeneratedMetadata;
 };
 
 export type ScenarioLiabilityKind =
@@ -402,6 +412,7 @@ export type ScenarioLiability = {
   source?: "manual" | "eventGenerated";
   createdByEventId?: string;
   createdByTemplate?: ScenarioEntityTemplate;
+  metadata?: ScenarioGeneratedMetadata;
 };
 
 export type ScenarioPositions = {

@@ -3,7 +3,9 @@ import type { Scenario } from "../../../store/scenarioStore";
 import { submitScenarioDraft } from "../submitScenarioDraft";
 import type { OnboardingV2Draft } from "../../onboarding/v2/draftTypes";
 import { applyOnboardingV2DraftToScenarioV2 } from "../../onboarding/v2/applyOnboardingV2DraftToScenarioV2";
-import { materializePlanLabDraft } from "../../planLab/materializePlanLabDraft";
+import { buildScenarioDraftFromPlanLab, materializePlanLabDraft } from "../../planLab/materializePlanLabDraft";
+import { applyPlanLabScenarioV2Patches, emptyPlanLabScenarioV2Patches } from "../../planLab/scenarioV2Patches";
+import { buildScenarioV2FromScenario } from "../../planLab/scenarioV2Bridge";
 
 const buildBaseScenario = (): Scenario => ({
   id: "scenario-1",
@@ -120,6 +122,90 @@ describe("scenario create payload integration parity", () => {
     expect(onboardingPayload.clientComputed.onboardingCompleted).toBe(true);
     expect(seedPayload.clientComputed.onboardingCompleted).toBe(true);
     expect(planLabScenario.clientComputed?.onboardingCompleted).toBe(true);
+  });
+
+
+
+  it("keeps payload structure and generated metadata consistent for onboarding -> plan-lab save-as", () => {
+    const base = buildBaseScenario();
+    const onboardingScenario = applyOnboardingV2DraftToScenarioV2(buildOnboardingDraft(), base);
+
+    const onboardingPayload = submitScenarioDraft({
+      source: "onboarding",
+      target: { scenarioId: base.id },
+      draft: {
+        assumptions: onboardingScenario.assumptions,
+        events: onboardingScenario.events,
+        meta: { schemaVersion: 2, onboardingVersion: 2, onboarded: true },
+        clientComputed: { onboardingCompleted: true },
+        baseCurrency: onboardingScenario.baseCurrency,
+      },
+      context: { assumptionsBase: base.assumptions },
+    }).payload;
+
+    const draftBuild = buildScenarioDraftFromPlanLab(
+      {},
+      {
+        ...onboardingScenario,
+        id: "scenario-planlab",
+        meta: { schemaVersion: 2, onboardingVersion: 2, onboarded: true },
+        clientComputed: { onboardingCompleted: true },
+      },
+      { budgetRules: [] }
+    );
+
+    const savedAsPayload = submitScenarioDraft({
+      source: "plan-lab",
+      target: { scenarioId: "scenario-planlab-copy" },
+      draft: draftBuild.scenarioDraft,
+      context: {
+        assumptionsBase: onboardingScenario.assumptions,
+        metaBase: onboardingScenario.meta,
+        clientComputedBase: onboardingScenario.clientComputed,
+      },
+    }).payload;
+
+    const scenarioV2 = buildScenarioV2FromScenario(onboardingScenario, []);
+    const patchedScenarioV2 = applyPlanLabScenarioV2Patches(scenarioV2, {
+      ...emptyPlanLabScenarioV2Patches(),
+      events: {
+        add: [
+          {
+            id: "evt-plan-lab-housing",
+            type: "housing",
+            kind: "mortgage",
+            label: "Buy home",
+            memberId: "self",
+            startMonth: "2025-02",
+            purchasePrice: 8000000,
+            downPaymentMode: "percent",
+            downPaymentPercent: 25,
+            mortgageRatePct: 3,
+            mortgageTermYears: 30,
+          },
+        ],
+        update: {},
+        remove: [],
+      },
+    });
+
+    expect(Object.keys(savedAsPayload).sort()).toEqual(Object.keys(onboardingPayload).sort());
+    expect(savedAsPayload.meta.onboarded).toBe(true);
+    expect(savedAsPayload.clientComputed.onboardingCompleted).toBe(true);
+
+    const generatedAsset = (patchedScenarioV2.assets ?? []).find((asset) => asset.createdByEventId === "evt-plan-lab-housing");
+    const generatedLiability = (patchedScenarioV2.liabilities ?? []).find((liability) => liability.createdByEventId === "evt-plan-lab-housing");
+
+    expect(generatedAsset?.metadata).toEqual({
+      source: "plan-lab",
+      origin: "evt-plan-lab-housing",
+      ruleId: "plan-lab.housing.asset.v1",
+    });
+    expect(generatedLiability?.metadata).toEqual({
+      source: "plan-lab",
+      origin: "evt-plan-lab-housing",
+      ruleId: "plan-lab.housing.liability.v1",
+    });
   });
 
   it("reports duplicate mortgage/rental warnings as non-blocking during submit", () => {

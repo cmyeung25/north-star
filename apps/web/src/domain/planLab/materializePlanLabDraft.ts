@@ -1,7 +1,7 @@
 import type { EventDefinition } from "../events/types";
 import type { BudgetRule, Scenario, ScenarioMember } from "../../store/scenarioStore";
 import { normalizeMonthStrict } from "../../utils/month";
-import type { PlanLabDraft } from "./types";
+import type { PlanLabDraft, PlanLabSnapshot } from "./types";
 import { applyPlanLabDraftToScenario } from "./applyPlanLabDraftToScenario";
 import { submitScenarioDraft } from "../scenarioDraft/submitScenarioDraft";
 import type { ScenarioDraft, ValidationIssue } from "../scenarioDraft/types";
@@ -28,7 +28,6 @@ export type PlanLabDraftBuildResult = {
   >;
 };
 
-
 const toPlanLabError = (
   issue:
     | ReturnType<typeof applyPlanLabDraftToScenario>["errors"][number]
@@ -51,17 +50,26 @@ const normalizeOptionalMonth = (value: string | null | undefined) => {
   return normalized.ok ? normalized.month : null;
 };
 
+const toPlanLabDraft = (snapshot: PlanLabSnapshot): PlanLabDraft => ({
+  baselinePatches: snapshot.baselinePatches,
+  experiments: snapshot.experiments,
+  scorecardSettings: snapshot.scorecardSettings,
+  additions: snapshot.additions,
+});
+
 export const buildScenarioDraftFromPlanLab = (
-  baseScenario: Scenario,
-  draft: PlanLabDraft,
-  options: {
-    scenarioId: string;
+  snapshot: PlanLabSnapshot,
+  baselineScenario: Scenario,
+  options?: {
+    scenarioId?: string;
     budgetRules?: BudgetRule[];
   }
 ): PlanLabDraftBuildResult => {
-  const result = applyPlanLabDraftToScenario(baseScenario, draft, {
-    scenarioId: options.scenarioId,
-    budgetRules: options.budgetRules,
+  const scenarioId = options?.scenarioId ?? baselineScenario.id;
+  const draft = toPlanLabDraft(snapshot);
+  const result = applyPlanLabDraftToScenario(baselineScenario, draft, {
+    scenarioId,
+    budgetRules: options?.budgetRules,
   });
 
   const additions = draft.additions ?? {};
@@ -82,7 +90,7 @@ export const buildScenarioDraftFromPlanLab = (
     addedMembers.push({
       ...member,
       birthMonth: normalizedBirthMonth ?? undefined,
-      applyScope: { scope: "include", scenarioIds: [options.scenarioId] },
+      applyScope: { scope: "include", scenarioIds: [scenarioId] },
     });
   });
 
@@ -109,7 +117,7 @@ export const buildScenarioDraftFromPlanLab = (
       ...rule,
       startMonth: normalizedStartMonth ?? undefined,
       endMonth: normalizedEndMonth ?? undefined,
-      applyScope: { scope: "include", scenarioIds: [options.scenarioId] },
+      applyScope: { scope: "include", scenarioIds: [scenarioId] },
     });
   });
 
@@ -147,7 +155,16 @@ export const materializePlanLabDraft = (
     budgetRules?: BudgetRule[];
   }
 ): PlanLabMaterializeResult => {
-  const buildResult = buildScenarioDraftFromPlanLab(baseScenario, draft, options);
+  const buildResult = buildScenarioDraftFromPlanLab(
+    {
+      baselinePatches: draft.baselinePatches,
+      experiments: draft.experiments,
+      scorecardSettings: draft.scorecardSettings,
+      additions: draft.additions,
+    },
+    baseScenario,
+    options
+  );
   const submitResult = submitScenarioDraft({
     source: "plan-lab",
     target: { scenarioId: options.scenarioId },
