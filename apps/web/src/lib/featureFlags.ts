@@ -20,6 +20,18 @@ export const migrationFlags = {
   planLab: readFlag(process.env.NEXT_PUBLIC_FF_LIFECYCLE_MIGRATION_PLAN_LAB, false),
 };
 
+export const submissionFlags = {
+  onboardingV3Enabled: readFlag(process.env.NEXT_PUBLIC_FF_ONBOARDING_V3_ENABLED, true),
+  scenarioDraftCompilerEnabled: readFlag(
+    process.env.NEXT_PUBLIC_FF_SCENARIO_DRAFT_COMPILER_ENABLED,
+    false
+  ),
+  planLabSubmissionV2Enabled: readFlag(
+    process.env.NEXT_PUBLIC_FF_PLANLAB_SUBMISSION_V2_ENABLED,
+    false
+  ),
+};
+
 export const isMigrationProtectionEnabled = (source: ScenarioDraftSource) => {
   if (source === "onboarding") {
     return migrationFlags.onboarding;
@@ -28,4 +40,14 @@ export const isMigrationProtectionEnabled = (source: ScenarioDraftSource) => {
     return migrationFlags.seed;
   }
   return migrationFlags.planLab;
+};
+
+export const isSubmissionV2Enabled = (source: ScenarioDraftSource) => {
+  if (source === "onboarding") {
+    return true;
+  }
+  if (source === "seed") {
+    return submissionFlags.scenarioDraftCompilerEnabled;
+  }
+  return submissionFlags.planLabSubmissionV2Enabled;
 };

@@ -11,9 +11,11 @@ import { compileScenarioCreatePayload } from "./compile";
 import type { CompileScenarioContext } from "./compile";
 import type { ScenarioDraft, ValidationIssue } from "./types";
 import { recordScenarioMigrationEvent } from "../../lib/telemetry/scenarioMigrationTelemetry";
-import { isMigrationProtectionEnabled } from "../../lib/featureFlags";
+import { isMigrationProtectionEnabled, isSubmissionV2Enabled } from "../../lib/featureFlags";
 import { detectDuplicateScenarioEventWarnings } from "../warnings/duplicateCashflowGuardrails";
 import { WarningCode } from "../warnings/types";
+import { ensureEventSchemaMarker } from "@north-star/adapters";
+import { defaultCurrency } from "../../../lib/i18n";
 
 export type ScenarioDraftSource = "onboarding" | "seed" | "plan-lab";
 
@@ -75,23 +77,47 @@ export const submitScenarioDraft = (
   input: SubmitScenarioDraftInput
 ): SubmitScenarioDraftResult => {
   const migrationProtectionEnabled = isMigrationProtectionEnabled(input.source);
+  const submissionV2Enabled = isSubmissionV2Enabled(input.source);
 
   if (migrationProtectionEnabled) {
     recordScenarioMigrationEvent({
-      name: "scenario_submission_source",
+      name: "scenario_submission_started",
       ts: new Date().toISOString(),
       scenarioId: input.target.scenarioId,
       source: input.source,
+      details: {
+        submissionV2Enabled,
+      },
     });
   }
 
-  const compiled = compileScenarioCreatePayload(
-    toCompilerDraft(input.draft),
-    {
-      ...(input.context ?? {}),
-      lifecycleSource: input.source,
-    }
-  );
+  const compiled = submissionV2Enabled
+    ? compileScenarioCreatePayload(toCompilerDraft(input.draft), {
+        ...(input.context ?? {}),
+        lifecycleSource: input.source,
+      })
+    : {
+        assumptions: ({
+          ...(input.context?.assumptionsBase ?? {}),
+          ...(input.draft.assumptions ?? {}),
+        } as ScenarioAssumptions),
+        members: input.draft.members ?? [],
+        assets: input.draft.assets ?? [],
+        liabilities: input.draft.liabilities ?? [],
+        events: ensureEventSchemaMarker({ events: input.draft.events ?? [] })
+          .events as ScenarioEvent[],
+        meta: ({
+          ...(input.context?.metaBase ?? {}),
+          ...(input.draft.meta ?? {}),
+        } as ScenarioMeta),
+        clientComputed: ({
+          ...(input.context?.clientComputedBase ?? {}),
+          ...(input.draft.clientComputed ?? {}),
+        } as ScenarioClientComputed),
+        baseCurrency: input.draft.baseCurrency ?? defaultCurrency,
+        validationIssues: [] as ValidationIssue[],
+      };
+
 
   const payload: SubmitScenarioDraftPayload = {
     assumptions: compiled.assumptions,
@@ -135,8 +161,38 @@ export const submitScenarioDraft = (
     });
   }
 
+  if (migrationProtectionEnabled && warnings.length > 0) {
+    recordScenarioMigrationEvent({
+      name: "scenario_double_count_warning_detected",
+      ts: new Date().toISOString(),
+      scenarioId: input.target.scenarioId,
+      source: input.source,
+      details: {
+        warningCount: warnings.length,
+      },
+    });
+  }
+
   if (errors.length === 0) {
     input.persistence?.applyStore?.(payload);
+    if (migrationProtectionEnabled) {
+      recordScenarioMigrationEvent({
+        name: "scenario_submission_succeeded",
+        ts: new Date().toISOString(),
+        scenarioId: input.target.scenarioId,
+        source: input.source,
+      });
+    }
+  } else if (migrationProtectionEnabled) {
+    recordScenarioMigrationEvent({
+      name: "scenario_submission_failed",
+      ts: new Date().toISOString(),
+      scenarioId: input.target.scenarioId,
+      source: input.source,
+      details: {
+        errorCount: errors.length,
+      },
+    });
   }
 
   return {

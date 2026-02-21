@@ -6,7 +6,12 @@ const EVENT_LIMIT = 200;
 export type ScenarioMigrationTelemetryEvent = {
   name:
     | "scenario_draft_compile_failed"
-    | "scenario_submission_source"
+    | "scenario_submission_started"
+    | "scenario_submission_succeeded"
+    | "scenario_submission_failed"
+    | "scenario_double_count_warning_detected"
+    | "onboarding_started"
+    | "onboarding_completed"
     | "lifecycle_resolved"
     | "scenario_save_failed"
     | "route_redirect_anomaly";
