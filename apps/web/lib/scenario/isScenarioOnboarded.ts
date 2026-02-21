@@ -1,5 +1,5 @@
 import type { ScenarioPayload } from "@north-star/adapters";
-import { resolveScenarioLifecycle } from "../../src/domain/scenarioStateModel";
+import { resolveScenarioLifecycle } from "./lifecycle";
 
 type ScenarioRecord = {
   id?: string;

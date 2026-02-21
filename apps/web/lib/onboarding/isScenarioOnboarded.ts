@@ -1,4 +1,4 @@
-import { resolveScenarioLifecycle } from "../../src/domain/scenarioStateModel";
+import { resolveScenarioLifecycle } from "../scenario/lifecycle";
 
 export type ScenarioOnboardingShape = {
   meta?: {

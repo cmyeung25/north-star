@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createCaseScenarioRepo, createEmptyScenarioPayload } from "@north-star/adapters";
-import { scenarioDashboardPath, scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
+import { scenarioOnboardingPath } from "../../../../lib/routes/appRoutes";
 import { resolveScenarioLifecycleFromPayload } from "../../../../lib/scenario/isScenarioOnboarded";
+import { resolveScenarioLifecyclePath } from "../../../../lib/scenario/lifecycle";
 import { createSupabaseServerClient } from "../../../../src/lib/supabase/server";
 
 const repo = () =>
@@ -138,9 +139,7 @@ export async function openCaseAction(input: { caseId: string; caseCurrency?: str
     return {
       caseId: input.caseId,
       scenarioId: defaultScenario.id,
-      redirectPath: lifecycle === "active"
-        ? scenarioDashboardPath(input.caseId, defaultScenario.id)
-        : scenarioOnboardingPath(input.caseId, defaultScenario.id),
+      redirectPath: resolveScenarioLifecyclePath(input.caseId, defaultScenario.id, lifecycle, "dashboard"),
     };
   }
 

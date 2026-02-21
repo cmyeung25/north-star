@@ -1,5 +1,5 @@
 import PlanLabClient from "../../../../../../../../[locale]/plan-lab/PlanLabClient";
-import { resolveWorkspaceMode } from "../../../../../../../../../src/domain/scenarioStateModel";
+import { resolveWorkspaceMode } from "../../../../../../../../../lib/scenario/lifecycle";
 
 const cardStyle = {
   // border: "1px solid #152741",
