@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { scenarioDashboardPath } from "../../../../../../../../lib/routes/appRoutes";
 import OnboardingEntry from "../../../../../../../../src/features/onboarding/OnboardingEntry";
-import { isScenarioOnboarded } from "../../../../../../../../lib/scenario/isScenarioOnboarded";
+import { resolveScenarioLifecycleFromPayload } from "../../../../../../../../lib/scenario/isScenarioOnboarded";
 import { createSupabaseServerClient } from "../../../../../../../../src/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -26,7 +26,7 @@ export default async function ScenarioOnboardingPage({ params }: PageProps) {
 
   const payload = (await repo.loadScenarioPayload(params.caseId, params.scenarioId)) as Record<string, unknown>;
 
-  if (isScenarioOnboarded(payload, params.scenarioId)) {
+  if (resolveScenarioLifecycleFromPayload(payload, params.scenarioId) === "active") {
     redirect(scenarioDashboardPath(params.caseId, params.scenarioId));
   }
 

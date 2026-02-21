@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isScenarioOnboarded, isScenarioOnboardedV2 } from "./isScenarioOnboarded";
+import {
+  isScenarioOnboarded,
+  isScenarioOnboardedV2,
+  resolveScenarioLifecycleFromPayload,
+} from "./isScenarioOnboarded";
 
 describe("isScenarioOnboardedV2", () => {
   it("returns true when scenario meta is onboarded", () => {
@@ -71,5 +75,34 @@ describe("isScenarioOnboarded", () => {
         "scenario-1",
       ),
     ).toBe(true);
+  });
+});
+
+
+describe("resolveScenarioLifecycleFromPayload", () => {
+  it("returns draft when scenario entry is missing", () => {
+    expect(
+      resolveScenarioLifecycleFromPayload({
+        meta: { onboarded: true },
+        scenarios: [],
+      }),
+    ).toBe("draft");
+  });
+
+  it("returns active when active scenario is onboarded", () => {
+    expect(
+      resolveScenarioLifecycleFromPayload(
+        {
+          activeScenarioId: "scenario-1",
+          scenarios: [
+            {
+              id: "scenario-1",
+              meta: { onboardedAt: "2026-01-01T00:00:00.000Z" },
+            },
+          ],
+        },
+        "scenario-1",
+      ),
+    ).toBe("active");
   });
 });
