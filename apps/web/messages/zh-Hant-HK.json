@@ -2785,6 +2785,31 @@
       "ruleFallback": "系統規則"
     }
   },
+  "onboardingV3": {
+    "steps": {
+      "scenarioSetup": "情境設定",
+      "household": "家庭",
+      "assets": "資產",
+      "income": "收入",
+      "expense": "支出",
+      "review": "檢視"
+    },
+    "reviewWarnings": {
+      "startMonthMissing": "尚未填寫開始月份",
+      "baseCurrencyDefault": "使用預設幣別",
+      "memberUnnamed": "有成員尚未命名",
+      "propertyMissing": "尚未新增房產",
+      "derivedCashflowMissing": "沒有可衍生現金流"
+    },
+    "navigation": {
+      "back": "返回",
+      "next": "下一步",
+      "completeAndWriteToCore": "完成並寫入 Core"
+    },
+    "footer": {
+      "localDraftHint": "V3 流程只會更新本地 ScenarioDraftV3 分段 state，最後一步才一次提交。"
+    }
+  },
   "onboardingDraft": {
     "title": "建立情境草稿",
     "subtitle": "先填個人資料與家庭成員。",
