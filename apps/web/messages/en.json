@@ -2807,16 +2807,30 @@
           "holdingCostMonthly": "Holding cost monthly",
           "mortgagePrincipal": "Mortgage principal",
           "mortgageRate": "Rate %",
-          "mortgageTermYears": "Term years"
+          "mortgageTermYears": "Term years",
+          "cashAmount": "Cash amount",
+          "cashCurrency": "Cash currency",
+          "investmentPrincipal": "Investment principal",
+          "investmentReturnPct": "Custom annual return %",
+          "investmentStartMonth": "Investment start month (YYYY-MM)",
+          "returnMode": {
+            "assumption": "Follow assumptions",
+            "custom": "Custom return"
+          }
         },
         "switches": {
           "enableRentIncome": "Enable rental income",
           "enableHoldingCost": "Enable monthly holding cost",
-          "enableMortgage": "Enable mortgage details"
+          "enableMortgage": "Enable mortgage details",
+          "enableProperty": "Include property asset",
+          "enableInvestment": "Include investment asset"
         },
         "hints": {
           "investment": "Start with investment name and current market value; you can fill in details later.",
           "cash": "Consider adding cash purpose (for example: emergency fund / savings account)."
+        },
+        "badges": {
+          "optional": "Optional"
         }
       },
       "income": {
