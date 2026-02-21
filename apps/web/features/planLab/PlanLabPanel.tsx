@@ -146,6 +146,7 @@ import {
   materializePlanLabDraft,
 } from "../../src/domain/planLab/materializePlanLabDraft";
 import { submitScenarioDraft } from "../../src/domain/scenarioDraft/submitScenarioDraft";
+import { recordScenarioMigrationEvent } from "../../src/lib/telemetry/scenarioMigrationTelemetry";
 import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
@@ -7768,6 +7769,14 @@ export default function PlanLabPanel({
     });
 
     if (buildResult.errors.length > 0) {
+      recordScenarioMigrationEvent({
+        name: "scenario_save_failed",
+        ts: new Date().toISOString(),
+        route: "plan-lab",
+        scenarioId: created.id,
+        source: "plan-lab",
+        details: { errorCount: buildResult.errors.length },
+      });
       setSaveError(resolveSaveValidationError(buildResult.errors));
       return;
     }
@@ -7784,6 +7793,14 @@ export default function PlanLabPanel({
     });
 
     if (!submitResult.ok) {
+      recordScenarioMigrationEvent({
+        name: "scenario_save_failed",
+        ts: new Date().toISOString(),
+        route: "plan-lab",
+        scenarioId: created.id,
+        source: "plan-lab",
+        details: { errorCount: submitResult.errors.length },
+      });
       setSaveError(resolveSaveValidationError(submitResult.errors));
       return;
     }

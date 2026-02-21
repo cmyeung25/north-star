@@ -1879,47 +1879,82 @@ const shouldAutoCompleteOnboarding = (scenario: Scenario) => {
   return hasAssumptions && (hasEvents || hasPositions);
 };
 
+const applyLifecycleLazyMigration = (scenario: Scenario): Scenario => {
+  const hasLifecycleSignal =
+    scenario.meta?.onboarded === true ||
+    Boolean(scenario.meta?.onboardedAt) ||
+    scenario.meta?.skipOnboarding === true ||
+    scenario.meta?.isSeeded === true ||
+    scenario.clientComputed?.onboardingCompleted === true;
+
+  if (hasLifecycleSignal) {
+    return scenario;
+  }
+
+  const hasLifecycleData =
+    Boolean(scenario.assumptions?.baseMonth) &&
+    (((scenario.eventRefs ?? []).length > 0) || hasScenarioPositions(scenario.positions));
+
+  if (!hasLifecycleData) {
+    return scenario;
+  }
+
+  return {
+    ...scenario,
+    meta: {
+      ...(scenario.meta ?? {}),
+      schemaVersion: scenario.meta?.schemaVersion ?? 2,
+    },
+    clientComputed: {
+      ...(scenario.clientComputed ?? {}),
+      onboardingCompleted: true,
+    },
+  };
+};
+
 type LegacyScenario = Scenario & {
   members?: ScenarioMember[];
   budgetRules?: BudgetRule[];
 };
 
 export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
+  const migratedScenario = applyLifecycleLazyMigration(scenario);
   const normalizedPositions = normalizeScenarioPositions(
-    scenario.positions,
-    scenario.assumptions?.baseMonth
+    migratedScenario.positions,
+    migratedScenario.assumptions?.baseMonth
   );
-  const normalizedEventRefs = cloneEventRefs(scenario.eventRefs) ?? [];
+  const normalizedEventRefs = cloneEventRefs(migratedScenario.eventRefs) ?? [];
   const normalizedEvents =
-    cloneScenarioEvents(scenario.events) ??
-    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
+    cloneScenarioEvents(migratedScenario.events) ??
+    (migratedScenario.meta?.schemaVersion === 2 ? [] : undefined);
   const normalizedAssets =
-    cloneScenarioAssets(scenario.assets) ??
-    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
+    cloneScenarioAssets(migratedScenario.assets) ??
+    (migratedScenario.meta?.schemaVersion === 2 ? [] : undefined);
   const normalizedLiabilities =
-    cloneScenarioLiabilities(scenario.liabilities) ??
-    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
+    cloneScenarioLiabilities(migratedScenario.liabilities) ??
+    (migratedScenario.meta?.schemaVersion === 2 ? [] : undefined);
   const normalizedScenarioMembers =
-    cloneMembers(scenario.members) ??
-    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
-  const normalizedClientComputed = cloneClientComputed(scenario.clientComputed);
-  const normalizedSnapshots = cloneSnapshots(scenario.snapshots);
-  const normalizedPlans = clonePlans(scenario.plans);
-  const normalizedMilestoneEvents = normalizeMilestoneEvents(scenario.milestoneEvents);
+    cloneMembers(migratedScenario.members) ??
+    (migratedScenario.meta?.schemaVersion === 2 ? [] : undefined);
+  const normalizedClientComputed = cloneClientComputed(migratedScenario.clientComputed);
+  const normalizedSnapshots = cloneSnapshots(migratedScenario.snapshots);
+  const normalizedPlans = clonePlans(migratedScenario.plans);
+  const normalizedMilestoneEvents = normalizeMilestoneEvents(migratedScenario.milestoneEvents);
   const normalizedBundleInstances =
-    cloneBundleInstances(scenario.bundleInstances) ??
-    (scenario.meta?.schemaVersion === 2 ? [] : undefined);
+    cloneBundleInstances(migratedScenario.bundleInstances) ??
+    (migratedScenario.meta?.schemaVersion === 2 ? [] : undefined);
   const normalizedAssumptions = {
     ...defaultAssumptions,
-    ...scenario.assumptions,
+    ...migratedScenario.assumptions,
   };
-  const nextClientComputed = shouldAutoCompleteOnboarding(scenario)
+  const nextClientComputed = shouldAutoCompleteOnboarding(migratedScenario)
     ? { ...(normalizedClientComputed ?? {}), onboardingCompleted: true }
     : normalizedClientComputed;
 
   if (!normalizedPositions) {
     return {
       ...scenario,
+      ...migratedScenario,
       assumptions: normalizedAssumptions,
       members: normalizedScenarioMembers,
       assets: normalizedAssets,
@@ -1936,7 +1971,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   }
 
   return {
-    ...scenario,
+    ...migratedScenario,
     assumptions: normalizedAssumptions,
     members: normalizedScenarioMembers,
     assets: normalizedAssets,

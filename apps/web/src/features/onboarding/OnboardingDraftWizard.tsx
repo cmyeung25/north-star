@@ -75,6 +75,7 @@ import { formatIsoYmdHms } from "../../../lib/date/format";
 import { submitScenarioDraft } from "../../domain/scenarioDraft/submitScenarioDraft";
 import type { ValidationIssue } from "../../domain/scenarioDraft/types";
 import { buildScenarioDraftFromOnboardingState } from "./buildScenarioDraftFromOnboardingState";
+import { recordScenarioMigrationEvent } from "../../lib/telemetry/scenarioMigrationTelemetry";
 
 const steps = [
   "profile",
@@ -1879,6 +1880,14 @@ export default function OnboardingDraftWizard() {
     });
 
     if (!submitResult.ok) {
+      recordScenarioMigrationEvent({
+        name: "scenario_save_failed",
+        ts: new Date().toISOString(),
+        route: "onboarding",
+        scenarioId,
+        source: "onboarding",
+        details: { errorCount: submitResult.errors.length },
+      });
       const issueStepIndexes = Array.from(
         new Set(submitResult.errors.map((issue) => mapIssueToStepIndex(issue)))
       );
@@ -1949,6 +1958,14 @@ export default function OnboardingDraftWizard() {
         );
       } catch (error) {
         console.error("Failed to persist onboarding payload", error);
+        recordScenarioMigrationEvent({
+          name: "scenario_save_failed",
+          ts: new Date().toISOString(),
+          route: "onboarding",
+          scenarioId,
+          source: "onboarding",
+          reason: "persist-action-failed",
+        });
         return;
       }
 
