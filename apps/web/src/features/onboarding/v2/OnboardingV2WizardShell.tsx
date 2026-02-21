@@ -10,6 +10,7 @@ import {
   Text,
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import OnboardingV2ErrorBoundary from "./OnboardingV2ErrorBoundary";
@@ -34,6 +35,7 @@ export default function OnboardingV2WizardShell({
   onStepChange,
   navigation,
 }: OnboardingV2WizardShellProps) {
+  const t = useTranslations("onboardingDraft.wizardShell");
   const clampedStep = Math.min(Math.max(activeStep, 0), steps.length - 1);
   const activeContent = steps[clampedStep]?.content;
   const headerRef = useRef<HTMLDivElement>(null);
@@ -57,14 +59,18 @@ export default function OnboardingV2WizardShell({
             <Stack gap="xs">
               <Group justify="space-between" align="center">
                 <Text fw={600} size="sm">
-                  步驟 {clampedStep + 1}/{steps.length} · {steps[clampedStep]?.title}
+                  {t("stepProgress", {
+                    current: clampedStep + 1,
+                    total: steps.length,
+                    title: steps[clampedStep]?.title,
+                  })}
                 </Text>
                 <Button variant="subtle" size="compact-sm" onClick={openSteps}>
-                  查看全部步驟
+                  {t("viewAllSteps")}
                 </Button>
               </Group>
               <Progress value={progress} size="sm" radius="xl" />
-              <Modal opened={stepsOpened} onClose={closeSteps} title="全部步驟" centered>
+              <Modal opened={stepsOpened} onClose={closeSteps} title={t("allStepsTitle")} centered>
                 <Stack gap="xs">
                   {steps.map((step, index) => (
                     <Button
@@ -76,8 +82,8 @@ export default function OnboardingV2WizardShell({
                         closeSteps();
                       }}
                     >
-                      {index + 1}. {step.title}
-                      {step.hasError ? " ⚠" : ""}
+                      {t("stepListItem", { index: index + 1, title: step.title })}
+                      {step.hasError ? ` ${t("stepErrorIndicator")}` : ""}
                     </Button>
                   ))}
                 </Stack>

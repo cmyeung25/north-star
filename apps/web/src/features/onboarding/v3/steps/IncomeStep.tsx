@@ -36,26 +36,27 @@ export default function IncomeStep({
   onUpdateManualItem,
   onRemoveManualItem,
 }: Props) {
-  const t = useTranslations("onboarding.generatedCashflow");
+  const tGenerated = useTranslations("onboarding.generatedCashflow");
+  const t = useTranslations("onboardingV3.steps");
   const [duplicateMessage, setDuplicateMessage] = useState<string>("");
 
   const addManual = (rule: string | undefined, labelKey: string) => {
     if (rule && rows.some((row) => row.metadata?.generatedByRule === rule)) {
-      setDuplicateMessage(t("duplicateBlocked"));
+      setDuplicateMessage(tGenerated("duplicateBlocked"));
       return;
     }
     setDuplicateMessage("");
-    onAddManualItem({ label: t(labelKey), amount: 0 });
+    onAddManualItem({ label: tGenerated(labelKey), amount: 0 });
   };
 
   const primaryTemplates = [
-    { id: "rent", label: t("addRentIncome"), rule: "property.rent.income.v1", labelKey: "manualRentIncome" },
-    { id: "manual", label: t("addManual"), rule: undefined, labelKey: "manualIncome" },
+    { id: "rent", label: tGenerated("addRentIncome"), rule: "property.rent.income.v1", labelKey: "manualRentIncome" },
+    { id: "manual", label: tGenerated("addManual"), rule: undefined, labelKey: "manualIncome" },
   ] as const;
 
   const addonTemplates = [
-    { id: "bonus", label: "新增獎金", rule: undefined, labelKey: "manualIncome" },
-    { id: "allowance", label: "新增津貼", rule: undefined, labelKey: "manualIncome" },
+    { id: "bonus", label: t("income.quickAdd.bonus"), rule: undefined, labelKey: "manualIncome" },
+    { id: "allowance", label: t("income.quickAdd.allowance"), rule: undefined, labelKey: "manualIncome" },
   ] as const;
 
   return (
@@ -63,16 +64,16 @@ export default function IncomeStep({
       <Card withBorder radius="md" padding="md">
         <Stack gap="md">
           <Stack gap={4}>
-            <Text fw={600}>Income assumptions</Text>
-            <Text size="sm" c="dimmed">Review generated income and add manual items when needed.</Text>
+            <Text fw={600}>{t("income.title")}</Text>
+            <Text size="sm" c="dimmed">{t("income.description")}</Text>
           </Stack>
 
           <Stack gap="md">
-            <Text size="sm">{t("incomeHint")}</Text>
+            <Text size="sm">{tGenerated("incomeHint")}</Text>
             {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
 
             <Stack gap="xs">
-              <Text size="sm" fw={600}>常用模板</Text>
+              <Text size="sm" fw={600}>{t("common.frequentTemplates")}</Text>
               <Group>
                 {primaryTemplates.map((template) => (
                   <Button
@@ -87,7 +88,7 @@ export default function IncomeStep({
               </Group>
             </Stack>
 
-            <Divider label="更多快速新增" />
+            <Divider label={t("common.moreQuickAdd")} />
             <Group>
               {addonTemplates.map((template) => (
                 <Button
@@ -104,9 +105,9 @@ export default function IncomeStep({
             <Table>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>{t("source")}</Table.Th>
-                  <Table.Th>{t("baseValue")}</Table.Th>
-                  <Table.Th>{t("overrideValue")}</Table.Th>
+                  <Table.Th>{tGenerated("source")}</Table.Th>
+                  <Table.Th>{tGenerated("baseValue")}</Table.Th>
+                  <Table.Th>{tGenerated("overrideValue")}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -127,15 +128,15 @@ export default function IncomeStep({
             </Table>
 
             <Stack gap="md">
-              <Text size="sm" fw={600}>{t("manualSection")}</Text>
+              <Text size="sm" fw={600}>{tGenerated("manualSection")}</Text>
               {manualRows.length > 0 ? (
                 manualRows.map((row) => (
                   <Card key={row.id} withBorder radius="md" padding="md">
                     <Stack gap="md">
                       <Group justify="space-between" align="flex-start">
-                        <Text size="sm" fw={600}>Manual income row</Text>
+                        <Text size="sm" fw={600}>{t("income.manualRowTitle")}</Text>
                         <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>
-                          {t("remove")}
+                          {tGenerated("remove")}
                         </Button>
                       </Group>
                       <Group grow>
@@ -157,7 +158,7 @@ export default function IncomeStep({
                 ))
               ) : (
                 <Card withBorder radius="md" padding="md">
-                  <Text size="sm" c="dimmed">尚未新增手動收入項目，可使用上方模板快速建立。</Text>
+                  <Text size="sm" c="dimmed">{t("income.emptyManualHint")}</Text>
                 </Card>
               )}
             </Stack>

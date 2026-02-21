@@ -48,7 +48,9 @@ export default function OnboardingV3Wizard() {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const scenario = getScenarioById(scenarios, scenarioId ?? null);
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState(createInitialScenarioDraftV3State);
+  const [draft, setDraft] = useState(() =>
+    createInitialScenarioDraftV3State({ defaultMemberName: t("defaults.memberName") })
+  );
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
 
   const derived = useMemo(() => deriveFromProperty({ profile: draft.profile, assets: draft.assets }), [draft.assets, draft.profile]);
@@ -95,11 +97,11 @@ export default function OnboardingV3Wizard() {
   }, [autoOverridesById, autoRows, manualCashflowEvents]);
 
   const reviewItems = [
-    { label: "profile.startMonth", completed: Boolean(draft.profile.startMonth), warning: t("reviewWarnings.startMonthMissing") },
-    { label: "profile.baseCurrency", completed: Boolean(draft.profile.baseCurrency), warning: t("reviewWarnings.baseCurrencyDefault") },
-    { label: "members", completed: draft.members.length > 0 && draft.members.every((m) => Boolean(m.name)), warning: t("reviewWarnings.memberUnnamed") },
-    { label: "assets.property", completed: draft.assets.length > 0, warning: t("reviewWarnings.propertyMissing") },
-    { label: "generated.income/expense", completed: mergedEvents.length > 0, warning: t("reviewWarnings.derivedCashflowMissing") },
+    { label: t("steps.review.items.startMonth"), completed: Boolean(draft.profile.startMonth), warning: t("reviewWarnings.startMonthMissing") },
+    { label: t("steps.review.items.baseCurrency"), completed: Boolean(draft.profile.baseCurrency), warning: t("reviewWarnings.baseCurrencyDefault") },
+    { label: t("steps.review.items.members"), completed: draft.members.length > 0 && draft.members.every((m) => Boolean(m.name)), warning: t("reviewWarnings.memberUnnamed") },
+    { label: t("steps.review.items.assets"), completed: draft.assets.length > 0, warning: t("reviewWarnings.propertyMissing") },
+    { label: t("steps.review.items.generatedCashflow"), completed: mergedEvents.length > 0, warning: t("reviewWarnings.derivedCashflowMissing") },
   ];
 
   const upsertAutoOverride = (eventId: string, kind: "income" | "expense", patch: { amount?: number; disabled?: boolean }) => {
