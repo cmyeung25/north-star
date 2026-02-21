@@ -154,7 +154,7 @@ export default function OnboardingV3Wizard() {
   const steps = [
     { ...stepDefs[0], title: t(stepDefs[0].titleKey), content: <ScenarioSetupStep profile={draft.profile} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} /> },
     { ...stepDefs[1], title: t(stepDefs[1].titleKey), content: <HouseholdStep members={draft.members} onChange={(members) => setDraft((current) => ({ ...current, members }))} /> },
-    { ...stepDefs[2], title: t(stepDefs[2].titleKey), content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} onChange={(assets) => setDraft((current) => ({ ...current, assets }))} /> },
+    { ...stepDefs[2], title: t(stepDefs[2].titleKey), content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} assetToggles={draft.assetToggles} onAssetsChange={(assets) => setDraft((current) => ({ ...current, assets }))} onAssetTogglesChange={(assetToggles) => setDraft((current) => ({ ...current, assetToggles }))} /> },
     {
       ...stepDefs[3],
       title: t(stepDefs[3].titleKey),
@@ -215,6 +215,20 @@ export default function OnboardingV3Wizard() {
       return;
     }
 
+    const submissionAssets = draft.assets.map((asset) => {
+      if (asset.assetType === "cash") {
+        const value = asset.amount ?? asset.currentValue;
+        return { ...asset, currentValue: value };
+      }
+
+      if (asset.assetType === "investment") {
+        const value = asset.principal ?? asset.currentValue;
+        return { ...asset, currentValue: value };
+      }
+
+      return asset;
+    });
+
     const submitResult = submitScenarioDraft({
       source: "onboarding",
       target: { scenarioId },
@@ -224,7 +238,7 @@ export default function OnboardingV3Wizard() {
           horizonMonths: draft.profile.horizonMonths,
         },
         members: draft.members,
-        assets: draft.assets,
+        assets: submissionAssets,
         events: mergedEvents,
         meta: { onboardingVersion: 3, onboarded: true },
         clientComputed: { onboardingCompleted: true },

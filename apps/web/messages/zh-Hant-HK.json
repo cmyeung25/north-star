@@ -2854,16 +2854,30 @@
           "holdingCostMonthly": "每月持有成本",
           "mortgagePrincipal": "按揭本金餘額",
           "mortgageRate": "利率 %",
-          "mortgageTermYears": "按揭年期"
+          "mortgageTermYears": "按揭年期",
+          "cashAmount": "現金金額",
+          "cashCurrency": "現金幣別",
+          "investmentPrincipal": "投資本金",
+          "investmentReturnPct": "自訂年報酬率 %",
+          "investmentStartMonth": "投資開始月份（YYYY-MM）",
+          "returnMode": {
+            "assumption": "跟隨假設",
+            "custom": "自訂報酬"
+          }
         },
         "switches": {
           "enableRentIncome": "啟用租金收入",
           "enableHoldingCost": "啟用每月持有成本",
-          "enableMortgage": "啟用按揭資訊"
+          "enableMortgage": "啟用按揭資訊",
+          "enableProperty": "納入房產資產",
+          "enableInvestment": "納入投資資產"
         },
         "hints": {
           "investment": "可先填寫投資名稱與目前市值；其餘明細可後續補充。",
           "cash": "建議填寫現金用途（例如：緊急備用金 / 活存）。"
+        },
+        "badges": {
+          "optional": "選填"
         }
       },
       "income": {
