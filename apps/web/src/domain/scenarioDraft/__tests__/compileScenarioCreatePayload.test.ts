@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { compileScenarioCreatePayload } from "../compileScenarioCreatePayload";
 import { validateScenarioDraftV3 } from "../validateScenarioDraftV3";
 import type { ScenarioDraftV3 } from "../types";
+import type { ScenarioAsset } from "../../../store/scenarioStore";
+import type { ScenarioEvent } from "../../scenarioV2/events";
 
 const buildDraft = (): ScenarioDraftV3 => ({
   profile: {
@@ -90,5 +92,111 @@ describe("compileScenarioCreatePayload", () => {
 
     expect(shape(onboarding)).toEqual(shape(seed));
     expect(shape(onboarding)).toEqual(shape(planLab));
+  });
+
+  it("generates rental income event for rental property", () => {
+    const draft = buildDraft();
+    draft.assets = [
+      {
+        id: "asset-rental",
+        kind: "home",
+        currency: "HKD",
+        startMonth: "2025-01",
+        source: "manual",
+        usage: "rent",
+        rentMonthly: 22000,
+      } as ScenarioAsset & { usage: string; rentMonthly: number },
+    ];
+
+    const payload = compileScenarioCreatePayload(draft);
+    const rentalIncome = payload.events.find((event) => event.id === "auto:asset-rental:rent-income");
+    expect(Boolean(rentalIncome)).toBe(true);
+    expect(rentalIncome?.type).toBe("cashflow");
+    if (rentalIncome?.type === "cashflow") {
+      expect(rentalIncome.kind).toBe("income");
+      expect(rentalIncome.amount).toBe(22000);
+    }
+  });
+
+  it("generates mortgage liability and payment for property mortgage", () => {
+    const draft = buildDraft();
+    draft.assets = [
+      {
+        id: "asset-home-mortgage",
+        kind: "home",
+        currency: "HKD",
+        startMonth: "2025-01",
+        source: "manual",
+        mortgagePrincipalOutstanding: 3000000,
+        mortgageAnnualInterestRatePct: 3.75,
+        mortgageTermYears: 30,
+      } as ScenarioAsset & {
+        mortgagePrincipalOutstanding: number;
+        mortgageAnnualInterestRatePct: number;
+        mortgageTermYears: number;
+      },
+    ];
+
+    const payload = compileScenarioCreatePayload(draft);
+    expect(payload.liabilities.some((liability) => liability.id === "auto:asset-home-mortgage:mortgage-liability")).toBe(true);
+    const paymentEvent = payload.events.find((event) => event.id === "auto:asset-home-mortgage:mortgage-payment");
+    expect(Boolean(paymentEvent)).toBe(true);
+    expect(paymentEvent?.type).toBe("cashflow");
+    if (paymentEvent?.type === "cashflow") {
+      expect(paymentEvent.kind).toBe("expense");
+      expect(paymentEvent.amount > 0).toBe(true);
+    }
+  });
+
+  it("applies manual override without duplicate synonymous expense", () => {
+    const draft = buildDraft();
+    draft.assets = [
+      {
+        id: "asset-home-dedupe",
+        kind: "home",
+        currency: "HKD",
+        startMonth: "2025-01",
+        source: "manual",
+        mortgagePrincipalOutstanding: 1000000,
+        mortgageAnnualInterestRatePct: 3,
+        mortgageTermYears: 20,
+      } as ScenarioAsset & {
+        mortgagePrincipalOutstanding: number;
+        mortgageAnnualInterestRatePct: number;
+        mortgageTermYears: number;
+      },
+    ];
+    draft.events = [
+      {
+        id: "manual-mortgage-expense",
+        type: "cashflow",
+        kind: "expense",
+        cadence: "monthly",
+        amount: 9000,
+        startMonth: "2025-01",
+        metadata: {
+          originAssetId: "asset-home-dedupe",
+          generatedByRule: "property.mortgage.payment.v1",
+          editableFields: ["amount", "startMonth"],
+        },
+      } as ScenarioEvent & {
+        metadata: {
+          originAssetId: string;
+          generatedByRule: string;
+          editableFields: string[];
+        };
+      },
+    ];
+
+    const payload = compileScenarioCreatePayload(draft);
+    const mortgageEvents = payload.events.filter((event) => event.id === "auto:asset-home-dedupe:mortgage-payment");
+    expect(mortgageEvents).toHaveLength(1);
+    const manualExists = payload.events.some((event) => event.id === "manual-mortgage-expense");
+    expect(manualExists).toBe(false);
+
+    const autoEvent = mortgageEvents[0] as unknown as {
+      override?: { amount?: number };
+    };
+    expect(autoEvent.override?.amount).toBe(9000);
   });
 });
