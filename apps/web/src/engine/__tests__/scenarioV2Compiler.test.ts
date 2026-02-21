@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { computeProjection } from "@north-star/engine";
 import {
+  compileScenarioV2ProjectionBundle,
   compileScenarioV2ToLedger,
   compileScenarioV2ToProjectionInput,
   type ScenarioV2,
 } from "../scenarioV2Compiler";
 import type { CashflowEvent } from "../../domain/scenarioV2/events";
+import { WarningCode } from "../../domain/warnings/types";
 
 const baseScenario = {
   id: "scenario-v2",
@@ -1115,4 +1117,72 @@ describe("generic event segment merge", () => {
     expect(ledger.some((row) => row.sourceEventId === "adj-child" && row.month === "2026-06")).toBe(true);
   });
 
+});
+
+describe("compileScenarioV2ProjectionBundle", () => {
+  it("emits duplicate guardrail warnings and keeps duplicated totals traceable", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      events: [
+        {
+          id: "evt-home",
+          type: "housing",
+          kind: "mortgage",
+          label: "Primary home",
+          startMonth: "2024-01",
+          purchasePrice: 120000,
+          downPaymentMode: "percent",
+          downPaymentPercent: 20,
+          mortgageRatePct: 2,
+          mortgageTermYears: 30,
+          mortgagePayment: 1200,
+          propertyAssetId: "asset-home",
+          mortgageLiabilityId: "liability-home",
+          rental: {
+            enabled: true,
+            rentMonthly: 700,
+            startMonth: "2024-01",
+          },
+        },
+        {
+          id: "evt-manual-mortgage",
+          type: "cashflow",
+          kind: "expense",
+          cadence: "monthly",
+          amount: 1200,
+          startMonth: "2024-01",
+          endMonth: "2024-03",
+          label: "Mortgage expense",
+        },
+        {
+          id: "evt-manual-rent-income",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 700,
+          startMonth: "2024-01",
+          endMonth: "2024-03",
+          label: "Rental income",
+        },
+      ],
+    };
+
+    const bundle = compileScenarioV2ProjectionBundle(scenario);
+    const warningCodes = bundle.warnings.map((warning) => warning.code);
+    expect(warningCodes).toContain(WarningCode.DuplicateMortgageCashflow);
+    expect(warningCodes).toContain(WarningCode.RentalIncomeDuplicated);
+
+    const januaryLedger = compileScenarioV2ToLedger(scenario).filter(
+      (entry) => entry.month === "2024-01"
+    );
+    const manualMortgage = januaryLedger
+      .filter((entry) => entry.sourceEventId === "evt-manual-mortgage")
+      .reduce((sum, row) => sum + row.amount, 0);
+    const manualRentalIncome = januaryLedger
+      .filter((entry) => entry.sourceEventId === "evt-manual-rent-income")
+      .reduce((sum, row) => sum + row.amount, 0);
+
+    expect(manualMortgage).toBe(-1200);
+    expect(manualRentalIncome).toBe(700);
+  });
 });

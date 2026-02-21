@@ -18,6 +18,8 @@ export enum WarningCode {
   SalaryLadderInvalid = "SALARY_LADDER_INVALID",
   SmartInvestReserveShortfall = "SMART_INVEST_RESERVE_SHORTFALL",
   InvalidPlanPatch = "INVALID_PLAN_PATCH",
+  DuplicateMortgageCashflow = "duplicate-mortgage-cashflow",
+  RentalIncomeDuplicated = "rental-income-duplicated",
 }
 
 export type CompilerWarning = {

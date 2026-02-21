@@ -121,4 +121,59 @@ describe("scenario create payload integration parity", () => {
     expect(seedPayload.clientComputed.onboardingCompleted).toBe(true);
     expect(planLabScenario.clientComputed?.onboardingCompleted).toBe(true);
   });
+
+  it("reports duplicate mortgage/rental warnings as non-blocking during submit", () => {
+    const base = buildBaseScenario();
+    const result = submitScenarioDraft({
+      source: "onboarding",
+      target: { scenarioId: base.id },
+      draft: {
+        assumptions: base.assumptions,
+        events: [
+          {
+            id: "evt-home",
+            type: "housing",
+            kind: "mortgage",
+            startMonth: "2025-01",
+            purchasePrice: 120000,
+            downPaymentMode: "percent",
+            downPaymentPercent: 20,
+            mortgageRatePct: 2,
+            mortgageTermYears: 30,
+            mortgagePayment: 1200,
+            propertyAssetId: "asset-home",
+            mortgageLiabilityId: "liability-home",
+            rental: {
+              enabled: true,
+              rentMonthly: 700,
+              startMonth: "2025-01",
+            },
+          },
+          {
+            id: "evt-manual-mortgage",
+            type: "cashflow",
+            kind: "expense",
+            cadence: "monthly",
+            amount: 1200,
+            startMonth: "2025-01",
+            label: "Mortgage expense",
+          },
+          {
+            id: "evt-manual-rent-income",
+            type: "cashflow",
+            kind: "income",
+            cadence: "monthly",
+            amount: 700,
+            startMonth: "2025-01",
+            label: "Rental income",
+          },
+        ],
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    const warningCodes = result.warnings.map((warning) => warning.code);
+    expect(warningCodes).toContain("duplicate-mortgage-cashflow");
+    expect(warningCodes).toContain("rental-income-duplicated");
+  });
 });

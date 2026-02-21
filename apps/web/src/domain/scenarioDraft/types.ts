@@ -15,7 +15,9 @@ export type ValidationIssue = {
     | "invalid-id"
     | "invalid-currency"
     | "invalid-number"
-    | "inconsistent-mortgage";
+    | "inconsistent-mortgage"
+    | "duplicate-mortgage-cashflow"
+    | "rental-income-duplicated";
   field: string;
   message: string;
 };

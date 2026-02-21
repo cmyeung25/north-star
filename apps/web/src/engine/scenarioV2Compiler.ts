@@ -6,6 +6,8 @@ import {
   getEventSegmentRole,
 } from "../domain/scenarioV2/eventSegments";
 import { mapScenarioToEngineInput } from "./adapter";
+import { detectDuplicateScenarioEventWarnings } from "../domain/warnings/duplicateCashflowGuardrails";
+import type { CompilerWarning } from "../domain/warnings/types";
 import { isValidMonthKey, compareMonthKey } from "../utils/monthKey";
 import type { EventDefinition } from "../domain/events/types";
 import type {
@@ -947,9 +949,9 @@ const buildLegacyEventLibrary = (
   return [...cashflowDefinitions, ...nonCashflowDefinitions];
 };
 
-export const compileScenarioV2ToProjectionInput = (
+export const compileScenarioV2ProjectionBundle = (
   scenario: ScenarioV2
-): ProjectionInput => {
+): { input: ProjectionInput; warnings: CompilerWarning[] } => {
   const shellScenario = buildLegacyScenarioShell(scenario);
   const eventLibrary = buildLegacyEventLibrary(scenario);
   const events = scenario.events ?? [];
@@ -1157,5 +1159,10 @@ export const compileScenarioV2ToProjectionInput = (
     },
   };
   const { input } = mapScenarioToEngineInput(scenarioWithEvents, eventLibrary);
-  return input;
+  const warnings = detectDuplicateScenarioEventWarnings(scenario.events);
+  return { input, warnings };
 };
+
+export const compileScenarioV2ToProjectionInput = (
+  scenario: ScenarioV2
+): ProjectionInput => compileScenarioV2ProjectionBundle(scenario).input;

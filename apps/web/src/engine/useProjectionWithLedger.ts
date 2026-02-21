@@ -14,7 +14,10 @@ import {
   summarizeMonth,
   type LedgerMonthSummary,
 } from "../domain/ledger/ledgerUtils";
-import { compileScenarioV2ToLedger, compileScenarioV2ToProjectionInput } from "./scenarioV2Compiler";
+import {
+  compileScenarioV2ProjectionBundle,
+  compileScenarioV2ToLedger,
+} from "./scenarioV2Compiler";
 import { compileSellLifecycle } from "../domain/positions/compileSellLifecycle";
 import {
   buildNetWorthBreakdownByMonth,
@@ -609,11 +612,11 @@ export const useProjectionWithLedger = (
                   },
                 }
               : scenario;
-          const input = compileScenarioV2ToProjectionInput(projectionScenario);
+          const { input, warnings } = compileScenarioV2ProjectionBundle(projectionScenario);
           const projection = computeProjection(input);
           return {
             input,
-            warnings: [] as AdapterWarning[],
+            warnings,
             projection,
             smartInvestWithdrawalSchedule: {},
             smartInvestRebalanceSchedule: null,

@@ -22,7 +22,7 @@ import type { Scenario } from "../../../store/scenarioStore";
 import { resolvePlanningHorizonMonths } from "../../../domain/assumptions/planningHorizon";
 import {
   compileScenarioV2ToLedger,
-  compileScenarioV2ToProjectionInput,
+  compileScenarioV2ProjectionBundle,
 } from "../../../engine/scenarioV2Compiler";
 import type {
   OnboardingV2Draft,
@@ -97,13 +97,25 @@ export default function ReviewStep({
     };
   }, [baseMonth, horizonMonths, scenarioPreview]);
 
+  const projectionBundle = useMemo(
+    () =>
+      scenarioForProjection
+        ? compileScenarioV2ProjectionBundle(scenarioForProjection)
+        : null,
+    [scenarioForProjection]
+  );
+
   const projectionResult = useMemo(() => {
     if (!scenarioForProjection) {
       return null;
     }
-    const input = compileScenarioV2ToProjectionInput(scenarioForProjection);
-    return computeProjection(input);
-  }, [scenarioForProjection]);
+    return projectionBundle ? computeProjection(projectionBundle.input) : null;
+  }, [projectionBundle, scenarioForProjection]);
+
+  const projectionWarnings = useMemo(
+    () => projectionBundle?.warnings ?? [],
+    [projectionBundle]
+  );
 
   const ledgerRows = useMemo(
     () => (scenarioForProjection ? compileScenarioV2ToLedger(scenarioForProjection) : []),
@@ -273,8 +285,18 @@ export default function ReviewStep({
       });
     }
 
+    projectionWarnings.forEach((warning, index) => {
+      flags.push({
+        id: `${warning.code}-${index}`,
+        severity: "warning",
+        message: warning.code,
+        actionLabel: t("flagFixInStep", { step: t("step.housing") }),
+        onAction: () => onJumpToStep(stepIndex.housing),
+      });
+    });
+
     return flags;
-  }, [draft, locale, onJumpToStep, router, scenarioIsV2, summary, t]);
+  }, [draft, locale, onJumpToStep, projectionWarnings, router, scenarioIsV2, summary, t]);
 
   return (
     <Stack gap="lg">
