@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { WorkspaceMode } from "../domain/scenarioStateModel";
 
 type DrawerType = "smartInvest";
 type ModalType = "monthlyBreakdown";
@@ -17,6 +18,7 @@ type ActiveModal = {
 };
 
 type UiState = {
+  workspaceMode: WorkspaceMode;
   activeDrawer: ActiveDrawer | null;
   activeModal: ActiveModal | null;
   breakdownOpen: boolean;
@@ -33,9 +35,11 @@ type UiState = {
   closeBreakdown: () => void;
   setBreakdownMonth: (month: string | null) => void;
   setBreakdownMonthRange: (range: { fromMonth: string | null; toMonth: string | null }) => void;
+  setWorkspaceMode: (mode: WorkspaceMode) => void;
 };
 
 export const useUiStore = create<UiState>((set) => ({
+  workspaceMode: "core",
   activeDrawer: null,
   activeModal: null,
   breakdownOpen: false,
@@ -87,5 +91,9 @@ export const useUiStore = create<UiState>((set) => ({
   setBreakdownMonthRange: (range) =>
     set(() => ({
       breakdownMonthRange: { fromMonth: range.fromMonth ?? null, toMonth: range.toMonth ?? null },
+    })),
+  setWorkspaceMode: (mode) =>
+    set(() => ({
+      workspaceMode: mode,
     })),
 }));

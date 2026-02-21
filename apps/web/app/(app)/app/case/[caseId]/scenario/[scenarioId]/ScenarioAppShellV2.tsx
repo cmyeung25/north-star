@@ -14,6 +14,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { buildAppScenarioUrl } from "../../../../../../../lib/routes";
 import { formatIsoYmdHms } from "../../../../../../../lib/date/format";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { resolveWorkspaceMode, type WorkspaceMode } from "../../../../../../../src/domain/scenarioStateModel";
 import {
   duplicateScenarioFromLocalPayloadAction,
   reloadScenarioPayloadAction,
@@ -32,6 +33,7 @@ import BrandLogo from "../../../../../../../components/brand/BrandLogo";
 import BottomNav from "../../../../../../../components/BottomNav";
 import AppHeaderTitle from "./components/AppHeaderTitle";
 import AppSidebar from "./components/AppSidebar";
+import { useUiStore } from "../../../../../../../src/store/uiStore";
 
 const AUTOSAVE_DELAY_MS = 45_000;
 const NAVBAR_WIDTH = 264;
@@ -60,6 +62,8 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
   const saveNow = useScenarioCloudStore((state) => state.saveNow);
   const markUnsaved = useScenarioCloudStore((state) => state.markUnsaved);
   const markSaved = useScenarioCloudStore((state) => state.markSaved);
+  const workspaceMode = useUiStore((state) => state.workspaceMode);
+  const setWorkspaceMode = useUiStore((state) => state.setWorkspaceMode);
 
   const [showConflict, setShowConflict] = useState(false);
   const [conflictBusy, setConflictBusy] = useState(false);
@@ -96,6 +100,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
     { href: scenarioSettingsPath(caseId, scenarioId), label: nav("scenarioSettings") },
   ];
   const mobileTabs = tabs.slice(0, 3);
+  const resolvedWorkspaceMode: WorkspaceMode = useMemo(() => resolveWorkspaceMode(pathname), [pathname]);
 
   const enabled = Boolean(meta && scenarioId && meta.scenarioId === scenarioId);
   const headerLoading = loading && !enabled;
@@ -105,6 +110,12 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
       markUnsaved(scenarioId, payloadHash);
     }
   }, [enabled, markUnsaved, payloadHash, scenarioId]);
+
+  useEffect(() => {
+    if (workspaceMode !== resolvedWorkspaceMode) {
+      setWorkspaceMode(resolvedWorkspaceMode);
+    }
+  }, [resolvedWorkspaceMode, setWorkspaceMode, workspaceMode]);
 
   const save = useCallback(
     async (source: "manual" | "autosave") => {
@@ -191,7 +202,12 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
               <Box px="xs" py={4}>
                 <BrandLogo href={backToCasesHref} size="md" />
               </Box>
-              <AppHeaderTitle caseTitle={caseTitle} scenarioTitle={scenarioTitle} loading={headerLoading} />
+              <AppHeaderTitle
+                caseTitle={caseTitle}
+                scenarioTitle={scenarioTitle}
+                loading={headerLoading}
+                workspaceMode={workspaceMode}
+              />
             </Group>
             {meta ? (
               <Group gap="xs" wrap="nowrap">
@@ -201,13 +217,20 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
                     {meta.lastSavedAt ? t("updatedAt", { time: formatIsoYmdHms(meta.lastSavedAt) }) : t("notSavedYet")}
                   </Text>
                 ) : null}
-                <SaveButton onClick={() => void save("manual")} disabled={!enabled || meta.saveStatus === "saving"} />
+                <SaveButton
+                  onClick={() => void save("manual")}
+                  disabled={!enabled || meta.saveStatus === "saving"}
+                  title={workspaceMode === "plan_lab" ? t("planLabSaveHint") : undefined}
+                  label={workspaceMode === "plan_lab" ? t("applyToNewScenario") : undefined}
+                />
               </Group>
             ) : null}
           </Group>
         </AppShell.Header>
 
-        {!isMobile ? <AppSidebar tabs={tabs} pathname={pathname} backToCasesHref={backToCasesHref} /> : null}
+        {!isMobile ? (
+          <AppSidebar tabs={tabs} pathname={pathname} backToCasesHref={backToCasesHref} workspaceMode={workspaceMode} />
+        ) : null}
 
         <AppShell.Main
           style={{

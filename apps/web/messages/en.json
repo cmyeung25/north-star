@@ -3907,7 +3907,11 @@
         "saving": "Saving",
         "error": "Error",
         "conflict": "Conflict"
-      }
+      },
+      "applyToNewScenario": "Apply to new scenario",
+      "planLabWorkspace": "Plan Lab workspace",
+      "backToCoreWorkspace": "Back to core workspace",
+      "planLabSaveHint": "Apply Plan Lab changes into a new scenario snapshot."
     }
   },
   "member": {
