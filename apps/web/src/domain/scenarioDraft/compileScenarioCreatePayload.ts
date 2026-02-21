@@ -6,6 +6,8 @@ import type {
   ScenarioMeta,
 } from "../../store/scenarioStore";
 import type { ScenarioEvent } from "../scenarioV2/events";
+import { dedupeGeneratedAndManual } from "./rules/dedupeGeneratedAndManual";
+import { deriveFromProperty } from "./rules/deriveFromProperty";
 import { validateScenarioDraftV3 } from "./validateScenarioDraftV3";
 import type { ScenarioCreatePayload, ScenarioDraftV3 } from "./types";
 
@@ -65,14 +67,20 @@ export const compileScenarioCreatePayload = (
     events: normalizedDraft.events ?? [],
   });
 
+  const derived = deriveFromProperty(normalizedDraft);
+  const mergedEvents = dedupeGeneratedAndManual([
+    ...(Array.isArray(rawEventsPayload.events)
+      ? (rawEventsPayload.events as ScenarioEvent[])
+      : []),
+    ...(derived.events as ScenarioEvent[]),
+  ]);
+
   return {
     assumptions,
     members: normalizedDraft.members ?? [],
     assets: normalizedDraft.assets ?? [],
-    liabilities: normalizedDraft.liabilities ?? [],
-    events: Array.isArray(rawEventsPayload.events)
-      ? (rawEventsPayload.events as ScenarioEvent[])
-      : [],
+    liabilities: [...(normalizedDraft.liabilities ?? []), ...(derived.liabilities ?? [])],
+    events: mergedEvents,
     meta: {
       ...(context.metaBase ?? {}),
       ...(normalizedDraft.meta ?? {}),
