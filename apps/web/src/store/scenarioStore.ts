@@ -49,6 +49,7 @@ import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 import { buildMonthDateRef } from "../domain/dateRef";
 import type { ScenarioSeedPayload } from "../scenarios/scenarioSeeds";
+import { buildScenarioDraftFromSeed } from "../scenarios/buildScenarioDraftFromSeed";
 import { submitScenarioDraft } from "../domain/scenarioDraft/submitScenarioDraft";
 
 export type { EventType, TimelineEvent } from "../features/timeline/schema";
@@ -2082,7 +2083,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     return newScenario;
   },
   createScenarioFromSeed: (name, seed) => {
-    const created = get().createScenario(name, { onboardingCompleted: true });
+    const created = get().createScenario(name);
     if (!created) {
       return null;
     }
@@ -2097,22 +2098,18 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       seed.members.map((member) => [member.id, resolveSeedMemberId(member.id)])
     );
 
+    const draft = buildScenarioDraftFromSeed(seed);
+
     const submitResult = submitScenarioDraft({
       source: "seed",
       target: { scenarioId },
       draft: {
-        assumptions: {
-          ...seed.assumptions,
-          baseMonth: seed.assumptions?.baseMonth ?? seed.baseMonth,
-          initialCash: seed.assumptions?.initialCash ?? seed.initialCash,
-        },
-        members: seed.members.map((member) => ({
+        ...draft,
+        members: (draft.members ?? []).map((member) => ({
           ...member,
           id: seedMemberIdMap.get(member.id) ?? member.id,
         })),
-        assets: seed.assets,
-        liabilities: seed.liabilities,
-        events: seed.events.map((event) =>
+        events: (draft.events ?? []).map((event) =>
           event.memberId
             ? {
                 ...event,
@@ -2120,14 +2117,6 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
               }
             : event
         ),
-        meta: {
-          isSeeded: true,
-          skipOnboarding: true,
-          onboardingVersion: 2,
-          schemaVersion: 2,
-        },
-        clientComputed: { onboardingCompleted: true },
-        baseCurrency: seed.baseCurrency,
       },
       context: {
         assumptionsBase: scenario.assumptions,
@@ -2136,12 +2125,25 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       },
       persistence: {
         applyStore: (payload) => {
-          get().updateScenarioBaseCurrency(scenarioId, payload.baseCurrency);
-          get().updateScenarioAssumptions(scenarioId, payload.assumptions);
-          get().setScenarioMembers(scenarioId, payload.members);
-          get().setScenarioAssets(scenarioId, payload.assets);
-          get().setScenarioLiabilities(scenarioId, payload.liabilities);
-          get().setScenarioEvents(scenarioId, payload.events);
+          set((state) => ({
+            scenarios: state.scenarios.map((candidate) =>
+              candidate.id === scenarioId
+                ? {
+                    ...candidate,
+                    baseCurrency: payload.baseCurrency,
+                    assumptions: payload.assumptions,
+                    members: payload.members,
+                    assets: payload.assets,
+                    liabilities: payload.liabilities,
+                    events: payload.events,
+                    meta: payload.meta,
+                    clientComputed: payload.clientComputed,
+                    bundleInstances: cloneBundleInstances(seed.bundleInstances),
+                    updatedAt: now(),
+                  }
+                : candidate
+            ),
+          }));
         },
       },
     });
@@ -2149,15 +2151,6 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     if (!submitResult.ok) {
       return null;
     }
-
-    const compiled = submitResult.payload;
-
-    seed.bundleInstances.forEach((record) => {
-      get().upsertBundleInstanceRecord(scenarioId, record);
-    });
-
-    get().updateScenarioMeta(scenarioId, compiled.meta);
-    get().updateScenarioClientComputed(scenarioId, compiled.clientComputed);
 
     return get().scenarios.find((scenario) => scenario.id === scenarioId) ?? null;
   },

@@ -27,6 +27,14 @@ describe("resolveScenarioLifecycle", () => {
     ).toBe("active");
   });
 
+  it("returns active for seeded compiled scenario used by onboarding gate", () => {
+    expect(
+      resolveScenarioLifecycle({
+        meta: { isSeeded: true, skipOnboarding: true },
+        clientComputed: { onboardingCompleted: true },
+      }),
+    ).toBe("active");
+  });
   it("returns active for plan lab saved scenario with skip onboarding", () => {
     expect(
       resolveScenarioLifecycle({
