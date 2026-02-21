@@ -3,6 +3,7 @@
 import { Alert, Button, Stack, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
 import type { GeneratedItemMetadata } from "../../../domain/scenarioDraft/types";
 import OnboardingV2WizardShell from "../v2/OnboardingV2WizardShell";
@@ -26,12 +27,12 @@ type AutoCashflowRow = Extract<ScenarioEvent, { type: "cashflow" }> & {
 };
 
 const stepDefs = [
-  { id: "scenarioSetup", title: "Scenario setup" },
-  { id: "household", title: "Household" },
-  { id: "assets", title: "Assets" },
-  { id: "income", title: "Income" },
-  { id: "expense", title: "Expense" },
-  { id: "review", title: "Review" },
+  { id: "scenarioSetup", titleKey: "steps.scenarioSetup" },
+  { id: "household", titleKey: "steps.household" },
+  { id: "assets", titleKey: "steps.assets" },
+  { id: "income", titleKey: "steps.income" },
+  { id: "expense", titleKey: "steps.expense" },
+  { id: "review", titleKey: "steps.review" },
 ] as const;
 
 const isCashflowDraft = (event: ScenarioEventDraft): event is CashflowDraft =>
@@ -41,6 +42,7 @@ const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: s
   typeof event.id === "string" && event.id.length > 0;
 
 export default function OnboardingV3Wizard() {
+  const t = useTranslations("onboardingV3");
   const params = useParams<{ scenarioId?: string | string[] }>();
   const scenarioId = Array.isArray(params?.scenarioId) ? params?.scenarioId[0] : params?.scenarioId;
   const scenarios = useScenarioStore((state) => state.scenarios);
@@ -93,11 +95,11 @@ export default function OnboardingV3Wizard() {
   }, [autoOverridesById, autoRows, manualCashflowEvents]);
 
   const reviewItems = [
-    { label: "profile.startMonth", completed: Boolean(draft.profile.startMonth), warning: "尚未填寫開始月份" },
-    { label: "profile.baseCurrency", completed: Boolean(draft.profile.baseCurrency), warning: "使用預設幣別" },
-    { label: "members", completed: draft.members.length > 0 && draft.members.every((m) => Boolean(m.name)), warning: "有成員尚未命名" },
-    { label: "assets.property", completed: draft.assets.length > 0, warning: "尚未新增房產" },
-    { label: "generated.income/expense", completed: mergedEvents.length > 0, warning: "沒有可衍生現金流" },
+    { label: "profile.startMonth", completed: Boolean(draft.profile.startMonth), warning: t("reviewWarnings.startMonthMissing") },
+    { label: "profile.baseCurrency", completed: Boolean(draft.profile.baseCurrency), warning: t("reviewWarnings.baseCurrencyDefault") },
+    { label: "members", completed: draft.members.length > 0 && draft.members.every((m) => Boolean(m.name)), warning: t("reviewWarnings.memberUnnamed") },
+    { label: "assets.property", completed: draft.assets.length > 0, warning: t("reviewWarnings.propertyMissing") },
+    { label: "generated.income/expense", completed: mergedEvents.length > 0, warning: t("reviewWarnings.derivedCashflowMissing") },
   ];
 
   const upsertAutoOverride = (eventId: string, kind: "income" | "expense", patch: { amount?: number; disabled?: boolean }) => {
@@ -148,11 +150,12 @@ export default function OnboardingV3Wizard() {
   };
 
   const steps = [
-    { ...stepDefs[0], content: <ScenarioSetupStep profile={draft.profile} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} /> },
-    { ...stepDefs[1], content: <HouseholdStep members={draft.members} onChange={(members) => setDraft((current) => ({ ...current, members }))} /> },
-    { ...stepDefs[2], content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} onChange={(assets) => setDraft((current) => ({ ...current, assets }))} /> },
+    { ...stepDefs[0], title: t(stepDefs[0].titleKey), content: <ScenarioSetupStep profile={draft.profile} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} /> },
+    { ...stepDefs[1], title: t(stepDefs[1].titleKey), content: <HouseholdStep members={draft.members} onChange={(members) => setDraft((current) => ({ ...current, members }))} /> },
+    { ...stepDefs[2], title: t(stepDefs[2].titleKey), content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} onChange={(assets) => setDraft((current) => ({ ...current, assets }))} /> },
     {
       ...stepDefs[3],
+      title: t(stepDefs[3].titleKey),
       content: (
         <IncomeStep
           rows={incomeRows}
@@ -178,6 +181,7 @@ export default function OnboardingV3Wizard() {
     },
     {
       ...stepDefs[4],
+      title: t(stepDefs[4].titleKey),
       content: (
         <ExpenseStep
           rows={expenseRows}
@@ -201,7 +205,7 @@ export default function OnboardingV3Wizard() {
         />
       ),
     },
-    { ...stepDefs[5], content: <ReviewStep items={reviewItems} /> },
+    { ...stepDefs[5], title: t(stepDefs[5].titleKey), content: <ReviewStep items={reviewItems} /> },
   ];
 
   const handleSubmit = () => {
@@ -268,12 +272,12 @@ export default function OnboardingV3Wizard() {
         onStepChange={setStep}
         navigation={
           <>
-            <Button variant="default" onClick={() => setStep((current) => Math.max(current - 1, 0))}>Back</Button>
-            {step < steps.length - 1 ? <Button onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>Next</Button> : <Button onClick={handleSubmit}>完成並寫入 Core</Button>}
+            <Button variant="default" onClick={() => setStep((current) => Math.max(current - 1, 0))}>{t("navigation.back")}</Button>
+            {step < steps.length - 1 ? <Button onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>{t("navigation.next")}</Button> : <Button onClick={handleSubmit}>{t("navigation.completeAndWriteToCore")}</Button>}
           </>
         }
       />
-      <Text size="xs" c="dimmed">V3 flow 僅更新本地 ScenarioDraftV3 分段 state，最後一步一次提交。</Text>
+      <Text size="xs" c="dimmed">{t("footer.localDraftHint")}</Text>
     </Stack>
   );
 }

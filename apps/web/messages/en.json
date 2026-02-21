@@ -2738,6 +2738,31 @@
       "ruleFallback": "System rule"
     }
   },
+  "onboardingV3": {
+    "steps": {
+      "scenarioSetup": "Scenario setup",
+      "household": "Household",
+      "assets": "Assets",
+      "income": "Income",
+      "expense": "Expense",
+      "review": "Review"
+    },
+    "reviewWarnings": {
+      "startMonthMissing": "Start month is not filled in yet",
+      "baseCurrencyDefault": "Using default currency",
+      "memberUnnamed": "Some members are not named yet",
+      "propertyMissing": "No property added yet",
+      "derivedCashflowMissing": "No derived cashflow available"
+    },
+    "navigation": {
+      "back": "Back",
+      "next": "Next",
+      "completeAndWriteToCore": "Complete and write to Core"
+    },
+    "footer": {
+      "localDraftHint": "V3 flow only updates local ScenarioDraftV3 staged state and submits once at the final step."
+    }
+  },
   "onboardingDraft": {
     "title": "Onboarding draft",
     "subtitle": "Start with your profile and household details.",
