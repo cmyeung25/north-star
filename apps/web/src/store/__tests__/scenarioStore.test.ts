@@ -5,6 +5,7 @@ import type { ScenarioSeedPayload } from "../../scenarios/scenarioSeeds";
 import {
   normalizeScenario,
   hydrateFromPersistedState,
+  isLegacyOnboardingScenario,
   resetAppState,
   resetScenarioStore,
   selectHasExistingProfile,
@@ -817,5 +818,6 @@ describe("createScenarioFromSeed", () => {
     expect(created?.clientComputed?.onboardingCompleted).toBe(true);
     expect(created?.members?.[0]?.id).toContain(":member:primary");
     expect(resolveScenarioLifecycle(created)).toBe("active");
+    expect(isLegacyOnboardingScenario(created)).toBe(false);
   });
 });
