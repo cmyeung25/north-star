@@ -2811,6 +2811,18 @@
           "add": "新增成員",
           "remove": "移除",
           "removeAria": "移除成員"
+        },
+        "controls": {
+          "includePartner": "加入伴侶",
+          "childrenCount": "子女數量",
+          "petsCount": "寵物數量"
+        },
+        "memberRole": {
+          "self": "你",
+          "partner": "伴侶",
+          "child": "子女 {index}",
+          "pet": "寵物 {index}",
+          "member": "成員"
         }
       },
       "assets": {

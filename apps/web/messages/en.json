@@ -2764,6 +2764,18 @@
           "add": "Add member",
           "remove": "Remove",
           "removeAria": "Remove member"
+        },
+        "controls": {
+          "includePartner": "Include partner",
+          "childrenCount": "Children count",
+          "petsCount": "Pets count"
+        },
+        "memberRole": {
+          "self": "You",
+          "partner": "Partner",
+          "child": "Child {index}",
+          "pet": "Pet {index}",
+          "member": "Member"
         }
       },
       "assets": {
