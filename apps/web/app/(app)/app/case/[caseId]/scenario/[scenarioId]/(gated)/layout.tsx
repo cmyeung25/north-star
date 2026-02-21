@@ -5,7 +5,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { scenarioOnboardingPath } from "../../../../../../../../lib/routes/appRoutes";
-import { isScenarioOnboarded } from "../../../../../../../../lib/scenario/isScenarioOnboarded";
+import { resolveScenarioFromPayload } from "../../../../../../../../lib/scenario/isScenarioOnboarded";
+import { resolveScenarioLifecycle } from "../../../../../../../../src/domain/scenarioStateModel";
 import { createSupabaseServerClient } from "../../../../../../../../src/lib/supabase/server";
 import { defaultLocale, locales, type Locale } from "../../../../../../../../src/i18n/routing";
 
@@ -65,7 +66,9 @@ export default async function AppCaseScenarioGatedLayout({ params, children }: L
 
   const payload = (await repo.loadScenarioPayload(params.caseId, params.scenarioId)) as Record<string, unknown>;
 
-  if (!isScenarioOnboarded(payload, params.scenarioId)) {
+  const scenario = resolveScenarioFromPayload(payload, params.scenarioId);
+
+  if (resolveScenarioLifecycle(scenario) !== "active") {
     redirect(scenarioOnboardingPath(params.caseId, params.scenarioId));
   }
 

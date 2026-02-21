@@ -1,11 +1,13 @@
 import type { ScenarioPayload } from "@north-star/adapters";
-import { isScenarioOnboarded as isOnboardedByScenario } from "../onboarding/isScenarioOnboarded";
+import { resolveScenarioLifecycle } from "../../src/domain/scenarioStateModel";
 
 type ScenarioRecord = {
   id?: string;
   meta?: {
     onboarded?: unknown;
     onboardedAt?: unknown;
+    skipOnboarding?: unknown;
+    isSeeded?: unknown;
   };
   clientComputed?: {
     onboardingCompleted?: unknown;
@@ -13,9 +15,9 @@ type ScenarioRecord = {
 };
 
 export const isScenarioOnboardedV2 = (scenario: ScenarioRecord | null) =>
-  isOnboardedByScenario(scenario);
+  resolveScenarioLifecycle(scenario) === "active";
 
-const resolveScenario = (payload: Record<string, unknown>, scenarioId?: string) => {
+export const resolveScenarioFromPayload = (payload: Record<string, unknown>, scenarioId?: string) => {
   const scenarios = payload.scenarios;
   if (!Array.isArray(scenarios) || scenarios.length === 0) {
     return null;
@@ -42,6 +44,6 @@ const resolveScenario = (payload: Record<string, unknown>, scenarioId?: string) 
 
 export const isScenarioOnboarded = (payload: ScenarioPayload, scenarioId?: string) => {
   const source = payload as Record<string, unknown>;
-  const selectedScenario = resolveScenario(source, scenarioId);
-  return isOnboardedByScenario(selectedScenario);
+  const selectedScenario = resolveScenarioFromPayload(source, scenarioId);
+  return resolveScenarioLifecycle(selectedScenario) === "active";
 };
