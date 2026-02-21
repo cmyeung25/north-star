@@ -1,4 +1,5 @@
 import PlanLabClient from "../../../../../../../../[locale]/plan-lab/PlanLabClient";
+import { resolveWorkspaceMode } from "../../../../../../../../../src/domain/scenarioStateModel";
 
 const cardStyle = {
   // border: "1px solid #152741",
@@ -9,8 +10,10 @@ const cardStyle = {
 };
 
 export default function ScenarioPlanLabPage() {
+  const workspaceMode = resolveWorkspaceMode("/app/case/[caseId]/scenario/[scenarioId]/planlab");
+
   return (
-    <section style={cardStyle}>
+    <section data-workspace-mode={workspaceMode} style={cardStyle}>
       <PlanLabClient />
     </section>
   );
