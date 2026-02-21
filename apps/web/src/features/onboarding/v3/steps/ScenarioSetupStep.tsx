@@ -1,4 +1,6 @@
 import { NumberInput, Stack, TextInput } from "@mantine/core";
+import MonthField from "../../../../../components/MonthField";
+import { YEAR_MONTH_PLACEHOLDER } from "./monthFieldConstants";
 import type { ScenarioDraftV3State } from "../types";
 
 type Props = {
@@ -14,10 +16,11 @@ export default function ScenarioSetupStep({ profile, onChange }: Props) {
         value={profile.baseCurrency ?? ""}
         onChange={(event) => onChange({ ...profile, baseCurrency: event.currentTarget.value.toUpperCase() })}
       />
-      <TextInput
-        label="Start month (YYYY-MM)"
+      <MonthField
+        label="Start month"
+        placeholder={YEAR_MONTH_PLACEHOLDER}
         value={profile.startMonth ?? ""}
-        onChange={(event) => onChange({ ...profile, startMonth: event.currentTarget.value })}
+        onChange={(value) => onChange({ ...profile, startMonth: value })}
       />
       <NumberInput
         label="Horizon months"
