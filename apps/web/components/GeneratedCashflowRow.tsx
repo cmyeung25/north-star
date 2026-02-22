@@ -8,9 +8,10 @@ type Props = {
   baseAmount: number;
   overrideAmount?: number;
   disabled?: boolean;
-  onOverrideAmount: (value: number) => void;
-  onRestoreSuggested: () => void;
-  onToggleDisabled: (value: boolean) => void;
+  readOnly?: boolean;
+  onOverrideAmount?: (value: number) => void;
+  onRestoreSuggested?: () => void;
+  onToggleDisabled?: (value: boolean) => void;
 };
 
 export default function GeneratedCashflowRow({
@@ -22,6 +23,7 @@ export default function GeneratedCashflowRow({
   onOverrideAmount,
   onRestoreSuggested,
   onToggleDisabled,
+  readOnly = false,
 }: Props) {
   const t = useTranslations("onboarding.generatedCashflow");
   const hasOverride = typeof overrideAmount === "number";
@@ -40,12 +42,15 @@ export default function GeneratedCashflowRow({
         <Text size="sm">{baseAmount.toLocaleString()}</Text>
       </Table.Td>
       <Table.Td>
+        {readOnly ? (
+          <Text size="sm" c="dimmed">{t("displayOnly")}</Text>
+        ) : (
         <Stack gap="xs">
           <Group align="end" gap="xs" wrap="nowrap">
             <NumberInput
               value={hasOverride ? overrideAmount : baseAmount}
               disabled={Boolean(disabled)}
-              onChange={(value) => onOverrideAmount(typeof value === "number" ? value : 0)}
+              onChange={(value) => onOverrideAmount?.(typeof value === "number" ? value : 0)}
             />
             <Button
               size="xs"
@@ -59,7 +64,7 @@ export default function GeneratedCashflowRow({
           <Switch
             checked={!disabled}
             label={t("autoEnabled")}
-            onChange={(event) => onToggleDisabled(!event.currentTarget.checked)}
+            onChange={(event) => onToggleDisabled?.(!event.currentTarget.checked)}
           />
           {disabled ? (
             <Alert color="yellow">
@@ -67,6 +72,7 @@ export default function GeneratedCashflowRow({
             </Alert>
           ) : null}
         </Stack>
+        )}
       </Table.Td>
     </Table.Tr>
   );

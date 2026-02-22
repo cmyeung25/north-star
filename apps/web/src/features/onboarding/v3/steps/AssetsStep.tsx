@@ -3,6 +3,7 @@ import {
   Card,
   Group,
   NumberInput,
+  Select,
   SegmentedControl,
   Stack,
   Switch,
@@ -22,28 +23,34 @@ import type {
 type Props = {
   assets: OnboardingAsset[];
   startMonth: string;
+  baseCurrency: string;
   assetToggles: ScenarioDraftV3AssetToggles;
   onAssetsChange: (assets: OnboardingAsset[]) => void;
   onAssetTogglesChange: (toggles: ScenarioDraftV3AssetToggles) => void;
 };
 
-const createCashAsset = (startMonth: string): CashAsset => ({
+const SUPPORTED_CURRENCY_OPTIONS = ["HKD", "USD", "CNY", "EUR", "GBP", "JPY", "SGD", "AUD", "CAD", "CHF"].map((code) => ({
+  value: code,
+  label: code,
+}));
+
+const createCashAsset = (startMonth: string, currency: string): CashAsset => ({
   id: `asset-${nanoid(6)}`,
   assetType: "cash",
   kind: "cash",
   source: "manual",
-  currency: "HKD",
+  currency,
   startMonth,
   amount: 0,
   currentValue: 0,
 });
 
-const createPropertyAsset = (startMonth: string): PropertyAsset => ({
+const createPropertyAsset = (startMonth: string, currency: string): PropertyAsset => ({
   id: `asset-${nanoid(6)}`,
   assetType: "property",
   kind: "home",
   source: "manual",
-  currency: "HKD",
+  currency,
   startMonth,
   usage: "self",
   currentValue: 0,
@@ -64,6 +71,7 @@ const createInvestmentAsset = (startMonth: string): InvestmentAsset => ({
 export default function AssetsStep({
   assets,
   startMonth,
+  baseCurrency,
   assetToggles,
   onAssetsChange,
   onAssetTogglesChange,
@@ -99,6 +107,9 @@ export default function AssetsStep({
           <Text size="sm" c="dimmed">
             {t("assets.description")}
           </Text>
+          <Text size="sm" c="dimmed">
+            {t("assets.currentHoldingsHint")}
+          </Text>
         </Stack>
       </Card>
 
@@ -110,18 +121,21 @@ export default function AssetsStep({
             value={cashAsset?.amount ?? cashAsset?.currentValue ?? 0}
             onChange={(value) => {
               const amount = typeof value === "number" ? value : 0;
-              upsertAsset("cash", () => createCashAsset(startMonth), {
+              upsertAsset("cash", () => createCashAsset(startMonth, baseCurrency), {
                 amount,
                 currentValue: amount,
               });
             }}
+            description={t("assets.hints.cashCurrentBalance")}
           />
-          <TextInput
+          <Select
+            searchable
             label={t("assets.fields.cashCurrency")}
-            value={cashAsset?.currency ?? "HKD"}
-            onChange={(event) =>
-              upsertAsset("cash", () => createCashAsset(startMonth), {
-                currency: event.currentTarget.value.toUpperCase(),
+            data={SUPPORTED_CURRENCY_OPTIONS}
+            value={cashAsset?.currency ?? baseCurrency}
+            onChange={(value) =>
+              upsertAsset("cash", () => createCashAsset(startMonth, baseCurrency), {
+                currency: value ?? baseCurrency,
               })
             }
           />
@@ -144,7 +158,7 @@ export default function AssetsStep({
                 const enabled = event.currentTarget.checked;
                 setToggle("propertyEnabled", enabled);
                 if (enabled && !propertyAsset) {
-                  onAssetsChange([...assets, createPropertyAsset(startMonth)]);
+                  onAssetsChange([...assets, createPropertyAsset(startMonth, baseCurrency)]);
                 }
                 if (!enabled && propertyAsset) {
                   onAssetsChange(assets.filter((asset) => asset.id !== propertyAsset.id));
@@ -159,7 +173,7 @@ export default function AssetsStep({
                 label={t("assets.fields.assetLabel")}
                 value={propertyAsset?.label ?? ""}
                 onChange={(event) =>
-                  upsertAsset("property", () => createPropertyAsset(startMonth), {
+                  upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
                     label: event.currentTarget.value,
                   })
                 }
@@ -168,32 +182,95 @@ export default function AssetsStep({
                 label={t("assets.fields.currentValue")}
                 value={propertyAsset?.currentValue ?? 0}
                 onChange={(value) =>
-                  upsertAsset("property", () => createPropertyAsset(startMonth), {
+                  upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
                     currentValue: typeof value === "number" ? value : 0,
                   })
                 }
               />
-              <Switch
-                checked={(propertyAsset?.usage ?? "self") === "rent"}
-                label={t("assets.switches.enableRentIncome")}
-                onChange={(event) => {
-                  const enabled = event.currentTarget.checked;
-                  upsertAsset("property", () => createPropertyAsset(startMonth), {
-                    usage: enabled ? "rent" : "self",
-                    rentMonthly: enabled ? propertyAsset?.rentMonthly ?? 0 : undefined,
-                  });
-                }}
+              <SegmentedControl
+                data={[
+                  { value: "self", label: t("assets.usage.self") },
+                  { value: "rent", label: t("assets.usage.rent") },
+                ]}
+                value={propertyAsset?.usage ?? "self"}
+                onChange={(value) =>
+                  upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                    usage: value as PropertyAsset["usage"],
+                    rentMonthly: value === "rent" ? propertyAsset?.rentMonthly ?? 0 : undefined,
+                  })
+                }
+              />
+              <NumberInput
+                label={t("assets.fields.holdingCostMonthly")}
+                value={propertyAsset?.holdingCostMonthly ?? 0}
+                onChange={(value) =>
+                  upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                    holdingCostMonthly: typeof value === "number" ? value : 0,
+                  })
+                }
               />
               {(propertyAsset?.usage ?? "self") === "rent" ? (
                 <NumberInput
                   label={t("assets.fields.rentMonthly")}
                   value={propertyAsset?.rentMonthly ?? 0}
                   onChange={(value) =>
-                    upsertAsset("property", () => createPropertyAsset(startMonth), {
+                    upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
                       rentMonthly: typeof value === "number" ? value : 0,
                     })
                   }
                 />
+              ) : null}
+              <Switch
+                checked={Boolean(propertyAsset?.mortgagePrincipalOutstanding)}
+                label={t("assets.switches.enableMortgage")}
+                onChange={(event) => {
+                  const enabled = event.currentTarget.checked;
+                  upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                    mortgagePrincipalOutstanding: enabled
+                      ? propertyAsset?.mortgagePrincipalOutstanding ?? 0
+                      : undefined,
+                    mortgageTermYears: enabled ? propertyAsset?.mortgageTermYears ?? 30 : undefined,
+                    mortgageAnnualInterestRatePct: enabled
+                      ? propertyAsset?.mortgageAnnualInterestRatePct ?? 3
+                      : undefined,
+                  });
+                }}
+              />
+              {propertyAsset?.mortgagePrincipalOutstanding !== undefined ? (
+                <>
+                  <NumberInput
+                    label={t("assets.fields.mortgagePrincipal")}
+                    value={propertyAsset.mortgagePrincipalOutstanding ?? 0}
+                    onChange={(value) =>
+                      upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                        mortgagePrincipalOutstanding: typeof value === "number" ? value : 0,
+                      })
+                    }
+                  />
+                  <Group grow>
+                    <NumberInput
+                      label={t("assets.fields.mortgageTermYears")}
+                      value={propertyAsset.mortgageTermYears ?? 30}
+                      onChange={(value) =>
+                        upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                          mortgageTermYears: typeof value === "number" ? value : 30,
+                        })
+                      }
+                    />
+                    <NumberInput
+                      label={t("assets.fields.mortgageRate")}
+                      value={propertyAsset.mortgageAnnualInterestRatePct ?? 3}
+                      onChange={(value) =>
+                        upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                          mortgageAnnualInterestRatePct: typeof value === "number" ? value : 3,
+                        })
+                      }
+                    />
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    {t("assets.hints.mortgageAutoProjection")}
+                  </Text>
+                </>
               ) : null}
             </>
           ) : null}
