@@ -67,7 +67,7 @@ export default function IncomeStep({
 
   const memberOptions = useMemo(
     () => [
-      { value: "", label: t("income.memberOptional") },
+      { value: "", label: t("income.fields.memberOptional") },
       ...members.map((member) => ({
         value: member.id,
         label: member.name?.trim() || member.id,
