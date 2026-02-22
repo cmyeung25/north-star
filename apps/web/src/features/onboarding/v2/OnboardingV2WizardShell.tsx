@@ -27,6 +27,7 @@ type OnboardingV2WizardShellProps = {
   activeStep: number;
   onStepChange: (step: number) => void;
   navigation: ReactNode;
+  hideDesktopStepper?: boolean;
 };
 
 export default function OnboardingV2WizardShell({
@@ -34,6 +35,7 @@ export default function OnboardingV2WizardShell({
   activeStep,
   onStepChange,
   navigation,
+  hideDesktopStepper = false,
 }: OnboardingV2WizardShellProps) {
   const t = useTranslations("onboardingDraft.wizardShell");
   const clampedStep = Math.min(Math.max(activeStep, 0), steps.length - 1);
@@ -89,7 +91,7 @@ export default function OnboardingV2WizardShell({
                 </Stack>
               </Modal>
             </Stack>
-          ) : (
+          ) : hideDesktopStepper ? null : (
             <Stepper active={clampedStep} onStepClick={onStepChange}>
               {steps.map((step) => (
                 <Stepper.Step

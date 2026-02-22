@@ -1,8 +1,8 @@
 "use client";
 
-import { Alert, Button, Stack, Text } from "@mantine/core";
+import { Alert, AspectRatio, Box, Button, Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
 import type { GeneratedItemMetadata } from "../../../domain/scenarioDraft/types";
@@ -20,6 +20,7 @@ import { submitOnboardingV3Payload } from "./submissionFacade";
 import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenarioDraft";
 import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
 import { mapOnboardingV3EventTypes } from "./eventTypeMapper";
+import { memberCasesPath } from "../../../../lib/routes/appRoutes";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -55,7 +56,9 @@ const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: s
 
 export default function OnboardingV3Wizard() {
   const t = useTranslations("onboardingV3");
+  const appShellT = useTranslations("app.shell");
   const params = useParams<{ scenarioId?: string | string[] }>();
+  const router = useRouter();
   const scenarioId = Array.isArray(params?.scenarioId) ? params?.scenarioId[0] : params?.scenarioId;
   const scenarios = useScenarioStore((state) => state.scenarios);
   const scenario = getScenarioById(scenarios, scenarioId ?? null);
@@ -340,17 +343,84 @@ export default function OnboardingV3Wizard() {
   return (
     <Stack gap="md">
       {validationMessages.length > 0 ? <Alert color="red">{validationMessages.join("\n")}</Alert> : null}
-      <OnboardingV2WizardShell
-        steps={steps}
-        activeStep={step}
-        onStepChange={setStep}
-        navigation={
-          <>
-            <Button variant="default" onClick={() => setStep((current) => Math.max(current - 1, 0))}>{t("navigation.back")}</Button>
-            {step < steps.length - 1 ? <Button onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>{t("navigation.next")}</Button> : <Button onClick={handleSubmit}>{t("navigation.completeAndWriteToCore")}</Button>}
-          </>
-        }
-      />
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
+        <Card withBorder radius="lg" p="xl" visibleFrom="md">
+          <Group align="stretch" gap="md" wrap="nowrap">
+            <Stack gap={0} w={36} pt={4}>
+              {steps.map((stepDef, index) => {
+                const active = index === step;
+                const done = index < step;
+                return (
+                  <Stack key={stepDef.id} gap={6} align="center">
+                    <Box
+                      component="button"
+                      type="button"
+                      onClick={() => setStep(index)}
+                      aria-label={stepDef.title}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 999,
+                        border: `1px solid ${active ? "var(--mantine-color-aurora-6)" : "var(--mantine-color-gray-3)"}`,
+                        background: active ? "var(--mantine-color-aurora-0)" : "var(--mantine-color-white)",
+                        color: done || active ? "var(--mantine-color-dark-8)" : "var(--mantine-color-gray-6)",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {index + 1}
+                    </Box>
+                    {index < steps.length - 1 ? (
+                      <Box
+                        h={42}
+                        w={1}
+                        bg={index < step ? "aurora.6" : "gray.3"}
+                      />
+                    ) : null}
+                  </Stack>
+                );
+              })}
+            </Stack>
+            <Stack gap="md" style={{ flex: 1 }}>
+              <Text fw={600}>{t("layout.visualPlaceholderTitle")}</Text>
+              <Text size="sm" c="dimmed">{t("layout.visualPlaceholderDescription")}</Text>
+              <AspectRatio ratio={4 / 3}>
+                <Card radius="md" withBorder p="md" bg="neutral.0">
+                  <Stack justify="center" align="center" h="100%" gap="xs">
+                    <Text fw={600}>{t("layout.visualPlaceholderLabel")}</Text>
+                    <Text size="sm" c="dimmed">{t("layout.visualPlaceholderHint")}</Text>
+                  </Stack>
+                </Card>
+              </AspectRatio>
+            </Stack>
+          </Group>
+        </Card>
+
+        <OnboardingV2WizardShell
+          steps={steps}
+          activeStep={step}
+          onStepChange={setStep}
+          hideDesktopStepper
+          navigation={
+            <>
+              <Button
+                variant="default"
+                onClick={() => {
+                  if (step === 0) {
+                    router.push(memberCasesPath());
+                    return;
+                  }
+                  setStep((current) => Math.max(current - 1, 0));
+                }}
+              >
+                {step === 0 ? appShellT("backToCases") : t("navigation.back")}
+              </Button>
+              {step < steps.length - 1 ? <Button onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>{t("navigation.next")}</Button> : <Button onClick={handleSubmit}>{t("navigation.completeAndWriteToCore")}</Button>}
+            </>
+          }
+        />
+      </SimpleGrid>
       <Text size="xs" c="dimmed">{t("footer.localDraftHint")}</Text>
     </Stack>
   );
