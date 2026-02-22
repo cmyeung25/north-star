@@ -32,4 +32,12 @@ describe("resolveOnboardingCompletionPath", () => {
     expect(path).not.toContain("caseId=");
     expect(path).not.toContain("scenarioId=");
   });
+
+  it("falls back to member cases path when case id is unavailable", () => {
+    expect(
+      resolveOnboardingCompletionPath({
+        scenarioId: "scenario-1",
+      }),
+    ).toBe("/member/cases");
+  });
 });
