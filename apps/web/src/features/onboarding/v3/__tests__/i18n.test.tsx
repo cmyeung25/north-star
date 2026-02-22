@@ -16,15 +16,26 @@ describe("onboarding v3 i18n", () => {
 
     expect(enDraft.members[0]?.name).toBe("Me");
     expect(zhDraft.members[0]?.name).toBe("本人");
+
+    expect(/^\d{4}-\d{2}$/.test(enDraft.profile.startMonth ?? "")).toBe(true);
   });
 
-  it("renders review badge labels based on locale messages", () => {
+  it("renders review labels based on locale messages", () => {
     const items = [{ label: "Checklist item", completed: true }];
+    const summary = {
+      scenarioSetup: { baseCurrency: "HKD", startMonth: "2026-01", horizonMonths: 120 },
+      members: [{ id: "self", name: "Me" }],
+      assets: [],
+      derivedIncomeCount: 1,
+      derivedExpenseCount: 1,
+      manualIncomeCount: 0,
+      manualExpenseCount: 0,
+    };
 
     const enHtml = renderToString(
       <MantineProvider>
         <NextIntlClientProvider locale="en" messages={enMessages as unknown as AbstractIntlMessages} timeZone="UTC">
-          <ReviewStep items={items} />
+          <ReviewStep items={items} summary={summary} onEditStep={() => {}} />
         </NextIntlClientProvider>
       </MantineProvider>
     );
@@ -32,12 +43,12 @@ describe("onboarding v3 i18n", () => {
     const zhHtml = renderToString(
       <MantineProvider>
         <NextIntlClientProvider locale="zh-HK" messages={zhHkMessages as unknown as AbstractIntlMessages} timeZone="UTC">
-          <ReviewStep items={items} />
+          <ReviewStep items={items} summary={summary} onEditStep={() => {}} />
         </NextIntlClientProvider>
       </MantineProvider>
     );
 
-    expect(enHtml).toContain("OK");
-    expect(zhHtml).toContain("完成");
+    expect(enHtml).toContain("Summary before submit");
+    expect(zhHtml).toContain("提交前摘要");
   });
 });

@@ -85,6 +85,7 @@ export default function OnboardingV3Wizard() {
   }, [autoEventIds, draft.events]);
 
   const incomeRows = useMemo(() => autoRows.filter((event) => event.kind === "income"), [autoRows]);
+  const expenseRows = useMemo(() => autoRows.filter((event) => event.kind === "expense"), [autoRows]);
 
   const manualCashflowEvents = useMemo(
     () =>
@@ -114,6 +115,20 @@ export default function OnboardingV3Wizard() {
     { label: t("steps.review.items.assets"), completed: draft.assets.length > 0, warning: t("reviewWarnings.propertyMissing") },
     { label: t("steps.review.items.generatedCashflow"), completed: mergedEvents.length > 0, warning: t("reviewWarnings.derivedCashflowMissing") },
   ];
+
+  const reviewSummary = {
+    scenarioSetup: {
+      baseCurrency: draft.profile.baseCurrency,
+      startMonth: draft.profile.startMonth,
+      horizonMonths: draft.profile.horizonMonths,
+    },
+    members: draft.members,
+    assets: draft.assets,
+    derivedIncomeCount: incomeRows.length,
+    derivedExpenseCount: expenseRows.length,
+    manualIncomeCount: manualCashflowEvents.filter((event) => event.kind === "income").length,
+    manualExpenseCount: manualCashflowEvents.filter((event) => event.kind === "expense").length,
+  };
 
   const upsertAutoOverride = (eventId: string, kind: "income" | "expense", patch: { amount?: number; disabled?: boolean }) => {
     setDraft((current) => {
@@ -170,7 +185,7 @@ export default function OnboardingV3Wizard() {
   const steps = [
     { ...stepDefs[0], title: t(stepDefs[0].titleKey), content: <ScenarioSetupStep profile={draft.profile} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} /> },
     { ...stepDefs[1], title: t(stepDefs[1].titleKey), content: <HouseholdStep members={draft.members} onChange={(members) => setDraft((current) => ({ ...current, members }))} /> },
-    { ...stepDefs[2], title: t(stepDefs[2].titleKey), content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} assetToggles={draft.assetToggles} onAssetsChange={(assets) => setDraft((current) => ({ ...current, assets }))} onAssetTogglesChange={(assetToggles) => setDraft((current) => ({ ...current, assetToggles }))} /> },
+    { ...stepDefs[2], title: t(stepDefs[2].titleKey), content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} baseCurrency={draft.profile.baseCurrency ?? "HKD"} assetToggles={draft.assetToggles} onAssetsChange={(assets) => setDraft((current) => ({ ...current, assets }))} onAssetTogglesChange={(assetToggles) => setDraft((current) => ({ ...current, assetToggles }))} /> },
     {
       ...stepDefs[3],
       title: t(stepDefs[3].titleKey),
@@ -221,6 +236,7 @@ export default function OnboardingV3Wizard() {
       title: t(stepDefs[4].titleKey),
       content: (
         <ExpenseStep
+          rows={expenseRows}
           defaultStartMonth={draft.profile.startMonth ?? ""}
           manualRows={manualCashflowEvents.filter((event) => event.kind === "expense")}
           onAddManualItem={(item) => addManual("expense", item)}
@@ -247,7 +263,7 @@ export default function OnboardingV3Wizard() {
         />
       ),
     },
-    { ...stepDefs[5], title: t(stepDefs[5].titleKey), content: <ReviewStep items={reviewItems} /> },
+    { ...stepDefs[5], title: t(stepDefs[5].titleKey), content: <ReviewStep items={reviewItems} summary={reviewSummary} onEditStep={(index) => setStep(index)} /> },
   ];
 
   const handleSubmit = () => {
