@@ -2914,13 +2914,27 @@
       },
       "expense": {
         "title": "支出假設",
-        "description": "檢查系統產生支出，並加入手動調整。",
+        "description": "先填最必要支出欄位，避免一次填太多資訊。",
         "quickAdd": {
           "transport": "新增交通費",
           "medical": "新增醫療費"
         },
         "manualRowTitle": "手動支出項目",
-        "emptyManualHint": "尚未新增手動支出項目，可使用上方模板快速建立。"
+        "emptyManualHint": "尚未新增手動支出項目，可使用上方模板快速建立。",
+        "dailyMonthlyLabel": "日常／每月生活費",
+        "showAdvanced": "顯示進階設定",
+        "advancedGrowth": "年成長率 (%)",
+        "advancedStartMonth": "起始月份",
+        "travelTitle": "旅遊",
+        "taxTitle": "稅務",
+        "modeMonthly": "月",
+        "modeYearly": "年",
+        "monthlyAmount": "月額",
+        "yearlyAmount": "年額",
+        "allocateMonths": "月份分配（年模式）",
+        "otherFixedTitle": "其他固定費",
+        "addOtherFixed": "新增列",
+        "otherFixedLabel": "項目名稱"
       },
       "review": {
         "title": "完整度檢查",

@@ -1,179 +1,214 @@
-import { Alert, Button, Card, Divider, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
-import { useState } from "react";
+import {
+  Card,
+  Collapse,
+  Group,
+  MultiSelect,
+  NumberInput,
+  SegmentedControl,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+  Button,
+} from "@mantine/core";
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
-import type { CashflowEvent } from "../../../../domain/scenarioV2/events";
-import type { GeneratedItemMetadata } from "../../../../domain/scenarioDraft/types";
+import MonthField from "../../../../../components/MonthField";
 
-type Row = CashflowEvent & { metadata?: GeneratedItemMetadata };
+type AnnualMode = "monthly" | "yearly";
 
 type ManualRow = {
   id: string;
   label?: string;
   amount: number;
+  cadence?: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths";
+  startMonth?: string;
+  endMonth?: string;
+  customGrowthRatePct?: number;
+  tags?: string[];
 };
 
 type Props = {
-  rows: Row[];
   manualRows: ManualRow[];
-  overrides: Record<string, { amount?: number; disabled?: boolean }>;
-  onOverrideAmount: (eventId: string, amount: number) => void;
-  onRestoreSuggested: (eventId: string) => void;
-  onToggleDisabled: (eventId: string, disabled: boolean) => void;
-  onAddManualItem: (item: { label: string; amount: number }) => void;
+  defaultStartMonth: string;
+  onAddManualItem: (item: Omit<ManualRow, "id">) => void;
   onUpdateManualItem: (eventId: string, patch: Partial<ManualRow>) => void;
   onRemoveManualItem: (eventId: string) => void;
 };
 
+const monthOptions = [
+  { value: "01", label: "1" }, { value: "02", label: "2" }, { value: "03", label: "3" },
+  { value: "04", label: "4" }, { value: "05", label: "5" }, { value: "06", label: "6" },
+  { value: "07", label: "7" }, { value: "08", label: "8" }, { value: "09", label: "9" },
+  { value: "10", label: "10" }, { value: "11", label: "11" }, { value: "12", label: "12" },
+];
+
+const hasTag = (row: ManualRow, tag: string) => Boolean(row.tags?.includes(tag));
+const sectionTag = (section: string) => `onboarding:v3:expense:${section}`;
+
 export default function ExpenseStep({
-  rows,
   manualRows,
-  overrides,
-  onOverrideAmount,
-  onRestoreSuggested,
-  onToggleDisabled,
+  defaultStartMonth,
   onAddManualItem,
   onUpdateManualItem,
   onRemoveManualItem,
 }: Props) {
-  const tGenerated = useTranslations("onboarding.generatedCashflow");
   const t = useTranslations("onboardingV3.steps");
-  const [duplicateMessage, setDuplicateMessage] = useState<string>("");
 
-  const addManual = (rule: string | undefined, labelKey: string) => {
-    if (rule && rows.some((row) => row.metadata?.generatedByRule === rule)) {
-      setDuplicateMessage(tGenerated("duplicateBlocked"));
+  const daily = manualRows.find((row) => hasTag(row, sectionTag("daily-monthly")));
+  const travel = manualRows.find((row) => hasTag(row, sectionTag("travel")));
+  const tax = manualRows.find((row) => hasTag(row, sectionTag("tax")));
+  const otherFixed = manualRows.filter((row) => hasTag(row, sectionTag("other-fixed")));
+
+  const upsertSection = (
+    section: "daily-monthly" | "travel" | "tax",
+    patch: Partial<ManualRow>,
+    fallbackLabel: string,
+  ) => {
+    const tag = sectionTag(section);
+    const existing = manualRows.find((row) => hasTag(row, tag));
+    if (existing) {
+      onUpdateManualItem(existing.id, patch);
       return;
     }
-    setDuplicateMessage("");
-    onAddManualItem({ label: tGenerated(labelKey), amount: 0 });
+
+    onAddManualItem({
+      label: fallbackLabel,
+      amount: 0,
+      cadence: "monthly",
+      startMonth: defaultStartMonth,
+      tags: [tag, sectionTag("source-onboarding")],
+      ...patch,
+    });
   };
 
-  const primaryTemplates = [
-    {
-      id: "mortgage",
-      label: tGenerated("addMortgagePayment"),
-      rule: "property.mortgage.payment.v1",
-      labelKey: "manualMortgagePayment",
-    },
-    {
-      id: "holding",
-      label: tGenerated("addHoldingCost"),
-      rule: "property.holding-cost.v1",
-      labelKey: "manualHoldingCost",
-    },
-    { id: "manual", label: tGenerated("addManual"), rule: undefined, labelKey: "manualExpense" },
-  ] as const;
+  const travelMode: AnnualMode = travel?.cadence === "yearly" ? "yearly" : "monthly";
+  const taxMode: AnnualMode = tax?.cadence === "yearly" ? "yearly" : "monthly";
 
-  const addonTemplates = [
-    { id: "transport", label: t("expense.quickAdd.transport"), rule: undefined, labelKey: "manualExpense" },
-    { id: "medical", label: t("expense.quickAdd.medical"), rule: undefined, labelKey: "manualExpense" },
-  ] as const;
+  const travelAnnualMonths = useMemo(() => {
+    const token = travel?.tags?.find((tag) => tag.startsWith("allocation:"));
+    return token ? token.replace("allocation:", "").split(",").filter(Boolean) : [];
+  }, [travel?.tags]);
+
+  const taxAnnualMonths = useMemo(() => {
+    const token = tax?.tags?.find((tag) => tag.startsWith("allocation:"));
+    return token ? token.replace("allocation:", "").split(",").filter(Boolean) : [];
+  }, [tax?.tags]);
+
+  const withAllocationTags = (rows: string[], existingTags: string[] = []) => {
+    const tags = existingTags.filter((tag) => !tag.startsWith("allocation:"));
+    return [...tags, `allocation:${rows.join(",")}`];
+  };
 
   return (
     <Stack gap="md">
       <Card withBorder radius="md" padding="md">
-        <Stack gap="md">
-          <Stack gap={4}>
-            <Text fw={600}>{t("expense.title")}</Text>
-            <Text size="sm" c="dimmed">{t("expense.description")}</Text>
-          </Stack>
-
-          <Stack gap="md">
-            <Text size="sm">{tGenerated("expenseHint")}</Text>
-            {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
-
-            <Stack gap="xs">
-              <Text size="sm" fw={600}>{t("common.frequentTemplates")}</Text>
-              <Group>
-                {primaryTemplates.map((template) => (
-                  <Button
-                    key={template.id}
-                    size="xs"
-                    variant="light"
-                    onClick={() => addManual(template.rule, template.labelKey)}
-                  >
-                    {template.label}
-                  </Button>
-                ))}
-              </Group>
-            </Stack>
-
-            <Divider label={t("common.moreQuickAdd")} />
-            <Group>
-              {addonTemplates.map((template) => (
-                <Button
-                  key={template.id}
-                  size="xs"
-                  variant="default"
-                  onClick={() => addManual(template.rule, template.labelKey)}
-                >
-                  {template.label}
-                </Button>
-              ))}
+        <Stack gap="sm">
+          <Text fw={600}>{t("expense.title")}</Text>
+          <Text size="sm" c="dimmed">{t("expense.description")}</Text>
+          <NumberInput
+            label={t("expense.dailyMonthlyLabel")}
+            min={0}
+            value={daily?.amount ?? 0}
+            onChange={(value) =>
+              upsertSection("daily-monthly", { amount: typeof value === "number" ? value : 0 }, t("expense.dailyMonthlyLabel"))
+            }
+          />
+          <Switch
+            label={t("expense.showAdvanced")}
+            checked={Boolean(daily?.customGrowthRatePct || (daily?.startMonth && daily.startMonth !== defaultStartMonth))}
+            onChange={(event) => {
+              if (!event.currentTarget.checked && daily) {
+                onUpdateManualItem(daily.id, { customGrowthRatePct: 0, startMonth: defaultStartMonth });
+              }
+            }}
+          />
+          <Collapse in={Boolean(daily?.customGrowthRatePct || (daily?.startMonth && daily.startMonth !== defaultStartMonth))}>
+            <Group grow>
+              <NumberInput
+                label={t("expense.advancedGrowth")}
+                value={daily?.customGrowthRatePct ?? 0}
+                onChange={(value) =>
+                  upsertSection("daily-monthly", { customGrowthRatePct: typeof value === "number" ? value : 0 }, t("expense.dailyMonthlyLabel"))
+                }
+              />
+              <MonthField
+                label={t("expense.advancedStartMonth")}
+                value={daily?.startMonth ?? defaultStartMonth}
+                onChange={(value) => upsertSection("daily-monthly", { startMonth: value || defaultStartMonth }, t("expense.dailyMonthlyLabel"))}
+              />
             </Group>
+          </Collapse>
+        </Stack>
+      </Card>
 
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{tGenerated("source")}</Table.Th>
-                  <Table.Th>{tGenerated("baseValue")}</Table.Th>
-                  <Table.Th>{tGenerated("overrideValue")}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((row) => (
-                  <GeneratedCashflowRow
-                    key={row.id}
-                    id={row.id}
-                    rule={row.metadata?.generatedByRule}
-                    baseAmount={row.amount}
-                    overrideAmount={overrides[row.id]?.amount}
-                    disabled={overrides[row.id]?.disabled}
-                    onOverrideAmount={(value) => onOverrideAmount(row.id, value)}
-                    onRestoreSuggested={() => onRestoreSuggested(row.id)}
-                    onToggleDisabled={(value) => onToggleDisabled(row.id, value)}
-                  />
-                ))}
-              </Table.Tbody>
-            </Table>
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Text fw={600}>{t("expense.travelTitle")}</Text>
+          <SegmentedControl
+            value={travelMode}
+            data={[{ label: t("expense.modeMonthly"), value: "monthly" }, { label: t("expense.modeYearly"), value: "yearly" }]}
+            onChange={(value) => upsertSection("travel", { cadence: value === "yearly" ? "yearly" : "monthly" }, t("expense.travelTitle"))}
+          />
+          <NumberInput
+            label={travelMode === "yearly" ? t("expense.yearlyAmount") : t("expense.monthlyAmount")}
+            min={0}
+            value={travel?.amount ?? 0}
+            onChange={(value) => upsertSection("travel", { amount: typeof value === "number" ? value : 0 }, t("expense.travelTitle"))}
+          />
+          {travelMode === "yearly" ? (
+            <MultiSelect
+              label={t("expense.allocateMonths")}
+              data={monthOptions}
+              value={travelAnnualMonths}
+              onChange={(value) =>
+                upsertSection("travel", { tags: withAllocationTags(value, travel?.tags) }, t("expense.travelTitle"))
+              }
+            />
+          ) : null}
+        </Stack>
+      </Card>
 
-            <Stack gap="md">
-              <Text size="sm" fw={600}>{tGenerated("manualSection")}</Text>
-              {manualRows.length > 0 ? (
-                manualRows.map((row) => (
-                  <Card key={row.id} withBorder radius="md" padding="md">
-                    <Stack gap="md">
-                      <Group justify="space-between" align="flex-start">
-                        <Text size="sm" fw={600}>{t("expense.manualRowTitle")}</Text>
-                        <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>
-                          {tGenerated("remove")}
-                        </Button>
-                      </Group>
-                      <Group grow>
-                        <TextInput
-                          value={row.label ?? ""}
-                          onChange={(event) => onUpdateManualItem(row.id, { label: event.currentTarget.value })}
-                        />
-                        <NumberInput
-                          value={row.amount}
-                          onChange={(value) =>
-                            onUpdateManualItem(row.id, {
-                              amount: typeof value === "number" ? value : 0,
-                            })
-                          }
-                        />
-                      </Group>
-                    </Stack>
-                  </Card>
-                ))
-              ) : (
-                <Card withBorder radius="md" padding="md">
-                  <Text size="sm" c="dimmed">{t("expense.emptyManualHint")}</Text>
-                </Card>
-              )}
-            </Stack>
-          </Stack>
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Text fw={600}>{t("expense.taxTitle")}</Text>
+          <SegmentedControl
+            value={taxMode}
+            data={[{ label: t("expense.modeMonthly"), value: "monthly" }, { label: t("expense.modeYearly"), value: "yearly" }]}
+            onChange={(value) => upsertSection("tax", { cadence: value === "yearly" ? "yearly" : "monthly" }, t("expense.taxTitle"))}
+          />
+          <NumberInput
+            label={taxMode === "yearly" ? t("expense.yearlyAmount") : t("expense.monthlyAmount")}
+            min={0}
+            value={tax?.amount ?? 0}
+            onChange={(value) => upsertSection("tax", { amount: typeof value === "number" ? value : 0 }, t("expense.taxTitle"))}
+          />
+          {taxMode === "yearly" ? (
+            <MultiSelect
+              label={t("expense.allocateMonths")}
+              data={monthOptions}
+              value={taxAnnualMonths}
+              onChange={(value) => upsertSection("tax", { tags: withAllocationTags(value, tax?.tags) }, t("expense.taxTitle"))}
+            />
+          ) : null}
+        </Stack>
+      </Card>
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Text fw={600}>{t("expense.otherFixedTitle")}</Text>
+            <Button size="xs" onClick={() => onAddManualItem({ label: "", amount: 0, cadence: "monthly", startMonth: defaultStartMonth, tags: [sectionTag("other-fixed"), sectionTag("source-onboarding")] })}>{t("expense.addOtherFixed")}</Button>
+          </Group>
+          {otherFixed.map((row) => (
+            <Group key={row.id} grow>
+              <TextInput value={row.label ?? ""} placeholder={t("expense.otherFixedLabel")} onChange={(e) => onUpdateManualItem(row.id, { label: e.currentTarget.value })} />
+              <NumberInput value={row.amount} min={0} onChange={(value) => onUpdateManualItem(row.id, { amount: typeof value === "number" ? value : 0 })} />
+              <MonthField value={row.startMonth ?? defaultStartMonth} onChange={(value) => onUpdateManualItem(row.id, { startMonth: value || defaultStartMonth })} />
+              <MonthField value={row.endMonth ?? ""} onChange={(value) => onUpdateManualItem(row.id, { endMonth: value || undefined })} />
+              <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>-</Button>
+            </Group>
+          ))}
         </Stack>
       </Card>
     </Stack>
