@@ -17,6 +17,9 @@ type Summary = {
   derivedExpenseCount: number;
   manualIncomeCount: number;
   manualExpenseCount: number;
+  totalAssetsAmount: number;
+  monthlyIncomeAmount: number;
+  monthlyExpenseAmount: number;
 };
 
 type Props = {
@@ -57,6 +60,7 @@ export default function ReviewStep({ items, summary, onEditStep }: Props) {
             <Group justify="space-between"><Text fw={600}>{t("review.sections.assets")}</Text><Button variant="subtle" size="xs" onClick={() => onEditStep(2)}>{t("review.edit")}</Button></Group>
             <Text size="sm">{t("review.summary.assetCount", { value: summary.assets.length })}</Text>
             <Text size="sm">{summary.assets.map((asset) => asset.assetType).join(", ") || "-"}</Text>
+            <Text size="sm">{t("review.summary.assetTotal", { value: summary.totalAssetsAmount.toLocaleString() })}</Text>
           </Stack>
         </Card>
         <Card withBorder>
@@ -66,6 +70,9 @@ export default function ReviewStep({ items, summary, onEditStep }: Props) {
             <Text size="sm">{t("review.summary.derivedExpense", { value: summary.derivedExpenseCount })}</Text>
             <Text size="sm">{t("review.summary.manualIncome", { value: summary.manualIncomeCount })}</Text>
             <Text size="sm">{t("review.summary.manualExpense", { value: summary.manualExpenseCount })}</Text>
+            <Text size="sm">{t("review.summary.monthlyIncomeTotal", { value: summary.monthlyIncomeAmount.toLocaleString() })}</Text>
+            <Text size="sm">{t("review.summary.monthlyExpenseTotal", { value: summary.monthlyExpenseAmount.toLocaleString() })}</Text>
+            <Text size="sm">{t("review.summary.monthlyNetTotal", { value: (summary.monthlyIncomeAmount - summary.monthlyExpenseAmount).toLocaleString() })}</Text>
           </Stack>
         </Card>
       </Group>

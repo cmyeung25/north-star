@@ -2926,10 +2926,14 @@
           "startMonth": "Start month: {value}",
           "horizonMonths": "Projection horizon (months): {value}",
           "assetCount": "Asset count: {value}",
+          "assetTotal": "Estimated total assets: {value}",
           "derivedIncome": "Auto-generated income rows: {value}",
           "derivedExpense": "Auto-generated expense rows: {value}",
           "manualIncome": "Manual income rows: {value}",
-          "manualExpense": "Manual expense rows: {value}"
+          "manualExpense": "Manual expense rows: {value}",
+          "monthlyIncomeTotal": "Monthly income total: {value}",
+          "monthlyExpenseTotal": "Monthly expense total: {value}",
+          "monthlyNetTotal": "Monthly net cashflow: {value}"
         }
       },
       "common": {

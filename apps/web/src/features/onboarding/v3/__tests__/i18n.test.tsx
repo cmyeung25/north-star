@@ -30,6 +30,9 @@ describe("onboarding v3 i18n", () => {
       derivedExpenseCount: 1,
       manualIncomeCount: 0,
       manualExpenseCount: 0,
+      totalAssetsAmount: 0,
+      monthlyIncomeAmount: 0,
+      monthlyExpenseAmount: 0,
     };
 
     const enHtml = renderToString(
