@@ -418,54 +418,52 @@ export default function OnboardingV3Wizard() {
     <Stack gap="md">
       {validationMessages.length > 0 ? <Alert color="red">{validationMessages.join("\n")}</Alert> : null}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
-        <Card withBorder radius="lg" p="xl" visibleFrom="md">
-          <Group align="stretch" gap="md" wrap="nowrap">
-            <Stack gap={0} w={36} pt={4}>
-              {steps.map((stepDef, index) => {
-                const active = index === step;
-                const done = index < step;
-                return (
-                  <Stack key={stepDef.id} gap={6} align="center">
+        <Group align="stretch" gap="md" wrap="nowrap" visibleFrom="md" >
+          <Stack gap={0} w={36} pt={4}>
+            {steps.map((stepDef, index) => {
+              const active = index === step;
+              const done = index < step;
+              return (
+                <Stack key={stepDef.id} gap={6} align="center">
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => setStep(index)}
+                    aria-label={stepDef.title}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 999,
+                      border: `1px solid ${active ? "var(--mantine-color-aurora-6)" : "var(--mantine-color-gray-3)"}`,
+                      background: active ? "var(--mantine-color-aurora-0)" : "var(--mantine-color-white)",
+                      color: done || active ? "var(--mantine-color-dark-8)" : "var(--mantine-color-gray-6)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {index + 1}
+                  </Box>
+                  {index < steps.length - 1 ? (
                     <Box
-                      component="button"
-                      type="button"
-                      onClick={() => setStep(index)}
-                      aria-label={stepDef.title}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 999,
-                        border: `1px solid ${active ? "var(--mantine-color-aurora-6)" : "var(--mantine-color-gray-3)"}`,
-                        background: active ? "var(--mantine-color-aurora-0)" : "var(--mantine-color-white)",
-                        color: done || active ? "var(--mantine-color-dark-8)" : "var(--mantine-color-gray-6)",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {index + 1}
-                    </Box>
-                    {index < steps.length - 1 ? (
-                      <Box
-                        h={42}
-                        w={1}
-                        bg={index < step ? "aurora.6" : "gray.3"}
-                      />
-                    ) : null}
-                  </Stack>
-                );
-              })}
-            </Stack>
-            <Stack gap="md" style={{ flex: 1 }}>
-              <AspectRatio ratio={4 / 3}>
-                <Image
-                  src={onboardingStepImages[step] ?? onboardingStepImages[onboardingStepImages.length - 1]}
-                  alt={steps[step]?.title}
-                />
-              </AspectRatio>
-            </Stack>
-          </Group>
-        </Card>
+                      h={42}
+                      w={1}
+                      bg={index < step ? "aurora.6" : "gray.3"}
+                    />
+                  ) : null}
+                </Stack>
+              );
+            })}
+          </Stack>
+          <Stack gap="md" style={{ flex: 1 }}>
+            <AspectRatio ratio={4 / 3}>
+              <Image
+                src={onboardingStepImages[step] ?? onboardingStepImages[onboardingStepImages.length - 1]}
+                alt={steps[step]?.title}
+              />
+            </AspectRatio>
+          </Stack>
+        </Group>
 
         <OnboardingV2WizardShell
           steps={steps}
