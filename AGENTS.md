@@ -203,3 +203,5 @@ Case‑sensitivity – Ensure new folders/files have consistent lower‑case nam
 Loading behaviour – Provide skeletons or overlays for navigation transitions. Avoid blank pages.
 
 Adhering to this architecture will ensure that Codex agents maintain a stable, predictable system while continuing to develop new features.
+
+For those changes requested by user if needed to be saved to inform next Codex agents, please update this AGENTS.md document.
