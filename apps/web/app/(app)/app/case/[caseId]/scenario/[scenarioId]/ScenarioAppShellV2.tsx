@@ -262,7 +262,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
             `,
           }}
         >
-          <Box mih="calc(100dvh - 64px)" maw="none" w="100%">
+          <Box mih="calc(100dvh - 100px)" maw="none" w="100%">
             {children}
           </Box>
           {isMobile && !isOnboardingRoute ? (

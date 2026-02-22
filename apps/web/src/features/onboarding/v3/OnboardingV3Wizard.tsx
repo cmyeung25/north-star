@@ -418,15 +418,10 @@ export default function OnboardingV3Wizard() {
     <Stack gap="md">
       {validationMessages.length > 0 ? <Alert color="red">{validationMessages.join("\n")}</Alert> : null}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
-        <Card
-          withBorder
-          radius="lg"
-          p="xl"
-          visibleFrom="md"
+          <Group align="center" gap="md" wrap="nowrap" 
+                    visibleFrom="md"
           h="calc(100vh - 140px)"
-          style={{ position: "sticky", top: 70 }}
-        >
-          <Group align="center" gap="md" wrap="nowrap" h="100%">
+          style={{ position: "sticky", top: 70 }}>
             <Stack gap={0} w={36} justify="center" h="100%">
               {steps.map((stepDef, index) => {
                 const active = index === step;
@@ -472,7 +467,6 @@ export default function OnboardingV3Wizard() {
               </AspectRatio>
             </Stack>
           </Group>
-        </Card>
 
         <OnboardingV2WizardShell
           steps={steps}
