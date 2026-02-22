@@ -4282,10 +4282,14 @@
           "startMonth": "開始月份：{value}",
           "horizonMonths": "推算期（月）：{value}",
           "assetCount": "資產數量：{value}",
+          "assetTotal": "資產總值（估算）：{value}",
           "derivedIncome": "自動產生收入：{value}",
           "derivedExpense": "自動產生支出：{value}",
           "manualIncome": "手動收入項目：{value}",
-          "manualExpense": "手動支出項目：{value}"
+          "manualExpense": "手動支出項目：{value}",
+          "monthlyIncomeTotal": "每月收入合計：{value}",
+          "monthlyExpenseTotal": "每月支出合計：{value}",
+          "monthlyNetTotal": "每月淨現金流：{value}"
         }
       },
       "common": {

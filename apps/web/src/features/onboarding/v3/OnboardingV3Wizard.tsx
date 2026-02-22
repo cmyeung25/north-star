@@ -15,7 +15,7 @@ import AssetsStep from "./steps/AssetsStep";
 import IncomeStep from "./steps/IncomeStep";
 import ExpenseStep from "./steps/ExpenseStep";
 import ReviewStep from "./steps/ReviewStep";
-import { createInitialScenarioDraftV3State } from "./types";
+import { createInitialScenarioDraftV3State, type OnboardingAsset } from "./types";
 import { submitOnboardingV3Payload } from "./submissionFacade";
 import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenarioDraft";
 import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
@@ -63,6 +63,29 @@ const onboardingStepImages = [
 const isCashflowDraft = (event: ScenarioEventDraft): event is CashflowDraft =>
   event.type === "cashflow";
 
+const isMonthlyCashflowAmount = (
+  event: ScenarioEvent | ScenarioEventDraft,
+  kind: "income" | "expense"
+): number => {
+  if (event.type !== "cashflow" || event.kind !== kind || event.cadence !== "monthly") {
+    return 0;
+  }
+
+  return event.amount;
+};
+
+const resolveAssetValue = (asset: OnboardingAsset): number => {
+  if (asset.assetType === "cash") {
+    return asset.amount ?? asset.currentValue ?? 0;
+  }
+
+  if (asset.assetType === "investment") {
+    return asset.principal ?? asset.currentValue ?? 0;
+  }
+
+  return asset.currentValue ?? 0;
+};
+
 const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: string } =>
   typeof event.id === "string" && event.id.length > 0;
 
@@ -77,6 +100,7 @@ export default function OnboardingV3Wizard() {
   const scenarioContext = useScenarioContext();
   const scenario = getScenarioById(scenarios, scenarioId ?? null);
   const [step, setStep] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState(() =>
     createInitialScenarioDraftV3State({ defaultMemberName: t("defaults.memberName") })
   );
@@ -145,6 +169,9 @@ export default function OnboardingV3Wizard() {
     derivedExpenseCount: expenseRows.length,
     manualIncomeCount: manualCashflowEvents.filter((event) => event.kind === "income").length,
     manualExpenseCount: manualCashflowEvents.filter((event) => event.kind === "expense").length,
+    totalAssetsAmount: draft.assets.reduce((sum, asset) => sum + resolveAssetValue(asset), 0),
+    monthlyIncomeAmount: mergedEvents.reduce((sum, event) => sum + isMonthlyCashflowAmount(event, "income"), 0),
+    monthlyExpenseAmount: mergedEvents.reduce((sum, event) => sum + isMonthlyCashflowAmount(event, "expense"), 0),
   };
 
   const upsertAutoOverride = (eventId: string, kind: "income" | "expense", patch: { amount?: number; disabled?: boolean }) => {
@@ -284,9 +311,11 @@ export default function OnboardingV3Wizard() {
   ];
 
   const handleSubmit = async () => {
-    if (!scenarioId || !scenario) {
+    if (isSubmitting || !scenarioId || !scenario) {
       return;
     }
+
+    setIsSubmitting(true);
 
     const submissionAssets = draft.assets.map((asset) => {
       if (asset.assetType === "cash") {
@@ -328,6 +357,7 @@ export default function OnboardingV3Wizard() {
 
     if (!submitResult.ok) {
       setValidationMessages(submitResult.errors.map((issue) => issue.message));
+      setIsSubmitting(false);
       return;
     }
 
@@ -371,6 +401,7 @@ export default function OnboardingV3Wizard() {
       } catch (error) {
         console.error("Failed to persist onboarding v3 payload", error);
         setValidationMessages([t("errors.saveFailed")]);
+        setIsSubmitting(false);
         return;
       }
     }
@@ -446,6 +477,9 @@ export default function OnboardingV3Wizard() {
               <Button
                 variant="default"
                 onClick={() => {
+                  if (isSubmitting) {
+                    return;
+                  }
                   if (step === 0) {
                     router.push(memberCasesPath());
                     return;
@@ -455,7 +489,15 @@ export default function OnboardingV3Wizard() {
               >
                 {step === 0 ? appShellT("backToCases") : t("navigation.back")}
               </Button>
-              {step < steps.length - 1 ? <Button onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>{t("navigation.next")}</Button> : <Button onClick={handleSubmit}>{t("navigation.completeAndWriteToCore")}</Button>}
+              {step < steps.length - 1 ? (
+                <Button disabled={isSubmitting} onClick={() => setStep((current) => Math.min(current + 1, steps.length - 1))}>
+                  {t("navigation.next")}
+                </Button>
+              ) : (
+                <Button loading={isSubmitting} disabled={isSubmitting} onClick={handleSubmit}>
+                  {t("navigation.completeAndWriteToCore")}
+                </Button>
+              )}
             </>
           }
         />
