@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, AspectRatio, Box, Button, Card, Group, Image, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Alert, AspectRatio, Box, Button, Card, Group, Image, SimpleGrid, Stack } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -46,6 +46,15 @@ const stepDefs = [
   { id: "income", titleKey: "steps.income.title" },
   { id: "expense", titleKey: "steps.expense.title" },
   { id: "review", titleKey: "steps.review.title" },
+] as const;
+
+const onboardingStepImages = [
+  "/onboarding/step1.jpeg",
+  "/onboarding/step2.jpeg",
+  "/onboarding/step3.jpeg",
+  "/onboarding/step4.jpeg",
+  "/onboarding/step5.jpeg",
+  "/onboarding/step6.jpeg",
 ] as const;
 
 const isCashflowDraft = (event: ScenarioEventDraft): event is CashflowDraft =>
@@ -391,19 +400,11 @@ export default function OnboardingV3Wizard() {
               })}
             </Stack>
             <Stack gap="md" style={{ flex: 1 }}>
-              <Text fw={600}>{t("layout.visualPlaceholderTitle")}</Text>
-              <Text size="sm" c="dimmed">{t("layout.visualPlaceholderDescription")}</Text>
               <AspectRatio ratio={4 / 3}>
-                <Card radius="md" withBorder p="md" bg="neutral.0">
-                  <Stack justify="center" align="center" h="100%" gap="xs">
-                    <Image
-                      radius="sm"
-                      src={`https://placehold.co/800x600?text=${encodeURIComponent(steps[step]?.title ?? t("layout.visualPlaceholderLabel"))}`}
-                      alt={steps[step]?.title ?? t("layout.visualPlaceholderLabel")}
-                    />
-                    <Text size="sm" c="dimmed" ta="center">{t("layout.visualPlaceholderHint")}</Text>
-                  </Stack>
-                </Card>
+                <Image
+                  src={onboardingStepImages[step] ?? onboardingStepImages[onboardingStepImages.length - 1]}
+                  alt={steps[step]?.title}
+                />
               </AspectRatio>
             </Stack>
           </Group>
@@ -433,7 +434,6 @@ export default function OnboardingV3Wizard() {
           }
         />
       </SimpleGrid>
-      <Text size="xs" c="dimmed">{t("footer.localDraftHint")}</Text>
     </Stack>
   );
 }
