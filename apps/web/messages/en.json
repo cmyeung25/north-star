@@ -2960,6 +2960,9 @@
       "visualPlaceholderDescription": "Reserve this panel for illustrations, examples, or helper visuals during onboarding.",
       "visualPlaceholderLabel": "Image placeholder",
       "visualPlaceholderHint": "Use this space for step-specific artwork"
+    },
+    "errors": {
+      "saveFailed": "Failed to save onboarding changes. Please try again."
     }
   },
   "onboardingDraft": {
