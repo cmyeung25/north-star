@@ -19,6 +19,7 @@ import { createInitialScenarioDraftV3State } from "./types";
 import { submitOnboardingV3Payload } from "./submissionFacade";
 import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenarioDraft";
 import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
+import { mapOnboardingV3EventTypes } from "./eventTypeMapper";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -268,6 +269,8 @@ export default function OnboardingV3Wizard() {
       return asset;
     });
 
+    const mappedEvents = mapOnboardingV3EventTypes(mergedEvents);
+
     const submitResult = submitScenarioDraft({
       source: "onboarding",
       target: { scenarioId },
@@ -278,7 +281,7 @@ export default function OnboardingV3Wizard() {
         },
         members: draft.members,
         assets: submissionAssets,
-        events: mergedEvents,
+        events: mappedEvents,
         meta: { onboardingVersion: 3, onboarded: true },
         clientComputed: { onboardingCompleted: true },
         baseCurrency: draft.profile.baseCurrency,
