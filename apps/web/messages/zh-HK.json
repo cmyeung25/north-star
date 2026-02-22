@@ -4316,6 +4316,9 @@
       "visualPlaceholderDescription": "預留此區放置 onboarding 圖像、示例或說明，讓填寫更直觀。",
       "visualPlaceholderLabel": "圖片預留區",
       "visualPlaceholderHint": "可放置對應步驟的插圖或說明圖片"
+    },
+    "errors": {
+      "saveFailed": "儲存 onboarding 變更失敗，請再試一次。"
     }
   }
 }

@@ -21,6 +21,9 @@ import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenari
 import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
 import { mapOnboardingV3EventTypes } from "./eventTypeMapper";
 import { memberCasesPath, scenarioDashboardPath } from "../../../../lib/routes/appRoutes";
+import { saveScenarioPayloadAction } from "../../../../app/(app)/app/actions/scenarioSave.actions";
+import { useScenarioContext } from "../../../hooks/useScenarioContext";
+import { exportScenarioState } from "../../../store/scenarioState";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -71,6 +74,7 @@ export default function OnboardingV3Wizard() {
   const caseId = Array.isArray(params?.caseId) ? params?.caseId[0] : params?.caseId;
   const scenarioId = Array.isArray(params?.scenarioId) ? params?.scenarioId[0] : params?.scenarioId;
   const scenarios = useScenarioStore((state) => state.scenarios);
+  const scenarioContext = useScenarioContext();
   const scenario = getScenarioById(scenarios, scenarioId ?? null);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState(() =>
@@ -279,7 +283,7 @@ export default function OnboardingV3Wizard() {
     { ...stepDefs[5], title: t(stepDefs[5].titleKey), content: <ReviewStep items={reviewItems} summary={reviewSummary} onEditStep={(index) => setStep(index)} /> },
   ];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!scenarioId || !scenario) {
       return;
     }
@@ -348,6 +352,28 @@ export default function OnboardingV3Wizard() {
     });
 
     setValidationMessages([]);
+
+    if (scenarioContext && scenarioContext.scenarioId === scenarioId) {
+      const payload = exportScenarioState() as Record<string, unknown>;
+      const nextMeta = {
+        ...(payload.meta && typeof payload.meta === "object" ? payload.meta : {}),
+        ...submitResult.payload.meta,
+      };
+      payload.meta = nextMeta;
+
+      try {
+        await saveScenarioPayloadAction(
+          scenarioContext.caseId,
+          scenarioContext.scenarioId,
+          payload,
+          scenarioContext.revision,
+        );
+      } catch (error) {
+        console.error("Failed to persist onboarding v3 payload", error);
+        setValidationMessages([t("errors.saveFailed")]);
+        return;
+      }
+    }
 
     if (caseId) {
       router.replace(scenarioDashboardPath(caseId, scenarioId));
