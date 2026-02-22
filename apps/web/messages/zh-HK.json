@@ -2753,6 +2753,36 @@
       "income": "收入",
       "timeline": "事件",
       "review": "確認"
+    },
+    "generatedCashflow": {
+      "badge": "由系統產生：{source}",
+      "source": {
+        "label": "來源",
+        "system": "由物業建立",
+        "mortgagePayment": "按揭供款",
+        "holdingCost": "持有成本",
+        "rentIncome": "租金收入"
+      },
+      "baseValue": "基礎值",
+      "overrideValue": "覆寫",
+      "restoreSuggested": "恢復系統建議",
+      "autoEnabled": "使用系統產生項目",
+      "disableRisk": "關閉此項目可能令 projection 偏差。",
+      "duplicateBlocked": "此項目已由系統產生，請改為覆寫該列，避免新增重複項。",
+      "manualSection": "手動項目",
+      "addMortgagePayment": "新增按揭供款",
+      "addHoldingCost": "新增持有成本",
+      "addRentIncome": "新增租金收入",
+      "addManual": "新增手動項目",
+      "remove": "移除",
+      "manualMortgagePayment": "手動按揭供款",
+      "manualHoldingCost": "手動持有成本",
+      "manualRentIncome": "手動租金收入",
+      "manualExpense": "手動支出",
+      "manualIncome": "手動收入",
+      "expenseHint": "由規則產生的支出（按揭供款／持有成本）可覆寫或關閉。",
+      "incomeHint": "由物業規則產生的收入可覆寫或關閉。",
+      "ruleFallback": "系統規則"
     }
   },
   "onboardingDraft": {
@@ -4063,5 +4093,180 @@
     "openingCase": "正在打開「{title}」",
     "loadingPlanningData": "載入你的規劃資料中…",
     "loadingScenario": "正在載入情境…"
+  },
+  "onboardingV3": {
+    "steps": {
+      "scenarioSetup": {
+        "title": "情境基礎設定",
+        "description": "設定所有 projection 共用的基礎假設。",
+        "fields": {
+          "baseCurrency": "基準貨幣",
+          "startMonth": "開始月份",
+          "horizonMonths": "規劃月數"
+        }
+      },
+      "household": {
+        "title": "家庭成員",
+        "description": "加入此情境內的所有成員。",
+        "memberCard": {
+          "title": "成員資料",
+          "description": "姓名與出生月份會用於時間軸規劃。"
+        },
+        "fields": {
+          "memberName": "成員名稱",
+          "birthMonth": "出生月份"
+        },
+        "actions": {
+          "add": "新增成員",
+          "remove": "移除",
+          "removeAria": "移除成員"
+        },
+        "controls": {
+          "includePartner": "加入伴侶",
+          "childrenCount": "子女數量",
+          "petsCount": "寵物數量"
+        },
+        "memberRole": {
+          "self": "你",
+          "partner": "伴侶",
+          "child": "子女 {index}",
+          "pet": "寵物 {index}",
+          "member": "成員"
+        }
+      },
+      "assets": {
+        "title": "資產設定",
+        "description": "新增房產／現金／投資資產，再開啟你要納入計算的欄位。",
+        "actions": {
+          "addProperty": "新增房產",
+          "addCash": "新增現金",
+          "addInvestment": "新增投資項",
+          "remove": "移除"
+        },
+        "card": {
+          "kind": {
+            "property": "房產設定",
+            "investment": "投資設定",
+            "cash": "現金設定",
+            "asset": "資產設定"
+          },
+          "kindLabel": "類型：{kind}"
+        },
+        "usage": {
+          "self": "自住",
+          "rent": "出租"
+        },
+        "fields": {
+          "assetLabel": "資產名稱",
+          "currentValue": "目前價值",
+          "rentMonthly": "每月租金",
+          "holdingCostMonthly": "每月持有成本",
+          "mortgagePrincipal": "按揭本金餘額",
+          "mortgageRate": "利率 %",
+          "mortgageTermYears": "按揭年期",
+          "cashAmount": "現金金額",
+          "cashCurrency": "現金幣別",
+          "investmentPrincipal": "投資本金",
+          "investmentReturnPct": "自訂年報酬率 %",
+          "investmentStartMonth": "投資開始月份（YYYY-MM）",
+          "returnMode": {
+            "assumption": "跟隨假設",
+            "custom": "自訂報酬"
+          }
+        },
+        "switches": {
+          "enableRentIncome": "啟用租金收入",
+          "enableHoldingCost": "啟用每月持有成本",
+          "enableMortgage": "啟用按揭資訊",
+          "enableProperty": "納入房產資產",
+          "enableInvestment": "納入投資資產"
+        },
+        "hints": {
+          "investment": "可先填寫投資名稱與目前市值；其餘明細可後續補充。",
+          "cash": "建議填寫現金用途（例如：緊急備用金 / 活存）。"
+        },
+        "badges": {
+          "optional": "選填"
+        }
+      },
+      "income": {
+        "title": "收入假設",
+        "description": "檢查系統產生收入，並在需要時補充手動項目。",
+        "quickAdd": {
+          "bonus": "新增獎金",
+          "allowance": "新增津貼",
+          "salary": "新增薪資"
+        },
+        "manualRowTitle": "手動收入項目",
+        "emptyManualHint": "尚未新增手動收入項目，可使用上方模板快速建立。",
+        "templates": {
+          "salary": "薪資",
+          "bonus": "獎金",
+          "allowance": "津貼"
+        },
+        "fields": {
+          "name": "名稱",
+          "amount": "金額",
+          "frequency": "頻率",
+          "memberId": "成員",
+          "memberOptional": "未指定",
+          "startMonth": "開始月份",
+          "endMonth": "結束月份（可選）",
+          "followIncomeGrowth": "跟隨收入成長假設"
+        },
+        "frequency": {
+          "monthly": "每月",
+          "quarterly": "每季",
+          "yearly": "每年",
+          "oneOff": "一次性"
+        }
+      },
+      "expense": {
+        "title": "支出假設",
+        "description": "檢查系統產生支出，並加入手動調整。",
+        "quickAdd": {
+          "transport": "新增交通費",
+          "medical": "新增醫療費"
+        },
+        "manualRowTitle": "手動支出項目",
+        "emptyManualHint": "尚未新增手動支出項目，可使用上方模板快速建立。"
+      },
+      "review": {
+        "title": "完整度檢查",
+        "badge": {
+          "ok": "完成",
+          "todo": "待處理"
+        },
+        "items": {
+          "startMonth": "已設定開始月份",
+          "baseCurrency": "已設定基準貨幣",
+          "members": "成員資料已填寫",
+          "assets": "已新增資產資料",
+          "generatedCashflow": "已有衍生現金流"
+        }
+      },
+      "common": {
+        "frequentTemplates": "常用模板",
+        "moreQuickAdd": "更多快速新增"
+      }
+    },
+    "reviewWarnings": {
+      "startMonthMissing": "尚未填寫開始月份",
+      "baseCurrencyDefault": "使用預設幣別",
+      "memberUnnamed": "有成員尚未命名",
+      "propertyMissing": "尚未新增房產",
+      "derivedCashflowMissing": "沒有可衍生現金流"
+    },
+    "navigation": {
+      "back": "返回",
+      "next": "下一步",
+      "completeAndWriteToCore": "完成並寫入 Core"
+    },
+    "footer": {
+      "localDraftHint": "V3 流程只會更新本地 ScenarioDraftV3 分段 state，最後一步才一次提交。"
+    },
+    "defaults": {
+      "memberName": "本人"
+    }
   }
 }

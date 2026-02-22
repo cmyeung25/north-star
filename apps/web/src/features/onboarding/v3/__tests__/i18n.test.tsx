@@ -5,7 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { AbstractIntlMessages } from "next-intl";
 import { MantineProvider } from "@mantine/core";
 import enMessages from "../../../../../messages/en.json";
-import zhHantHkMessages from "../../../../../messages/zh-Hant-HK.json";
+import zhHkMessages from "../../../../../messages/zh-HK.json";
 import ReviewStep from "../steps/ReviewStep";
 import { createInitialScenarioDraftV3State } from "../types";
 
@@ -31,7 +31,7 @@ describe("onboarding v3 i18n", () => {
 
     const zhHtml = renderToString(
       <MantineProvider>
-        <NextIntlClientProvider locale="zh-Hant-HK" messages={zhHantHkMessages as unknown as AbstractIntlMessages} timeZone="UTC">
+        <NextIntlClientProvider locale="zh-HK" messages={zhHkMessages as unknown as AbstractIntlMessages} timeZone="UTC">
           <ReviewStep items={items} />
         </NextIntlClientProvider>
       </MantineProvider>
