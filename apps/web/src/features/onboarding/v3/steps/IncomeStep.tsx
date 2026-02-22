@@ -30,6 +30,7 @@ type ManualRow = {
   startMonth?: string;
   endMonth?: string;
   followIncomeGrowth: boolean;
+  tags?: string[];
 };
 
 type Props = {
@@ -106,6 +107,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: true,
+        tags: ["onboarding:v3:income:salary", "onboarding:v3:income:source-onboarding"],
       },
     },
     {
@@ -120,6 +122,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: false,
+        tags: ["onboarding:v3:income:bonus", "onboarding:v3:income:source-onboarding"],
       },
     },
     {
@@ -134,9 +137,10 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: false,
+        tags: ["onboarding:v3:income:rent", "onboarding:v3:income:source-onboarding"],
       },
     },
-  ] as const;
+  ];
 
   const addonTemplates = [
     {
@@ -151,6 +155,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: false,
+        tags: ["onboarding:v3:income:allowance", "onboarding:v3:income:source-onboarding"],
       },
     },
     {
@@ -165,9 +170,10 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: true,
+        tags: ["onboarding:v3:income:manual", "onboarding:v3:income:source-onboarding"],
       },
     },
-  ] as const;
+  ];
 
   return (
     <Stack gap="md">
