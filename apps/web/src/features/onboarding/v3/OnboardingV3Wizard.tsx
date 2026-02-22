@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, AspectRatio, Box, Button, Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Alert, AspectRatio, Box, Button, Card, Group, Image, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -20,7 +20,7 @@ import { submitOnboardingV3Payload } from "./submissionFacade";
 import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenarioDraft";
 import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
 import { mapOnboardingV3EventTypes } from "./eventTypeMapper";
-import { memberCasesPath } from "../../../../lib/routes/appRoutes";
+import { memberCasesPath, scenarioDashboardPath } from "../../../../lib/routes/appRoutes";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -57,8 +57,9 @@ const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: s
 export default function OnboardingV3Wizard() {
   const t = useTranslations("onboardingV3");
   const appShellT = useTranslations("app.shell");
-  const params = useParams<{ scenarioId?: string | string[] }>();
+  const params = useParams<{ caseId?: string | string[]; scenarioId?: string | string[] }>();
   const router = useRouter();
+  const caseId = Array.isArray(params?.caseId) ? params?.caseId[0] : params?.caseId;
   const scenarioId = Array.isArray(params?.scenarioId) ? params?.scenarioId[0] : params?.scenarioId;
   const scenarios = useScenarioStore((state) => state.scenarios);
   const scenario = getScenarioById(scenarios, scenarioId ?? null);
@@ -338,6 +339,13 @@ export default function OnboardingV3Wizard() {
     });
 
     setValidationMessages([]);
+
+    if (caseId) {
+      router.replace(scenarioDashboardPath(caseId, scenarioId));
+      return;
+    }
+
+    router.replace(memberCasesPath());
   };
 
   return (
@@ -388,8 +396,12 @@ export default function OnboardingV3Wizard() {
               <AspectRatio ratio={4 / 3}>
                 <Card radius="md" withBorder p="md" bg="neutral.0">
                   <Stack justify="center" align="center" h="100%" gap="xs">
-                    <Text fw={600}>{t("layout.visualPlaceholderLabel")}</Text>
-                    <Text size="sm" c="dimmed">{t("layout.visualPlaceholderHint")}</Text>
+                    <Image
+                      radius="sm"
+                      src={`https://placehold.co/800x600?text=${encodeURIComponent(steps[step]?.title ?? t("layout.visualPlaceholderLabel"))}`}
+                      alt={steps[step]?.title ?? t("layout.visualPlaceholderLabel")}
+                    />
+                    <Text size="sm" c="dimmed" ta="center">{t("layout.visualPlaceholderHint")}</Text>
                   </Stack>
                 </Card>
               </AspectRatio>
