@@ -1,6 +1,20 @@
-import { Alert, Button, Card, Divider, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
-import { useState } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Divider,
+  Group,
+  NumberInput,
+  Select,
+  Stack,
+  Switch,
+  Table,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import MonthField from "../../../../../components/MonthField";
 import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
 import type { CashflowEvent } from "../../../../domain/scenarioV2/events";
 import type { GeneratedItemMetadata } from "../../../../domain/scenarioDraft/types";
@@ -11,24 +25,40 @@ type ManualRow = {
   id: string;
   label?: string;
   amount: number;
+  cadence: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths";
+  memberId?: string;
+  startMonth?: string;
+  endMonth?: string;
+  followIncomeGrowth: boolean;
 };
 
 type Props = {
   rows: Row[];
   manualRows: ManualRow[];
+  members: Array<{ id: string; name?: string }>;
   overrides: Record<string, { amount?: number; disabled?: boolean }>;
+  defaultStartMonth: string;
   onOverrideAmount: (eventId: string, amount: number) => void;
   onRestoreSuggested: (eventId: string) => void;
   onToggleDisabled: (eventId: string, disabled: boolean) => void;
-  onAddManualItem: (item: { label: string; amount: number }) => void;
+  onAddManualItem: (item: Omit<ManualRow, "id">) => void;
   onUpdateManualItem: (eventId: string, patch: Partial<ManualRow>) => void;
   onRemoveManualItem: (eventId: string) => void;
 };
 
+const frequencyOptions: Array<{ value: Exclude<ManualRow["cadence"], "everyNMonths">; labelKey: string }> = [
+  { value: "monthly", labelKey: "monthly" },
+  { value: "quarterly", labelKey: "quarterly" },
+  { value: "yearly", labelKey: "yearly" },
+  { value: "oneOff", labelKey: "oneOff" },
+];
+
 export default function IncomeStep({
   rows,
   manualRows,
+  members,
   overrides,
+  defaultStartMonth,
   onOverrideAmount,
   onRestoreSuggested,
   onToggleDisabled,
@@ -40,23 +70,103 @@ export default function IncomeStep({
   const t = useTranslations("onboardingV3.steps");
   const [duplicateMessage, setDuplicateMessage] = useState<string>("");
 
-  const addManual = (rule: string | undefined, labelKey: string) => {
+  const memberOptions = useMemo(
+    () => [
+      { value: "", label: t("income.memberOptional") },
+      ...members.map((member) => ({
+        value: member.id,
+        label: member.name?.trim() || member.id,
+      })),
+    ],
+    [members, t]
+  );
+
+  const addManual = (
+    rule: string | undefined,
+    item: Omit<ManualRow, "id">,
+  ) => {
     if (rule && rows.some((row) => row.metadata?.generatedByRule === rule)) {
       setDuplicateMessage(tGenerated("duplicateBlocked"));
       return;
     }
     setDuplicateMessage("");
-    onAddManualItem({ label: tGenerated(labelKey), amount: 0 });
+    onAddManualItem(item);
   };
 
   const primaryTemplates = [
-    { id: "rent", label: tGenerated("addRentIncome"), rule: "property.rent.income.v1", labelKey: "manualRentIncome" },
-    { id: "manual", label: tGenerated("addManual"), rule: undefined, labelKey: "manualIncome" },
+    {
+      id: "salary",
+      label: t("income.quickAdd.salary"),
+      rule: undefined,
+      item: {
+        label: t("income.templates.salary"),
+        amount: 0,
+        cadence: "monthly" as const,
+        memberId: "self",
+        startMonth: defaultStartMonth,
+        endMonth: undefined,
+        followIncomeGrowth: true,
+      },
+    },
+    {
+      id: "bonus",
+      label: t("income.quickAdd.bonus"),
+      rule: undefined,
+      item: {
+        label: t("income.templates.bonus"),
+        amount: 0,
+        cadence: "oneOff" as const,
+        memberId: "",
+        startMonth: defaultStartMonth,
+        endMonth: undefined,
+        followIncomeGrowth: false,
+      },
+    },
+    {
+      id: "rent",
+      label: tGenerated("addRentIncome"),
+      rule: "property.rent.income.v1",
+      item: {
+        label: tGenerated("manualRentIncome"),
+        amount: 0,
+        cadence: "monthly" as const,
+        memberId: "",
+        startMonth: defaultStartMonth,
+        endMonth: undefined,
+        followIncomeGrowth: false,
+      },
+    },
   ] as const;
 
   const addonTemplates = [
-    { id: "bonus", label: t("income.quickAdd.bonus"), rule: undefined, labelKey: "manualIncome" },
-    { id: "allowance", label: t("income.quickAdd.allowance"), rule: undefined, labelKey: "manualIncome" },
+    {
+      id: "allowance",
+      label: t("income.quickAdd.allowance"),
+      rule: undefined,
+      item: {
+        label: t("income.templates.allowance"),
+        amount: 0,
+        cadence: "monthly" as const,
+        memberId: "",
+        startMonth: defaultStartMonth,
+        endMonth: undefined,
+        followIncomeGrowth: false,
+      },
+    },
+    {
+      id: "manual",
+      label: tGenerated("addManual"),
+      rule: undefined,
+      item: {
+        label: tGenerated("manualIncome"),
+        amount: 0,
+        cadence: "monthly" as const,
+        memberId: "",
+        startMonth: defaultStartMonth,
+        endMonth: undefined,
+        followIncomeGrowth: true,
+      },
+    },
   ] as const;
 
   return (
@@ -80,7 +190,7 @@ export default function IncomeStep({
                     key={template.id}
                     size="xs"
                     variant="light"
-                    onClick={() => addManual(template.rule, template.labelKey)}
+                    onClick={() => addManual(template.rule, template.item)}
                   >
                     {template.label}
                   </Button>
@@ -95,7 +205,7 @@ export default function IncomeStep({
                   key={template.id}
                   size="xs"
                   variant="default"
-                  onClick={() => addManual(template.rule, template.labelKey)}
+                  onClick={() => addManual(template.rule, template.item)}
                 >
                   {template.label}
                 </Button>
@@ -139,12 +249,15 @@ export default function IncomeStep({
                           {tGenerated("remove")}
                         </Button>
                       </Group>
-                      <Group grow>
+                      <Group grow align="flex-start">
                         <TextInput
+                          label={t("income.fields.name")}
                           value={row.label ?? ""}
                           onChange={(event) => onUpdateManualItem(row.id, { label: event.currentTarget.value })}
                         />
                         <NumberInput
+                          label={t("income.fields.amount")}
+                          min={0}
                           value={row.amount}
                           onChange={(value) =>
                             onUpdateManualItem(row.id, {
@@ -153,6 +266,60 @@ export default function IncomeStep({
                           }
                         />
                       </Group>
+                      <Group grow align="flex-start">
+                        <Select
+                          label={t("income.fields.frequency")}
+                          data={frequencyOptions.map((option) => ({
+                            value: option.value,
+                            label: t(`income.frequency.${option.labelKey}`),
+                          }))}
+                          value={row.cadence}
+                          onChange={(value) =>
+                            onUpdateManualItem(row.id, {
+                              cadence: (value as ManualRow["cadence"]) ?? "monthly",
+                            })
+                          }
+                        />
+                        <Select
+                          label={t("income.fields.memberId")}
+                          data={memberOptions}
+                          value={row.memberId ?? ""}
+                          onChange={(value) =>
+                            onUpdateManualItem(row.id, { memberId: value ?? "" })
+                          }
+                        />
+                      </Group>
+                      <Group grow align="flex-start">
+                        <MonthField
+                          label={t("income.fields.startMonth")}
+                          value={row.startMonth ?? ""}
+                          onChange={(value) =>
+                            onUpdateManualItem(row.id, {
+                              startMonth: value || undefined,
+                            })
+                          }
+                        />
+                        <MonthField
+                          label={t("income.fields.endMonth")}
+                          value={row.endMonth ?? ""}
+                          disabled={row.cadence === "oneOff"}
+                          onChange={(value) =>
+                            onUpdateManualItem(row.id, {
+                              endMonth: value || undefined,
+                            })
+                          }
+                        />
+                      </Group>
+                      <Switch
+                        label={t("income.fields.followIncomeGrowth")}
+                        checked={row.followIncomeGrowth}
+                        disabled={row.cadence === "oneOff"}
+                        onChange={(event) =>
+                          onUpdateManualItem(row.id, {
+                            followIncomeGrowth: event.currentTarget.checked,
+                          })
+                        }
+                      />
                     </Stack>
                   </Card>
                 ))

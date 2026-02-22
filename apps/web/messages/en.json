@@ -2838,10 +2838,32 @@
         "description": "Review generated income and add manual items when needed.",
         "quickAdd": {
           "bonus": "Add bonus",
-          "allowance": "Add allowance"
+          "allowance": "Add allowance",
+          "salary": "Add salary"
         },
         "manualRowTitle": "Manual income row",
-        "emptyManualHint": "No manual income items yet. Use templates above for quick add."
+        "emptyManualHint": "No manual income items yet. Use templates above for quick add.",
+        "templates": {
+          "salary": "Salary",
+          "bonus": "Bonus",
+          "allowance": "Allowance"
+        },
+        "fields": {
+          "name": "Name",
+          "amount": "Amount",
+          "frequency": "Frequency",
+          "memberId": "Member",
+          "memberOptional": "Unassigned",
+          "startMonth": "Start month",
+          "endMonth": "End month (optional)",
+          "followIncomeGrowth": "Follow income growth assumption"
+        },
+        "frequency": {
+          "monthly": "Monthly",
+          "quarterly": "Quarterly",
+          "yearly": "Yearly",
+          "oneOff": "One-off"
+        }
       },
       "expense": {
         "title": "Expense assumptions",
