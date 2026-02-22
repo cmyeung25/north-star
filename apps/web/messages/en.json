@@ -2745,8 +2745,9 @@
         "description": "Set base assumptions used across all projections.",
         "fields": {
           "baseCurrency": "Base currency",
+          "baseCurrencyHelp": "Choose the currency used across this scenario.",
           "startMonth": "Start month",
-          "horizonMonths": "Horizon months"
+          "startMonthHelp": "Defaults to the current month and remains editable."
         }
       },
       "household": {

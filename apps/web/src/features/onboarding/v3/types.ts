@@ -48,13 +48,21 @@ export type ScenarioDraftV3LocaleStrings = {
   defaultMemberName: string;
 };
 
+const getCurrentYearMonth = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}`;
+};
+
 export const createInitialScenarioDraftV3State = (
   localeStrings: ScenarioDraftV3LocaleStrings
 ): ScenarioDraftV3State => ({
   profile: {
     baseCurrency: "HKD",
-    startMonth: "2025-01",
-    horizonMonths: 360,
+    startMonth: getCurrentYearMonth(),
+    horizonMonths: 120,
   },
   members: [{ id: "self", name: localeStrings.defaultMemberName, kind: "person" }],
   assets: [],
