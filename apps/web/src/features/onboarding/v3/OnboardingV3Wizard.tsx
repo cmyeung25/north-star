@@ -38,12 +38,12 @@ type ManualCashflowDraftInput = {
 };
 
 const stepDefs = [
-  { id: "scenarioSetup", titleKey: "steps.scenarioSetup" },
-  { id: "household", titleKey: "steps.household" },
-  { id: "assets", titleKey: "steps.assets" },
-  { id: "income", titleKey: "steps.income" },
-  { id: "expense", titleKey: "steps.expense" },
-  { id: "review", titleKey: "steps.review" },
+  { id: "scenarioSetup", titleKey: "steps.scenarioSetup.title" },
+  { id: "household", titleKey: "steps.household.title" },
+  { id: "assets", titleKey: "steps.assets.title" },
+  { id: "income", titleKey: "steps.income.title" },
+  { id: "expense", titleKey: "steps.expense.title" },
+  { id: "review", titleKey: "steps.review.title" },
 ] as const;
 
 const isCashflowDraft = (event: ScenarioEventDraft): event is CashflowDraft =>

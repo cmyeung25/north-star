@@ -20,7 +20,6 @@ export default function ScenarioSetupStep({ profile, onChange }: Props) {
             <Text fw={600}>{t("scenarioSetup.title")}</Text>
             <Text size="sm" c="dimmed">{t("scenarioSetup.description")}</Text>
           </Stack>
-
           <Stack gap="md">
             <TextInput
               label={t("scenarioSetup.fields.baseCurrency")}
