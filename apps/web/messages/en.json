@@ -2819,7 +2819,11 @@
             "assumption": "Follow assumptions",
             "custom": "Custom return"
           },
-          "mortgageTermMonths": "Mortgage term (months)"
+          "mortgageTermMonths": "Mortgage term (months)",
+          "mortgageTermMode": {
+            "years": "By years",
+            "months": "By months"
+          }
         },
         "switches": {
           "enableRentIncome": "Enable rental income",

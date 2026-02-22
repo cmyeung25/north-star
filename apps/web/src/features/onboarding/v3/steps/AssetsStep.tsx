@@ -71,6 +71,13 @@ const createInvestmentAsset = (startMonth: string): InvestmentAsset => ({
 const toFiniteNumber = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
+const resolveMortgageTermMode = (asset?: PropertyAsset): "years" | "months" => {
+  if ((asset?.mortgageTermMonths ?? 0) > 0) {
+    return "months";
+  }
+  return "years";
+};
+
 const buildMonthlyPayment = (principal: number, annualRatePct: number, totalMonths: number) => {
   if (totalMonths <= 0) {
     return 0;
@@ -114,6 +121,7 @@ export default function AssetsStep({
   const mortgageRate = toFiniteNumber(propertyAsset?.mortgageAnnualInterestRatePct);
   const mortgageTermMonths = toFiniteNumber(propertyAsset?.mortgageTermMonths);
   const mortgageTermYears = toFiniteNumber(propertyAsset?.mortgageTermYears);
+  const mortgageTermMode = resolveMortgageTermMode(propertyAsset);
   const normalizedMortgageMonths = mortgageTermMonths ?? ((mortgageTermYears ?? 30) * 12);
   const mortgageMonthlyPayment =
     mortgagePrincipal !== undefined && mortgageRate !== undefined
@@ -251,7 +259,7 @@ export default function AssetsStep({
                       ? propertyAsset?.mortgagePrincipalOutstanding ?? 0
                       : undefined,
                     mortgageTermYears: enabled ? propertyAsset?.mortgageTermYears ?? 30 : undefined,
-                    mortgageTermMonths: enabled ? propertyAsset?.mortgageTermMonths ?? 0 : undefined,
+                    mortgageTermMonths: enabled ? propertyAsset?.mortgageTermMonths : undefined,
                     mortgageAnnualInterestRatePct: enabled
                       ? propertyAsset?.mortgageAnnualInterestRatePct ?? 3
                       : undefined,
@@ -270,6 +278,24 @@ export default function AssetsStep({
                     }
                   />
                   <Group grow>
+                    <SegmentedControl
+                      data={[
+                        { label: t("assets.fields.mortgageTermMode.years"), value: "years" },
+                        { label: t("assets.fields.mortgageTermMode.months"), value: "months" },
+                      ]}
+                      value={mortgageTermMode}
+                      onChange={(value) => {
+                        const nextMode = value as "years" | "months";
+                        const months = propertyAsset.mortgageTermMonths ?? ((propertyAsset.mortgageTermYears ?? 30) * 12);
+                        upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                          mortgageTermYears: nextMode === "years" ? Math.max(1, Math.round(months / 12)) : undefined,
+                          mortgageTermMonths: nextMode === "months" ? Math.max(1, months) : undefined,
+                        });
+                      }}
+                    />
+                  </Group>
+                  <Group grow>
+                    {mortgageTermMode === "years" ? (
                     <NumberInput
                       label={t("assets.fields.mortgageTermYears")}
                       value={propertyAsset.mortgageTermYears ?? 30}
@@ -277,19 +303,23 @@ export default function AssetsStep({
                         const years = typeof value === "number" ? value : 30;
                         upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
                           mortgageTermYears: years,
+                          mortgageTermMonths: undefined,
                         });
                       }}
                     />
+                    ) : (
                     <NumberInput
                       label={t("assets.fields.mortgageTermMonths")}
-                      value={propertyAsset.mortgageTermMonths ?? 0}
+                      value={propertyAsset.mortgageTermMonths ?? ((propertyAsset.mortgageTermYears ?? 30) * 12)}
                       onChange={(value) => {
                         const months = typeof value === "number" ? value : 0;
                         upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
                           mortgageTermMonths: months,
+                          mortgageTermYears: undefined,
                         });
                       }}
                     />
+                    )}
                     <NumberInput
                       label={t("assets.fields.mortgageRate")}
                       value={propertyAsset.mortgageAnnualInterestRatePct ?? 3}

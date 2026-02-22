@@ -4175,7 +4175,11 @@
             "assumption": "跟隨假設",
             "custom": "自訂報酬"
           },
-          "mortgageTermMonths": "按揭月期"
+          "mortgageTermMonths": "按揭月期",
+          "mortgageTermMode": {
+            "years": "按年",
+            "months": "按月"
+          }
         },
         "switches": {
           "enableRentIncome": "啟用租金收入",
