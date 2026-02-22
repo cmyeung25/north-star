@@ -107,6 +107,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
   ];
   const mobileTabs = tabs.slice(0, 3);
   const resolvedWorkspaceMode: WorkspaceMode = useMemo(() => resolveWorkspaceMode(pathname), [pathname]);
+  const isOnboardingRoute = pathname.endsWith("/onboarding");
 
   const enabled = Boolean(meta && scenarioId && meta.scenarioId === scenarioId);
   const headerLoading = loading && !enabled;
@@ -213,7 +214,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
     <>
       <AppShell
         header={{ height: 64 }}
-        navbar={isMobile ? undefined : { width: NAVBAR_WIDTH, breakpoint: "md" }}
+        navbar={isMobile || isOnboardingRoute ? undefined : { width: NAVBAR_WIDTH, breakpoint: "md" }}
         padding="md"
       >
         <AppShell.Header>
@@ -248,7 +249,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
           </Group>
         </AppShell.Header>
 
-        {!isMobile ? (
+        {!isMobile && !isOnboardingRoute ? (
           <AppSidebar tabs={tabs} pathname={pathname} backToCasesHref={backToCasesHref} workspaceMode={workspaceMode} />
         ) : null}
 
@@ -264,7 +265,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
           <Box mih="calc(100dvh - 64px)" maw="none" w="100%">
             {children}
           </Box>
-          {isMobile ? (
+          {isMobile && !isOnboardingRoute ? (
             <Box mt="md">
               <BottomNav items={mobileTabs} />
             </Box>
