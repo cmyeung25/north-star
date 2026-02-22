@@ -2867,13 +2867,27 @@
       },
       "expense": {
         "title": "Expense assumptions",
-        "description": "Review generated expenses and add manual adjustments.",
+        "description": "Fill only essential expense fields first to avoid overloading.",
         "quickAdd": {
           "transport": "Add transport cost",
           "medical": "Add medical cost"
         },
         "manualRowTitle": "Manual expense row",
-        "emptyManualHint": "No manual expense items yet. Use templates above for quick add."
+        "emptyManualHint": "No manual expense items yet. Use templates above for quick add.",
+        "dailyMonthlyLabel": "Daily / monthly living expense",
+        "showAdvanced": "Show advanced settings",
+        "advancedGrowth": "Annual growth rate (%)",
+        "advancedStartMonth": "Start month",
+        "travelTitle": "Travel",
+        "taxTitle": "Tax",
+        "modeMonthly": "Monthly",
+        "modeYearly": "Yearly",
+        "monthlyAmount": "Monthly amount",
+        "yearlyAmount": "Yearly amount",
+        "allocateMonths": "Allocate months (yearly mode)",
+        "otherFixedTitle": "Other fixed expenses",
+        "addOtherFixed": "Add row",
+        "otherFixedLabel": "Label"
       },
       "review": {
         "title": "Completeness checklist",
