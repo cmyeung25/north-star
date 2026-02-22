@@ -2885,10 +2885,32 @@
         "description": "檢查系統產生收入，並在需要時補充手動項目。",
         "quickAdd": {
           "bonus": "新增獎金",
-          "allowance": "新增津貼"
+          "allowance": "新增津貼",
+          "salary": "新增薪資"
         },
         "manualRowTitle": "手動收入項目",
-        "emptyManualHint": "尚未新增手動收入項目，可使用上方模板快速建立。"
+        "emptyManualHint": "尚未新增手動收入項目，可使用上方模板快速建立。",
+        "templates": {
+          "salary": "薪資",
+          "bonus": "獎金",
+          "allowance": "津貼"
+        },
+        "fields": {
+          "name": "名稱",
+          "amount": "金額",
+          "frequency": "頻率",
+          "memberId": "成員",
+          "memberOptional": "未指定",
+          "startMonth": "開始月份",
+          "endMonth": "結束月份（可選）",
+          "followIncomeGrowth": "跟隨收入成長假設"
+        },
+        "frequency": {
+          "monthly": "每月",
+          "quarterly": "每季",
+          "yearly": "每年",
+          "oneOff": "一次性"
+        }
       },
       "expense": {
         "title": "支出假設",

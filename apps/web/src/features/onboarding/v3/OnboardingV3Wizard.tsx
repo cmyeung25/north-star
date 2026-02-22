@@ -25,6 +25,15 @@ type CashflowDraftWithId = CashflowDraft & { id: string };
 type AutoCashflowRow = Extract<ScenarioEvent, { type: "cashflow" }> & {
   metadata?: GeneratedItemMetadata;
 };
+type ManualCashflowDraftInput = {
+  label?: string;
+  amount: number;
+  cadence?: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths";
+  memberId?: string;
+  startMonth?: string;
+  endMonth?: string;
+  followIncomeGrowth?: boolean;
+};
 
 const stepDefs = [
   { id: "scenarioSetup", titleKey: "steps.scenarioSetup" },
@@ -133,7 +142,7 @@ export default function OnboardingV3Wizard() {
     });
   };
 
-  const addManual = (kind: "income" | "expense", item: { label: string; amount: number }) => {
+  const addManual = (kind: "income" | "expense", item: ManualCashflowDraftInput) => {
     setDraft((current) => ({
       ...current,
       events: [
@@ -144,8 +153,11 @@ export default function OnboardingV3Wizard() {
           kind,
           label: item.label,
           amount: item.amount,
-          cadence: "monthly",
-          startMonth: current.profile.startMonth ?? "",
+          cadence: item.cadence ?? "monthly",
+          memberId: item.memberId || undefined,
+          startMonth: item.startMonth ?? current.profile.startMonth ?? "",
+          endMonth: item.endMonth,
+          growthMode: item.followIncomeGrowth === false ? "none" : "assumption",
         },
       ],
     }));
@@ -161,7 +173,14 @@ export default function OnboardingV3Wizard() {
       content: (
         <IncomeStep
           rows={incomeRows}
-          manualRows={manualCashflowEvents.filter((event) => event.kind === "income")}
+          members={draft.members}
+          defaultStartMonth={draft.profile.startMonth ?? ""}
+          manualRows={manualCashflowEvents
+            .filter((event) => event.kind === "income")
+            .map((event) => ({
+              ...event,
+              followIncomeGrowth: event.growthMode !== "none",
+            }))}
           overrides={Object.fromEntries(autoOverridesById.entries())}
           onOverrideAmount={(eventId, amount) => upsertAutoOverride(eventId, "income", { amount })}
           onRestoreSuggested={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
@@ -172,7 +191,19 @@ export default function OnboardingV3Wizard() {
               ...current,
               events: current.events.map((event) =>
                 hasId(event) && isCashflowDraft(event) && event.id === eventId
-                  ? { ...event, label: patch.label ?? event.label, amount: patch.amount ?? event.amount }
+                  ? {
+                      ...event,
+                      label: patch.label ?? event.label,
+                      amount: patch.amount ?? event.amount,
+                      cadence: patch.cadence ?? event.cadence,
+                      memberId: patch.memberId === "" ? undefined : (patch.memberId ?? event.memberId),
+                      startMonth: patch.startMonth ?? event.startMonth,
+                      endMonth: patch.endMonth,
+                      growthMode:
+                        typeof patch.followIncomeGrowth === "boolean"
+                          ? (patch.followIncomeGrowth ? "assumption" : "none")
+                          : event.growthMode,
+                    }
                   : event
               ),
             }))
