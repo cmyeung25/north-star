@@ -70,7 +70,10 @@ import { scenarioAssumptionSchema } from "../../domain/scenarioAssumptions";
 import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenarioSave.actions";
 import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { exportScenarioState } from "../../store/scenarioState";
-import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
+import {
+  memberCasesPath,
+  scenarioDashboardPath,
+} from "../../../lib/routes/appRoutes";
 import { formatIsoYmdHms } from "../../../lib/date/format";
 import { submitScenarioDraft } from "../../domain/scenarioDraft/submitScenarioDraft";
 import type { ValidationIssue } from "../../domain/scenarioDraft/types";
@@ -109,7 +112,7 @@ export const resolveOnboardingCompletionPath = ({
 }) => {
   const targetCaseId = scenarioContextCaseId ?? routeCaseId;
   if (!targetCaseId || !scenarioId) {
-    return null;
+    return memberCasesPath();
   }
 
   return scenarioDashboardPath(targetCaseId, scenarioId);
@@ -2002,9 +2005,7 @@ export default function OnboardingDraftWizard() {
         routeCaseId,
         scenarioContextCaseId: scenarioContext.caseId,
       });
-      if (completionPath) {
-        router.replace(completionPath);
-      }
+      router.replace(completionPath);
       return;
     }
 
@@ -2014,9 +2015,7 @@ export default function OnboardingDraftWizard() {
       scenarioId,
       routeCaseId,
     });
-    if (completionPath) {
-      router.replace(completionPath);
-    }
+    router.replace(completionPath);
   };
 
   const handleLater = () => {
@@ -2062,9 +2061,7 @@ export default function OnboardingDraftWizard() {
       scenarioId,
       routeCaseId,
     });
-    if (completionPath) {
-      router.replace(completionPath);
-    }
+    router.replace(completionPath);
   };
 
   return (
