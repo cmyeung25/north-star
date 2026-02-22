@@ -1,5 +1,5 @@
 import React from "react";
-import { Badge, Button, Card, Group, List, Stack, Text } from "@mantine/core";
+import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import type { OnboardingAsset } from "../types";
 
@@ -73,17 +73,17 @@ export default function ReviewStep({ items, summary, onEditStep }: Props) {
       <Card withBorder>
         <Stack gap="xs">
           <Text fw={600}>{t("review.checklistTitle")}</Text>
-          <List>
+          <Stack component="ul" gap="xs" style={{ margin: 0, paddingInlineStart: "1.25rem" }}>
             {items.map((item) => (
-              <List.Item key={item.label}>
+              <Text component="li" key={item.label} size="sm" lh={1.5}>
                 <Badge color={item.completed ? "green" : "yellow"} mr="xs">
                   {item.completed ? t("review.badge.ok") : t("review.badge.todo")}
                 </Badge>
                 {item.label}
                 {!item.completed && item.warning ? ` · ${item.warning}` : ""}
-              </List.Item>
+              </Text>
             ))}
-          </List>
+          </Stack>
         </Stack>
       </Card>
     </Stack>
