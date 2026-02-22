@@ -4101,8 +4101,9 @@
         "description": "設定所有 projection 共用的基礎假設。",
         "fields": {
           "baseCurrency": "基準貨幣",
+          "baseCurrencyHelp": "選擇此情境統一使用的貨幣。",
           "startMonth": "開始月份",
-          "horizonMonths": "規劃月數"
+          "startMonthHelp": "預設為當前月份，並可隨時調整。"
         }
       },
       "household": {
