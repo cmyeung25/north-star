@@ -33,6 +33,8 @@ type ManualCashflowDraftInput = {
   startMonth?: string;
   endMonth?: string;
   followIncomeGrowth?: boolean;
+  tags?: string[];
+  customGrowthRatePct?: number;
 };
 
 const stepDefs = [
@@ -82,7 +84,6 @@ export default function OnboardingV3Wizard() {
   }, [autoEventIds, draft.events]);
 
   const incomeRows = useMemo(() => autoRows.filter((event) => event.kind === "income"), [autoRows]);
-  const expenseRows = useMemo(() => autoRows.filter((event) => event.kind === "expense"), [autoRows]);
 
   const manualCashflowEvents = useMemo(
     () =>
@@ -158,6 +159,8 @@ export default function OnboardingV3Wizard() {
           startMonth: item.startMonth ?? current.profile.startMonth ?? "",
           endMonth: item.endMonth,
           growthMode: item.followIncomeGrowth === false ? "none" : "assumption",
+          tags: item.tags,
+          customGrowthRatePct: item.customGrowthRatePct,
         },
       ],
     }));
@@ -217,19 +220,24 @@ export default function OnboardingV3Wizard() {
       title: t(stepDefs[4].titleKey),
       content: (
         <ExpenseStep
-          rows={expenseRows}
+          defaultStartMonth={draft.profile.startMonth ?? ""}
           manualRows={manualCashflowEvents.filter((event) => event.kind === "expense")}
-          overrides={Object.fromEntries(autoOverridesById.entries())}
-          onOverrideAmount={(eventId, amount) => upsertAutoOverride(eventId, "expense", { amount })}
-          onRestoreSuggested={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
-          onToggleDisabled={(eventId, disabled) => upsertAutoOverride(eventId, "expense", { disabled })}
           onAddManualItem={(item) => addManual("expense", item)}
           onUpdateManualItem={(eventId, patch) =>
             setDraft((current) => ({
               ...current,
               events: current.events.map((event) =>
                 hasId(event) && isCashflowDraft(event) && event.id === eventId
-                  ? { ...event, label: patch.label ?? event.label, amount: patch.amount ?? event.amount }
+                  ? {
+                      ...event,
+                      label: patch.label ?? event.label,
+                      amount: patch.amount ?? event.amount,
+                      cadence: patch.cadence ?? event.cadence,
+                      startMonth: patch.startMonth ?? event.startMonth,
+                      endMonth: patch.endMonth ?? event.endMonth,
+                      tags: patch.tags ?? event.tags,
+                      customGrowthRatePct: patch.customGrowthRatePct ?? event.customGrowthRatePct,
+                    }
                   : event
               ),
             }))
