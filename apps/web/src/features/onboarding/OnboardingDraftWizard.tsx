@@ -98,6 +98,23 @@ const isDev = process.env.NODE_ENV === "development";
 const getDraftStorageKey = (scenarioId?: string) =>
   scenarioId ? `${DRAFT_STORAGE_KEY_PREFIX}:${scenarioId}` : DRAFT_STORAGE_KEY_PREFIX;
 
+export const resolveOnboardingCompletionPath = ({
+  scenarioId,
+  routeCaseId,
+  scenarioContextCaseId,
+}: {
+  scenarioId?: string;
+  routeCaseId?: string;
+  scenarioContextCaseId?: string;
+}) => {
+  const targetCaseId = scenarioContextCaseId ?? routeCaseId;
+  if (!targetCaseId || !scenarioId) {
+    return null;
+  }
+
+  return scenarioDashboardPath(targetCaseId, scenarioId);
+};
+
 type OnboardingTelemetryEvent = {
   name:
     | "onboarding_v2_started"
@@ -1980,14 +1997,25 @@ export default function OnboardingDraftWizard() {
 
       setActiveScenario(scenarioId);
       window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-      router.replace(scenarioDashboardPath(scenarioContext.caseId, scenarioId));
+      const completionPath = resolveOnboardingCompletionPath({
+        scenarioId,
+        routeCaseId,
+        scenarioContextCaseId: scenarioContext.caseId,
+      });
+      if (completionPath) {
+        router.replace(completionPath);
+      }
       return;
     }
 
     setActiveScenario(scenarioId);
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-    if (routeCaseId) {
-      router.replace(`/dashboard?caseId=${encodeURIComponent(routeCaseId)}&scenarioId=${encodeURIComponent(scenarioId)}`);
+    const completionPath = resolveOnboardingCompletionPath({
+      scenarioId,
+      routeCaseId,
+    });
+    if (completionPath) {
+      router.replace(completionPath);
     }
   };
 
@@ -2030,8 +2058,12 @@ export default function OnboardingDraftWizard() {
     updateScenarioClientComputed(scenarioId, { onboardingCompleted: true });
     setActiveScenario(scenarioId);
     window.localStorage.removeItem(getDraftStorageKey(scenarioId));
-    if (routeCaseId) {
-      router.replace(`/dashboard?caseId=${encodeURIComponent(routeCaseId)}&scenarioId=${encodeURIComponent(scenarioId)}`);
+    const completionPath = resolveOnboardingCompletionPath({
+      scenarioId,
+      routeCaseId,
+    });
+    if (completionPath) {
+      router.replace(completionPath);
     }
   };
 
