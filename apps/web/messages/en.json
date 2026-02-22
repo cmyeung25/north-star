@@ -2954,6 +2954,12 @@
     },
     "defaults": {
       "memberName": "Me"
+    },
+    "layout": {
+      "visualPlaceholderTitle": "Visual guidance area",
+      "visualPlaceholderDescription": "Reserve this panel for illustrations, examples, or helper visuals during onboarding.",
+      "visualPlaceholderLabel": "Image placeholder",
+      "visualPlaceholderHint": "Use this space for step-specific artwork"
     }
   },
   "onboardingDraft": {
