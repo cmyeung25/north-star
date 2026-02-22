@@ -18,6 +18,7 @@ export type PropertyAsset = BaseOnboardingAsset & {
   mortgagePrincipalOutstanding?: number;
   mortgageAnnualInterestRatePct?: number;
   mortgageTermYears?: number;
+  mortgageTermMonths?: number;
   holdingCostMonthly?: number;
 };
 

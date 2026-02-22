@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, AspectRatio, Box, Button, Card, Group, Image, SimpleGrid, Stack } from "@mantine/core";
+import { Alert, AspectRatio, Box, Button, Group, Image, SimpleGrid, Stack } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -86,6 +86,33 @@ const resolveAssetValue = (asset: OnboardingAsset): number => {
   return asset.currentValue ?? 0;
 };
 
+const parseYearMonth = (value?: string) => {
+  if (!value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+    return null;
+  }
+
+  const [yearToken, monthToken] = value.split("-");
+  const year = Number(yearToken);
+  const month = Number(monthToken);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return null;
+  }
+
+  return { year, month };
+};
+
+const monthsBetween = (fromMonth?: string, toMonth?: string) => {
+  const from = parseYearMonth(fromMonth);
+  const to = parseYearMonth(toMonth);
+
+  if (!from || !to) {
+    return null;
+  }
+
+  return (to.year - from.year) * 12 + (to.month - from.month);
+};
+
 const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: string } =>
   typeof event.id === "string" && event.id.length > 0;
 
@@ -105,25 +132,45 @@ export default function OnboardingV3Wizard() {
     createInitialScenarioDraftV3State({ defaultMemberName: t("defaults.memberName") })
   );
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
+  const defaultSalaryGrowthRate = scenario?.assumptions?.salaryGrowthRate ?? 3;
 
   const derived = useMemo(() => deriveFromProperty({ profile: draft.profile, assets: draft.assets }), [draft.assets, draft.profile]);
+  const generatedSalaryEvents = useMemo<AutoCashflowRow[]>(() => {
+    const scenarioStartMonth = draft.profile.startMonth;
 
-  const autoRows = useMemo(() => derived.events as AutoCashflowRow[], [derived.events]);
+    return draft.members
+      .filter((member) => member.kind === "person")
+      .filter((member) => {
+        if (!member.birthMonth) {
+          return true;
+        }
+
+        const ageInMonths = monthsBetween(member.birthMonth, scenarioStartMonth);
+        return ageInMonths === null || ageInMonths >= 18 * 12;
+      })
+      .map((member) => ({
+        id: `auto:${member.id}:salary-income`,
+        type: "cashflow" as const,
+        kind: "income" as const,
+        cadence: "monthly" as const,
+        amount: 20000,
+        startMonth: scenarioStartMonth,
+        growthMode: "assumption" as const,
+        memberId: member.id,
+        label: member.name?.trim() ? `${member.name.trim()} ${t("steps.income.templates.salary")}` : t("steps.income.templates.salary"),
+        metadata: {
+          originAssetId: member.id,
+          generatedByRule: "household.member.salary.v1",
+          editableFields: [],
+        },
+      }));
+  }, [draft.members, draft.profile.startMonth, t]);
+
+  const autoRows = useMemo(
+    () => [...(derived.events as AutoCashflowRow[]), ...generatedSalaryEvents],
+    [derived.events, generatedSalaryEvents]
+  );
   const autoEventIds = useMemo(() => new Set(autoRows.map((event) => event.id)), [autoRows]);
-
-  const autoOverridesById = useMemo(() => {
-    const overrides = new Map<string, { amount?: number; disabled?: boolean }>();
-    draft.events.forEach((event) => {
-      if (!hasId(event) || !isCashflowDraft(event) || !autoEventIds.has(event.id)) {
-        return;
-      }
-      overrides.set(event.id, {
-        amount: typeof event.amount === "number" ? event.amount : undefined,
-        disabled: Boolean(event.meta?.disabledAuto),
-      });
-    });
-    return overrides;
-  }, [autoEventIds, draft.events]);
 
   const incomeRows = useMemo(() => autoRows.filter((event) => event.kind === "income"), [autoRows]);
   const expenseRows = useMemo(() => autoRows.filter((event) => event.kind === "expense"), [autoRows]);
@@ -137,17 +184,10 @@ export default function OnboardingV3Wizard() {
     [autoEventIds, draft.events]
   );
 
-  const mergedEvents = useMemo(() => {
-    const mergedAutoEvents: ScenarioEvent[] = autoRows.flatMap((event) => {
-      const override = autoOverridesById.get(event.id);
-      if (override?.disabled) {
-        return [];
-      }
-      return [{ ...event, amount: override?.amount ?? event.amount }];
-    });
-
-    return [...mergedAutoEvents, ...manualCashflowEvents] as Array<ScenarioEvent | ScenarioEventDraft>;
-  }, [autoOverridesById, autoRows, manualCashflowEvents]);
+  const mergedEvents = useMemo(
+    () => [...autoRows, ...manualCashflowEvents] as Array<ScenarioEvent | ScenarioEventDraft>,
+    [autoRows, manualCashflowEvents]
+  );
 
   const reviewItems = [
     { label: t("steps.review.items.startMonth"), completed: Boolean(draft.profile.startMonth), warning: t("reviewWarnings.startMonthMissing") },
@@ -172,35 +212,6 @@ export default function OnboardingV3Wizard() {
     totalAssetsAmount: draft.assets.reduce((sum, asset) => sum + resolveAssetValue(asset), 0),
     monthlyIncomeAmount: mergedEvents.reduce((sum, event) => sum + isMonthlyCashflowAmount(event, "income"), 0),
     monthlyExpenseAmount: mergedEvents.reduce((sum, event) => sum + isMonthlyCashflowAmount(event, "expense"), 0),
-  };
-
-  const upsertAutoOverride = (eventId: string, kind: "income" | "expense", patch: { amount?: number; disabled?: boolean }) => {
-    setDraft((current) => {
-      const existing = current.events.find(
-        (event): event is CashflowDraftWithId => hasId(event) && isCashflowDraft(event) && event.id === eventId
-      );
-
-      const nextEvent: CashflowDraftWithId = {
-        ...(existing ?? {
-          id: eventId,
-          type: "cashflow",
-          kind,
-          cadence: "monthly",
-          startMonth: current.profile.startMonth ?? "",
-          amount: 0,
-        }),
-        amount: patch.amount ?? existing?.amount ?? 0,
-        meta: {
-          ...(existing?.meta ?? {}),
-          ...(patch.disabled === undefined ? {} : { disabledAuto: patch.disabled }),
-        },
-      };
-
-      return {
-        ...current,
-        events: [...current.events.filter((event) => event.id !== eventId), nextEvent],
-      };
-    });
   };
 
   const addManual = (kind: "income" | "expense", item: ManualCashflowDraftInput) => {
@@ -238,16 +249,13 @@ export default function OnboardingV3Wizard() {
           rows={incomeRows}
           members={draft.members}
           defaultStartMonth={draft.profile.startMonth ?? ""}
+          defaultSalaryGrowthRate={defaultSalaryGrowthRate}
           manualRows={manualCashflowEvents
             .filter((event) => event.kind === "income")
             .map((event) => ({
               ...event,
               followIncomeGrowth: event.growthMode !== "none",
             }))}
-          overrides={Object.fromEntries(autoOverridesById.entries())}
-          onOverrideAmount={(eventId, amount) => upsertAutoOverride(eventId, "income", { amount })}
-          onRestoreSuggested={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
-          onToggleDisabled={(eventId, disabled) => upsertAutoOverride(eventId, "income", { disabled })}
           onAddManualItem={(item) => addManual("income", item)}
           onUpdateManualItem={(eventId, patch) =>
             setDraft((current) => ({
@@ -332,6 +340,9 @@ export default function OnboardingV3Wizard() {
     });
 
     const mappedEvents = mapOnboardingV3EventTypes(mergedEvents);
+    const initialCash = draft.assets
+      .filter((asset) => asset.assetType === "cash")
+      .reduce((sum, asset) => sum + (asset.amount ?? asset.currentValue ?? 0), 0);
 
     const submitResult = submitScenarioDraft({
       source: "onboarding",
@@ -340,6 +351,7 @@ export default function OnboardingV3Wizard() {
         assumptions: {
           baseMonth: draft.profile.startMonth,
           horizonMonths: draft.profile.horizonMonths,
+          initialCash,
         },
         members: draft.members,
         assets: submissionAssets,

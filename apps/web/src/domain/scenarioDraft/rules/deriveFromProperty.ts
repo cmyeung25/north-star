@@ -12,6 +12,7 @@ type PropertyLikeAsset = {
   mortgagePrincipalOutstanding?: number;
   mortgageAnnualInterestRatePct?: number;
   mortgageTermYears?: number;
+  mortgageTermMonths?: number;
   mortgagePaymentMonthly?: number;
   holdingCostMonthly?: number;
 };
@@ -31,9 +32,8 @@ const toFiniteNumber = (value: unknown): number | undefined => {
   return value;
 };
 
-const buildMonthlyPayment = (principal: number, annualRatePct: number, termYears: number) => {
+const buildMonthlyPayment = (principal: number, annualRatePct: number, totalMonths: number) => {
   const monthlyRate = annualRatePct / 1200;
-  const totalMonths = termYears * 12;
   if (monthlyRate <= 0) {
     return principal / totalMonths;
   }
@@ -82,6 +82,8 @@ export const deriveFromProperty = (draft: ScenarioDraftV3) => {
     const principal = toFiniteNumber(asset.mortgagePrincipalOutstanding);
     const annualRate = toFiniteNumber(asset.mortgageAnnualInterestRatePct);
     const termYears = toFiniteNumber(asset.mortgageTermYears);
+    const termMonths = toFiniteNumber(asset.mortgageTermMonths);
+    const totalMonths = termMonths !== undefined ? termMonths + (termYears ?? 0) * 12 : termYears !== undefined ? termYears * 12 : undefined;
 
     if (principal !== undefined) {
       liabilities.push({
@@ -89,15 +91,15 @@ export const deriveFromProperty = (draft: ScenarioDraftV3) => {
         kind: "mortgage",
         principalOutstanding: principal,
         annualInterestRatePct: annualRate,
-        termYears,
+        termYears: totalMonths !== undefined ? totalMonths / 12 : undefined,
         startMonth,
         metadata: buildMetadata(asset.id, "property.mortgage.liability.v1"),
       });
     }
 
-    if (principal !== undefined && annualRate !== undefined && termYears !== undefined) {
+    if (principal !== undefined && annualRate !== undefined && totalMonths !== undefined) {
       const amortizationAmount =
-        toFiniteNumber(asset.mortgagePaymentMonthly) ?? buildMonthlyPayment(principal, annualRate, termYears);
+        toFiniteNumber(asset.mortgagePaymentMonthly) ?? buildMonthlyPayment(principal, annualRate, totalMonths);
       events.push({
         id: `auto:${asset.id}:mortgage-payment`,
         type: "cashflow",

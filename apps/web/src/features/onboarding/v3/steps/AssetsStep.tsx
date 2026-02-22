@@ -68,6 +68,21 @@ const createInvestmentAsset = (startMonth: string): InvestmentAsset => ({
   currentValue: 0,
 });
 
+const toFiniteNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const buildMonthlyPayment = (principal: number, annualRatePct: number, totalMonths: number) => {
+  if (totalMonths <= 0) {
+    return 0;
+  }
+  const monthlyRate = annualRatePct / 1200;
+  if (monthlyRate <= 0) {
+    return principal / totalMonths;
+  }
+  const growth = (1 + monthlyRate) ** totalMonths;
+  return (principal * monthlyRate * growth) / (growth - 1);
+};
+
 export default function AssetsStep({
   assets,
   startMonth,
@@ -82,11 +97,7 @@ export default function AssetsStep({
   const propertyAsset = assets.find((asset): asset is PropertyAsset => asset.assetType === "property");
   const investmentAsset = assets.find((asset): asset is InvestmentAsset => asset.assetType === "investment");
 
-  const upsertAsset = <T extends OnboardingAsset>(
-    assetType: T["assetType"],
-    create: () => T,
-    patch: Partial<T>
-  ) => {
+  const upsertAsset = <T extends OnboardingAsset>(assetType: T["assetType"], create: () => T, patch: Partial<T>) => {
     const existing = assets.find((asset): asset is T => asset.assetType === assetType);
     if (existing) {
       onAssetsChange(assets.map((asset) => (asset.id === existing.id ? { ...existing, ...patch } : asset)));
@@ -98,6 +109,16 @@ export default function AssetsStep({
   const setToggle = (key: keyof ScenarioDraftV3AssetToggles, enabled: boolean) => {
     onAssetTogglesChange({ ...assetToggles, [key]: enabled });
   };
+
+  const mortgagePrincipal = toFiniteNumber(propertyAsset?.mortgagePrincipalOutstanding);
+  const mortgageRate = toFiniteNumber(propertyAsset?.mortgageAnnualInterestRatePct);
+  const mortgageTermMonths = toFiniteNumber(propertyAsset?.mortgageTermMonths);
+  const mortgageTermYears = toFiniteNumber(propertyAsset?.mortgageTermYears);
+  const normalizedMortgageMonths = mortgageTermMonths ?? ((mortgageTermYears ?? 30) * 12);
+  const mortgageMonthlyPayment =
+    mortgagePrincipal !== undefined && mortgageRate !== undefined
+      ? buildMonthlyPayment(mortgagePrincipal, mortgageRate, normalizedMortgageMonths)
+      : undefined;
 
   return (
     <Stack gap="md">
@@ -221,7 +242,7 @@ export default function AssetsStep({
                 />
               ) : null}
               <Switch
-                checked={Boolean(propertyAsset?.mortgagePrincipalOutstanding)}
+                checked={propertyAsset?.mortgagePrincipalOutstanding !== undefined}
                 label={t("assets.switches.enableMortgage")}
                 onChange={(event) => {
                   const enabled = event.currentTarget.checked;
@@ -230,6 +251,7 @@ export default function AssetsStep({
                       ? propertyAsset?.mortgagePrincipalOutstanding ?? 0
                       : undefined,
                     mortgageTermYears: enabled ? propertyAsset?.mortgageTermYears ?? 30 : undefined,
+                    mortgageTermMonths: enabled ? propertyAsset?.mortgageTermMonths ?? 0 : undefined,
                     mortgageAnnualInterestRatePct: enabled
                       ? propertyAsset?.mortgageAnnualInterestRatePct ?? 3
                       : undefined,
@@ -251,11 +273,22 @@ export default function AssetsStep({
                     <NumberInput
                       label={t("assets.fields.mortgageTermYears")}
                       value={propertyAsset.mortgageTermYears ?? 30}
-                      onChange={(value) =>
+                      onChange={(value) => {
+                        const years = typeof value === "number" ? value : 30;
                         upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
-                          mortgageTermYears: typeof value === "number" ? value : 30,
-                        })
-                      }
+                          mortgageTermYears: years,
+                        });
+                      }}
+                    />
+                    <NumberInput
+                      label={t("assets.fields.mortgageTermMonths")}
+                      value={propertyAsset.mortgageTermMonths ?? 0}
+                      onChange={(value) => {
+                        const months = typeof value === "number" ? value : 0;
+                        upsertAsset("property", () => createPropertyAsset(startMonth, baseCurrency), {
+                          mortgageTermMonths: months,
+                        });
+                      }}
                     />
                     <NumberInput
                       label={t("assets.fields.mortgageRate")}
@@ -270,6 +303,11 @@ export default function AssetsStep({
                   <Text size="xs" c="dimmed">
                     {t("assets.hints.mortgageAutoProjection")}
                   </Text>
+                  {mortgageMonthlyPayment !== undefined ? (
+                    <Text size="sm">
+                      {t("assets.hints.mortgageMonthlyPayment", { amount: Math.round(mortgageMonthlyPayment).toLocaleString() })}
+                    </Text>
+                  ) : null}
                 </>
               ) : null}
             </>
