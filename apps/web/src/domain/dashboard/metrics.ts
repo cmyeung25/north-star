@@ -1,6 +1,7 @@
 import type { ProjectionResult } from "@north-star/engine";
 import type { CashflowItem } from "../ledger/types";
 import { normalizeMonthStrict } from "../../utils/month";
+import { computeIncomeCoverageRatios } from "../kpis/incomeCoverage";
 
 export type DashboardMetrics = {
   minCash12m: { month: string; value: number } | null;
@@ -9,6 +10,9 @@ export type DashboardMetrics = {
   cashRunwayMonths: number | null;
   firstMillionMonth: string | null;
   avgNonSalaryIncome12m: number | null;
+  nonSalaryIncomeRatio: number | null;
+  passiveIncomeCoverage: number | null;
+  assetLinkedExpenseRatio: number | null;
   avgFunBudget12m: number | null;
   riskLevel: "green" | "red";
   endMonth: string | null;
@@ -21,6 +25,9 @@ const EMPTY_METRICS: DashboardMetrics = {
   cashRunwayMonths: null,
   firstMillionMonth: null,
   avgNonSalaryIncome12m: null,
+  nonSalaryIncomeRatio: null,
+  passiveIncomeCoverage: null,
+  assetLinkedExpenseRatio: null,
   avgFunBudget12m: null,
   riskLevel: "green",
   endMonth: null,
@@ -105,6 +112,7 @@ export const computeDashboardMetrics = (
       .reduce((sum, item) => sum + item.amount, 0);
   });
   const avgNonSalaryIncome12m = average(nonSalaryIncomeByMonth);
+  const incomeCoverageRatios = computeIncomeCoverageRatios(horizonMonths, ledgerByMonth);
 
   const avgFunBudget12m = avgNetCashflow12m;
   const riskLevel = (minCash12m?.value ?? 0) < 0 || (cashRunwayMonths !== null && cashRunwayMonths < 6)
@@ -119,6 +127,9 @@ export const computeDashboardMetrics = (
     cashRunwayMonths,
     firstMillionMonth,
     avgNonSalaryIncome12m,
+    nonSalaryIncomeRatio: incomeCoverageRatios.nonSalaryIncomeRatio,
+    passiveIncomeCoverage: incomeCoverageRatios.passiveIncomeCoverage,
+    assetLinkedExpenseRatio: incomeCoverageRatios.assetLinkedExpenseRatio,
     avgFunBudget12m,
     riskLevel,
     endMonth,

@@ -29,7 +29,7 @@ describe("computeDashboardMetrics", () => {
         "2025-01": [
           { month: "2025-01", amount: 20_000, source: "event", sourceId: "salary-main" },
           { month: "2025-01", amount: 3_000, source: "event", sourceId: "dividend" },
-          { month: "2025-01", amount: -10_000, source: "event", sourceId: "rent" },
+          { month: "2025-01", amount: -10_000, source: "event", sourceId: "rent", category: "property_ownership" },
         ],
       }
     );
@@ -39,6 +39,9 @@ describe("computeDashboardMetrics", () => {
     expect(metrics.firstMillionMonth).toBe("2025-07");
     expect(metrics.riskLevel).toBe("red");
     expect(metrics.avgNonSalaryIncome12m).toBe(250);
+    expect(metrics.nonSalaryIncomeRatio).toBeCloseTo(3_000 / 23_000);
+    expect(metrics.passiveIncomeCoverage).toBeCloseTo(3_000 / 10_000);
+    expect(metrics.assetLinkedExpenseRatio).toBeCloseTo(10_000 / 10_000);
   });
 
   it("returns empty when projection is unavailable", () => {

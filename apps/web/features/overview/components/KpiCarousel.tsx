@@ -9,6 +9,7 @@ interface KpiItem {
   badgeColor?: string;
   onDetails?: () => void;
   detailsLabel?: string;
+  tooltip?: string;
 }
 
 interface KpiCarouselProps {

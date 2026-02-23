@@ -1,4 +1,6 @@
 import { monthIndex, type ProjectionResult } from "@north-star/engine";
+import type { CashflowItem } from "../ledger/types";
+import { computeIncomeCoverageRatios } from "../kpis/incomeCoverage";
 import { computeFirstBucket } from "./computeFirstBucket";
 
 export type PlanLabKpiMetrics = {
@@ -9,6 +11,9 @@ export type PlanLabKpiMetrics = {
   firstNegativeCashMonth: string | null;
   endNetWorth: number | null;
   targetMonth: string | null;
+  nonSalaryIncomeRatio: number | null;
+  passiveIncomeCoverage: number | null;
+  assetLinkedExpenseRatio: number | null;
 };
 
 export type PlanLabKpiDiff = {
@@ -16,11 +21,15 @@ export type PlanLabKpiDiff = {
   firstNegativeCashMonth: number | null;
   endNetWorth: number | null;
   targetMonth: number | null;
+  nonSalaryIncomeRatio: number | null;
+  passiveIncomeCoverage: number | null;
+  assetLinkedExpenseRatio: number | null;
 };
 
 export const computePlanLabKpis = (
   projection: ProjectionResult | null | undefined,
-  targetAmount?: number | null
+  targetAmount?: number | null,
+  ledgerByMonth: Record<string, CashflowItem[]> = {}
 ): PlanLabKpiMetrics | null => {
   if (!projection) {
     return null;
@@ -44,12 +53,17 @@ export const computePlanLabKpis = (
 
   const targetResult = computeFirstBucket(projection, targetAmount);
   const targetMonth = targetResult?.achievedMonth ?? null;
+  const horizonMonths = projection.months.slice(0, 12);
+  const incomeCoverageRatios = computeIncomeCoverageRatios(horizonMonths, ledgerByMonth);
 
   return {
     minCash,
     firstNegativeCashMonth,
     endNetWorth,
     targetMonth,
+    nonSalaryIncomeRatio: incomeCoverageRatios.nonSalaryIncomeRatio,
+    passiveIncomeCoverage: incomeCoverageRatios.passiveIncomeCoverage,
+    assetLinkedExpenseRatio: incomeCoverageRatios.assetLinkedExpenseRatio,
   };
 };
 
@@ -80,5 +94,8 @@ export const diffPlanLabKpis = (
     ),
     endNetWorth: numberDelta(kpiA?.endNetWorth, kpiB?.endNetWorth),
     targetMonth: monthDelta(kpiA?.targetMonth ?? null, kpiB?.targetMonth ?? null),
+    nonSalaryIncomeRatio: numberDelta(kpiA?.nonSalaryIncomeRatio, kpiB?.nonSalaryIncomeRatio),
+    passiveIncomeCoverage: numberDelta(kpiA?.passiveIncomeCoverage, kpiB?.passiveIncomeCoverage),
+    assetLinkedExpenseRatio: numberDelta(kpiA?.assetLinkedExpenseRatio, kpiB?.assetLinkedExpenseRatio),
   };
 };
