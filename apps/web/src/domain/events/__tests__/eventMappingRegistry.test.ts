@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mapScenarioCashflowToLegacyType, mapTimelineEventToScenarioCashflow } from "../eventMappingRegistry";
-import { incomeSubtypes, structuralEventTypes } from "../eventTaxonomy";
+import { expenseCategories, incomeSubtypes, structuralEventTypes } from "../eventTaxonomy";
 import type { TimelineEvent } from "../../../features/timeline/schema";
 
 const buildTimelineEvent = (overrides: Partial<TimelineEvent>): TimelineEvent => ({
@@ -48,6 +48,7 @@ describe("eventMappingRegistry", () => {
 
     expect(mapped.kind).toBe("expense");
     expect(mapped.cadence).toBe("oneOff");
+    expect(mapped.expenseCategory).toBe("travel");
     expect(mapped.mappingMetadata.legacyType).toBe("travel");
     expect(mapScenarioCashflowToLegacyType(mapped)).toBe("travel");
   });
@@ -75,6 +76,21 @@ describe("eventMappingRegistry", () => {
       "rental",
       "dividend",
       "interest",
+      "other",
+    ]);
+    expect(expenseCategories).toEqual([
+      "daily_living",
+      "transport",
+      "property_ownership",
+      "vehicle_ownership",
+      "insurance",
+      "healthcare",
+      "education",
+      "family_support",
+      "entertainment",
+      "travel",
+      "tax",
+      "debt_repayment",
       "other",
     ]);
   });

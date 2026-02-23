@@ -4,6 +4,7 @@ import React from "react";
 import { Badge, Group } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
+import { resolveEventCategoryKey } from "./categoryMeta";
 
 type Props = {
   event: ScenarioEvent;
@@ -43,11 +44,23 @@ const resolveEventTypeLabel = (
 
 export default function EventTypeBadge({ event, growthLabel }: Props) {
   const t = useTranslations("money");
+  const categoryKey = resolveEventCategoryKey(event);
+  const categoryLabel =
+    categoryKey && event.type === "cashflow"
+      ? event.kind === "income"
+        ? t(`incomeCategory.${categoryKey}`)
+        : t(`expenseCategory.${categoryKey}`)
+      : null;
   return (
     <Group gap={6} wrap="wrap">
       <Badge variant="light" color="gray" size="sm">
         {resolveEventTypeLabel(event, t)}
       </Badge>
+      {categoryLabel ? (
+        <Badge variant="light" color="teal" size="sm">
+          {categoryLabel}
+        </Badge>
+      ) : null}
       {growthLabel ? (
         <Badge variant="light" color="blue" size="sm">
           {growthLabel}

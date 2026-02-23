@@ -5,6 +5,7 @@ import {
   HousingEventKindSchema,
   StructuralEventTypeSchema,
   IncomeSubtypeSchema,
+  ExpenseCategorySchema,
 } from "../events/eventTaxonomy";
 
 export type MonthKey = string;
@@ -51,8 +52,10 @@ export const CashflowEventSchemaBase = BaseEventSchema.extend({
   kind: CashflowEventKindSchema,
   cadence: z.enum(["monthly", "quarterly", "yearly", "oneOff", "everyNMonths"]),
   amount: z.number(),
-  /** Business category for legacy income semantics. */
+  /** Business category for income semantics. */
   category: IncomeSubtypeSchema.optional(),
+  /** Business category for expense semantics. */
+  expenseCategory: ExpenseCategorySchema.optional(),
   growthMode: z.enum(["none", "assumption", "custom"]).optional(),
   growthSource: z.enum(["inflation", "rentGrowth"]).optional(),
   customGrowthRatePct: z.number().optional(),
@@ -152,8 +155,6 @@ const HousingEventSchemaBase = BaseEventSchema.extend({
         id: z.string(),
         label: z.string().optional(),
         amount: z.number(),
-  /** Business category for legacy income semantics. */
-  category: IncomeSubtypeSchema.optional(),
         month: MonthKeySchema,
       })
     )
@@ -164,8 +165,6 @@ const HousingEventSchemaBase = BaseEventSchema.extend({
         id: z.string(),
         label: z.string().optional(),
         amount: z.number(),
-  /** Business category for legacy income semantics. */
-  category: IncomeSubtypeSchema.optional(),
         startMonth: MonthKeySchema,
         endMonth: MonthKeySchema.optional(),
       })

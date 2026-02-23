@@ -17,6 +17,7 @@ const events: ScenarioEvent[] = [
     amount: 30000,
     startMonth: "2026-01",
     memberId: "gary",
+    category: "salary",
   },
   {
     id: "income-mimi",
@@ -27,6 +28,7 @@ const events: ScenarioEvent[] = [
     startMonth: "2026-01",
     endMonth: "2026-11",
     memberId: "mimi",
+    category: "salary",
   },
   {
     id: "income-bonus",
@@ -36,6 +38,7 @@ const events: ScenarioEvent[] = [
     amount: 50000,
     occurrenceMonth: "2026-06",
     memberId: "gary",
+    category: "salary",
   },
 ];
 
@@ -158,7 +161,7 @@ describe("incomeViewModels", () => {
     expect(grouped[0]?.adjustments[0]?.id).toBe("income-gary::adj::2028-02");
   });
 
-  it("aggregates salary adjustments into a single top source", () => {
+  it("aggregates income summary by category", () => {
     const summary = buildIncomeSummary({
       events: [
         events[0],
@@ -170,6 +173,7 @@ describe("incomeViewModels", () => {
           amount: 80000,
           startMonth: "2028-02",
           tags: ["salary_adjustment", "salary_parent:income-gary"],
+          category: "salary",
         },
       ],
       ledgerRowsByEventId: new Map(),
@@ -177,8 +181,8 @@ describe("incomeViewModels", () => {
 
     expect(summary.sourceCount).toBe(1);
     expect(summary.topSources).toHaveLength(1);
-    expect(summary.topSources[0]?.id).toBe("income-gary");
-    expect(summary.topSources[0]?.amount).toBe(80000);
+    expect(summary.topSources[0]?.id).toBe("salary");
+    expect(summary.topSources[0]?.amount).toBe(110000);
   });
 
 });

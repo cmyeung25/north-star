@@ -1458,6 +1458,8 @@ export default function MoneyClient({
       everyNMonths:
         draft.cadence === "everyNMonths" ? Number(draft.everyNMonths) : undefined,
       memberId: draft.memberId || undefined,
+      category: draft.kind === "income" ? draft.category ?? "salary" : undefined,
+      expenseCategory: draft.kind === "expense" ? draft.expenseCategory ?? "daily_living" : undefined,
       tags: draft.tags && draft.tags.length > 0 ? draft.tags : undefined,
       parentEventId: isSalaryAdjustment ? salaryAdjustmentParentId ?? undefined : undefined,
       groupId: isSalaryAdjustment ? parentGroupId : undefined,

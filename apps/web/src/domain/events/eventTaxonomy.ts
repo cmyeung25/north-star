@@ -27,12 +27,29 @@ export const incomeSubtypes = [
   "other",
 ] as const;
 
+export const expenseCategories = [
+  "daily_living",
+  "transport",
+  "property_ownership",
+  "vehicle_ownership",
+  "insurance",
+  "healthcare",
+  "education",
+  "family_support",
+  "entertainment",
+  "travel",
+  "tax",
+  "debt_repayment",
+  "other",
+] as const;
+
 export type StructuralEventType = (typeof structuralEventTypes)[number];
 export type CashflowEventKind = (typeof cashflowEventKinds)[number];
 export type HousingEventKind = (typeof housingEventKinds)[number];
 export type AdjustmentEventKind = (typeof adjustmentEventKinds)[number];
 export type LegacyEventType = EngineEventType;
 export type IncomeSubtype = (typeof incomeSubtypes)[number];
+export type ExpenseCategory = (typeof expenseCategories)[number];
 
 export const StructuralEventTypeSchema = z.enum(structuralEventTypes);
 export const CashflowEventKindSchema = z.enum(cashflowEventKinds);
@@ -40,3 +57,4 @@ export const HousingEventKindSchema = z.enum(housingEventKinds);
 export const AdjustmentEventKindSchema = z.enum(adjustmentEventKinds);
 export const LegacyEventTypeSchema = z.enum(eventTypeValues);
 export const IncomeSubtypeSchema = z.enum(incomeSubtypes);
+export const ExpenseCategorySchema = z.enum(expenseCategories);
