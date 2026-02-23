@@ -96,6 +96,10 @@ import {
   analyzeAssumptionImpact,
   type AssumptionImpactKey,
 } from "../../../src/domain/assumptions/impactAnalyzer";
+import {
+  ASSUMPTION_PRESETS,
+  type AssumptionsPresetKey,
+} from "../../../src/domain/assumptions/presets";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -242,6 +246,8 @@ export default function SettingsClient({
   const [affectedAssumptionKey, setAffectedAssumptionKey] = useState<
     keyof ScenarioAssumptionsOverride | null
   >(null);
+  const [selectedAssumptionPreset, setSelectedAssumptionPreset] =
+    useState<AssumptionsPresetKey>("baseline");
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasHandledInitialAction = useRef(false);
@@ -366,6 +372,22 @@ export default function SettingsClient({
     }
     return analyzeAssumptionImpact(scenario, scenario.assumptions);
   }, [scenario]);
+  const selectedPresetPatch = ASSUMPTION_PRESETS[selectedAssumptionPreset];
+  const assumptionPresetPreviewValues = useMemo(() => {
+    if (!scenario) {
+      return null;
+    }
+    return {
+      ...scenario.assumptions,
+      ...selectedPresetPatch,
+    };
+  }, [scenario, selectedPresetPatch]);
+  const assumptionPresetImpactAnalysis = useMemo(() => {
+    if (!scenario || !assumptionPresetPreviewValues) {
+      return null;
+    }
+    return analyzeAssumptionImpact(scenario, assumptionPresetPreviewValues);
+  }, [assumptionPresetPreviewValues, scenario]);
   const impactCountByKey = useMemo<
     Partial<Record<keyof ScenarioAssumptionsOverride, number>>
   >(
@@ -382,6 +404,58 @@ export default function SettingsClient({
     }),
     [impactAnalysis]
   );
+  const assumptionPresetImpactCountByKey = useMemo<
+    Partial<Record<keyof ScenarioAssumptionsOverride, number>>
+  >(
+    () => ({
+      inflationRate:
+        assumptionPresetImpactAnalysis?.byAssumptionKey.inflationRate?.count ?? 0,
+      salaryGrowthRate:
+        assumptionPresetImpactAnalysis?.byAssumptionKey.salaryGrowthRate?.count ?? 0,
+      emergencyFundMonths: 0,
+      rentAnnualGrowthPct:
+        assumptionPresetImpactAnalysis?.byAssumptionKey.rentAnnualGrowthPct?.count ?? 0,
+      propertyAppreciationPct:
+        assumptionPresetImpactAnalysis?.byAssumptionKey.propertyAppreciationPct?.count ?? 0,
+      cashYieldPct:
+        assumptionPresetImpactAnalysis?.byAssumptionKey.cashYieldPct?.count ?? 0,
+      carDepreciationRatePct:
+        assumptionPresetImpactAnalysis?.byAssumptionKey.carDepreciationRatePct?.count ?? 0,
+    }),
+    [assumptionPresetImpactAnalysis]
+  );
+  const assumptionPresetDiffRows = useMemo(() => {
+    if (!scenario) {
+      return [] as Array<{
+        key: keyof ScenarioAssumptionsOverride;
+        beforeValue: number | undefined;
+        afterValue: number | undefined;
+        beforeImpact: number;
+        afterImpact: number;
+      }>;
+    }
+    return (Object.keys(selectedPresetPatch) as Array<keyof ScenarioAssumptionsOverride>)
+      .map((key) => {
+        const beforeValue = scenario.assumptions[key];
+        const afterValue = selectedPresetPatch[key];
+        if (beforeValue === afterValue) {
+          return null;
+        }
+        return {
+          key,
+          beforeValue,
+          afterValue,
+          beforeImpact: impactCountByKey[key] ?? 0,
+          afterImpact: assumptionPresetImpactCountByKey[key] ?? 0,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  }, [
+    assumptionPresetImpactCountByKey,
+    impactCountByKey,
+    scenario,
+    selectedPresetPatch,
+  ]);
   const impactLabelByKey = useMemo<
     Record<AssumptionImpactKey | "emergencyFundMonths", string>
   >(
@@ -826,6 +900,14 @@ export default function SettingsClient({
       return;
     }
     updateScenarioAssumptions(scenario.id, patch);
+    showToast(common("saved"), "teal");
+  };
+
+  const handleApplyAssumptionPreset = () => {
+    if (!scenario || assumptionPresetDiffRows.length === 0) {
+      return;
+    }
+    updateScenarioAssumptions(scenario.id, selectedPresetPatch);
     showToast(common("saved"), "teal");
   };
 
@@ -1481,6 +1563,72 @@ export default function SettingsClient({
                 }}
                 onChange={handleAssumptionChange}
               />
+              <Divider />
+              <Stack gap="xs">
+                <Group align="end" grow>
+                  <Select
+                    label={t("presetLabel")}
+                    data={[
+                      { value: "conservative", label: t("presetConservative") },
+                      { value: "baseline", label: t("presetBaseline") },
+                      { value: "growth", label: t("presetGrowth") },
+                    ]}
+                    value={selectedAssumptionPreset}
+                    onChange={(value) => {
+                      if (value) {
+                        setSelectedAssumptionPreset(value as AssumptionsPresetKey);
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={handleApplyAssumptionPreset}
+                    disabled={assumptionPresetDiffRows.length === 0}
+                  >
+                    {t("presetApply")}
+                  </Button>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  {t("presetDiffHint")}
+                </Text>
+                {assumptionPresetDiffRows.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    {t("presetDiffEmpty")}
+                  </Text>
+                ) : (
+                  <Stack gap={8}>
+                    {assumptionPresetDiffRows.map((row) => (
+                      <Group key={row.key} justify="space-between" wrap="wrap">
+                        <Text size="sm">{impactLabelByKey[row.key]}</Text>
+                        <Group gap={8}>
+                          <Badge variant="light" color="gray">
+                            {t("presetBeforeValue", {
+                              value:
+                                typeof row.beforeValue === "number"
+                                  ? row.beforeValue
+                                  : t("notAvailable"),
+                            })}
+                          </Badge>
+                          <Text size="sm">→</Text>
+                          <Badge variant="light" color="teal">
+                            {t("presetAfterValue", {
+                              value:
+                                typeof row.afterValue === "number"
+                                  ? row.afterValue
+                                  : t("notAvailable"),
+                            })}
+                          </Badge>
+                          <Text size="xs" c="dimmed">
+                            {t("presetImpactDiff", {
+                              before: row.beforeImpact,
+                              after: row.afterImpact,
+                            })}
+                          </Text>
+                        </Group>
+                      </Group>
+                    ))}
+                  </Stack>
+                )}
+              </Stack>
             </Stack>
           </Card>
 

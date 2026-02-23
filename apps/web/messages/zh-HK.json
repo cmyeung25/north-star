@@ -2423,6 +2423,16 @@
     "impactEmpty": "未找到受影響事件。",
     "impactAssetFallbackLabel": "資產",
     "impactUnknownEntityLabel": "未知項目",
+    "presetLabel": "假設預設",
+    "presetConservative": "保守",
+    "presetBaseline": "基準",
+    "presetGrowth": "增長",
+    "presetApply": "套用預設",
+    "presetDiffHint": "套用前先預覽欄位級差異，僅影響當前情境。",
+    "presetDiffEmpty": "此預設與目前假設相同。",
+    "presetBeforeValue": "目前：{value}",
+    "presetAfterValue": "預設：{value}",
+    "presetImpactDiff": "影響事件 {before} → {after}",
     "otherSettingsHint": "其他設定將會陸續提供。"
   },
   "members": {
