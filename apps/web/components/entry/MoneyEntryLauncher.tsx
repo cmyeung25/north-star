@@ -3,7 +3,7 @@
 import { Button, Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { Link } from "../../src/i18n/navigation";
-import { scenarioDashboardPath, scenarioMoneyPath, scenarioPath, scenarioPeoplePath, scenarioSettingsPath } from "../../lib/routes/appRoutes";
+import { memberCasesPath, scenarioDashboardPath, scenarioMoneyPath, scenarioPath, scenarioPeoplePath, scenarioSettingsPath } from "../../lib/routes/appRoutes";
 import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 
 type MoneyEntryLauncherProps = {
@@ -17,7 +17,9 @@ export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherPro
   const scenarioContext = useScenarioContext();
   const caseId = scenarioContext?.caseId ?? "";
   const entryHref = (path: EntryPath) => {
-    if (!scenarioId || !caseId) return path;
+    if (!scenarioId || !caseId) {
+      return path === "/settings" ? memberCasesPath() : path;
+    }
     switch (path) {
       case "/money":
         return scenarioMoneyPath(caseId, scenarioId);
