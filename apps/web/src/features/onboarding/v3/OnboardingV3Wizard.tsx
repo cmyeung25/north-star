@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
-import type { GeneratedItemMetadata } from "../../../domain/scenarioDraft/types";
 import OnboardingV2WizardShell from "../v2/OnboardingV2WizardShell";
 import { deriveFromProperty } from "../../../domain/scenarioDraft/rules/deriveFromProperty";
 import { getScenarioById, useScenarioStore } from "../../../store/scenarioStore";
@@ -27,9 +26,7 @@ import { exportScenarioState } from "../../../store/scenarioState";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
-type AutoCashflowRow = Extract<ScenarioEvent, { type: "cashflow" }> & {
-  metadata?: GeneratedItemMetadata;
-};
+type AutoCashflowRow = Extract<ScenarioEvent, { type: "cashflow" }>;
 type ManualCashflowDraftInput = {
   label?: string;
   amount: number;
@@ -86,33 +83,6 @@ const resolveAssetValue = (asset: OnboardingAsset): number => {
   return asset.currentValue ?? 0;
 };
 
-const parseYearMonth = (value?: string) => {
-  if (!value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
-    return null;
-  }
-
-  const [yearToken, monthToken] = value.split("-");
-  const year = Number(yearToken);
-  const month = Number(monthToken);
-
-  if (!Number.isFinite(year) || !Number.isFinite(month)) {
-    return null;
-  }
-
-  return { year, month };
-};
-
-const monthsBetween = (fromMonth?: string, toMonth?: string) => {
-  const from = parseYearMonth(fromMonth);
-  const to = parseYearMonth(toMonth);
-
-  if (!from || !to) {
-    return null;
-  }
-
-  return (to.year - from.year) * 12 + (to.month - from.month);
-};
-
 const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: string } =>
   typeof event.id === "string" && event.id.length > 0;
 
@@ -135,41 +105,7 @@ export default function OnboardingV3Wizard() {
   const defaultSalaryGrowthRate = scenario?.assumptions?.salaryGrowthRate ?? 3;
 
   const derived = useMemo(() => deriveFromProperty({ profile: draft.profile, assets: draft.assets }), [draft.assets, draft.profile]);
-  const generatedSalaryEvents = useMemo<AutoCashflowRow[]>(() => {
-    const scenarioStartMonth = draft.profile.startMonth;
-
-    return draft.members
-      .filter((member) => member.kind === "person")
-      .filter((member) => {
-        if (!member.birthMonth) {
-          return true;
-        }
-
-        const ageInMonths = monthsBetween(member.birthMonth, scenarioStartMonth);
-        return ageInMonths === null || ageInMonths >= 18 * 12;
-      })
-      .map((member) => ({
-        id: `auto:${member.id}:salary-income`,
-        type: "cashflow" as const,
-        kind: "income" as const,
-        cadence: "monthly" as const,
-        amount: 20000,
-        startMonth: scenarioStartMonth,
-        growthMode: "assumption" as const,
-        memberId: member.id,
-        label: member.name?.trim() ? `${member.name.trim()} ${t("steps.income.templates.salary")}` : t("steps.income.templates.salary"),
-        metadata: {
-          originAssetId: member.id,
-          generatedByRule: "household.member.salary.v1",
-          editableFields: [],
-        },
-      }));
-  }, [draft.members, draft.profile.startMonth, t]);
-
-  const autoRows = useMemo(
-    () => [...(derived.events as AutoCashflowRow[]), ...generatedSalaryEvents],
-    [derived.events, generatedSalaryEvents]
-  );
+  const autoRows = useMemo(() => derived.events as AutoCashflowRow[], [derived.events]);
   const autoEventIds = useMemo(() => new Set(autoRows.map((event) => event.id)), [autoRows]);
 
   const incomeRows = useMemo(() => autoRows.filter((event) => event.kind === "income"), [autoRows]);
