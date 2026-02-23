@@ -16,8 +16,8 @@ const readFlag = (value: string | undefined, fallback: boolean) => {
 
 export const migrationFlags = {
   onboarding: readFlag(process.env.NEXT_PUBLIC_FF_LIFECYCLE_MIGRATION_ONBOARDING, true),
-  seed: readFlag(process.env.NEXT_PUBLIC_FF_LIFECYCLE_MIGRATION_SEED, false),
-  planLab: readFlag(process.env.NEXT_PUBLIC_FF_LIFECYCLE_MIGRATION_PLAN_LAB, false),
+  seed: readFlag(process.env.NEXT_PUBLIC_FF_LIFECYCLE_MIGRATION_SEED, true),
+  planLab: readFlag(process.env.NEXT_PUBLIC_FF_LIFECYCLE_MIGRATION_PLAN_LAB, true),
 };
 
 export const submissionFlags = {
