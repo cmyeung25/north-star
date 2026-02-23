@@ -88,7 +88,11 @@ import {
 } from "../../../src/domain/assumptions/planningHorizon";
 import { buildDefaultsForNewMember } from "../../../src/domain/onboarding/buildDefaultsForNewMember";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
-import { scenarioDashboardPath, scenarioMoneyPath } from "../../../lib/routes/appRoutes";
+import {
+  scenarioDashboardPath,
+  scenarioMoneyPath,
+  scenarioOnboardingPath,
+} from "../../../lib/routes/appRoutes";
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
 import {
@@ -305,6 +309,13 @@ export default function SettingsClient({
     () => resolveScenarioIdFromQuery(scenarioIdFromQuery, activeScenarioId, scenarios),
     [activeScenarioId, scenarioIdFromQuery, scenarios]
   );
+  const buildOnboardingHref = useCallback(
+    (targetScenarioId: string) => scenarioOnboardingPath(caseId, targetScenarioId),
+    [caseId]
+  );
+  const recoveryScenarioId =
+    resolvedScenarioId || scenarioIdFromQuery || activeScenarioId || scenarios[0]?.id || "unknown";
+  const recoveryOnboardingHref = buildOnboardingHref(recoveryScenarioId);
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const includeBudgetRulesInProjection =
     scenario?.assumptions.includeBudgetRulesInProjection ?? true;
@@ -1086,7 +1097,7 @@ export default function SettingsClient({
               {common("settingsRecoveryDescription")}
             </Text>
             <Group>
-              <Button component={Link} href="/onboarding" variant="light">
+              <Button component={Link} href={recoveryOnboardingHref} variant="light">
                 {common("actionContinue")}
               </Button>
             </Group>
@@ -1213,7 +1224,7 @@ export default function SettingsClient({
       </Stack>
 
       <Group>
-        <Button component={Link} href="/onboarding" variant="light">
+        <Button component={Link} href={buildOnboardingHref(scenario.id)} variant="light">
           {common("runOnboardingAgain")}
         </Button>
       </Group>
@@ -1227,7 +1238,12 @@ export default function SettingsClient({
                 {common("onboardingRefreshBody")}
               </Text>
             </Stack>
-            <Button component={Link} href="/onboarding" variant="light" size="xs">
+            <Button
+              component={Link}
+              href={buildOnboardingHref(scenario.id)}
+              variant="light"
+              size="xs"
+            >
               {common("runOnboardingAgain")}
             </Button>
           </Group>
