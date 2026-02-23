@@ -1,4 +1,4 @@
-import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { Badge, Button, Card, Group, Stack, Text, Tooltip } from "@mantine/core";
 
 interface KpiCardProps {
   label: string;
@@ -8,6 +8,7 @@ interface KpiCardProps {
   badgeColor?: string;
   onDetails?: () => void;
   detailsLabel?: string;
+  tooltip?: string;
 }
 
 export default function KpiCard({
@@ -18,14 +19,22 @@ export default function KpiCard({
   badgeColor,
   onDetails,
   detailsLabel,
+  tooltip,
 }: KpiCardProps) {
   return (
     <Card withBorder radius="md" padding="md">
       <Stack gap={4}>
         <Group justify="space-between" align="flex-start">
-          <Text size="sm" c="dimmed" fw={500}>
-            {label}
-          </Text>
+          <Group gap={4} align="center">
+            <Text size="sm" c="dimmed" fw={500}>
+              {label}
+            </Text>
+            {tooltip && (
+              <Tooltip label={tooltip} withArrow>
+                <Text size="xs" c="dimmed" style={{ cursor: "help" }}>ⓘ</Text>
+              </Tooltip>
+            )}
+          </Group>
           {badgeLabel && (
             <Badge color={badgeColor} variant="light">
               {badgeLabel}

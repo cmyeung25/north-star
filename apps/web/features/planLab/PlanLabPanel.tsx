@@ -5800,12 +5800,12 @@ export default function PlanLabPanel({
   const firstBucketTargetValue =
     typeof firstBucketTargetAmount === "number" ? firstBucketTargetAmount : null;
   const baselineKpis = useMemo(
-    () => computePlanLabKpis(baselineProjection.projection, firstBucketTargetValue),
-    [baselineProjection.projection, firstBucketTargetValue]
+    () => computePlanLabKpis(baselineProjection.projection, firstBucketTargetValue, baselineProjection.ledgerByMonth),
+    [baselineProjection.ledgerByMonth, baselineProjection.projection, firstBucketTargetValue]
   );
   const optionKpis = useMemo(
-    () => computePlanLabKpis(planLabProjection.projection, firstBucketTargetValue),
-    [firstBucketTargetValue, planLabProjection.projection]
+    () => computePlanLabKpis(planLabProjection.projection, firstBucketTargetValue, planLabProjection.ledgerByMonth),
+    [firstBucketTargetValue, planLabProjection.ledgerByMonth, planLabProjection.projection]
   );
 
   const scenarioItemByEventId = useMemo(() => {
@@ -6291,7 +6291,9 @@ export default function PlanLabPanel({
       const valueDisplay =
         unit === null
           ? formatCurrency(absValue, scenario.baseCurrency, locale)
-          : String(absValue);
+          : unit === "%"
+            ? (absValue * 100).toFixed(1)
+            : String(absValue);
       const sign = deltaValue > 0 ? "+" : deltaValue < 0 ? "-" : "±";
       return {
         direction,
@@ -6310,6 +6312,16 @@ export default function PlanLabPanel({
       );
     },
     [locale]
+  );
+
+  const formatRatio = useCallback(
+    (value: number | null | undefined) => {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        return translate("planLabKpiNotAvailable", "—");
+      }
+      return `${(value * 100).toFixed(1)}%`;
+    },
+    [translate]
   );
 
   const kpiCards = useMemo(() => {
@@ -6417,6 +6429,36 @@ export default function PlanLabPanel({
           : null,
         helper: targetHelper,
       },
+      {
+        key: "nonSalaryIncomeRatio",
+        better: "higher",
+        label: translate("planLabKpiNonSalaryIncomeRatio", "非薪金收入比率"),
+        valueA: formatRatio(optionKpis?.nonSalaryIncomeRatio),
+        valueB: formatRatio(baselineKpis?.nonSalaryIncomeRatio),
+        delta: formatDeltaDisplay(kpiDiff.nonSalaryIncomeRatio, translate("planLabKpiPctUnit", "%")),
+        helper: translate("planLabKpiNonSalaryIncomeRatioHint", "公式：非薪金收入 ÷ 總收入（未來12個月）"),
+        tooltip: translate("planLabKpiNonSalaryIncomeRatioHint", "公式：非薪金收入 ÷ 總收入（未來12個月）"),
+      },
+      {
+        key: "passiveIncomeCoverage",
+        better: "higher",
+        label: translate("planLabKpiPassiveIncomeCoverage", "退休覆蓋率"),
+        valueA: formatRatio(optionKpis?.passiveIncomeCoverage),
+        valueB: formatRatio(baselineKpis?.passiveIncomeCoverage),
+        delta: formatDeltaDisplay(kpiDiff.passiveIncomeCoverage, translate("planLabKpiPctUnit", "%")),
+        helper: translate("planLabKpiPassiveIncomeCoverageHint", "公式：租金/股息/利息收入 ÷ 核心生活支出（未來12個月）"),
+        tooltip: translate("planLabKpiPassiveIncomeCoverageHint", "公式：租金/股息/利息收入 ÷ 核心生活支出（未來12個月）"),
+      },
+      {
+        key: "assetLinkedExpenseRatio",
+        better: "lower",
+        label: translate("planLabKpiAssetLinkedExpenseRatio", "資產相關支出比率"),
+        valueA: formatRatio(optionKpis?.assetLinkedExpenseRatio),
+        valueB: formatRatio(baselineKpis?.assetLinkedExpenseRatio),
+        delta: formatDeltaDisplay(kpiDiff.assetLinkedExpenseRatio, translate("planLabKpiPctUnit", "%")),
+        helper: translate("planLabKpiAssetLinkedExpenseRatioHint", "公式：物業/車輛相關支出 ÷ 核心生活支出（未來12個月）"),
+        tooltip: translate("planLabKpiAssetLinkedExpenseRatioHint", "公式：物業/車輛相關支出 ÷ 核心生活支出（未來12個月）"),
+      },
     ];
   }, [
     baselineKpis,
@@ -6424,6 +6466,7 @@ export default function PlanLabPanel({
     firstBucketTargetValue,
     formatDeltaDisplay,
     formatMonthLabel,
+    formatRatio,
     hasValidTargetMonth,
     kpiDiff,
     locale,
@@ -9237,9 +9280,16 @@ export default function PlanLabPanel({
                           <Paper key={card.key} withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                             <Stack gap={6}>
                               <Group justify="space-between" align="center" wrap="wrap">
-                                <Text size="sm" fw={600} c="dimmed">
-                                  {card.label}
-                                </Text>
+                                <Group gap={4} align="center">
+                                  <Text size="sm" fw={600} c="dimmed">
+                                    {card.label}
+                                  </Text>
+                                  {("tooltip" in card) && card.tooltip ? (
+                                    <MantineTooltip label={card.tooltip} withArrow>
+                                      <Text size="xs" c="dimmed" style={{ cursor: "help" }}>ⓘ</Text>
+                                    </MantineTooltip>
+                                  ) : null}
+                                </Group>
                                 {"actionLabel" in card && card.actionLabel && (
                                   <MantineTooltip
                                     label={card.actionDisabled ? card.actionTooltip : undefined}

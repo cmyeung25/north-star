@@ -542,6 +542,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const sd = (key: string, fallback: string, values?: Record<string, string | number>) =>
     safeT(tDashboard, key, fallback, values);
 
+
+  const formatRatio = (value: number | null) => {
+    if (value === null || !Number.isFinite(value)) {
+      return sd("common.emptyValue", "--");
+    }
+    return `${(value * 100).toFixed(1)}%`;
+  };
+
   const kpiItems = [
     {
       label: sd("kpi.minCash", "最低現金結餘"),
@@ -578,6 +586,25 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       label: sd("kpi.avgNonSalaryIncome", "非工資收入（平均）"),
       value: formatCurrency(dashboardMetrics.avgNonSalaryIncome12m ?? 0, selectedScenario.baseCurrency, locale),
       helper: sd("kpi.scope12m", "未來 12 個月"),
+      tooltip: sd("kpi.avgNonSalaryIncomeFormula", "未來12個月非薪金收入總和 ÷ 12"),
+    },
+    {
+      label: sd("kpi.nonSalaryIncomeRatio", "非薪金收入比率"),
+      value: formatRatio(dashboardMetrics.nonSalaryIncomeRatio),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
+      tooltip: sd("kpi.nonSalaryIncomeRatioFormula", "非薪金收入 ÷ 總收入（未來12個月）"),
+    },
+    {
+      label: sd("kpi.passiveIncomeCoverage", "退休覆蓋率"),
+      value: formatRatio(dashboardMetrics.passiveIncomeCoverage),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
+      tooltip: sd("kpi.passiveIncomeCoverageFormula", "租金/股息/利息收入 ÷ 核心生活支出（未來12個月）"),
+    },
+    {
+      label: sd("kpi.assetLinkedExpenseRatio", "資產相關支出比率"),
+      value: formatRatio(dashboardMetrics.assetLinkedExpenseRatio),
+      helper: sd("kpi.scope12m", "未來 12 個月"),
+      tooltip: sd("kpi.assetLinkedExpenseRatioFormula", "物業/車輛相關支出 ÷ 核心生活支出（未來12個月）"),
     },
     {
       label: sd("kpi.avgFunBudget", "每月可自由支出（平均）"),
