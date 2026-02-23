@@ -58,6 +58,7 @@ import {
   buildScenarioUrl,
 } from "../../../src/utils/scenarioContext";
 import ScenarioAssumptionsOverrideForm from "../../../components/ScenarioAssumptionsOverrideForm";
+import type { ScenarioAssumptionsOverride } from "../../../components/ScenarioAssumptionsOverrideForm";
 import { Link } from "../../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears, monthAtAge } from "../../../src/domain/members/age";
@@ -91,6 +92,10 @@ import { buildDefaultsForNewMember } from "../../../src/domain/onboarding/buildD
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
+import {
+  analyzeAssumptionImpact,
+  type AssumptionImpactKey,
+} from "../../../src/domain/assumptions/impactAnalyzer";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -234,6 +239,9 @@ export default function SettingsClient({
     typeof navigator === "undefined" ? true : navigator.onLine
   );
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [affectedAssumptionKey, setAffectedAssumptionKey] = useState<
+    keyof ScenarioAssumptionsOverride | null
+  >(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasHandledInitialAction = useRef(false);
@@ -352,6 +360,70 @@ export default function SettingsClient({
   const currentMonthCash = currentMonthIndex >= 0 ? projection?.cashBalance[currentMonthIndex] ?? null : null;
   const currentMonthNetWorth = currentMonthIndex >= 0 ? projection?.netWorth[currentMonthIndex] ?? null : null;
   const currentMonthNetCashflow = currentMonth ? (ledgerByMonth[currentMonth] ?? []).reduce((sum, item) => sum + item.amount, 0) : null;
+  const impactAnalysis = useMemo(() => {
+    if (!scenario) {
+      return null;
+    }
+    return analyzeAssumptionImpact(scenario, scenario.assumptions);
+  }, [scenario]);
+  const impactCountByKey = useMemo<
+    Partial<Record<keyof ScenarioAssumptionsOverride, number>>
+  >(
+    () => ({
+      inflationRate: impactAnalysis?.byAssumptionKey.inflationRate?.count ?? 0,
+      salaryGrowthRate: impactAnalysis?.byAssumptionKey.salaryGrowthRate?.count ?? 0,
+      emergencyFundMonths: 0,
+      rentAnnualGrowthPct: impactAnalysis?.byAssumptionKey.rentAnnualGrowthPct?.count ?? 0,
+      propertyAppreciationPct:
+        impactAnalysis?.byAssumptionKey.propertyAppreciationPct?.count ?? 0,
+      cashYieldPct: impactAnalysis?.byAssumptionKey.cashYieldPct?.count ?? 0,
+      carDepreciationRatePct:
+        impactAnalysis?.byAssumptionKey.carDepreciationRatePct?.count ?? 0,
+    }),
+    [impactAnalysis]
+  );
+  const impactLabelByKey = useMemo<
+    Record<AssumptionImpactKey | "emergencyFundMonths", string>
+  >(
+    () => ({
+      inflationRate: t("inflationRate"),
+      salaryGrowthRate: t("salaryGrowth"),
+      emergencyFundMonths: t("emergencyFundTarget"),
+      rentAnnualGrowthPct: t("rentAnnualGrowth"),
+      propertyAppreciationPct: t("propertyAppreciation"),
+      cashYieldPct: t("cashYield"),
+      carDepreciationRatePct: t("carDepreciation"),
+    }),
+    [t]
+  );
+  const affectedEntityList = useMemo(() => {
+    if (!scenario || !affectedAssumptionKey || !impactAnalysis) {
+      return [] as Array<{ id: string; label: string }>;
+    }
+    const ids =
+      impactAnalysis.byAssumptionKey[affectedAssumptionKey as AssumptionImpactKey]
+        ?.eventIds ?? [];
+    return ids.map((id) => {
+      const event = scenario.events?.find((entry) => entry.id === id);
+      if (event) {
+        return {
+          id,
+          label: event.label ?? `${event.type}`,
+        };
+      }
+      const asset = scenario.assets?.find((entry) => entry.id === id);
+      if (asset) {
+        return {
+          id,
+          label: asset.label ?? `${t("impactAssetFallbackLabel")} (${asset.kind})`,
+        };
+      }
+      return {
+        id,
+        label: t("impactUnknownEntityLabel"),
+      };
+    });
+  }, [affectedAssumptionKey, impactAnalysis, scenario, t]);
   const baseCurrency = scenario?.baseCurrency ?? "";
   const formatCurrency = useCallback(
     (value: number) => {
@@ -1392,6 +1464,8 @@ export default function SettingsClient({
               <ScenarioAssumptionsOverrideForm
                 values={assumptions}
                 baseline={assumptions}
+                impactCountByKey={impactCountByKey}
+                onViewAffectedEvents={(key) => setAffectedAssumptionKey(key)}
                 labels={{
                   inflationRate: t("inflationRate"),
                   salaryGrowthRate: t("salaryGrowth"),
@@ -1402,11 +1476,40 @@ export default function SettingsClient({
                   cashYieldPct: t("cashYield"),
                   carDepreciationRatePct: t("carDepreciation"),
                   baselinePrefix: `${t("baseline")}：`,
+                  impactCount: (count) => t("impactCount", { count }),
+                  impactView: t("impactView"),
                 }}
                 onChange={handleAssumptionChange}
               />
             </Stack>
           </Card>
+
+          <Modal
+            opened={Boolean(affectedAssumptionKey)}
+            onClose={() => setAffectedAssumptionKey(null)}
+            title={
+              affectedAssumptionKey
+                ? t("impactModalTitle", {
+                    assumption: impactLabelByKey[affectedAssumptionKey],
+                  })
+                : undefined
+            }
+            centered
+          >
+            <Stack gap="xs">
+              {affectedEntityList.length > 0 ? (
+                affectedEntityList.map((entity) => (
+                  <Text key={entity.id} size="sm">
+                    • {entity.label}
+                  </Text>
+                ))
+              ) : (
+                <Text size="sm" c="dimmed">
+                  {t("impactEmpty")}
+                </Text>
+              )}
+            </Stack>
+          </Modal>
 
           <Card withBorder radius="md" padding="md" mt="md">
             <ProjectionPreviewPanel
