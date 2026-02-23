@@ -14,7 +14,7 @@ import {
   useScenarioStore,
 } from "../../src/store/scenarioStore";
 import { useUiStore } from "../../src/store/uiStore";
-import SettingsClient from "../../app/[locale]/settings/SettingsClient";
+import ScenarioSettingsWorkspace from "../settings/ScenarioSettingsWorkspace";
 
 type PeopleWorkspaceProps = {
   scenarioId?: string;
@@ -164,7 +164,7 @@ export default function PeopleWorkspace({
     <Stack gap="xl">
       <TwoPaneLayout
         left={
-          <SettingsClient
+          <ScenarioSettingsWorkspace
             scenarioId={scenarioId}
             titleKey="peopleTitle"
             subtitleKey="peopleSubtitle"
