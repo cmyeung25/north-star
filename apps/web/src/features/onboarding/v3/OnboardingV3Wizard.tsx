@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, AspectRatio, Box, Button, Group, Image, SimpleGrid, Stack } from "@mantine/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
@@ -86,6 +86,42 @@ const resolveAssetValue = (asset: OnboardingAsset): number => {
 const hasId = (event: ScenarioEventDraft): event is ScenarioEventDraft & { id: string } =>
   typeof event.id === "string" && event.id.length > 0;
 
+const AUTO_SALARY_TAG = "onboarding:v3:income:salary:auto";
+const AUTO_SALARY_ID_PREFIX = "manual:auto-salary:";
+
+const parseYearMonth = (value?: string) => {
+  if (!value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+    return null;
+  }
+
+  const [yearToken, monthToken] = value.split("-");
+  const year = Number(yearToken);
+  const month = Number(monthToken);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return null;
+  }
+
+  return { year, month };
+};
+
+const monthsBetween = (fromMonth?: string, toMonth?: string) => {
+  const from = parseYearMonth(fromMonth);
+  const to = parseYearMonth(toMonth);
+
+  if (!from || !to) {
+    return null;
+  }
+
+  return (to.year - from.year) * 12 + (to.month - from.month);
+};
+
+const isAutoSalaryManualEvent = (event: ScenarioEventDraft): event is CashflowDraftWithId =>
+  hasId(event) &&
+  isCashflowDraft(event) &&
+  event.kind === "income" &&
+  event.tags?.includes(AUTO_SALARY_TAG) === true;
+
 export default function OnboardingV3Wizard() {
   const t = useTranslations("onboardingV3");
   const appShellT = useTranslations("app.shell");
@@ -102,7 +138,74 @@ export default function OnboardingV3Wizard() {
     createInitialScenarioDraftV3State({ defaultMemberName: t("defaults.memberName") })
   );
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
+  const [dismissedAutoSalaryMemberIds, setDismissedAutoSalaryMemberIds] = useState<string[]>([]);
   const defaultSalaryGrowthRate = scenario?.assumptions?.salaryGrowthRate ?? 3;
+
+  useEffect(() => {
+    setDraft((current) => {
+      const scenarioStartMonth = current.profile.startMonth;
+      const adultMembers = current.members
+        .filter((member) => member.kind === "person")
+        .filter((member) => {
+          if (!member.birthMonth) {
+            return true;
+          }
+
+          const ageInMonths = monthsBetween(member.birthMonth, scenarioStartMonth);
+          return ageInMonths === null || ageInMonths >= 18 * 12;
+        });
+      const adultMemberIds = new Set(adultMembers.map((member) => member.id));
+      const dismissedIds = new Set(dismissedAutoSalaryMemberIds);
+      const existingAutoSalaryIds = new Set(
+        current.events
+          .filter((event) => isAutoSalaryManualEvent(event))
+          .map((event) => event.memberId)
+          .filter((memberId): memberId is string => typeof memberId === "string" && memberId.length > 0)
+      );
+
+      const retainedEvents = current.events.filter((event) => {
+        if (!isAutoSalaryManualEvent(event)) {
+          return true;
+        }
+
+        const memberId = event.memberId;
+        if (!memberId) {
+          return false;
+        }
+
+        return adultMemberIds.has(memberId) && !dismissedIds.has(memberId);
+      });
+
+      const appendedEvents: ScenarioEventDraft[] = [];
+      for (const member of adultMembers) {
+        if (dismissedIds.has(member.id) || existingAutoSalaryIds.has(member.id)) {
+          continue;
+        }
+
+        appendedEvents.push({
+          id: `${AUTO_SALARY_ID_PREFIX}${member.id}`,
+          type: "cashflow",
+          kind: "income",
+          label: member.name?.trim() ? `${member.name.trim()} ${t("steps.income.templates.salary")}` : t("steps.income.templates.salary"),
+          amount: 20000,
+          cadence: "monthly",
+          memberId: member.id,
+          startMonth: current.profile.startMonth ?? "",
+          growthMode: "assumption",
+          tags: [AUTO_SALARY_TAG, "onboarding:v3:income:salary", "onboarding:v3:income:source-onboarding"],
+        });
+      }
+
+      if (appendedEvents.length === 0 && retainedEvents.length === current.events.length) {
+        return current;
+      }
+
+      return {
+        ...current,
+        events: [...retainedEvents, ...appendedEvents],
+      };
+    });
+  }, [dismissedAutoSalaryMemberIds, draft.members, draft.profile.startMonth, t]);
 
   const derived = useMemo(() => deriveFromProperty({ profile: draft.profile, assets: draft.assets }), [draft.assets, draft.profile]);
   const autoRows = useMemo(() => derived.events as AutoCashflowRow[], [derived.events]);
@@ -151,6 +254,10 @@ export default function OnboardingV3Wizard() {
   };
 
   const addManual = (kind: "income" | "expense", item: ManualCashflowDraftInput) => {
+    if (kind === "income" && item.memberId) {
+      setDismissedAutoSalaryMemberIds((current) => current.filter((memberId) => memberId !== item.memberId));
+    }
+
     setDraft((current) => ({
       ...current,
       events: [
@@ -171,6 +278,24 @@ export default function OnboardingV3Wizard() {
         },
       ],
     }));
+  };
+
+  const removeManualItem = (eventId: string) => {
+    setDraft((current) => {
+      const targetEvent = current.events.find((event) => hasId(event) && event.id === eventId);
+      if (targetEvent && isAutoSalaryManualEvent(targetEvent) && targetEvent.memberId) {
+        setDismissedAutoSalaryMemberIds((memberIds) =>
+          memberIds.includes(targetEvent.memberId as string)
+            ? memberIds
+            : [...memberIds, targetEvent.memberId as string]
+        );
+      }
+
+      return {
+        ...current,
+        events: current.events.filter((event) => event.id !== eventId),
+      };
+    });
   };
 
   const steps = [
@@ -215,7 +340,7 @@ export default function OnboardingV3Wizard() {
               ),
             }))
           }
-          onRemoveManualItem={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
+          onRemoveManualItem={removeManualItem}
         />
       ),
     },
@@ -247,7 +372,7 @@ export default function OnboardingV3Wizard() {
               ),
             }))
           }
-          onRemoveManualItem={(eventId) => setDraft((current) => ({ ...current, events: current.events.filter((event) => event.id !== eventId) }))}
+          onRemoveManualItem={removeManualItem}
         />
       ),
     },
