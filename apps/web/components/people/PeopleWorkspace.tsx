@@ -2,21 +2,21 @@
 
 import { Stack } from "@mantine/core";
 import { useEffect, useMemo } from "react";
-import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
-import RightPaneDashboard from "../../../components/RightPaneDashboard";
-import TwoPaneLayout from "../../../components/TwoPaneLayout";
-import { monthsBetween } from "../../../src/domain/members/age";
-import { buildScenarioEventViews } from "../../../src/domain/events/utils";
-import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
+import MonthlyBreakdownModalHost from "../MonthlyBreakdownModalHost";
+import RightPaneDashboard from "../RightPaneDashboard";
+import TwoPaneLayout from "../TwoPaneLayout";
+import { monthsBetween } from "../../src/domain/members/age";
+import { buildScenarioEventViews } from "../../src/domain/events/utils";
+import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
-} from "../../../src/store/scenarioStore";
-import { useUiStore } from "../../../src/store/uiStore";
-import SettingsClient from "../settings/SettingsClient";
+} from "../../src/store/scenarioStore";
+import { useUiStore } from "../../src/store/uiStore";
+import SettingsClient from "../../app/[locale]/settings/SettingsClient";
 
-type PeopleClientProps = {
+type PeopleWorkspaceProps = {
   scenarioId?: string;
   initialTab?: string;
   initialAdd?: string;
@@ -30,12 +30,12 @@ const tabMap = {
   settings: "data",
 } as const;
 
-export default function PeopleClient({
+export default function PeopleWorkspace({
   scenarioId,
   initialTab,
   initialAdd,
   initialRuleId,
-}: PeopleClientProps) {
+}: PeopleWorkspaceProps) {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const members = useScenarioStore((state) => state.members);

@@ -33,7 +33,11 @@ import { useScenarioContext } from "../../../../../../../src/hooks/useScenarioCo
 import { useScenarioAutosave } from "./hooks/useScenarioAutosave";
 import { useScenarioCloudStore } from "../../../../../../../src/store/scenarioCloudStore";
 import RevisionConflictModal from "./components/RevisionConflictModal";
-import { memberCasesPath, scenarioSettingsPath } from "../../../../../../../lib/routes/appRoutes";
+import {
+  memberCasesPath,
+  scenarioPeoplePath,
+  scenarioSettingsPath,
+} from "../../../../../../../lib/routes/appRoutes";
 import BrandLogo from "../../../../../../../components/brand/BrandLogo";
 import BottomNav from "../../../../../../../components/BottomNav";
 import AppHeaderTitle from "./components/AppHeaderTitle";
@@ -105,6 +109,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
     { href: `${appScenarioUrl}/dashboard`, label: nav("dashboard") },
     { href: `${appScenarioUrl}/planlab`, label: nav("planLab") },
     { href: `${appScenarioUrl}/money`, label: nav("money") },
+    { href: scenarioPeoplePath(caseId, scenarioId), label: nav("people") },
     { href: scenarioSettingsPath(caseId, scenarioId), label: nav("scenarioManagement") },
   ];
   const mobileTabs = tabs.slice(0, 3);

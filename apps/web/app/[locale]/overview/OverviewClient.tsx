@@ -17,8 +17,9 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { type Locale } from "../../../src/i18n/routing";
 import {
   Line,
   LineChart,
@@ -42,6 +43,7 @@ import ScenarioContextSelector from "../../../features/overview/components/Scena
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
 import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
+import { scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
 import {
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
@@ -82,6 +84,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
   const locale = useLocale();
+  const params = useParams<{ caseId?: string }>();
   const t = useTranslations("overview");
   const tDashboard = useTranslations("overview.dashboard");
   const common = useTranslations("common");
@@ -664,7 +667,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
   const moneyHubHref = buildScenarioUrl("/money", selectedScenario.id);
   const moneyInputsHref = `${moneyHubHref}&tab=inputs`;
-  const peopleHubHref = buildScenarioUrl("/people", selectedScenario.id);
+  const peopleHubHref = params.caseId
+    ? scenarioPeoplePath(params.caseId, selectedScenario.id, locale as Locale)
+    : buildScenarioUrl("/people", selectedScenario.id);
   const completenessItems = [
     { key: "income", label: sd("completeness.income", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: `${moneyHubHref}&tab=income` },
     { key: "expenses", label: sd("completeness.expenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: `${moneyHubHref}&tab=expenses` },

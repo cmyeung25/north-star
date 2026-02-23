@@ -5,6 +5,7 @@ import {
   scenarioMoneyPath,
   scenarioOnboardingPath,
   scenarioPath,
+  scenarioPeoplePath,
   scenarioPlanLabPath,
   scenarioSettingsPath,
 } from "./canonicalRoutes";
@@ -29,6 +30,7 @@ export {
   scenarioMoneyPath,
   scenarioOnboardingPath,
   scenarioPath,
+  scenarioPeoplePath,
   scenarioPlanLabPath,
   scenarioSettingsPath,
 };
