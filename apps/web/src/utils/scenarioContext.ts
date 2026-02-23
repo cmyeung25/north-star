@@ -1,4 +1,12 @@
 import type { ReadonlyURLSearchParams } from "next/navigation";
+import {
+  scenarioDashboardPath,
+  scenarioMoneyPath,
+  scenarioPath,
+  scenarioPeoplePath,
+  scenarioPlanLabPath,
+  scenarioSettingsPath,
+} from "../../lib/routes/appRoutes";
 import type { Scenario } from "../store/scenarioStore";
 import { resolveScenarioIdFromQuery } from "../store/scenarioStore";
 
@@ -24,24 +32,53 @@ export const resolveScenarioId = (
   );
 };
 
-export const buildScenarioUrl = (
-  path:
-    | "/timeline"
-    | "/overview"
-    | "/dashboard"
-    | "/stress"
-    | "/settings"
-    | "/money"
-    | "/people"
-    | "/plan-lab",
+type ScenarioRoutePath = "/dashboard" | "/settings" | "/money" | "/people" | "/plan-lab" | "/stress";
+
+const warnBuildScenarioUrlUsage = (
+  path: ScenarioRoutePath,
+  caseId: string,
   scenarioId: string
-) => `${path}?scenarioId=${scenarioId}`;
+) => {
+  if (process.env.NODE_ENV === "development") {
+    console.warn("[scenarioContext] buildScenarioUrl is deprecated", {
+      path,
+      caseId,
+      scenarioId,
+    });
+  }
+};
+
+export const buildScenarioUrl = (
+  path: ScenarioRoutePath,
+  caseId: string,
+  scenarioId: string
+) => {
+  warnBuildScenarioUrlUsage(path, caseId, scenarioId);
+
+  switch (path) {
+    case "/dashboard":
+      return scenarioDashboardPath(caseId, scenarioId);
+    case "/money":
+      return scenarioMoneyPath(caseId, scenarioId);
+    case "/people":
+      return scenarioPeoplePath(caseId, scenarioId);
+    case "/settings":
+      return scenarioSettingsPath(caseId, scenarioId);
+    case "/plan-lab":
+      return scenarioPlanLabPath(caseId, scenarioId);
+    case "/stress":
+      return scenarioPath(caseId, scenarioId, "stress");
+    default:
+      return scenarioDashboardPath(caseId, scenarioId);
+  }
+};
 
 export const buildMoneyAssetsUrl = (
+  caseId: string,
   scenarioId: string,
   options?: { focus?: "cash" }
 ) => {
-  const base = buildScenarioUrl("/money", scenarioId);
+  const base = buildScenarioUrl("/money", caseId, scenarioId);
   const [pathname, queryString] = base.split("?");
   const query = new URLSearchParams(queryString ?? "");
   query.set("tab", "assets");

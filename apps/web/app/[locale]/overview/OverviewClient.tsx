@@ -44,6 +44,7 @@ import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapsho
 import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import { memberCasesPath, scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
+import { scenarioDashboardPath, scenarioMoneyPath, scenarioPlanLabPath } from "../../../lib/routes/appRoutes";
 import {
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
@@ -65,7 +66,6 @@ import {
   resolveScenarioIdFromQuery,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
-import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 import { safeT } from "../../../src/i18n/safeT";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
@@ -85,6 +85,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const router = useRouter();
   const locale = useLocale();
   const params = useParams<{ caseId?: string }>();
+  const caseId = params.caseId ?? "";
   const t = useTranslations("overview");
   const tDashboard = useTranslations("overview.dashboard");
   const common = useTranslations("common");
@@ -519,8 +520,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     if (!selectedScenario) {
       return "/plan-lab";
     }
-    return buildScenarioUrl("/plan-lab", selectedScenario.id);
-  }, [selectedScenario]);
+    return scenarioPlanLabPath(caseId, selectedScenario.id);
+  }, [caseId, selectedScenario]);
 
   const dashboardMetrics = useMemo(
     () => computeDashboardMetrics(projection, projectionNetCashflowByMonth, ledgerByMonth),
@@ -625,7 +626,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const handleScenarioChange = (nextScenarioId: string) => {
     setActiveScenario(nextScenarioId);
-    router.push(`/${locale}${buildScenarioUrl("/dashboard", nextScenarioId)}`);
+    router.push(scenarioDashboardPath(caseId, nextScenarioId, locale as Locale));
   };
 
   const handleExportCsv = () => {
@@ -664,8 +665,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     openBreakdown(month);
   };
 
-  const moneyTimelineHref = `${buildScenarioUrl("/money", selectedScenario.id)}&tab=timeline`;
-  const moneyHubHref = buildScenarioUrl("/money", selectedScenario.id);
+  const moneyTimelineHref = `${scenarioMoneyPath(caseId, selectedScenario.id)}?tab=timeline`;
+  const moneyHubHref = scenarioMoneyPath(caseId, selectedScenario.id);
   const moneyInputsHref = `${moneyHubHref}&tab=inputs`;
   const peopleHubHref = params.caseId
     ? scenarioPeoplePath(params.caseId, selectedScenario.id, locale as Locale)

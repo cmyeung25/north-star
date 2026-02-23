@@ -24,7 +24,8 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { monthIndex, type EventGroup } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
 import { defaultCurrency } from "../../lib/i18n";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+import { scenarioDashboardPath } from "../../lib/routes/appRoutes";
+import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import HomeDetailsForm from "./HomeDetailsForm";
 import CarDetailsForm from "./CarDetailsForm";
 import InvestmentDetailsForm from "./InvestmentDetailsForm";
@@ -214,6 +215,8 @@ export default function TimelineDesktop({
   const insurances = useTranslations("insurances");
   const loans = useTranslations("loans");
   const locale = useLocale();
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
   const horizonMonths = assumptions.horizonMonths > 0 ? assumptions.horizonMonths : 360;
   const defaultSmartInvestPolicy = useMemo(
     () =>
@@ -506,7 +509,7 @@ export default function TimelineDesktop({
     setPendingScrollMonth(startMonth);
   };
 
-  const overviewUrl = buildScenarioUrl("/dashboard", scenarioId);
+  const overviewUrl = scenarioDashboardPath(caseId, scenarioId);
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;

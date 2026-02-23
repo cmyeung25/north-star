@@ -41,6 +41,7 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { type Locale } from "../../src/i18n/routing";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
 import { monthIndex, type EventGroup, type EventType } from "@north-star/engine";
@@ -106,7 +107,8 @@ import {
   computeProjectionWithSmartInvest,
   useProjectionWithLedger,
 } from "../../src/engine/useProjectionWithLedger";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+import { scenarioDashboardPath } from "../../lib/routes/appRoutes";
+import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import { useUiStore } from "../../src/store/uiStore";
 import type { TimeSeriesPoint } from "../overview/types";
 import WarningsPanel from "../../components/WarningsPanel";
@@ -1121,6 +1123,8 @@ export default function PlanLabPanel({
   const isMobile = useMediaQuery("(max-width: 48em)");
   const openModal = useUiStore((state) => state.openModal);
   const router = useRouter();
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
   const replaceScenario = useScenarioStore((state) => state.replaceScenario);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
   const createScenario = useScenarioStore((state) => state.createScenario);
@@ -7870,7 +7874,7 @@ export default function PlanLabPanel({
       },
     });
 
-    router.push(`/${locale}${buildScenarioUrl("/dashboard", savedScenario.id)}`);
+    router.push(scenarioDashboardPath(caseId, savedScenario.id, locale as Locale));
   };
 
   const validationMonthFields = useMemo(() => {

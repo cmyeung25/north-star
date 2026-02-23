@@ -20,6 +20,7 @@ import { nanoid } from "nanoid";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { type Locale } from "../../../src/i18n/routing";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import StressCashChart from "../../../features/stress/components/StressCashChart";
 import { defaultCurrency, formatCurrency } from "../../../lib/i18n";
@@ -43,7 +44,8 @@ import {
   type AppliedStressState,
 } from "../../../src/features/stress/stressEvents";
 import { normalizeMonth } from "../../../src/features/timeline/schema";
-import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
+import { scenarioPath } from "../../../lib/routes/appRoutes";
+import { useScenarioContext } from "../../../src/hooks/useScenarioContext";
 
 type StressClientProps = {
   scenarioId?: string;
@@ -78,6 +80,8 @@ export default function StressClient({ scenarioId }: StressClientProps) {
   const budgetRules = useScenarioStore((state) => state.budgetRules);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
   const createScenario = useScenarioStore((state) => state.createScenario);
   const upsertScenarioEventRefs = useScenarioStore(
     (state) => state.upsertScenarioEventRefs
@@ -359,7 +363,7 @@ export default function StressClient({ scenarioId }: StressClientProps) {
 
   const handleScenarioChange = (nextScenarioId: string) => {
     setActiveScenario(nextScenarioId);
-    router.push(`/${locale}${buildScenarioUrl("/stress", nextScenarioId)}`);
+    router.push(scenarioPath(caseId, nextScenarioId, "stress", locale as Locale));
   };
 
   const kpiCard = (label: string, value: string, helper: string) => (

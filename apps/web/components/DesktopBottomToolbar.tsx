@@ -15,10 +15,11 @@ import { useTranslations } from "next-intl";
 import { useScenarioStore } from "../src/store/scenarioStore";
 import { normalizeMonthInput } from "../src/utils/month";
 import { Link } from "../src/i18n/navigation";
-import { buildScenarioUrl } from "../src/utils/scenarioContext";
+import { scenarioMoneyPath, scenarioPeoplePath, scenarioSettingsPath } from "../lib/routes/appRoutes";
 import AddFlowDrawer from "../features/add/AddFlowDrawer";
 import { usePathname, useRouter } from "next/navigation";
 import { useUiStore } from "../src/store/uiStore";
+import { useScenarioContext } from "../src/hooks/useScenarioContext";
 
 export const desktopToolbarHeight = 72;
 
@@ -39,6 +40,8 @@ export default function DesktopBottomToolbar() {
   const router = useRouter();
   const pathname = usePathname();
   const openDrawer = useUiStore((state) => state.openDrawer);
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
 
   const baseMonthStoreValue = appSettings.globalBaseMonth ?? "";
   const [baseMonthInput, setBaseMonthInput] = useState(baseMonthStoreValue);
@@ -104,7 +107,16 @@ export default function DesktopBottomToolbar() {
   const scenarioId = activeScenarioId;
   const resolvedNavLinks = navLinks.map((link) => ({
     ...link,
-    href: scenarioId ? buildScenarioUrl(link.href, scenarioId) : link.href,
+    href:
+      scenarioId && caseId
+        ? link.href === "/money"
+          ? scenarioMoneyPath(caseId, scenarioId)
+          : link.href === "/timeline"
+            ? `${scenarioMoneyPath(caseId, scenarioId)}?tab=timeline`
+            : link.href === "/people"
+              ? scenarioPeoplePath(caseId, scenarioId)
+              : scenarioSettingsPath(caseId, scenarioId)
+        : link.href,
   }));
 
   const handleNavClick = (

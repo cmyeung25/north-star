@@ -11,6 +11,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { type Locale } from "../../../src/i18n/routing";
 import { useRouter } from "next/navigation";
 import type { EventDefinition } from "../../../src/domain/events/types";
 import type { BudgetRule, Scenario } from "../../../src/store/scenarioStore";
@@ -21,7 +22,8 @@ import {
 } from "../../../src/store/scenarioStore";
 import { normalizeMonthStrict } from "../../../src/utils/month";
 import { applyScenarioPatch, type ScenarioPatch } from "../../../src/domain/scenarios/applyScenarioPatch";
-import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
+import { scenarioDashboardPath } from "../../../lib/routes/appRoutes";
+import { useScenarioContext } from "../../../src/hooks/useScenarioContext";
 import { createEventDefinitionFromTemplate } from "../../../components/timeline/utils";
 
 type ScenarioComparisonWizardProps = {
@@ -53,6 +55,8 @@ export default function ScenarioComparisonWizard({
   const timeline = useTranslations("timeline");
   const locale = useLocale();
   const router = useRouter();
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
   const budgetRules = useScenarioStore((state) => state.budgetRules);
@@ -276,7 +280,7 @@ export default function ScenarioComparisonWizard({
 
     const compareIds = [baselineScenario.id, ...createdScenarioIds];
     router.push(
-      `/${locale}${buildScenarioUrl("/dashboard", baselineScenario.id)}&compareScenarioIds=${compareIds.join(",")}`
+      `${scenarioDashboardPath(caseId, baselineScenario.id, locale as Locale)}?compareScenarioIds=${compareIds.join(",")}`
     );
     setIsSubmitting(false);
     onClose();

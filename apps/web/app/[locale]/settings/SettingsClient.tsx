@@ -41,6 +41,7 @@ import {
   type CloudSummary,
 } from "../../../lib/sync/firestoreSync";
 import { useAuthState } from "../../../src/hooks/useAuthState";
+import { useScenarioContext } from "../../../src/hooks/useScenarioContext";
 import {
   getScenarioById,
   isLegacyOnboardingScenario,
@@ -53,10 +54,7 @@ import {
 } from "../../../src/store/scenarioStore";
 import { appliesToScenario, type ApplyScope } from "../../../src/domain/applyScope";
 import { useSettingsStore } from "../../../src/store/settingsStore";
-import {
-  buildMoneyAssetsUrl,
-  buildScenarioUrl,
-} from "../../../src/utils/scenarioContext";
+import { buildMoneyAssetsUrl } from "../../../src/utils/scenarioContext";
 import ScenarioAssumptionsOverrideForm from "../../../components/ScenarioAssumptionsOverrideForm";
 import type { ScenarioAssumptionsOverride } from "../../../components/ScenarioAssumptionsOverrideForm";
 import { Link } from "../../../src/i18n/navigation";
@@ -90,6 +88,7 @@ import {
 } from "../../../src/domain/assumptions/planningHorizon";
 import { buildDefaultsForNewMember } from "../../../src/domain/onboarding/buildDefaultsForNewMember";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
+import { scenarioDashboardPath, scenarioMoneyPath } from "../../../lib/routes/appRoutes";
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 import ProjectionPreviewPanel, { type PreviewScope } from "../../../components/ProjectionPreviewPanel";
 import {
@@ -143,6 +142,8 @@ export default function SettingsClient({
   }));
   const baseMonthHelper = t("baseMonthHelper");
   const authState = useAuthState();
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
   const scenarioIdFromQuery = scenarioId ?? null;
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
@@ -1537,7 +1538,7 @@ export default function SettingsClient({
                 <Text size="sm" c="dimmed">
                   {t("initialCashMovedHint")}{" "}
                   <Link
-                    href={buildMoneyAssetsUrl(scenario.id, { focus: "cash" })}
+                    href={buildMoneyAssetsUrl(caseId, scenario.id, { focus: "cash" })}
                   >
                     {t("initialCashMovedLink")}
                   </Link>
@@ -1699,7 +1700,7 @@ export default function SettingsClient({
                 </div>
                 <Button
                   component={Link}
-                  href={`${buildScenarioUrl("/money", scenario.id)}&tab=timeline`}
+                  href={`${scenarioMoneyPath(caseId, scenario.id)}?tab=timeline`}
                   size="xs"
                   variant="light"
                 >
@@ -2893,12 +2894,12 @@ export default function SettingsClient({
       </Tabs>
 
       <Group>
-          <Button component={Link} href={buildScenarioUrl("/dashboard", scenario.id)}>
+          <Button component={Link} href={scenarioDashboardPath(caseId, scenario.id)}>
           {common("openOverview")}
         </Button>
         <Button
           component={Link}
-          href={`${buildScenarioUrl("/money", scenario.id)}&tab=timeline`}
+          href={`${scenarioMoneyPath(caseId, scenario.id)}?tab=timeline`}
           variant="light"
         >
           {common("openTimeline")}

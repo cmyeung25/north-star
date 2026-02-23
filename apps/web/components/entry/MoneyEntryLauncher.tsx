@@ -3,25 +3,37 @@
 import { Button, Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { Link } from "../../src/i18n/navigation";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+import { scenarioDashboardPath, scenarioMoneyPath, scenarioPath, scenarioPeoplePath, scenarioSettingsPath } from "../../lib/routes/appRoutes";
+import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 
 type MoneyEntryLauncherProps = {
   scenarioId?: string | null;
 };
 
-type EntryPath =
-  | "/timeline"
-  | "/people"
-  | "/money"
-  | "/overview"
-  | "/dashboard"
-  | "/settings"
-  | "/stress";
+type EntryPath = "/timeline" | "/people" | "/money" | "/overview" | "/dashboard" | "/settings" | "/stress";
 
 export default function MoneyEntryLauncher({ scenarioId }: MoneyEntryLauncherProps) {
   const t = useTranslations("entryLauncher");
-  const entryHref = (path: EntryPath) =>
-    scenarioId ? buildScenarioUrl(path, scenarioId) : path;
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
+  const entryHref = (path: EntryPath) => {
+    if (!scenarioId || !caseId) return path;
+    switch (path) {
+      case "/money":
+        return scenarioMoneyPath(caseId, scenarioId);
+      case "/people":
+        return scenarioPeoplePath(caseId, scenarioId);
+      case "/settings":
+        return scenarioSettingsPath(caseId, scenarioId);
+      case "/overview":
+      case "/dashboard":
+        return scenarioDashboardPath(caseId, scenarioId);
+      case "/timeline":
+        return `${scenarioMoneyPath(caseId, scenarioId)}?tab=timeline`;
+      case "/stress":
+        return scenarioPath(caseId, scenarioId, "stress");
+    }
+  };
 
   return (
     <Card withBorder radius="md" padding="md">

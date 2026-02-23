@@ -19,6 +19,7 @@ import {
 } from "@mantine/core";
 import { buildMonthRange, monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
+import { type Locale } from "../../src/i18n/routing";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "../../lib/i18n";
@@ -35,7 +36,8 @@ import { useUiStore } from "../../src/store/uiStore";
 import { compileBudgetRuleToMonthlySeries } from "../../src/domain/budget/compileBudgetRules";
 import { normalizeMonthInput, normalizeMonthStrict } from "../../src/utils/month";
 import { addMonths, monthAtAge, monthsBetween } from "../../src/domain/members/age";
-import { buildScenarioUrl } from "../../src/utils/scenarioContext";
+import { scenarioDashboardPath } from "../../lib/routes/appRoutes";
+import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import { createEventId, getEventTypeDisplay } from "../../components/timeline/utils";
 import EndConditionPicker from "../../components/EndConditionPicker";
 import type { EventDefinition } from "../../src/domain/events/types";
@@ -138,6 +140,8 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
   const validationText = useTranslations("validation");
   const locale = useLocale();
   const router = useRouter();
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? "";
   const scenarios = useScenarioStore((state) => state.scenarios);
   const members = useScenarioStore((state) => state.members);
   const budgetRules = useScenarioStore((state) => state.budgetRules);
@@ -687,7 +691,7 @@ export default function AddFlowDrawer({ opened, onClose, scenarioId }: AddFlowDr
     if (!impactToast) {
       return;
     }
-    const scenarioPath = `/${locale}${buildScenarioUrl("/overview", resolvedScenarioId)}`;
+    const scenarioPath = scenarioDashboardPath(caseId, resolvedScenarioId, locale as Locale);
     openBreakdown(impactToast.month ?? undefined);
     router.push(scenarioPath);
     setImpactToast(null);
