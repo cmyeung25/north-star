@@ -2382,6 +2382,16 @@
     "impactEmpty": "No affected events found.",
     "impactAssetFallbackLabel": "Asset",
     "impactUnknownEntityLabel": "Unknown entity",
+    "presetLabel": "Assumption preset",
+    "presetConservative": "Conservative",
+    "presetBaseline": "Baseline",
+    "presetGrowth": "Growth",
+    "presetApply": "Apply preset",
+    "presetDiffHint": "Preview field-level differences before applying to this scenario.",
+    "presetDiffEmpty": "This preset matches your current assumptions.",
+    "presetBeforeValue": "Now: {value}",
+    "presetAfterValue": "Preset: {value}",
+    "presetImpactDiff": "Impact {before} → {after}",
     "otherSettingsHint": "Other settings will appear here as they become available."
   },
   "members": {
