@@ -127,7 +127,7 @@ export default function SettingsClient({
   scenarioId,
   titleKey = "settingsTitle",
   subtitleKey = "settingsSubtitle",
-  defaultTab = "data",
+  defaultTab = "global",
   tabOrder,
   initialAction,
   initialRuleId,
@@ -205,22 +205,22 @@ export default function SettingsClient({
   >({});
   const resolvedTabOrder = useMemo<SettingsTabKey[]>(() =>
     ((tabOrder ?? [
-      "data",
       "global",
       "members",
-      "budget",
+      "data",
       "other",
+      "budget",
     ]) as SettingsTabKey[]).filter((k) => k !== "budget") as SettingsTabKey[],
     [tabOrder]
   );
   const [activeTab, setActiveTab] = useState<SettingsTabKey>(defaultTab);
   const tabLabels: Record<SettingsTabKey, string> = useMemo(
     () => ({
-      data: common("settingsTabData"),
-      global: common("settingsTabGlobal"),
-      members: common("settingsTabMembers"),
+      data: common("settingsTabDataAction"),
+      global: common("settingsTabGlobalAction"),
+      members: common("settingsTabMembersAction"),
       budget: common("settingsTabBudget"),
-      other: common("settingsTabOther"),
+      other: common("settingsTabOtherAction"),
     }),
     [common]
   );
@@ -1256,6 +1256,20 @@ export default function SettingsClient({
         </Notification>
       )}
 
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="xs">
+          <Text fw={600}>{common("settingsGuidanceTitle")}</Text>
+          <Text size="sm" c="dimmed">
+            {common("settingsGuidanceSubtitle")}
+          </Text>
+          <Text size="sm">1. {common("settingsGuidanceStep1")}</Text>
+          <Text size="sm">2. {common("settingsGuidanceStep2")}</Text>
+          <Text size="sm">3. {common("settingsGuidanceStep3")}</Text>
+          <Text size="sm">4. {common("settingsGuidanceStep4")}</Text>
+        </Stack>
+      </Card>
+
       <Tabs value={activeTab} onChange={handleTabChange}>
         <Tabs.List>
           {resolvedTabOrder.map((tabKey) => (
@@ -1266,6 +1280,9 @@ export default function SettingsClient({
         </Tabs.List>
 
         <Tabs.Panel value="data" pt="md">
+          <Text size="sm" c="dimmed" mb="md">
+            {common("settingsSectionDataMicrocopy")}
+          </Text>
           <Card withBorder radius="md" padding="md" id="sync">
             <Stack gap="md">
               <Group justify="space-between" align="center">
@@ -1434,21 +1451,38 @@ export default function SettingsClient({
             </Stack>
           </Modal>
 
-          <DataManagementSection onNotify={showToast} />
+          <Accordion variant="separated" mt="md">
+            <Accordion.Item value="data-advanced">
+              <Accordion.Control>{common("advancedDataManagementLabel")}</Accordion.Control>
+              <Accordion.Panel>
+                <DataManagementSection onNotify={showToast} />
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         </Tabs.Panel>
 
         <Tabs.Panel value="global" pt="md">
-          <Card withBorder radius="md" padding="md">
-            <Stack gap="xs">
-              <Text fw={600}>{common("assumptionsHowTitle")}</Text>
-              <Text size="sm" c="dimmed">
-                {common("assumptionsHowLine1")}
-              </Text>
-              <Text size="sm" c="dimmed">
-                {common("assumptionsHowLine2")}
-              </Text>
-            </Stack>
-          </Card>
+          <Text size="sm" c="dimmed" mb="md">
+            {common("settingsSectionGlobalMicrocopy")}
+          </Text>
+          <Accordion variant="separated">
+            <Accordion.Item value="global-advanced-how">
+              <Accordion.Control>{common("advancedSettingsLabel")}</Accordion.Control>
+              <Accordion.Panel>
+                <Card withBorder radius="md" padding="md">
+                  <Stack gap="xs">
+                    <Text fw={600}>{common("assumptionsHowTitle")}</Text>
+                    <Text size="sm" c="dimmed">
+                      {common("assumptionsHowLine1")}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      {common("assumptionsHowLine2")}
+                    </Text>
+                  </Stack>
+                </Card>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
 
           <Card withBorder radius="md" padding="md" mt="md">
             <Stack gap="md">
@@ -1705,36 +1739,38 @@ export default function SettingsClient({
             />
           </Card>
 
-          <Card withBorder radius="md" padding="md" mt="md">
-            <Stack gap="md">
-              <Group justify="space-between" align="center" wrap="wrap">
-                <div>
-                  <Text fw={600}>{t("smartInvestSettingsTitle")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {t("smartInvestSettingsHint")}
-                  </Text>
-                </div>
-                <Button
-                  component={Link}
-                  href={`${scenarioMoneyPath(caseId, scenario.id)}?tab=timeline`}
-                  size="xs"
-                  variant="light"
-                >
-                  {common("openTimeline")}
-                </Button>
-              </Group>
-              <Divider />
-              <PositionDetailList items={smartInvestSummaryItems} />
-              {!smartInvestPolicy.enabled && (
-                <Text size="sm" c="dimmed">
-                  {t("smartInvestSummaryDisabled")}
-                </Text>
-              )}
-            </Stack>
-          </Card>
+          <Accordion variant="separated" mt="md">
+            <Accordion.Item value="global-advanced-smart-invest">
+              <Accordion.Control>{common("advancedSmartInvestLabel")}</Accordion.Control>
+              <Accordion.Panel>
+                <Card withBorder radius="md" padding="md">
+                  <Stack gap="md">
+                    <Group justify="space-between" align="center" wrap="wrap">
+                      <div>
+                        <Text fw={600}>{t("smartInvestSettingsTitle")}</Text>
+                        <Text size="sm" c="dimmed">
+                          {t("smartInvestSettingsHint")}
+                        </Text>
+                      </div>
+                    </Group>
+                    <Divider />
+                    <PositionDetailList items={smartInvestSummaryItems} />
+                    {!smartInvestPolicy.enabled && (
+                      <Text size="sm" c="dimmed">
+                        {t("smartInvestSummaryDisabled")}
+                      </Text>
+                    )}
+                  </Stack>
+                </Card>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         </Tabs.Panel>
 
         <Tabs.Panel value="members" pt="md">
+          <Text size="sm" c="dimmed" mb="md">
+            {common("settingsSectionMembersMicrocopy")}
+          </Text>
           <Card withBorder radius="md" padding="md">
             <Stack gap="md">
               <Group justify="space-between" align="center">
@@ -2899,6 +2935,9 @@ export default function SettingsClient({
         </Tabs.Panel>
 
         <Tabs.Panel value="other" pt="md">
+          <Text size="sm" c="dimmed" mb="md">
+            {common("settingsSectionOtherMicrocopy")}
+          </Text>
           <Card withBorder radius="md" padding="md">
             <Stack gap="md">
               <Text size="sm" c="dimmed">
@@ -2909,18 +2948,26 @@ export default function SettingsClient({
         </Tabs.Panel>
       </Tabs>
 
-      <Group>
-          <Button component={Link} href={scenarioDashboardPath(caseId, scenario.id)}>
-          {common("openOverview")}
-        </Button>
-        <Button
-          component={Link}
-          href={`${scenarioMoneyPath(caseId, scenario.id)}?tab=timeline`}
-          variant="light"
-        >
-          {common("openTimeline")}
-        </Button>
-      </Group>
+      <Card withBorder radius="md" padding="md" style={{ position: "sticky", bottom: 12, zIndex: 5 }}>
+        <Stack gap="xs">
+          <Text fw={600}>{common("settingsReviewActionsTitle")}</Text>
+          <Text size="sm" c="dimmed">
+            {common("settingsReviewActionsSubtitle")}
+          </Text>
+          <Group>
+            <Button component={Link} href={scenarioDashboardPath(caseId, scenario.id)}>
+              {common("openOverview")}
+            </Button>
+            <Button
+              component={Link}
+              href={`${scenarioMoneyPath(caseId, scenario.id)}?tab=timeline`}
+              variant="light"
+            >
+              {common("openTimeline")}
+            </Button>
+          </Group>
+        </Stack>
+      </Card>
     </Stack>
   );
 }
