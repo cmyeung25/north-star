@@ -465,12 +465,16 @@ export default function OnboardingV3Wizard() {
       payload.meta = nextMeta;
 
       try {
-        await saveScenarioPayloadAction(
+        const saveResult = await saveScenarioPayloadAction(
           scenarioContext.caseId,
           scenarioContext.scenarioId,
           payload,
           scenarioContext.revision,
         );
+
+        if (!saveResult.ok) {
+          throw new Error("REVISION_CONFLICT");
+        }
       } catch (error) {
         console.error("Failed to persist onboarding v3 payload", error);
         setValidationMessages([t("errors.saveFailed")]);

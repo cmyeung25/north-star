@@ -1979,12 +1979,16 @@ export default function OnboardingDraftWizard() {
       payload.meta = nextMeta;
 
       try {
-        await saveScenarioPayloadAction(
+        const saveResult = await saveScenarioPayloadAction(
           scenarioContext.caseId,
           scenarioContext.scenarioId,
           payload,
           scenarioContext.revision,
         );
+
+        if (!saveResult.ok) {
+          throw new Error("REVISION_CONFLICT");
+        }
       } catch (error) {
         console.error("Failed to persist onboarding payload", error);
         recordScenarioMigrationEvent({

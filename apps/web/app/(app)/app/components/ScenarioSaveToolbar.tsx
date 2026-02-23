@@ -48,7 +48,7 @@ export default function ScenarioSaveToolbar() {
     [activeScenarioId, appSettings, budgetRules, eventLibrary, members, scenarios],
   );
   const meta = useScenarioCloudStore((state) => state.active);
-  const { markError, markSaved, markSaving, markUnsaved } = useScenarioCloudStore.getState();
+  const { markConflict, markError, markSaved, markSaving, markUnsaved } = useScenarioCloudStore.getState();
 
   const caseId = params.caseId;
   const scenarioId = params.scenarioId;
@@ -74,24 +74,26 @@ export default function ScenarioSaveToolbar() {
       try {
         markSaving(scenarioId);
         const result = await saveScenarioPayloadAction(caseId, scenarioId, payload, meta.revision);
-        markSaved(scenarioId, nextHash, result.revision, result.lastSavedAt);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Save failed";
-        markError(scenarioId, message);
 
-        if (message === "REVISION_CONFLICT") {
+        if (!result.ok) {
+          markConflict(scenarioId);
           if (source === "manual") {
             setShowConflict(true);
           }
           return;
         }
 
+        markSaved(scenarioId, nextHash, result.revision, result.lastSavedAt);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Save failed";
+        markError(scenarioId, message);
+
         if (source === "autosave") {
           console.warn("Autosave failed", error);
         }
       }
     },
-    [caseId, markError, markSaved, markSaving, meta, scenarioId],
+    [caseId, markConflict, markError, markSaved, markSaving, meta, scenarioId],
   );
 
   useScenarioAutosave({
