@@ -16,17 +16,23 @@ export async function saveScenarioPayloadAction(
   scenarioId: string,
   payload: Record<string, unknown>,
   expectedRevision: number,
-) {
+): Promise<{ ok: true; revision: number; lastSavedAt: string } | { ok: false; reason: "conflict" }> {
   try {
-    return await repo().saveScenarioPayload(
+    const result = await repo().saveScenarioPayload(
       caseId,
       scenarioId,
       serializeScenarioPayloadForSave(payload, scenarioId),
       expectedRevision,
     );
+
+    return {
+      ok: true,
+      revision: result.revision,
+      lastSavedAt: result.lastSavedAt,
+    };
   } catch (error) {
     if (error instanceof RevisionConflictError) {
-      throw new Error("REVISION_CONFLICT");
+      return { ok: false, reason: "conflict" };
     }
     throw error;
   }

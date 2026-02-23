@@ -30,7 +30,7 @@ type SaveNowInput = {
     scenarioId: string;
     payload: Record<string, unknown>;
     expectedRevision: number;
-  }) => Promise<{ revision: number; lastSavedAt: string }>;
+  }) => Promise<{ ok: true; revision: number; lastSavedAt: string } | { ok: false; reason: "conflict" }>;
 };
 
 type SaveNowResult = { ok: true } | { ok: false; reason: "missing-meta" | "already-saving" | "error" | "conflict" };
@@ -195,15 +195,16 @@ export const useScenarioCloudStore = create<ScenarioCloudState>((set, get) => ({
         payload,
         expectedRevision: meta.revision,
       });
-      get().markSaved(meta.scenarioId, payloadHash, result.revision, result.lastSavedAt);
-      return { ok: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Save failed";
-      if (message === "REVISION_CONFLICT") {
+
+      if (!result.ok) {
         get().markConflict(meta.scenarioId);
         return { ok: false, reason: "conflict" };
       }
 
+      get().markSaved(meta.scenarioId, payloadHash, result.revision, result.lastSavedAt);
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Save failed";
       get().markError(meta.scenarioId, message);
       return { ok: false, reason: "error" };
     }
