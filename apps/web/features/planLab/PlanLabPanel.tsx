@@ -154,6 +154,7 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import { PlanLibraryDrawer } from "./PlanLibraryDrawer";
 import { SavePlanModal } from "./SavePlanModal";
+import { ENV_ASSUMPTION_LABELS } from "./assumptionLabels";
 import ExperimentTemplatesDrawer from "./ExperimentTemplatesDrawer";
 import MortgageDetailDrawer, {
   type MortgageDetailTab,
@@ -379,16 +380,6 @@ type PlanLabTopDriver = {
 
 const TOP_DRIVER_COUNT = 5;
 const PLANLAB_MAX_MONTHS = 360;
-
-const ENV_ASSUMPTION_LABELS: Record<keyof ScenarioAssumptionsOverride, string> = {
-  inflationRate: "通脹率",
-  salaryGrowthRate: "薪金增長",
-  emergencyFundMonths: "緊急儲備目標",
-  rentAnnualGrowthPct: "租金增長",
-  propertyAppreciationPct: "房產增值",
-  cashYieldPct: "現金收益率",
-  carDepreciationRatePct: "汽車折舊",
-};
 
 const pickScenarioAssumptionOverrides = (
   assumptions: ScenarioAssumptions

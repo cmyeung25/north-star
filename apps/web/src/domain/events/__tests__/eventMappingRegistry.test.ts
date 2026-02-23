@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mapScenarioCashflowToLegacyType, mapTimelineEventToScenarioCashflow } from "../eventMappingRegistry";
+import {
+  mapLegacyTimelineTypeToScenario,
+  mapScenarioCashflowToLegacyType,
+  mapTimelineEventToScenarioCashflow,
+  migrateScenarioCashflowCategoryLazy,
+} from "../eventMappingRegistry";
 import { expenseCategories, incomeSubtypes, structuralEventTypes } from "../eventTaxonomy";
 import type { TimelineEvent } from "../../../features/timeline/schema";
 
@@ -51,6 +56,73 @@ describe("eventMappingRegistry", () => {
     expect(mapped.expenseCategory).toBe("travel");
     expect(mapped.mappingMetadata.legacyType).toBe("travel");
     expect(mapScenarioCashflowToLegacyType(mapped)).toBe("travel");
+  });
+
+  it("supports legacy -> v2 -> legacy round-trip for all legacy types", () => {
+    const legacyTypes: TimelineEvent["type"][] = [
+      "salary",
+      "custom",
+      "rent",
+      "travel",
+      "tax_benefit",
+      "insurance",
+      "buy_home",
+      "baby",
+      "car",
+      "insurance_product",
+      "insurance_premium",
+      "insurance_payout",
+      "helper",
+      "investment_contribution",
+      "investment_withdrawal",
+    ];
+
+    for (const legacyType of legacyTypes) {
+      const timelineEvent = buildTimelineEvent({
+        type: legacyType,
+        incomeSubtype: legacyType === "salary" ? "bonus" : undefined,
+      });
+      const v2Event = mapTimelineEventToScenarioCashflow(timelineEvent);
+      expect(mapScenarioCashflowToLegacyType(v2Event)).toBe(legacyType);
+    }
+  });
+
+  it("lazy-migrates missing category fields for legacy cashflow events", () => {
+    const salaryWithoutCategory = mapTimelineEventToScenarioCashflow(
+      buildTimelineEvent({ type: "salary", incomeSubtype: "freelance" })
+    );
+    delete salaryWithoutCategory.category;
+
+    const migratedIncome = migrateScenarioCashflowCategoryLazy(salaryWithoutCategory);
+    expect(migratedIncome.category).toBe("freelance");
+    expect(mapScenarioCashflowToLegacyType(migratedIncome)).toBe("salary");
+
+    const travelWithoutCategory = mapTimelineEventToScenarioCashflow(
+      buildTimelineEvent({ type: "travel" })
+    );
+    delete travelWithoutCategory.expenseCategory;
+
+    const migratedExpense = migrateScenarioCashflowCategoryLazy(travelWithoutCategory);
+    expect(migratedExpense.expenseCategory).toBe("travel");
+    expect(mapScenarioCashflowToLegacyType(migratedExpense)).toBe("travel");
+  });
+
+  it("preserves category semantics with acceptable legacy downgrade", () => {
+    const salaryMapping = mapLegacyTimelineTypeToScenario("salary", "dividend");
+    expect(salaryMapping.category).toBe("dividend");
+
+    const taxBenefitMapping = mapLegacyTimelineTypeToScenario("tax_benefit");
+    expect(taxBenefitMapping.category).toBe("other");
+
+    const taxBenefitEvent = mapTimelineEventToScenarioCashflow(
+      buildTimelineEvent({ type: "tax_benefit", incomeSubtype: "other" })
+    );
+    expect(mapScenarioCashflowToLegacyType(taxBenefitEvent)).toBe("tax_benefit");
+
+    const salaryEvent = mapTimelineEventToScenarioCashflow(
+      buildTimelineEvent({ type: "salary", incomeSubtype: "dividend" })
+    );
+    expect(mapScenarioCashflowToLegacyType(salaryEvent)).toBe("salary");
   });
 
   it("fails fast for unknown legacy type", () => {

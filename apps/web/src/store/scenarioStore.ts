@@ -45,6 +45,7 @@ import {
   type DuplicateCluster,
 } from "../domain/events/mergeDuplicates";
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
+import { migrateScenarioCashflowCategoryLazy } from "../domain/events/eventMappingRegistry";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 import { buildMonthDateRef } from "../domain/dateRef";
@@ -1445,10 +1446,14 @@ const cloneEventRefs = (eventRefs?: ScenarioEventRef[]) =>
   }));
 
 const cloneScenarioEvents = (events?: ScenarioEvent[]) =>
-  events?.map((event) => ({
-    ...event,
-    tags: event.tags ? [...event.tags] : undefined,
-  }));
+  events?.map((event) => {
+    const normalizedEvent =
+      event.type === "cashflow" ? migrateScenarioCashflowCategoryLazy(event) : event;
+    return {
+      ...normalizedEvent,
+      tags: normalizedEvent.tags ? [...normalizedEvent.tags] : undefined,
+    };
+  });
 
 const cloneScenarioAssets = (assets?: ScenarioAsset[]) =>
   assets?.map((asset) => ({ ...asset }));
