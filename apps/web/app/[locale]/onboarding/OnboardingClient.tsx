@@ -1,5 +1,6 @@
 "use client";
 
+// TODO(2026-06-30): Delete this legacy flat-route onboarding client once all entry points use canonical scenario onboarding routes.
 import { Skeleton, Stack } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";

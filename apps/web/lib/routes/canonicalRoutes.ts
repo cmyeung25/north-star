@@ -72,3 +72,10 @@ export const scenarioSettingsPath = (
   scenarioId: string,
   locale?: Locale | null,
 ) => scenarioPath(caseId, scenarioId, "settings", locale);
+
+export const scenarioSettingsFeaturePath = (
+  caseId: string,
+  scenarioId: string,
+  featureAnchor: "sync",
+  locale?: Locale | null,
+) => `${scenarioSettingsPath(caseId, scenarioId, locale)}#${featureAnchor}`;

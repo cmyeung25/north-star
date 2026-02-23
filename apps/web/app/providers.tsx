@@ -16,7 +16,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useLocale, useTranslations } from "next-intl";
-import type { Locale } from "../src/i18n/routing";
 import { isFirebaseConfigured } from "../lib/firebaseClient";
 import { useAuthState } from "../src/hooks/useAuthState";
 import { startAutoSync, stopAutoSync } from "../src/sync/autoSync";
@@ -33,16 +32,21 @@ import { getActiveScenario, useScenarioStore } from "../src/store/scenarioStore"
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import ScenarioSwitcher from "../components/ScenarioSwitcher";
 import BrandLogo from "../components/brand/BrandLogo";
-import {
-  desktopToolbarHeight,
-} from "../components/DesktopBottomToolbar";
+import { desktopToolbarHeight } from "../components/bottomToolbarMetrics";
 import { Link } from "../src/i18n/navigation";
 import { createSupabaseBrowserClient } from "../src/lib/supabase/browser";
 import { isScenarioOnboarded } from "../lib/onboarding/isScenarioOnboarded";
 import { CaseScenarioProvider } from "../src/contexts/CaseScenarioProvider";
 import { resolveScenarioLifecycle } from "../src/domain/scenarioStateModel";
 import { recordScenarioMigrationEvent } from "../src/lib/telemetry/scenarioMigrationTelemetry";
-import { scenarioSettingsPath } from "../lib/routes/appRoutes";
+import {
+  memberCasesPath,
+  scenarioDashboardPath,
+  scenarioMoneyPath,
+  scenarioPeoplePath,
+  scenarioPlanLabPath,
+  scenarioSettingsFeaturePath,
+} from "../lib/routes/canonicalRoutes";
 
 
 const stripLocalePrefix = (pathname: string, locale: string) => {
@@ -66,7 +70,6 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
   const locale = useLocale();
   const t = useTranslations("common");
   const nav = useTranslations("nav");
-  const localeValue = locale as Locale;
   const authState = useAuthState();
   const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
   const scenarios = useScenarioStore((state) => state.scenarios);
@@ -91,20 +94,63 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
   const caseIdFromPath = workspaceRouteMatch?.[1] ?? null;
   const scenarioIdFromPath = workspaceRouteMatch?.[2] ?? null;
 
+  const activeScenarioContext =
+    caseIdFromPath && scenarioIdFromPath
+      ? { caseId: caseIdFromPath, scenarioId: scenarioIdFromPath }
+      : null;
+
   const navItems = [
-    { label: nav("dashboard"), href: "/dashboard" },
-    { label: nav("planLab"), href: "/plan-lab" },
-    { label: nav("money"), href: "/money" },
-    { label: nav("people"), href: "/people" },
+    {
+      label: nav("dashboard"),
+      href: activeScenarioContext
+        ? scenarioDashboardPath(activeScenarioContext.caseId, activeScenarioContext.scenarioId)
+        : memberCasesPath(),
+      activePath: activeScenarioContext
+        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/dashboard`
+        : "/member/cases",
+    },
+    {
+      label: nav("planLab"),
+      href: activeScenarioContext
+        ? scenarioPlanLabPath(activeScenarioContext.caseId, activeScenarioContext.scenarioId)
+        : memberCasesPath(),
+      activePath: activeScenarioContext
+        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/planlab`
+        : "/member/cases",
+    },
+    {
+      label: nav("money"),
+      href: activeScenarioContext
+        ? scenarioMoneyPath(activeScenarioContext.caseId, activeScenarioContext.scenarioId)
+        : memberCasesPath(),
+      activePath: activeScenarioContext
+        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/money`
+        : "/member/cases",
+    },
+    {
+      label: nav("people"),
+      href: activeScenarioContext
+        ? scenarioPeoplePath(activeScenarioContext.caseId, activeScenarioContext.scenarioId)
+        : memberCasesPath(),
+      activePath: activeScenarioContext
+        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/people`
+        : "/member/cases",
+    },
     {
       label: nav("settings"),
-      href:
-        caseIdFromPath && scenarioIdFromPath
-          ? scenarioSettingsPath(caseIdFromPath, scenarioIdFromPath, localeValue)
-          : "/settings",
+      href: activeScenarioContext
+        ? scenarioSettingsFeaturePath(activeScenarioContext.caseId, activeScenarioContext.scenarioId, "sync")
+        : memberCasesPath(),
+      activePath: activeScenarioContext
+        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/settings`
+        : "/member/cases",
     },
-    { label: nav("scenarios"), href: "/member/cases" },
+    { label: nav("scenarios"), href: memberCasesPath(), activePath: "/member/cases" },
   ];
+
+  const syncSettingsHref = activeScenarioContext
+    ? scenarioSettingsFeaturePath(activeScenarioContext.caseId, activeScenarioContext.scenarioId, "sync")
+    : memberCasesPath();
 
   const isSignedIn = authState.status === "signed-in";
   const statusLabel = isSignedIn
@@ -301,7 +347,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
                 {!isSignedIn && (
                   <Button
                     component={Link}
-                    href="/people#sync"
+                    href={syncSettingsHref}
                     size="xs"
                     variant="outline"
                     disabled={!isFirebaseConfigured}
@@ -359,7 +405,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
                     {!isSignedIn && (
                       <Button
                         component={Link}
-                        href="/people#sync"
+                        href={syncSettingsHref}
                         size="xs"
                         variant="outline"
                         disabled={!isFirebaseConfigured}
@@ -406,15 +452,15 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
                   component={Link}
                   href={item.href}
                   label={item.label}
-                  active={normalizedPathname === item.href}
+                  active={normalizedPathname === item.activePath}
                   styles={{
                     root: {
                       color: "var(--mantine-color-gray-0)",
-                      borderLeft: normalizedPathname === item.href
+                      borderLeft: normalizedPathname === item.activePath
                         ? "3px solid var(--mantine-color-aurora-6)"
                         : "3px solid transparent",
                       borderRadius: "var(--mantine-radius-md)",
-                      backgroundColor: normalizedPathname === item.href ? shellActive : "transparent",
+                      backgroundColor: normalizedPathname === item.activePath ? shellActive : "transparent",
                       "&:hover": {
                         backgroundColor: "var(--mantine-color-polar-8)",
                       },
@@ -436,7 +482,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
                   href={item.href}
                   variant="subtle"
                   c="gray.1"
-                  style={normalizedPathname === item.href
+                  style={normalizedPathname === item.activePath
                     ? { borderTop: "2px solid var(--mantine-color-aurora-6)", background: "rgba(221, 231, 255, 0.18)" }
                     : { borderTop: "2px solid transparent" }}
                 >
