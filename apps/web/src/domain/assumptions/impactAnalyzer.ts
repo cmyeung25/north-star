@@ -1,6 +1,15 @@
 import type { Scenario, ScenarioAssumptions, ScenarioAsset } from "../../store/scenarioStore";
 import type { ScenarioEvent } from "../scenarioV2/events";
 
+export const ASSUMPTION_IMPACT_KEYS = [
+  "inflationRate",
+  "salaryGrowthRate",
+  "rentAnnualGrowthPct",
+  "propertyAppreciationPct",
+  "cashYieldPct",
+  "carDepreciationRatePct",
+] as const;
+
 export type AssumptionImpactKey =
   | "inflationRate"
   | "salaryGrowthRate"

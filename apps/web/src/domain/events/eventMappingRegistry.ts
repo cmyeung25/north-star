@@ -60,6 +60,16 @@ const EXPENSE_CATEGORY_BY_LEGACY: Partial<Record<LegacyEventType, ExpenseCategor
 
 export type EventMappingMetadata = { legacyType: LegacyEventType };
 
+const resolveLegacyTypeFromCashflowMeta = (
+  event: Extract<ScenarioEvent, { type: "cashflow" }>
+): LegacyEventType | null => {
+  const legacyTypeFromMeta = (event.meta as Record<string, unknown> | undefined)?.legacyType;
+  if (typeof legacyTypeFromMeta === "string" && legacyTypeFromMeta in LEGACY_TO_CASHFLOW) {
+    return legacyTypeFromMeta as LegacyEventType;
+  }
+  return null;
+};
+
 const resolveIncomeCategory = (event: TimelineEvent): IncomeSubtype | undefined => {
   if (event.type !== "salary" && event.type !== "tax_benefit") {
     return undefined;
@@ -121,9 +131,9 @@ export const mapTimelineEventToScenarioCashflow = (
 export const mapScenarioCashflowToLegacyType = (
   event: Extract<ScenarioEvent, { type: "cashflow" }>
 ): LegacyEventType => {
-  const legacyTypeFromMeta = (event.meta as Record<string, unknown> | undefined)?.legacyType;
-  if (typeof legacyTypeFromMeta === "string" && legacyTypeFromMeta in LEGACY_TO_CASHFLOW) {
-    return legacyTypeFromMeta as LegacyEventType;
+  const legacyTypeFromMeta = resolveLegacyTypeFromCashflowMeta(event);
+  if (legacyTypeFromMeta) {
+    return legacyTypeFromMeta;
   }
 
   if (event.kind === "income") {
@@ -131,6 +141,39 @@ export const mapScenarioCashflowToLegacyType = (
   }
 
   return "custom";
+};
+
+export const migrateScenarioCashflowCategoryLazy = (
+  event: Extract<ScenarioEvent, { type: "cashflow" }>
+): Extract<ScenarioEvent, { type: "cashflow" }> => {
+  const legacyType = resolveLegacyTypeFromCashflowMeta(event);
+
+  if (event.kind === "income") {
+    if (event.category) {
+      return event;
+    }
+    const rawLegacyIncomeSubtype = (event.meta as Record<string, unknown> | undefined)
+      ?.legacyIncomeSubtype;
+    const fallbackCategory: IncomeSubtype =
+      typeof rawLegacyIncomeSubtype === "string" && rawLegacyIncomeSubtype in INCOME_LEGACY_BY_SUBTYPE
+        ? (rawLegacyIncomeSubtype as IncomeSubtype)
+        : legacyType === "tax_benefit"
+          ? "other"
+          : "salary";
+    return {
+      ...event,
+      category: fallbackCategory,
+    };
+  }
+
+  if (event.expenseCategory) {
+    return event;
+  }
+
+  return {
+    ...event,
+    expenseCategory: (legacyType && EXPENSE_CATEGORY_BY_LEGACY[legacyType]) ?? "other",
+  };
 };
 
 export const legacyIncomeEventTypes = new Set<LegacyEventType>([
