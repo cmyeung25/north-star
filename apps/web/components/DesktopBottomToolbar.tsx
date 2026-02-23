@@ -21,7 +21,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUiStore } from "../src/store/uiStore";
 import { useScenarioContext } from "../src/hooks/useScenarioContext";
 
-export const desktopToolbarHeight = 72;
 
 export default function DesktopBottomToolbar() {
   const t = useTranslations("toolbar");

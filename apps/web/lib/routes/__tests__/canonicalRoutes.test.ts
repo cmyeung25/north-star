@@ -7,6 +7,7 @@ import {
   scenarioOnboardingPath,
   scenarioPath,
   scenarioPeoplePath,
+  scenarioSettingsFeaturePath,
   scenarioSettingsPath,
 } from "../canonicalRoutes";
 
@@ -29,6 +30,9 @@ describe("canonicalRoutes", () => {
     );
     expect(scenarioSettingsPath("case-1", "scenario-1", "en")).toBe(
       "/en/app/case/case-1/scenario/scenario-1/settings",
+    );
+    expect(scenarioSettingsFeaturePath("case-1", "scenario-1", "sync")).toBe(
+      "/app/case/case-1/scenario/scenario-1/settings#sync",
     );
   });
 
