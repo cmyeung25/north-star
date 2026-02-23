@@ -3,33 +3,18 @@ import type { ScenarioV2 } from "../../engine/scenarioV2Compiler";
 import type { EventDefinition } from "../events/types";
 import type { ScenarioEvent } from "../scenarioV2/events";
 import { buildScenarioTimelineEvents } from "../events/utils";
+import { mapTimelineEventToScenarioCashflow } from "../events/eventMappingRegistry";
 import type { TimelineEvent } from "../../features/timeline/schema";
 
-const incomeEventTypes = new Set([
-  "salary",
-  "bonus",
-  "freelance",
-  "rental",
-  "dividend",
-  "interest",
-  "tax_benefit",
-]);
-
 const buildCashflowEvent = (event: TimelineEvent): ScenarioEvent => {
-  const amount = event.oneTimeAmount > 0 ? event.oneTimeAmount : event.monthlyAmount;
-  const cadence = event.oneTimeAmount > 0 ? "oneOff" : "monthly";
+  const { mappingMetadata, ...mappedEvent } = mapTimelineEventToScenarioCashflow(event);
+
   return {
-    id: event.id,
-    type: "cashflow",
-    kind: incomeEventTypes.has(event.type) ? "income" : "expense",
-    cadence,
-    amount: Math.abs(amount),
-    startMonth: event.startMonth,
-    endMonth: event.endMonth ?? undefined,
-    occurrenceMonth: cadence === "oneOff" ? event.startMonth : undefined,
-    label: event.name,
-    memberId: event.memberId,
-    tags: [event.type],
+    ...mappedEvent,
+    meta: {
+      ...(mappedEvent.meta ?? {}),
+      legacyType: mappingMetadata.legacyType,
+    },
   };
 };
 

@@ -19,6 +19,7 @@ import type {
 } from "../domain/scenarioV2/events";
 import { applyAnnualRate, resolveCashflowAmountForMonth } from "../domain/cashflowGrowth";
 import { normalizeCashflowGrowth, resolveHousingGrowthMode } from "../domain/scenarioV2/growthPolicy";
+import { mapScenarioCashflowToLegacyType } from "../domain/events/eventMappingRegistry";
 import { computeMonthlyPayment } from "../domain/positions/calculations";
 import type { EventType } from "../features/timeline/schema";
 import type {
@@ -684,9 +685,6 @@ const buildLegacyScenarioShell = (
   meta: scenario.meta,
 });
 
-const buildEventTypeForKind = (kind: CashflowEvent["kind"]): EventType =>
-  kind === "income" ? "salary" : "custom";
-
 const buildLegacyEventLibrary = (
   scenario: ScenarioV2
 ): EventDefinition[] => {
@@ -704,7 +702,7 @@ const buildLegacyEventLibrary = (
         return [];
       }
 
-      const type = buildEventTypeForKind(event.kind) as EventType;
+      const type = mapScenarioCashflowToLegacyType(event) as EventType;
       const amountDivisor = resolveBudgetOccurrenceCount(event) ?? 1;
       const schedule = months.map((month) => ({
         month,
@@ -723,7 +721,7 @@ const buildLegacyEventLibrary = (
         },
         currency: scenario.baseCurrency,
         memberId: event.memberId,
-        ...(event.kind === "income" ? { incomeSubtype: "other" } : {}),
+        ...(event.kind === "income" ? { incomeSubtype: event.category ?? "other" } : {}),
       };
 
       return [definition];
