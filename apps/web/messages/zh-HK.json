@@ -2417,6 +2417,12 @@
     "previewNotReached": "未達標",
     "initialCashMovedHint": "起點現金請到：金錢專區 → 資產 → 現金。",
     "initialCashMovedLink": "前往金錢專區資產",
+    "impactCount": "影響 {count} 個事件",
+    "impactView": "查看",
+    "impactModalTitle": "受影響事件 · {assumption}",
+    "impactEmpty": "未找到受影響事件。",
+    "impactAssetFallbackLabel": "資產",
+    "impactUnknownEntityLabel": "未知項目",
     "otherSettingsHint": "其他設定將會陸續提供。"
   },
   "members": {

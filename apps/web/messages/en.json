@@ -2376,6 +2376,12 @@
     "previewNotReached": "Not reached",
     "initialCashMovedHint": "Starting cash is now managed in Money hub → Assets → Cash.",
     "initialCashMovedLink": "Go to Money assets",
+    "impactCount": "Impacts {count} events",
+    "impactView": "View",
+    "impactModalTitle": "Affected events · {assumption}",
+    "impactEmpty": "No affected events found.",
+    "impactAssetFallbackLabel": "Asset",
+    "impactUnknownEntityLabel": "Unknown entity",
     "otherSettingsHint": "Other settings will appear here as they become available."
   },
   "members": {
