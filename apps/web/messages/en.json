@@ -122,7 +122,8 @@
     },
     "brand": {
       "ariaLabel": "Go to scenarios"
-    }
+    },
+    "scenarioManagement": "Scenario Manager"
   },
   "toolbar": {
     "addButton": "+ Add",

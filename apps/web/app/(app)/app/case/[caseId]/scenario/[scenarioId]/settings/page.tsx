@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { Title } from "@mantine/core";
+import { getTranslations } from "next-intl/server";
 import { createSupabaseServerClient } from "../../../../../../../../src/lib/supabase/server";
 import ScenarioSettingsClient from "./ScenarioSettingsClient";
 
@@ -9,6 +10,7 @@ type PageProps = {
 };
 
 export default async function ScenarioSettingsPage({ params }: PageProps) {
+  const nav = await getTranslations("nav");
   const repo = createCaseScenarioRepo({
     mode: "cloud",
     supabaseClient: createSupabaseServerClient(),
@@ -22,7 +24,7 @@ export default async function ScenarioSettingsPage({ params }: PageProps) {
   return (
     <>
       <Title order={3} mb="md">
-        情景設定
+        {nav("scenarioManagement")}
       </Title>
       <ScenarioSettingsClient
         caseId={params.caseId}

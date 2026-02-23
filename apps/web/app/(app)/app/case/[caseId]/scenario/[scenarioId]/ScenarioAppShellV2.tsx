@@ -1,7 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   AppShell,
   Box,
@@ -62,7 +62,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
   const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const scenarioContext = useScenarioContext();
-  const locale = useLocale();
+  const params = useParams<{ caseId?: string | string[]; scenarioId?: string | string[] }>();
   const t = useTranslations("app.shell");
   const nav = useTranslations("nav");
   const meta = useScenarioCloudStore((state) => state.active);
@@ -95,20 +95,17 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
     [activeScenarioId, appSettings, budgetRules, eventLibrary, members, scenarios],
   );
 
-  const caseId = scenarioContext?.caseId ?? "";
-  const scenarioId = scenarioContext?.scenarioId ?? "";
+  const paramCaseId = typeof params.caseId === "string" ? params.caseId : "";
+  const paramScenarioId = typeof params.scenarioId === "string" ? params.scenarioId : "";
+  const caseId = paramCaseId || scenarioContext?.caseId || "";
+  const scenarioId = paramScenarioId || scenarioContext?.scenarioId || "";
 
   const appScenarioUrl = buildAppScenarioUrl({ caseId, scenarioId });
-  const settingsClientHref = `/${locale}/people?scenarioId=${encodeURIComponent(
-    scenarioId
-  )}&tab=settings`;
-
   const tabs: WorkspaceTab[] = [
     { href: `${appScenarioUrl}/dashboard`, label: nav("dashboard") },
     { href: `${appScenarioUrl}/planlab`, label: nav("planLab") },
     { href: `${appScenarioUrl}/money`, label: nav("money") },
-    { href: settingsClientHref, label: nav("settings") },
-    { href: scenarioSettingsPath(caseId, scenarioId), label: nav("scenarioSettings") },
+    { href: scenarioSettingsPath(caseId, scenarioId), label: nav("scenarioManagement") },
   ];
   const mobileTabs = tabs.slice(0, 3);
   const resolvedWorkspaceMode: WorkspaceMode = useMemo(() => resolveWorkspaceMode(pathname), [pathname]);
