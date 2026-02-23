@@ -61,6 +61,12 @@ export const scenarioPlanLabPath = (
   locale?: Locale | null,
 ) => scenarioPath(caseId, scenarioId, "planlab", locale);
 
+export const scenarioPeoplePath = (
+  caseId: string,
+  scenarioId: string,
+  locale?: Locale | null,
+) => scenarioPath(caseId, scenarioId, "people", locale);
+
 export const scenarioSettingsPath = (
   caseId: string,
   scenarioId: string,

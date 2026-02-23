@@ -21,7 +21,8 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { monthIndex } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
-import { useRouter, useSearchParams } from "next/navigation";
+import { type Locale } from "../../../src/i18n/routing";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import HomeDetailsForm from "../../../components/timeline/HomeDetailsForm";
 import CarDetailsForm from "../../../components/timeline/CarDetailsForm";
@@ -69,6 +70,7 @@ import {
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
 import { formatCurrency } from "../../../lib/i18n";
+import { scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
 import { buildScenarioEventViews } from "../../../src/domain/events/utils";
 import { monthsBetween } from "../../../src/domain/members/age";
 import { isValidMonthStr } from "../../../src/utils/month";
@@ -348,6 +350,7 @@ export default function MoneyClient({
   const locale = useLocale();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const router = useRouter();
+  const params = useParams<{ caseId?: string }>();
   const searchParams = useSearchParams();
   const scenarios = useScenarioStore((state) => state.scenarios);
   const eventLibrary = useScenarioStore((state) => state.eventLibrary);
@@ -931,6 +934,13 @@ export default function MoneyClient({
           }
           query.set("tab", "budget");
           query.set("ruleId", rule.id);
+
+          const caseId = params.caseId;
+          if (caseId && scenarioIdValue) {
+            router.push(`${scenarioPeoplePath(caseId, scenarioIdValue, locale as Locale)}?${query.toString()}`);
+            return;
+          }
+
           router.push(`/${locale}/people?${query.toString()}`);
         },
         onDelete: () => removeBudgetRule(rule.id),
