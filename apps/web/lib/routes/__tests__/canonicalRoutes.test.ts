@@ -6,6 +6,7 @@ import {
   scenarioDashboardPath,
   scenarioOnboardingPath,
   scenarioPath,
+  scenarioPeoplePath,
 } from "../canonicalRoutes";
 
 describe("canonicalRoutes", () => {
@@ -21,6 +22,9 @@ describe("canonicalRoutes", () => {
     );
     expect(scenarioOnboardingPath("case-1", "scenario-1", "en")).toBe(
       "/en/app/case/case-1/scenario/scenario-1/onboarding",
+    );
+    expect(scenarioPeoplePath("case-1", "scenario-1")).toBe(
+      "/app/case/case-1/scenario/scenario-1/people",
     );
   });
 
