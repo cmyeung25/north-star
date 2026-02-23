@@ -70,7 +70,7 @@ import {
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
 import { formatCurrency } from "../../../lib/i18n";
-import { scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
+import { memberCasesPath, scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
 import { buildScenarioEventViews } from "../../../src/domain/events/utils";
 import { monthsBetween } from "../../../src/domain/members/age";
 import { isValidMonthStr } from "../../../src/utils/month";
@@ -928,20 +928,17 @@ export default function MoneyClient({
           amount: formatCurrency(rule.monthlyAmount, scenario?.baseCurrency ?? "USD", locale),
         }),
         onEdit: () => {
-          const query = new URLSearchParams();
-          if (scenarioIdValue) {
-            query.set("scenarioId", scenarioIdValue);
-          }
-          query.set("tab", "budget");
-          query.set("ruleId", rule.id);
-
-          const caseId = params.caseId;
-          if (caseId && scenarioIdValue) {
-            router.push(`${scenarioPeoplePath(caseId, scenarioIdValue, locale as Locale)}?${query.toString()}`);
+          if (!params.caseId || !scenarioIdValue) {
+            router.push(memberCasesPath(locale as Locale));
             return;
           }
 
-          router.push(`/${locale}/people?${query.toString()}`);
+          const query = new URLSearchParams();
+          query.set("tab", "budget");
+          query.set("ruleId", rule.id);
+          router.push(
+            `${scenarioPeoplePath(params.caseId, scenarioIdValue, locale as Locale)}?${query.toString()}`,
+          );
         },
         onDelete: () => removeBudgetRule(rule.id),
       }));
@@ -951,6 +948,7 @@ export default function MoneyClient({
     locale,
     removeBudgetRule,
     router,
+    params.caseId,
     scenario?.baseCurrency,
     scenarioIdValue,
     t,

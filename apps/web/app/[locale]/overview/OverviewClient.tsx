@@ -43,7 +43,7 @@ import ScenarioContextSelector from "../../../features/overview/components/Scena
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
 import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
-import { scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
+import { memberCasesPath, scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
 import {
   projectionToOverviewViewModel,
 } from "../../../src/engine/adapter";
@@ -669,7 +669,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const moneyInputsHref = `${moneyHubHref}&tab=inputs`;
   const peopleHubHref = params.caseId
     ? scenarioPeoplePath(params.caseId, selectedScenario.id, locale as Locale)
-    : buildScenarioUrl("/people", selectedScenario.id);
+    : memberCasesPath(locale as Locale);
   const completenessItems = [
     { key: "income", label: sd("completeness.income", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: `${moneyHubHref}&tab=income` },
     { key: "expenses", label: sd("completeness.expenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: `${moneyHubHref}&tab=expenses` },
