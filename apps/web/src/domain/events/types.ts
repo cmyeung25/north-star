@@ -1,4 +1,5 @@
-import type { EventType, IncomeSubtype } from "../../features/timeline/schema";
+import type { EventType } from "../../features/timeline/schema";
+import type { IncomeSubtype } from "./eventTaxonomy";
 import type { GrowthMode } from "../growthMode";
 import type { DateRef } from "../dateRef";
 
@@ -37,12 +38,19 @@ export type EventDefinitionKind = "group" | "cashflow";
 export type EventDefinition = {
   id: string;
   title: string;
+  /**
+   * @deprecated Legacy business category (`salary`, `rent`, ...).
+   * Structural semantics live on Scenario V2 events: `type` + `kind`.
+   */
   type: EventType;
   kind: EventDefinitionKind;
   parentId?: string;
   rule: EventRule;
   currency?: string;
   memberId?: string;
+  /**
+   * Legacy business subcategory for income events.
+   */
   incomeSubtype?: IncomeSubtype;
   endAtAgeYears?: number;
   templateId?: string;

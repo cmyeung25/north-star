@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  AdjustmentEventKindSchema,
+  CashflowEventKindSchema,
+  HousingEventKindSchema,
+  StructuralEventTypeSchema,
+  IncomeSubtypeSchema,
+} from "../events/eventTaxonomy";
 
 export type MonthKey = string;
 
@@ -40,10 +47,12 @@ const BaseEventSchema = z.object({
 });
 
 export const CashflowEventSchemaBase = BaseEventSchema.extend({
-  type: z.literal("cashflow"),
-  kind: z.enum(["income", "expense"]),
+  type: StructuralEventTypeSchema.extract(["cashflow"]),
+  kind: CashflowEventKindSchema,
   cadence: z.enum(["monthly", "quarterly", "yearly", "oneOff", "everyNMonths"]),
   amount: z.number(),
+  /** Business category for legacy income semantics. */
+  category: IncomeSubtypeSchema.optional(),
   growthMode: z.enum(["none", "assumption", "custom"]).optional(),
   growthSource: z.enum(["inflation", "rentGrowth"]).optional(),
   customGrowthRatePct: z.number().optional(),
@@ -117,8 +126,8 @@ const validateCashflowFields = (
 };
 
 const HousingEventSchemaBase = BaseEventSchema.extend({
-  type: z.literal("housing"),
-  kind: z.enum(["rent", "mortgage"]),
+  type: StructuralEventTypeSchema.extract(["housing"]),
+  kind: HousingEventKindSchema,
   startMonth: MonthKeySchema,
   endMonth: MonthKeySchema.optional(),
   rentMonthly: z.number().optional(),
@@ -143,6 +152,8 @@ const HousingEventSchemaBase = BaseEventSchema.extend({
         id: z.string(),
         label: z.string().optional(),
         amount: z.number(),
+  /** Business category for legacy income semantics. */
+  category: IncomeSubtypeSchema.optional(),
         month: MonthKeySchema,
       })
     )
@@ -153,6 +164,8 @@ const HousingEventSchemaBase = BaseEventSchema.extend({
         id: z.string(),
         label: z.string().optional(),
         amount: z.number(),
+  /** Business category for legacy income semantics. */
+  category: IncomeSubtypeSchema.optional(),
         startMonth: MonthKeySchema,
         endMonth: MonthKeySchema.optional(),
       })
@@ -249,7 +262,7 @@ export const HousingEventSchema = HousingEventSchemaBase.superRefine(
 );
 
 const LoanEventSchemaBase = BaseEventSchema.extend({
-  type: z.literal("loan"),
+  type: StructuralEventTypeSchema.extract(["loan"]),
   loanKind: z.enum(["car", "personal", "credit", "other"]),
   startMonth: MonthKeySchema,
   principal: z.number(),
@@ -297,7 +310,7 @@ const InsurancePolicySchema = z.object({
 });
 
 const InsuranceEventSchemaBase = BaseEventSchema.extend({
-  type: z.literal("insurance"),
+  type: StructuralEventTypeSchema.extract(["insurance"]),
   mode: z.enum(["quick", "detailed"]),
   startMonth: MonthKeySchema.optional(),
   endMonth: MonthKeySchema.optional(),
@@ -362,10 +375,12 @@ export const InsuranceEventSchema = InsuranceEventSchemaBase.superRefine(
 );
 
 export const AdjustmentEventSchema = BaseEventSchema.extend({
-  type: z.literal("adjustment"),
-  kind: z.enum(["asset", "liability", "cash"]),
+  type: StructuralEventTypeSchema.extract(["adjustment"]),
+  kind: AdjustmentEventKindSchema,
   month: MonthKeySchema,
   amount: z.number(),
+  /** Business category for legacy income semantics. */
+  category: IncomeSubtypeSchema.optional(),
 });
 
 export const ScenarioEventSchema = z

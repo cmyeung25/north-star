@@ -1,28 +1,24 @@
 import { z } from "zod";
-import { eventTypes, type EventType } from "@north-star/engine";
 import { defaultCurrency } from "../../../lib/i18n";
 import { DateRefSchema, type DateRef } from "../../domain/dateRef";
+import {
+  IncomeSubtypeSchema,
+  LegacyEventTypeSchema,
+  type LegacyEventType,
+  type IncomeSubtype,
+} from "../../domain/events/eventTaxonomy";
 
-export type { EventType } from "@north-star/engine";
-
-export type IncomeSubtype =
-  | "salary"
-  | "bonus"
-  | "freelance"
-  | "rental"
-  | "dividend"
-  | "interest"
-  | "other";
-
-const eventTypeValues = eventTypes as [EventType, ...EventType[]];
-
-export const EventTypeSchema = z.enum(eventTypeValues);
+export type { LegacyEventType as EventType, IncomeSubtype };
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export const TimelineEventSchema = z.object({
   id: z.string(),
-  type: EventTypeSchema,
+  /**
+   * @deprecated Legacy business category only (salary/rent/...).
+   * Use Scenario V2 `type` + `kind` for structural semantics.
+   */
+  type: LegacyEventTypeSchema,
   name: z.string(),
   startMonth: z.string().regex(monthPattern),
   endMonth: z.string().regex(monthPattern).nullable(),
@@ -35,9 +31,10 @@ export const TimelineEventSchema = z.object({
   growthMode: z.enum(["GLOBAL", "CUSTOM"]).optional(),
   currency: z.string().default(defaultCurrency),
   memberId: z.string().optional(),
-  incomeSubtype: z
-    .enum(["salary", "bonus", "freelance", "rental", "dividend", "interest", "other"])
-    .optional(),
+  /**
+   * Legacy business category detail for income events.
+   */
+  incomeSubtype: IncomeSubtypeSchema.optional(),
   endAtAgeYears: z.number().optional(),
   templateId: z.string().optional(),
   templateParams: z.record(z.number()).optional(),
