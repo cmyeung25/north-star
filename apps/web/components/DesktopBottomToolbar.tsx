@@ -15,7 +15,7 @@ import { useTranslations } from "next-intl";
 import { useScenarioStore } from "../src/store/scenarioStore";
 import { normalizeMonthInput } from "../src/utils/month";
 import { Link } from "../src/i18n/navigation";
-import { scenarioMoneyPath, scenarioPeoplePath, scenarioSettingsPath } from "../lib/routes/appRoutes";
+import { memberCasesPath, scenarioMoneyPath, scenarioPeoplePath, scenarioSettingsPath } from "../lib/routes/appRoutes";
 import AddFlowDrawer from "../features/add/AddFlowDrawer";
 import { usePathname, useRouter } from "next/navigation";
 import { useUiStore } from "../src/store/uiStore";
@@ -116,7 +116,9 @@ export default function DesktopBottomToolbar() {
             : link.href === "/people"
               ? scenarioPeoplePath(caseId, scenarioId)
               : scenarioSettingsPath(caseId, scenarioId)
-        : link.href,
+        : link.href === "/settings"
+          ? memberCasesPath()
+          : link.href,
   }));
 
   const handleNavClick = (

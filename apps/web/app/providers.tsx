@@ -16,6 +16,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "../src/i18n/routing";
 import { isFirebaseConfigured } from "../lib/firebaseClient";
 import { useAuthState } from "../src/hooks/useAuthState";
 import { startAutoSync, stopAutoSync } from "../src/sync/autoSync";
@@ -41,6 +42,7 @@ import { isScenarioOnboarded } from "../lib/onboarding/isScenarioOnboarded";
 import { CaseScenarioProvider } from "../src/contexts/CaseScenarioProvider";
 import { resolveScenarioLifecycle } from "../src/domain/scenarioStateModel";
 import { recordScenarioMigrationEvent } from "../src/lib/telemetry/scenarioMigrationTelemetry";
+import { scenarioSettingsPath } from "../lib/routes/appRoutes";
 
 
 const stripLocalePrefix = (pathname: string, locale: string) => {
@@ -64,6 +66,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
   const locale = useLocale();
   const t = useTranslations("common");
   const nav = useTranslations("nav");
+  const localeValue = locale as Locale;
   const authState = useAuthState();
   const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
   const scenarios = useScenarioStore((state) => state.scenarios);
@@ -84,12 +87,22 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
     [activeScenarioId, scenarios]
   );
 
+  const workspaceRouteMatch = normalizedPathname.match(/^\/app\/case\/([^/]+)\/scenario\/([^/]+)/);
+  const caseIdFromPath = workspaceRouteMatch?.[1] ?? null;
+  const scenarioIdFromPath = workspaceRouteMatch?.[2] ?? null;
+
   const navItems = [
     { label: nav("dashboard"), href: "/dashboard" },
     { label: nav("planLab"), href: "/plan-lab" },
     { label: nav("money"), href: "/money" },
     { label: nav("people"), href: "/people" },
-    { label: nav("settings"), href: "/settings" },
+    {
+      label: nav("settings"),
+      href:
+        caseIdFromPath && scenarioIdFromPath
+          ? scenarioSettingsPath(caseIdFromPath, scenarioIdFromPath, localeValue)
+          : "/settings",
+    },
     { label: nav("scenarios"), href: "/member/cases" },
   ];
 

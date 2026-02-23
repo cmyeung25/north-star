@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { resolveLegacySettingsRedirectPath } from "../../../lib/routes/legacySettingsRedirect";
 
 type PageProps = {
   params: { locale: string };
@@ -6,14 +7,5 @@ type PageProps = {
 };
 
 export default function Page({ params, searchParams }: PageProps) {
-  const scenarioId =
-    typeof searchParams?.scenarioId === "string" ? searchParams.scenarioId : "";
-  const query = new URLSearchParams();
-  if (scenarioId) {
-    query.set("scenarioId", scenarioId);
-  }
-  query.set("tab", "settings");
-
-  const queryString = query.toString();
-  redirect(`/${params.locale}/people${queryString ? `?${queryString}` : ""}`);
+  redirect(resolveLegacySettingsRedirectPath(params.locale, searchParams));
 }
