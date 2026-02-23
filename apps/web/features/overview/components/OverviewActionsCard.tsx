@@ -1,8 +1,8 @@
 import { Button, Card, Stack, Title } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
+import { scenarioMoneyPath, scenarioPath } from "../../../lib/routes/appRoutes";
 import { type Locale } from "../../../src/i18n/routing";
-import { buildScenarioUrl } from "../../../src/utils/scenarioContext";
 import { Link } from "../../../src/i18n/navigation";
 
 interface OverviewActionsCardProps {
@@ -21,13 +21,13 @@ export default function OverviewActionsCard({ caseId, locale, scenarioId }: Over
         <Title order={4}>{t("actionsTitle")}</Title>
         <Button
           component={Link}
-          href={`${buildScenarioUrl("/money", scenarioId)}&tab=timeline`}
+          href={`${scenarioMoneyPath(caseId, scenarioId)}?tab=timeline`}
         >
           {t("actionsTimeline")}
         </Button>
         <Button
           component={Link}
-          href={buildScenarioUrl("/stress", scenarioId)}
+          href={scenarioPath(caseId, scenarioId, "stress")}
           variant="light"
         >
           {t("actionsStress")}

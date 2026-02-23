@@ -2,9 +2,11 @@
 
 import { useCallback, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { type Locale } from "../i18n/routing";
 import { useRouter } from "next/navigation";
+import { useScenarioContext } from "./useScenarioContext";
 import type { CashflowItem } from "../domain/ledger/types";
-import { buildScenarioUrl } from "../utils/scenarioContext";
+import { scenarioDashboardPath, scenarioMoneyPath, scenarioPeoplePath } from "../../lib/routes/appRoutes";
 import { useScenarioStore } from "../store/scenarioStore";
 
 export type JumpToast = {
@@ -15,10 +17,18 @@ export type JumpToast = {
 const buildRoute = (
   locale: string,
   path: "/money" | "/people" | "/overview",
+  caseId: string | null,
   scenarioId: string | null,
   params: Record<string, string | undefined>
 ) => {
-  const base = scenarioId ? buildScenarioUrl(path, scenarioId) : path;
+  const base =
+    scenarioId && caseId
+      ? path === "/money"
+        ? scenarioMoneyPath(caseId, scenarioId, locale as Locale)
+        : path === "/people"
+          ? scenarioPeoplePath(caseId, scenarioId, locale as Locale)
+          : scenarioDashboardPath(caseId, scenarioId, locale as Locale)
+      : path;
   const [pathname, queryString] = base.split("?");
   const query = new URLSearchParams(queryString ?? "");
   Object.entries(params).forEach(([key, value]) => {
@@ -27,7 +37,7 @@ const buildRoute = (
     }
   });
   const suffix = query.toString();
-  return `/${locale}${pathname}${suffix ? `?${suffix}` : ""}`;
+  return `${pathname}${suffix ? `?${suffix}` : ""}`;
 };
 
 export const useJumpToSource = () => {
@@ -37,6 +47,8 @@ export const useJumpToSource = () => {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
   const [toast, setToast] = useState<JumpToast | null>(null);
+  const scenarioContext = useScenarioContext();
+  const caseId = scenarioContext?.caseId ?? null;
 
   const jumpToSource = useCallback(
     (item: CashflowItem | null) => {
@@ -54,7 +66,7 @@ export const useJumpToSource = () => {
           return;
         }
         router.push(
-          buildRoute(locale, "/money", scenarioId, {
+          buildRoute(locale, "/money", caseId, scenarioId, {
             tab: "timeline",
             editEventId: item.sourceId,
           })
@@ -68,7 +80,7 @@ export const useJumpToSource = () => {
           return;
         }
         router.push(
-          buildRoute(locale, "/people", scenarioId, {
+          buildRoute(locale, "/people", caseId, scenarioId, {
             tab: "budget",
             ruleId: item.sourceId,
           })
@@ -80,7 +92,7 @@ export const useJumpToSource = () => {
         const homes = scenario?.positions?.homes ?? [];
         if (homes.length === 1) {
           router.push(
-            buildRoute(locale, "/money", scenarioId, {
+            buildRoute(locale, "/money", caseId, scenarioId, {
               tab: "assets",
               editHomeId: homes[0]?.id,
             })
@@ -93,7 +105,7 @@ export const useJumpToSource = () => {
 
       setToast({ message: t("jumpToSourceUnavailable"), color: "yellow" });
     },
-    [activeScenarioId, locale, router, scenarios, t]
+    [activeScenarioId, caseId, locale, router, scenarios, t]
   );
 
   const clearToast = useCallback(() => setToast(null), []);
