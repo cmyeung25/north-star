@@ -1840,7 +1840,33 @@
     "expenseSummarySources": "Expense sources",
     "expenseSummaryDelta12m": "Projected 12-month change",
     "expenseTopSourcesTitle": "Major drivers (next 12 months)",
-    "planLabPlanActionsAriaLabel": "Plan actions"
+    "planLabPlanActionsAriaLabel": "Plan actions",
+    "ledgerEventIncomeCategory": "Income category",
+    "ledgerEventExpenseCategory": "Expense category",
+    "incomeCategory": {
+      "salary": "Salary",
+      "bonus": "Bonus",
+      "freelance": "Freelance",
+      "rental": "Rental",
+      "dividend": "Dividend",
+      "interest": "Interest",
+      "other": "Other"
+    },
+    "expenseCategory": {
+      "daily_living": "Daily living",
+      "transport": "Transport",
+      "property_ownership": "Property ownership",
+      "vehicle_ownership": "Vehicle ownership",
+      "insurance": "Insurance",
+      "healthcare": "Healthcare",
+      "education": "Education",
+      "family_support": "Family support",
+      "entertainment": "Entertainment",
+      "travel": "Travel",
+      "tax": "Tax",
+      "debt_repayment": "Debt repayment",
+      "other": "Other"
+    }
   },
   "entryLauncher": {
     "title": "Add new money items",

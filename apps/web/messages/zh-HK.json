@@ -1875,7 +1875,33 @@
     "expenseSummarySources": "支出來源",
     "expenseSummaryDelta12m": "12個月預計變化",
     "expenseTopSourcesTitle": "主要來源（未來12個月）",
-    "planLabPlanActionsAriaLabel": "方案操作"
+    "planLabPlanActionsAriaLabel": "方案操作",
+    "ledgerEventIncomeCategory": "收入分類",
+    "ledgerEventExpenseCategory": "支出分類",
+    "incomeCategory": {
+      "salary": "薪金",
+      "bonus": "花紅",
+      "freelance": "自由工作",
+      "rental": "租金收入",
+      "dividend": "股息",
+      "interest": "利息",
+      "other": "其他"
+    },
+    "expenseCategory": {
+      "daily_living": "日常生活",
+      "transport": "交通",
+      "property_ownership": "物業持有",
+      "vehicle_ownership": "車輛持有",
+      "insurance": "保險",
+      "healthcare": "醫療",
+      "education": "教育",
+      "family_support": "家庭支援",
+      "entertainment": "娛樂",
+      "travel": "旅遊",
+      "tax": "稅務",
+      "debt_repayment": "還款",
+      "other": "其他"
+    }
   },
   "entryLauncher": {
     "title": "新增金錢項目",

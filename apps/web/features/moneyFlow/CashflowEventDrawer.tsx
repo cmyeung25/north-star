@@ -27,6 +27,12 @@ import {
 } from "./growthMode";
 import EventTypeBadge from "../../src/features/money/EventTypeBadge";
 import type { ScenarioEvent } from "../../src/domain/scenarioV2/events";
+import {
+  expenseCategories,
+  incomeSubtypes,
+  type ExpenseCategory,
+  type IncomeSubtype,
+} from "../../src/domain/events/eventTaxonomy";
 
 export type CashflowEventDraft = {
   id?: string;
@@ -49,6 +55,8 @@ export type CashflowEventDraft = {
   endAgeMonths?: number;
   tags?: string[];
   growthSource?: CashflowEvent["growthSource"];
+  category?: IncomeSubtype;
+  expenseCategory?: ExpenseCategory;
 };
 
 export type AdjustmentEventDraft = {
@@ -124,6 +132,8 @@ const buildCashflowDraft = (
       endTimingMode: "month",
       tags: undefined,
       growthSource: undefined,
+      category: defaultKind === "income" ? "salary" : undefined,
+      expenseCategory: defaultKind === "expense" ? "daily_living" : undefined,
     };
   }
 
@@ -147,6 +157,8 @@ const buildCashflowDraft = (
     endTimingMode: "month",
     tags: event.tags ? [...event.tags] : undefined,
     growthSource: event.growthSource,
+    category: event.category,
+    expenseCategory: event.expenseCategory,
   };
 };
 
@@ -265,6 +277,8 @@ export default function CashflowEventDrawer({
       everyNMonths: cashflowDraft.cadence === "everyNMonths" ? Number(cashflowDraft.everyNMonths || 1) : undefined,
       tags: cashflowDraft.tags,
       growthSource: cashflowDraft.growthSource,
+      category: cashflowDraft.category,
+      expenseCategory: cashflowDraft.expenseCategory,
     } as ScenarioEvent;
   }, [adjustmentDraft.amount, adjustmentDraft.id, adjustmentDraft.kind, adjustmentDraft.month, cashflowDraft.amount, cashflowDraft.cadence, cashflowDraft.customGrowthRatePct, cashflowDraft.endMonth, cashflowDraft.everyNMonths, cashflowDraft.growthMode, cashflowDraft.growthSource, cashflowDraft.id, cashflowDraft.kind, cashflowDraft.occurrenceMonth, cashflowDraft.startMonth, cashflowDraft.tags, eventType, scenarioStartMonth]);
 
@@ -312,6 +326,24 @@ export default function CashflowEventDrawer({
       }),
     []
   );
+  const incomeCategoryOptions = useMemo(
+    () =>
+      incomeSubtypes.map((category) => ({
+        value: category,
+        label: t(`incomeCategory.${category}`),
+      })),
+    [t]
+  );
+
+  const expenseCategoryOptions = useMemo(
+    () =>
+      expenseCategories.map((category) => ({
+        value: category,
+        label: t(`expenseCategory.${category}`),
+      })),
+    [t]
+  );
+
 
   const growthModeOptions = useMemo(
     () => [
@@ -546,9 +578,39 @@ export default function CashflowEventDrawer({
                   ...current,
                   kind: (value ?? "income") as CashflowEvent["kind"],
                   growthMode: current.cadence === "oneOff" ? "none" : current.growthMode,
+                  category: (value ?? "income") === "income" ? (current.category ?? "salary") : undefined,
+                  expenseCategory:
+                    (value ?? "income") === "expense"
+                      ? (current.expenseCategory ?? "daily_living")
+                      : undefined,
                 }))
               }
             />
+            {cashflowDraft.kind === "income" ? (
+              <Select
+                label={t("ledgerEventIncomeCategory")}
+                data={incomeCategoryOptions}
+                value={cashflowDraft.category ?? "salary"}
+                onChange={(value) =>
+                  setCashflowDraft((current) => ({
+                    ...current,
+                    category: (value ?? "salary") as IncomeSubtype,
+                  }))
+                }
+              />
+            ) : (
+              <Select
+                label={t("ledgerEventExpenseCategory")}
+                data={expenseCategoryOptions}
+                value={cashflowDraft.expenseCategory ?? "daily_living"}
+                onChange={(value) =>
+                  setCashflowDraft((current) => ({
+                    ...current,
+                    expenseCategory: (value ?? "daily_living") as ExpenseCategory,
+                  }))
+                }
+              />
+            )}
             <Select
               label={t("ledgerEventCadence")}
               data={cadenceOptions}

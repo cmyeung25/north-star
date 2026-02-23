@@ -2,6 +2,7 @@ import type { TimelineEvent } from "../../features/timeline/schema";
 import type { ScenarioEvent } from "../scenarioV2/events";
 import type {
   CashflowEventKind,
+  ExpenseCategory,
   IncomeSubtype,
   LegacyEventType,
   StructuralEventType,
@@ -11,6 +12,7 @@ type CashflowMapping = {
   structuralType: Extract<StructuralEventType, "cashflow">;
   kind: CashflowEventKind;
   category?: IncomeSubtype;
+  expenseCategory?: ExpenseCategory;
 };
 
 const LEGACY_TO_CASHFLOW: Record<LegacyEventType, Omit<CashflowMapping, "category">> = {
@@ -41,6 +43,21 @@ const INCOME_LEGACY_BY_SUBTYPE: Record<IncomeSubtype, LegacyEventType> = {
   other: "tax_benefit",
 };
 
+
+const EXPENSE_CATEGORY_BY_LEGACY: Partial<Record<LegacyEventType, ExpenseCategory>> = {
+  rent: "property_ownership",
+  travel: "travel",
+  insurance: "insurance",
+  buy_home: "property_ownership",
+  baby: "family_support",
+  car: "vehicle_ownership",
+  insurance_product: "insurance",
+  insurance_premium: "insurance",
+  helper: "family_support",
+  investment_contribution: "other",
+  custom: "daily_living",
+};
+
 export type EventMappingMetadata = { legacyType: LegacyEventType };
 
 const resolveIncomeCategory = (event: TimelineEvent): IncomeSubtype | undefined => {
@@ -66,7 +83,10 @@ export const mapLegacyTimelineTypeToScenario = (
     };
   }
 
-  return mapping;
+  return {
+    ...mapping,
+    expenseCategory: EXPENSE_CATEGORY_BY_LEGACY[legacyType] ?? "other",
+  };
 };
 
 export const mapTimelineEventToScenarioCashflow = (
@@ -89,6 +109,7 @@ export const mapTimelineEventToScenarioCashflow = (
     memberId: event.memberId,
     tags: [event.type],
     ...(mapping.category ? { category: mapping.category } : {}),
+    ...(mapping.expenseCategory ? { expenseCategory: mapping.expenseCategory } : {}),
     meta: {
       legacyType: event.type,
       legacyIncomeSubtype: event.incomeSubtype,

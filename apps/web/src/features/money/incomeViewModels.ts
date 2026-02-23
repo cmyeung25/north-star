@@ -7,11 +7,6 @@ import {
   resolveEventCardEndMonth,
   resolveEventCardStartMonth,
 } from "./eventCardUtils";
-import {
-  getSalaryAdjustmentParentEventId,
-  isSalaryAdjustmentEvent,
-  resolveRecurringGroupId,
-} from "./salaryAdjustmentTags";
 import { computeEffectiveRanges, groupAdjustmentsByBase } from "./salaryAdjustmentGrouping";
 
 export type IncomeStatusFilter = "all" | "ongoing" | "ending";
@@ -118,11 +113,16 @@ const build12MonthWindow = (startMonth: string) => {
   return new Set(months);
 };
 
-const resolveContributionGroupId = (event: ScenarioEvent) =>
-  resolveRecurringGroupId(event) ??
-  (isSalaryAdjustmentEvent(event) ? getSalaryAdjustmentParentEventId(event) : null) ??
-  event.id;
 
+const resolveContributionCategoryKey = (event: ScenarioEvent, kind: "income" | "expense") => {
+  if (event.type === "cashflow") {
+    if (kind === "income") {
+      return event.category ?? "other";
+    }
+    return event.expenseCategory ?? "other";
+  }
+  return "other";
+};
 export type ContributionByEvent = {
   id: string;
   label: string;
@@ -168,15 +168,15 @@ const buildContributionsByEvent = (params: {
             : 0
         : 0;
     const amountToUse = windowSum || fallbackAmount;
-    const key = resolveContributionGroupId(event);
+    const key = resolveContributionCategoryKey(event, kind);
     const existing = grouped.get(key);
     if (!existing) {
-      grouped.set(key, { id: key, label: event.label ?? "—", amount: amountToUse });
+      grouped.set(key, { id: key, label: key, amount: amountToUse });
       return;
     }
     grouped.set(key, {
       ...existing,
-      amount: Math.max(existing.amount, amountToUse),
+      amount: existing.amount + amountToUse,
     });
   });
 

@@ -42,6 +42,11 @@ export default function IncomeSummarySection({
 }: IncomeSummarySectionProps) {
   const t = useTranslations("money");
 
+  const categoryTopSources = topSources.map((source) => ({
+    ...source,
+    label: t(`incomeCategory.${source.id}`),
+  }));
+
   const memberData = [
     { value: "all", label: t("incomeFilterAll") },
     ...members.map((member) => ({ value: member.id, label: member.name })),
@@ -85,7 +90,7 @@ export default function IncomeSummarySection({
 
       <StackedContributionBar
         title={t("incomeTopSourcesTitle")}
-        data={topSources}
+        data={categoryTopSources}
         currency={currency}
         locale={locale}
       />

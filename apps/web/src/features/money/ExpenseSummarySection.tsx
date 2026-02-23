@@ -29,6 +29,11 @@ export default function ExpenseSummarySection({
 }: Props) {
   const t = useTranslations("money");
 
+  const categoryTopSources = topSources.map((source) => ({
+    ...source,
+    label: t(`expenseCategory.${source.id}`),
+  }));
+
   return (
     <Stack gap="sm">
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
@@ -50,7 +55,7 @@ export default function ExpenseSummarySection({
       </SimpleGrid>
       <StackedContributionBar
         title={t("expenseTopSourcesTitle")}
-        data={topSources}
+        data={categoryTopSources}
         currency={currency}
         locale={locale}
       />
