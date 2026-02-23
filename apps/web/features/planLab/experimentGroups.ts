@@ -1,10 +1,19 @@
+import type {
+  PlanLabAffectedEntity,
+  PlanLabExperimentGroupKind,
+} from "../../src/domain/planLab/types";
 import type { PlanLabScenarioV2Patches } from "../../src/domain/planLab/scenarioV2Patches";
-import type { ScenarioAssumptions } from "../../src/store/scenarioStore";
+import {
+  analyzeAssumptionImpact,
+  type AssumptionImpactKey,
+  type AssumptionImpactOverrides,
+} from "../../src/domain/assumptions/impactAnalyzer";
+import type { Scenario, ScenarioAssumptions } from "../../src/store/scenarioStore";
 
 export type PlanLabExperimentGroup = {
   experimentId: string;
   title: string;
-  kind?: "ADD_EVENT" | "MODIFY_BASELINE_EVENT" | "ENV_OVERRIDE" | "BUNDLE_EXPERIMENT";
+  kind?: PlanLabExperimentGroupKind;
   target?: {
     baselineEventId?: string;
     bundleId?: string;
@@ -23,11 +32,7 @@ export type PlanLabExperimentGroup = {
     >
   >;
   changes?: string[];
-  affectedEntities?: Array<{
-    itemId: string;
-    label: string;
-    type: string;
-  }>;
+  affectedEntities?: PlanLabAffectedEntity[];
   isEnabled: boolean;
   itemIds: string[];
   removedItems?: PlanLabExperimentRemovedItem[];
@@ -95,6 +100,35 @@ type PatchEntity = Exclude<keyof PlanLabScenarioV2Patches, "assumptions">;
 const ENTITY_ORDER: PatchEntity[] = ["events", "assets", "liabilities", "members", "rules"];
 
 const buildItemId = (entity: PatchEntity, id: string) => `${entity}:${id}`;
+
+const sortAssumptionKeys = (keys: AssumptionImpactKey[]): AssumptionImpactKey[] =>
+  [...keys].sort();
+
+export const deriveEnvOverrideAffectedEntities = (
+  scenario: Pick<Scenario, "assumptions" | "events" | "assets" | "liabilities">,
+  overrides: AssumptionImpactOverrides,
+  assumptionLabelByKey: Partial<Record<AssumptionImpactKey, string>> = {}
+): PlanLabAffectedEntity[] => {
+  const impact = analyzeAssumptionImpact(scenario, overrides);
+  const assumptionByEventId = Object.entries(impact.byEventId).reduce<
+    Record<string, AssumptionImpactKey[]>
+  >((acc, [eventId, keys]) => {
+    acc[eventId] = sortAssumptionKeys(keys);
+    return acc;
+  }, {});
+
+  return Object.keys(assumptionByEventId)
+    .sort((left, right) => left.localeCompare(right))
+    .map((eventId) => {
+      const keys = assumptionByEventId[eventId] ?? [];
+      const labels = keys.map((key) => assumptionLabelByKey[key] ?? key);
+      return {
+        itemId: eventId,
+        label: labels.join(" / "),
+        type: "event",
+      };
+    });
+};
 
 
 export const collectPatchItemIds = (patches: PlanLabScenarioV2Patches): string[] => {

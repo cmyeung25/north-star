@@ -54,8 +54,10 @@ import {
   YAxis,
 } from "recharts";
 import type {
+  PlanLabAffectedEntity,
   PlanLabDraft,
   PlanLabExperiment,
+  PlanLabExperimentGroupKind,
   PlanLabExperimentType,
   PlanLabPositionPatch,
   PlanLabRulePatch,
@@ -196,6 +198,7 @@ import {
   collectPatchItemIds,
   collectUngroupedPatchItemIds,
   createSingleItemExperimentGroup,
+  deriveEnvOverrideAffectedEntities,
   filterScenarioV2PatchesByExperimentGroups,
   removeExperimentGroupItemsFromPatches,
   resolveExperimentGroupTitle,
@@ -2430,10 +2433,10 @@ export default function PlanLabPanel({
       bundleInstanceId?: string;
       templateId?: string;
       primaryEventId?: string;
-      kind?: "ADD_EVENT" | "MODIFY_BASELINE_EVENT" | "ENV_OVERRIDE" | "BUNDLE_EXPERIMENT";
+      kind?: PlanLabExperimentGroupKind;
       envOverrides?: ScenarioAssumptionsOverride;
       changes?: string[];
-      affectedEntities?: Array<{ itemId: string; label: string; type: string }>;
+      affectedEntities?: PlanLabAffectedEntity[];
     }) => {
       if (params.itemIds.length === 0 && params.kind !== "ENV_OVERRIDE") {
         return;
@@ -2461,6 +2464,21 @@ export default function PlanLabPanel({
     []
   );
 
+  const buildEnvOverrideAffectedEntities = useCallback(
+    (nextOverrides: ScenarioAssumptionsOverride): PlanLabAffectedEntity[] =>
+      deriveEnvOverrideAffectedEntities(
+        {
+          assumptions: scenario.assumptions,
+          events: scenario.events,
+          assets: scenario.assets,
+          liabilities: scenario.liabilities,
+        },
+        nextOverrides,
+        ENV_ASSUMPTION_LABELS
+      ),
+    [scenario.assets, scenario.assumptions, scenario.events, scenario.liabilities]
+  );
+
   const saveEnvAssumptionsExperiment = useCallback(() => {
     const nextOverrides = SCENARIO_ASSUMPTION_OVERRIDE_KEYS.reduce<ScenarioAssumptionsOverride>(
       (acc, key) => {
@@ -2480,11 +2498,7 @@ export default function PlanLabPanel({
     const changeLines = getScenarioAssumptionOverrideEntries(nextOverrides).map(([key, value]) =>
       formatScenarioAssumptionChange(ENV_ASSUMPTION_LABELS[key], baselineAssumptionOverrides[key], value)
     );
-    const affected = Object.keys(nextOverrides).map((key) => ({
-      itemId: key,
-      label: ENV_ASSUMPTION_LABELS[key as keyof ScenarioAssumptionsOverride],
-      type: "assumption",
-    }));
+    const affected = buildEnvOverrideAffectedEntities(nextOverrides);
 
     if (envAssumptionsViewGroupId) {
       setExperimentGroups((current) =>
@@ -2515,6 +2529,7 @@ export default function PlanLabPanel({
     setEnvAssumptionsViewGroupId(null);
   }, [
     baselineAssumptionOverrides,
+    buildEnvOverrideAffectedEntities,
     createExperimentGroup,
     envAssumptionOverridesDraft,
     envAssumptionsViewGroupId,

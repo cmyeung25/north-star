@@ -5,6 +5,7 @@ import {
   emptyPlanLabScenarioV2Patches,
 } from "../../../src/domain/planLab/scenarioV2Patches";
 import {
+  deriveEnvOverrideAffectedEntities,
   filterScenarioV2PatchesByExperimentGroups,
   removeExperimentGroupItemsFromPatches,
   type PlanLabExperimentGroup,
@@ -137,5 +138,66 @@ describe("removeExperimentGroupItemsFromPatches", () => {
 
     expect((preview.events ?? []).some((event) => event.id === baselineEvent.id)).toBe(true);
     expect(preview.events ?? []).toHaveLength(1);
+  });
+});
+
+
+describe("deriveEnvOverrideAffectedEntities", () => {
+  it("maps ENV_OVERRIDE impacted events into group affectedEntities", () => {
+    const recurringSalary = {
+      id: "event-salary",
+      type: "cashflow" as const,
+      kind: "income" as const,
+      cadence: "monthly" as const,
+      amount: 42000,
+      startMonth: "2026-01",
+      growthMode: "assumption" as const,
+      label: "固定薪金",
+    };
+    const recurringRent = {
+      id: "event-rent",
+      type: "cashflow" as const,
+      kind: "expense" as const,
+      cadence: "monthly" as const,
+      amount: 15000,
+      startMonth: "2026-01",
+      growthMode: "assumption" as const,
+      label: "租金",
+    };
+    const oneOffExpense = {
+      id: "event-oneoff",
+      type: "cashflow" as const,
+      kind: "expense" as const,
+      cadence: "oneOff" as const,
+      amount: 60000,
+      startMonth: "2026-06",
+      growthMode: "none" as const,
+      label: "裝修",
+    };
+
+    const scenario = buildScenario({
+      assumptions: {
+        horizonMonths: 12,
+        initialCash: 0,
+        baseMonth: "2026-01",
+        inflationRate: 3,
+        salaryGrowthRate: 3,
+      },
+      events: [recurringSalary, recurringRent, oneOffExpense],
+    });
+
+    const affectedEntities = deriveEnvOverrideAffectedEntities(
+      scenario,
+      { salaryGrowthRate: 5, inflationRate: 4 },
+      {
+        inflationRate: "通脹",
+        salaryGrowthRate: "薪金增長",
+      }
+    );
+
+    expect(affectedEntities).toEqual([
+      { itemId: "event-rent", label: "通脹", type: "event" },
+      { itemId: "event-salary", label: "薪金增長", type: "event" },
+    ]);
   });
 });

@@ -163,6 +163,18 @@ export type PlanLabDraft = {
   additions?: PlanLabDraftAdditions;
 };
 
+export type PlanLabExperimentGroupKind =
+  | "ADD_EVENT"
+  | "MODIFY_BASELINE_EVENT"
+  | "ENV_OVERRIDE"
+  | "BUNDLE_EXPERIMENT";
+
+export type PlanLabAffectedEntity = {
+  itemId: string;
+  label: string;
+  type: string;
+};
+
 export type PlanLabSnapshot = {
   baselinePatches?: PlanLabBaselinePatches;
   experiments?: PlanLabExperiment[];
@@ -172,7 +184,7 @@ export type PlanLabSnapshot = {
   experimentGroups?: Array<{
     experimentId: string;
     title: string;
-    kind?: "ADD_EVENT" | "MODIFY_BASELINE_EVENT" | "ENV_OVERRIDE" | "BUNDLE_EXPERIMENT";
+    kind?: PlanLabExperimentGroupKind;
     target?: {
       baselineEventId?: string;
       bundleId?: string;
@@ -180,11 +192,7 @@ export type PlanLabSnapshot = {
     };
     envOverrides?: Record<string, number | undefined>;
     changes?: string[];
-    affectedEntities?: Array<{
-      itemId: string;
-      label: string;
-      type: string;
-    }>;
+    affectedEntities?: PlanLabAffectedEntity[];
     isEnabled: boolean;
     itemIds: string[];
     removedItems?: Array<{
