@@ -122,7 +122,8 @@
     },
     "brand": {
       "ariaLabel": "前往情境"
-    }
+    },
+    "scenarioManagement": "情境管理"
   },
   "toolbar": {
     "addButton": "＋新增",
