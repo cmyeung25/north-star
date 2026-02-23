@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   AppShell,
   Box,
@@ -62,6 +62,7 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
   const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const scenarioContext = useScenarioContext();
+  const locale = useLocale();
   const t = useTranslations("app.shell");
   const nav = useTranslations("nav");
   const meta = useScenarioCloudStore((state) => state.active);
@@ -98,11 +99,15 @@ export default function ScenarioAppShellV2({ caseTitle, scenarioTitle, children,
   const scenarioId = scenarioContext?.scenarioId ?? "";
 
   const appScenarioUrl = buildAppScenarioUrl({ caseId, scenarioId });
+  const settingsClientHref = `/${locale}/people?scenarioId=${encodeURIComponent(
+    scenarioId
+  )}&tab=settings`;
 
   const tabs: WorkspaceTab[] = [
     { href: `${appScenarioUrl}/dashboard`, label: nav("dashboard") },
     { href: `${appScenarioUrl}/planlab`, label: nav("planLab") },
     { href: `${appScenarioUrl}/money`, label: nav("money") },
+    { href: settingsClientHref, label: nav("settings") },
     { href: scenarioSettingsPath(caseId, scenarioId), label: nav("scenarioSettings") },
   ];
   const mobileTabs = tabs.slice(0, 3);

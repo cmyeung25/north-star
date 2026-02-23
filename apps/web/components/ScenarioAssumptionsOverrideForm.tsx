@@ -1,4 +1,4 @@
-import { Group, NumberInput, Slider, Stack, Text } from "@mantine/core";
+import { Anchor, Group, NumberInput, Slider, Stack, Text } from "@mantine/core";
 import type { ScenarioAssumptions } from "../src/store/scenarioStore";
 import { scenarioAssumptionConstraints } from "../src/domain/scenarioAssumptions";
 
@@ -35,6 +35,8 @@ type Labels = {
   cashYieldPct: string;
   carDepreciationRatePct: string;
   baselinePrefix: string;
+  impactCount?: (count: number) => string;
+  impactView?: string;
 };
 
 type Props = {
@@ -42,6 +44,8 @@ type Props = {
   baseline: ScenarioAssumptionsOverride;
   labels: Labels;
   emergencyFundRange?: { min: number; max: number; step?: number };
+  impactCountByKey?: Partial<Record<keyof ScenarioAssumptionsOverride, number>>;
+  onViewAffectedEvents?: (key: keyof ScenarioAssumptionsOverride) => void;
   onChange: (patch: ScenarioAssumptionsOverride) => void;
 };
 
@@ -56,6 +60,8 @@ export default function ScenarioAssumptionsOverrideForm({
   baseline,
   labels,
   emergencyFundRange,
+  impactCountByKey,
+  onViewAffectedEvents,
   onChange,
 }: Props) {
   const emergencyMin =
@@ -65,33 +71,64 @@ export default function ScenarioAssumptionsOverrideForm({
   const emergencyStep =
     emergencyFundRange?.step ?? scenarioAssumptionConstraints.emergencyFundMonths.step;
 
+  const renderImpact = (key: keyof ScenarioAssumptionsOverride) => {
+    if (!labels.impactCount) {
+      return null;
+    }
+    const count = impactCountByKey?.[key] ?? 0;
+
+    return (
+      <Group gap={8} mt={6}>
+        <Text size="xs" c="dimmed">
+          {labels.impactCount(count)}
+        </Text>
+        {onViewAffectedEvents ? (
+          <Anchor
+            size="xs"
+            component="button"
+            type="button"
+            onClick={() => onViewAffectedEvents(key)}
+          >
+            {labels.impactView ?? "View"}
+          </Anchor>
+        ) : null}
+      </Group>
+    );
+  };
+
   return (
     <Stack gap="md">
       <Group grow align="start">
-        <NumberInput
-          label={labels.inflationRate}
-          description={baselineLabel(labels.baselinePrefix, baseline.inflationRate)}
-          value={values.inflationRate ?? ""}
-          min={scenarioAssumptionConstraints.inflationRate.min}
-          max={scenarioAssumptionConstraints.inflationRate.max}
-          step={scenarioAssumptionConstraints.inflationRate.step}
-          decimalScale={2}
-          onChange={(value) =>
-            onChange({ inflationRate: typeof value === "number" ? value : undefined })
-          }
-        />
-        <NumberInput
-          label={labels.salaryGrowthRate}
-          description={baselineLabel(labels.baselinePrefix, baseline.salaryGrowthRate)}
-          value={values.salaryGrowthRate ?? ""}
-          min={scenarioAssumptionConstraints.salaryGrowthRate.min}
-          max={scenarioAssumptionConstraints.salaryGrowthRate.max}
-          step={scenarioAssumptionConstraints.salaryGrowthRate.step}
-          decimalScale={2}
-          onChange={(value) =>
-            onChange({ salaryGrowthRate: typeof value === "number" ? value : undefined })
-          }
-        />
+        <Stack gap={2}>
+          <NumberInput
+            label={labels.inflationRate}
+            description={baselineLabel(labels.baselinePrefix, baseline.inflationRate)}
+            value={values.inflationRate ?? ""}
+            min={scenarioAssumptionConstraints.inflationRate.min}
+            max={scenarioAssumptionConstraints.inflationRate.max}
+            step={scenarioAssumptionConstraints.inflationRate.step}
+            decimalScale={2}
+            onChange={(value) =>
+              onChange({ inflationRate: typeof value === "number" ? value : undefined })
+            }
+          />
+          {renderImpact("inflationRate")}
+        </Stack>
+        <Stack gap={2}>
+          <NumberInput
+            label={labels.salaryGrowthRate}
+            description={baselineLabel(labels.baselinePrefix, baseline.salaryGrowthRate)}
+            value={values.salaryGrowthRate ?? ""}
+            min={scenarioAssumptionConstraints.salaryGrowthRate.min}
+            max={scenarioAssumptionConstraints.salaryGrowthRate.max}
+            step={scenarioAssumptionConstraints.salaryGrowthRate.step}
+            decimalScale={2}
+            onChange={(value) =>
+              onChange({ salaryGrowthRate: typeof value === "number" ? value : undefined })
+            }
+          />
+          {renderImpact("salaryGrowthRate")}
+        </Stack>
       </Group>
 
       <Stack gap="xs">
@@ -111,64 +148,77 @@ export default function ScenarioAssumptionsOverrideForm({
           value={values.emergencyFundMonths ?? baseline.emergencyFundMonths ?? 6}
           onChange={(value) => onChange({ emergencyFundMonths: value })}
         />
+        {renderImpact("emergencyFundMonths")}
       </Stack>
 
       <Group grow align="start">
-        <NumberInput
-          label={labels.rentAnnualGrowthPct}
-          description={baselineLabel(labels.baselinePrefix, baseline.rentAnnualGrowthPct)}
-          value={values.rentAnnualGrowthPct ?? ""}
-          min={scenarioAssumptionConstraints.rentAnnualGrowthPct.min}
-          max={scenarioAssumptionConstraints.rentAnnualGrowthPct.max}
-          step={scenarioAssumptionConstraints.rentAnnualGrowthPct.step}
-          decimalScale={2}
-          onChange={(value) =>
-            onChange({ rentAnnualGrowthPct: typeof value === "number" ? value : undefined })
-          }
-        />
-        <NumberInput
-          label={labels.propertyAppreciationPct}
-          description={baselineLabel(labels.baselinePrefix, baseline.propertyAppreciationPct)}
-          value={values.propertyAppreciationPct ?? ""}
-          min={scenarioAssumptionConstraints.propertyAppreciationPct.min}
-          max={scenarioAssumptionConstraints.propertyAppreciationPct.max}
-          step={scenarioAssumptionConstraints.propertyAppreciationPct.step}
-          decimalScale={2}
-          onChange={(value) =>
-            onChange({
-              propertyAppreciationPct: typeof value === "number" ? value : undefined,
-            })
-          }
-        />
+        <Stack gap={2}>
+          <NumberInput
+            label={labels.rentAnnualGrowthPct}
+            description={baselineLabel(labels.baselinePrefix, baseline.rentAnnualGrowthPct)}
+            value={values.rentAnnualGrowthPct ?? ""}
+            min={scenarioAssumptionConstraints.rentAnnualGrowthPct.min}
+            max={scenarioAssumptionConstraints.rentAnnualGrowthPct.max}
+            step={scenarioAssumptionConstraints.rentAnnualGrowthPct.step}
+            decimalScale={2}
+            onChange={(value) =>
+              onChange({ rentAnnualGrowthPct: typeof value === "number" ? value : undefined })
+            }
+          />
+          {renderImpact("rentAnnualGrowthPct")}
+        </Stack>
+        <Stack gap={2}>
+          <NumberInput
+            label={labels.propertyAppreciationPct}
+            description={baselineLabel(labels.baselinePrefix, baseline.propertyAppreciationPct)}
+            value={values.propertyAppreciationPct ?? ""}
+            min={scenarioAssumptionConstraints.propertyAppreciationPct.min}
+            max={scenarioAssumptionConstraints.propertyAppreciationPct.max}
+            step={scenarioAssumptionConstraints.propertyAppreciationPct.step}
+            decimalScale={2}
+            onChange={(value) =>
+              onChange({
+                propertyAppreciationPct: typeof value === "number" ? value : undefined,
+              })
+            }
+          />
+          {renderImpact("propertyAppreciationPct")}
+        </Stack>
       </Group>
 
       <Group grow align="start">
-        <NumberInput
-          label={labels.cashYieldPct}
-          description={baselineLabel(labels.baselinePrefix, baseline.cashYieldPct)}
-          value={values.cashYieldPct ?? ""}
-          min={scenarioAssumptionConstraints.cashYieldPct.min}
-          max={scenarioAssumptionConstraints.cashYieldPct.max}
-          step={scenarioAssumptionConstraints.cashYieldPct.step}
-          decimalScale={2}
-          onChange={(value) =>
-            onChange({ cashYieldPct: typeof value === "number" ? value : undefined })
-          }
-        />
-        <NumberInput
-          label={labels.carDepreciationRatePct}
-          description={baselineLabel(labels.baselinePrefix, baseline.carDepreciationRatePct)}
-          value={values.carDepreciationRatePct ?? ""}
-          min={scenarioAssumptionConstraints.carDepreciationRatePct.min}
-          max={scenarioAssumptionConstraints.carDepreciationRatePct.max}
-          step={scenarioAssumptionConstraints.carDepreciationRatePct.step}
-          decimalScale={2}
-          onChange={(value) =>
-            onChange({
-              carDepreciationRatePct: typeof value === "number" ? value : undefined,
-            })
-          }
-        />
+        <Stack gap={2}>
+          <NumberInput
+            label={labels.cashYieldPct}
+            description={baselineLabel(labels.baselinePrefix, baseline.cashYieldPct)}
+            value={values.cashYieldPct ?? ""}
+            min={scenarioAssumptionConstraints.cashYieldPct.min}
+            max={scenarioAssumptionConstraints.cashYieldPct.max}
+            step={scenarioAssumptionConstraints.cashYieldPct.step}
+            decimalScale={2}
+            onChange={(value) =>
+              onChange({ cashYieldPct: typeof value === "number" ? value : undefined })
+            }
+          />
+          {renderImpact("cashYieldPct")}
+        </Stack>
+        <Stack gap={2}>
+          <NumberInput
+            label={labels.carDepreciationRatePct}
+            description={baselineLabel(labels.baselinePrefix, baseline.carDepreciationRatePct)}
+            value={values.carDepreciationRatePct ?? ""}
+            min={scenarioAssumptionConstraints.carDepreciationRatePct.min}
+            max={scenarioAssumptionConstraints.carDepreciationRatePct.max}
+            step={scenarioAssumptionConstraints.carDepreciationRatePct.step}
+            decimalScale={2}
+            onChange={(value) =>
+              onChange({
+                carDepreciationRatePct: typeof value === "number" ? value : undefined,
+              })
+            }
+          />
+          {renderImpact("carDepreciationRatePct")}
+        </Stack>
       </Group>
     </Stack>
   );
