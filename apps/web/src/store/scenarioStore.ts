@@ -2273,12 +2273,14 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
   },
   setActiveScenario: (id) => {
     set((state) => {
-      if (!state.scenarios.some((scenario) => scenario.id === id)) {
+      const selected = state.scenarios.find((scenario) => scenario.id === id);
+      if (!selected) {
         return state;
       }
 
       return {
         activeScenarioId: id,
+        members: cloneMembers(selected.members) ?? normalizeMembers(),
         scenarios: state.scenarios.map((scenario) =>
           scenario.id === id ? { ...scenario, updatedAt: now() } : scenario
         ),
@@ -2968,22 +2970,46 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     }));
   },
   createMember: (member) => {
-    set((state) => ({
-      members: [...state.members, normalizeMembers([member])[0]],
-    }));
+    set((state) => {
+      const normalizedMember = normalizeMembers([member])[0];
+      return {
+        members: [...state.members, normalizedMember],
+        scenarios: state.scenarios.map((scenario) =>
+          scenario.id === state.activeScenarioId
+            ? {
+                ...scenario,
+                members: [...(scenario.members ?? []), normalizedMember],
+                updatedAt: now(),
+              }
+            : scenario
+        ),
+      };
+    });
   },
   updateMember: (memberId, patch) => {
-    set((state) => ({
-      members: state.members.map((member) =>
+    set((state) => {
+      const applyPatch = (member: ScenarioMember) =>
         member.id === memberId
           ? {
               ...member,
               ...patch,
               milestones: patch.milestones ?? member.milestones,
             }
-          : member
-      ),
-    }));
+          : member;
+
+      return {
+        members: state.members.map(applyPatch),
+        scenarios: state.scenarios.map((scenario) =>
+          scenario.id === state.activeScenarioId
+            ? {
+                ...scenario,
+                members: (scenario.members ?? []).map(applyPatch),
+                updatedAt: now(),
+              }
+            : scenario
+        ),
+      };
+    });
   },
   deleteMember: (memberId) => {
     set((state) => ({
@@ -2995,6 +3021,15 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
         definition.memberId === memberId
           ? { ...definition, memberId: undefined }
           : definition
+      ),
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === state.activeScenarioId
+          ? {
+              ...scenario,
+              members: (scenario.members ?? []).filter((member) => member.id !== memberId),
+              updatedAt: now(),
+            }
+          : scenario
       ),
     }));
   },
