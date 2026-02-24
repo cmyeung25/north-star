@@ -1,9 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import type { ScenarioSummary } from "@north-star/adapters";
-import { Alert, Button, Group, Stack, Table, TextInput } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  Group,
+  NumberInput,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import {
   createScenarioAction,
   deleteScenarioAction,
@@ -11,19 +22,42 @@ import {
   renameScenarioAction,
 } from "../../../../../../../(member)/member/cases/actions";
 import { scenarioDashboardPath } from "../../../../../../../../lib/routes/appRoutes";
+import { updateScenarioAssumptionsAction } from "./actions";
 
 type Props = {
   caseId: string;
   activeScenarioId: string;
   scenarios: ScenarioSummary[];
+  assumptionDefaults: {
+    inflationRate: number;
+    salaryGrowthRate: number;
+    propertyAppreciationPct: number;
+  };
 };
 
-export default function ScenarioSettingsClient({ caseId, activeScenarioId, scenarios }: Props) {
+export default function ScenarioSettingsClient({
+  caseId,
+  activeScenarioId,
+  scenarios,
+  assumptionDefaults,
+}: Props) {
   const router = useRouter();
+  const t = useTranslations("assumptions");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [renameTitleById, setRenameTitleById] = useState<Record<string, string>>({});
+  const [inflationRate, setInflationRate] = useState<number | string>(assumptionDefaults.inflationRate);
+  const [salaryGrowthRate, setSalaryGrowthRate] = useState<number | string>(assumptionDefaults.salaryGrowthRate);
+  const [propertyAppreciationPct, setPropertyAppreciationPct] = useState<number | string>(
+    assumptionDefaults.propertyAppreciationPct,
+  );
+
+  useEffect(() => {
+    setInflationRate(assumptionDefaults.inflationRate);
+    setSalaryGrowthRate(assumptionDefaults.salaryGrowthRate);
+    setPropertyAppreciationPct(assumptionDefaults.propertyAppreciationPct);
+  }, [assumptionDefaults]);
 
   const submit = (task: () => Promise<unknown>, onDone?: () => void) => {
     setError(null);
@@ -40,6 +74,61 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
   return (
     <Stack>
       {error ? <Alert color="red">{error}</Alert> : null}
+
+      <Stack gap="xs">
+        <Title order={4}>{t("settingsScenarioAssumptionsTitle")}</Title>
+        <Text c="dimmed" size="sm">
+          {t("settingsScenarioAssumptionsHint")}
+        </Text>
+        <Group align="end">
+          <NumberInput
+            label={t("inflationRate")}
+            value={inflationRate}
+            onChange={setInflationRate}
+            min={-50}
+            max={50}
+            step={0.1}
+            w={180}
+          />
+          <NumberInput
+            label={t("salaryGrowth")}
+            value={salaryGrowthRate}
+            onChange={setSalaryGrowthRate}
+            min={-50}
+            max={50}
+            step={0.1}
+            w={180}
+          />
+          <NumberInput
+            label={t("propertyAppreciation")}
+            value={propertyAppreciationPct}
+            onChange={setPropertyAppreciationPct}
+            min={-50}
+            max={50}
+            step={0.1}
+            w={180}
+          />
+          <Button
+            loading={isPending}
+            onClick={() =>
+              submit(() =>
+                updateScenarioAssumptionsAction({
+                  caseId,
+                  scenarioId: activeScenarioId,
+                  assumptions: {
+                    inflationRate: Number(inflationRate ?? 0),
+                    salaryGrowthRate: Number(salaryGrowthRate ?? 0),
+                    propertyAppreciationPct: Number(propertyAppreciationPct ?? 0),
+                  },
+                }),
+              )
+            }
+          >
+            {t("settingsSaveAssumptions")}
+          </Button>
+        </Group>
+      </Stack>
+
       <Group>
         <TextInput
           placeholder="New scenario name"

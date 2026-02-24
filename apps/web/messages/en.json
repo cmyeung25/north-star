@@ -2438,7 +2438,10 @@
     "presetBeforeValue": "Now: {value}",
     "presetAfterValue": "Preset: {value}",
     "presetImpactDiff": "Impact {before} → {after}",
-    "otherSettingsHint": "Other settings will appear here as they become available."
+    "otherSettingsHint": "Other settings will appear here as they become available.",
+    "settingsScenarioAssumptionsTitle": "Scenario assumption settings",
+    "settingsScenarioAssumptionsHint": "Update inflation, salary growth, and asset appreciation assumptions for the current scenario.",
+    "settingsSaveAssumptions": "Save assumptions"
   },
   "members": {
     "title": "Household members",

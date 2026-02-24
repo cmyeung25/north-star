@@ -2479,7 +2479,10 @@
     "presetBeforeValue": "目前：{value}",
     "presetAfterValue": "預設：{value}",
     "presetImpactDiff": "影響事件 {before} → {after}",
-    "otherSettingsHint": "其他設定將會陸續提供。"
+    "otherSettingsHint": "其他設定將會陸續提供。",
+    "settingsScenarioAssumptionsTitle": "情景假設設定",
+    "settingsScenarioAssumptionsHint": "可修改此情景的通脹率、薪金增長率與資產增值率，並即時套用到目前情景。",
+    "settingsSaveAssumptions": "儲存假設"
   },
   "members": {
     "title": "家庭成員",

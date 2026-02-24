@@ -16,7 +16,13 @@ export default async function ScenarioSettingsPage({ params }: PageProps) {
     supabaseClient: createSupabaseServerClient(),
   });
 
-  const scenarios = await repo.listScenarios(params.caseId);
+  const [scenarios, payload] = await Promise.all([
+    repo.listScenarios(params.caseId),
+    repo.loadScenarioPayload(params.caseId, params.scenarioId),
+  ]);
+
+  const assumptions = ((payload as Record<string, unknown>).assumptions as Record<string, unknown> | undefined) ?? {};
+
   if (!scenarios.some((scenario) => scenario.id === params.scenarioId)) {
     notFound();
   }
@@ -30,6 +36,11 @@ export default async function ScenarioSettingsPage({ params }: PageProps) {
         caseId={params.caseId}
         activeScenarioId={params.scenarioId}
         scenarios={scenarios}
+        assumptionDefaults={{
+          inflationRate: Number(assumptions.inflationRate ?? 0),
+          salaryGrowthRate: Number(assumptions.salaryGrowthRate ?? 0),
+          propertyAppreciationPct: Number(assumptions.propertyAppreciationPct ?? 0),
+        }}
       />
     </>
   );
