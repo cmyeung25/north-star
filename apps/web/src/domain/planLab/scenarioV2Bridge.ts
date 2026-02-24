@@ -25,7 +25,18 @@ export const buildScenarioV2FromScenario = (
   scenario: Scenario,
   eventLibrary: EventDefinition[]
 ): ScenarioV2 => {
+  const timelineEvents = buildScenarioTimelineEvents(scenario, eventLibrary, {
+    includeDerived: false,
+  });
+  const bridgedEvents = timelineEventsToScenarioEvents(timelineEvents);
+
   if (scenario.meta?.schemaVersion === 2 && scenario.events) {
+    const existingIds = new Set(scenario.events.map((event) => event.id));
+    const mergedEvents = [
+      ...scenario.events,
+      ...bridgedEvents.filter((event) => !existingIds.has(event.id)),
+    ];
+
     return {
       id: scenario.id,
       name: scenario.name,
@@ -35,14 +46,10 @@ export const buildScenarioV2FromScenario = (
       members: scenario.members,
       assets: scenario.assets,
       liabilities: scenario.liabilities,
-      events: scenario.events,
+      events: mergedEvents,
       meta: scenario.meta,
     };
   }
-
-  const timelineEvents = buildScenarioTimelineEvents(scenario, eventLibrary, {
-    includeDerived: false,
-  });
 
   return {
     id: scenario.id,

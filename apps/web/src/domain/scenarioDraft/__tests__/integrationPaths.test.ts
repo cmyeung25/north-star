@@ -6,6 +6,7 @@ import { applyOnboardingV2DraftToScenarioV2 } from "../../onboarding/v2/applyOnb
 import { buildScenarioDraftFromPlanLab, materializePlanLabDraft } from "../../planLab/materializePlanLabDraft";
 import { applyPlanLabScenarioV2Patches, emptyPlanLabScenarioV2Patches } from "../../planLab/scenarioV2Patches";
 import { buildScenarioV2FromScenario } from "../../planLab/scenarioV2Bridge";
+import type { CashflowEvent } from "../../scenarioV2/events";
 
 const buildBaseScenario = (): Scenario => ({
   id: "scenario-1",
@@ -122,6 +123,52 @@ describe("scenario create payload integration parity", () => {
     expect(onboardingPayload.clientComputed.onboardingCompleted).toBe(true);
     expect(seedPayload.clientComputed.onboardingCompleted).toBe(true);
     expect(planLabScenario.clientComputed?.onboardingCompleted).toBe(true);
+  });
+
+  it("bridges legacy eventLibrary cashflows into schema v2 scenarios for projection parity", () => {
+    const base = buildBaseScenario();
+    const legacyScenario: Scenario = {
+      ...base,
+      events: [
+        {
+          id: "v2-expense",
+          type: "cashflow",
+          kind: "expense",
+          label: "生活支出",
+          cadence: "monthly",
+          amount: 10000,
+          startMonth: "2025-01",
+        },
+      ],
+      eventRefs: [{ refId: "legacy-salary", enabled: true }],
+    };
+
+    const scenarioV2 = buildScenarioV2FromScenario(legacyScenario, [
+      {
+        id: "legacy-salary",
+        title: "薪金",
+        type: "salary",
+        kind: "cashflow",
+        rule: {
+          mode: "params",
+          startMonth: "2025-01",
+          endMonth: null,
+          monthlyAmount: 30000,
+          oneTimeAmount: 0,
+          annualGrowthPct: 0,
+        },
+        memberId: "self",
+        incomeSubtype: "salary",
+      },
+    ]);
+
+    const incomeEvents = (scenarioV2.events ?? []).filter(
+      (event): event is CashflowEvent => event.type === "cashflow" && event.kind === "income"
+    );
+
+    expect(incomeEvents).toHaveLength(1);
+    expect(incomeEvents[0]?.amount).toBe(30000);
+    expect(incomeEvents[0]?.meta).toMatchObject({ legacyType: "salary" });
   });
 
 
