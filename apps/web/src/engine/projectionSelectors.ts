@@ -51,6 +51,36 @@ export const selectMonthSnapshot = ({
     ...(positionCashflowsByMonth?.[monthKey] ?? []),
   ];
   const ledgerNetCashflow = items.reduce((total, item) => total + item.amount, 0);
+  const ledgerInflow = items.reduce(
+    (total, item) => total + Math.max(item.amount, 0),
+    0
+  );
+  const ledgerOutflow = Math.abs(
+    items.reduce((total, item) => total + Math.min(item.amount, 0), 0)
+  );
+
+  const deriveProjectionCashflowMetrics = () => {
+    const breakdown = projection.breakdown?.cashflow;
+    const breakdownIndex =
+      breakdown?.months.indexOf(monthKey) ?? monthIndex;
+    if (!breakdown || breakdownIndex < 0) {
+      return null;
+    }
+
+    const values = Object.values(breakdown.byKey).map(
+      (series) => series[breakdownIndex] ?? 0
+    );
+    const inflow = values.reduce((sum, value) => sum + Math.max(value, 0), 0);
+    const outflow = Math.abs(
+      values.reduce((sum, value) => sum + Math.min(value, 0), 0)
+    );
+
+    return {
+      inflow,
+      outflow,
+      netCashflow: inflow - outflow,
+    };
+  };
 
   // Prefer projection-native cash and net cashflow together so summary metrics
   // come from the same source of truth. Fall back to ledger-derived values only
@@ -63,19 +93,21 @@ export const selectMonthSnapshot = ({
   const cashEom = hasProjectionSummarySeries
     ? projectionCashEom
     : projectionCashEom ?? 0;
+  const projectionCashflowMetrics = hasProjectionSummarySeries
+    ? deriveProjectionCashflowMetrics()
+    : null;
   const netCashflow = hasProjectionSummarySeries
-    ? projectionNetCashflow
+    ? projectionCashflowMetrics?.netCashflow ?? projectionNetCashflow
     : ledgerNetCashflow;
 
   const assetsTotal = projection.assets?.total?.[monthIndex] ?? cashEom + netWorth;
   const liabilitiesTotal = projection.liabilities?.total?.[monthIndex] ?? assetsTotal - netWorth;
-  const inflow = items.reduce(
-    (total, item) => total + (item.amount > 0 ? item.amount : 0),
-    0
-  );
-  const outflow = Math.abs(
-    items.reduce((total, item) => total + (item.amount < 0 ? item.amount : 0), 0)
-  );
+  const inflow = hasProjectionSummarySeries
+    ? projectionCashflowMetrics?.inflow ?? Math.max(projectionNetCashflow ?? 0, 0)
+    : ledgerInflow;
+  const outflow = hasProjectionSummarySeries
+    ? projectionCashflowMetrics?.outflow ?? Math.abs(Math.min(projectionNetCashflow ?? 0, 0))
+    : ledgerOutflow;
 
   return {
     month: monthKey,
