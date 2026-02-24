@@ -1,6 +1,16 @@
-import { Anchor, Group, NumberInput, Slider, Stack, Text } from "@mantine/core";
-import type { ScenarioAssumptions } from "../src/store/scenarioStore";
+import {
+  Alert,
+  Anchor,
+  Button,
+  Group,
+  NumberInput,
+  Slider,
+  Stack,
+  Text,
+} from "@mantine/core";
+import { getAssumptionGuardrailWarnings } from "../src/domain/assumptions/guardrails";
 import { scenarioAssumptionConstraints } from "../src/domain/scenarioAssumptions";
+import type { ScenarioAssumptions } from "../src/store/scenarioStore";
 
 export type ScenarioAssumptionsOverride = Partial<
   Pick<
@@ -37,6 +47,13 @@ type Labels = {
   baselinePrefix: string;
   impactCount?: (count: number) => string;
   impactView?: string;
+  guardrailWarningTitle: string;
+  guardrailImpactText: string;
+  guardrailInflationOutOfComfortRange: (inflationRate: number) => string;
+  guardrailSalaryInflationGapTooWide: (gap: number) => string;
+  guardrailApplySuggestion: string;
+  guardrailSuggestedInflation: (value: number) => string;
+  guardrailSuggestedSalaryGrowth: (value: number) => string;
 };
 
 type Props = {
@@ -71,6 +88,11 @@ export default function ScenarioAssumptionsOverrideForm({
   const emergencyStep =
     emergencyFundRange?.step ?? scenarioAssumptionConstraints.emergencyFundMonths.step;
 
+  const guardrailWarnings = getAssumptionGuardrailWarnings({
+    inflationRate: values.inflationRate,
+    salaryGrowthRate: values.salaryGrowthRate,
+  });
+
   const renderImpact = (key: keyof ScenarioAssumptionsOverride) => {
     if (!labels.impactCount) {
       return null;
@@ -98,6 +120,51 @@ export default function ScenarioAssumptionsOverrideForm({
 
   return (
     <Stack gap="md">
+      {guardrailWarnings.map((warning) => (
+        <Alert
+          key={warning.code}
+          color="yellow"
+          variant="light"
+          title={labels.guardrailWarningTitle}
+        >
+          <Stack gap={8}>
+            <Text size="sm">
+              {warning.code === "inflationOutOfComfortRange"
+                ? labels.guardrailInflationOutOfComfortRange(warning.context.inflationRate)
+                : labels.guardrailSalaryInflationGapTooWide(warning.context.gap ?? 0)}
+            </Text>
+            <Text size="sm">{labels.guardrailImpactText}</Text>
+            <Group gap={8}>
+              <Text size="xs" c="dimmed">
+                {labels.guardrailApplySuggestion}
+              </Text>
+              {typeof warning.suggestion.inflationRate === "number" ? (
+                <Button
+                  size="xs"
+                  variant="default"
+                  onClick={() => onChange({ inflationRate: warning.suggestion.inflationRate })}
+                >
+                  {labels.guardrailSuggestedInflation(warning.suggestion.inflationRate)}
+                </Button>
+              ) : null}
+              {typeof warning.suggestion.salaryGrowthRate === "number" ? (
+                <Button
+                  size="xs"
+                  variant="default"
+                  onClick={() =>
+                    onChange({ salaryGrowthRate: warning.suggestion.salaryGrowthRate })
+                  }
+                >
+                  {labels.guardrailSuggestedSalaryGrowth(
+                    warning.suggestion.salaryGrowthRate
+                  )}
+                </Button>
+              ) : null}
+            </Group>
+          </Stack>
+        </Alert>
+      ))}
+
       <Group grow align="start">
         <Stack gap={2}>
           <NumberInput

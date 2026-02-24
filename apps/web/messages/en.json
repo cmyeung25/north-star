@@ -2444,7 +2444,14 @@
     "resetDefaultsModalTitle": "Reset assumptions to defaults?",
     "resetDefaultsModalBody": "This will replace current assumptions with onboarding defaults. Please confirm before applying.",
     "resetDefaultsNoDiff": "You are already using the default values.",
-    "resetDefaultsConfirm": "Confirm reset"
+    "resetDefaultsConfirm": "Confirm reset",
+    "guardrailWarningTitle": "Soft risk warning",
+    "guardrailImpactText": "這會顯著影響長期預測結果。",
+    "guardrailInflationOutOfComfortRange": "Inflation {inflationRate}% is outside the common comfort range (-5% to 10%).",
+    "guardrailSalaryInflationGapTooWide": "Salary growth and inflation differ by {gap}%, which may be overly optimistic or pessimistic.",
+    "guardrailApplySuggestion": "Quick suggestions:",
+    "guardrailSuggestedInflation": "Inflation {value}%",
+    "guardrailSuggestedSalaryGrowth": "Salary growth {value}%"
   },
   "members": {
     "title": "Household members",

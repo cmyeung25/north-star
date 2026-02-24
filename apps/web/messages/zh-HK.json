@@ -2485,7 +2485,14 @@
     "resetDefaultsModalTitle": "確認重設為預設假設？",
     "resetDefaultsModalBody": "此操作會以 onboarding 預設值覆蓋現有假設，請確認後再套用。",
     "resetDefaultsNoDiff": "目前已是預設值。",
-    "resetDefaultsConfirm": "確認重設"
+    "resetDefaultsConfirm": "確認重設",
+    "guardrailWarningTitle": "軟性風險提示",
+    "guardrailImpactText": "這會顯著影響長期預測結果。",
+    "guardrailInflationOutOfComfortRange": "目前通脹率 {inflationRate}% 超出常見建議區間（-5% 至 10%）。",
+    "guardrailSalaryInflationGapTooWide": "薪金增長與通脹率相差 {gap}%，假設可能過度樂觀或悲觀。",
+    "guardrailApplySuggestion": "快捷回復建議值：",
+    "guardrailSuggestedInflation": "通脹 {value}%",
+    "guardrailSuggestedSalaryGrowth": "薪金增長 {value}%"
   },
   "members": {
     "title": "家庭成員",
