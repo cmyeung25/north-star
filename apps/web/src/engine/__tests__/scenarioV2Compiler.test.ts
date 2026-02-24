@@ -344,6 +344,38 @@ describe("compileScenarioV2ToLedger", () => {
     expect(projection.cashBalance.slice(0, 3)).toEqual([105000, 110000, 115000]);
   });
 
+  it("includes adjustment events in projection input with ledger-aligned sign semantics", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        baseMonth: "2024-01",
+        horizonMonths: 2,
+        initialCash: 1000,
+      },
+      events: [
+        {
+          id: "adj-income",
+          type: "adjustment",
+          kind: "cash",
+          month: "2024-01",
+          amount: 500,
+        },
+        {
+          id: "adj-expense",
+          type: "adjustment",
+          kind: "cash",
+          month: "2024-01",
+          amount: -200,
+        },
+      ],
+    };
+
+    const projection = computeProjection(compileScenarioV2ToProjectionInput(scenario));
+
+    expect(projection.cashBalance[0]).toBe(1300);
+  });
+
   it("uses mortgage base value for mortgage principal and market value for assets", () => {
     const scenario: ScenarioV2 = {
       ...baseScenario,
