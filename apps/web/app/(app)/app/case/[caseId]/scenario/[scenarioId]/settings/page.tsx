@@ -19,7 +19,13 @@ export default async function ScenarioSettingsPage({ params }: PageProps) {
   });
 
   const scenarios = await repo.listScenarios(params.caseId);
+  const cases = await repo.listCases();
+  const currentCase = cases.find((entry) => entry.id === params.caseId);
   if (!scenarios.some((scenario) => scenario.id === params.scenarioId)) {
+    notFound();
+  }
+
+  if (!currentCase) {
     notFound();
   }
 
@@ -71,6 +77,7 @@ export default async function ScenarioSettingsPage({ params }: PageProps) {
       </Title>
       <ScenarioSettingsClient
         caseId={params.caseId}
+        caseTitle={currentCase.title}
         activeScenarioId={params.scenarioId}
         scenarios={scenarios}
         assumptions={initialAssumptions}

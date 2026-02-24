@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { ScenarioSummary } from "@north-star/adapters";
-import { Alert, Accordion, Button, Divider, Group, NumberInput, Stack, Table, TextInput } from "@mantine/core";
+import { Alert, Accordion, Button, Divider, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import {
   scenarioAssumptionConstraints,
@@ -20,12 +20,26 @@ import { type ScenarioAssumptionsDto, updateScenarioAssumptionsAction } from "./
 
 type Props = {
   caseId: string;
+  caseTitle: string;
   activeScenarioId: string;
   scenarios: ScenarioSummary[];
   assumptions: ScenarioAssumptionsDto;
 };
 
-export default function ScenarioSettingsClient({ caseId, activeScenarioId, scenarios, assumptions }: Props) {
+const dirtyCheckFields: Array<keyof ScenarioAssumptionsDto> = [
+  "inflationRate",
+  "salaryGrowthRate",
+  "investmentReturnPct",
+  "rentAnnualGrowthPct",
+  "propertyAppreciationPct",
+  "cashYieldPct",
+  "carDepreciationRatePct",
+  "emergencyFundMonths",
+];
+
+const shortId = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
+
+export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenarioId, scenarios, assumptions }: Props) {
   const validation = useTranslations("validation");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -34,7 +48,59 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
   const [newTitle, setNewTitle] = useState("");
   const [renameTitleById, setRenameTitleById] = useState<Record<string, string>>({});
   const [assumptionValues, setAssumptionValues] = useState<ScenarioAssumptionsDto>(assumptions);
+  const [savedAssumptions, setSavedAssumptions] = useState<ScenarioAssumptionsDto>(assumptions);
   const [assumptionErrors, setAssumptionErrors] = useState<Partial<Record<keyof ScenarioAssumptionsDto, string>>>({});
+  const activeScenario = scenarios.find((scenario) => scenario.id === activeScenarioId);
+  const hasUnsavedChanges = useMemo(
+    () => dirtyCheckFields.some((field) => assumptionValues[field] !== savedAssumptions[field]),
+    [assumptionValues, savedAssumptions],
+  );
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    const message = "你有未儲存的更改，確定要離開此頁面嗎？";
+    const onAnchorClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const anchor = target.closest("a[href]");
+      if (!anchor) {
+        return;
+      }
+
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#")) {
+        return;
+      }
+
+      if (!window.confirm(message)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    document.addEventListener("click", onAnchorClick, true);
+    return () => document.removeEventListener("click", onAnchorClick, true);
+  }, [hasUnsavedChanges]);
 
   const submit = (task: () => Promise<unknown>, onDone?: () => void) => {
     setError(null);
@@ -96,6 +162,7 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
           assumptions: assumptionValues,
         }),
       () => {
+        setSavedAssumptions(assumptionValues);
         setSuccess("假設已更新。");
       },
     );
@@ -105,6 +172,9 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
     <Stack>
       {error ? <Alert color="red">{error}</Alert> : null}
       {success ? <Alert color="green">{success}</Alert> : null}
+      <Text size="sm" c="dimmed">
+        {caseTitle} ({shortId(caseId)}) / {activeScenario?.title ?? "-"} ({shortId(activeScenarioId)})
+      </Text>
 
       <Stack gap="xs">
         <Divider label="Scenario assumptions" labelPosition="left" />
@@ -243,7 +313,10 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
             </Accordion.Panel>
           </Accordion.Item>
         </Accordion>
-        <Group justify="flex-end">
+        <Group justify="flex-end" gap="xs">
+          <Text size="sm" c="dimmed">
+            只影響目前 scenario，不會影響同 case 其他情景。
+          </Text>
           <Button loading={isPending} onClick={submitAssumptions}>
             儲存假設
           </Button>
