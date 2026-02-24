@@ -30,6 +30,43 @@ const assumptions = { baseMonth: "2026-01", horizonMonths: 24 };
 const signByType = () => 1 as const;
 
 describe("compileEventToMonthlyCashflowSeries (salary)", () => {
+
+  it("uses schedule entries for schedule-driven salary events", () => {
+    const definition = buildDefinition({
+      rule: {
+        mode: "schedule",
+        startMonth: "2026-01",
+        endMonth: "2026-03",
+        monthlyAmount: 1000,
+        salarySteps: [
+          {
+            id: "step-1",
+            basis: "month",
+            startMonth: "2026-02",
+            monthlyAmount: 50000,
+          },
+        ],
+        schedule: [
+          { month: "2026-01", amount: 30000 },
+          { month: "2026-02", amount: 31000 },
+          { month: "2026-03", amount: 32000 },
+        ],
+      },
+    });
+
+    const series = compileEventToMonthlyCashflowSeries({
+      definition,
+      ref: buildRef(),
+      assumptions,
+      signByType,
+    });
+
+    expect(series).toHaveLength(24);
+    expect(series[0]?.amount).toBe(30000);
+    expect(series[1]?.amount).toBe(31000);
+    expect(series[2]?.amount).toBe(32000);
+    expect(series[3]?.amount).toBe(0);
+  });
   it("applies salary steps within an endMonth range", () => {
     const definition = buildDefinition({
       rule: {

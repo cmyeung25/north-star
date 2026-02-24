@@ -188,8 +188,9 @@ export const compileEventToMonthlyCashflowSeries = ({
 
   const isSalarySubtype = (definition.incomeSubtype ?? "salary") === "salary";
   const isSalaryEvent = definition.type === "salary" && isSalarySubtype;
+  const useSalaryLadder = isSalaryEvent && effectiveRule.mode !== "schedule";
 
-  if (isSalaryEvent) {
+  if (useSalaryLadder) {
     if (!effectiveRule.startMonth) {
       return [];
     }

@@ -89,6 +89,41 @@ describe("compileScenarioV2ToLedger", () => {
   });
 
 
+  it("keeps schedule-driven salary impact in ledger and projection summary", () => {
+    const scenario: ScenarioV2 = {
+      ...baseScenario,
+      assumptions: {
+        ...baseScenario.assumptions,
+        baseMonth: "2026-01",
+        horizonMonths: 12,
+        initialCash: 0,
+      },
+      events: [
+        {
+          id: "evt-v2-salary-schedule",
+          type: "cashflow",
+          kind: "income",
+          category: "salary",
+          cadence: "monthly",
+          amount: 32000,
+          startMonth: "2026-01",
+          endMonth: "2026-03",
+          growthMode: "none",
+        },
+      ],
+    };
+
+    const ledger = compileScenarioV2ToLedger(scenario).filter(
+      (entry) => entry.sourceEventId === "evt-v2-salary-schedule"
+    );
+    expect(ledger).toHaveLength(3);
+    expect(ledger.every((entry) => entry.amount > 0)).toBe(true);
+
+    const projection = computeProjection(compileScenarioV2ToProjectionInput(scenario));
+    expect((projection.netCashflow[0] ?? 0) > 0).toBe(true);
+    expect((projection.cashBalance[0] ?? 0) > 0).toBe(true);
+  });
+
   it("expands annual travel budget meta months into split monthly ledger rows", () => {
     const scenario: ScenarioV2 = {
       ...baseScenario,
