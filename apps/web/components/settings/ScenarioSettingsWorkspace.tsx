@@ -44,7 +44,6 @@ import { useAuthState } from "../../src/hooks/useAuthState";
 import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import {
   getScenarioById,
-  isLegacyOnboardingScenario,
   resolveScenarioIdFromQuery,
   useScenarioStore,
   createBudgetRuleId,
@@ -87,7 +86,6 @@ import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedge
 import {
   scenarioDashboardPath,
   scenarioMoneyPath,
-  scenarioOnboardingPath,
 } from "../../lib/routes/appRoutes";
 import { computeDashboardMetrics } from "../../src/domain/dashboard/metrics";
 import ProjectionPreviewPanel, { type PreviewScope } from "../ProjectionPreviewPanel";
@@ -297,13 +295,6 @@ export default function ScenarioSettingsWorkspace({
     () => resolveScenarioIdFromQuery(scenarioIdFromQuery, activeScenarioId, scenarios),
     [activeScenarioId, scenarioIdFromQuery, scenarios]
   );
-  const buildOnboardingHref = useCallback(
-    (targetScenarioId: string) => scenarioOnboardingPath(caseId, targetScenarioId),
-    [caseId]
-  );
-  const recoveryScenarioId =
-    resolvedScenarioId || scenarioIdFromQuery || activeScenarioId || scenarios[0]?.id || "unknown";
-  const recoveryOnboardingHref = buildOnboardingHref(recoveryScenarioId);
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const includeBudgetRulesInProjection =
     scenario?.assumptions.includeBudgetRulesInProjection ?? true;
@@ -1008,6 +999,11 @@ export default function ScenarioSettingsWorkspace({
       : buildZeroPreview(expandedRule);
   }, [buildZeroPreview, expandedRule, members, scenario]);
 
+  const recoveryHref =
+    caseId && scenarios[0]?.id
+      ? scenarioDashboardPath(caseId, scenarios[0].id)
+      : "/";
+
   if (!scenario) {
     return (
       <Stack gap="lg">
@@ -1024,7 +1020,7 @@ export default function ScenarioSettingsWorkspace({
               {common("settingsRecoveryDescription")}
             </Text>
             <Group>
-              <Button component={Link} href={recoveryOnboardingHref} variant="light">
+              <Button component={Link} href={recoveryHref} variant="light">
                 {common("actionContinue")}
               </Button>
             </Group>
@@ -1126,7 +1122,6 @@ export default function ScenarioSettingsWorkspace({
     ];
   };
 
-  const showLegacyOnboardingBanner = isLegacyOnboardingScenario(scenario);
 
   return (
     <Stack gap="xl">
@@ -1137,52 +1132,12 @@ export default function ScenarioSettingsWorkspace({
         </Text>
       </Stack>
 
-      <Group>
-        <Button component={Link} href={buildOnboardingHref(scenario.id)} variant="light">
-          {common("runOnboardingAgain")}
-        </Button>
-      </Group>
-
-      {showLegacyOnboardingBanner && (
-        <Card withBorder radius="md" padding="md">
-          <Group justify="space-between" align="flex-start" wrap="wrap">
-            <Stack gap={2}>
-              <Text fw={600}>{common("onboardingRefreshTitle")}</Text>
-              <Text size="sm" c="dimmed">
-                {common("onboardingRefreshBody")}
-              </Text>
-            </Stack>
-            <Button
-              component={Link}
-              href={buildOnboardingHref(scenario.id)}
-              variant="light"
-              size="xs"
-            >
-              {common("runOnboardingAgain")}
-            </Button>
-          </Group>
-        </Card>
-      )}
-
       {toast && (
         <Notification color={toast.color} onClose={() => setToast(null)}>
           {toast.message}
         </Notification>
       )}
 
-
-      <Card withBorder radius="md" padding="md">
-        <Stack gap="xs">
-          <Text fw={600}>{common("settingsGuidanceTitle")}</Text>
-          <Text size="sm" c="dimmed">
-            {common("settingsGuidanceSubtitle")}
-          </Text>
-          <Text size="sm">1. {common("settingsGuidanceStep1")}</Text>
-          <Text size="sm">2. {common("settingsGuidanceStep2")}</Text>
-          <Text size="sm">3. {common("settingsGuidanceStep3")}</Text>
-          <Text size="sm">4. {common("settingsGuidanceStep4")}</Text>
-        </Stack>
-      </Card>
 
       <Tabs value={activeTab} onChange={handleTabChange}>
         <Tabs.List>
