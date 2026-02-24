@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { ScenarioSummary } from "@north-star/adapters";
-import { Alert, Accordion, Button, Divider, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
+import { Alert, Accordion, Button, Divider, Group, NumberInput, Stack, Table, Text, TextInput, Tooltip } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import {
   scenarioAssumptionConstraints,
@@ -40,6 +40,7 @@ const dirtyCheckFields: Array<keyof ScenarioAssumptionsDto> = [
 const shortId = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
 
 export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenarioId, scenarios, assumptions }: Props) {
+  const t = useTranslations("scenarioSettings");
   const validation = useTranslations("validation");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -75,7 +76,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
       return;
     }
 
-    const message = "你有未儲存的更改，確定要離開此頁面嗎？";
+    const message = t("unsavedChangesConfirm");
     const onAnchorClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) {
@@ -100,7 +101,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
 
     document.addEventListener("click", onAnchorClick, true);
     return () => document.removeEventListener("click", onAnchorClick, true);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, t]);
 
   const submit = (task: () => Promise<unknown>, onDone?: () => void) => {
     setError(null);
@@ -111,7 +112,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
           onDone?.();
           router.refresh();
         })
-        .catch((reason) => setError(reason instanceof Error ? reason.message : "Action failed."));
+        .catch((reason) => setError(reason instanceof Error ? reason.message : t("actionFailed")));
     });
   };
 
@@ -163,10 +164,21 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
         }),
       () => {
         setSavedAssumptions(assumptionValues);
-        setSuccess("假設已更新。");
+        setSuccess(t("assumptions.updated"));
       },
     );
   };
+
+  const withTooltip = (label: string, tooltip: string) => (
+    <Group gap={4} align="center">
+      <Text component="span">{label}</Text>
+      <Tooltip label={tooltip} withArrow>
+        <Text component="span" c="dimmed" style={{ cursor: "help" }}>
+          ⓘ
+        </Text>
+      </Tooltip>
+    </Group>
+  );
 
   return (
     <Stack>
@@ -177,10 +189,10 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
       </Text>
 
       <Stack gap="xs">
-        <Divider label="Scenario assumptions" labelPosition="left" />
+        <Divider label={t("assumptions.title")} labelPosition="left" />
         <Group grow align="flex-start">
           <NumberInput
-            label="Inflation rate (%)"
+            label={withTooltip(t("assumptions.inflationRate.label"), t("assumptions.percentTooltip"))}
             value={assumptionValues.inflationRate}
             decimalScale={2}
             min={scenarioAssumptionConstraints.inflationRate.min}
@@ -195,7 +207,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
             }
           />
           <NumberInput
-            label="Salary growth rate (%)"
+            label={withTooltip(t("assumptions.salaryGrowthRate.label"), t("assumptions.percentTooltip"))}
             value={assumptionValues.salaryGrowthRate}
             decimalScale={2}
             min={scenarioAssumptionConstraints.salaryGrowthRate.min}
@@ -210,7 +222,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
             }
           />
           <NumberInput
-            label="Investment return (%)"
+            label={withTooltip(t("assumptions.investmentReturnPct.label"), t("assumptions.percentTooltip"))}
             value={assumptionValues.investmentReturnPct}
             decimalScale={2}
             min={scenarioAssumptionConstraints.investmentReturnPct.min}
@@ -226,12 +238,12 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
         </Group>
         <Accordion variant="contained" radius="md" defaultValue={null}>
           <Accordion.Item value="advanced-assumptions">
-            <Accordion.Control>進階假設</Accordion.Control>
+            <Accordion.Control>{t("assumptions.advancedTitle")}</Accordion.Control>
             <Accordion.Panel>
               <Stack>
                 <Group grow align="flex-start">
                   <NumberInput
-                    label="Rent annual growth (%)"
+                    label={withTooltip(t("assumptions.rentAnnualGrowthPct.label"), t("assumptions.percentTooltip"))}
                     value={assumptionValues.rentAnnualGrowthPct}
                     decimalScale={2}
                     min={scenarioAssumptionConstraints.rentAnnualGrowthPct.min}
@@ -246,7 +258,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                     }
                   />
                   <NumberInput
-                    label="Property appreciation (%)"
+                    label={withTooltip(t("assumptions.propertyAppreciationPct.label"), t("assumptions.percentTooltip"))}
                     value={assumptionValues.propertyAppreciationPct}
                     decimalScale={2}
                     min={scenarioAssumptionConstraints.propertyAppreciationPct.min}
@@ -264,7 +276,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                 </Group>
                 <Group grow align="flex-start">
                   <NumberInput
-                    label="Cash yield (%)"
+                    label={withTooltip(t("assumptions.cashYieldPct.label"), t("assumptions.percentTooltip"))}
                     value={assumptionValues.cashYieldPct}
                     decimalScale={2}
                     min={scenarioAssumptionConstraints.cashYieldPct.min}
@@ -279,7 +291,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                     }
                   />
                   <NumberInput
-                    label="Car depreciation (%)"
+                    label={withTooltip(t("assumptions.carDepreciationRatePct.label"), t("assumptions.percentTooltip"))}
                     value={assumptionValues.carDepreciationRatePct}
                     decimalScale={2}
                     min={scenarioAssumptionConstraints.carDepreciationRatePct.min}
@@ -295,7 +307,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                     }
                   />
                   <NumberInput
-                    label="Emergency fund (months)"
+                    label={withTooltip(t("assumptions.emergencyFundMonths.label"), t("assumptions.monthsTooltip"))}
                     value={assumptionValues.emergencyFundMonths}
                     min={scenarioAssumptionConstraints.emergencyFundMonths.min}
                     max={scenarioAssumptionConstraints.emergencyFundMonths.max}
@@ -315,10 +327,10 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
         </Accordion>
         <Group justify="flex-end" gap="xs">
           <Text size="sm" c="dimmed">
-            只影響目前 scenario，不會影響同 case 其他情景。
+            {t("assumptions.scopeNote")}
           </Text>
           <Button loading={isPending} onClick={submitAssumptions}>
-            儲存假設
+            {t("assumptions.save")}
           </Button>
         </Group>
       </Stack>
@@ -327,7 +339,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
 
       <Group>
         <TextInput
-          placeholder="New scenario name"
+          placeholder={t("newScenario.placeholder")}
           value={newTitle}
           onChange={(event) => setNewTitle(event.currentTarget.value)}
         />
@@ -342,15 +354,15 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
             )
           }
         >
-          新增情景
+          {t("newScenario.create")}
         </Button>
       </Group>
 
       <Table withTableBorder striped>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Title</Table.Th>
-            <Table.Th>Actions</Table.Th>
+            <Table.Th>{t("table.title")}</Table.Th>
+            <Table.Th>{t("table.actions")}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -376,7 +388,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                       variant={scenario.id === activeScenarioId ? "filled" : "default"}
                       onClick={() => router.push(scenarioDashboardPath(caseId, scenario.id))}
                     >
-                      開啟
+                      {t("table.open")}
                     </Button>
                     <Button
                       size="xs"
@@ -392,7 +404,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                         )
                       }
                     >
-                      改名
+                      {t("table.rename")}
                     </Button>
                     <Button
                       size="xs"
@@ -400,7 +412,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                       loading={isPending}
                       onClick={() => submit(() => duplicateScenarioAction({ caseId, scenarioId: scenario.id }))}
                     >
-                      複製
+                      {t("table.duplicate")}
                     </Button>
                     <Button
                       size="xs"
@@ -409,7 +421,7 @@ export default function ScenarioSettingsClient({ caseId, caseTitle, activeScenar
                       disabled={scenarios.length <= 1}
                       onClick={() => submit(() => deleteScenarioAction({ caseId, scenarioId: scenario.id }))}
                     >
-                      刪除
+                      {t("table.delete")}
                     </Button>
                   </Group>
                 </Table.Td>

@@ -4354,5 +4354,54 @@
     "openingCase": "Opening “{title}”…",
     "loadingPlanningData": "Loading your planning data…",
     "loadingScenario": "Loading scenario…"
+  },
+  "scenarioSettings": {
+    "actionFailed": "Action failed.",
+    "unsavedChangesConfirm": "You have unsaved changes. Leave this page?",
+    "assumptions": {
+      "title": "Scenario assumptions",
+      "updated": "Assumptions updated.",
+      "advancedTitle": "Advanced assumptions",
+      "percentTooltip": "Annual percentage.",
+      "monthsTooltip": "Months.",
+      "inflationRate": {
+        "label": "Inflation rate (%)"
+      },
+      "salaryGrowthRate": {
+        "label": "Salary growth rate (%)"
+      },
+      "investmentReturnPct": {
+        "label": "Investment return (%)"
+      },
+      "rentAnnualGrowthPct": {
+        "label": "Rent annual growth (%)"
+      },
+      "propertyAppreciationPct": {
+        "label": "Property appreciation (%)"
+      },
+      "cashYieldPct": {
+        "label": "Cash yield (%)"
+      },
+      "carDepreciationRatePct": {
+        "label": "Car depreciation (%)"
+      },
+      "emergencyFundMonths": {
+        "label": "Emergency fund (months)"
+      },
+      "scopeNote": "Only affects this scenario and will not change other scenarios in the same case.",
+      "save": "Save assumptions"
+    },
+    "newScenario": {
+      "placeholder": "New scenario name",
+      "create": "Create scenario"
+    },
+    "table": {
+      "title": "Title",
+      "actions": "Actions",
+      "open": "Open",
+      "rename": "Rename",
+      "duplicate": "Duplicate",
+      "delete": "Delete"
+    }
   }
 }

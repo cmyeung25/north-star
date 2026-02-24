@@ -4401,5 +4401,54 @@
     "errors": {
       "saveFailed": "儲存 onboarding 變更失敗，請再試一次。"
     }
+  },
+  "scenarioSettings": {
+    "actionFailed": "操作失敗。",
+    "unsavedChangesConfirm": "你有未儲存的更改，確定要離開此頁面嗎？",
+    "assumptions": {
+      "title": "情景假設",
+      "updated": "假設已更新。",
+      "advancedTitle": "進階假設",
+      "percentTooltip": "年化百分比。",
+      "monthsTooltip": "月份。",
+      "inflationRate": {
+        "label": "通脹率 (%)"
+      },
+      "salaryGrowthRate": {
+        "label": "薪金增長率 (%)"
+      },
+      "investmentReturnPct": {
+        "label": "投資回報率 (%)"
+      },
+      "rentAnnualGrowthPct": {
+        "label": "租金年增長 (%)"
+      },
+      "propertyAppreciationPct": {
+        "label": "物業升值率 (%)"
+      },
+      "cashYieldPct": {
+        "label": "現金收益率 (%)"
+      },
+      "carDepreciationRatePct": {
+        "label": "汽車折舊率 (%)"
+      },
+      "emergencyFundMonths": {
+        "label": "緊急預備金（月）"
+      },
+      "scopeNote": "只影響目前 scenario，不會影響同 case 其他情景。",
+      "save": "儲存假設"
+    },
+    "newScenario": {
+      "placeholder": "New scenario name",
+      "create": "新增情景"
+    },
+    "table": {
+      "title": "Title",
+      "actions": "Actions",
+      "open": "開啟",
+      "rename": "改名",
+      "duplicate": "複製",
+      "delete": "刪除"
+    }
   }
 }
