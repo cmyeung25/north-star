@@ -97,6 +97,7 @@ import {
   ASSUMPTION_PRESETS,
   type AssumptionsPresetKey,
 } from "../../src/domain/assumptions/presets";
+import { buildOnboardingAssumptionsDraft } from "../../src/domain/onboarding/v2/assumptions";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -240,6 +241,7 @@ export default function ScenarioSettingsWorkspace({
   >(null);
   const [selectedAssumptionPreset, setSelectedAssumptionPreset] =
     useState<AssumptionsPresetKey>("baseline");
+  const [resetAssumptionsModalOpen, setResetAssumptionsModalOpen] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasHandledInitialAction = useRef(false);
@@ -840,6 +842,53 @@ export default function ScenarioSettingsWorkspace({
     updateScenarioAssumptions(scenario.id, selectedPresetPatch);
     showToast(common("saved"), "teal");
   };
+
+  const defaultAssumptionsForReset = useMemo<ScenarioAssumptionsOverride>(() => {
+    const onboardingDefaults = buildOnboardingAssumptionsDraft();
+    return {
+      inflationRate: onboardingDefaults.inflationPct ?? undefined,
+      salaryGrowthRate: onboardingDefaults.incomeGrowthPct ?? undefined,
+      rentAnnualGrowthPct: onboardingDefaults.rentGrowthPct ?? undefined,
+      propertyAppreciationPct: onboardingDefaults.propertyAppreciationPct ?? undefined,
+      cashYieldPct: onboardingDefaults.cashYieldPct ?? undefined,
+      carDepreciationRatePct: onboardingDefaults.carDepreciationPct ?? undefined,
+    };
+  }, []);
+
+  const resetAssumptionDiffRows = useMemo(() => {
+    if (!scenario) {
+      return [] as Array<{
+        key: keyof ScenarioAssumptionsOverride;
+        beforeValue: number | undefined;
+        afterValue: number | undefined;
+        delta: number;
+      }>;
+    }
+
+    return (Object.keys(defaultAssumptionsForReset) as Array<keyof ScenarioAssumptionsOverride>)
+      .map((key) => {
+        const beforeValue = scenario.assumptions[key];
+        const afterValue = defaultAssumptionsForReset[key];
+        if (typeof beforeValue !== "number" || typeof afterValue !== "number") {
+          return null;
+        }
+        const delta = Number((afterValue - beforeValue).toFixed(2));
+        if (delta === 0) {
+          return null;
+        }
+        return { key, beforeValue, afterValue, delta };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  }, [defaultAssumptionsForReset, scenario]);
+
+  const handleConfirmResetAssumptions = useCallback(() => {
+    if (!scenario) {
+      return;
+    }
+    updateScenarioAssumptions(scenario.id, defaultAssumptionsForReset);
+    setResetAssumptionsModalOpen(false);
+    showToast(t("resetDefaultsSaved"), "teal");
+  }, [defaultAssumptionsForReset, scenario, showToast, t, updateScenarioAssumptions]);
 
   useEffect(() => {
     setBudgetMonthInputs((current) => {
@@ -1483,6 +1532,15 @@ export default function ScenarioSettingsWorkspace({
                 }}
                 onChange={handleAssumptionChange}
               />
+              <Group justify="flex-end">
+                <Button
+                  variant="default"
+                  onClick={() => setResetAssumptionsModalOpen(true)}
+                  disabled={resetAssumptionDiffRows.length === 0}
+                >
+                  {t("resetDefaultsAction")}
+                </Button>
+              </Group>
               <Divider />
               <Stack gap="xs">
                 <Group align="end" grow>
@@ -1551,6 +1609,48 @@ export default function ScenarioSettingsWorkspace({
               </Stack>
             </Stack>
           </Card>
+
+          <Modal
+            opened={resetAssumptionsModalOpen}
+            onClose={() => setResetAssumptionsModalOpen(false)}
+            title={t("resetDefaultsModalTitle")}
+            centered
+          >
+            <Stack gap="sm">
+              <Text size="sm" c="dimmed">
+                {t("resetDefaultsModalBody")}
+              </Text>
+              {resetAssumptionDiffRows.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {t("resetDefaultsNoDiff")}
+                </Text>
+              ) : (
+                <Stack gap={6}>
+                  {resetAssumptionDiffRows.map((row) => (
+                    <Group key={row.key} justify="space-between" wrap="nowrap">
+                      <Text size="sm">{impactLabelByKey[row.key]}</Text>
+                      <Text size="sm" fw={600}>
+                        {row.beforeValue}% → {row.afterValue}% ({row.delta > 0 ? "+" : ""}
+                        {row.delta}%)
+                      </Text>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
+              <Group justify="flex-end" mt="xs">
+                <Button variant="default" onClick={() => setResetAssumptionsModalOpen(false)}>
+                  {common("cancel")}
+                </Button>
+                <Button
+                  color="red"
+                  onClick={handleConfirmResetAssumptions}
+                  disabled={resetAssumptionDiffRows.length === 0}
+                >
+                  {t("resetDefaultsConfirm")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
 
           <Modal
             opened={Boolean(affectedAssumptionKey)}
