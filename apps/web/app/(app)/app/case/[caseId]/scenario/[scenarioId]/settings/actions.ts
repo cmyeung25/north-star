@@ -65,6 +65,11 @@ export async function updateScenarioAssumptionsAction(input: {
   }
 
   const scenarioRepo = repo();
+  const scenariosInCase = await scenarioRepo.listScenarios(input.caseId);
+  if (!scenariosInCase.some((scenario) => scenario.id === input.scenarioId)) {
+    throw new Error("Scenario does not belong to the selected case.");
+  }
+
   const payload = (await scenarioRepo.loadScenarioPayload(input.caseId, input.scenarioId)) as Record<string, unknown>;
   const scenarios = Array.isArray(payload.scenarios) ? payload.scenarios : [];
 
