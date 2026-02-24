@@ -11,8 +11,8 @@ type TwoPaneLayoutProps = {
 export default function TwoPaneLayout({ left, right }: TwoPaneLayoutProps) {
   return (
     <Grid gutter="md">
-      <Grid.Col span={{ base: 12, md: 8 }}>{left}</Grid.Col>
-      <Grid.Col span={{ base: 12, md: 4 }}>{right}</Grid.Col>
+      <Grid.Col span={{ base: 12, sm: 8 }}>{left}</Grid.Col>
+      <Grid.Col span={{ base: 12, sm: 4 }}>{right}</Grid.Col>
     </Grid>
   );
 }
