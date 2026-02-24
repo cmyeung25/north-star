@@ -732,6 +732,36 @@ const buildLegacyEventLibrary = (
       return [];
     }
 
+    if (event.type === "adjustment") {
+      if (!isValidMonthKey(event.month)) {
+        return [];
+      }
+
+      const rawAmount = Number(event.amount);
+      if (!Number.isFinite(rawAmount) || rawAmount === 0) {
+        return [];
+      }
+
+      const isIncome = rawAmount > 0;
+      return [
+        {
+          id: event.id,
+          title: event.label ?? "Adjustment",
+          type: isIncome ? "tax_benefit" : "custom",
+          kind: "cashflow",
+          rule: {
+            mode: "schedule",
+            startMonth: event.month,
+            endMonth: event.month,
+            schedule: [{ month: event.month, amount: Math.abs(rawAmount) }],
+          },
+          currency: scenario.baseCurrency,
+          memberId: event.memberId,
+          ...(isIncome ? { incomeSubtype: event.category ?? "other" } : {}),
+        },
+      ];
+    }
+
     if (event.type === "housing") {
       if (event.kind === "rent") {
         const rentMonthly = event.rentMonthly ?? 0;
