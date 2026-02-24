@@ -43,14 +43,32 @@ export const selectMonthSnapshot = ({
     return null;
   }
 
-  const cashEom = projection.cashBalance[monthIndex] ?? 0;
+  const projectionCashEom = projection.cashBalance?.[monthIndex];
+  const projectionNetCashflow = projection.netCashflow?.[monthIndex];
   const netWorth = projection.netWorth[monthIndex] ?? 0;
-  const assetsTotal = projection.assets?.total?.[monthIndex] ?? cashEom + netWorth;
-  const liabilitiesTotal = projection.liabilities?.total?.[monthIndex] ?? assetsTotal - netWorth;
   const items = [
     ...(ledgerByMonth?.[monthKey] ?? []),
     ...(positionCashflowsByMonth?.[monthKey] ?? []),
   ];
+  const ledgerNetCashflow = items.reduce((total, item) => total + item.amount, 0);
+
+  // Prefer projection-native cash and net cashflow together so summary metrics
+  // come from the same source of truth. Fall back to ledger-derived values only
+  // when projection series are unavailable.
+  const hasProjectionSummarySeries =
+    typeof projectionCashEom === "number" &&
+    Number.isFinite(projectionCashEom) &&
+    typeof projectionNetCashflow === "number" &&
+    Number.isFinite(projectionNetCashflow);
+  const cashEom = hasProjectionSummarySeries
+    ? projectionCashEom
+    : projectionCashEom ?? 0;
+  const netCashflow = hasProjectionSummarySeries
+    ? projectionNetCashflow
+    : ledgerNetCashflow;
+
+  const assetsTotal = projection.assets?.total?.[monthIndex] ?? cashEom + netWorth;
+  const liabilitiesTotal = projection.liabilities?.total?.[monthIndex] ?? assetsTotal - netWorth;
   const inflow = items.reduce(
     (total, item) => total + (item.amount > 0 ? item.amount : 0),
     0
@@ -63,7 +81,7 @@ export const selectMonthSnapshot = ({
     month: monthKey,
     cashEom,
     netWorth,
-    netCashflow: items.reduce((total, item) => total + item.amount, 0),
+    netCashflow,
     inflow,
     outflow,
     assetsTotal,
