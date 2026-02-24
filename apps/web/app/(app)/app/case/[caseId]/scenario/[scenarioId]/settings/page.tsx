@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createCaseScenarioRepo } from "@north-star/adapters";
 import { Title } from "@mantine/core";
 import { getTranslations } from "next-intl/server";
+import { scenarioAssumptionConstraints } from "../../../../../../../../src/domain/scenarioAssumptions";
 import { createSupabaseServerClient } from "../../../../../../../../src/lib/supabase/server";
 import ScenarioSettingsClient from "./ScenarioSettingsClient";
 import type { ScenarioAssumptionsDto } from "./actions";
@@ -50,6 +51,17 @@ export default async function ScenarioSettingsPage({ params }: PageProps) {
             : typeof investmentReturns.crypto === "number"
               ? investmentReturns.crypto
               : 5,
+    rentAnnualGrowthPct:
+      typeof assumptions.rentAnnualGrowthPct === "number" ? assumptions.rentAnnualGrowthPct : 2,
+    propertyAppreciationPct:
+      typeof assumptions.propertyAppreciationPct === "number" ? assumptions.propertyAppreciationPct : 2,
+    cashYieldPct: typeof assumptions.cashYieldPct === "number" ? assumptions.cashYieldPct : 1,
+    carDepreciationRatePct:
+      typeof assumptions.carDepreciationRatePct === "number" ? assumptions.carDepreciationRatePct : 15,
+    emergencyFundMonths:
+      typeof assumptions.emergencyFundMonths === "number"
+        ? assumptions.emergencyFundMonths
+        : scenarioAssumptionConstraints.emergencyFundMonths.min,
   };
 
   return (

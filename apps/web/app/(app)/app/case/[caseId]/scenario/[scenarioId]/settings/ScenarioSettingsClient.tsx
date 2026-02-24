@@ -3,7 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ScenarioSummary } from "@north-star/adapters";
-import { Alert, Button, Divider, Group, NumberInput, Stack, Table, TextInput } from "@mantine/core";
+import { Alert, Accordion, Button, Divider, Group, NumberInput, Stack, Table, TextInput } from "@mantine/core";
+import { useTranslations } from "next-intl";
+import {
+  scenarioAssumptionConstraints,
+  scenarioAssumptionSchema,
+} from "../../../../../../../../src/domain/scenarioAssumptions";
 import {
   createScenarioAction,
   deleteScenarioAction,
@@ -21,6 +26,7 @@ type Props = {
 };
 
 export default function ScenarioSettingsClient({ caseId, activeScenarioId, scenarios, assumptions }: Props) {
+  const validation = useTranslations("validation");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +34,7 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
   const [newTitle, setNewTitle] = useState("");
   const [renameTitleById, setRenameTitleById] = useState<Record<string, string>>({});
   const [assumptionValues, setAssumptionValues] = useState<ScenarioAssumptionsDto>(assumptions);
+  const [assumptionErrors, setAssumptionErrors] = useState<Partial<Record<keyof ScenarioAssumptionsDto, string>>>({});
 
   const submit = (task: () => Promise<unknown>, onDone?: () => void) => {
     setError(null);
@@ -43,6 +50,44 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
   };
 
   const submitAssumptions = () => {
+    const result = scenarioAssumptionSchema.safeParse({
+      inflationRate: assumptionValues.inflationRate,
+      salaryGrowthRate: assumptionValues.salaryGrowthRate,
+      rentAnnualGrowthPct: assumptionValues.rentAnnualGrowthPct,
+      propertyAppreciationPct: assumptionValues.propertyAppreciationPct,
+      cashYieldPct: assumptionValues.cashYieldPct,
+      carDepreciationRatePct: assumptionValues.carDepreciationRatePct,
+      emergencyFundMonths: assumptionValues.emergencyFundMonths,
+    });
+
+    if (!result.success) {
+      const issues = new Map(result.error.issues.map((issue) => [issue.path[0], issue.message]));
+      setAssumptionErrors({
+        inflationRate: typeof issues.get("inflationRate") === "string" ? validation(issues.get("inflationRate") as string) : "",
+        salaryGrowthRate:
+          typeof issues.get("salaryGrowthRate") === "string" ? validation(issues.get("salaryGrowthRate") as string) : "",
+        rentAnnualGrowthPct:
+          typeof issues.get("rentAnnualGrowthPct") === "string"
+            ? validation(issues.get("rentAnnualGrowthPct") as string)
+            : "",
+        propertyAppreciationPct:
+          typeof issues.get("propertyAppreciationPct") === "string"
+            ? validation(issues.get("propertyAppreciationPct") as string)
+            : "",
+        cashYieldPct: typeof issues.get("cashYieldPct") === "string" ? validation(issues.get("cashYieldPct") as string) : "",
+        carDepreciationRatePct:
+          typeof issues.get("carDepreciationRatePct") === "string"
+            ? validation(issues.get("carDepreciationRatePct") as string)
+            : "",
+        emergencyFundMonths:
+          typeof issues.get("emergencyFundMonths") === "string"
+            ? validation(issues.get("emergencyFundMonths") as string)
+            : "",
+      });
+      return;
+    }
+
+    setAssumptionErrors({});
     submit(
       () =>
         updateScenarioAssumptionsAction({
@@ -68,6 +113,10 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
             label="Inflation rate (%)"
             value={assumptionValues.inflationRate}
             decimalScale={2}
+            min={scenarioAssumptionConstraints.inflationRate.min}
+            max={scenarioAssumptionConstraints.inflationRate.max}
+            step={scenarioAssumptionConstraints.inflationRate.step}
+            error={assumptionErrors.inflationRate}
             onChange={(value) =>
               setAssumptionValues((prev) => ({
                 ...prev,
@@ -79,6 +128,10 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
             label="Salary growth rate (%)"
             value={assumptionValues.salaryGrowthRate}
             decimalScale={2}
+            min={scenarioAssumptionConstraints.salaryGrowthRate.min}
+            max={scenarioAssumptionConstraints.salaryGrowthRate.max}
+            step={scenarioAssumptionConstraints.salaryGrowthRate.step}
+            error={assumptionErrors.salaryGrowthRate}
             onChange={(value) =>
               setAssumptionValues((prev) => ({
                 ...prev,
@@ -90,6 +143,9 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
             label="Investment return (%)"
             value={assumptionValues.investmentReturnPct}
             decimalScale={2}
+            min={scenarioAssumptionConstraints.investmentReturnPct.min}
+            max={scenarioAssumptionConstraints.investmentReturnPct.max}
+            step={scenarioAssumptionConstraints.investmentReturnPct.step}
             onChange={(value) =>
               setAssumptionValues((prev) => ({
                 ...prev,
@@ -98,6 +154,95 @@ export default function ScenarioSettingsClient({ caseId, activeScenarioId, scena
             }
           />
         </Group>
+        <Accordion variant="contained" radius="md" defaultValue={null}>
+          <Accordion.Item value="advanced-assumptions">
+            <Accordion.Control>進階假設</Accordion.Control>
+            <Accordion.Panel>
+              <Stack>
+                <Group grow align="flex-start">
+                  <NumberInput
+                    label="Rent annual growth (%)"
+                    value={assumptionValues.rentAnnualGrowthPct}
+                    decimalScale={2}
+                    min={scenarioAssumptionConstraints.rentAnnualGrowthPct.min}
+                    max={scenarioAssumptionConstraints.rentAnnualGrowthPct.max}
+                    step={scenarioAssumptionConstraints.rentAnnualGrowthPct.step}
+                    error={assumptionErrors.rentAnnualGrowthPct}
+                    onChange={(value) =>
+                      setAssumptionValues((prev) => ({
+                        ...prev,
+                        rentAnnualGrowthPct: typeof value === "number" ? value : prev.rentAnnualGrowthPct,
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    label="Property appreciation (%)"
+                    value={assumptionValues.propertyAppreciationPct}
+                    decimalScale={2}
+                    min={scenarioAssumptionConstraints.propertyAppreciationPct.min}
+                    max={scenarioAssumptionConstraints.propertyAppreciationPct.max}
+                    step={scenarioAssumptionConstraints.propertyAppreciationPct.step}
+                    error={assumptionErrors.propertyAppreciationPct}
+                    onChange={(value) =>
+                      setAssumptionValues((prev) => ({
+                        ...prev,
+                        propertyAppreciationPct:
+                          typeof value === "number" ? value : prev.propertyAppreciationPct,
+                      }))
+                    }
+                  />
+                </Group>
+                <Group grow align="flex-start">
+                  <NumberInput
+                    label="Cash yield (%)"
+                    value={assumptionValues.cashYieldPct}
+                    decimalScale={2}
+                    min={scenarioAssumptionConstraints.cashYieldPct.min}
+                    max={scenarioAssumptionConstraints.cashYieldPct.max}
+                    step={scenarioAssumptionConstraints.cashYieldPct.step}
+                    error={assumptionErrors.cashYieldPct}
+                    onChange={(value) =>
+                      setAssumptionValues((prev) => ({
+                        ...prev,
+                        cashYieldPct: typeof value === "number" ? value : prev.cashYieldPct,
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    label="Car depreciation (%)"
+                    value={assumptionValues.carDepreciationRatePct}
+                    decimalScale={2}
+                    min={scenarioAssumptionConstraints.carDepreciationRatePct.min}
+                    max={scenarioAssumptionConstraints.carDepreciationRatePct.max}
+                    step={scenarioAssumptionConstraints.carDepreciationRatePct.step}
+                    error={assumptionErrors.carDepreciationRatePct}
+                    onChange={(value) =>
+                      setAssumptionValues((prev) => ({
+                        ...prev,
+                        carDepreciationRatePct:
+                          typeof value === "number" ? value : prev.carDepreciationRatePct,
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    label="Emergency fund (months)"
+                    value={assumptionValues.emergencyFundMonths}
+                    min={scenarioAssumptionConstraints.emergencyFundMonths.min}
+                    max={scenarioAssumptionConstraints.emergencyFundMonths.max}
+                    step={scenarioAssumptionConstraints.emergencyFundMonths.step}
+                    error={assumptionErrors.emergencyFundMonths}
+                    onChange={(value) =>
+                      setAssumptionValues((prev) => ({
+                        ...prev,
+                        emergencyFundMonths: typeof value === "number" ? value : prev.emergencyFundMonths,
+                      }))
+                    }
+                  />
+                </Group>
+              </Stack>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
         <Group justify="flex-end">
           <Button loading={isPending} onClick={submitAssumptions}>
             儲存假設
