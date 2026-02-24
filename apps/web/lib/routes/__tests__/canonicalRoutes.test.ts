@@ -26,13 +26,13 @@ describe("canonicalRoutes", () => {
       "/en/app/case/case-1/scenario/scenario-1/onboarding",
     );
     expect(scenarioPeoplePath("case-1", "scenario-1")).toBe(
-      "/app/case/case-1/scenario/scenario-1/people",
+      "/app/case/case-1/scenario/scenario-1/setting",
     );
     expect(scenarioSettingsPath("case-1", "scenario-1", "en")).toBe(
-      "/en/app/case/case-1/scenario/scenario-1/settings",
+      "/en/app/case/case-1/scenario/scenario-1/scenario-list",
     );
     expect(scenarioSettingsFeaturePath("case-1", "scenario-1", "sync")).toBe(
-      "/app/case/case-1/scenario/scenario-1/settings#sync",
+      "/app/case/case-1/scenario/scenario-1/scenario-list#sync",
     );
   });
 

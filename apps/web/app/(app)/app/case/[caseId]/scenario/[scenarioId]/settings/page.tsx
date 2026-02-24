@@ -1,87 +1,9 @@
-import { notFound } from "next/navigation";
-import { createCaseScenarioRepo } from "@north-star/adapters";
-import { Title } from "@mantine/core";
-import { getTranslations } from "next-intl/server";
-import { scenarioAssumptionConstraints } from "../../../../../../../../src/domain/scenarioAssumptions";
-import { createSupabaseServerClient } from "../../../../../../../../src/lib/supabase/server";
-import ScenarioSettingsClient from "./ScenarioSettingsClient";
-import type { ScenarioAssumptionsDto } from "./actions";
+import { redirect } from "next/navigation";
 
 type PageProps = {
   params: { caseId: string; scenarioId: string };
 };
 
-export default async function ScenarioSettingsPage({ params }: PageProps) {
-  const nav = await getTranslations("nav");
-  const repo = createCaseScenarioRepo({
-    mode: "cloud",
-    supabaseClient: createSupabaseServerClient(),
-  });
-
-  const scenarios = await repo.listScenarios(params.caseId);
-  const cases = await repo.listCases();
-  const currentCase = cases.find((entry) => entry.id === params.caseId);
-  if (!scenarios.some((scenario) => scenario.id === params.scenarioId)) {
-    notFound();
-  }
-
-  if (!currentCase) {
-    notFound();
-  }
-
-  const payload = (await repo.loadScenarioPayload(params.caseId, params.scenarioId)) as Record<string, unknown>;
-  const payloadScenarios = Array.isArray(payload.scenarios) ? payload.scenarios : [];
-  const activeScenarioPayload = payloadScenarios.find(
-    (entry) =>
-      entry &&
-      typeof entry === "object" &&
-      (entry as { id?: unknown }).id === params.scenarioId,
-  ) as { assumptions?: Record<string, unknown> } | undefined;
-
-  const assumptions = activeScenarioPayload?.assumptions ?? {};
-  const investmentReturns =
-    assumptions.investmentReturnAssumptions && typeof assumptions.investmentReturnAssumptions === "object"
-      ? (assumptions.investmentReturnAssumptions as Record<string, unknown>)
-      : {};
-
-  const initialAssumptions: ScenarioAssumptionsDto = {
-    inflationRate: typeof assumptions.inflationRate === "number" ? assumptions.inflationRate : 2,
-    salaryGrowthRate: typeof assumptions.salaryGrowthRate === "number" ? assumptions.salaryGrowthRate : 3,
-    investmentReturnPct:
-      typeof investmentReturns.fund === "number"
-        ? investmentReturns.fund
-        : typeof investmentReturns.equity === "number"
-          ? investmentReturns.equity
-          : typeof investmentReturns.bond === "number"
-            ? investmentReturns.bond
-            : typeof investmentReturns.crypto === "number"
-              ? investmentReturns.crypto
-              : 5,
-    rentAnnualGrowthPct:
-      typeof assumptions.rentAnnualGrowthPct === "number" ? assumptions.rentAnnualGrowthPct : 2,
-    propertyAppreciationPct:
-      typeof assumptions.propertyAppreciationPct === "number" ? assumptions.propertyAppreciationPct : 2,
-    cashYieldPct: typeof assumptions.cashYieldPct === "number" ? assumptions.cashYieldPct : 1,
-    carDepreciationRatePct:
-      typeof assumptions.carDepreciationRatePct === "number" ? assumptions.carDepreciationRatePct : 15,
-    emergencyFundMonths:
-      typeof assumptions.emergencyFundMonths === "number"
-        ? assumptions.emergencyFundMonths
-        : scenarioAssumptionConstraints.emergencyFundMonths.min,
-  };
-
-  return (
-    <>
-      <Title order={3} mb="md">
-        {nav("scenarioManagement")}
-      </Title>
-      <ScenarioSettingsClient
-        caseId={params.caseId}
-        caseTitle={currentCase.title}
-        activeScenarioId={params.scenarioId}
-        scenarios={scenarios}
-        assumptions={initialAssumptions}
-      />
-    </>
-  );
+export default function LegacyScenarioSettingsPage({ params }: PageProps) {
+  redirect(`/app/case/${params.caseId}/scenario/${params.scenarioId}/scenario-list`);
 }

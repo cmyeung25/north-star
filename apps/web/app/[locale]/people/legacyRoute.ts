@@ -15,7 +15,7 @@ export const resolveLegacyPeopleRouteRedirect = (
 
   // DEPRECATION WINDOW (legacy compatibility):
   // Keep this route only for backward compatibility with query-based links (/people?caseId=...&scenarioId=...).
-  // Canonical navigation must use /app/case/:caseId/scenario/:scenarioId/people.
+  // Canonical navigation must use /app/case/:caseId/scenario/:scenarioId/setting.
   recordLegacyPeopleRouteHit({
     locale,
     hasCaseId: Boolean(caseId),
