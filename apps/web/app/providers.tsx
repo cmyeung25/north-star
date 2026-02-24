@@ -133,7 +133,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
         ? scenarioPeoplePath(activeScenarioContext.caseId, activeScenarioContext.scenarioId)
         : memberCasesPath(),
       activePath: activeScenarioContext
-        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/people`
+        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/setting`
         : "/member/cases",
     },
     {
@@ -142,7 +142,7 @@ export default function Providers({ children, initialSupabaseUser }: ProvidersPr
         ? scenarioSettingsFeaturePath(activeScenarioContext.caseId, activeScenarioContext.scenarioId, "sync")
         : memberCasesPath(),
       activePath: activeScenarioContext
-        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/settings`
+        ? `/app/case/${activeScenarioContext.caseId}/scenario/${activeScenarioContext.scenarioId}/scenario-list`
         : "/member/cases",
     },
     { label: nav("scenarios"), href: memberCasesPath(), activePath: "/member/cases" },

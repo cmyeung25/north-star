@@ -26,7 +26,7 @@ export default function PeopleWorkspace({
   const defaultTab =
     initialTab && initialTab in tabMap
       ? tabMap[initialTab as keyof typeof tabMap]
-      : "members";
+      : "global";
 
   return (
     <Stack gap="xl">
@@ -35,7 +35,7 @@ export default function PeopleWorkspace({
         titleKey="settingsTitle"
         subtitleKey="settingsSubtitle"
         defaultTab={defaultTab}
-        tabOrder={["members"]}
+        tabOrder={["global", "members"]}
         initialAction={initialAdd}
         initialRuleId={initialRuleId}
       />

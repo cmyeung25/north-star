@@ -65,13 +65,13 @@ export const scenarioPeoplePath = (
   caseId: string,
   scenarioId: string,
   locale?: Locale | null,
-) => scenarioPath(caseId, scenarioId, "people", locale);
+) => scenarioPath(caseId, scenarioId, "setting", locale);
 
 export const scenarioSettingsPath = (
   caseId: string,
   scenarioId: string,
   locale?: Locale | null,
-) => scenarioPath(caseId, scenarioId, "settings", locale);
+) => scenarioPath(caseId, scenarioId, "scenario-list", locale);
 
 export const scenarioSettingsFeaturePath = (
   caseId: string,

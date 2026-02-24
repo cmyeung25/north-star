@@ -111,5 +111,5 @@ export async function updateScenarioAssumptionsAction(input: {
     scenarios: nextScenarios,
   });
 
-  revalidatePath(`/app/case/${input.caseId}/scenario/${input.scenarioId}/settings`);
+  revalidatePath(`/app/case/${input.caseId}/scenario/${input.scenarioId}/scenario-list`);
 }

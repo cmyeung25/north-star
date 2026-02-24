@@ -9,7 +9,7 @@ describe("/[locale]/people legacy compatibility route", () => {
       tab: "budget",
     });
 
-    expect(redirectTo).toBe("/en/app/case/case-1/scenario/scenario-1/people?tab=budget");
+    expect(redirectTo).toBe("/en/app/case/case-1/scenario/scenario-1/setting?tab=budget");
   });
 
   it("safely redirects to member cases when identifiers are missing", () => {

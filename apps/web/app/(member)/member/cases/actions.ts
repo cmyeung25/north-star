@@ -103,7 +103,7 @@ export async function createScenarioAction(input: { caseId: string; title: strin
 export async function renameScenarioAction(input: { caseId: string; scenarioId: string; title: string }) {
   await repo().renameScenario(input.caseId, input.scenarioId, normalizeTitle(input.title, "Untitled Scenario"));
   revalidatePath(`/member/cases/${input.caseId}`);
-  revalidatePath(`/app/case/${input.caseId}/scenario/${input.scenarioId}/settings`);
+  revalidatePath(`/app/case/${input.caseId}/scenario/${input.scenarioId}/scenario-list`);
 }
 
 export async function duplicateScenarioAction(input: { caseId: string; scenarioId: string }) {
