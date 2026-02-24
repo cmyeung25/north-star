@@ -2438,7 +2438,13 @@
     "presetBeforeValue": "Now: {value}",
     "presetAfterValue": "Preset: {value}",
     "presetImpactDiff": "Impact {before} → {after}",
-    "otherSettingsHint": "Other settings will appear here as they become available."
+    "otherSettingsHint": "Other settings will appear here as they become available.",
+    "resetDefaultsAction": "Reset to defaults",
+    "resetDefaultsSaved": "Assumptions reset to defaults.",
+    "resetDefaultsModalTitle": "Reset assumptions to defaults?",
+    "resetDefaultsModalBody": "This will replace current assumptions with onboarding defaults. Please confirm before applying.",
+    "resetDefaultsNoDiff": "You are already using the default values.",
+    "resetDefaultsConfirm": "Confirm reset"
   },
   "members": {
     "title": "Household members",

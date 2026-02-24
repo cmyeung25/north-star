@@ -2479,7 +2479,13 @@
     "presetBeforeValue": "目前：{value}",
     "presetAfterValue": "預設：{value}",
     "presetImpactDiff": "影響事件 {before} → {after}",
-    "otherSettingsHint": "其他設定將會陸續提供。"
+    "otherSettingsHint": "其他設定將會陸續提供。",
+    "resetDefaultsAction": "重設為預設",
+    "resetDefaultsSaved": "已重設為預設假設值。",
+    "resetDefaultsModalTitle": "確認重設為預設假設？",
+    "resetDefaultsModalBody": "此操作會以 onboarding 預設值覆蓋現有假設，請確認後再套用。",
+    "resetDefaultsNoDiff": "目前已是預設值。",
+    "resetDefaultsConfirm": "確認重設"
   },
   "members": {
     "title": "家庭成員",
