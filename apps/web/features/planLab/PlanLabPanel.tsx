@@ -10027,15 +10027,38 @@ export default function PlanLabPanel({
             values={envAssumptionOverridesDraft}
             baseline={baselineAssumptionOverrides}
             labels={{
-              inflationRate: "通脹率 (%)",
-              salaryGrowthRate: "薪金增長 (%)",
-              emergencyFundMonths: "緊急儲備目標",
-              emergencyFundValue: (months) => `${months} 個月`,
-              rentAnnualGrowthPct: "租金增長 (%)",
-              propertyAppreciationPct: "房產增值 (%)",
-              cashYieldPct: "現金收益率 (%)",
-              carDepreciationRatePct: "汽車折舊 (%)",
-              baselinePrefix: "基準：",
+              inflationRate: translate("inflationRate", "通脹率 (%)"),
+              salaryGrowthRate: translate("salaryGrowth", "薪金增長 (%)"),
+              emergencyFundMonths: translate("emergencyFundTarget", "緊急儲備目標"),
+              emergencyFundValue: (months) =>
+                translate("emergencyFundValue", "{months} 個月", { months }),
+              rentAnnualGrowthPct: translate("rentAnnualGrowth", "租金增長 (%)"),
+              propertyAppreciationPct: translate("propertyAppreciation", "房產增值 (%)"),
+              cashYieldPct: translate("cashYield", "現金收益率 (%)"),
+              carDepreciationRatePct: translate("carDepreciation", "汽車折舊 (%)"),
+              baselinePrefix: `${translate("baseline", "基準")}：`,
+              guardrailWarningTitle: translate("guardrailWarningTitle", "軟性風險提示"),
+              guardrailImpactText: translate(
+                "guardrailImpactText",
+                "這會顯著影響長期預測結果。"
+              ),
+              guardrailInflationOutOfComfortRange: (inflationRate) =>
+                translate(
+                  "guardrailInflationOutOfComfortRange",
+                  "目前通脹率 {inflationRate}% 超出常見建議區間（-5% 至 10%）。",
+                  { inflationRate }
+                ),
+              guardrailSalaryInflationGapTooWide: (gap) =>
+                translate(
+                  "guardrailSalaryInflationGapTooWide",
+                  "薪金增長與通脹率相差 {gap}%，假設可能過度樂觀或悲觀。",
+                  { gap }
+                ),
+              guardrailApplySuggestion: translate("guardrailApplySuggestion", "快捷回復建議值："),
+              guardrailSuggestedInflation: (value) =>
+                translate("guardrailSuggestedInflation", "通脹 {value}%", { value }),
+              guardrailSuggestedSalaryGrowth: (value) =>
+                translate("guardrailSuggestedSalaryGrowth", "薪金增長 {value}%", { value }),
             }}
             emergencyFundRange={{ min: 0, max: 24, step: 1 }}
             onChange={(patch) =>

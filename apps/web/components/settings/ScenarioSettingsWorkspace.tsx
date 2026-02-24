@@ -1529,6 +1529,17 @@ export default function ScenarioSettingsWorkspace({
                   baselinePrefix: `${t("baseline")}：`,
                   impactCount: (count) => t("impactCount", { count }),
                   impactView: t("impactView"),
+                  guardrailWarningTitle: t("guardrailWarningTitle"),
+                  guardrailImpactText: t("guardrailImpactText"),
+                  guardrailInflationOutOfComfortRange: (inflationRate) =>
+                    t("guardrailInflationOutOfComfortRange", { inflationRate }),
+                  guardrailSalaryInflationGapTooWide: (gap) =>
+                    t("guardrailSalaryInflationGapTooWide", { gap }),
+                  guardrailApplySuggestion: t("guardrailApplySuggestion"),
+                  guardrailSuggestedInflation: (value) =>
+                    t("guardrailSuggestedInflation", { value }),
+                  guardrailSuggestedSalaryGrowth: (value) =>
+                    t("guardrailSuggestedSalaryGrowth", { value }),
                 }}
                 onChange={handleAssumptionChange}
               />
