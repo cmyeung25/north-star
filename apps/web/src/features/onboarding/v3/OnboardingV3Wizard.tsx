@@ -28,6 +28,8 @@ type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
 type AutoCashflowRow = Extract<ScenarioEvent, { type: "cashflow" }>;
 type ManualCashflowDraftInput = {
+  title?: string;
+  isCustomTitle?: boolean;
   label?: string;
   amount: number;
   cadence?: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths";
@@ -37,6 +39,11 @@ type ManualCashflowDraftInput = {
   followIncomeGrowth?: boolean;
   tags?: string[];
   customGrowthRatePct?: number;
+};
+
+type ManualTitleMeta = {
+  onboardingManualTitle?: string;
+  onboardingIsCustomTitle?: boolean;
 };
 
 const stepDefs = [
@@ -275,9 +282,44 @@ export default function OnboardingV3Wizard() {
           growthMode: item.followIncomeGrowth === false ? "none" : "assumption",
           tags: item.tags,
           customGrowthRatePct: item.customGrowthRatePct,
+          meta: {
+            onboardingManualTitle: item.title ?? (item.label?.trim() || undefined),
+            onboardingIsCustomTitle: item.isCustomTitle ?? false,
+          },
         },
       ],
     }));
+  };
+
+  const duplicateManualItem = (eventId: string) => {
+    setDraft((current) => {
+      const targetEvent = current.events.find(
+        (event) => hasId(event) && isCashflowDraft(event) && event.id === eventId
+      );
+      if (!targetEvent || !isCashflowDraft(targetEvent)) {
+        return current;
+      }
+
+      const targetMeta = (targetEvent.meta as ManualTitleMeta | undefined) ?? {};
+
+      const duplicateEvent: CashflowDraftWithId = {
+        ...targetEvent,
+        id: `manual:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+        meta: {
+          ...targetEvent.meta,
+          onboardingManualTitle:
+            targetMeta.onboardingIsCustomTitle
+              ? targetMeta.onboardingManualTitle
+              : targetEvent.label?.trim() || targetMeta.onboardingManualTitle,
+          onboardingIsCustomTitle: targetMeta.onboardingIsCustomTitle ?? false,
+        },
+      };
+
+      return {
+        ...current,
+        events: [...current.events, duplicateEvent],
+      };
+    });
   };
 
   const removeManualItem = (eventId: string) => {
@@ -315,6 +357,8 @@ export default function OnboardingV3Wizard() {
             .filter((event) => event.kind === "income")
             .map((event) => ({
               ...event,
+              title: (event.meta as ManualTitleMeta | undefined)?.onboardingManualTitle,
+              isCustomTitle: (event.meta as ManualTitleMeta | undefined)?.onboardingIsCustomTitle ?? false,
               followIncomeGrowth: event.growthMode !== "none",
             }))}
           onAddManualItem={(item) => addManual("income", item)}
@@ -331,6 +375,17 @@ export default function OnboardingV3Wizard() {
                       memberId: patch.memberId === "" ? undefined : (patch.memberId ?? event.memberId),
                       startMonth: patch.startMonth ?? event.startMonth,
                       endMonth: patch.endMonth,
+                      meta: {
+                        ...event.meta,
+                        onboardingManualTitle:
+                          patch.title !== undefined
+                            ? patch.title.trim() || undefined
+                            : (event.meta as ManualTitleMeta | undefined)?.onboardingManualTitle,
+                        onboardingIsCustomTitle:
+                          patch.isCustomTitle ??
+                          (event.meta as ManualTitleMeta | undefined)?.onboardingIsCustomTitle ??
+                          false,
+                      },
                       growthMode:
                         typeof patch.followIncomeGrowth === "boolean"
                           ? (patch.followIncomeGrowth ? "assumption" : "none")
@@ -340,6 +395,7 @@ export default function OnboardingV3Wizard() {
               ),
             }))
           }
+          onDuplicateManualItem={duplicateManualItem}
           onRemoveManualItem={removeManualItem}
         />
       ),

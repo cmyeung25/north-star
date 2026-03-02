@@ -2941,7 +2941,8 @@
           "memberOptional": "Unassigned",
           "startMonth": "Start month",
           "endMonth": "End month (optional)",
-          "followIncomeGrowth": "Follow income growth assumption"
+          "followIncomeGrowth": "Follow income growth assumption",
+          "cardTitle": "Card title"
         },
         "frequency": {
           "monthly": "Monthly",
@@ -2953,7 +2954,10 @@
         "displayMode": "Display mode",
         "settingTitle": "Income Settings",
         "defaultGrowthRateHint": "When using the \"Add salary\" template, it follows the income growth assumption by default ({rate}%).",
-        "systemGeneratedSection": "System generated (read-only)"
+        "systemGeneratedSection": "System generated (read-only)",
+        "actions": {
+          "copy": "Copy"
+        }
       },
       "expense": {
         "title": "Expense assumptions",
