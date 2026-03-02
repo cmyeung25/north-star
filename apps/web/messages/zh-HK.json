@@ -2072,7 +2072,7 @@
       "withdrawal": "提取",
       "insurancePremium": "保費"
     },
-    "positionIncludedInProjection": "已納入推算",
+    "positionIncludedInProjection": "已加入推算",
     "positionOverlapWarning": "可能重複",
     "positionCalculationEmpty": "目前沒有計算資料。",
     "calculatorTabAmortization": "供款計算表",
@@ -2578,10 +2578,10 @@
     "timelineTitle": "預算規則現金流",
     "timelineSubtitle": "由啟用規則彙總的每月支出。",
     "timelineEmpty": "尚未有預算規則支出。",
-    "includeInProjection": "將預算規則納入投影",
-    "projectionWarning": "預算規則已納入投影。如你亦手動建立同類支出事件，可能會重複計算。",
+    "includeInProjection": "將預算規則加入投影",
+    "projectionWarning": "預算規則已加入投影。如你亦手動建立同類支出事件，可能會重複計算。",
     "projectionWarningBadge": "可能重複",
-    "housingWarning": "房屋相關預算規則不會納入投影，房產現金流會由房產模型處理。",
+    "housingWarning": "房屋相關預算規則不會加入投影，房產現金流會由房產模型處理。",
     "applyScopeTitle": "適用範圍",
     "applyScopeHint": "選擇要包含或排除的情境。",
     "applyScopeHelper": "使用適用範圍設定規則套用的情境。",
@@ -4242,7 +4242,7 @@
           "mortgageRate": "利率 %",
           "mortgageTermYears": "按揭年期",
           "cashAmount": "現金金額",
-          "cashCurrency": "現金幣別",
+          "cashCurrency": "貨幣",
           "investmentPrincipal": "投資本金",
           "investmentReturnPct": "自訂年報酬率 %",
           "investmentStartMonth": "投資開始月份（YYYY-MM）",
@@ -4260,8 +4260,8 @@
           "enableRentIncome": "啟用租金收入",
           "enableHoldingCost": "啟用每月持有成本",
           "enableMortgage": "啟用按揭資訊",
-          "enableProperty": "納入房產資產",
-          "enableInvestment": "納入投資資產"
+          "enableProperty": "加入房產資產",
+          "enableInvestment": "加入投資資產"
         },
         "hints": {
           "investment": "可先填寫投資名稱與目前市值；其餘明細可後續補充。",
