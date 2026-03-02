@@ -2492,7 +2492,13 @@
     "guardrailSalaryInflationGapTooWide": "薪金增長與通脹率相差 {gap}%，假設可能過度樂觀或悲觀。",
     "guardrailApplySuggestion": "快捷回復建議值：",
     "guardrailSuggestedInflation": "通脹 {value}%",
-    "guardrailSuggestedSalaryGrowth": "薪金增長 {value}%"
+    "guardrailSuggestedSalaryGrowth": "薪金增長 {value}%",
+    "onboardingBaselineAppliedToast": "已套用基準假設。",
+    "onboardingBaselineMarkerCleared": "已清除自動套用標記。",
+    "onboardingBaselineMarkerReset": "重設 onboarding 基準標記",
+    "assumptionSourceLabel": "假設來源",
+    "assumptionSourceOnboardingBaseline": "Onboarding 基準",
+    "assumptionSourceManual": "手動／自訂"
   },
   "members": {
     "title": "家庭成員",
@@ -4297,7 +4303,10 @@
           "memberOptional": "未指定",
           "startMonth": "開始月份",
           "endMonth": "結束月份（可選）",
-          "followIncomeGrowth": "跟隨收入成長假設"
+          "followIncomeGrowth": "跟隨收入成長假設",
+          "cardTitle": "卡片標題"
+          "followIncomeGrowthWithRate": "跟隨收入成長假設（{rate}%）",
+          "followIncomeGrowthDescription": "只影響本收入項目，並依全域收入成長假設計算。"
         },
         "frequency": {
           "monthly": "每月",
@@ -4309,6 +4318,10 @@
         "displayMode": "顯示模式",
         "settingTitle": "收入設定",
         "defaultGrowthRateHint": "使用「新增薪資」模板時，預設會跟隨收入成長假設（{rate}%）。",
+        "systemGeneratedSection": "由系統產生（唯讀）",
+        "actions": {
+          "copy": "複製"
+        }
         "systemGeneratedSection": "由系統產生（唯讀）"
       },
       "expense": {

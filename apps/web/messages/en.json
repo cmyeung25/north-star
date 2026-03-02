@@ -2451,7 +2451,13 @@
     "guardrailSalaryInflationGapTooWide": "Salary growth and inflation differ by {gap}%, which may be overly optimistic or pessimistic.",
     "guardrailApplySuggestion": "Quick suggestions:",
     "guardrailSuggestedInflation": "Inflation {value}%",
-    "guardrailSuggestedSalaryGrowth": "Salary growth {value}%"
+    "guardrailSuggestedSalaryGrowth": "Salary growth {value}%",
+    "onboardingBaselineAppliedToast": "Baseline assumptions applied.",
+    "onboardingBaselineMarkerCleared": "Auto-apply marker cleared.",
+    "onboardingBaselineMarkerReset": "Reset onboarding baseline marker",
+    "assumptionSourceLabel": "Assumption source",
+    "assumptionSourceOnboardingBaseline": "Onboarding baseline",
+    "assumptionSourceManual": "Manual / custom"
   },
   "members": {
     "title": "Household members",
@@ -2941,7 +2947,10 @@
           "memberOptional": "Unassigned",
           "startMonth": "Start month",
           "endMonth": "End month (optional)",
-          "followIncomeGrowth": "Follow income growth assumption"
+          "followIncomeGrowth": "Follow income growth assumption",
+          "cardTitle": "Card title"
+          "followIncomeGrowthWithRate": "Follow income growth assumption ({rate}%)",
+          "followIncomeGrowthDescription": "Only affects this income item and is calculated from the global income growth assumption."
         },
         "frequency": {
           "monthly": "Monthly",
@@ -2953,6 +2962,10 @@
         "displayMode": "Display mode",
         "settingTitle": "Income Settings",
         "defaultGrowthRateHint": "When using the \"Add salary\" template, it follows the income growth assumption by default ({rate}%).",
+        "systemGeneratedSection": "System generated (read-only)",
+        "actions": {
+          "copy": "Copy"
+        }
         "systemGeneratedSection": "System generated (read-only)"
       },
       "expense": {

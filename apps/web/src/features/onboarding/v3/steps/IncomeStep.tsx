@@ -23,6 +23,8 @@ type Row = CashflowEvent & { metadata?: GeneratedItemMetadata };
 
 type ManualRow = {
   id: string;
+  title?: string;
+  isCustomTitle?: boolean;
   label?: string;
   amount: number;
   cadence: "monthly" | "quarterly" | "yearly" | "oneOff" | "everyNMonths";
@@ -42,6 +44,7 @@ type Props = {
   onAddManualItem: (item: Omit<ManualRow, "id">) => void;
   onUpdateManualItem: (eventId: string, patch: Partial<ManualRow>) => void;
   onRemoveManualItem: (eventId: string) => void;
+  onDuplicateManualItem: (eventId: string) => void;
 };
 
 const frequencyOptions: Array<{ value: Exclude<ManualRow["cadence"], "everyNMonths">; labelKey: string }> = [
@@ -60,10 +63,12 @@ export default function IncomeStep({
   onAddManualItem,
   onUpdateManualItem,
   onRemoveManualItem,
+  onDuplicateManualItem,
 }: Props) {
   const tGenerated = useTranslations("onboarding.generatedCashflow");
   const t = useTranslations("onboardingV3.steps");
   const [duplicateMessage, setDuplicateMessage] = useState<string>("");
+  const followIncomeGrowthRate = Number.isFinite(defaultSalaryGrowthRate) ? defaultSalaryGrowthRate : 3;
 
   const memberOptions = useMemo(
     () => [
@@ -84,6 +89,9 @@ export default function IncomeStep({
     setDuplicateMessage("");
     onAddManualItem(item);
   };
+
+  const fallbackManualTitle = t("income.manualRowTitle");
+  const resolveManualTitle = (title?: string) => title?.trim() || fallbackManualTitle;
 
   const primaryTemplates = [
     {
@@ -176,10 +184,6 @@ export default function IncomeStep({
 
           <Stack gap="md">
             {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
-            <Text size="sm" c="dimmed">
-              {t("income.defaultGrowthRateHint", { rate: defaultSalaryGrowthRate })}
-            </Text>
-
             <Stack gap="xs">
               <Text size="sm" fw={600}>
                 {t("common.frequentTemplates")}
@@ -222,17 +226,43 @@ export default function IncomeStep({
                     <Stack gap="md">
                       <Group justify="space-between" align="flex-start">
                         <Text size="sm" fw={600}>
-                          {t("income.manualRowTitle")}
+                          {resolveManualTitle(row.title)}
                         </Text>
-                        <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>
-                          {tGenerated("remove")}
-                        </Button>
+                        <Group gap="xs">
+                          <Button variant="subtle" onClick={() => onDuplicateManualItem(row.id)}>
+                            {t("income.actions.copy")}
+                          </Button>
+                          <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>
+                            {tGenerated("remove")}
+                          </Button>
+                        </Group>
                       </Group>
+                      <TextInput
+                        label={t("income.fields.cardTitle")}
+                        value={row.title ?? ""}
+                        placeholder={fallbackManualTitle}
+                        onChange={(event) =>
+                          onUpdateManualItem(row.id, {
+                            title: event.currentTarget.value,
+                            isCustomTitle: true,
+                          })
+                        }
+                      />
                       <Group grow align="flex-start">
                         <TextInput
                           label={t("income.fields.name")}
                           value={row.label ?? ""}
-                          onChange={(event) => onUpdateManualItem(row.id, { label: event.currentTarget.value })}
+                          onChange={(event) => {
+                            const nextLabel = event.currentTarget.value;
+                            onUpdateManualItem(row.id, {
+                              label: nextLabel,
+                              ...(row.isCustomTitle
+                                ? {}
+                                : {
+                                    title: nextLabel.trim() || fallbackManualTitle,
+                                  }),
+                            });
+                          }}
                         />
                         <NumberInput
                           label={t("income.fields.amount")}
@@ -280,7 +310,10 @@ export default function IncomeStep({
                         />
                       </Group>
                       <Switch
-                        label={t("income.fields.followIncomeGrowth")}
+                        label={t("income.fields.followIncomeGrowthWithRate", {
+                          rate: followIncomeGrowthRate,
+                        })}
+                        description={t("income.fields.followIncomeGrowthDescription")}
                         checked={row.followIncomeGrowth}
                         disabled={row.cadence === "oneOff"}
                         onChange={(event) =>
