@@ -68,6 +68,7 @@ export default function IncomeStep({
   const tGenerated = useTranslations("onboarding.generatedCashflow");
   const t = useTranslations("onboardingV3.steps");
   const [duplicateMessage, setDuplicateMessage] = useState<string>("");
+  const followIncomeGrowthRate = Number.isFinite(defaultSalaryGrowthRate) ? defaultSalaryGrowthRate : 3;
 
   const memberOptions = useMemo(
     () => [
@@ -183,10 +184,6 @@ export default function IncomeStep({
 
           <Stack gap="md">
             {duplicateMessage ? <Alert color="yellow">{duplicateMessage}</Alert> : null}
-            <Text size="sm" c="dimmed">
-              {t("income.defaultGrowthRateHint", { rate: defaultSalaryGrowthRate })}
-            </Text>
-
             <Stack gap="xs">
               <Text size="sm" fw={600}>
                 {t("common.frequentTemplates")}
@@ -313,7 +310,10 @@ export default function IncomeStep({
                         />
                       </Group>
                       <Switch
-                        label={t("income.fields.followIncomeGrowth")}
+                        label={t("income.fields.followIncomeGrowthWithRate", {
+                          rate: followIncomeGrowthRate,
+                        })}
+                        description={t("income.fields.followIncomeGrowthDescription")}
                         checked={row.followIncomeGrowth}
                         disabled={row.cadence === "oneOff"}
                         onChange={(event) =>
