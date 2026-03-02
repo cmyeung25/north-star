@@ -4304,7 +4304,7 @@
           "startMonth": "開始月份",
           "endMonth": "結束月份（可選）",
           "followIncomeGrowth": "跟隨收入成長假設",
-          "cardTitle": "卡片標題"
+          "cardTitle": "卡片標題",
           "followIncomeGrowthWithRate": "跟隨收入成長假設（{rate}%）",
           "followIncomeGrowthDescription": "只影響本收入項目，並依全域收入成長假設計算。"
         },
@@ -4322,7 +4322,6 @@
         "actions": {
           "copy": "複製"
         }
-        "systemGeneratedSection": "由系統產生（唯讀）"
       },
       "expense": {
         "title": "支出假設",

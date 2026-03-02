@@ -2948,7 +2948,7 @@
           "startMonth": "Start month",
           "endMonth": "End month (optional)",
           "followIncomeGrowth": "Follow income growth assumption",
-          "cardTitle": "Card title"
+          "cardTitle": "Card title",
           "followIncomeGrowthWithRate": "Follow income growth assumption ({rate}%)",
           "followIncomeGrowthDescription": "Only affects this income item and is calculated from the global income growth assumption."
         },
@@ -2966,7 +2966,6 @@
         "actions": {
           "copy": "Copy"
         }
-        "systemGeneratedSection": "System generated (read-only)"
       },
       "expense": {
         "title": "Expense assumptions",
