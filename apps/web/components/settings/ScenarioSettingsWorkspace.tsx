@@ -1513,32 +1513,40 @@ export default function ScenarioSettingsWorkspace({
               </Stack>
 
               <Group grow>
-                <NumberInput
-                  label={t("annualInflationPct")}
-                  value={appSettings.annualInflationPct}
-                  min={0}
-                  step={0.1}
-                  decimalScale={2}
-                  onChange={(value) =>
-                    setAnnualInflationPct(typeof value === "number" ? value : 0)
-                  }
-                />
-                <Stack gap={4}>
-                  <Text size="sm" fw={500}>
-                    {t("viewModeLabel")}
-                  </Text>
-                  <SegmentedControl
-                    data={[
-                      { value: "nominal", label: t("viewNominal") },
-                      { value: "real", label: t("viewReal") },
-                    ]}
-                    value={appSettings.viewMode}
-                    onChange={(value) => setViewMode(value as "nominal" | "real")}
-                  />
-                  <Text size="xs" c="dimmed">
-                    {t("viewRealHint")}
-                  </Text>
-                </Stack>
+                <Card withBorder radius="md" padding="sm">
+                  <Stack gap={4}>
+                    <Text size="sm" fw={600}>
+                      {t("displayModeTitle")}
+                    </Text>
+                    <NumberInput
+                      label={t("annualInflationPctDisplayLabel")}
+                      description={t("annualInflationPctDisplayHint")}
+                      value={appSettings.annualInflationPct}
+                      min={0}
+                      step={0.1}
+                      decimalScale={2}
+                      onChange={(value) =>
+                        setAnnualInflationPct(typeof value === "number" ? value : 0)
+                      }
+                    />
+                    <Stack gap={4}>
+                      <Text size="sm" fw={500}>
+                        {t("viewModeLabel")}
+                      </Text>
+                      <SegmentedControl
+                        data={[
+                          { value: "nominal", label: t("viewNominal") },
+                          { value: "real", label: t("viewReal") },
+                        ]}
+                        value={appSettings.viewMode}
+                        onChange={(value) => setViewMode(value as "nominal" | "real")}
+                      />
+                      <Text size="xs" c="dimmed">
+                        {t("viewRealHint")}
+                      </Text>
+                    </Stack>
+                  </Stack>
+                </Card>
               </Group>
             </Stack>
           </Card>
@@ -1549,6 +1557,9 @@ export default function ScenarioSettingsWorkspace({
                 <Text fw={600}>{t("scenarioAssumptionsTitle")}</Text>
                 <Text size="sm" c="dimmed">
                   {t("scenarioAssumptionsHint")}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t("inflationRateProjectionHint")}
                 </Text>
               </Stack>
               <Card withBorder radius="md" padding="sm">
@@ -1567,7 +1578,7 @@ export default function ScenarioSettingsWorkspace({
                 impactCountByKey={impactCountByKey}
                 onViewAffectedEvents={(key) => setAffectedAssumptionKey(key)}
                 labels={{
-                  inflationRate: t("inflationRate"),
+                  inflationRate: t("inflationRateModelLabel"),
                   salaryGrowthRate: t("salaryGrowth"),
                   emergencyFundMonths: t("emergencyFundTarget"),
                   emergencyFundValue: (months) => t("emergencyFundValue", { months }),
