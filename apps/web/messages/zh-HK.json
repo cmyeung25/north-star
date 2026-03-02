@@ -2492,7 +2492,13 @@
     "guardrailSalaryInflationGapTooWide": "薪金增長與通脹率相差 {gap}%，假設可能過度樂觀或悲觀。",
     "guardrailApplySuggestion": "快捷回復建議值：",
     "guardrailSuggestedInflation": "通脹 {value}%",
-    "guardrailSuggestedSalaryGrowth": "薪金增長 {value}%"
+    "guardrailSuggestedSalaryGrowth": "薪金增長 {value}%",
+    "onboardingBaselineAppliedToast": "已套用基準假設。",
+    "onboardingBaselineMarkerCleared": "已清除自動套用標記。",
+    "onboardingBaselineMarkerReset": "重設 onboarding 基準標記",
+    "assumptionSourceLabel": "假設來源",
+    "assumptionSourceOnboardingBaseline": "Onboarding 基準",
+    "assumptionSourceManual": "手動／自訂"
   },
   "members": {
     "title": "家庭成員",
