@@ -98,6 +98,11 @@ import {
   type AssumptionsPresetKey,
 } from "../../src/domain/assumptions/presets";
 import { buildOnboardingAssumptionsDraft } from "../../src/domain/onboarding/v2/assumptions";
+import {
+  buildOnboardingAssumptionsAutoFillPatch,
+  getOnboardingAssumptionsAutoApplyFlagKey,
+  shouldAutoApplyOnboardingAssumptions,
+} from "../../src/domain/assumptions/onboardingAutoApply";
 
 type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
 
@@ -242,9 +247,12 @@ export default function ScenarioSettingsWorkspace({
   const [selectedAssumptionPreset, setSelectedAssumptionPreset] =
     useState<AssumptionsPresetKey>("baseline");
   const [resetAssumptionsModalOpen, setResetAssumptionsModalOpen] = useState(false);
+  const [hasAppliedOnboardingBaseline, setHasAppliedOnboardingBaseline] =
+    useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasHandledInitialAction = useRef(false);
+  const autoAppliedScenarioIdsRef = useRef<Set<string>>(new Set());
   const prevMemberMonthRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
@@ -889,6 +897,47 @@ export default function ScenarioSettingsWorkspace({
     setResetAssumptionsModalOpen(false);
     showToast(t("resetDefaultsSaved"), "teal");
   }, [defaultAssumptionsForReset, scenario, showToast, t, updateScenarioAssumptions]);
+
+  useEffect(() => {
+    if (!scenario || typeof window === "undefined") {
+      setHasAppliedOnboardingBaseline(false);
+      return;
+    }
+
+    const flagKey = getOnboardingAssumptionsAutoApplyFlagKey(scenario.id);
+    const hasAppliedFlag = window.localStorage.getItem(flagKey) === "true";
+    setHasAppliedOnboardingBaseline(hasAppliedFlag);
+
+    if (autoAppliedScenarioIdsRef.current.has(scenario.id)) {
+      return;
+    }
+    autoAppliedScenarioIdsRef.current.add(scenario.id);
+
+    if (!shouldAutoApplyOnboardingAssumptions({ scenario, hasAppliedFlag })) {
+      return;
+    }
+
+    const patch = buildOnboardingAssumptionsAutoFillPatch(scenario.assumptions);
+    if (Object.keys(patch).length === 0) {
+      return;
+    }
+
+    updateScenarioAssumptions(scenario.id, patch);
+    window.localStorage.setItem(flagKey, "true");
+    setHasAppliedOnboardingBaseline(true);
+    showToast(t("onboardingBaselineAppliedToast"), "teal");
+  }, [scenario, showToast, t, updateScenarioAssumptions]);
+
+  const handleClearOnboardingBaselineMarker = useCallback(() => {
+    if (!scenario || typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.removeItem(
+      getOnboardingAssumptionsAutoApplyFlagKey(scenario.id)
+    );
+    setHasAppliedOnboardingBaseline(false);
+    showToast(t("onboardingBaselineMarkerCleared"), "gray");
+  }, [scenario, showToast, t]);
 
   useEffect(() => {
     setBudgetMonthInputs((current) => {
@@ -1545,6 +1594,14 @@ export default function ScenarioSettingsWorkspace({
               />
               <Group justify="flex-end">
                 <Button
+                  variant="subtle"
+                  color="gray"
+                  onClick={handleClearOnboardingBaselineMarker}
+                  disabled={!hasAppliedOnboardingBaseline}
+                >
+                  {t("onboardingBaselineMarkerReset")}
+                </Button>
+                <Button
                   variant="default"
                   onClick={() => setResetAssumptionsModalOpen(true)}
                   disabled={resetAssumptionDiffRows.length === 0}
@@ -1554,6 +1611,16 @@ export default function ScenarioSettingsWorkspace({
               </Group>
               <Divider />
               <Stack gap="xs">
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">
+                    {t("assumptionSourceLabel")}
+                  </Text>
+                  <Badge color={hasAppliedOnboardingBaseline ? "teal" : "gray"}>
+                    {hasAppliedOnboardingBaseline
+                      ? t("assumptionSourceOnboardingBaseline")
+                      : t("assumptionSourceManual")}
+                  </Badge>
+                </Group>
                 <Group align="end" grow>
                   <Select
                     label={t("presetLabel")}

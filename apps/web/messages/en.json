@@ -2451,7 +2451,13 @@
     "guardrailSalaryInflationGapTooWide": "Salary growth and inflation differ by {gap}%, which may be overly optimistic or pessimistic.",
     "guardrailApplySuggestion": "Quick suggestions:",
     "guardrailSuggestedInflation": "Inflation {value}%",
-    "guardrailSuggestedSalaryGrowth": "Salary growth {value}%"
+    "guardrailSuggestedSalaryGrowth": "Salary growth {value}%",
+    "onboardingBaselineAppliedToast": "Baseline assumptions applied.",
+    "onboardingBaselineMarkerCleared": "Auto-apply marker cleared.",
+    "onboardingBaselineMarkerReset": "Reset onboarding baseline marker",
+    "assumptionSourceLabel": "Assumption source",
+    "assumptionSourceOnboardingBaseline": "Onboarding baseline",
+    "assumptionSourceManual": "Manual / custom"
   },
   "members": {
     "title": "Household members",
