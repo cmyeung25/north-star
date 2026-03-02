@@ -9,6 +9,7 @@ import {
   Stack,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
@@ -184,21 +185,24 @@ export default function DesktopBottomToolbar() {
                 }}
               />
               <NumberInput
-                label={assumptions("annualInflationPct")}
+                label={assumptions("annualInflationPctDisplayLabel")}
+                description={assumptions("annualInflationPctDisplayHint")}
                 value={appSettings.annualInflationPct}
                 min={0}
                 step={0.1}
                 decimalScale={2}
                 size="xs"
-                w={150}
+                w={180}
                 onChange={(value) =>
                   setAnnualInflationPct(typeof value === "number" ? value : 0)
                 }
               />
               <Stack gap={4}>
-                <Text size="xs" fw={600}>
-                  {assumptions("viewModeLabel")}
-                </Text>
+                <Tooltip label={assumptions("viewModeToolbarHint")}>
+                  <Text size="xs" fw={600}>
+                    {assumptions("viewModeLabel")}
+                  </Text>
+                </Tooltip>
                 <SegmentedControl
                   data={[
                     { value: "nominal", label: assumptions("viewNominal") },
@@ -208,6 +212,9 @@ export default function DesktopBottomToolbar() {
                   value={appSettings.viewMode}
                   onChange={(value) => setViewMode(value as "nominal" | "real")}
                 />
+                <Text size="xs" c="dimmed">
+                  {assumptions("viewRealHint")}
+                </Text>
               </Stack>
             </Group>
           </Stack>

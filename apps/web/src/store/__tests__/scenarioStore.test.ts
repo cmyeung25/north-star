@@ -91,6 +91,20 @@ beforeEach(() => {
   });
 });
 
+describe("app settings display inflation isolation", () => {
+  it("updates view mode and annual display inflation without mutating model inflation assumption", () => {
+    const { setViewMode, setAnnualInflationPct } = useScenarioStore.getState();
+
+    setViewMode("real");
+    setAnnualInflationPct(3.2);
+
+    const state = useScenarioStore.getState();
+    expect(state.appSettings.viewMode).toBe("real");
+    expect(state.appSettings.annualInflationPct).toBe(3.2);
+    expect(state.scenarios[0]?.assumptions.inflationRate).toBe(2);
+  });
+});
+
 describe("duplicateScenario", () => {
   it("returns a new scenario with a new id and deep-copied data", () => {
     const { duplicateScenario } = useScenarioStore.getState();
