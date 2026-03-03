@@ -2776,7 +2776,7 @@ export default function PlanLabPanel({
       bundleWizardExperimentMode,
       scenarioIsV2,
       scenarioV2Patches,
-      translate,
+      t,
     ]
   );
 
@@ -4084,7 +4084,7 @@ export default function PlanLabPanel({
     scenario.assumptions.baseMonth,
     scenario.baseCurrency,
     setScenarioV2Patches,
-    translate,
+    t,
   ]);
 
   const standaloneEventExperimentOptions = useMemo(
@@ -4406,7 +4406,7 @@ export default function PlanLabPanel({
       eventExperimentLandingTarget,
       openCreateSalaryAdjustmentFromBase,
       openEventExperimentDrawer,
-      translate,
+      t,
     ]
   );
 
@@ -5646,7 +5646,7 @@ export default function PlanLabPanel({
       openCreateExperimentFlow,
       openScenarioItemView,
       scenario.baseCurrency,
-      translate,
+      t,
     ]
   );
 
@@ -5958,18 +5958,63 @@ export default function PlanLabPanel({
     scenarioItemByEventId,
     scenarioItemByRuleId,
     topDriversLoading,
-    translate,
+    t,
   ]);
+
+  const baselineCashRiskScorecard = useMemo(() => {
+    if (!baselineSeries.cash || baselineSeries.cash.length === 0) {
+      return null;
+    }
+    const bufferThreshold = computeBufferThresholdFromLedger(
+      baselineProjection.ledger,
+      baselineProjection.months
+    );
+    return computeCashRiskScorecard({
+      cashSeries: baselineSeries.cash,
+      bufferThreshold,
+    });
+  }, [baselineProjection.ledger, baselineProjection.months, baselineSeries.cash]);
+
+  const resolveCashRiskLevel = useCallback(
+    (
+      scorecard: ReturnType<typeof computeCashRiskScorecard> | null
+    ): "healthy" | "warning" | "danger" | "unknown" => {
+      if (!scorecard) {
+        return "unknown";
+      }
+      if (scorecard.flags.belowZero) {
+        return "danger";
+      }
+      if (scorecard.flags.belowBuffer) {
+        return "warning";
+      }
+      return "healthy";
+    },
+    []
+  );
+
+  const cashRiskLevelRank = useMemo(
+    () => ({ unknown: -1, healthy: 0, warning: 1, danger: 2 } as const),
+    []
+  );
 
   const handleTopDriverClick = useCallback(
     (driver: PlanLabTopDriver) => {
+      const monthIdx = driverMonth
+        ? planLabProjection.months.indexOf(driverMonth)
+        : -1;
+      if (monthIdx >= 0) {
+        setLockedMonthIdx(monthIdx);
+        setHoverMonthIdx(monthIdx);
+        setChartPreviewOpen(true);
+      }
       if (driver.bundleInstanceId) {
         handleLocateBundle(driver.bundleInstanceId, { openDrawer: true });
         return;
       }
       handleLocateItem(driver.itemId);
     },
-    [handleLocateBundle, handleLocateItem]
+    [driverMonth, handleLocateBundle, handleLocateItem, planLabProjection.months]
   );
 
   const chartData = useMemo(() => {
@@ -6182,6 +6227,69 @@ export default function PlanLabPanel({
       bufferThreshold,
     });
   }, [optionSeries.cash, planLabProjection.ledger, planLabProjection.months]);
+
+  const decisionSummary = useMemo(() => {
+    const baseMonth = baselineProjection.projection?.baseMonth ?? null;
+    const targetDelta =
+      baseMonth && optionKpis?.targetMonth && baselineKpis?.targetMonth
+        ? monthIndex(baseMonth, optionKpis.targetMonth) - monthIndex(baseMonth, baselineKpis.targetMonth)
+        : null;
+    const targetTiming =
+      typeof targetDelta === "number"
+        ? targetDelta < 0
+          ? t("planLabDecisionTargetEarlier", { months: Math.abs(targetDelta) })
+          : targetDelta > 0
+            ? t("planLabDecisionTargetLater", { months: Math.abs(targetDelta) })
+            : t("planLabDecisionTargetUnchanged")
+        : t("planLabDecisionTargetUnknown");
+
+    const optionRiskLevel = resolveCashRiskLevel(cashRiskScorecard);
+    const baselineRiskLevel = resolveCashRiskLevel(baselineCashRiskScorecard);
+    const optionRiskRank = cashRiskLevelRank[optionRiskLevel];
+    const baselineRiskRank = cashRiskLevelRank[baselineRiskLevel];
+    const riskTrend =
+      optionRiskRank >= 0 && baselineRiskRank >= 0
+        ? optionRiskRank < baselineRiskRank
+          ? t("planLabDecisionRiskImproved")
+          : optionRiskRank > baselineRiskRank
+            ? t("planLabDecisionRiskWorsened")
+            : t("planLabDecisionRiskUnchanged")
+        : t("planLabDecisionRiskUnknown");
+
+    const riskLevel =
+      optionRiskLevel === "danger"
+        ? t("planLabDecisionRiskLevelDanger")
+        : optionRiskLevel === "warning"
+          ? t("planLabDecisionRiskLevelWarning")
+          : optionRiskLevel === "healthy"
+            ? t("planLabDecisionRiskLevelHealthy")
+            : t("planLabDecisionRiskLevelUnknown");
+
+    const maxPositiveDriver = topDrivers
+      .filter((driver) => driver.contribution > 0)
+      .sort((a, b) => b.contribution - a.contribution)[0];
+    const maxNegativeDriver = topDrivers
+      .filter((driver) => driver.contribution < 0)
+      .sort((a, b) => a.contribution - b.contribution)[0];
+
+    return {
+      targetTiming,
+      riskTrend,
+      riskLevel,
+      maxPositiveDriver,
+      maxNegativeDriver,
+    };
+  }, [
+    baselineCashRiskScorecard,
+    cashRiskLevelRank,
+    cashRiskScorecard,
+    baselineKpis?.targetMonth,
+    baselineProjection.projection?.baseMonth,
+    optionKpis?.targetMonth,
+    resolveCashRiskLevel,
+    topDrivers,
+    t,
+  ]);
 
   const targetPresetOptions = useMemo(() => {
     const netWorthSeries = baselineProjection.projection?.netWorth ?? [];
@@ -6517,7 +6625,7 @@ export default function PlanLabPanel({
     optionNetWorthAtTargetMonth.value,
     scenario.baseCurrency,
     targetMonthNetWorthDelta,
-    translate,
+    t,
   ]);
 
   const experimentTypeOptions = useMemo(
@@ -6780,7 +6888,7 @@ export default function PlanLabPanel({
       formatBundleHelperFee,
       formatBundleRent,
       formatBundleSchooling,
-      translate,
+      t,
     ]
   );
 
@@ -7547,7 +7655,7 @@ export default function PlanLabPanel({
     smartInvestLabel,
     smartInvestPatch,
     smartInvestTooltip,
-    translate,
+    t,
     v2EventLookup,
     updateEventPatch,
     updatePositionPatch,
@@ -9333,6 +9441,58 @@ export default function PlanLabPanel({
               <Card withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                 <Stack gap="sm">
                   <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{translate("planLabDecisionSummaryTitle", "決策摘要")}</Text>
+                    <Badge variant="light" color="violet">
+                      {translate("planLabDecisionSummaryBadge", "摘要層")}
+                    </Badge>
+                  </Group>
+                  <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                    <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                      <Stack gap={4}>
+                        <Text size="xs" c="dimmed">
+                          {translate("planLabDecisionTargetTitle", "目標達成節奏")}
+                        </Text>
+                        <Text size="sm" fw={700}>{decisionSummary.targetTiming}</Text>
+                      </Stack>
+                    </Paper>
+                    <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                      <Stack gap={4}>
+                        <Text size="xs" c="dimmed">
+                          {translate("planLabDecisionCashRiskTitle", "現金風險變化")}
+                        </Text>
+                        <Text size="sm" fw={700}>{decisionSummary.riskTrend}</Text>
+                        <Text size="xs" c="dimmed">
+                          {t("planLabDecisionRiskLevelLabel", { level: decisionSummary.riskLevel })}
+                        </Text>
+                      </Stack>
+                    </Paper>
+                    <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                      <Stack gap={4}>
+                        <Text size="xs" c="dimmed">
+                          {translate("planLabDecisionPositiveDriverTitle", "最大正向 Driver")}
+                        </Text>
+                        <Text size="sm" fw={700}>
+                          {decisionSummary.maxPositiveDriver?.title ?? translate("planLabDecisionNoDriver", "未有顯著正向 driver")}
+                        </Text>
+                      </Stack>
+                    </Paper>
+                    <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                      <Stack gap={4}>
+                        <Text size="xs" c="dimmed">
+                          {translate("planLabDecisionNegativeDriverTitle", "最大負向 Driver")}
+                        </Text>
+                        <Text size="sm" fw={700}>
+                          {decisionSummary.maxNegativeDriver?.title ?? translate("planLabDecisionNoDriver", "未有顯著負向 driver")}
+                        </Text>
+                      </Stack>
+                    </Paper>
+                  </SimpleGrid>
+                </Stack>
+              </Card>
+
+              <Card withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                <Stack gap="sm">
+                  <Group justify="space-between" align="center" wrap="wrap">
                     <Text fw={600}>{translate("planLabKpiPanelTitle", "Impact KPIs")}</Text>
                     <Badge variant="light" color={hasUnsavedChanges ? "orange" : "gray"}>
                       {hasUnsavedChanges
@@ -9477,9 +9637,24 @@ export default function PlanLabPanel({
                                 </Stack>
                               </SimpleGrid>
                               <Group justify="space-between" align="center" wrap="wrap">
-                                <Text size="xs" c="dimmed">
-                                  {mode === "compare" ? "Δ (A-B)" : "Δ"}
-                                </Text>
+                                <Group gap={4} align="center">
+                                  <Text size="xs" c="dimmed">
+                                    {mode === "compare"
+                                      ? translate("planLabKpiDeltaCompareLabel", "Δ（方案 A - 方案 B）")
+                                      : translate("planLabKpiDeltaLabel", "Δ")}
+                                  </Text>
+                                  {mode === "compare" ? (
+                                    <MantineTooltip
+                                      label={translate(
+                                        "planLabKpiDeltaCompareTooltip",
+                                        "A 代表目前編輯中的方案，B 代表基準方案。"
+                                      )}
+                                      withArrow
+                                    >
+                                      <Text size="xs" c="dimmed" style={{ cursor: "help" }}>ⓘ</Text>
+                                    </MantineTooltip>
+                                  ) : null}
+                                </Group>
                                 {card.delta ? (
                                   <Badge variant="light" color={deltaColor}>
                                     {card.delta.display}
