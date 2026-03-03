@@ -122,7 +122,11 @@
     "riskMedium": "中",
     "riskHigh": "高",
     "notAvailable": "不適用",
-    "planLabExperimentsEnabledCount": "已啟用 {enabled} / 全部 {total}"
+    "planLabExperimentsEnabledCount": "已啟用 {enabled} / 全部 {total}",
+    "settingsTabAssumptionsAction": "1）先設定情境假設",
+    "settingsTabPersistenceAction": "3）情境保存與重置",
+    "settingsSectionPersistenceMicrocopy": "此區為情境層級的保存控制。可用於重置假設基線與維護情境狀態。",
+    "settingsPersistenceHint": "帳戶層級的同步／匯出已移至會員 > 帳戶。此分頁僅保留情境相關的保存操作。"
   },
   "nav": {
     "home": "首頁",

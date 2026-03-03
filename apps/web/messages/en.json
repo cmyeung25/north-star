@@ -122,7 +122,11 @@
     "applyScopeInclude": "Only selected scenarios",
     "applyScopeExclude": "Exclude selected scenarios",
     "applyScopePlaceholder": "Select scenarios",
-    "planLabExperimentsEnabledCount": "Enabled {enabled} / Total {total}"
+    "planLabExperimentsEnabledCount": "Enabled {enabled} / Total {total}",
+    "settingsTabAssumptionsAction": "1) Set scenario assumptions",
+    "settingsTabPersistenceAction": "3) Scenario persistence & reset",
+    "settingsSectionPersistenceMicrocopy": "Scenario-specific persistence controls. Use this to reset assumptions baseline and maintain scenario-level state safely.",
+    "settingsPersistenceHint": "Account-level sync/export controls were moved to Member > Account. This tab keeps scenario-specific persistence actions only."
   },
   "nav": {
     "home": "Home",

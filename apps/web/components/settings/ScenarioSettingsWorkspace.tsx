@@ -104,7 +104,7 @@ import {
   shouldAutoApplyOnboardingAssumptions,
 } from "../../src/domain/assumptions/onboardingAutoApply";
 
-type SettingsTabKey = "data" | "global" | "members" | "budget" | "other";
+type SettingsTabKey = "assumptions" | "members" | "persistence";
 
 type ScenarioSettingsWorkspaceProps = {
   scenarioId?: string;
@@ -127,7 +127,7 @@ export default function ScenarioSettingsWorkspace({
   scenarioId,
   titleKey = "settingsTitle",
   subtitleKey = "settingsSubtitle",
-  defaultTab = "global",
+  defaultTab = "assumptions",
   tabOrder,
   initialAction,
   initialRuleId,
@@ -196,24 +196,16 @@ export default function ScenarioSettingsWorkspace({
   const [memberBirthMonthErrors, setMemberBirthMonthErrors] = useState<
     Record<string, string | null>
   >({});
-  const resolvedTabOrder = useMemo<SettingsTabKey[]>(() =>
-    ((tabOrder ?? [
-      "global",
-      "members",
-      "data",
-      "other",
-      "budget",
-    ]) as SettingsTabKey[]).filter((k) => k !== "budget") as SettingsTabKey[],
+  const resolvedTabOrder = useMemo<SettingsTabKey[]>(
+    () => (tabOrder ?? ["assumptions", "members", "persistence"]) as SettingsTabKey[],
     [tabOrder]
   );
   const [activeTab, setActiveTab] = useState<SettingsTabKey>(defaultTab);
   const tabLabels: Record<SettingsTabKey, string> = useMemo(
     () => ({
-      data: common("settingsTabDataAction"),
-      global: common("settingsTabGlobalAction"),
+      assumptions: common("settingsTabAssumptionsAction"),
       members: common("settingsTabMembersAction"),
-      budget: common("settingsTabBudget"),
-      other: common("settingsTabOtherAction"),
+      persistence: common("settingsTabPersistenceAction"),
     }),
     [common]
   );
@@ -288,8 +280,16 @@ export default function ScenarioSettingsWorkspace({
       return;
     }
     const hash = window.location.hash.replace("#", "");
-    if (hash && resolvedTabOrder.includes(hash as SettingsTabKey)) {
-      setActiveTab(hash as SettingsTabKey);
+    const legacyHashMap: Record<string, SettingsTabKey> = {
+      global: "assumptions",
+      data: "persistence",
+      other: "persistence",
+      budget: "persistence",
+      settings: "persistence",
+    };
+    const resolvedHash = (legacyHashMap[hash] ?? hash) as SettingsTabKey;
+    if (resolvedTabOrder.includes(resolvedHash)) {
+      setActiveTab(resolvedHash);
     }
   }, [resolvedTabOrder]);
 
@@ -717,8 +717,8 @@ export default function ScenarioSettingsWorkspace({
       return;
     }
     hasHandledInitialAction.current = true;
-    if (resolvedTabOrder.includes("budget")) {
-      setActiveTab("budget");
+    if (resolvedTabOrder.includes("persistence")) {
+      setActiveTab("persistence");
     } else {
       setActiveTab(defaultTab);
     }
@@ -729,8 +729,8 @@ export default function ScenarioSettingsWorkspace({
     if (!initialRuleId) {
       return;
     }
-    if (resolvedTabOrder.includes("budget")) {
-      setActiveTab("budget");
+    if (resolvedTabOrder.includes("persistence")) {
+      setActiveTab("persistence");
     } else {
       setActiveTab(defaultTab);
     }
@@ -1246,7 +1246,7 @@ export default function ScenarioSettingsWorkspace({
           ))}
         </Tabs.List>
 
-        <Tabs.Panel value="data" pt="md">
+        <Tabs.Panel value="persistence" pt="md">
           <Text size="sm" c="dimmed" mb="md">
             {common("settingsSectionDataMicrocopy")}
           </Text>
@@ -1428,7 +1428,7 @@ export default function ScenarioSettingsWorkspace({
           </Accordion>
         </Tabs.Panel>
 
-        <Tabs.Panel value="global" pt="md">
+        <Tabs.Panel value="assumptions" pt="md">
           <Text size="sm" c="dimmed" mb="md">
             {common("settingsSectionGlobalMicrocopy")}
           </Text>
@@ -2071,7 +2071,7 @@ export default function ScenarioSettingsWorkspace({
                                   variant="light"
                                   onClick={() => {
                                     const nextId = createBudgetRuleForMember(member.id);
-                                    setActiveTab("budget");
+                                    setActiveTab("persistence");
                                     setExpandedBudgetRuleId(nextId);
                                   }}
                                 >
@@ -2113,7 +2113,7 @@ export default function ScenarioSettingsWorkspace({
                                             size="xs"
                                             variant="light"
                                             onClick={() => {
-                                              setActiveTab("budget");
+                                              setActiveTab("persistence");
                                               setExpandedBudgetRuleId(rule.id);
                                             }}
                                           >
@@ -2141,7 +2141,7 @@ export default function ScenarioSettingsWorkspace({
                         variant="light"
                         onClick={() => {
                           const nextId = createBudgetRuleForMember(undefined);
-                          setActiveTab("budget");
+                          setActiveTab("persistence");
                           setExpandedBudgetRuleId(nextId);
                         }}
                       >
@@ -2171,7 +2171,7 @@ export default function ScenarioSettingsWorkspace({
                                   size="xs"
                                   variant="light"
                                   onClick={() => {
-                                    setActiveTab("budget");
+                                    setActiveTab("persistence");
                                     setExpandedBudgetRuleId(rule.id);
                                   }}
                                 >
@@ -2220,7 +2220,7 @@ export default function ScenarioSettingsWorkspace({
           </Modal>
         </Tabs.Panel>
 
-        <Tabs.Panel value="budget" pt="md">
+        <Tabs.Panel value="persistence" pt="md">
           <Card withBorder radius="md" padding="md">
         <Stack gap="md">
           <Group justify="space-between" align="center">
@@ -2670,7 +2670,7 @@ export default function ScenarioSettingsWorkspace({
           </Card>
         </Tabs.Panel>
 
-        <Tabs.Panel value="other" pt="md">
+        <Tabs.Panel value="persistence" pt="md">
           <Text size="sm" c="dimmed" mb="md">
             {common("settingsSectionOtherMicrocopy")}
           </Text>
