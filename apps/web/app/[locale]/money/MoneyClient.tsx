@@ -110,6 +110,7 @@ import MortgageDetailDrawer, {
   type MortgageDetailTab,
 } from "../../../features/moneyFlow/MortgageDetailDrawer";
 import CashBalanceCard from "../../../features/assets/CashBalanceCard";
+import EditCashBaselineModal from "../../../features/assets/EditCashBaselineModal";
 import ScenarioAssetManager from "../../../features/assets/ScenarioAssetManager";
 import ScenarioLiabilityManager from "../../../features/liabilities/ScenarioLiabilityManager";
 import type {
@@ -652,7 +653,7 @@ export default function MoneyClient({
   const hasHandledInitialEdit = useRef(false);
   const hasSyncedCashAsset = useRef(false);
   const cashCardRef = useRef<HTMLDivElement>(null);
-  const cashInputRef = useRef<HTMLInputElement>(null);
+  const [cashEditOpened, setCashEditOpened] = useState(false);
 
   const resolvedTab = tabOrder.includes(initialTab as MoneyTab)
     ? (initialTab as MoneyTab)
@@ -694,7 +695,7 @@ export default function MoneyClient({
     }
     node.scrollIntoView({ behavior: "smooth", block: "start" });
     requestAnimationFrame(() => {
-      cashInputRef.current?.focus();
+      setCashEditOpened(true);
     });
     setShouldFocusCashCard(false);
   }, [activeTab, shouldFocusCashCard]);
@@ -2845,56 +2846,41 @@ export default function MoneyClient({
     setShouldFocusCashCard(true);
   }, []);
 
-  const handleCashAmountChange = useCallback(
-    (value: number) => {
-      if (!scenarioIdValue) {
-        return;
-      }
-      setScenarioInitialCash(scenarioIdValue, Math.max(0, value));
-      if (cashAsset) {
-        upsertScenarioAssets(scenarioIdValue, [
-          {
-            ...cashAsset,
-            currentValue: Math.max(0, value),
-            startMonth: cashAsset.startMonth ?? baseMonth ?? undefined,
-            currency: cashAsset.currency ?? scenario?.baseCurrency,
-            source: cashAsset.source ?? "manual",
-          },
-        ]);
-      }
-    },
-    [
-      baseMonth,
-      cashAsset,
-      scenario?.baseCurrency,
-      scenarioIdValue,
-      setScenarioInitialCash,
-      upsertScenarioAssets,
-    ]
-  );
+  const handleOpenCashEditModal = useCallback(() => {
+    setCashEditOpened(true);
+  }, []);
 
-  const handleCashBaseMonthChange = useCallback(
-    (value: string | null) => {
+  const handleSaveCashBaseline = useCallback(
+    ({ amount, baseMonth: nextBaseMonth }: { amount: number; baseMonth: string | null }) => {
       if (!scenarioIdValue) {
         return;
       }
-      setScenarioBaseMonth(scenarioIdValue, value);
-      if (cashAsset) {
-        upsertScenarioAssets(scenarioIdValue, [
-          {
-            ...cashAsset,
-            startMonth: value ?? undefined,
-            currency: cashAsset.currency ?? scenario?.baseCurrency,
-            source: cashAsset.source ?? "manual",
-          },
-        ]);
-      }
+      const sanitizedAmount = Math.max(0, amount);
+      setScenarioInitialCash(scenarioIdValue, sanitizedAmount);
+      setScenarioBaseMonth(scenarioIdValue, nextBaseMonth);
+      upsertScenarioAssets(scenarioIdValue, [
+        {
+          id: cashAsset?.id ?? "cash",
+          kind: "cash",
+          label: cashAsset?.label ?? t("assetTypeCash"),
+          currentValue: sanitizedAmount,
+          startMonth: nextBaseMonth ?? undefined,
+          currency: cashAsset?.currency ?? scenario?.baseCurrency,
+          source: cashAsset?.source ?? "manual",
+        },
+      ]);
+      setCashEditOpened(false);
     },
     [
-      cashAsset,
+      cashAsset?.currency,
+      cashAsset?.id,
+      cashAsset?.label,
+      cashAsset?.source,
       scenario?.baseCurrency,
       scenarioIdValue,
       setScenarioBaseMonth,
+      setScenarioInitialCash,
+      t,
       upsertScenarioAssets,
     ]
   );
@@ -4032,11 +4018,18 @@ export default function MoneyClient({
                 value={initialCashValue}
                 baseMonth={baseMonth}
                 currency={scenario?.baseCurrency ?? "USD"}
-                amountInputRef={cashInputRef}
-                onChangeAmount={handleCashAmountChange}
-                onChangeBaseMonth={handleCashBaseMonthChange}
+                locale={locale}
+                onEdit={handleOpenCashEditModal}
               />
             </div>
+            <EditCashBaselineModal
+              opened={cashEditOpened}
+              currency={scenario?.baseCurrency ?? "USD"}
+              value={initialCashValue}
+              baseMonth={baseMonth}
+              onClose={() => setCashEditOpened(false)}
+              onSave={handleSaveCashBaseline}
+            />
             {assetHoldingCostNotice && (
               <Notification
                 color="blue"
