@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { ActionIcon, Button, Card, Group, Menu, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -161,10 +162,14 @@ export default function ExpenseEventList({
                   <Stack gap={4} mt={4}>
                     <Group justify="space-between">
                       <Text size="sm" fw={600}>
-                        調整 {adjustments.length} 次 · 最新：{resolveEventCardStartMonth(latestAdjustment) ?? "--"} {formatCurrency(Math.abs(resolveEventCardAmount(latestAdjustment) ?? 0), baseCurrency, locale)}
+                        {t("eventAdjustmentLatestSummary", {
+                          count: adjustments.length,
+                          month: resolveEventCardStartMonth(latestAdjustment) ?? t("eventAdjustmentUnknownMonth"),
+                          amount: formatCurrency(Math.abs(resolveEventCardAmount(latestAdjustment) ?? 0), baseCurrency, locale),
+                        })}
                       </Text>
                       <Button size="xs" variant="subtle" onClick={() => setExpandedIds((current) => ({ ...current, [baseEvent.id]: !expanded }))}>
-                        {expanded ? "收起" : "展開"}
+                        {expanded ? t("eventAdjustmentCollapse") : t("eventAdjustmentExpand")}
                       </Button>
                     </Group>
                     {expanded && adjustments.map((event) => (
@@ -201,7 +206,7 @@ export default function ExpenseEventList({
                         })
                       }
                     >
-                      新增調整
+                      {t("eventAdjustmentAdd")}
                     </Menu.Item>
                     <Menu.Item color="red" onClick={() => onDeleteEvent(baseEvent.id)}>{common("actionDelete")}</Menu.Item>
                   </Menu.Dropdown>
