@@ -2509,7 +2509,7 @@
     "onboardingBaselineAppliedToast": "已套用基準假設。",
     "onboardingBaselineMarkerCleared": "已清除自動套用標記。",
     "onboardingBaselineMarkerReset": "重設 onboarding 基準標記",
-    "assumptionSourceLabel": "假設來源",
+    "assumptionSourceLabel": "目前使用",
     "assumptionSourceOnboardingBaseline": "Onboarding 基準",
     "assumptionSourceManual": "手動／自訂",
     "inflationRateModelLabel": "模型通脹假設 (%)",
@@ -2517,7 +2517,12 @@
     "displayModeTitle": "顯示模式（折算）",
     "annualInflationPctDisplayLabel": "實質檢視折算率 (%)",
     "annualInflationPctDisplayHint": "只影響 Real view 呈現，不會改變情境假設或 projection。",
-    "viewModeToolbarHint": "切換顯示方式；模型計算仍以情境假設為準。"
+    "viewModeToolbarHint": "切換顯示方式；模型計算仍以情境假設為準。",
+    "applyBaselinePresetAction": "套用基準預設",
+    "presetMoreAction": "其他預設",
+    "presetApplied": "已套用「{preset}」預設。",
+    "assumptionSourceInUseBaseline": "基準",
+    "assumptionSourceInUseCustom": "自訂"
   },
   "members": {
     "title": "家庭成員",

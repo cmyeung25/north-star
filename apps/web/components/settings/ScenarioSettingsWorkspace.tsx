@@ -123,6 +123,8 @@ type AssumptionsEditSection =
   | "displayMode"
   | "modelAssumptions";
 
+type AssumptionPresetKey = "baseline" | "conservative" | "growth";
+
 const isHousingCategory = (category: string) => category === "housing";
 
 export default function ScenarioSettingsWorkspace({
@@ -249,6 +251,7 @@ export default function ScenarioSettingsWorkspace({
     keyof ScenarioAssumptionsOverride | null
   >(null);
   const [resetAssumptionsModalOpen, setResetAssumptionsModalOpen] = useState(false);
+  const [assumptionPresetModalOpen, setAssumptionPresetModalOpen] = useState(false);
   const [hasAppliedOnboardingBaseline, setHasAppliedOnboardingBaseline] =
     useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -825,6 +828,32 @@ export default function ScenarioSettingsWorkspace({
     };
   }, []);
 
+  const assumptionPresets = useMemo<Record<AssumptionPresetKey, ScenarioAssumptionsOverride>>(() => {
+    const baseline = defaultAssumptionsForReset;
+    const withDelta = (value: number | undefined, delta: number) =>
+      typeof value === "number" ? Number((value + delta).toFixed(2)) : undefined;
+
+    return {
+      baseline,
+      conservative: {
+        inflationRate: withDelta(baseline.inflationRate, 0.5),
+        salaryGrowthRate: withDelta(baseline.salaryGrowthRate, -0.5),
+        rentAnnualGrowthPct: withDelta(baseline.rentAnnualGrowthPct, 0.5),
+        propertyAppreciationPct: withDelta(baseline.propertyAppreciationPct, -0.5),
+        cashYieldPct: withDelta(baseline.cashYieldPct, -0.5),
+        carDepreciationRatePct: withDelta(baseline.carDepreciationRatePct, 0.5),
+      },
+      growth: {
+        inflationRate: withDelta(baseline.inflationRate, -0.5),
+        salaryGrowthRate: withDelta(baseline.salaryGrowthRate, 0.5),
+        rentAnnualGrowthPct: withDelta(baseline.rentAnnualGrowthPct, -0.5),
+        propertyAppreciationPct: withDelta(baseline.propertyAppreciationPct, 0.5),
+        cashYieldPct: withDelta(baseline.cashYieldPct, 0.5),
+        carDepreciationRatePct: withDelta(baseline.carDepreciationRatePct, -0.5),
+      },
+    };
+  }, [defaultAssumptionsForReset]);
+
   const resetAssumptionDiffRows = useMemo(() => {
     if (!scenario) {
       return [] as Array<{
@@ -851,14 +880,68 @@ export default function ScenarioSettingsWorkspace({
       .filter((row): row is NonNullable<typeof row> => row !== null);
   }, [defaultAssumptionsForReset, scenario]);
 
+  const syncOnboardingBaselineMarker = useCallback(
+    (scenarioIdToSync: string, useBaseline: boolean) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const flagKey = getOnboardingAssumptionsAutoApplyFlagKey(scenarioIdToSync);
+      if (useBaseline) {
+        window.localStorage.setItem(flagKey, "true");
+      } else {
+        window.localStorage.removeItem(flagKey);
+      }
+      setHasAppliedOnboardingBaseline(useBaseline);
+    },
+    []
+  );
+
+  const applyAssumptionPatchWithSource = useCallback(
+    (
+      patch: ScenarioAssumptionsOverride,
+      nextSource: "baseline" | "custom",
+      toastMessage?: string
+    ) => {
+      if (!scenario) {
+        return;
+      }
+      updateScenarioAssumptions(scenario.id, patch);
+      syncOnboardingBaselineMarker(scenario.id, nextSource === "baseline");
+      if (toastMessage) {
+        showToast(toastMessage, "teal");
+      }
+    },
+    [scenario, showToast, syncOnboardingBaselineMarker, updateScenarioAssumptions]
+  );
+
+  const handleApplyAssumptionPreset = useCallback(
+    (presetKey: AssumptionPresetKey, toastMessage?: string) => {
+      const preset = assumptionPresets[presetKey];
+      if (!preset) {
+        return;
+      }
+      const presetLabelByKey: Record<AssumptionPresetKey, string> = {
+        baseline: t("presetBaseline"),
+        conservative: t("presetConservative"),
+        growth: t("presetGrowth"),
+      };
+      applyAssumptionPatchWithSource(
+        preset,
+        presetKey === "baseline" ? "baseline" : "custom",
+        toastMessage ?? t("presetApplied", { preset: presetLabelByKey[presetKey] })
+      );
+      setAssumptionPresetModalOpen(false);
+      setResetAssumptionsModalOpen(false);
+    },
+    [applyAssumptionPatchWithSource, assumptionPresets, t]
+  );
+
   const handleConfirmResetAssumptions = useCallback(() => {
     if (!scenario) {
       return;
     }
-    updateScenarioAssumptions(scenario.id, defaultAssumptionsForReset);
-    setResetAssumptionsModalOpen(false);
-    showToast(t("resetDefaultsSaved"), "teal");
-  }, [defaultAssumptionsForReset, scenario, showToast, t, updateScenarioAssumptions]);
+    handleApplyAssumptionPreset("baseline", t("resetDefaultsSaved"));
+  }, [handleApplyAssumptionPreset, scenario, t]);
 
   useEffect(() => {
     if (!scenario || typeof window === "undefined") {
@@ -885,21 +968,13 @@ export default function ScenarioSettingsWorkspace({
     }
 
     updateScenarioAssumptions(scenario.id, patch);
-    window.localStorage.setItem(flagKey, "true");
-    setHasAppliedOnboardingBaseline(true);
+    syncOnboardingBaselineMarker(scenario.id, true);
     showToast(t("onboardingBaselineAppliedToast"), "teal");
-  }, [scenario, showToast, t, updateScenarioAssumptions]);
+  }, [scenario, showToast, syncOnboardingBaselineMarker, t, updateScenarioAssumptions]);
 
-  const handleClearOnboardingBaselineMarker = useCallback(() => {
-    if (!scenario || typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.removeItem(
-      getOnboardingAssumptionsAutoApplyFlagKey(scenario.id)
-    );
-    setHasAppliedOnboardingBaseline(false);
-    showToast(t("onboardingBaselineMarkerCleared"), "gray");
-  }, [scenario, showToast, t]);
+  const assumptionSourceLabel = hasAppliedOnboardingBaseline
+    ? t("assumptionSourceInUseBaseline")
+    : t("assumptionSourceInUseCustom");
 
   useEffect(() => {
     setBudgetMonthInputs((current) => {
@@ -1730,6 +1805,12 @@ export default function ScenarioSettingsWorkspace({
             <Stack gap="md">
               <Text size="sm" c="dimmed">{t("scenarioAssumptionsHint")}</Text>
               <Text size="xs" c="dimmed">{t("inflationRateProjectionHint")}</Text>
+              <Group gap="xs">
+                <Text size="sm" fw={500}>{t("assumptionSourceLabel")}</Text>
+                <Badge color={hasAppliedOnboardingBaseline ? "teal" : "gray"} variant="light">
+                  {assumptionSourceLabel}
+                </Badge>
+              </Group>
               <Card withBorder radius="md" padding="sm">
                 <Text size="sm" c="dimmed">
                   {t("initialCashMovedHint")} <Link href={buildMoneyAssetsUrl(caseId, scenario.id, { focus: "cash" })}>{t("initialCashMovedLink")}</Link>
@@ -1769,19 +1850,14 @@ export default function ScenarioSettingsWorkspace({
               <Group justify="space-between" wrap="wrap">
                 <Group>
                   <Button
-                    variant="subtle"
-                    color="gray"
-                    onClick={handleClearOnboardingBaselineMarker}
-                    disabled={!hasAppliedOnboardingBaseline}
-                  >
-                    {t("onboardingBaselineMarkerReset")}
-                  </Button>
-                  <Button
                     variant="default"
                     onClick={() => setResetAssumptionsModalOpen(true)}
                     disabled={resetAssumptionDiffRows.length === 0}
                   >
-                    {t("resetDefaultsAction")}
+                    {t("applyBaselinePresetAction")}
+                  </Button>
+                  <Button variant="subtle" color="gray" onClick={() => setAssumptionPresetModalOpen(true)}>
+                    {t("presetMoreAction")}
                   </Button>
                 </Group>
                 <Group>
@@ -1800,6 +1876,25 @@ export default function ScenarioSettingsWorkspace({
                     {common("actionSave")}
                   </Button>
                 </Group>
+              </Group>
+            </Stack>
+          </Modal>
+
+          <Modal
+            opened={assumptionPresetModalOpen}
+            onClose={() => setAssumptionPresetModalOpen(false)}
+            title={t("presetLabel")}
+            centered
+          >
+            <Stack gap="sm">
+              <Text size="sm" c="dimmed">{t("presetDiffHint")}</Text>
+              <Group grow>
+                <Button variant="default" onClick={() => handleApplyAssumptionPreset("conservative")}>
+                  {t("presetConservative")}
+                </Button>
+                <Button variant="default" onClick={() => handleApplyAssumptionPreset("growth")}>
+                  {t("presetGrowth")}
+                </Button>
               </Group>
             </Stack>
           </Modal>
