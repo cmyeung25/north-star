@@ -19,6 +19,7 @@ import {
   Text,
   TextInput,
   Title,
+  SimpleGrid,
 } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
@@ -1611,7 +1612,7 @@ export default function ScenarioSettingsWorkspace({
           <Text size="sm" c="dimmed" mb="md">
             {common("settingsSectionGlobalMicrocopy")}
           </Text>
-          <Accordion variant="separated">
+          <Accordion variant="separated" display={"none"}>
             <Accordion.Item value="global-advanced-how">
               <Accordion.Control>{common("advancedSettingsLabel")}</Accordion.Control>
               <Accordion.Panel>
@@ -1631,29 +1632,30 @@ export default function ScenarioSettingsWorkspace({
           </Accordion>
 
           <Stack gap="md" mt="md">
-            <Card withBorder radius="md" padding="md">
-              <Group justify="space-between" align="flex-start" wrap="wrap">
-                <Stack gap={4}>
-                  <Text fw={600}>{t("planningHorizon")}</Text>
-                  <Text size="sm" c="dimmed">{horizonSummaryLabel}</Text>
-                </Stack>
-                <Button variant="light" onClick={() => setActiveAssumptionModal("planningHorizon")}>
-                  {common("actionEdit")}
-                </Button>
-              </Group>
-            </Card>
-
-            <Card withBorder radius="md" padding="md">
-              <Group justify="space-between" align="flex-start" wrap="wrap">
-                <Stack gap={4}>
-                  <Text fw={600}>{t("baseMonth")}</Text>
-                  <Text size="sm" c="dimmed">{baseMonthSummaryLabel}</Text>
-                </Stack>
-                <Button variant="light" onClick={() => setActiveAssumptionModal("baseMonth")}>
-                  {common("actionEdit")}
-                </Button>
-              </Group>
-            </Card>
+            <SimpleGrid cols={2}>
+              <Card withBorder radius="md" padding="md">
+                <Group justify="space-between" align="flex-start" wrap="wrap">
+                  <Stack gap={4}>
+                    <Text fw={600}>{t("planningHorizon")}</Text>
+                    <Text size="sm" c="dimmed">{horizonSummaryLabel}</Text>
+                  </Stack>
+                  <Button variant="light" onClick={() => setActiveAssumptionModal("planningHorizon")}>
+                    {common("actionEdit")}
+                  </Button>
+                </Group>
+              </Card>
+              <Card withBorder radius="md" padding="md">
+                <Group justify="space-between" align="flex-start" wrap="wrap">
+                  <Stack gap={4}>
+                    <Text fw={600}>{t("baseMonth")}</Text>
+                    <Text size="sm" c="dimmed">{baseMonthSummaryLabel}</Text>
+                  </Stack>
+                  <Button variant="light" onClick={() => setActiveAssumptionModal("baseMonth")}>
+                    {common("actionEdit")}
+                  </Button>
+                </Group>
+              </Card>
+            </SimpleGrid>
 
             <Card withBorder radius="md" padding="md">
               <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -2017,7 +2019,7 @@ export default function ScenarioSettingsWorkspace({
             </Stack>
           </Modal>
 
-          <Card withBorder radius="md" padding="md" mt="md">
+          <Card withBorder radius="md" padding="md" mt="md" display={"none"}>
             <ProjectionPreviewPanel
               title={t("previewTitle")}
               currency={scenario?.baseCurrency ?? "USD"}
