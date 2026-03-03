@@ -2571,7 +2571,15 @@
     "addHouseholdRule": "新增家庭規則",
     "householdBudgetEmpty": "尚未有家庭規則。",
     "legacySectionTitle": "進階功能",
-    "legacySectionNote": "這些欄位為相容性保留，暫未影響預測結果。"
+    "legacySectionNote": "這些欄位為相容性保留，暫未影響預測結果。",
+    "memberEventsTitle": "可分配事件",
+    "memberEventsEmpty": "此成員尚未關聯任何事件。",
+    "memberEventsEdit": "前往編輯",
+    "memberEventsCount": "{count} 個事件",
+    "memberEventsPeriodUntil": "至 {endMonth}",
+    "memberEventsPeriodUnspecified": "期間未設定",
+    "householdCardTitle": "家庭",
+    "householdEventsEmpty": "尚未有未指定成員的事件。"
   },
   "budgetRules": {
     "title": "預算規則",
