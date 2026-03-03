@@ -4492,5 +4492,21 @@
       "duplicate": "複製",
       "delete": "刪除"
     }
-  }
+  },
+  "planLabFlowStepDraft": "草稿中",
+  "planLabFlowStepComparing": "比較中",
+  "planLabFlowStepReadyToSave": "可保存",
+  "planLabFlowStepLabel": "流程：{step}",
+  "planLabEnterCompareMode": "進入比較模式",
+  "planLabBackToEditMode": "返回編輯模式",
+  "planLabPrimaryGroupLabel": "建立 / 編輯實驗",
+  "planLabSecondaryGroupLabel": "比較",
+  "planLabTertiaryGroupLabel": "保存",
+  "planLabCompareA": "A 方案",
+  "planLabCompareB": "B 方案",
+  "planLabCreateEditExperimentGroup": "建立 / 編輯實驗",
+  "planLabCompareGroup": "比較",
+  "planLabSaveGroup": "保存",
+  "planLabModeToggleCompareToast": "已進入比較模式。",
+  "planLabModeToggleEditToast": "已返回編輯模式。"
 }

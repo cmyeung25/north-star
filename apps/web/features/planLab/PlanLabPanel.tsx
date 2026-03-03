@@ -1656,13 +1656,37 @@ export default function PlanLabPanel({
   });
   const statusPillLabel = useMemo(() => {
     if (mode === "compare") {
-      return translate("planLabStatusCompare", "比較模式");
+      return translate("planLabFlowStepComparing", "Comparing");
     }
     if (activePlanId) {
-      return translate("planLabStatusLoaded", "已載入方案");
+      return translate("planLabFlowStepReadyToSave", "Ready to Save");
     }
-    return translate("planLabStatusDraft", "沙盒草稿");
+    return translate("planLabFlowStepDraft", "Draft");
   }, [activePlanId, mode, translate]);
+
+  const comparePlanOptions = useMemo(
+    () => [
+      {
+        value: "baseline",
+        label: t("planLabBaselineLabel"),
+      },
+      ...plans.map((plan) => ({
+        value: plan.id,
+        label: plan.name,
+      })),
+    ],
+    [plans, t]
+  );
+
+  const handleModeToggle = useCallback(() => {
+    const nextMode = mode === "edit" ? "compare" : "edit";
+    setMode(nextMode);
+    setPlanToast(
+      nextMode === "compare"
+        ? translate("planLabModeToggleCompareToast", "已進入比較模式。")
+        : translate("planLabModeToggleEditToast", "已返回編輯模式。")
+    );
+  }, [mode, translate]);
 
   useEffect(() => {
     if (plans.length === 0) {
@@ -8202,88 +8226,152 @@ export default function PlanLabPanel({
         </Notification>
       )}
       <Card withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
-        <Group justify="space-between" align="center" wrap="wrap">
-          <Stack gap={2}>
-            <Group gap="xs" align="center" wrap="wrap">
-              <Title order={3}>{t("planLabTitle")}</Title>
-              <Badge color="ice" variant="light">
-                {t("planLabPreviewBadge")}
-              </Badge>
-              <Badge color="ice" variant="light">
-                {statusPillLabel}
-              </Badge>
-              {isWorkspaceDirty && (
-                <Badge color="warning" variant="light">
-                  ● {translate("planLabDirtyLabel", "未儲存")}
+        <Stack gap="xs">
+          <Group justify="space-between" align="center" wrap="wrap">
+            <Stack gap={2}>
+              <Group gap="xs" align="center" wrap="wrap">
+                <Title order={3}>{t("planLabTitle")}</Title>
+                <Badge color="ice" variant="light">
+                  {t("planLabPreviewBadge")}
                 </Badge>
-              )}
-            </Group>
-            <Text size="xs" c="dimmed">
-              {t("planLabSubtitle")}
-            </Text>
-          </Stack>
-          <Group gap="xs" wrap="wrap">
-            {mode === "edit" && (
-              <Button
-                size="xs"
-                color="aurora"
-                onClick={() => {
-                  setSavePlanNotes(undefined);
-                  setSavePlanTags(undefined);
-                  setSavePlanOpen(true);
-                }}
-              >
-                {translate("planLabSavePlan", "Save plan")}
-              </Button>
-            )}
-            {mode === "edit" && (
-              <Button
-                size="xs"
-                variant="outline"
-                color="polar"
-                onClick={handleUpdatePlan}
-                disabled={!activePlanId}
-              >
-                {translate("planLabUpdatePlan", "Update plan")}
-              </Button>
-            )}
-            <Button size="xs" variant="subtle" color="polar" onClick={() => setPlanLibraryOpen(true)}>
-              {translate("planLabPlansButton", "Plans ({count})", {
-                count: planCount,
-              })}
+                <Pill withRemoveButton={false} bg="var(--mantine-color-aurora-1)">
+                  {translate("planLabFlowStepLabel", "流程：{step}", {
+                    step: statusPillLabel,
+                  })}
+                </Pill>
+              </Group>
+              <Text size="xs" c="dimmed">
+                {t("planLabSubtitle")}
+              </Text>
+            </Stack>
+            <Button size="xs" variant={mode === "compare" ? "filled" : "outline"} color="polar" onClick={handleModeToggle}>
+              {mode === "edit"
+                ? translate("planLabEnterCompareMode", "進入比較模式")
+                : translate("planLabBackToEditMode", "返回編輯模式")}
             </Button>
-            {mode === "edit" && (
-              <MantineTooltip
-                label={translate(
-                  "planLabSaveScenarioTooltip",
-                  "將目前沙盒變更套用至情境"
-                )}
-                withArrow
-              >
-                <Button size="xs" variant="outline" color="polar" onClick={handleSave}>
-                  {translate("planLabSaveScenario", "保存到情境")}
-                </Button>
-              </MantineTooltip>
-            )}
-            <SegmentedControl
-              size="sm"
-              radius="xs"
-              data={[
-                {
-                  value: "edit",
-                  label: translate("planLabModeEdit", "Edit"),
-                },
-                {
-                  value: "compare",
-                  label: translate("planLabModeCompare", "Compare"),
-                },
-              ]}
-              value={mode}
-              onChange={(value) => setMode(value as "edit" | "compare")}
-            />
           </Group>
 
-        </Group>
+          {isMobile ? (
+            <Stack gap="xs">
+              <Button size="xs" color="aurora" onClick={handleAddExperimentAction}>
+                {translate("planLabCreateEditExperimentGroup", "建立 / 編輯實驗")}
+              </Button>
+              <Group gap="xs" grow>
+                <Button size="xs" variant="outline" color="polar" onClick={() => setPlanLibraryOpen(true)}>
+                  {translate("planLabCompareGroup", "比較")}
+                </Button>
+                <Menu shadow="md" width={220}>
+                  <Menu.Target>
+                    <Button size="xs" variant="light" color="polar">
+                      {translate("planLabSaveGroup", "保存")}
+                    </Button>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      onClick={() => {
+                        setSavePlanNotes(undefined);
+                        setSavePlanTags(undefined);
+                        setSavePlanOpen(true);
+                      }}
+                    >
+                      {translate("planLabSavePlan", "Save plan")}
+                    </Menu.Item>
+                    <Menu.Item onClick={handleUpdatePlan} disabled={!activePlanId}>
+                      {translate("planLabUpdatePlan", "Update plan")}
+                    </Menu.Item>
+                    <Menu.Item onClick={handleSave}>
+                      {translate("planLabSaveScenario", "保存到情境")}
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
+            </Stack>
+          ) : (
+            <SimpleGrid cols={{ base: 1, md: 3 }} spacing="xs">
+              <Paper withBorder radius="xs" p="xs">
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed">
+                    {translate("planLabPrimaryGroupLabel", "建立 / 編輯實驗")}
+                  </Text>
+                  <Group gap="xs" wrap="wrap">
+                    <Button size="xs" color="aurora" onClick={handleAddExperimentAction}>
+                      {translate("planLabExperimentsAddAction", "新增實驗")}
+                    </Button>
+                    <Button size="xs" variant="light" color="polar" onClick={() => setPlanLibraryOpen(true)}>
+                      {translate("planLabPlansButton", "Plans ({count})", {
+                        count: planCount,
+                      })}
+                    </Button>
+                  </Group>
+                </Stack>
+              </Paper>
+              <Paper withBorder radius="xs" p="xs">
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed">
+                    {translate("planLabSecondaryGroupLabel", "比較")}
+                  </Text>
+                  <Group gap="xs" wrap="wrap" grow>
+                    <Select
+                      size="xs"
+                      label={translate("planLabCompareA", "A")}
+                      data={comparePlanOptions}
+                      value={planAId ?? "baseline"}
+                      onChange={(value) => value && setPlanAId(value)}
+                    />
+                    <Select
+                      size="xs"
+                      label={translate("planLabCompareB", "B")}
+                      data={comparePlanOptions}
+                      value={planBId ?? "baseline"}
+                      onChange={(value) => value && setPlanBId(value)}
+                    />
+                  </Group>
+                </Stack>
+              </Paper>
+              <Paper withBorder radius="xs" p="xs">
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed">
+                    {translate("planLabTertiaryGroupLabel", "保存")}
+                  </Text>
+                  <Group gap="xs" wrap="wrap">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color="polar"
+                      onClick={() => {
+                        setSavePlanNotes(undefined);
+                        setSavePlanTags(undefined);
+                        setSavePlanOpen(true);
+                      }}
+                    >
+                      {translate("planLabSavePlan", "Save plan")}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color="polar"
+                      onClick={handleUpdatePlan}
+                      disabled={!activePlanId}
+                    >
+                      {translate("planLabUpdatePlan", "Update plan")}
+                    </Button>
+                    <MantineTooltip
+                      label={translate(
+                        "planLabSaveScenarioTooltip",
+                        "將目前沙盒變更套用至情境"
+                      )}
+                      withArrow
+                    >
+                      <Button size="xs" variant="outline" color="polar" onClick={handleSave}>
+                        {translate("planLabSaveScenario", "保存到情境")}
+                      </Button>
+                    </MantineTooltip>
+                  </Group>
+                </Stack>
+              </Paper>
+            </SimpleGrid>
+          )}
+        </Stack>
       </Card>
 
       <Card display={"none"} withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>

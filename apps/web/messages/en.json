@@ -4445,5 +4445,21 @@
       "duplicate": "Duplicate",
       "delete": "Delete"
     }
-  }
+  },
+  "planLabFlowStepDraft": "Draft",
+  "planLabFlowStepComparing": "Comparing",
+  "planLabFlowStepReadyToSave": "Ready to Save",
+  "planLabFlowStepLabel": "Flow: {step}",
+  "planLabEnterCompareMode": "Enter compare mode",
+  "planLabBackToEditMode": "Back to edit mode",
+  "planLabPrimaryGroupLabel": "Create / edit experiments",
+  "planLabSecondaryGroupLabel": "Compare",
+  "planLabTertiaryGroupLabel": "Save",
+  "planLabCompareA": "Plan A",
+  "planLabCompareB": "Plan B",
+  "planLabCreateEditExperimentGroup": "Create / edit experiments",
+  "planLabCompareGroup": "Compare",
+  "planLabSaveGroup": "Save",
+  "planLabModeToggleCompareToast": "Entered compare mode.",
+  "planLabModeToggleEditToast": "Returned to edit mode."
 }
