@@ -395,3 +395,9 @@ PR requirement:
   - Affected paths: apps/web/features/planLab/PlanLabPanel.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep Plan Lab header IA grouped by workflow priority (experiment editing, compare context, save actions); avoid restoring multi-badge status semantics when a single flow-step indicator is sufficient; new Plan Lab CTA copy must be added to both zh-HK/en message files.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Plan Lab metadata conversion and row grouping logic were duplicated inside panel branches, making compare/base behavior drift-prone and ownership precedence harder to enforce.
+  - What changed: Added `planLabMetaTagAdapter` (Plan Lab row → metadata ViewModel) that reuses `buildMoneyMetaTags` + `buildMoneyMetaTagViewModel` as the single semantics source; updated `PlanLabPanel` baseline rows to route through the adapter and preserve `linkState`; added extensible grouping selector `buildPlanLabGroups(items, mode, groupBy)` supporting `domain|member|timeBucket(startMonth)` with compare-mode impact sorting (high→low).
+  - Affected paths: apps/web/features/planLab/planLabMetaTagAdapter.ts; apps/web/features/planLab/planLabGrouping.ts; apps/web/features/planLab/PlanLabPanel.tsx; apps/web/features/planLab/__tests__/planLabMetaTagAdapter.test.ts; apps/web/features/planLab/__tests__/planLabGrouping.test.ts; AGENTS.md
+  - Guardrails for next agent: Keep Plan Lab metadata semantics delegated to money-domain converters only; preserve scenario-level member/owner precedence over library defaults; keep orphaned/linked state in adapter output for UI consistency; extend grouping via selector layer instead of per-branch UI mapping.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

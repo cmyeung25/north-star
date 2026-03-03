@@ -228,6 +228,14 @@ import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentA
 import { buildMonthScale } from "../../lib/chart/monthScale";
 import { compareMonthKey } from "../../src/utils/monthKey";
 import {
+  adaptPlanLabRowMeta,
+  type PlanLabMetaTagAdapterInput,
+} from "./planLabMetaTagAdapter";
+import {
+  buildPlanLabGroups,
+  type PlanLabGroupBy,
+} from "./planLabGrouping";
+import {
   deriveEffectiveRangesForAdjustableGroup,
   getSalaryAdjustmentParentId,
 } from "../../src/domain/scenarioV2/salaryEffectiveRanges";
@@ -270,6 +278,7 @@ type ScenarioEditorItem = {
   category: string;
   memberId?: string | null;
   memberName?: string | null;
+  defaultMemberId?: string | null;
   startMonth?: string;
   endMonth?: string | null;
   enabled: boolean;
@@ -307,6 +316,7 @@ type ScenarioEditorItem = {
     amount: number;
     isBase: boolean;
   }>;
+  linkState?: "linked" | "orphaned";
 };
 
 type EventExperimentDraft = {
@@ -753,6 +763,7 @@ const deriveInputsFromScenarioV2 = (params: {
       adjustmentNextMonth,
       adjustmentNextAmount,
       adjustmentSegments,
+      linkState: "linked",
     });
   });
 
@@ -783,6 +794,7 @@ const deriveInputsFromScenarioV2 = (params: {
       bundleInstanceId: bundleSource.bundleInstanceId,
       bundleTitle: bundleSource.bundleTitle,
       bundleTemplateId: bundleSource.bundleTemplateId,
+      linkState: "linked",
     });
   });
 
@@ -815,6 +827,7 @@ const deriveInputsFromScenarioV2 = (params: {
       bundleInstanceId: bundleSource.bundleInstanceId,
       bundleTitle: bundleSource.bundleTitle,
       bundleTemplateId: bundleSource.bundleTemplateId,
+      linkState: "linked",
     });
   });
 
@@ -840,6 +853,7 @@ const deriveInputsFromScenarioV2 = (params: {
       bundleInstanceId: bundleSource.bundleInstanceId,
       bundleTitle: bundleSource.bundleTitle,
       bundleTemplateId: bundleSource.bundleTemplateId,
+      linkState: "linked",
     });
   });
 
@@ -1192,6 +1206,7 @@ export default function PlanLabPanel({
 
   const [chartType, setChartType] = useState<ChartType>("netWorth");
   const [mode, setMode] = useState<"edit" | "compare">(initialMode ?? "edit");
+  const [groupBy] = useState<PlanLabGroupBy>("domain");
   const [planLibraryOpen, setPlanLibraryOpen] = useState(false);
   const [savePlanOpen, setSavePlanOpen] = useState(false);
   const [savePlanNotes, setSavePlanNotes] = useState<string | undefined>(undefined);
@@ -4406,6 +4421,7 @@ export default function PlanLabPanel({
     }
     const items: ScenarioEditorItem[] = [];
     const combinedEventLibrary = [...eventLibrary, ...draftEventDefinitions];
+    const definitionById = new Map(combinedEventLibrary.map((definition) => [definition.id, definition]));
     const combinedEventRefs = [
       ...(scenario.eventRefs ?? []),
       ...draftEventRefs,
@@ -4440,6 +4456,7 @@ export default function PlanLabPanel({
         category: category || "event",
         memberId: view.definition.memberId ?? null,
         memberName,
+        defaultMemberId: definitionById.get(view.definition.id)?.memberId ?? null,
         startMonth: rule.startMonth,
         endMonth: patch?.endMonth ?? rule.endMonth ?? null,
         enabled: isEnabled,
@@ -4462,6 +4479,7 @@ export default function PlanLabPanel({
             : typeof rule.oneTimeAmount === "number"
             ? "oneOff"
             : "monthly",
+        linkState: view.linkState ?? "linked",
       });
     });
 
@@ -5466,26 +5484,45 @@ export default function PlanLabPanel({
   );
 
   const scenarioItemMetaById = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, ReturnType<typeof adaptPlanLabRowMeta>>();
     scenarioItems.forEach((item) => {
-      const meta = buildScenarioItemMetaParts({
-        item,
+      const sourceEntity: PlanLabMetaTagAdapterInput = {
+        id: item.id,
+        kind: item.kind,
+        category: item.category,
+        memberId: item.memberId ?? undefined,
+        memberName: item.memberName ?? undefined,
+        defaultMemberId: item.defaultMemberId ?? undefined,
+        startMonth: item.startMonth,
+        endMonth: item.endMonth ?? undefined,
+        amount: item.amount ?? undefined,
+        frequency: item.frequency,
+        intervalMonths: item.intervalMonths,
+        eventId: item.eventId,
+        assetId: item.assetId,
+        liabilityId: item.liabilityId,
+        positionKind: item.positionKind,
+        position: item.position,
+        title: item.title,
+        linkState: item.linkState,
+      };
+      const meta = adaptPlanLabRowMeta({
+        row: sourceEntity,
         currency: scenario.baseCurrency,
         locale,
         frequencyLabels,
         householdLabel: translate("planLabMemberHousehold", "家庭"),
+        memberLookupRecord: Object.fromEntries(
+          combinedMembers.map((member) => [member.id, member.name])
+        ),
       })
-        .filter(Boolean)
-        .join(" • ");
-      if (meta) {
-        map.set(item.id, meta);
-      }
+      map.set(item.id, meta);
     });
     return map;
-  }, [frequencyLabels, locale, scenario.baseCurrency, scenarioItems, translate]);
+  }, [combinedMembers, frequencyLabels, locale, scenario.baseCurrency, scenarioItems, translate]);
 
   const getScenarioItemSummary = useCallback(
-    (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id) ?? "",
+    (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id)?.summary ?? "",
     [scenarioItemMetaById]
   );
 
@@ -5706,28 +5743,13 @@ export default function PlanLabPanel({
   );
 
   const groupedItems = useMemo(() => {
-    const groups = new Map<string, ScenarioEditorItem[]>();
-    standaloneItems.forEach((item) => {
-      const groupKey = getGroupLabel("category", item);
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, []);
-      }
-      groups.get(groupKey)!.push(item);
+    return buildPlanLabGroups(standaloneItems, mode, groupBy, {
+      resolveGroupLabel: ({ groupBy: groupMode, item }) =>
+        getGroupLabel(groupMode === "timeBucket" ? "timeline" : groupMode, item),
+      resolveImpact: (item) => Math.abs(item.amount ?? 0),
+      resolveStableSortValue: (item) => Number(Boolean(getScenarioItemChangeStatus(item))),
     });
-    return Array.from(groups.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([group, items]) => {
-        const sortedItems = [...items].sort((left, right) => {
-          const leftChanged = Boolean(getScenarioItemChangeStatus(left));
-          const rightChanged = Boolean(getScenarioItemChangeStatus(right));
-          if (leftChanged !== rightChanged) {
-            return leftChanged ? -1 : 1;
-          }
-          return left.title.localeCompare(right.title);
-        });
-        return [group, sortedItems] as [string, ScenarioEditorItem[]];
-      });
-  }, [getScenarioItemChangeStatus, standaloneItems]);
+  }, [getGroupLabel, getScenarioItemChangeStatus, groupBy, mode, standaloneItems]);
 
   const visibleBundleCards = useMemo(() => {
     if (!scenarioIsV2) {
@@ -7571,6 +7593,11 @@ export default function PlanLabPanel({
     : experiments.filter((experiment) => experiment.isEnabled !== false).length;
 
   const showBundleSection = scenarioIsV2 && visibleBundleCards.length > 0;
+  // Row key ↔ source entity mapping is centralized here to avoid branch-specific metadata conversion.
+  const rowSourceByKey = useMemo(() => {
+    return new Map(scenarioItems.map((item) => [item.id, item]));
+  }, [scenarioItems]);
+
   const standaloneItemsContent =
     groupedItems.length === 0 ? (
       <Text size="sm" c="dimmed">
@@ -7584,22 +7611,23 @@ export default function PlanLabPanel({
           </Text>
           <Accordion variant="separated" radius="xs" multiple>
             {items.map((item) => {
-              const isAffected = isItemImpactedByEnabledExperiment(item);
+              const sourceItem = rowSourceByKey.get(item.id) ?? item;
+              const isAffected = isItemImpactedByEnabledExperiment(sourceItem);
               const controlId = appliedControlIdByItemId.get(item.id);
               return (
                 <PlanLabAccordionRow
                   key={item.id}
                   id={item.id}
                   ref={(node) => registerItemRef(item.id, node)}
-                  title={item.title}
-                  badges={getScenarioItemBadges(item)}
-                  meta={getScenarioItemScheduleSummary(item) ?? getScenarioItemSummary(item)}
-                  highlighted={highlightedItemId === item.id}
+                  title={sourceItem.title}
+                  badges={getScenarioItemBadges(sourceItem)}
+                  meta={getScenarioItemScheduleSummary(sourceItem) ?? getScenarioItemSummary(sourceItem)}
+                  highlighted={highlightedItemId === sourceItem.id}
                   primaryAction={{
                     label: isAffected
                       ? translate("planLabViewDiffAction", "查看差異")
                       : translate("planLabViewDetailsAction", "查看"),
-                    onClick: () => openScenarioItemView(item),
+                    onClick: () => openScenarioItemView(sourceItem),
                   }}
                   secondaryAction={
                     isAffected
@@ -7617,11 +7645,11 @@ export default function PlanLabPanel({
                             "planLabCreateExperimentAction",
                             "建立實驗"
                           ),
-                          onClick: () => handleCreateExperimentFromItem(item),
-                          disabled: !canCreateExperimentFromItem(item),
+                          onClick: () => handleCreateExperimentFromItem(sourceItem),
+                          disabled: !canCreateExperimentFromItem(sourceItem),
                         }
                   }
-                  panel={getScenarioItemPanelContent(item)}
+                  panel={getScenarioItemPanelContent(sourceItem)}
                 />
               );
             })}
@@ -8762,17 +8790,20 @@ export default function PlanLabPanel({
                                             </Text>
                                           ) : (
                                             <Stack gap="xs">
-                                              {bundleItems.map((item) => (
+                                              {bundleItems.map((item) => {
+                                                const sourceItem = rowSourceByKey.get(item.id) ?? item;
+                                                return (
                                                 <PlanLabBundleItemRow
-                                                  key={item.id}
-                                                  title={getBundleChildTitle(item)}
-                                                  badges={getScenarioItemBadges(item)}
-                                                  meta={getScenarioItemScheduleSummary(item) ?? getScenarioItemSummary(item)}
+                                                  key={sourceItem.id}
+                                                  title={getBundleChildTitle(sourceItem)}
+                                                  badges={getScenarioItemBadges(sourceItem)}
+                                                  meta={getScenarioItemScheduleSummary(sourceItem) ?? getScenarioItemSummary(sourceItem)}
                                                   highlighted={
-                                                    highlightedItemId === item.id
+                                                    highlightedItemId === sourceItem.id
                                                   }
                                                 />
-                                              ))}
+                                                );
+                                              })}
                                               <Text size="xs" c="dimmed">
                                                 {translate(
                                                   "planLabBundleItemsReadonly",
