@@ -27,6 +27,7 @@ type Props = {
   ledgerRowsByEventId: Map<string, LedgerRow[]>;
   baseCurrency: string;
   locale: string;
+  memberLookupRecord?: Record<string, string>;
   onEditEvent: (eventId: string) => void;
   onDuplicateEvent: (eventId: string) => void;
   onDeleteEvent: (eventId: string) => void;
@@ -39,6 +40,7 @@ export default function ExpenseEventList({
   ledgerRowsByEventId,
   baseCurrency,
   locale,
+  memberLookupRecord = {},
   onEditEvent,
   onDuplicateEvent,
   onDeleteEvent,
@@ -86,6 +88,7 @@ export default function ExpenseEventList({
                 tags={buildMoneyMetaTagViewModel(baseEvent, {
                   householdLabel: t("householdLabel"),
                   ownerId: baseEvent.memberId,
+                  memberLookupRecord,
                   resolveTypeLabel: () => {
                     if (baseEvent.type === "housing") {
                       return baseEvent.kind === "rent" ? t("eventTypeRent") : t("eventTypeMortgage");

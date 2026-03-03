@@ -383,3 +383,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; AGENTS.md
   - Guardrails for next agent: When mocking `scenarioStore` in settings tests, include `selectPersistedState` whenever rendering components that mount `DataManagementSection`; prefer string-path `vi.mock(..., () => ({ ... }))` shape compatible with current repo Vitest typing.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Money expense cards could show `家庭` in meta tags even when the event editor had a selected member, because member lookup was not passed through expense card meta-tag view model.
+  - What changed: Passed `memberLookupRecord` into `ExpenseEventList` and wired it from `MoneyClient` so ownership tag resolves to member display name when `memberId` exists; added regression test covering expense meta tag ownership rendering with member lookup.
+  - Affected paths: apps/web/src/features/money/ExpenseEventList.tsx; apps/web/app/[locale]/money/MoneyClient.tsx; apps/web/src/features/money/__tests__/MoneyEventList.i18n.test.tsx; AGENTS.md
+  - Guardrails for next agent: For money meta tags, always pass both owner id and member lookup when rendering ownership badges; without lookup, member-owned events will degrade to household label.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
