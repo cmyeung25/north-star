@@ -19,6 +19,7 @@ import { useEntityDraft } from "../../src/hooks/useEntityDraft";
 import type { ScenarioAsset, ScenarioAssetKind } from "../../src/store/scenarioStore";
 import { resolveAssetDisplayLabel } from "./resolveAssetDisplayLabel";
 import MoneyMetaTags from "../../src/features/money/MoneyMetaTags";
+import { buildMoneyMetaTagViewModel } from "../../src/features/money/moneyMetaTagViewModel";
 
 type AssetSourceEvent = {
   id: string;
@@ -280,27 +281,15 @@ export default function ScenarioAssetManager({
                   <Stack gap={4}>
                     <Text fw={600}>{resolveAssetDisplayLabel(item, t)}</Text>
                     <MoneyMetaTags
-                      tags={[
-                        {
-                          key: `asset-type-${item.id}`,
-                          label: typeLabel(item.kind),
-                          kind: "assetType",
-                        },
-                        {
-                          key: `asset-value-${item.id}`,
-                          label: valueLabel,
-                          kind: "attribute",
-                        },
-                        ...(isDerived
-                          ? [
-                              {
-                                key: `asset-source-${item.id}`,
-                                label: t("eventSourceLabel"),
-                                kind: "source" as const,
-                              },
-                            ]
-                          : []),
-                      ]}
+                      tags={buildMoneyMetaTagViewModel(item, {
+                        householdLabel: t("householdLabel"),
+                        ownerId: item.ownerMemberId,
+                        resolveTypeLabel: () => typeLabel(item.kind),
+                        resolveFrequencyLabel: () => null,
+                        resolveLifecycleLabel: () => t("eventCardOpenEnded"),
+                        attributeLabel: valueLabel,
+                        sourceLabel: isDerived ? t("eventSourceLabel") : null,
+                      }).tags}
                     />
                     {isDerived && (
                       <Stack gap={4}>

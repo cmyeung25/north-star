@@ -8,8 +8,9 @@ import { getDefaultCashflowGrowthMode } from "../../domain/scenarioV2/growthPoli
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
 import { resolveEventCardAmount, resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
-import EventTypeBadge from "./EventTypeBadge";
 import MoneyMetaTags from "./MoneyMetaTags";
+import { resolveEventCategoryKey } from "./categoryMeta";
+import { buildMoneyMetaTagViewModel } from "./moneyMetaTagViewModel";
 import { compareMonthKey } from "../../utils/monthKey";
 import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
 import { computeEffectiveRanges } from "./salaryAdjustmentGrouping";
@@ -115,41 +116,45 @@ export default function IncomeEventList({
                 <Text fw={600}>{baseEvent.label ?? t("ledgerRowFallbackLabel")}</Text>
                 <Text fw={700}>{formatCurrency(primaryAmount, baseCurrency, locale)}</Text>
                 <MoneyMetaTags
-                  tags={[
-                    { key: `cadence-${baseEvent.id}`, label: frequencyLabel, kind: "cadence" },
-                    ...(baseEvent.memberId
-                      ? [
-                          {
-                            key: `member-${baseEvent.id}`,
-                            label: memberLookupRecord[baseEvent.memberId] ?? t("householdLabel"),
-                            kind: "member" as const,
-                          },
-                        ]
-                      : []),
-                    ...(adjustments.length > 0
-                      ? [
-                          {
-                            key: `adjustment-${baseEvent.id}`,
-                            label: t("eventAdjustmentCountBadge", { count: adjustments.length }),
-                            kind: "adjustment" as const,
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-                <EventTypeBadge
-                  event={baseEvent}
-                  growthLabel={
-                    baseEvent.type === "cashflow" && baseEvent.kind === "income"
-                      ? baseGrowthMode === "assumption"
-                        ? t("eventCardIncomeGrowthBadge", { pct: formattedIncomeGrowthPct })
-                        : baseGrowthMode === "custom"
-                          ? t("eventCardIncomeGrowthCustomBadge", {
-                              pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0),
-                            })
-                          : t("incomeGrowthNone")
-                      : null
-                  }
+                  tags={buildMoneyMetaTagViewModel(baseEvent, {
+                    householdLabel: t("householdLabel"),
+                    ownerId: baseEvent.memberId,
+                    memberLookupRecord,
+                    resolveTypeLabel: (meta) =>
+                      meta.type === "cashflow" && meta.kind === "income"
+                        ? t("eventTypeIncome")
+                        : t("eventTypeExpense"),
+                    resolveFrequencyLabel: () => frequencyLabel,
+                    resolveLifecycleLabel: (meta) =>
+                      meta.lifecycle === "oneOff"
+                        ? t("ledgerEventCadenceOneOff")
+                        : meta.lifecycle === "hasEndMonth"
+                          ? t("eventLifecycleHasEndMonth")
+                          : t("eventCardOpenEnded"),
+                    categoryLabel:
+                      baseEvent.type === "cashflow"
+                        ? (() => {
+                            const categoryKey = resolveEventCategoryKey(baseEvent);
+                            return categoryKey
+                              ? baseEvent.kind === "income"
+                                ? t(`incomeCategory.${categoryKey}`)
+                                : t(`expenseCategory.${categoryKey}`)
+                              : null;
+                          })()
+                        : null,
+                    growthLabel:
+                      baseEvent.type === "cashflow" && baseEvent.kind === "income"
+                        ? baseGrowthMode === "assumption"
+                          ? t("eventCardIncomeGrowthBadge", { pct: formattedIncomeGrowthPct })
+                          : baseGrowthMode === "custom"
+                            ? t("eventCardIncomeGrowthCustomBadge", {
+                                pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0),
+                              })
+                            : t("incomeGrowthNone")
+                        : null,
+                    adjustmentCount: adjustments.length,
+                    adjustmentLabel: t("eventAdjustmentCountBadge", { count: adjustments.length }),
+                  }).tags}
                 />
                 {isSalaryBase(baseEvent) && adjustments.length > 0 ? (
                   <Text size="sm" c="dimmed">
