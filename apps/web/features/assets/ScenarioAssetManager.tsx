@@ -18,6 +18,7 @@ import { formatCurrency } from "../../lib/i18n";
 import { useEntityDraft } from "../../src/hooks/useEntityDraft";
 import type { ScenarioAsset, ScenarioAssetKind } from "../../src/store/scenarioStore";
 import { resolveAssetDisplayLabel } from "./resolveAssetDisplayLabel";
+import MoneyMetaTags from "../../src/features/money/MoneyMetaTags";
 
 type AssetSourceEvent = {
   id: string;
@@ -278,14 +279,31 @@ export default function ScenarioAssetManager({
                 <Group justify="space-between" align="flex-start" wrap="wrap">
                   <Stack gap={4}>
                     <Text fw={600}>{resolveAssetDisplayLabel(item, t)}</Text>
-                    <Text size="xs" c="dimmed">
-                      {typeLabel(item.kind)} · {valueLabel}
-                    </Text>
+                    <MoneyMetaTags
+                      tags={[
+                        {
+                          key: `asset-type-${item.id}`,
+                          label: typeLabel(item.kind),
+                          kind: "assetType",
+                        },
+                        {
+                          key: `asset-value-${item.id}`,
+                          label: valueLabel,
+                          kind: "attribute",
+                        },
+                        ...(isDerived
+                          ? [
+                              {
+                                key: `asset-source-${item.id}`,
+                                label: t("eventSourceLabel"),
+                                kind: "source" as const,
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                     {isDerived && (
                       <Stack gap={4}>
-                        <Text size="xs" c="dimmed">
-                          {t("eventSourceLabel")}
-                        </Text>
                         <Group gap="xs">
                           <Button
                             size="xs"

@@ -329,3 +329,9 @@ PR requirement:
   - Affected paths: apps/web/src/domain/events/types.ts; apps/web/src/domain/events/utils.ts; apps/web/src/domain/events/__tests__/utils.test.ts; apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; AGENTS.md
   - Guardrails for next agent: Treat `scenario.events` cashflow list as authoritative for member ownership and use event-library memberId only as fallback; keep members-tab assignment scoped to active scenario; preserve `linkState` for UI remediation instead of silently dropping unmatched rows.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Money、資產與負債卡片的標籤樣式規則分散在多個元件，造成 Badge / Text / Button 顯示不一致與重複維護成本。
+  - What changed: 新增 `MoneyMetaTags` + `moneyTagConfig` 集中管理 tag token（size/variant/radius/color/icon/priority），並將 `IncomeEventList`、`ExpenseEventList`、`EventTypeBadge`、`ScenarioAssetManager`、`ScenarioLiabilityManager` 的 metadata 標籤統一改為該共用元件渲染；同時補上 `eventAdjustmentCountBadge` i18n key（zh-HK/en）。
+  - Affected paths: apps/web/src/features/money/MoneyMetaTags.tsx; apps/web/src/features/money/moneyTagConfig.ts; apps/web/src/features/money/EventTypeBadge.tsx; apps/web/src/features/money/IncomeEventList.tsx; apps/web/src/features/money/ExpenseEventList.tsx; apps/web/features/assets/ScenarioAssetManager.tsx; apps/web/features/liabilities/ScenarioLiabilityManager.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: 新增 money/asset/liability metadata 標籤時，優先新增 `MoneyTagKind` + `moneyTagConfig`，避免在列表卡片內直接硬寫 Badge 顏色或混用 Text 來表達 tag 語意；色彩請僅使用 theme 已定義 palette 名稱（aurora/polar/ice/neutral/info/warning/danger）。
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck (fails due existing ScenarioSettingsWorkspace.members.test.tsx typing issue); pnpm -w test; pnpm -w --filter web build

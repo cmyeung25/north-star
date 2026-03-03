@@ -19,6 +19,7 @@ import type {
   ScenarioLiability,
   ScenarioLiabilityKind,
 } from "../../src/store/scenarioStore";
+import MoneyMetaTags from "../../src/features/money/MoneyMetaTags";
 
 type LiabilitySourceEvent = {
   id: string;
@@ -281,27 +282,41 @@ export default function ScenarioLiabilityManager({
                 <Group justify="space-between" align="flex-start" wrap="wrap">
                   <Stack gap={4}>
                     <Text fw={600}>{item.label ?? t("liabilityUntitled")}</Text>
-                    <Text size="xs" c="dimmed">
-                      {typeLabel(item.kind)}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {t("liabilityItemMetaV2", {
-                        principal:
-                          item.principalOutstanding !== undefined
-                            ? item.principalOutstanding
-                            : "--",
-                        rate:
-                          item.annualInterestRatePct !== undefined
-                            ? item.annualInterestRatePct
-                            : "--",
-                        term: item.termYears !== undefined ? item.termYears : "--",
-                      })}
-                    </Text>
+                    <MoneyMetaTags
+                      tags={[
+                        {
+                          key: `liability-type-${item.id}`,
+                          label: typeLabel(item.kind),
+                          kind: "liabilityType",
+                        },
+                        {
+                          key: `liability-meta-${item.id}`,
+                          label: t("liabilityItemMetaV2", {
+                            principal:
+                              item.principalOutstanding !== undefined
+                                ? item.principalOutstanding
+                                : "--",
+                            rate:
+                              item.annualInterestRatePct !== undefined
+                                ? item.annualInterestRatePct
+                                : "--",
+                            term: item.termYears !== undefined ? item.termYears : "--",
+                          }),
+                          kind: "attribute",
+                        },
+                        ...(isDerived
+                          ? [
+                              {
+                                key: `liability-source-${item.id}`,
+                                label: t("eventSourceLabel"),
+                                kind: "source" as const,
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                     {isDerived && (
                       <Stack gap={4}>
-                        <Text size="xs" c="dimmed">
-                          {t("eventSourceLabel")}
-                        </Text>
                         <Group gap="xs">
                           <Button
                             size="xs"

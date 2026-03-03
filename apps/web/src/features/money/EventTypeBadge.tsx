@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { Badge, Group } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import { resolveEventCategoryKey } from "./categoryMeta";
+import MoneyMetaTags from "./MoneyMetaTags";
+import type { MoneyTagItem } from "./moneyTagConfig";
 
 type Props = {
   event: ScenarioEvent;
@@ -51,21 +52,26 @@ export default function EventTypeBadge({ event, growthLabel }: Props) {
         ? t(`incomeCategory.${categoryKey}`)
         : t(`expenseCategory.${categoryKey}`)
       : null;
-  return (
-    <Group gap={6} wrap="wrap">
-      <Badge variant="light" color="gray" size="sm">
-        {resolveEventTypeLabel(event, t)}
-      </Badge>
-      {categoryLabel ? (
-        <Badge variant="light" color="teal" size="sm">
-          {categoryLabel}
-        </Badge>
-      ) : null}
-      {growthLabel ? (
-        <Badge variant="light" color="blue" size="sm">
-          {growthLabel}
-        </Badge>
-      ) : null}
-    </Group>
-  );
+
+  const tags: MoneyTagItem[] = [
+    {
+      key: `eventType-${event.id}`,
+      label: resolveEventTypeLabel(event, t),
+      kind: "eventType",
+    },
+  ];
+
+  if (categoryLabel) {
+    tags.push({
+      key: `category-${event.id}`,
+      label: categoryLabel,
+      kind: "category",
+    });
+  }
+
+  if (growthLabel) {
+    tags.push({ key: `growth-${event.id}`, label: growthLabel, kind: "growth" });
+  }
+
+  return <MoneyMetaTags tags={tags} />;
 }
