@@ -647,6 +647,73 @@ describe("onboarding writes", () => {
   });
 });
 
+
+describe("base month ownership between settings and money", () => {
+  it("keeps assumptions.baseMonth after money updates cash amount", () => {
+    const { updateScenarioAssumptions, setScenarioInitialCash, upsertScenarioAssets } =
+      useScenarioStore.getState();
+    const scenario = useScenarioStore.getState().scenarios[0];
+
+    updateScenarioAssumptions(scenario.id, { baseMonth: "2026-03" });
+    setScenarioInitialCash(scenario.id, 88000);
+    upsertScenarioAssets(scenario.id, [
+      {
+        id: "cash",
+        kind: "cash",
+        label: "Cash",
+        currentValue: 88000,
+        startMonth: "2024-01",
+      },
+    ]);
+
+    const updated = useScenarioStore
+      .getState()
+      .scenarios.find((item) => item.id === scenario.id);
+
+    expect(updated?.assumptions.baseMonth).toBe("2026-03");
+    expect(updated?.assumptions.initialCash).toBe(88000);
+  });
+
+  it("supports legacy migration by backfilling assumptions.baseMonth from cash asset month once", () => {
+    const { updateScenarioAssumptions, setScenarioBaseMonth, setScenarioInitialCash, upsertScenarioAssets } =
+      useScenarioStore.getState();
+    const scenario = useScenarioStore.getState().scenarios[0];
+
+    updateScenarioAssumptions(scenario.id, { baseMonth: null });
+    upsertScenarioAssets(scenario.id, [
+      {
+        id: "cash",
+        kind: "cash",
+        label: "Cash",
+        currentValue: 21000,
+        startMonth: "2025-06",
+      },
+    ]);
+
+    // Mirrors Money hydration fallback for legacy data where only cash.startMonth exists.
+    setScenarioBaseMonth(scenario.id, "2025-06");
+
+    // Subsequent money edits should not overwrite the canonical assumptions.baseMonth.
+    setScenarioInitialCash(scenario.id, 25000);
+    upsertScenarioAssets(scenario.id, [
+      {
+        id: "cash",
+        kind: "cash",
+        label: "Cash",
+        currentValue: 25000,
+        startMonth: "2023-01",
+      },
+    ]);
+
+    const updated = useScenarioStore
+      .getState()
+      .scenarios.find((item) => item.id === scenario.id);
+
+    expect(updated?.assumptions.baseMonth).toBe("2025-06");
+    expect(updated?.assumptions.initialCash).toBe(25000);
+  });
+});
+
 describe("onboarding completion", () => {
   it("does not auto-mark a new scenario as completed", () => {
     const { createScenario } = useScenarioStore.getState();

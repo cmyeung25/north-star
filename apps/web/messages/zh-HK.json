@@ -1238,9 +1238,9 @@
     "insuranceCashValueLabel": "現金價值 ({currency})",
     "insuranceReturnLabel": "預期回報 (%)",
     "assetsTitle": "資產",
-    "assetsDescription": "物業、投資、保單與汽車。",
+    "assetsDescription": "物業、投資、保單與汽車。基準月份由設定頁管理。",
     "cashCardTitle": "現金與存款",
-    "cashCardHint": "設定起點現金與基準月份。",
+    "cashCardHint": "設定起點現金；基準月份由設定頁管理。",
     "cashCardAmountLabel": "現金金額（{currency}）",
     "cashCardMonthLabel": "基準月份",
     "cashCardMonthUnset": "未設定",
@@ -1926,7 +1926,8 @@
       "tax": "稅務",
       "debt_repayment": "還款",
       "other": "其他"
-    }
+    },
+    "cashCardGoToSettings": "前往設定"
   },
   "entryLauncher": {
     "title": "新增金錢項目",
