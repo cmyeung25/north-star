@@ -125,4 +125,39 @@ describe("Money event lists i18n keys", () => {
     expect(html).not.toContain("新增調整");
     expectSectionOrder(html);
   });
+
+  it("renders member ownership label for expense meta tags when member lookup is provided", () => {
+    const events: ScenarioEvent[] = [
+      {
+        id: "expense-member",
+        type: "cashflow",
+        kind: "expense",
+        cadence: "monthly",
+        amount: 500,
+        startMonth: "2024-01",
+        label: "Rent",
+        memberId: "member-gary",
+      },
+    ];
+
+    const html = renderToString(
+      <MantineProvider>
+        <ExpenseEventList
+          events={events}
+          ledgerRowsByEventId={new Map<string, LedgerRow[]>()}
+          baseCurrency="HKD"
+          locale="zh-HK"
+          memberLookupRecord={{ "member-gary": "Gary" }}
+          onEditEvent={() => undefined}
+          onDuplicateEvent={() => undefined}
+          onDeleteEvent={() => undefined}
+          onCreateEventAdjustment={() => undefined}
+        />
+      </MantineProvider>
+    );
+
+    expect(html).toContain("Gary");
+    expect(html).not.toContain("householdLabel");
+  });
+
 });

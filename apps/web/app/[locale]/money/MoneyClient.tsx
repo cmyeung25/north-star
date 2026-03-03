@@ -4041,6 +4041,7 @@ export default function MoneyClient({
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
+              memberLookupRecord={memberLookupRecord}
               onEditEvent={openEventDrawer}
               onDuplicateEvent={handleDuplicateV2Event}
               onDeleteEvent={handleDeleteV2Event}
