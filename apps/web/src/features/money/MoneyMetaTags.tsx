@@ -120,7 +120,7 @@ export default function MoneyMetaTags({ tags }: Props) {
               <span aria-hidden="true" style={{ display: "inline-flex", lineHeight: 0 }}>
                 <Icon size={iconSize} stroke={iconStroke} />
               </span>
-              <span>{config.prefix}:</span>
+              <span style={{ display: "none" }}>{config.prefix}:</span>
               <span>{tag.label}</span>
             </Group>
           </Badge>
