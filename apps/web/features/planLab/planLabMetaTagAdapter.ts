@@ -73,9 +73,9 @@ const resolveMetaInput = (row: PlanLabMetaTagAdapterInput) => {
 const resolveTypeLabel = (meta: MetaTag) => `${meta.domain} · ${meta.kind}`;
 
 const resolveLifecycleLabel = (meta: MetaTag) => {
-  if (meta.lifecycle === "oneOff") return "一次性";
-  if (meta.lifecycle === "hasEndMonth") return "有結束月份";
-  return "持續";
+  if (meta.lifecycle === "oneOff") return "oneOff";
+  if (meta.lifecycle === "hasEndMonth") return "hasEndMonth";
+  return "ongoing";
 };
 
 const resolveFrequencyLabel = (
@@ -98,14 +98,18 @@ export const adaptPlanLabRowMeta = ({
   currency,
   locale,
   frequencyLabels,
+  lifecycleLabels,
   householdLabel,
+  orphanedLabel,
   memberLookupRecord,
 }: {
   row: PlanLabMetaTagAdapterInput;
   currency: string;
   locale: string;
   frequencyLabels: Record<NonNullable<PlanLabFrequency>, string>;
+  lifecycleLabels: Record<"oneOff" | "hasEndMonth" | "ongoing", string>;
   householdLabel: string;
+  orphanedLabel: string;
   memberLookupRecord: Record<string, string>;
 }): {
   summary: string;
@@ -120,7 +124,7 @@ export const adaptPlanLabRowMeta = ({
     ownerId,
     memberLookupRecord,
     resolveTypeLabel,
-    resolveLifecycleLabel,
+    resolveLifecycleLabel: (meta) => lifecycleLabels[resolveLifecycleLabel(meta)],
     resolveFrequencyLabel: (meta) => resolveFrequencyLabel(meta, frequencyLabels, row.intervalMonths),
   });
 
@@ -140,6 +144,14 @@ export const adaptPlanLabRowMeta = ({
   const summary = [...moneyMetaParts, ownershipLabel]
     .filter(Boolean)
     .join(" • ");
+
+  if (row.linkState === "orphaned") {
+    viewModel.tags.push({
+      key: `link-state-${row.id}`,
+      label: orphanedLabel,
+      kind: "source",
+    });
+  }
 
   return {
     summary,

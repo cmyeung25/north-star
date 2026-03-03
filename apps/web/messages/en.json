@@ -1016,7 +1016,15 @@
     "breakdownExplainabilityTitle": "Why net worth changed",
     "breakdownExplainabilityFormula": "ΔNet Worth = Net Cashflow + Valuation / Liability effects (residual)",
     "breakdownNetWorthDelta": "Δ Net worth",
-    "breakdownResidual": "Residual (valuation/other)"
+    "breakdownResidual": "Residual (valuation/other)",
+    "planLabGroupByDomain": "Domain",
+    "planLabGroupByMember": "Member",
+    "planLabGroupByStartMonth": "Start Month",
+    "planLabTagLinkStateOrphaned": "Orphaned",
+    "planLabTagLifecycleOneOff": "One-off",
+    "planLabTagLifecycleHasEndMonth": "Has end month",
+    "planLabTagLifecycleOngoing": "Ongoing",
+    "planLabMemberHousehold": "Household"
   },
   "money": {
     "title": "Money hub",

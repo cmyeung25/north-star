@@ -1038,7 +1038,15 @@
     "breakdownExplainabilityTitle": "淨資產變化解釋",
     "breakdownExplainabilityFormula": "Δ淨資產 = 淨現金流 + 估值／負債變化（殘差）",
     "breakdownNetWorthDelta": "Δ淨資產",
-    "breakdownResidual": "殘差（估值／其他）"
+    "breakdownResidual": "殘差（估值／其他）",
+    "planLabGroupByDomain": "領域",
+    "planLabGroupByMember": "成員",
+    "planLabGroupByStartMonth": "開始月份",
+    "planLabTagLinkStateOrphaned": "孤兒項目",
+    "planLabTagLifecycleOneOff": "一次性",
+    "planLabTagLifecycleHasEndMonth": "有結束月份",
+    "planLabTagLifecycleOngoing": "持續",
+    "planLabMemberHousehold": "家庭"
   },
   "money": {
     "title": "金錢專區",

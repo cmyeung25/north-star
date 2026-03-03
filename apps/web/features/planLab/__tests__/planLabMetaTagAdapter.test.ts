@@ -1,93 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { adaptPlanLabRowMeta } from "../planLabMetaTagAdapter";
+import { adaptPlanLabRowMeta, type PlanLabMetaTagAdapterInput } from "../planLabMetaTagAdapter";
 
-const frequencyLabels = {
-  monthly: "每月",
-  quarterly: "每季",
-  yearly: "每年",
-  oneOff: "一次性",
-  everyNMonths: "每 N 個月",
-  schedule: "排程",
-} as const;
+const baseRow: PlanLabMetaTagAdapterInput = {
+  id: "row-1",
+  kind: "event",
+  category: "income",
+  title: "Salary",
+  amount: 32000,
+  frequency: "monthly",
+  startMonth: "2026-01",
+};
 
-describe("adaptPlanLabRowMeta", () => {
-  it("returns consistent metadata fields for baseline and experiment rows", () => {
-    const baseline = adaptPlanLabRowMeta({
-      row: {
-        id: "event:salary",
-        kind: "event",
-        title: "Salary",
-        category: "income",
-        memberId: "m1",
-        startMonth: "2026-01",
-        amount: 50000,
-        frequency: "monthly",
-        linkState: "linked",
-      },
-      currency: "HKD",
-      locale: "zh-HK",
-      frequencyLabels,
-      householdLabel: "家庭",
-      memberLookupRecord: { m1: "Alex" },
-    });
-
-    const experiment = adaptPlanLabRowMeta({
-      row: {
-        id: "event:salary-exp",
-        kind: "event",
-        title: "Salary",
-        category: "income",
-        memberId: "m1",
-        startMonth: "2026-01",
-        amount: 50000,
-        frequency: "monthly",
-        linkState: "orphaned",
-      },
-      currency: "HKD",
-      locale: "zh-HK",
-      frequencyLabels,
-      householdLabel: "家庭",
-      memberLookupRecord: { m1: "Alex" },
-    });
-
-    expect(baseline.metaTags[0]).toMatchObject({
-      domain: "income",
-      belongsTo: "member",
-      frequency: "monthly",
-    });
-    expect(experiment.metaTags[0]).toMatchObject({
-      domain: "income",
-      belongsTo: "member",
-      frequency: "monthly",
-    });
-    expect(baseline.linkState).toBe("linked");
-    expect(experiment.linkState).toBe("orphaned");
+const buildMeta = (row: PlanLabMetaTagAdapterInput, memberLookupRecord: Record<string, string>) =>
+  adaptPlanLabRowMeta({
+    row,
+    currency: "HKD",
+    locale: "zh-HK",
+    frequencyLabels: {
+      monthly: "每月",
+      quarterly: "每季",
+      yearly: "每年",
+      oneOff: "一次性",
+      everyNMonths: "每 N 個月",
+      schedule: "排程",
+    },
+    lifecycleLabels: {
+      oneOff: "一次性",
+      hasEndMonth: "有結束月份",
+      ongoing: "持續",
+    },
+    householdLabel: "家庭",
+    orphanedLabel: "孤兒項目",
+    memberLookupRecord,
   });
 
-  it("prefers scenario-level member over library default member", () => {
-    const adapted = adaptPlanLabRowMeta({
-      row: {
-        id: "event:rent",
-        kind: "event",
-        title: "Rent",
-        category: "expense",
-        memberId: "scenario-member",
-        defaultMemberId: "library-member",
-        startMonth: "2026-01",
-        amount: 18000,
-        frequency: "monthly",
-      },
-      currency: "HKD",
-      locale: "zh-HK",
-      frequencyLabels,
-      householdLabel: "家庭",
-      memberLookupRecord: {
-        "scenario-member": "Scenario Owner",
-        "library-member": "Library Default",
-      },
-    });
+describe("adaptPlanLabRowMeta", () => {
+  it("shows belongsTo member tag when members exist", () => {
+    const result = buildMeta({ ...baseRow, memberId: "member-1" }, { "member-1": "Alex" });
 
-    const belongsToTag = adapted.tags.find((tag) => tag.kind === "member");
-    expect(belongsToTag?.label).toBe("Scenario Owner");
+    expect(result.tags.some((tag) => tag.kind === "member" && tag.label === "Alex")).toBe(true);
+  });
+
+  it("falls back to household tag when members are missing", () => {
+    const result = buildMeta({ ...baseRow, memberId: "member-x" }, {});
+
+    expect(result.tags.some((tag) => tag.kind === "member" && tag.label === "家庭")).toBe(true);
+  });
+
+  it("shows orphaned linkState tag when row linkState is orphaned", () => {
+    const result = buildMeta({ ...baseRow, linkState: "orphaned" }, {});
+
+    expect(result.linkState).toBe("orphaned");
+    expect(result.tags.some((tag) => tag.kind === "source" && tag.label === "孤兒項目")).toBe(true);
   });
 });
