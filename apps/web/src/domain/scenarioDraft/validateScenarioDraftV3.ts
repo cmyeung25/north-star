@@ -78,10 +78,10 @@ const validateMonthFields = (
   requireV3Fields: boolean
 ) => {
   const profileStartMonth = normalizeMonthOrNull(draft.profile?.startMonth, "profile.startMonth", issues);
-  const assumptionsBaseMonth = normalizeMonthOrNull(draft.assumptions?.baseMonth, "assumptions.baseMonth", issues);
+  normalizeMonthOrNull(draft.assumptions?.baseMonth, "assumptions.baseMonth", issues);
 
   if (requireV3Fields) {
-    if (!profileStartMonth && !assumptionsBaseMonth) {
+    if (!profileStartMonth) {
       issues.push({ code: "required", field: "profile.startMonth", message: "profile.startMonth is required." });
     }
   }
