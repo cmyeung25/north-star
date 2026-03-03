@@ -33,7 +33,9 @@ export const buildMoneyMetaTagViewModel = (
       label: options.resolveTypeLabel(meta),
       kind:
         meta.domain === "asset"
-          ? "assetType"
+          ? meta.type === "cash"
+            ? "cashType"
+            : "assetType"
           : meta.domain === "liability"
             ? "liabilityType"
             : meta.domain === "income"
@@ -56,15 +58,17 @@ export const buildMoneyMetaTagViewModel = (
     });
   }
 
-  if (meta.belongsTo === "member") {
-    const memberLookup = options.memberLookupRecord ?? {};
-    const ownerId = options.ownerId;
-    tags.push({
-      key: `belongsTo-${(input as { id: string }).id}`,
-      label: (ownerId && memberLookup[ownerId]) || options.householdLabel,
-      kind: "member",
-    });
-  }
+  const memberLookup = options.memberLookupRecord ?? {};
+  const ownerId = options.ownerId;
+  const ownershipLabel =
+    meta.belongsTo === "member" && ownerId && memberLookup[ownerId]
+      ? memberLookup[ownerId]
+      : options.householdLabel;
+  tags.push({
+    key: `belongsTo-${(input as { id: string }).id}`,
+    label: ownershipLabel,
+    kind: "member",
+  });
 
   if (options.categoryLabel) {
     tags.push({ key: `category-${(input as { id: string }).id}`, label: options.categoryLabel, kind: "category" });

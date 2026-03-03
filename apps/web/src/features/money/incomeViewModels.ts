@@ -77,7 +77,7 @@ export type GroupedIncomeEvent = {
 };
 
 export const groupIncomeEvents = (events: ScenarioEvent[]): GroupedIncomeEvent[] => {
-  return groupAdjustmentsByBase(events).map((group) => {
+  const groupedRecurring = groupAdjustmentsByBase(events).map((group) => {
     const ranges = computeEffectiveRanges(group.baseEvent, group.adjustments);
     const startMonths = ranges.map((segment) => segment.from).filter(Boolean) as string[];
     const endMonths = ranges.map((segment) => segment.to).filter(Boolean) as string[];
@@ -95,6 +95,28 @@ export const groupIncomeEvents = (events: ScenarioEvent[]): GroupedIncomeEvent[]
           : null,
     };
   });
+
+  const groupedIds = new Set(
+    groupedRecurring.flatMap((group) => [
+      group.baseEvent.id,
+      ...group.adjustments.map((event) => event.id),
+    ])
+  );
+
+  const standaloneIncomeEvents = events
+    .filter(
+      (event) =>
+        event.type === "cashflow" && event.kind === "income" && !groupedIds.has(event.id)
+    )
+    .map((event) => ({
+      baseEvent: event,
+      adjustments: [],
+      groupId: event.id,
+      groupStartMonth: resolveEventCardStartMonth(event),
+      groupEndMonth: resolveEventCardEndMonth(event),
+    }));
+
+  return [...groupedRecurring, ...standaloneIncomeEvents];
 };
 
 const isMonthlyIncomeEvent = (event: ScenarioEvent) =>
