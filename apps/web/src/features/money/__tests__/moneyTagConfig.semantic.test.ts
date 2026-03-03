@@ -22,10 +22,24 @@ describe("moneyTagConfig semantic checklist", () => {
     expect(new Set(domainColors).size).toBe(domainColors.length);
   });
 
-  it("keeps non-color signals on all money tags", () => {
-    Object.values(moneyTagConfig).forEach((config) => {
-      expect(Boolean(config.prefix)).toBe(true);
-      expect(Boolean(config.icon)).toBe(true);
+  it("keeps non-color signals on all money tags via prefix + icon + order", () => {
+    const configEntries = Object.values(moneyTagConfig);
+
+    configEntries.forEach((config) => {
+      expect(config.prefix.length > 0).toBe(true);
+      expect(config.icon.length > 0).toBe(true);
+      expect(Number.isFinite(config.priority)).toBe(true);
     });
+
+    const priorityByKind = Object.fromEntries(
+      Object.entries(moneyTagConfig).map(([kind, config]) => [kind, config.priority])
+    );
+
+    expect(priorityByKind.incomeType).toBe(priorityByKind.expenseType);
+    expect(priorityByKind.incomeType < priorityByKind.cadence).toBe(true);
+    expect(priorityByKind.cadence < priorityByKind.member).toBe(true);
+    expect(priorityByKind.member < priorityByKind.adjustment).toBe(true);
+    expect(priorityByKind.adjustment < priorityByKind.source).toBe(true);
+    expect(priorityByKind.source < priorityByKind.attribute).toBe(true);
   });
 });
