@@ -83,10 +83,7 @@ import {
 } from "../../src/domain/assumptions/planningHorizon";
 import { buildDefaultsForNewMember } from "../../src/domain/onboarding/buildDefaultsForNewMember";
 import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
-import {
-  scenarioDashboardPath,
-  scenarioMoneyPath,
-} from "../../lib/routes/appRoutes";
+import { scenarioDashboardPath } from "../../lib/routes/appRoutes";
 import { computeDashboardMetrics } from "../../src/domain/dashboard/metrics";
 import ProjectionPreviewPanel, { type PreviewScope } from "../ProjectionPreviewPanel";
 import {
@@ -115,6 +112,8 @@ type ScenarioSettingsWorkspaceProps = {
 type ToastState = {
   message: string;
   color?: string;
+  actionLabel?: string;
+  actionHref?: string;
 };
 
 type AssumptionsEditSection =
@@ -583,15 +582,32 @@ export default function ScenarioSettingsWorkspace({
     };
   }, []);
 
-  const showToast = useCallback((message: string, color?: string) => {
-    setToast({ message, color });
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-    toastTimeoutRef.current = setTimeout(() => {
-      setToast(null);
-    }, 2000);
-  }, []);
+  const showToast = useCallback(
+    (
+      message: string,
+      color?: string,
+      options?: { actionLabel?: string; actionHref?: string }
+    ) => {
+      setToast({ message, color, ...options });
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+      }, 2000);
+    },
+    []
+  );
+
+  const showSavedToast = useCallback(() => {
+    showToast(common("saved"), "teal", {
+      actionLabel: common("goToDashboard"),
+      actionHref:
+        caseId && resolvedScenarioId
+          ? scenarioDashboardPath(caseId, resolvedScenarioId)
+          : "/",
+    });
+  }, [caseId, common, resolvedScenarioId, showToast]);
 
   const showSyncToast = (message: string, color?: string) => {
     setSyncToast({ message, color });
@@ -620,16 +636,15 @@ export default function ScenarioSettingsWorkspace({
       };
       createBudgetRule(nextRule);
       setExpandedBudgetRuleId(nextRule.id);
-      showToast(common("saved"), "teal");
+      showSavedToast();
       return nextRule.id;
     },
     [
       budgetRules.length,
       budgetText,
-      common,
       createBudgetRule,
       setExpandedBudgetRuleId,
-      showToast,
+      showSavedToast,
     ]
   );
 
@@ -675,7 +690,7 @@ export default function ScenarioSettingsWorkspace({
       });
     }
 
-    showToast(common("saved"), "teal");
+    showSavedToast();
   };
 
   useEffect(() => {
@@ -1308,7 +1323,20 @@ export default function ScenarioSettingsWorkspace({
 
       {toast && (
         <Notification color={toast.color} onClose={() => setToast(null)}>
-          {toast.message}
+          <Group justify="space-between" align="center" gap="sm" wrap="nowrap">
+            <Text size="sm">{toast.message}</Text>
+            {toast.actionLabel && toast.actionHref ? (
+              <Button
+                component={Link}
+                href={toast.actionHref}
+                size="xs"
+                variant="subtle"
+                onClick={() => setToast(null)}
+              >
+                {toast.actionLabel}
+              </Button>
+            ) : null}
+          </Group>
         </Notification>
       )}
 
@@ -1597,7 +1625,7 @@ export default function ScenarioSettingsWorkspace({
                   onClick={() => {
                     setGlobalHorizonMonths(Number(horizonDraftValue));
                     setActiveAssumptionModal(null);
-                    showToast(common("saved"), "teal");
+                    showSavedToast();
                   }}
                 >
                   {common("actionSave")}
@@ -1633,7 +1661,10 @@ export default function ScenarioSettingsWorkspace({
                   onClick={() => {
                     const trimmed = baseMonthDraftInput.trim();
                     if (trimmed === "") {
+                      setGlobalBaseMonth(null);
                       setBaseMonthDraftError(t("baseMonthRequired"));
+                      setActiveAssumptionModal(null);
+                      showSavedToast();
                       return;
                     }
                     const normalized = normalizeMonthStrict(trimmed);
@@ -1645,7 +1676,7 @@ export default function ScenarioSettingsWorkspace({
                     setBaseMonthDraftInput(normalized.month);
                     setBaseMonthDraftError(null);
                     setActiveAssumptionModal(null);
-                    showToast(common("saved"), "teal");
+                    showSavedToast();
                   }}
                 >
                   {common("actionSave")}
@@ -1701,7 +1732,7 @@ export default function ScenarioSettingsWorkspace({
                     setAnnualInflationPct(displayDraft.annualInflationPct);
                     setViewMode(displayDraft.viewMode);
                     setActiveAssumptionModal(null);
-                    showToast(common("saved"), "teal");
+                    showSavedToast();
                   }}
                 >
                   {common("actionSave")}
@@ -1784,7 +1815,7 @@ export default function ScenarioSettingsWorkspace({
                         updateScenarioAssumptions(scenario.id, assumptionsDraft);
                       }
                       setActiveAssumptionModal(null);
-                      showToast(common("saved"), "teal");
+                      showSavedToast();
                     }}
                   >
                     {common("actionSave")}
@@ -2038,7 +2069,7 @@ export default function ScenarioSettingsWorkspace({
                                 disabled={members.length <= 1}
                                 onClick={() => {
                                   deleteMember(member.id);
-                                  showToast(common("saved"), "teal");
+                                  showSavedToast();
                                 }}
                               >
                                 {membersText("removeMember")}
@@ -2458,7 +2489,7 @@ export default function ScenarioSettingsWorkspace({
                             onClick={(event) => {
                               event.stopPropagation();
                               removeBudgetRule(rule.id);
-                              showToast(common("saved"), "teal");
+                              showSavedToast();
                             }}
                           >
                             {budgetText("removeRule")}
@@ -2807,26 +2838,6 @@ export default function ScenarioSettingsWorkspace({
         </Tabs.Panel>
       </Tabs>
 
-      <Card withBorder radius="md" padding="md" style={{ position: "sticky", bottom: 12, zIndex: 5 }}>
-        <Stack gap="xs">
-          <Text fw={600}>{common("settingsReviewActionsTitle")}</Text>
-          <Text size="sm" c="dimmed">
-            {common("settingsReviewActionsSubtitle")}
-          </Text>
-          <Group>
-            <Button component={Link} href={scenarioDashboardPath(caseId, scenario.id)}>
-              {common("openOverview")}
-            </Button>
-            <Button
-              component={Link}
-              href={`${scenarioMoneyPath(caseId, scenario.id)}?tab=timeline`}
-              variant="light"
-            >
-              {common("openTimeline")}
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
     </Stack>
   );
 }
