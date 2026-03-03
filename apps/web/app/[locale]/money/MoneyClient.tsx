@@ -151,6 +151,14 @@ import {
   type BundleMonthlyBreakdownItem,
 } from "../../../src/features/money/bundleSummary";
 import { normalizeSalarySchedule } from "../../../src/features/money/normalizeSalarySchedule";
+import MoneyMetaTags from "../../../src/features/money/MoneyMetaTags";
+import type { MoneyTagItem } from "../../../src/features/money/moneyTagConfig";
+import {
+  buildInputAssetMetaTags,
+  buildInputEventDescription,
+  buildInputEventMetaTags,
+  buildInputRuleTags,
+} from "../../../src/features/money/inputItemsViewModel";
 import {
   createEventAdjustmentPayload,
   type EventAdjustmentSpec,
@@ -256,6 +264,16 @@ type AdjustmentCreateContext = {
   effectiveMonth: string;
 };
 
+type InputCardItem = {
+  id: string;
+  kind: "rule" | "asset" | "event";
+  label: string;
+  description?: string;
+  tags?: MoneyTagItem[];
+  onEdit: () => void;
+  onDelete: () => void;
+};
+
 type DeleteConfirmation =
   | {
       type: "eventV2";
@@ -329,6 +347,11 @@ export default function MoneyClient({
   initialShowOnboardingSkipped = false,
 }: MoneyClientProps) {
   const t = useTranslations("money");
+  const translateMoney = useCallback(
+    (key: string, values?: Record<string, string | number>) =>
+      t(key as never, values as never),
+    [t]
+  );
   const safeTRaw = useCallback(
     (key: string, fallback: string) => {
       const value = t.raw(key);
@@ -920,30 +943,31 @@ export default function MoneyClient({
         : null,
     [projection, smartInvestPolicy.allocation]
   );
-  const inputRuleItems = useMemo(() => {
+  const inputRuleItems = useMemo<InputCardItem[]>(() => {
     return budgetRules.map((rule) => ({
-        id: rule.id,
-        kind: "rule" as const,
-        label: rule.name,
-        description: t("inputsRuleMeta", {
-          category: budgetCategoryLabels[rule.category] ?? rule.category,
-          amount: formatCurrency(rule.monthlyAmount, scenario?.baseCurrency ?? "USD", locale),
-        }),
-        onEdit: () => {
-          if (!params.caseId || !scenarioIdValue) {
-            router.push(memberCasesPath(locale as Locale));
-            return;
-          }
+      id: rule.id,
+      kind: "rule" as const,
+      label: rule.name,
+      description: t("inputsRuleMeta", {
+        category: budgetCategoryLabels[rule.category] ?? rule.category,
+        amount: formatCurrency(rule.monthlyAmount, scenario?.baseCurrency ?? "USD", locale),
+      }),
+      tags: buildInputRuleTags(rule.id, translateMoney),
+      onEdit: () => {
+        if (!params.caseId || !scenarioIdValue) {
+          router.push(memberCasesPath(locale as Locale));
+          return;
+        }
 
-          const query = new URLSearchParams();
-          query.set("tab", "budget");
-          query.set("ruleId", rule.id);
-          router.push(
-            `${scenarioPeoplePath(params.caseId, scenarioIdValue, locale as Locale)}?${query.toString()}`,
-          );
-        },
-        onDelete: () => removeBudgetRule(rule.id),
-      }));
+        const query = new URLSearchParams();
+        query.set("tab", "budget");
+        query.set("ruleId", rule.id);
+        router.push(
+          `${scenarioPeoplePath(params.caseId, scenarioIdValue, locale as Locale)}?${query.toString()}`,
+        );
+      },
+      onDelete: () => removeBudgetRule(rule.id),
+    }));
   }, [
     budgetRules,
     budgetCategoryLabels,
@@ -954,9 +978,10 @@ export default function MoneyClient({
     scenario?.baseCurrency,
     scenarioIdValue,
     t,
+    translateMoney,
   ]);
 
-  const inputAssetItems = useMemo(() => {
+  const inputAssetItems = useMemo<InputCardItem[]>(() => {
     if (!scenario) {
       return [];
     }
@@ -1001,6 +1026,7 @@ export default function MoneyClient({
                 ? formatCurrency(resolvedValue, scenario.baseCurrency, locale)
                 : t("amountUnset"),
           }),
+          tags: buildInputAssetMetaTags(asset, { t: translateMoney, memberLookupRecord }),
           onEdit: () => setActiveTab("assets"),
           onDelete: () => {
             if (!scenarioIdValue) {
@@ -1091,7 +1117,9 @@ export default function MoneyClient({
     investments,
     investmentsText,
     locale,
+    memberLookupRecord,
     removeCarPosition,
+    translateMoney,
     removeHomePosition,
     removeInsurancePosition,
     removeInvestmentPosition,
@@ -2144,27 +2172,39 @@ export default function MoneyClient({
     },
     [openV2EventDrawer, setLedgerActionError]
   );
-  const inputEventItems = useMemo(() => {
+  const inputEventItems = useMemo<InputCardItem[]>(() => {
     const standaloneEvents = v2ScenarioEvents.filter((event) => !bundleEventIds.has(event.id));
     return groupEventSeries(standaloneEvents).map(({ baseEvent, adjustments, groupStartMonth, groupEndMonth }) => {
       const amount = resolveEventCardAmount(baseEvent);
       const latestAdjustment = adjustments[adjustments.length - 1];
       const latestAmount = latestAdjustment ? Math.abs(resolveEventCardAmount(latestAdjustment) ?? 0) : 0;
+      const formattedAmount =
+        amount !== null
+          ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
+          : t("amountUnset");
+      const latestAdjustmentAmount = formatCurrency(
+        latestAmount,
+        scenario?.baseCurrency ?? "USD",
+        locale
+      );
       return {
         id: baseEvent.id,
         kind: "event" as const,
         label: baseEvent.label ?? t("ledgerRowFallbackLabel"),
-        description:
-          t("inputsEventMeta", {
-            month: groupStartMonth ?? resolveEventCardStartMonth(baseEvent) ?? t("amountUnset"),
-            amount:
-              amount !== null
-                ? formatCurrency(amount, scenario?.baseCurrency ?? "USD", locale)
-                : t("amountUnset"),
-          }) +
-          (adjustments.length > 0
-            ? ` · 調整 ${adjustments.length} 次（最新：${resolveEventCardStartMonth(latestAdjustment) ?? "--"} ${formatCurrency(latestAmount, scenario?.baseCurrency ?? "USD", locale)}） · ${groupStartMonth ?? "--"}→${groupEndMonth ?? t("eventCardOpenEnded")}`
-            : ""),
+        description: buildInputEventDescription(translateMoney, {
+          month: groupStartMonth ?? resolveEventCardStartMonth(baseEvent) ?? t("amountUnset"),
+          amount: formattedAmount,
+          adjustmentCount: adjustments.length,
+          latestAdjustmentMonth: resolveEventCardStartMonth(latestAdjustment) ?? "--",
+          latestAdjustmentAmount,
+          startMonth: groupStartMonth ?? "--",
+          endMonth: groupEndMonth ?? t("eventCardOpenEnded"),
+        }),
+        tags: buildInputEventMetaTags(baseEvent, {
+          t: translateMoney,
+          memberLookupRecord,
+          adjustmentCount: adjustments.length,
+        }),
         onEdit: () => openV2EventDrawer("edit", baseEvent.type, baseEvent.id),
         onDelete: () => handleDeleteV2Event(baseEvent.id),
       };
@@ -2173,9 +2213,11 @@ export default function MoneyClient({
     bundleEventIds,
     handleDeleteV2Event,
     locale,
+    memberLookupRecord,
     openV2EventDrawer,
     scenario?.baseCurrency,
     t,
+    translateMoney,
     v2ScenarioEvents,
   ]);
   const scenarioAssets = useMemo(() => scenario?.assets ?? [], [scenario?.assets]);
@@ -4329,6 +4371,9 @@ export default function MoneyClient({
                               <Text size="xs" c="dimmed">
                                 {item.description}
                               </Text>
+                            )}
+                            {item.tags && item.tags.length > 0 && (
+                              <MoneyMetaTags tags={item.tags} />
                             )}
                           </Stack>
                           <Group gap="xs">
