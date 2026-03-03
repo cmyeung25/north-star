@@ -17,6 +17,7 @@ import { useTranslations } from "next-intl";
 import { formatCurrency } from "../../lib/i18n";
 import { useEntityDraft } from "../../src/hooks/useEntityDraft";
 import type { ScenarioAsset, ScenarioAssetKind } from "../../src/store/scenarioStore";
+import { resolveAssetDisplayLabel } from "./resolveAssetDisplayLabel";
 
 type AssetSourceEvent = {
   id: string;
@@ -276,7 +277,7 @@ export default function ScenarioAssetManager({
               >
                 <Group justify="space-between" align="flex-start" wrap="wrap">
                   <Stack gap={4}>
-                    <Text fw={600}>{item.label ?? t("assetUntitled")}</Text>
+                    <Text fw={600}>{resolveAssetDisplayLabel(item, t)}</Text>
                     <Text size="xs" c="dimmed">
                       {typeLabel(item.kind)} · {valueLabel}
                     </Text>

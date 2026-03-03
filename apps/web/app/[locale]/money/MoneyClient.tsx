@@ -112,6 +112,7 @@ import MortgageDetailDrawer, {
 import CashBalanceCard from "../../../features/assets/CashBalanceCard";
 import EditCashBaselineModal from "../../../features/assets/EditCashBaselineModal";
 import ScenarioAssetManager from "../../../features/assets/ScenarioAssetManager";
+import { resolveAssetDisplayLabel } from "../../../features/assets/resolveAssetDisplayLabel";
 import ScenarioLiabilityManager from "../../../features/liabilities/ScenarioLiabilityManager";
 import type {
   CarPositionDraft,
@@ -992,7 +993,7 @@ export default function MoneyClient({
         return {
           id: asset.id,
           kind: "asset" as const,
-          label: asset.label ?? t("assetUntitled"),
+          label: resolveAssetDisplayLabel(asset, t),
           description: t("inputsAssetMetaV2", {
             type: typeLabel(asset.kind),
             value:
@@ -1008,7 +1009,7 @@ export default function MoneyClient({
             setDeleteConfirmation({
               type: "asset",
               id: asset.id,
-              label: asset.label ?? t("assetUntitled"),
+              label: resolveAssetDisplayLabel(asset, t),
               impact: {
                 impactedAssets: [asset],
                 impactedLiabilities: [],
@@ -2731,7 +2732,7 @@ export default function MoneyClient({
       if (bundleAssets.length > 0) {
         const items = bundleAssets.map((asset) => ({
           id: asset.id,
-          label: asset.label ?? t("assetUntitled"),
+          label: resolveAssetDisplayLabel(asset, t),
           amount: typeof asset.currentValue === "number" ? asset.currentValue : null,
         }));
         const summaryAmount = items.some((item) => item.amount !== null)
@@ -2861,7 +2862,7 @@ export default function MoneyClient({
         {
           id: cashAsset?.id ?? "cash",
           kind: "cash",
-          label: cashAsset?.label ?? t("assetTypeCash"),
+          label: resolveAssetDisplayLabel({ kind: "cash", label: cashAsset?.label }, t),
           currentValue: sanitizedAmount,
           startMonth: cashAsset?.startMonth,
           currency: cashAsset?.currency ?? scenario?.baseCurrency,
@@ -2897,7 +2898,7 @@ export default function MoneyClient({
     setDeleteConfirmation({
       type: "asset",
       id: item.id,
-      label: item.label ?? t("assetUntitled"),
+      label: resolveAssetDisplayLabel(item, t),
       impact: {
         impactedAssets: [item],
         impactedLiabilities: [],
@@ -4257,7 +4258,7 @@ export default function MoneyClient({
                           {bundle.assets.map((asset) => (
                             <Text size="sm" c="dimmed" key={asset.id}>
                               {t("bundleSummaryAssetItem", {
-                                name: asset.label ?? t("assetUntitled"),
+                                name: resolveAssetDisplayLabel(asset, t),
                                 amount:
                                   typeof asset.currentValue === "number"
                                     ? formatCurrency(
@@ -4674,7 +4675,7 @@ export default function MoneyClient({
               {activeBundleCard.assets.map((asset) => (
                 <Text size="sm" c="dimmed" key={asset.id}>
                   {t("bundleSummaryAssetItem", {
-                    name: asset.label ?? t("assetUntitled"),
+                    name: resolveAssetDisplayLabel(asset, t),
                     amount:
                       typeof asset.currentValue === "number"
                         ? formatCurrency(
@@ -5208,7 +5209,7 @@ export default function MoneyClient({
                     {deleteConfirmation.impact.impactedAssets.length > 0 ? (
                       deleteConfirmation.impact.impactedAssets.map((asset) => (
                         <Text size="sm" key={asset.id}>
-                          • {asset.label ?? t("assetUntitled")}
+                          • {resolveAssetDisplayLabel(asset, t)}
                         </Text>
                       ))
                     ) : (
