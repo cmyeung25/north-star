@@ -87,6 +87,41 @@ describe("computeProjection", () => {
     }
   });
 
+
+
+  it("applies cash yield on positive prior cash before net cashflow", () => {
+    const result = computeProjection({
+      baseMonth: "2025-01",
+      horizonMonths: 2,
+      initialCash: 1200,
+      cashYieldPct: 12,
+      events: [],
+    });
+
+    const monthlyYieldRate = Math.pow(1 + 0.12, 1 / 12) - 1;
+    expect(result.netCashflow[0]).toBeCloseTo(1200 * monthlyYieldRate, 6);
+    expect(result.cashBalance[0]).toBeCloseTo(1200 * (1 + monthlyYieldRate), 6);
+    expect(result.cashBalance[1]).toBeCloseTo(1200 * Math.pow(1 + monthlyYieldRate, 2), 6);
+    expect(result.breakdown?.cashflow.byKey["cash:yield"]?.[0]).toBeCloseTo(
+      1200 * monthlyYieldRate,
+      6
+    );
+  });
+
+  it("does not apply positive cash yield when prior cash balance is negative", () => {
+    const result = computeProjection({
+      baseMonth: "2025-01",
+      horizonMonths: 1,
+      initialCash: -1000,
+      cashYieldPct: 6,
+      events: [],
+    });
+
+    expect(result.netCashflow[0]).toBe(0);
+    expect(result.cashBalance[0]).toBe(-1000);
+    expect(result.breakdown?.cashflow.byKey["cash:yield"]).toBeUndefined();
+  });
+
   it("sums mixed events and finds lowest balance month", () => {
     const result = computeProjection({
       baseMonth: "2025-01",

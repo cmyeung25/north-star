@@ -123,6 +123,7 @@ export type ProjectionInput = {
   baseMonth: string;
   horizonMonths: number;
   initialCash?: number;
+  cashYieldPct?: number;
   events: EngineEvent[];
   positions?: PositionsInput;
 };
@@ -313,6 +314,9 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const months = buildMonthRange(input.baseMonth, horizonMonths);
   const netCashflow = Array.from({ length: horizonMonths }, () => 0);
   const initialCash = input.initialCash ?? 0;
+  const cashYieldPct = input.cashYieldPct ?? 0;
+  const cashMonthlyYieldRate =
+    cashYieldPct === 0 ? 0 : Math.pow(1 + cashYieldPct / 100, 1 / 12) - 1;
   const assetsHousing = Array.from({ length: horizonMonths }, () => 0);
   const assetsCars = Array.from({ length: horizonMonths }, () => 0);
   const assetsInvestments = Array.from({ length: horizonMonths }, () => 0);
@@ -911,6 +915,11 @@ export function computeProjection(input: ProjectionInput): ProjectionResult {
   const cashBalance: number[] = [];
   for (let i = 0; i < horizonMonths; i += 1) {
     const prior = i === 0 ? initialCash : cashBalance[i - 1];
+    const cashYield = prior > 0 && cashMonthlyYieldRate > 0 ? prior * cashMonthlyYieldRate : 0;
+    if (cashYield !== 0) {
+      netCashflow[i] += cashYield;
+      addCashflow("cash:yield", i, cashYield);
+    }
     cashBalance[i] = prior + netCashflow[i];
     addAsset("cash", i, cashBalance[i]);
   }

@@ -4405,7 +4405,8 @@
         "label": "Property appreciation (%)"
       },
       "cashYieldPct": {
-        "label": "Cash yield (%)"
+        "label": "Cash yield (%)",
+        "description": "Applied only to positive beginning-of-month cash balance using monthly-compounded annual yield; negative cash earns no positive yield."
       },
       "carDepreciationRatePct": {
         "label": "Car depreciation (%)"

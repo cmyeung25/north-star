@@ -1449,6 +1449,7 @@ export const mapScenarioToEngineInput = (
       baseMonth,
       horizonMonths,
       initialCash,
+      cashYieldPct: sanitizedScenario.assumptions.cashYieldPct ?? 0,
       events,
       positions,
     },
