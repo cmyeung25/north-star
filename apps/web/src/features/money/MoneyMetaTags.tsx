@@ -30,7 +30,7 @@ export default function MoneyMetaTags({ tags }: Props) {
             radius={config.radius}
             color={config.color}
           >
-            {"icon" in config && config.icon ? `${config.icon} ${tag.label}` : tag.label}
+            {`${config.prefix}: ${config.icon ? `${config.icon} ` : ""}${tag.label}`}
           </Badge>
         );
       })}

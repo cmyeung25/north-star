@@ -31,7 +31,14 @@ export const buildMoneyMetaTagViewModel = (
     {
       key: `type-${(input as { id: string }).id}`,
       label: options.resolveTypeLabel(meta),
-      kind: meta.domain === "asset" ? "assetType" : meta.domain === "liability" ? "liabilityType" : "eventType",
+      kind:
+        meta.domain === "asset"
+          ? "assetType"
+          : meta.domain === "liability"
+            ? "liabilityType"
+            : meta.domain === "income"
+              ? "incomeType"
+              : "expenseType",
     },
     {
       key: `lifecycle-${(input as { id: string }).id}`,

@@ -36,7 +36,7 @@ describe("moneyMetaTagViewModel", () => {
       frequency: "monthly",
       lifecycle: "ongoing",
     });
-    expect(result.tags.map((tag) => tag.kind)).toEqual(["eventType", "attribute", "cadence", "member"]);
+    expect(result.tags.map((tag) => tag.kind)).toEqual(["incomeType", "attribute", "cadence", "member"]);
   });
 
   it("builds expense tags for housing/loan/insurance", () => {
