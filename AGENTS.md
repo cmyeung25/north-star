@@ -118,6 +118,19 @@ ScenarioHydrator reads both meta.onboarded at the root and individual scenarios[
 
 State version fields (e.g. stateVersion, schemaVersion, onboardingVersion) should be incremented when data shapes change to maintain backward compatibility.
 
+3.4 Change Boundaries
+
+Forbidden changes (without explicit approval and full evidence):
+
+- Do not modify projection engine algorithms or public interfaces in packages/engine unless the PR includes regression tests and a backward-compatibility note.
+- Do not write data across scenario/case boundaries (no scenario leakage). Any write path must stay scoped to the active scenario and its parent case.
+- Do not alter post-login redirect behavior away from /{locale}/member/cases.
+
+Changes requiring explicit review details in PR:
+
+- If ScenarioAssumptions, schema shape, or hydrator behavior changes, update schemaVersion/stateVersion/onboardingVersion where applicable.
+- Document migration impact and/or selector/hydrator impact scope (which tables/selectors/hydrators and which routes/features are affected).
+
 4 Database schema & migrations
 
 While the exact schema is defined in packages/db-migrations, the high‑level structure includes:
@@ -170,6 +183,23 @@ Avoid blank screens during navigation. When entering a scenario, display an over
 
 Use skeleton loaders for dashboards (KPI cards, charts) rather than generic “Loading…” text.
 
+7.1 UX/UI Consistency Checklist
+
+- Copy & language: all new UI strings must use i18n keys; hardcoded user-facing strings are forbidden.
+  驗收方式：檢查變更檔案中的字串是否來自翻譯 key（例如 useTranslation / message files），且無新增硬編碼文案。
+- Field semantic consistency: percentage fields must indicate direction (e.g. growth/depreciation), and the same concept must not flip sign conventions across screens.
+  驗收方式：在設定頁與相關表單檢查欄位 label + hint，確認可清楚區分方向與正負號規則。
+- Information architecture consistency: global display settings (e.g. real/nominal) and scenario assumptions must be shown in separate sections, not mixed in one semantic layer.
+  驗收方式：檢查頁面區塊與標題分組，確認「顯示設定」與「情境假設」為不同群組。
+- Loading experience: white screens are forbidden; page-level transitions must show skeleton and/or overlay.
+  驗收方式：手動切換主要頁面流程（member → app、app 子頁切換），確認全程有載入骨架或覆蓋層。
+- Action feedback: save/apply defaults/reset actions must provide toast feedback or clear visual state.
+  驗收方式：逐一觸發儲存、套用預設、重設，確認有 toast 或可辨識狀態回饋。
+
+PR requirement:
+
+- PR description must include a UX impact summary: which user flows changed, and whether existing mental models are affected.
+
 8 Recent changes & key PR patterns
 
 Unified adjustment pipeline – onCreateEventAdjustment now serves as the single mechanism for creating adjustments on both income and expense events. The older onCreateSalaryAdjustment function is kept as a wrapper. The Money module has been refactored so that expense lists call the same creator.
@@ -204,6 +234,64 @@ Case‑sensitivity – Ensure new folders/files have consistent lower‑case nam
 
 Loading behaviour – Provide skeletons or overlays for navigation transitions. Avoid blank pages.
 
+Quality Gates (must run)
+
+pnpm -w lint
+pnpm -w typecheck
+pnpm -w test
+pnpm -w --filter web build
+
+If any command cannot run, the PR must clearly state the reason, impacted scope, and alternative validation performed.
+
+Architecture Delta Log (template)
+
+- Date:
+- Changed modules:
+- Data-flow impact:
+- Backward compatibility:
+- Risk & rollback:
+
+PR requirement:
+
+- Agent final response must list each Quality Gate command with pass/fail/warn status.
+
 Adhering to this architecture will ensure that Codex agents maintain a stable, predictable system while continuing to develop new features.
 
 For those changes requested by user if needed to be saved to inform next Codex agents, please update this AGENTS.md document.
+
+10 Agent Memory Update Protocol
+
+When to update AGENTS.md (mandatory):
+
+- Any task that adds/changes core routing rules, Provider chain, data-flow nodes, event taxonomy, or assumptions field semantics.
+- Any fix for known inconsistencies (e.g. onboarding/meta/hydrator behavior mismatch).
+
+Execution reminder for Codex:
+
+- 若任務涉及 UX 流程、架構邊界、資料模型或路由，完成前先檢查是否需要更新 AGENTS.md；需要則一併提交。
+
+Append-only policy:
+
+- Maintain a section named `### Changelog for Future Agents`.
+- New records must be appended only; never rewrite or delete historical records.
+
+Record format (recommended):
+
+- Context / Why
+- What changed
+- Affected paths
+- Guardrails for next agent
+- Validation commands run
+
+PR requirement:
+
+- PR body must reference the AGENTS.md entry added in this task so knowledge capture is not skipped.
+
+### Changelog for Future Agents
+
+- Date: 2026-03-03
+  - Context / Why: Strengthen persistent guardrails for UX consistency, architecture boundaries, and agent memory updates.
+  - What changed: Added section 3.4 Change Boundaries; added 7.1 UX/UI Consistency Checklist with acceptance criteria; added Quality Gates and Architecture Delta Log template; added section 10 Agent Memory Update Protocol and PR/body linkage requirements.
+  - Affected paths: AGENTS.md
+  - Guardrails for next agent: Run all four Quality Gates or document failure reason + impacted scope + fallback validation; append to this changelog for any future UX/architecture/domain/routing/persistence changes.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
