@@ -82,6 +82,9 @@ export const resolveEventMonthlyImpact = (
 };
 
 export const resolveEventCardStartMonth = (event: ScenarioEvent): string | null => {
+  if(typeof event === "undefined") {
+    return null;
+  }
   switch (event.type) {
     case "cashflow":
       return event.cadence === "oneOff"
