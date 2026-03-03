@@ -43,6 +43,7 @@ import DataManagementSection from "../DataManagementSection";
 import DateOrAgeBasisPicker from "../DateOrAgeBasisPicker";
 import PositionDetailList from "../timeline/PositionDetailList";
 import {
+  buildMemberAssignableEventViews,
   buildScenarioEventViews,
 } from "../../src/domain/events/utils";
 import { getEventMeta } from "../../src/events/eventCatalog";
@@ -805,9 +806,7 @@ export default function ScenarioSettingsWorkspace({
     if (!scenario) {
       return [];
     }
-    return buildScenarioEventViews(scenario, eventLibrary).filter(
-      (view) => view.definition.kind === "cashflow"
-    );
+    return buildMemberAssignableEventViews(scenario, eventLibrary);
   }, [eventLibrary, scenario]);
   const eventsByMemberId = useMemo(() => {
     const grouped = new Map<string, typeof assignableEventViews>();

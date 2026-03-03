@@ -323,3 +323,9 @@ PR requirement:
   - Affected paths: apps/web/components/DataManagementSection.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep Data Management focused on JSON download copy unless IA changes are explicitly approved; any future destructive/import flows should live elsewhere with separate UX review.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Settings → Members tab could show empty assignments when cashflow events existed in `scenario.events` but were missing or out-of-sync in `eventRefs`/event library linkage.
+  - What changed: Extended event view composition to support scenario cashflow fallback paths and member assignment resolution with precedence `scenario.events[].memberId` over library defaults; added `linkState` metadata (`linked`/`orphaned`) and a member-focused selector used by settings members tab so active-scenario events remain visible even under partial linkage mismatch; added tests for orphaned fallback and members-tab rendering.
+  - Affected paths: apps/web/src/domain/events/types.ts; apps/web/src/domain/events/utils.ts; apps/web/src/domain/events/__tests__/utils.test.ts; apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; AGENTS.md
+  - Guardrails for next agent: Treat `scenario.events` cashflow list as authoritative for member ownership and use event-library memberId only as fallback; keep members-tab assignment scoped to active scenario; preserve `linkState` for UI remediation instead of silently dropping unmatched rows.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

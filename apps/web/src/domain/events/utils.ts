@@ -10,6 +10,7 @@ import type {
   ScenarioEventRef,
   ScenarioEventView,
 } from "./types";
+import { mapScenarioCashflowToLegacyType } from "./eventMappingRegistry";
 
 export const buildEventLibraryMap = (eventLibrary: EventDefinition[]) =>
   new Map(eventLibrary.map((definition) => [definition.id, definition]));
@@ -109,22 +110,107 @@ export const buildTimelineEventFromDefinition = (
   );
 };
 
+const findScenarioCashflowEventForRef = (
+  ref: ScenarioEventRef,
+  definition: EventDefinition,
+  scenarioEvents: Scenario["events"]
+) => {
+  const cashflowEvents = (scenarioEvents ?? []).filter(
+    (event): event is Extract<NonNullable<Scenario["events"]>[number], { type: "cashflow" }> =>
+      event.type === "cashflow"
+  );
+
+  const byRefId = cashflowEvents.find((event) => event.id === ref.refId);
+  if (byRefId) {
+    return byRefId;
+  }
+
+  const byDefinitionId = cashflowEvents.find((event) => event.id === definition.id);
+  if (byDefinitionId) {
+    return byDefinitionId;
+  }
+
+  const byLegacyType = cashflowEvents.find((event) => {
+    try {
+      return mapScenarioCashflowToLegacyType(event) === definition.type;
+    } catch {
+      return false;
+    }
+  });
+
+  return byLegacyType;
+};
+
+const createFallbackEventViewFromScenarioEvent = (
+  event: Extract<NonNullable<Scenario["events"]>[number], { type: "cashflow" }>,
+  eventLibraryMap: Map<string, EventDefinition>
+): ScenarioEventView | null => {
+  const fallbackDefinition = eventLibraryMap.get(event.id);
+  if (!fallbackDefinition) {
+    return null;
+  }
+
+  const fallbackRef: ScenarioEventRef = {
+    refId: fallbackDefinition.id,
+    enabled: true,
+  };
+
+  const monthlyAmount = event.cadence === "oneOff" ? 0 : Math.abs(event.amount);
+  const oneTimeAmount = event.cadence === "oneOff" ? Math.abs(event.amount) : 0;
+
+  return {
+    definition: {
+      ...fallbackDefinition,
+      memberId: event.memberId ?? fallbackDefinition.memberId,
+      rule: {
+        ...fallbackDefinition.rule,
+        startMonth: event.startMonth ?? event.occurrenceMonth ?? fallbackDefinition.rule.startMonth,
+        endMonth: event.endMonth ?? fallbackDefinition.rule.endMonth,
+        monthlyAmount,
+        oneTimeAmount,
+      },
+    },
+    ref: fallbackRef,
+    rule: resolveEventRule(
+      {
+        ...fallbackDefinition,
+        rule: {
+          ...fallbackDefinition.rule,
+          startMonth: event.startMonth ?? event.occurrenceMonth ?? fallbackDefinition.rule.startMonth,
+          endMonth: event.endMonth ?? fallbackDefinition.rule.endMonth,
+          monthlyAmount,
+          oneTimeAmount,
+        },
+        memberId: event.memberId ?? fallbackDefinition.memberId,
+      },
+      fallbackRef
+    ),
+    linkState: "orphaned" as const,
+  };
+};
+
 export const buildScenarioEventViews = (
   scenario: Scenario,
   eventLibrary: EventDefinition[]
 ): ScenarioEventView[] => {
   const libraryMap = buildEventLibraryMap(eventLibrary);
-  const scenarioEventMap = new Map((scenario.events ?? []).map((event) => [event.id, event]));
+  const consumedScenarioEventIds = new Set<string>();
 
-  return (scenario.eventRefs ?? []).flatMap((ref) => {
+  const viewsFromRefs = (scenario.eventRefs ?? []).flatMap((ref) => {
     const definition = libraryMap.get(ref.refId);
     if (!definition) {
       return [];
     }
 
-    const scenarioEvent = scenarioEventMap.get(definition.id);
+    const scenarioEvent = findScenarioCashflowEventForRef(ref, definition, scenario.events);
+    if (scenarioEvent) {
+      consumedScenarioEventIds.add(scenarioEvent.id);
+    }
+
     const resolvedMemberId =
-      scenarioEvent?.type === "cashflow" ? scenarioEvent.memberId : definition.memberId;
+      scenarioEvent?.memberId ??
+      (scenarioEvent?.id === ref.refId ? scenarioEvent.memberId : undefined) ??
+      definition.memberId;
     const resolvedDefinition =
       resolvedMemberId === definition.memberId
         ? definition
@@ -133,15 +219,43 @@ export const buildScenarioEventViews = (
             memberId: resolvedMemberId,
           };
 
+    const linkState: ScenarioEventView["linkState"] = scenarioEvent ? "linked" : "orphaned";
+
     return [
       {
         definition: resolvedDefinition,
         ref,
         rule: resolveEventRule(resolvedDefinition, ref, { members: scenario.members }),
+        linkState,
       },
     ];
   });
+
+  const fallbackViews = (scenario.events ?? [])
+    .filter(
+      (event): event is Extract<NonNullable<Scenario["events"]>[number], { type: "cashflow" }> =>
+        event.type === "cashflow"
+    )
+    .filter((event) => !consumedScenarioEventIds.has(event.id))
+    .map((event) => createFallbackEventViewFromScenarioEvent(event, libraryMap))
+    .filter((view): view is ScenarioEventView => view !== null);
+
+  if (fallbackViews.length > 0) {
+    console.warn(
+      "[events] detected cashflow events not linked by scenario.eventRefs",
+      fallbackViews.map((view) => view.definition.id)
+    );
+  }
+
+  return [...viewsFromRefs, ...fallbackViews];
 };
+
+
+export const buildMemberAssignableEventViews = (
+  scenario: Scenario,
+  eventLibrary: EventDefinition[]
+): ScenarioEventView[] =>
+  buildScenarioEventViews(scenario, eventLibrary).filter((view) => view.definition.kind === "cashflow");
 
 export const buildScenarioTimelineEvents = (
   scenario: Scenario,
