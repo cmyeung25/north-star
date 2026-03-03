@@ -1854,6 +1854,7 @@
     "incomeSortStartMonthAsc": "Sort: Start month",
     "incomeSortEndMonthAsc": "Sort: End month",
     "incomeProjectedPreview": "{month} projection: {amount}",
+    "eventAdjustmentCountBadge": "{count} adjustments",
     "incomeGrowthNone": "No growth",
     "eventTypeIncome": "Income",
     "eventTypeExpense": "Expense",

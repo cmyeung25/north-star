@@ -1,6 +1,6 @@
 "use client";
 
-import { ActionIcon, Badge, Button, Card, Group, Menu, Stack, Text } from "@mantine/core";
+import { ActionIcon, Button, Card, Group, Menu, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
@@ -15,6 +15,7 @@ import {
 } from "./eventCardUtils";
 import { groupEventSeries } from "./eventSeriesGrouping";
 import EventTypeBadge from "./EventTypeBadge";
+import MoneyMetaTags from "./MoneyMetaTags";
 import type { EventAdjustmentSpec } from "./adjustments/createEventAdjustment";
 
 type Props = {
@@ -102,20 +103,32 @@ export default function ExpenseEventList({
                     endMonth: adjustments.length > 0 ? (groupEndMonth ?? endMonth ?? t("eventCardOpenEnded")) : (endMonth ?? t("eventCardOpenEnded")),
                   })}
                 </Text>
-                <Group gap={6}>
-                  <EventTypeBadge event={baseEvent} />
-                  {adjustments.length > 0 && (
-                    <Badge variant="outline" color="blue">調整 {adjustments.length} 次</Badge>
-                  )}
-                </Group>
-                {projectionRow && (
-                  <Badge variant="light" color="red">
-                    {t("incomeProjectedPreview", {
-                      month: projectionRow.month,
-                      amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
-                    })}
-                  </Badge>
-                )}
+                <EventTypeBadge event={baseEvent} />
+                <MoneyMetaTags
+                  tags={[
+                    ...(adjustments.length > 0
+                      ? [
+                          {
+                            key: `adjustment-${baseEvent.id}`,
+                            label: t("eventAdjustmentCountBadge", { count: adjustments.length }),
+                            kind: "adjustment" as const,
+                          },
+                        ]
+                      : []),
+                    ...(projectionRow
+                      ? [
+                          {
+                            key: `projection-${baseEvent.id}`,
+                            label: t("incomeProjectedPreview", {
+                              month: projectionRow.month,
+                              amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
+                            }),
+                            kind: "projection" as const,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
                 {adjustments.length > 0 && latestAdjustment && (
                   <Stack gap={4} mt={4}>
                     <Group justify="space-between">

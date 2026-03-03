@@ -1889,6 +1889,7 @@
     "incomeSortStartMonthAsc": "排序：開始月份",
     "incomeSortEndMonthAsc": "排序：結束月份",
     "incomeProjectedPreview": "{month} 預計：{amount}",
+    "eventAdjustmentCountBadge": "調整 {count} 次",
     "incomeGrowthNone": "不成長",
     "eventTypeIncome": "收入",
     "eventTypeExpense": "支出",

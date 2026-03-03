@@ -1,6 +1,6 @@
 "use client";
 
-import { ActionIcon, Badge, Button, Card, Group, Menu, Select, Stack, Text } from "@mantine/core";
+import { ActionIcon, Button, Card, Group, Menu, Select, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
@@ -9,6 +9,7 @@ import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
 import { resolveEventCardAmount, resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
 import EventTypeBadge from "./EventTypeBadge";
+import MoneyMetaTags from "./MoneyMetaTags";
 import { compareMonthKey } from "../../utils/monthKey";
 import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
 import { computeEffectiveRanges } from "./salaryAdjustmentGrouping";
@@ -113,13 +114,29 @@ export default function IncomeEventList({
               <Stack gap={4}>
                 <Text fw={600}>{baseEvent.label ?? t("ledgerRowFallbackLabel")}</Text>
                 <Text fw={700}>{formatCurrency(primaryAmount, baseCurrency, locale)}</Text>
-                <Group gap={6}>
-                  <Badge variant="light">{frequencyLabel}</Badge>
-                  {baseEvent.memberId && <Badge variant="outline">{memberLookupRecord[baseEvent.memberId] ?? t("householdLabel")}</Badge>}
-                  {adjustments.length > 0 && (
-                    <Badge variant="outline" color="blue">調整 {adjustments.length} 次</Badge>
-                  )}
-                </Group>
+                <MoneyMetaTags
+                  tags={[
+                    { key: `cadence-${baseEvent.id}`, label: frequencyLabel, kind: "cadence" },
+                    ...(baseEvent.memberId
+                      ? [
+                          {
+                            key: `member-${baseEvent.id}`,
+                            label: memberLookupRecord[baseEvent.memberId] ?? t("householdLabel"),
+                            kind: "member" as const,
+                          },
+                        ]
+                      : []),
+                    ...(adjustments.length > 0
+                      ? [
+                          {
+                            key: `adjustment-${baseEvent.id}`,
+                            label: t("eventAdjustmentCountBadge", { count: adjustments.length }),
+                            kind: "adjustment" as const,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
                 <EventTypeBadge
                   event={baseEvent}
                   growthLabel={
