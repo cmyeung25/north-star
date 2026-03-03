@@ -301,3 +301,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json
   - Guardrails for next agent: Keep this panel scoped to active scenario data only; use scenario-level event views + member linkage and avoid cross-scenario/case aggregation.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Scenario settings persistence tab had mixed responsibilities (sync/account controls + budget rules + data tools), which conflicted with current product IA goal of a single "Data Management" focus.
+  - What changed: Refactored `Tabs.Panel value="persistence"` UI to only expose Data Management JSON export entry, removed sync/account and budget-rules interactive surfaces from this tab, and added explicit deprecated-readonly notice copy; updated zh-HK/en i18n keys to reflect the streamlined IA and marked obsolete microcopy as deprecated.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep budgetRules data/store compatibility intact unless migration+engine compatibility plan is provided; do not reintroduce account-level sync controls in scenario settings persistence tab; keep this tab focused on scenario data management/export.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
