@@ -101,4 +101,5 @@ export type ScenarioEventView = {
   definition: EventDefinition;
   ref: ScenarioEventRef;
   rule: EventRule;
+  linkState?: "linked" | "orphaned";
 };
