@@ -14,6 +14,9 @@ const requiredMoneyKeys = [
   "moneyMetaDomainInsurance",
   "moneyMetaDomainAsset",
   "moneyMetaDomainLiability",
+  "inputsRuleTagType",
+  "inputsRuleTagLifecycle",
+  "inputsEventMetaWithAdjustments",
 ] as const;
 
 describe("money message keys", () => {
