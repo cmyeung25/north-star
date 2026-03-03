@@ -311,3 +311,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep budgetRules data/store compatibility intact unless migration+engine compatibility plan is provided; do not reintroduce account-level sync controls in scenario settings persistence tab; keep this tab focused on scenario data management/export.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Members settings panel showed assigned cashflow events as empty because grouping relied only on event-library `memberId`, while current owner is persisted on scenario-level cashflow events.
+  - What changed: Updated `buildScenarioEventViews` to prefer scenario cashflow event `memberId` over library defaults when composing views; this keeps member/household event grouping accurate in Scenario Settings. Added unit test coverage for the scenario-member override behavior.
+  - Affected paths: apps/web/src/domain/events/utils.ts; apps/web/src/domain/events/__tests__/utils.test.ts; AGENTS.md
+  - Guardrails for next agent: When displaying or aggregating member-linked events, use scenario-level event ownership as source of truth and treat event-library `memberId` as fallback/default only.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

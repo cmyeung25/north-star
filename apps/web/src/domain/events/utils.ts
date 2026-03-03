@@ -114,6 +114,7 @@ export const buildScenarioEventViews = (
   eventLibrary: EventDefinition[]
 ): ScenarioEventView[] => {
   const libraryMap = buildEventLibraryMap(eventLibrary);
+  const scenarioEventMap = new Map((scenario.events ?? []).map((event) => [event.id, event]));
 
   return (scenario.eventRefs ?? []).flatMap((ref) => {
     const definition = libraryMap.get(ref.refId);
@@ -121,11 +122,22 @@ export const buildScenarioEventViews = (
       return [];
     }
 
+    const scenarioEvent = scenarioEventMap.get(definition.id);
+    const resolvedMemberId =
+      scenarioEvent?.type === "cashflow" ? scenarioEvent.memberId : definition.memberId;
+    const resolvedDefinition =
+      resolvedMemberId === definition.memberId
+        ? definition
+        : {
+            ...definition,
+            memberId: resolvedMemberId,
+          };
+
     return [
       {
-        definition,
+        definition: resolvedDefinition,
         ref,
-        rule: resolveEventRule(definition, ref, { members: scenario.members }),
+        rule: resolveEventRule(resolvedDefinition, ref, { members: scenario.members }),
       },
     ];
   });
