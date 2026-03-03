@@ -407,3 +407,9 @@ PR requirement:
   - Affected paths: apps/web/features/planLab/PlanLabPanel.tsx; apps/web/features/planLab/planLabMetaTagAdapter.ts; apps/web/features/planLab/__tests__/planLabMetaTagAdapter.test.ts; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep Plan Lab row metadata sourced from adapter/MoneyMetaTags (avoid reintroducing duplicated plain-text summaries for the same semantics); if adding new group modes or link states, update i18n keys and tests for member/household/orphaned rendering together.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Plan Lab compare mode lacked a concise decision layer and had weak linkage between Top Drivers interactions and timeline/chart focus.
+  - What changed: Added a decision summary card above KPI cards in Plan Lab (goal timing delta, cash risk trend + risk level mirrored from cash risk scorecard, top positive/negative drivers), upgraded compare delta label to full i18n key with A/B tooltip definition, and made Top Drivers clicks lock/highlight the corresponding month in timeline preview via existing `lockedMonthIdx`/crosshair state while still locating controls.
+  - Affected paths: apps/web/features/planLab/PlanLabPanel.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep decision narrative strings under `overview.planLab*` keys (no hardcoded narrative copy), and when adding new driver interactions continue reusing the shared chart/timeline lock state to avoid dual sources of truth.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
