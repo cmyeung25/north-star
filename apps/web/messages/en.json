@@ -1898,7 +1898,8 @@
       "debt_repayment": "Debt repayment",
       "other": "Other"
     },
-    "cashCardGoToSettings": "Go to Settings"
+    "cashCardGoToSettings": "Go to Settings",
+    "eventLifecycleHasEndMonth": "Has end month"
   },
   "entryLauncher": {
     "title": "Add new money items",

@@ -1933,7 +1933,8 @@
       "debt_repayment": "還款",
       "other": "其他"
     },
-    "cashCardGoToSettings": "前往設定"
+    "cashCardGoToSettings": "前往設定",
+    "eventLifecycleHasEndMonth": "有結束月份"
   },
   "entryLauncher": {
     "title": "新增金錢項目",

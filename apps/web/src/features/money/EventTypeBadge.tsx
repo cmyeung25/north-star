@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import { resolveEventCategoryKey } from "./categoryMeta";
 import MoneyMetaTags from "./MoneyMetaTags";
-import type { MoneyTagItem } from "./moneyTagConfig";
+import { buildMoneyMetaTagViewModel } from "./moneyMetaTagViewModel";
 
 type Props = {
   event: ScenarioEvent;
@@ -53,25 +53,33 @@ export default function EventTypeBadge({ event, growthLabel }: Props) {
         : t(`expenseCategory.${categoryKey}`)
       : null;
 
-  const tags: MoneyTagItem[] = [
-    {
-      key: `eventType-${event.id}`,
-      label: resolveEventTypeLabel(event, t),
-      kind: "eventType",
-    },
-  ];
-
-  if (categoryLabel) {
-    tags.push({
-      key: `category-${event.id}`,
-      label: categoryLabel,
-      kind: "category",
-    });
-  }
-
-  if (growthLabel) {
-    tags.push({ key: `growth-${event.id}`, label: growthLabel, kind: "growth" });
-  }
+  const { tags } = buildMoneyMetaTagViewModel(event, {
+    householdLabel: t("householdLabel"),
+    ownerId: event.memberId,
+    resolveTypeLabel: () => resolveEventTypeLabel(event, t),
+    resolveFrequencyLabel: (meta) =>
+      meta.frequency === "none"
+        ? null
+        : t(
+            meta.frequency === "monthly"
+              ? "ledgerEventCadenceMonthly"
+              : meta.frequency === "yearly"
+                ? "ledgerEventCadenceYearly"
+                : meta.frequency === "oneOff"
+                  ? "ledgerEventCadenceOneOff"
+                  : meta.frequency === "quarterly"
+                    ? "ledgerEventCadenceQuarterly"
+                    : "ledgerEventCadenceEveryN"
+          ),
+    resolveLifecycleLabel: (meta) =>
+      meta.lifecycle === "oneOff"
+        ? t("ledgerEventCadenceOneOff")
+        : meta.lifecycle === "hasEndMonth"
+          ? t("eventLifecycleHasEndMonth")
+          : t("eventCardOpenEnded"),
+    categoryLabel,
+    growthLabel,
+  });
 
   return <MoneyMetaTags tags={tags} />;
 }

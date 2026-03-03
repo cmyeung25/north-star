@@ -20,6 +20,7 @@ import type {
   ScenarioLiabilityKind,
 } from "../../src/store/scenarioStore";
 import MoneyMetaTags from "../../src/features/money/MoneyMetaTags";
+import { buildMoneyMetaTagViewModel } from "../../src/features/money/moneyMetaTagViewModel";
 
 type LiabilitySourceEvent = {
   id: string;
@@ -283,37 +284,25 @@ export default function ScenarioLiabilityManager({
                   <Stack gap={4}>
                     <Text fw={600}>{item.label ?? t("liabilityUntitled")}</Text>
                     <MoneyMetaTags
-                      tags={[
-                        {
-                          key: `liability-type-${item.id}`,
-                          label: typeLabel(item.kind),
-                          kind: "liabilityType",
-                        },
-                        {
-                          key: `liability-meta-${item.id}`,
-                          label: t("liabilityItemMetaV2", {
-                            principal:
-                              item.principalOutstanding !== undefined
-                                ? item.principalOutstanding
-                                : "--",
-                            rate:
-                              item.annualInterestRatePct !== undefined
-                                ? item.annualInterestRatePct
-                                : "--",
-                            term: item.termYears !== undefined ? item.termYears : "--",
-                          }),
-                          kind: "attribute",
-                        },
-                        ...(isDerived
-                          ? [
-                              {
-                                key: `liability-source-${item.id}`,
-                                label: t("eventSourceLabel"),
-                                kind: "source" as const,
-                              },
-                            ]
-                          : []),
-                      ]}
+                      tags={buildMoneyMetaTagViewModel(item, {
+                        householdLabel: t("householdLabel"),
+                        ownerId: item.ownerMemberId,
+                        resolveTypeLabel: () => typeLabel(item.kind),
+                        resolveFrequencyLabel: () => null,
+                        resolveLifecycleLabel: () => t("eventCardOpenEnded"),
+                        attributeLabel: t("liabilityItemMetaV2", {
+                          principal:
+                            item.principalOutstanding !== undefined
+                              ? item.principalOutstanding
+                              : "--",
+                          rate:
+                            item.annualInterestRatePct !== undefined
+                              ? item.annualInterestRatePct
+                              : "--",
+                          term: item.termYears !== undefined ? item.termYears : "--",
+                        }),
+                        sourceLabel: isDerived ? t("eventSourceLabel") : null,
+                      }).tags}
                     />
                     {isDerived && (
                       <Stack gap={4}>

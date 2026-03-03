@@ -14,8 +14,9 @@ import {
   resolveEventMonthlyImpact,
 } from "./eventCardUtils";
 import { groupEventSeries } from "./eventSeriesGrouping";
-import EventTypeBadge from "./EventTypeBadge";
 import MoneyMetaTags from "./MoneyMetaTags";
+import { resolveEventCategoryKey } from "./categoryMeta";
+import { buildMoneyMetaTagViewModel } from "./moneyMetaTagViewModel";
 import type { EventAdjustmentSpec } from "./adjustments/createEventAdjustment";
 
 type Props = {
@@ -103,31 +104,58 @@ export default function ExpenseEventList({
                     endMonth: adjustments.length > 0 ? (groupEndMonth ?? endMonth ?? t("eventCardOpenEnded")) : (endMonth ?? t("eventCardOpenEnded")),
                   })}
                 </Text>
-                <EventTypeBadge event={baseEvent} />
                 <MoneyMetaTags
-                  tags={[
-                    ...(adjustments.length > 0
-                      ? [
-                          {
-                            key: `adjustment-${baseEvent.id}`,
-                            label: t("eventAdjustmentCountBadge", { count: adjustments.length }),
-                            kind: "adjustment" as const,
-                          },
-                        ]
-                      : []),
-                    ...(projectionRow
-                      ? [
-                          {
-                            key: `projection-${baseEvent.id}`,
-                            label: t("incomeProjectedPreview", {
-                              month: projectionRow.month,
-                              amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
-                            }),
-                            kind: "projection" as const,
-                          },
-                        ]
-                      : []),
-                  ]}
+                  tags={buildMoneyMetaTagViewModel(baseEvent, {
+                    householdLabel: t("householdLabel"),
+                    ownerId: baseEvent.memberId,
+                    resolveTypeLabel: () => {
+                      if (baseEvent.type === "housing") {
+                        return baseEvent.kind === "rent" ? t("eventTypeRent") : t("eventTypeMortgage");
+                      }
+                      if (baseEvent.type === "loan") {
+                        return t("eventTypeLoan");
+                      }
+                      if (baseEvent.type === "insurance") {
+                        return t("eventTypeInsurance");
+                      }
+                      return t("eventTypeExpense");
+                    },
+                    resolveFrequencyLabel: (meta) =>
+                      meta.frequency === "none"
+                        ? null
+                        : t(
+                            meta.frequency === "monthly"
+                              ? "ledgerEventCadenceMonthly"
+                              : meta.frequency === "yearly"
+                                ? "ledgerEventCadenceYearly"
+                                : meta.frequency === "oneOff"
+                                  ? "ledgerEventCadenceOneOff"
+                                  : meta.frequency === "quarterly"
+                                    ? "ledgerEventCadenceQuarterly"
+                                    : "ledgerEventCadenceEveryN"
+                          ),
+                    resolveLifecycleLabel: (meta) =>
+                      meta.lifecycle === "oneOff"
+                        ? t("ledgerEventCadenceOneOff")
+                        : meta.lifecycle === "hasEndMonth"
+                          ? t("eventLifecycleHasEndMonth")
+                          : t("eventCardOpenEnded"),
+                    categoryLabel:
+                      baseEvent.type === "cashflow"
+                        ? (() => {
+                            const categoryKey = resolveEventCategoryKey(baseEvent);
+                            return categoryKey ? t(`expenseCategory.${categoryKey}`) : null;
+                          })()
+                        : null,
+                    adjustmentCount: adjustments.length,
+                    adjustmentLabel: t("eventAdjustmentCountBadge", { count: adjustments.length }),
+                    projectionLabel: projectionRow
+                      ? t("incomeProjectedPreview", {
+                          month: projectionRow.month,
+                          amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
+                        })
+                      : null,
+                  }).tags}
                 />
                 {adjustments.length > 0 && latestAdjustment && (
                   <Stack gap={4} mt={4}>
