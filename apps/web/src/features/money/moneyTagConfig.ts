@@ -51,6 +51,7 @@ export type MoneyTagIconKey =
   | "adjustment"
   | "projection"
   | "asset"
+  | "cash"
   | "liability"
   | "source"
   | "lifecycle";
@@ -131,6 +132,14 @@ export const moneyTagConfig = {
     prefix: "PRJ",
     icon: "projection",
     priority: 70,
+  }),
+  cashType: withSemanticColor({
+    ...defaultMoneyTagAppearance,
+    variant: "light",
+    semanticColor: "domain-asset",
+    prefix: "TYPE",
+    icon: "cash",
+    priority: 80,
   }),
   assetType: withSemanticColor({
     ...defaultMoneyTagAppearance,

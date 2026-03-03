@@ -121,17 +121,14 @@ vi.mock("../../../src/engine/useProjectionWithLedger", () => ({
   useProjectionWithLedger: () => ({ projection: null, ledgerRowsByEventId: new Map() }),
 }));
 
-vi.mock("../../../src/store/scenarioStore", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    getScenarioById: () => scenario,
-    resolveScenarioIdFromQuery: () => "scenario-1",
-    createMemberId: () => "member-new",
-    useScenarioStore: (selector?: (state: typeof mockState) => unknown) =>
-      selector ? selector(mockState) : mockState,
-  };
-});
+vi.mock("../../../src/store/scenarioStore", () => ({
+  getScenarioById: () => scenario,
+  resolveScenarioIdFromQuery: () => "scenario-1",
+  createMemberId: () => "member-new",
+  selectPersistedState: (state: typeof mockState) => state,
+  useScenarioStore: (selector?: (state: typeof mockState) => unknown) =>
+    selector ? selector(mockState) : mockState,
+}));
 
 
 describe("ScenarioSettingsWorkspace members tab", () => {

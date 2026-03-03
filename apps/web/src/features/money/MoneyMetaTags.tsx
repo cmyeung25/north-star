@@ -68,6 +68,12 @@ const iconRegistry: Record<MoneyTagIconKey, (props: IconProps) => React.JSX.Elem
       <path d="M8 2.5l5 2.75v5.5L8 13.5l-5-2.75v-5.5L8 2.5Z" stroke="currentColor" strokeWidth={stroke} strokeLinejoin="round" />
     </svg>
   ),
+  cash: ({ size, stroke }) => (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="2.5" y="4" width="11" height="8" rx="2" stroke="currentColor" strokeWidth={stroke} />
+      <circle cx="8" cy="8" r="1.6" stroke="currentColor" strokeWidth={stroke} />
+    </svg>
+  ),
   liability: ({ size, stroke }) => (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M8 2.5l4.5 2.75v5.5L8 13.5l-4.5-2.75v-5.5L8 2.5Z" stroke="currentColor" strokeWidth={stroke} strokeLinejoin="round" />

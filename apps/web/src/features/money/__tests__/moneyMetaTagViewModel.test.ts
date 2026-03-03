@@ -96,6 +96,34 @@ describe("moneyMetaTagViewModel", () => {
     expect(result.tags[0]?.kind).toBe("assetType");
   });
 
+  it("shows household ownership tag when no member owner is assigned", () => {
+    const event: ScenarioEvent = {
+      id: "expense-household",
+      type: "cashflow",
+      kind: "expense",
+      cadence: "monthly",
+      amount: 3000,
+      startMonth: "2026-01",
+    };
+
+    const result = buildMoneyMetaTagViewModel(event, buildOptions());
+
+    const ownershipTag = result.tags.find((tag) => tag.kind === "member");
+    expect(ownershipTag?.label).toBe("Household");
+  });
+
+  it("uses cash-specific icon config for cash assets", () => {
+    const asset: ScenarioAsset = {
+      id: "cash-1",
+      kind: "cash",
+      currentValue: 280000,
+    };
+
+    const result = buildMoneyMetaTagViewModel(asset, buildOptions());
+
+    expect(result.tags[0]?.kind).toBe("cashType");
+  });
+
   it("builds liability tags", () => {
     const liability: ScenarioLiability = {
       id: "d1",

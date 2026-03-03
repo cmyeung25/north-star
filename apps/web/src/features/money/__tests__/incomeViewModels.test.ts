@@ -114,6 +114,25 @@ describe("incomeViewModels", () => {
   });
 
 
+
+  it("keeps one-off income events visible in grouped list", () => {
+    const grouped = groupIncomeEvents([
+      {
+        id: "income-13th",
+        type: "cashflow",
+        kind: "income",
+        cadence: "oneOff",
+        amount: 130000,
+        occurrenceMonth: "2026-12",
+        label: "第 13 個月花紅",
+      },
+    ]);
+
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.baseEvent.id).toBe("income-13th");
+    expect(grouped[0]?.adjustments).toEqual([]);
+  });
+
   it("groups salary adjustments under parent salary event", () => {
     const grouped = groupIncomeEvents([
       events[0],
