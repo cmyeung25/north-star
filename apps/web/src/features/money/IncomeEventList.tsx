@@ -1,14 +1,21 @@
 "use client";
 
 import React from "react";
-import { ActionIcon, Button, Card, Group, Menu, Select, Stack, Text } from "@mantine/core";
+import { ActionIcon, Button, Group, Menu, Select, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import { getDefaultCashflowGrowthMode } from "../../domain/scenarioV2/growthPolicy";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
 import { formatCurrency } from "../../../lib/i18n";
-import { resolveEventCardAmount, resolveEventCardEndMonth, resolveEventCardStartMonth } from "./eventCardUtils";
+import {
+  resolveAdjustmentSummary,
+  resolveDisplayMonths,
+  resolveEventCardAmount,
+  resolveEventCardEndMonth,
+  resolveEventCardStartMonth,
+  resolveProjectionPreviewRow,
+} from "./eventCardUtils";
 import MoneyMetaTags from "./MoneyMetaTags";
 import { resolveEventCategoryKey } from "./categoryMeta";
 import { buildMoneyMetaTagViewModel } from "./moneyMetaTagViewModel";
@@ -16,6 +23,7 @@ import { compareMonthKey } from "../../utils/monthKey";
 import { groupIncomeEvents, type IncomeSortOption } from "./incomeViewModels";
 import { computeEffectiveRanges } from "./salaryAdjustmentGrouping";
 import { type EventAdjustmentSpec } from "./adjustments/createEventAdjustment";
+import MoneyEventCard from "./MoneyEventCard";
 
 type Props = {
   events: ScenarioEvent[];
@@ -83,15 +91,19 @@ export default function IncomeEventList({
         const groupRows = [baseEvent, ...adjustments]
           .flatMap((event) => ledgerRowsByEventId.get(event.id) ?? [])
           .sort((left, right) => compareMonthKey(left.month, right.month));
-        const projectionRow =
-          groupRows.find((row) => (anchorMonth ? row.month === anchorMonth : false)) ??
-          groupRows.find((row) => (anchorMonth ? compareMonthKey(row.month, anchorMonth) <= 0 : false)) ??
-          groupRows[0];
+        const projectionRow = resolveProjectionPreviewRow(groupRows, anchorMonth);
         const primaryAmount = projectionRow
           ? Math.abs(projectionRow.amount)
           : Math.abs(resolveEventCardAmount(baseEvent) ?? 0);
         const startMonth = resolveEventCardStartMonth(baseEvent);
         const endMonth = resolveEventCardEndMonth(baseEvent);
+        const displayMonths = resolveDisplayMonths({
+          startMonth,
+          endMonth,
+          groupStartMonth,
+          groupEndMonth,
+          hasAdjustments: isSalaryBase(baseEvent) && adjustments.length > 0,
+        });
         const baseGrowthMode =
           baseEvent.type === "cashflow"
             ? baseEvent.growthMode ?? getDefaultCashflowGrowthMode(baseEvent)
@@ -110,78 +122,81 @@ export default function IncomeEventList({
                         : "ledgerEventCadenceEveryN"
               )
             : t("ledgerEventCadenceOneOff");
+
+        const adjustmentSummary = resolveAdjustmentSummary({
+          adjustments,
+          resolveAmount: (event) => (event.type === "cashflow" ? event.amount : 0),
+        });
+
         return (
-          <Card key={baseEvent.id} withBorder radius="md" padding="md">
-            <Group justify="space-between" align="flex-start" wrap="wrap">
-              <Stack gap={4}>
-                <Text fw={600}>{baseEvent.label ?? t("ledgerRowFallbackLabel")}</Text>
-                <Text fw={700}>{formatCurrency(primaryAmount, baseCurrency, locale)}</Text>
-                <MoneyMetaTags
-                  tags={buildMoneyMetaTagViewModel(baseEvent, {
-                    householdLabel: t("householdLabel"),
-                    ownerId: baseEvent.memberId,
-                    memberLookupRecord,
-                    resolveTypeLabel: (meta) =>
-                      meta.type === "cashflow" && meta.kind === "income"
-                        ? t("eventTypeIncome")
-                        : t("eventTypeExpense"),
-                    resolveFrequencyLabel: () => frequencyLabel,
-                    resolveLifecycleLabel: (meta) =>
-                      meta.lifecycle === "oneOff"
-                        ? t("ledgerEventCadenceOneOff")
-                        : meta.lifecycle === "hasEndMonth"
-                          ? t("eventLifecycleHasEndMonth")
-                          : t("eventCardOpenEnded"),
-                    categoryLabel:
-                      baseEvent.type === "cashflow"
-                        ? (() => {
-                            const categoryKey = resolveEventCategoryKey(baseEvent);
-                            return categoryKey
-                              ? baseEvent.kind === "income"
-                                ? t(`incomeCategory.${categoryKey}`)
-                                : t(`expenseCategory.${categoryKey}`)
-                              : null;
-                          })()
-                        : null,
-                    growthLabel:
-                      baseEvent.type === "cashflow" && baseEvent.kind === "income"
-                        ? baseGrowthMode === "assumption"
-                          ? t("eventCardIncomeGrowthBadge", { pct: formattedIncomeGrowthPct })
-                          : baseGrowthMode === "custom"
-                            ? t("eventCardIncomeGrowthCustomBadge", {
-                                pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0),
-                              })
-                            : t("incomeGrowthNone")
-                        : null,
-                    adjustmentCount: adjustments.length,
-                    adjustmentLabel: t("eventAdjustmentCountBadge", { count: adjustments.length }),
-                  }).tags}
-                />
-                {isSalaryBase(baseEvent) && adjustments.length > 0 ? (
-                  <Text size="sm" c="dimmed">
-                    {t("eventCardMonths", {
-                      startMonth: groupStartMonth ?? startMonth ?? t("amountUnset"),
-                      endMonth: groupEndMonth ?? endMonth ?? t("eventCardOpenEnded"),
-                    })}
-                  </Text>
-                ) : (
-                  <Text size="sm" c="dimmed">
-                    {t("eventCardMonths", {
-                      startMonth: startMonth ?? t("amountUnset"),
-                      endMonth: endMonth ?? t("eventCardOpenEnded"),
-                    })}
-                  </Text>
-                )}
-                {projectionRow && (
-                  <Text size="xs" c="dimmed">
-                    {t("incomeProjectedPreview", {
-                      month: projectionRow.month,
-                      amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
-                    })}
-                  </Text>
-                )}
-                {adjustments.length > 0 && (() => {
-                  const latest = adjustments[adjustments.length - 1];
+          <MoneyEventCard
+            key={baseEvent.id}
+            title={baseEvent.label ?? t("ledgerRowFallbackLabel")}
+            primaryAmount={formatCurrency(primaryAmount, baseCurrency, locale)}
+            metaTags={
+              <MoneyMetaTags
+                tags={buildMoneyMetaTagViewModel(baseEvent, {
+                  householdLabel: t("householdLabel"),
+                  ownerId: baseEvent.memberId,
+                  memberLookupRecord,
+                  resolveTypeLabel: (meta) =>
+                    meta.type === "cashflow" && meta.kind === "income"
+                      ? t("eventTypeIncome")
+                      : t("eventTypeExpense"),
+                  resolveFrequencyLabel: () => frequencyLabel,
+                  resolveLifecycleLabel: (meta) =>
+                    meta.lifecycle === "oneOff"
+                      ? t("ledgerEventCadenceOneOff")
+                      : meta.lifecycle === "hasEndMonth"
+                        ? t("eventLifecycleHasEndMonth")
+                        : t("eventCardOpenEnded"),
+                  categoryLabel:
+                    baseEvent.type === "cashflow"
+                      ? (() => {
+                          const categoryKey = resolveEventCategoryKey(baseEvent);
+                          return categoryKey
+                            ? baseEvent.kind === "income"
+                              ? t(`incomeCategory.${categoryKey}`)
+                              : t(`expenseCategory.${categoryKey}`)
+                            : null;
+                        })()
+                      : null,
+                  growthLabel:
+                    baseEvent.type === "cashflow" && baseEvent.kind === "income"
+                      ? baseGrowthMode === "assumption"
+                        ? t("eventCardIncomeGrowthBadge", { pct: formattedIncomeGrowthPct })
+                        : baseGrowthMode === "custom"
+                          ? t("eventCardIncomeGrowthCustomBadge", {
+                              pct: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(baseEvent.customGrowthRatePct ?? 0),
+                            })
+                          : t("incomeGrowthNone")
+                      : null,
+                  adjustmentCount: adjustments.length,
+                  adjustmentLabel: t("eventAdjustmentCountBadge", { count: adjustments.length }),
+                }).tags}
+              />
+            }
+            monthRange={
+              <Text size="sm" c="dimmed">
+                {t("eventCardMonths", {
+                  startMonth: displayMonths.startMonth ?? t("amountUnset"),
+                  endMonth: displayMonths.endMonth ?? t("eventCardOpenEnded"),
+                })}
+              </Text>
+            }
+            projectionSummary={
+              projectionRow ? (
+                <Text size="xs" c="dimmed">
+                  {t("incomeProjectedPreview", {
+                    month: projectionRow.month,
+                    amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
+                  })}
+                </Text>
+              ) : null
+            }
+            adjustmentSummary={
+              adjustmentSummary ? (
+                (() => {
                   const ranges = computeEffectiveRanges(baseEvent, adjustments);
                   const expanded = Boolean(expandedIds[baseEvent.id]);
                   return (
@@ -189,9 +204,9 @@ export default function IncomeEventList({
                       <Group justify="space-between">
                         <Text size="sm" fw={600}>
                           {t("eventAdjustmentLatestSummary", {
-                            count: adjustments.length,
-                            month: resolveEventCardStartMonth(latest) ?? t("eventAdjustmentUnknownMonth"),
-                            amount: formatCurrency(Math.abs(latest.type === "cashflow" ? latest.amount : 0), baseCurrency, locale),
+                            count: adjustmentSummary.count,
+                            month: adjustmentSummary.month ?? t("eventAdjustmentUnknownMonth"),
+                            amount: formatCurrency(adjustmentSummary.amount, baseCurrency, locale),
                           })}
                         </Text>
                         <Button size="xs" variant="subtle" onClick={() => setExpandedIds((current) => ({ ...current, [baseEvent.id]: !expanded }))}>
@@ -211,8 +226,10 @@ export default function IncomeEventList({
                       ))}
                     </Stack>
                   );
-                })()}
-              </Stack>
+                })()
+              ) : null
+            }
+            actions={
               <Group gap="xs">
                 <Button size="xs" variant="light" onClick={() => onEditEvent(baseEvent.id)}>{common("actionEdit")}</Button>
                 <Menu position="bottom-end" withinPortal>
@@ -239,8 +256,8 @@ export default function IncomeEventList({
                   </Menu.Dropdown>
                 </Menu>
               </Group>
-            </Group>
-          </Card>
+            }
+          />
         );
       })}
     </Stack>

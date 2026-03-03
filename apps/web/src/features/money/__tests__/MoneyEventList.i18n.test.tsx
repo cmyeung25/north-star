@@ -11,6 +11,21 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+const sectionOrder = [
+  "money-event-card-section-title-amount",
+  "money-event-card-section-meta-tags",
+  "money-event-card-section-month-range",
+  "money-event-card-section-projection-summary",
+  "money-event-card-section-adjustment-summary",
+  "money-event-card-section-actions",
+];
+
+const expectSectionOrder = (html: string) => {
+  const indexes = sectionOrder.map((section) => html.indexOf(section));
+  expect(indexes.every((index) => index >= 0)).toBe(true);
+  expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
+};
+
 describe("Money event lists i18n keys", () => {
   it("uses translation keys for income adjustment summary labels", () => {
     const events: ScenarioEvent[] = [
@@ -60,6 +75,7 @@ describe("Money event lists i18n keys", () => {
     expect(html).toContain("eventAdjustmentLatestSummary");
     expect(html).toContain("eventAdjustmentExpand");
     expect(html).not.toContain("新增調整");
+    expectSectionOrder(html);
   });
 
   it("uses translation keys for expense adjustment summary labels", () => {
@@ -107,5 +123,6 @@ describe("Money event lists i18n keys", () => {
     expect(html).toContain("eventAdjustmentLatestSummary");
     expect(html).toContain("eventAdjustmentExpand");
     expect(html).not.toContain("新增調整");
+    expectSectionOrder(html);
   });
 });
