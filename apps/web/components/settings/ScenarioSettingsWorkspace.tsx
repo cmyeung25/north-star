@@ -10,7 +10,6 @@ import {
   Modal,
   Notification,
   NumberInput,
-  MultiSelect,
   Select,
   SegmentedControl,
   Stack,
@@ -22,38 +21,17 @@ import {
   SimpleGrid,
 } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { nanoid } from "nanoid";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip as ChartTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { signInWithGoogle, signOutUser } from "../../lib/authActions";
-import { isFirebaseConfigured } from "../../lib/firebaseClient";
-import {
-  downloadCloudStateToLocal,
-  fetchCloudSummary,
-  requiresSchemaUpgrade,
-  uploadLocalStateToCloud,
-  type CloudSummary,
-} from "../../lib/sync/firestoreSync";
-import { useAuthState } from "../../src/hooks/useAuthState";
 import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import {
   getScenarioById,
   resolveScenarioIdFromQuery,
   useScenarioStore,
-  createBudgetRuleId,
   createMemberId,
   type MemberMilestone,
   type ScenarioMemberKind,
 } from "../../src/store/scenarioStore";
-import { appliesToScenario, type ApplyScope } from "../../src/domain/applyScope";
-import { useSettingsStore } from "../../src/store/settingsStore";
+import { type ApplyScope } from "../../src/domain/applyScope";
 import { buildMoneyAssetsUrl } from "../../src/utils/scenarioContext";
 import ScenarioAssumptionsOverrideForm from "../ScenarioAssumptionsOverrideForm";
 import type { ScenarioAssumptionsOverride } from "../ScenarioAssumptionsOverrideForm";
@@ -61,22 +39,14 @@ import { Link } from "../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
 import { getMemberAgeYears } from "../../src/domain/members/age";
 import { isValidMonthStr, normalizeMonthStrict } from "../../src/utils/month";
-import {
-  compileBudgetRuleToMonthlySeries,
-  type BudgetRuleMonthlyEntry,
-} from "../../src/domain/budget/compileBudgetRules";
 import DataManagementSection from "../DataManagementSection";
-import DateOrAgeBasisPicker, {
-  type DateOrAgeBasis,
-} from "../DateOrAgeBasisPicker";
+import DateOrAgeBasisPicker from "../DateOrAgeBasisPicker";
 import PositionDetailList from "../timeline/PositionDetailList";
 import {
   buildScenarioEventViews,
-  buildScenarioTimelineEvents,
 } from "../../src/domain/events/utils";
 import { getEventMeta } from "../../src/events/eventCatalog";
 import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
-import { DEFAULT_ANNUAL_GROWTH_PCT } from "../../src/domain/constants";
 import {
   DEFAULT_PLANNING_HORIZON_YEARS,
   PLANNING_HORIZON_YEARS,
@@ -125,30 +95,23 @@ type AssumptionsEditSection =
 
 type AssumptionPresetKey = "baseline" | "conservative" | "growth";
 
-const isHousingCategory = (category: string) => category === "housing";
-
 export default function ScenarioSettingsWorkspace({
   scenarioId,
   titleKey = "settingsTitle",
   subtitleKey = "settingsSubtitle",
   defaultTab = "assumptions",
   tabOrder,
-  initialAction,
-  initialRuleId,
 }: ScenarioSettingsWorkspaceProps) {
   const locale = useLocale();
   const t = useTranslations("assumptions");
   const membersText = useTranslations("members");
-  const budgetText = useTranslations("budgetRules");
   const common = useTranslations("common");
   const timelineText = useTranslations("timeline");
-  const errors = useTranslations("errors");
   const validation = useTranslations("validation");
   const horizonOptions = PLANNING_HORIZON_YEARS.map((years) => ({
     value: String(resolvePlanningHorizonMonths(years)),
     label: t(`horizonYears${years}`),
   }));
-  const authState = useAuthState();
   const scenarioContext = useScenarioContext();
   const caseId = scenarioContext?.caseId ?? "";
   const scenarioIdFromQuery = scenarioId ?? null;
@@ -174,23 +137,14 @@ export default function ScenarioSettingsWorkspace({
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
   const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
-  const updateBudgetRule = useScenarioStore((state) => state.updateBudgetRule);
-  const removeBudgetRule = useScenarioStore((state) => state.removeBudgetRule);
   const upsertEventDefinition = useScenarioStore(
     (state) => state.upsertEventDefinition
   );
   const upsertScenarioEventRef = useScenarioStore(
     (state) => state.upsertScenarioEventRef
   );
-  const autoSyncEnabled = useSettingsStore((state) => state.autoSyncEnabled);
-  const lastAutoSyncAt = useSettingsStore((state) => state.lastAutoSyncAt);
-  const autoSyncError = useSettingsStore((state) => state.autoSyncError);
-  const setAutoSyncEnabled = useSettingsStore((state) => state.setAutoSyncEnabled);
-  const setAutoSyncError = useSettingsStore((state) => state.setAutoSyncError);
-
   const [toast, setToast] = useState<ToastState | null>(null);
   const [previewScope, setPreviewScope] = useState<PreviewScope>("12m");
-  const [syncToast, setSyncToast] = useState<ToastState | null>(null);
   const [activeAssumptionModal, setActiveAssumptionModal] =
     useState<AssumptionsEditSection | null>(null);
   const [discardConfirmModalOpen, setDiscardConfirmModalOpen] = useState(false);
@@ -222,30 +176,9 @@ export default function ScenarioSettingsWorkspace({
     }),
     [common]
   );
-  const [budgetMonthInputs, setBudgetMonthInputs] = useState<
-    Record<string, { startMonth: string; endMonth: string }>
-  >({});
-  const [budgetMonthErrors, setBudgetMonthErrors] = useState<
-    Record<string, { startMonth?: string; endMonth?: string }>
-  >({});
-  const [budgetRuleBasis, setBudgetRuleBasis] = useState<
-    Record<string, DateOrAgeBasis>
-  >({});
-  const [expandedBudgetRuleId, setExpandedBudgetRuleId] = useState<string | null>(
-    null
-  );
   const [expandedMemberIds, setExpandedMemberIds] = useState<string[]>([]);
-  const [cloudSummary, setCloudSummary] = useState<CloudSummary | null>(null);
-  const [syncingAction, setSyncingAction] = useState<null | "upload" | "download">(
-    null
-  );
-  const [syncError, setSyncError] = useState<string | null>(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [seedDefaultsOnAddMember, setSeedDefaultsOnAddMember] = useState(true);
-  const [isOnline, setIsOnline] = useState(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine
-  );
-  const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [affectedAssumptionKey, setAffectedAssumptionKey] = useState<
     keyof ScenarioAssumptionsOverride | null
   >(null);
@@ -254,28 +187,8 @@ export default function ScenarioSettingsWorkspace({
   const [hasAppliedOnboardingBaseline, setHasAppliedOnboardingBaseline] =
     useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const syncToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasHandledInitialAction = useRef(false);
   const autoAppliedScenarioIdsRef = useRef<Set<string>>(new Set());
   const prevMemberMonthRef = useRef<Record<string, string>>({});
-
-  useEffect(() => {
-    setBudgetRuleBasis((current) => {
-      const next = { ...current };
-      budgetRules.forEach((rule) => {
-        if (!next[rule.id]) {
-          next[rule.id] =
-            rule.startMonth?.trim() || rule.endMonth?.trim() ? "month" : "age";
-        }
-      });
-      Object.keys(next).forEach((ruleId) => {
-        if (!budgetRules.some((rule) => rule.id === ruleId)) {
-          delete next[ruleId];
-        }
-      });
-      return next;
-    });
-  }, [budgetRules]);
 
   useEffect(() => {
     if (
@@ -319,22 +232,11 @@ export default function ScenarioSettingsWorkspace({
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
   const assumptions = scenario?.assumptions;
-  const includeBudgetRulesInProjection =
-    assumptions?.includeBudgetRulesInProjection ?? true;
   const defaultSmartInvestPolicy = useMemo(
     () => buildDefaultSmartInvestPolicy(t("smartInvestDefaultAllocation")),
     [t]
   );
-  const smartInvestPolicy = scenario?.assumptions.smartInvest ?? defaultSmartInvestPolicy;
-  const hasExpenseEvents = useMemo(() => {
-    if (!scenario) {
-      return false;
-    }
-    const events = buildScenarioTimelineEvents(scenario, eventLibrary);
-    return events.some(
-      (event) => event.enabled && getEventMeta(event.type).group === "expense"
-    );
-  }, [eventLibrary, scenario]);
+  const smartInvestPolicy = assumptions?.smartInvest ?? defaultSmartInvestPolicy;
   const { projection, ledgerByMonth, projectionNetCashflowByMonth } = useProjectionWithLedger(
     scenario,
     eventLibrary,
@@ -534,58 +436,6 @@ export default function ScenarioSettingsWorkspace({
     });
   }, [members]);
 
-  useEffect(() => {
-    let active = true;
-
-    const loadCloudSummary = async () => {
-      if (authState.status !== "signed-in" || !authState.user) {
-        setCloudSummary(null);
-        setSyncError(null);
-        return;
-      }
-
-      try {
-        const summary = await fetchCloudSummary(authState.user.uid);
-        if (active) {
-          setCloudSummary(summary);
-          setSyncError(null);
-        }
-      } catch (error) {
-        if (active) {
-          setSyncError(
-            error instanceof Error
-              ? error.message
-              : errors("syncStatusLoadFailed")
-          );
-        }
-      }
-    };
-
-    void loadCloudSummary();
-
-    return () => {
-      active = false;
-    };
-  }, [authState.status, authState.user, errors]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handleOnlineChange = () => {
-      setIsOnline(navigator.onLine);
-    };
-
-    window.addEventListener("online", handleOnlineChange);
-    window.addEventListener("offline", handleOnlineChange);
-
-    return () => {
-      window.removeEventListener("online", handleOnlineChange);
-      window.removeEventListener("offline", handleOnlineChange);
-    };
-  }, []);
-
   const showToast = useCallback(
     (
       message: string,
@@ -612,49 +462,6 @@ export default function ScenarioSettingsWorkspace({
           : "/",
     });
   }, [caseId, common, resolvedScenarioId, showToast]);
-
-  const showSyncToast = (message: string, color?: string) => {
-    setSyncToast({ message, color });
-    if (syncToastTimeoutRef.current) {
-      clearTimeout(syncToastTimeoutRef.current);
-    }
-    syncToastTimeoutRef.current = setTimeout(() => {
-      setSyncToast(null);
-    }, 3000);
-  };
-
-  const createBudgetRuleForMember = useCallback(
-    (memberId?: string) => {
-      const nextRule = {
-        id: createBudgetRuleId(),
-        name: budgetText("defaultRuleName", {
-          index: budgetRules.length + 1,
-        }),
-        enabled: true,
-        memberId,
-        category: "health" as const,
-        ageBand: { fromYears: 0, toYears: 3 },
-        monthlyAmount: 0,
-        annualGrowthPct: DEFAULT_ANNUAL_GROWTH_PCT,
-        applyScope: { scope: "all" } as ApplyScope,
-      };
-      createBudgetRule(nextRule);
-      setExpandedBudgetRuleId(nextRule.id);
-      showSavedToast();
-      return nextRule.id;
-    },
-    [
-      budgetRules.length,
-      budgetText,
-      createBudgetRule,
-      setExpandedBudgetRuleId,
-      showSavedToast,
-    ]
-  );
-
-  const handleCreateBudgetRule = useCallback(() => {
-    createBudgetRuleForMember(members[0]?.id);
-  }, [createBudgetRuleForMember, members]);
 
   const handleAddMember = () => {
     const newMember = {
@@ -695,130 +502,6 @@ export default function ScenarioSettingsWorkspace({
     }
 
     showSavedToast();
-  };
-
-  useEffect(() => {
-    if (hasHandledInitialAction.current) {
-      return;
-    }
-    if (initialAction !== "rule") {
-      return;
-    }
-    hasHandledInitialAction.current = true;
-    if (resolvedTabOrder.includes("persistence")) {
-      setActiveTab("persistence");
-    } else {
-      setActiveTab(defaultTab);
-    }
-    handleCreateBudgetRule();
-  }, [handleCreateBudgetRule, initialAction, resolvedTabOrder, defaultTab]);
-
-  useEffect(() => {
-    if (!initialRuleId) {
-      return;
-    }
-    if (resolvedTabOrder.includes("persistence")) {
-      setActiveTab("persistence");
-    } else {
-      setActiveTab(defaultTab);
-    }
-    setExpandedBudgetRuleId(initialRuleId);
-  }, [initialRuleId, resolvedTabOrder, defaultTab]);
-
-  const isSignedIn = authState.status === "signed-in" && authState.user;
-  const cloudHasData = (cloudSummary?.scenarioCount ?? 0) > 0;
-  const localHasData = scenarios.length > 0;
-  const schemaUpgradeRequired = requiresSchemaUpgrade(cloudSummary);
-  const hasConflict = isSignedIn && cloudHasData && localHasData;
-  const autoSyncStatusLabel = isSignedIn
-    ? autoSyncEnabled
-      ? common("autoSyncOn")
-      : common("autoSyncOff")
-    : common("autoSyncSignIn");
-  const autoSyncDetails = isSignedIn && autoSyncEnabled
-    ? isOnline
-      ? lastAutoSyncAt
-        ? common("lastSyncAt", {
-            time: new Date(lastAutoSyncAt).toLocaleString(locale),
-          })
-        : common("lastSyncNotYet")
-      : common("offlineSyncNotice")
-    : null;
-
-  const refreshCloudSummary = async () => {
-    if (!authState.user) {
-      setCloudSummary(null);
-      return;
-    }
-
-    const summary = await fetchCloudSummary(authState.user.uid);
-    setCloudSummary(summary);
-  };
-
-  const handleUpload = async (force = false) => {
-    if (!authState.user) {
-      return;
-    }
-
-    if (schemaUpgradeRequired) {
-      setSyncError(errors("syncUpgradeRequired"));
-      return;
-    }
-
-    if (hasConflict && !force) {
-      setConflictModalOpen(true);
-      return;
-    }
-
-    setSyncingAction("upload");
-    setSyncError(null);
-    try {
-      const result = await uploadLocalStateToCloud(authState.user.uid);
-      showSyncToast(
-        common("syncUploadSuccess", { count: result.scenarioCount }),
-        "teal"
-      );
-      await refreshCloudSummary();
-    } catch (error) {
-      setSyncError(
-        error instanceof Error ? error.message : errors("uploadFailed")
-      );
-    } finally {
-      setSyncingAction(null);
-    }
-  };
-
-  const handleDownload = async (force = false) => {
-    if (!authState.user) {
-      return;
-    }
-
-    if (schemaUpgradeRequired) {
-      setSyncError(errors("syncUpgradeRequired"));
-      return;
-    }
-
-    if (hasConflict && !force) {
-      setConflictModalOpen(true);
-      return;
-    }
-
-    setSyncingAction("download");
-    setSyncError(null);
-    try {
-      const result = await downloadCloudStateToLocal(authState.user.uid);
-      showSyncToast(
-        common("syncDownloadSuccess", { count: result.scenarioCount }),
-        "teal"
-      );
-      await refreshCloudSummary();
-    } catch (error) {
-      setSyncError(
-        error instanceof Error ? error.message : errors("downloadFailed")
-      );
-    } finally {
-      setSyncingAction(null);
-    }
   };
 
   const handleAssumptionDraftChange = useCallback(
@@ -991,99 +674,8 @@ export default function ScenarioSettingsWorkspace({
     ? t("assumptionSourceInUseBaseline")
     : t("assumptionSourceInUseCustom");
 
-  useEffect(() => {
-    setBudgetMonthInputs((current) => {
-      const next = { ...current };
-      budgetRules.forEach((rule) => {
-        if (!next[rule.id]) {
-          next[rule.id] = {
-            startMonth: rule.startMonth ?? "",
-            endMonth: rule.endMonth ?? "",
-          };
-        }
-      });
-      Object.keys(next).forEach((ruleId) => {
-        if (!budgetRules.some((rule) => rule.id === ruleId)) {
-          delete next[ruleId];
-        }
-      });
-      return next;
-    });
-  }, [budgetRules]);
-
-  const updateBudgetMonthInput = (
-    ruleId: string,
-    field: "startMonth" | "endMonth",
-    value: string
-  ) => {
-    setBudgetMonthInputs((current) => ({
-      ...current,
-      [ruleId]: {
-        startMonth: current[ruleId]?.startMonth ?? "",
-        endMonth: current[ruleId]?.endMonth ?? "",
-        [field]: value,
-      },
-    }));
-    setBudgetMonthErrors((current) => ({
-      ...current,
-      [ruleId]: { ...current[ruleId], [field]: undefined },
-    }));
-  };
-
-  const validateBudgetMonth = (
-    ruleId: string,
-    field: "startMonth" | "endMonth"
-  ) => {
-    if (!scenario) {
-      return;
-    }
-    const rawValue = budgetMonthInputs[ruleId]?.[field] ?? "";
-    const trimmed = rawValue.trim();
-
-    if (trimmed === "") {
-      updateBudgetRule(ruleId, { [field]: undefined });
-      setBudgetMonthErrors((current) => ({
-        ...current,
-        [ruleId]: { ...current[ruleId], [field]: undefined },
-      }));
-      updateBudgetMonthInput(ruleId, field, "");
-      return;
-    }
-
-    const normalized = normalizeMonthStrict(trimmed);
-    if (!normalized.ok) {
-      setBudgetMonthErrors((current) => ({
-        ...current,
-        [ruleId]: { ...current[ruleId], [field]: validation("useYearMonth") },
-      }));
-      return;
-    }
-
-    updateBudgetRule(ruleId, { [field]: normalized.month });
-    setBudgetMonthErrors((current) => ({
-      ...current,
-      [ruleId]: { ...current[ruleId], [field]: undefined },
-    }));
-    updateBudgetMonthInput(ruleId, field, normalized.month);
-  };
-
-  const scenarioOptions = useMemo(
-    () =>
-      scenarios.map((entry) => ({
-        value: entry.id,
-        label: entry.name,
-      })),
-    [scenarios]
-  );
-
   const baseMonth = appSettings.globalBaseMonth;
   const horizonMonths = appSettings.globalHorizonMonths;
-  const scopedBudgetRules = scenario
-    ? budgetRules.filter((rule) => appliesToScenario(rule.applyScope, scenario.id))
-    : [];
-  const hasHousingRules = scopedBudgetRules.some((rule) =>
-    isHousingCategory(rule.category)
-  );
   const horizonValue = horizonOptions.some(
     (option) => Number(option.value) === horizonMonths
   )
@@ -1209,34 +801,6 @@ export default function ScenarioSettingsWorkspace({
     },
     [hasUnsavedChangesInModal, resetAssumptionDraftBySection]
   );
-  const formatAgeYears = (value: number) =>
-    Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
-  const buildZeroPreview = useCallback(
-    (rule: (typeof budgetRules)[number]): BudgetRuleMonthlyEntry[] => {
-      if (!baseMonth || horizonMonths <= 0) {
-        return [];
-      }
-      return buildMonthRange(baseMonth, horizonMonths).map(
-        (month) => ({
-          month,
-          amount: 0,
-          source: "budget",
-          sourceId: rule.id,
-          memberId: rule.memberId,
-          label: rule.name,
-          category: rule.category,
-        })
-      );
-    },
-    [baseMonth, horizonMonths]
-  );
-  const budgetCategoryLabels: Record<string, string> = {
-    health: budgetText("categoryHealth"),
-    childcare: budgetText("categoryChildcare"),
-    education: budgetText("categoryEducation"),
-    eldercare: budgetText("categoryEldercare"),
-    petcare: budgetText("categoryPetcare"),
-  };
   const assignableEventViews = useMemo(() => {
     if (!scenario) {
       return [];
@@ -1297,122 +861,15 @@ export default function ScenarioSettingsWorkspace({
     },
     [common, membersText]
   );
-  const formatApplyScopeLabel = (applyScope: ApplyScope | undefined) => {
-    const scope = applyScope?.scope ?? "all";
-    if (scope === "include") {
-      return common("applyScopeInclude");
-    }
-    if (scope === "exclude") {
-      return common("applyScopeExclude");
-    }
-    return common("applyScopeAll");
-  };
-
-  const expandedRule = useMemo(
-    () => budgetRules.find((rule) => rule.id === expandedBudgetRuleId) ?? null,
-    [budgetRules, expandedBudgetRuleId]
-  );
-  const expandedRulePreview = useMemo(() => {
-    if (!expandedRule || !scenario) {
-      return [];
-    }
-    return expandedRule.enabled
-      ? compileBudgetRuleToMonthlySeries(expandedRule, scenario, members)
-      : buildZeroPreview(expandedRule);
-  }, [buildZeroPreview, expandedRule, members, scenario]);
-
   const recoveryHref =
     caseId && scenarios[0]?.id
       ? scenarioDashboardPath(caseId, scenarios[0].id)
       : "/";
 
-  if (!scenario) {
-    return (
-      <Stack gap="lg">
-        <Stack gap={4}>
-          <Title order={2}>{common("settingsTitle")}</Title>
-          <Text c="dimmed" size="sm">
-            {common("settingsMissingScenario")}
-          </Text>
-        </Stack>
-        <Card withBorder radius="md" padding="md">
-          <Stack gap="sm">
-            <Text fw={600}>{common("settingsRecoveryTitle")}</Text>
-            <Text size="sm" c="dimmed">
-              {common("settingsRecoveryDescription")}
-            </Text>
-            <Group>
-              <Button component={Link} href={recoveryHref} variant="light">
-                {common("actionContinue")}
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-      </Stack>
-    );
-  }
-
-
-  const lastSyncedLabel = cloudSummary?.lastSyncedAt
-    ? common("lastSyncedAt", {
-        time: new Date(cloudSummary.lastSyncedAt).toLocaleString(locale),
-      })
-    : common("notSyncedYet");
-  const syncStatusLabel = isSignedIn
-    ? common("signedInStatus", { status: lastSyncedLabel })
-    : common("localModeStatus");
-
-  const normalizeApplyScope = (applyScope?: ApplyScope): ApplyScope =>
-    applyScope ?? { scope: "all" };
-
-  const renderApplyScope = (
-    value: ApplyScope | undefined,
-    onChange: (next: ApplyScope) => void,
-    description?: string
-  ) => {
-    const scope = value?.scope ?? "all";
-    const scenarioIds =
-      value?.scope === "include" || value?.scope === "exclude"
-        ? value.scenarioIds
-        : [];
-
-    return (
-      <Stack gap={4}>
-        <SegmentedControl
-          data={[
-            { value: "all", label: common("applyScopeAll") },
-            { value: "include", label: common("applyScopeInclude") },
-            { value: "exclude", label: common("applyScopeExclude") },
-          ]}
-          value={scope}
-          onChange={(next) => {
-            if (next === "all") {
-              onChange({ scope: "all" });
-              return;
-            }
-            onChange({ scope: next as "include" | "exclude", scenarioIds });
-          }}
-        />
-        {description && (
-          <Text size="xs" c="dimmed">
-            {description}
-          </Text>
-        )}
-        {scope !== "all" && (
-          <MultiSelect
-            data={scenarioOptions}
-            value={scenarioIds}
-            onChange={(next: string[]) =>
-              onChange({ scope: scope as "include" | "exclude", scenarioIds: next })
-            }
-            placeholder={common("applyScopePlaceholder")}
-          />
-        )}
-      </Stack>
-    );
-  };
-
-  const createMilestoneId = () => `milestone-${nanoid(8)}`;
+  const createMilestoneId = () =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `milestone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   const buildDefaultMilestones = (kind: ScenarioMemberKind): MemberMilestone[] => {
     if (kind !== "person") {
@@ -1442,6 +899,35 @@ export default function ScenarioSettingsWorkspace({
       },
     ];
   };
+
+  const formatAgeYears = (value: number) =>
+    Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+
+  if (!scenario) {
+    return (
+      <Stack gap="lg">
+        <Stack gap={4}>
+          <Title order={2}>{common("settingsTitle")}</Title>
+          <Text c="dimmed" size="sm">
+            {common("settingsMissingScenario")}
+          </Text>
+        </Stack>
+        <Card withBorder radius="md" padding="md">
+          <Stack gap="sm">
+            <Text fw={600}>{common("settingsRecoveryTitle")}</Text>
+            <Text size="sm" c="dimmed">
+              {common("settingsRecoveryDescription")}
+            </Text>
+            <Group>
+              <Button component={Link} href={recoveryHref} variant="light">
+                {common("actionContinue")}
+              </Button>
+            </Group>
+          </Stack>
+        </Card>
+      </Stack>
+    );
+  }
 
 
   return (
@@ -1484,184 +970,20 @@ export default function ScenarioSettingsWorkspace({
 
         <Tabs.Panel value="persistence" pt="md">
           <Text size="sm" c="dimmed" mb="md">
-            {common("settingsSectionDataMicrocopy")}
+            {common("settingsSectionDataManagementMicrocopy")}
           </Text>
-          <Card withBorder radius="md" padding="md" id="sync">
-            <Stack gap="md">
-              <Group justify="space-between" align="center">
-                <Text fw={600}>{common("syncTitle")}</Text>
-                <Text size="xs" c="dimmed">
-                  {syncStatusLabel}
-                </Text>
-              </Group>
+          <Notification color="gray" withCloseButton={false} mb="md">
+            {common("settingsPersistenceDeprecatedNotice")}
+          </Notification>
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="sm">
+              <Text fw={600}>{common("dataManagementTitle")}</Text>
               <Text size="sm" c="dimmed">
-                {common("syncSubtitle")}
+                {common("dataManagementSubtitle")}
               </Text>
-
-              {syncToast && (
-                <Notification
-                  color={syncToast.color}
-                  onClose={() => setSyncToast(null)}
-                >
-                  {syncToast.message}
-                </Notification>
-              )}
-
-              {syncError && (
-                <Notification color="red" onClose={() => setSyncError(null)}>
-                  {syncError}
-                </Notification>
-              )}
-
-              {autoSyncError && (
-                <Notification color="yellow" onClose={() => setAutoSyncError(null)}>
-                  {autoSyncError}
-                </Notification>
-              )}
-
-              {!isFirebaseConfigured && !isSignedIn && (
-                <Notification color="yellow">
-                  {common("firebaseNotConfigured")}
-                </Notification>
-              )}
-
-              {schemaUpgradeRequired && (
-                <Notification color="yellow">
-                  {errors("syncUpgradeRequired")}
-                </Notification>
-              )}
-
-              {!isSignedIn && (
-                <Group>
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        await signInWithGoogle();
-                      } catch (error) {
-                        setSyncError(
-                          error instanceof Error
-                            ? error.message
-                            : errors("signInFailed")
-                        );
-                      }
-                    }}
-                    disabled={!isFirebaseConfigured}
-                  >
-                    {common("signInToSync")}
-                  </Button>
-                  <Text size="xs" c="dimmed">
-                    {common("signInHint")}
-                  </Text>
-                </Group>
-              )}
-
-              <Stack gap="sm">
-                {hasConflict && (
-                  <Notification color="orange">
-                    {common("syncConflictNotice")}
-                  </Notification>
-                )}
-                <Stack gap={4}>
-                  <Switch
-                    label={common("autoSyncLabel")}
-                    checked={autoSyncEnabled}
-                    disabled={!isSignedIn}
-                    onChange={(event) =>
-                      setAutoSyncEnabled(event.currentTarget.checked)
-                    }
-                    description={common("autoSyncDescription")}
-                  />
-                  <Text size="xs" c="dimmed">
-                    {autoSyncStatusLabel}
-                    {autoSyncDetails ? ` · ${autoSyncDetails}` : ""}
-                  </Text>
-                </Stack>
-                {isSignedIn && (
-                  <>
-                    <Group wrap="wrap">
-                      <Button
-                        size="sm"
-                        onClick={() => void handleUpload()}
-                        loading={syncingAction === "upload"}
-                        disabled={schemaUpgradeRequired}
-                      >
-                        {common("uploadLocalToCloud")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="light"
-                        onClick={() => void handleDownload()}
-                        loading={syncingAction === "download"}
-                        disabled={schemaUpgradeRequired}
-                      >
-                        {common("downloadCloudToLocal")}
-                      </Button>
-                    </Group>
-                    <Divider />
-                    <Group justify="space-between" align="center">
-                      <Text size="sm" c="dimmed">
-                        {common("signedInAs", {
-                          email: authState.user?.email ?? common("googleUser"),
-                        })}
-                      </Text>
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        onClick={async () => {
-                          await signOutUser();
-                          setCloudSummary(null);
-                        }}
-                      >
-                        {common("signOut")}
-                      </Button>
-                    </Group>
-                  </>
-                )}
-              </Stack>
+              <DataManagementSection onNotify={showToast} />
             </Stack>
           </Card>
-
-          <Modal
-            opened={conflictModalOpen}
-            onClose={() => setConflictModalOpen(false)}
-            title={common("resolveSyncTitle")}
-            centered
-          >
-            <Stack>
-              <Text size="sm">
-                {common("resolveSyncSubtitle")}
-              </Text>
-              <Group grow>
-                <Button
-                  onClick={async () => {
-                    setConflictModalOpen(false);
-                    await handleUpload(true);
-                  }}
-                >
-                  {common("useLocalData")}
-                </Button>
-                <Button
-                  variant="light"
-                  onClick={async () => {
-                    setConflictModalOpen(false);
-                    await handleDownload(true);
-                  }}
-                >
-                  {common("useCloudData")}
-                </Button>
-              </Group>
-            </Stack>
-          </Modal>
-
-          <Accordion variant="separated" mt="md">
-            <Accordion.Item value="data-advanced">
-              <Accordion.Control>{common("advancedDataManagementLabel")}</Accordion.Control>
-              <Accordion.Panel>
-                <DataManagementSection onNotify={showToast} />
-              </Accordion.Panel>
-            </Accordion.Item>
-          </Accordion>
         </Tabs.Panel>
 
         <Tabs.Panel value="assumptions" pt="md">
@@ -2488,468 +1810,6 @@ export default function ScenarioSettingsWorkspace({
           </Modal>
         </Tabs.Panel>
 
-        <Tabs.Panel value="persistence" pt="md">
-          <Card withBorder radius="md" padding="md">
-        <Stack gap="md">
-          <Group justify="space-between" align="center">
-            <Text fw={600}>{budgetText("title")}</Text>
-            <Button size="xs" variant="light" onClick={handleCreateBudgetRule}>
-              {budgetText("addRule")}
-            </Button>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {budgetText("subtitle")}
-          </Text>
-          <Switch
-            checked={includeBudgetRulesInProjection}
-            label={budgetText("includeInProjection")}
-            onChange={(event) =>
-              updateScenarioAssumptions(scenario.id, {
-                includeBudgetRulesInProjection: event.currentTarget.checked,
-              })
-            }
-          />
-          {includeBudgetRulesInProjection && (
-            <Notification color="yellow" withCloseButton={false}>
-              <Group justify="space-between" align="center" wrap="nowrap">
-                <Text size="sm">{budgetText("projectionWarning")}</Text>
-                {hasExpenseEvents && (
-                  <Badge color="yellow" variant="light">
-                    {budgetText("projectionWarningBadge")}
-                  </Badge>
-                )}
-              </Group>
-            </Notification>
-          )}
-          {hasHousingRules && (
-            <Notification color="red" withCloseButton={false}>
-              <Text size="sm">{budgetText("housingWarning")}</Text>
-            </Notification>
-          )}
-          {budgetRules.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {budgetText("empty")}
-            </Text>
-          ) : (
-            <Accordion
-              value={expandedBudgetRuleId}
-              onChange={(value) => setExpandedBudgetRuleId(value)}
-              variant="separated"
-            >
-              {budgetRules.map((rule) => {
-                const preview = rule.id === expandedRule?.id ? expandedRulePreview : [];
-                const previewSlice = preview.slice(0, 12);
-                const previewTotal = preview.reduce(
-                  (total, entry) => total + entry.amount,
-                  0
-                );
-                const previewWindow = preview.slice(0, Math.min(preview.length, 24));
-                const memberLabel = rule.memberId
-                  ? members.find((member) => member.id === rule.memberId)?.name ??
-                    budgetText("memberHousehold")
-                  : budgetText("memberHousehold");
-                const categoryLabel =
-                  budgetCategoryLabels[rule.category] ?? rule.category;
-                const applyScopeLabel = formatApplyScopeLabel(rule.applyScope);
-
-                return (
-                  <Accordion.Item key={rule.id} value={rule.id}>
-                    <Accordion.Control>
-                      <Group justify="space-between" align="center" wrap="wrap">
-                        <Stack gap={4}>
-                          <Group gap="xs" align="center">
-                            <Text fw={600}>{rule.name}</Text>
-                            {!rule.enabled && (
-                              <Badge color="gray" variant="light">
-                                {common("disabled")}
-                              </Badge>
-                            )}
-                          </Group>
-                          <Group gap="xs" wrap="wrap">
-                            <Badge variant="light">{memberLabel}</Badge>
-                            <Badge variant="light">{categoryLabel}</Badge>
-                            <Badge variant="light">
-                              {budgetText("ageBandSummary", {
-                                from: formatAgeYears(rule.ageBand.fromYears),
-                                to: formatAgeYears(rule.ageBand.toYears),
-                              })}
-                            </Badge>
-                            <Badge variant="light">{applyScopeLabel}</Badge>
-                          </Group>
-                        </Stack>
-                        <Group
-                          gap="sm"
-                          wrap="wrap"
-                          align="center"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <Text fw={600}>
-                            {formatCurrency(-Math.abs(rule.monthlyAmount ?? 0))}
-                          </Text>
-                          <Switch
-                            checked={rule.enabled}
-                            label={budgetText("enabledLabel")}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
-                              updateBudgetRule(rule.id, {
-                                enabled: event.currentTarget.checked,
-                              })
-                            }
-                          />
-                          <Button
-                            size="xs"
-                            color="red"
-                            variant="light"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              removeBudgetRule(rule.id);
-                              showSavedToast();
-                            }}
-                          >
-                            {budgetText("removeRule")}
-                          </Button>
-                        </Group>
-                      </Group>
-                    </Accordion.Control>
-                    <Accordion.Panel>
-                      <Stack gap="sm">
-                        <Card withBorder radius="md" padding="sm">
-                          <Stack gap="xs">
-                            <Group justify="space-between" align="center">
-                              <Text fw={600} size="sm">
-                                {budgetText("previewTitle")}
-                              </Text>
-                              <Text size="sm" c="dimmed">
-                                {budgetText("previewTotal", {
-                                  total: formatCurrency(previewTotal),
-                                })}
-                              </Text>
-                            </Group>
-                            {previewWindow.length === 0 ? (
-                              <Text size="sm" c="dimmed">
-                                {budgetText("previewEmpty")}
-                              </Text>
-                            ) : (
-                              <div style={{ width: "100%", height: 180 }}>
-                                <ResponsiveContainer>
-                                  <LineChart data={previewWindow}>
-                                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                                    <YAxis
-                                      tick={{ fontSize: 10 }}
-                                      width={72}
-                                      tickFormatter={(value) =>
-                                        formatCurrency(Number(value))
-                                      }
-                                    />
-                                    <ChartTooltip
-                                      formatter={(value) =>
-                                        formatCurrency(Number(value))
-                                      }
-                                    />
-                                    <Line
-                                      type="monotone"
-                                      dataKey="amount"
-                                      stroke="var(--mantine-color-red-6)"
-                                      strokeWidth={2}
-                                      dot={false}
-                                    />
-                                  </LineChart>
-                                </ResponsiveContainer>
-                              </div>
-                            )}
-                          </Stack>
-                        </Card>
-                        <Group grow>
-                          <TextInput
-                            label={budgetText("nameLabel")}
-                            value={rule.name}
-                            onChange={(event) =>
-                              updateBudgetRule(rule.id, {
-                                name: event.currentTarget.value,
-                              })
-                            }
-                          />
-                          <Select
-                            label={budgetText("memberLabel")}
-                            data={[
-                              { value: "household", label: budgetText("memberHousehold") },
-                              ...members.map((member) => ({
-                                value: member.id,
-                                label: member.name,
-                              })),
-                            ]}
-                            value={rule.memberId ?? "household"}
-                            onChange={(value) => {
-                              updateBudgetRule(rule.id, {
-                                memberId:
-                                  value && value !== "household" ? value : undefined,
-                              });
-                              if (!value || value === "household") {
-                                setBudgetRuleBasis((current) => ({
-                                  ...current,
-                                  [rule.id]: "month",
-                                }));
-                                if (!rule.startMonth?.trim()) {
-                                  updateBudgetRule(rule.id, { startMonth: baseMonth ?? "" });
-                                  updateBudgetMonthInput(
-                                    rule.id,
-                                    "startMonth",
-                                    baseMonth ?? ""
-                                  );
-                                }
-                              }
-                            }}
-                          />
-                        </Group>
-                        <Group grow>
-                          <Select
-                            label={budgetText("categoryLabel")}
-                            data={[
-                              { value: "health", label: budgetText("categoryHealth") },
-                              {
-                                value: "childcare",
-                                label: budgetText("categoryChildcare"),
-                              },
-                              {
-                                value: "education",
-                                label: budgetText("categoryEducation"),
-                              },
-                              {
-                                value: "eldercare",
-                                label: budgetText("categoryEldercare"),
-                              },
-                              { value: "petcare", label: budgetText("categoryPetcare") },
-                            ]}
-                            value={rule.category}
-                            onChange={(value) => {
-                              if (!value) {
-                                return;
-                              }
-                              updateBudgetRule(rule.id, {
-                                category: value as typeof rule.category,
-                              });
-                            }}
-                          />
-                          <NumberInput
-                            label={budgetText("monthlyAmountLabel")}
-                            value={rule.monthlyAmount}
-                            min={0}
-                            step={100}
-                            thousandSeparator=","
-                            onChange={(value) =>
-                              updateBudgetRule(rule.id, {
-                                monthlyAmount: typeof value === "number" ? value : 0,
-                              })
-                            }
-                          />
-                        </Group>
-                        {(() => {
-                          const hasMember = Boolean(rule.memberId);
-                          const disableAge = !hasMember;
-                          const basis = disableAge
-                            ? "month"
-                            : budgetRuleBasis[rule.id] ??
-                              (rule.startMonth?.trim() || rule.endMonth?.trim()
-                                ? "month"
-                                : "age");
-
-                          return (
-                            <>
-                              <DateOrAgeBasisPicker
-                                value={disableAge ? "month" : basis}
-                                onChange={(value) => {
-                                  setBudgetRuleBasis((current) => ({
-                                    ...current,
-                                    [rule.id]: value,
-                                  }));
-                                  if (value === "age") {
-                                    updateBudgetRule(rule.id, {
-                                      startMonth: undefined,
-                                      endMonth: undefined,
-                                    });
-                                    updateBudgetMonthInput(rule.id, "startMonth", "");
-                                    updateBudgetMonthInput(rule.id, "endMonth", "");
-                                    setBudgetMonthErrors((current) => ({
-                                      ...current,
-                                      [rule.id]: {},
-                                    }));
-                                  } else {
-                                    updateBudgetRule(rule.id, {
-                                      startMonth:
-                                        rule.startMonth?.trim() ||
-                                        baseMonth ||
-                                        rule.startMonth,
-                                    });
-                                    updateBudgetMonthInput(
-                                      rule.id,
-                                      "startMonth",
-                                      rule.startMonth?.trim() || baseMonth || ""
-                                    );
-                                  }
-                                }}
-                                monthLabel={budgetText("basisMonth")}
-                                ageLabel={budgetText("basisAge")}
-                                disableAge={disableAge}
-                              />
-                              {disableAge && (
-                                <Text size="xs" c="dimmed">
-                                  {budgetText("basisAgeDisabled")}
-                                </Text>
-                              )}
-                              <Group grow>
-                                {disableAge || basis === "month" ? (
-                                  <>
-                                    <TextInput
-                                      label={budgetText("startMonthLabel")}
-                                      placeholder={common("yearMonthOptionalPlaceholder")}
-                                      value={
-                                        budgetMonthInputs[rule.id]?.startMonth ??
-                                        rule.startMonth ??
-                                        ""
-                                      }
-                                      onChange={(event) =>
-                                        updateBudgetMonthInput(
-                                          rule.id,
-                                          "startMonth",
-                                          event.currentTarget.value
-                                        )
-                                      }
-                                      onBlur={() =>
-                                        validateBudgetMonth(rule.id, "startMonth")
-                                      }
-                                      error={budgetMonthErrors[rule.id]?.startMonth}
-                                    />
-                                    <TextInput
-                                      label={budgetText("endMonthLabel")}
-                                      placeholder={common("yearMonthOptionalPlaceholder")}
-                                      value={
-                                        budgetMonthInputs[rule.id]?.endMonth ??
-                                        rule.endMonth ??
-                                        ""
-                                      }
-                                      onChange={(event) =>
-                                        updateBudgetMonthInput(
-                                          rule.id,
-                                          "endMonth",
-                                          event.currentTarget.value
-                                        )
-                                      }
-                                      onBlur={() =>
-                                        validateBudgetMonth(rule.id, "endMonth")
-                                      }
-                                      error={budgetMonthErrors[rule.id]?.endMonth}
-                                    />
-                                  </>
-                                ) : (
-                                  <>
-                                    <NumberInput
-                                      label={budgetText("ageFromLabel")}
-                                      value={rule.ageBand.fromYears}
-                                      min={0}
-                                      step={0.5}
-                                      decimalScale={2}
-                                      onChange={(value) =>
-                                        updateBudgetRule(rule.id, {
-                                          ageBand: {
-                                            ...rule.ageBand,
-                                            fromYears:
-                                              typeof value === "number" ? value : 0,
-                                          },
-                                        })
-                                      }
-                                    />
-                                    <NumberInput
-                                      label={budgetText("ageToLabel")}
-                                      value={rule.ageBand.toYears}
-                                      min={0}
-                                      step={0.5}
-                                      decimalScale={2}
-                                      onChange={(value) =>
-                                        updateBudgetRule(rule.id, {
-                                          ageBand: {
-                                            ...rule.ageBand,
-                                            toYears:
-                                              typeof value === "number" ? value : 0,
-                                          },
-                                        })
-                                      }
-                                    />
-                                  </>
-                                )}
-                              </Group>
-                              {!disableAge && basis === "age" && (
-                                <Text size="xs" c="dimmed">
-                                  {budgetText("ageBandHelper")}
-                                </Text>
-                              )}
-                              <Group grow>
-                                <NumberInput
-                                  label={budgetText("annualGrowthLabel")}
-                                  value={rule.annualGrowthPct ?? ""}
-                                  min={0}
-                                  step={0.1}
-                                  decimalScale={2}
-                                  onChange={(value) =>
-                                    updateBudgetRule(rule.id, {
-                                      annualGrowthPct:
-                                        typeof value === "number" ? value : undefined,
-                                    })
-                                  }
-                                />
-                              </Group>
-                            </>
-                          );
-                        })()}
-                        <Stack gap="xs">
-                          <Text fw={600}>{budgetText("applyScopeTitle")}</Text>
-                          <Text size="xs" c="dimmed">
-                            {budgetText("applyScopeHelper")}
-                          </Text>
-                          {renderApplyScope(
-                            normalizeApplyScope(rule.applyScope),
-                            (next) => updateBudgetRule(rule.id, { applyScope: next }),
-                            budgetText("applyScopeHint")
-                          )}
-                        </Stack>
-                        {previewSlice.length > 0 && (
-                          <Stack gap={2}>
-                            {previewSlice.map((entry) => (
-                              <Text key={`${rule.id}-${entry.month}`} size="sm">
-                                {entry.month} · {formatCurrency(entry.amount)}
-                              </Text>
-                            ))}
-                            {preview.length > previewSlice.length && (
-                              <Text size="xs" c="dimmed">
-                                {budgetText("previewMore", {
-                                  count: preview.length - previewSlice.length,
-                                })}
-                              </Text>
-                            )}
-                          </Stack>
-                        )}
-                      </Stack>
-                    </Accordion.Panel>
-                  </Accordion.Item>
-                );
-              })}
-            </Accordion>
-          )}
-        </Stack>
-          </Card>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="persistence" pt="md">
-          <Text size="sm" c="dimmed" mb="md">
-            {common("settingsSectionOtherMicrocopy")}
-          </Text>
-          <Card withBorder radius="md" padding="md">
-            <Stack gap="md">
-              <Text size="sm" c="dimmed">
-                {t("otherSettingsHint")}
-              </Text>
-            </Stack>
-          </Card>
-        </Tabs.Panel>
       </Tabs>
 
     </Stack>

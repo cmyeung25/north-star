@@ -306,4 +306,8 @@ PR requirement:
   - What changed: Updated onboarding v2 and v3 completion save flows to call `useScenarioCloudStore.getState().markSaved(...)` with the server-returned revision/lastSavedAt after `saveScenarioPayloadAction` succeeds, keeping subsequent Save to Cloud requests in-sync.
   - Affected paths: apps/web/src/features/onboarding/OnboardingDraftWizard.tsx; apps/web/src/features/onboarding/v3/OnboardingV3Wizard.tsx; AGENTS.md
   - Guardrails for next agent: Any flow that performs direct server save outside ScenarioSaveToolbar must also update scenarioCloudStore revision metadata immediately to avoid stale expectedRevision conflicts.
+  - Context / Why: Scenario settings persistence tab had mixed responsibilities (sync/account controls + budget rules + data tools), which conflicted with current product IA goal of a single "Data Management" focus.
+  - What changed: Refactored `Tabs.Panel value="persistence"` UI to only expose Data Management JSON export entry, removed sync/account and budget-rules interactive surfaces from this tab, and added explicit deprecated-readonly notice copy; updated zh-HK/en i18n keys to reflect the streamlined IA and marked obsolete microcopy as deprecated.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep budgetRules data/store compatibility intact unless migration+engine compatibility plan is provided; do not reintroduce account-level sync controls in scenario settings persistence tab; keep this tab focused on scenario data management/export.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
