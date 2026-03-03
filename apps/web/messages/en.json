@@ -2466,7 +2466,7 @@
     "onboardingBaselineAppliedToast": "Baseline assumptions applied.",
     "onboardingBaselineMarkerCleared": "Auto-apply marker cleared.",
     "onboardingBaselineMarkerReset": "Reset onboarding baseline marker",
-    "assumptionSourceLabel": "Assumption source",
+    "assumptionSourceLabel": "Currently using",
     "assumptionSourceOnboardingBaseline": "Onboarding baseline",
     "assumptionSourceManual": "Manual / custom",
     "inflationRateModelLabel": "Model inflation assumption (%)",
@@ -2474,7 +2474,12 @@
     "displayModeTitle": "Display mode",
     "annualInflationPctDisplayLabel": "Real-view discount rate (%)",
     "annualInflationPctDisplayHint": "Only affects real-view presentation; does not change scenario assumptions or projection inputs.",
-    "viewModeToolbarHint": "Switch display mode only; model calculations still use scenario assumptions."
+    "viewModeToolbarHint": "Switch display mode only; model calculations still use scenario assumptions.",
+    "applyBaselinePresetAction": "Apply baseline preset",
+    "presetMoreAction": "Other presets",
+    "presetApplied": "Applied {preset} preset.",
+    "assumptionSourceInUseBaseline": "Baseline",
+    "assumptionSourceInUseCustom": "Custom"
   },
   "members": {
     "title": "Household members",
