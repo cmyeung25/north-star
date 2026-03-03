@@ -2491,6 +2491,8 @@
     "presetAfterValue": "預設：{value}",
     "presetImpactDiff": "影響事件 {before} → {after}",
     "otherSettingsHint": "其他設定將會陸續提供。",
+    "discardModalTitle": "放棄未儲存變更？",
+    "discardModalBody": "此視窗有未儲存變更，是否不儲存並離開？",
     "resetDefaultsAction": "重設為預設",
     "resetDefaultsSaved": "已重設為預設假設值。",
     "resetDefaultsModalTitle": "確認重設為預設假設？",
