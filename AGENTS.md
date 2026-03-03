@@ -317,3 +317,9 @@ PR requirement:
   - Affected paths: apps/web/src/domain/events/utils.ts; apps/web/src/domain/events/__tests__/utils.test.ts; AGENTS.md
   - Guardrails for next agent: When displaying or aggregating member-linked events, use scenario-level event ownership as source of truth and treat event-library `memberId` as fallback/default only.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: DataManagementSection still exposed snapshot/import/reset controls while current IA requires a single export-only data copy flow with explicit action feedback.
+  - What changed: Simplified `DataManagementSection` to export-only behavior (`selectPersistedState` + `exportJSON`) and removed snapshot/import/danger/autosave UI logic; reduced `dataManagement` i18n namespace (zh-HK/en) to download-copy wording with dedicated export success/failure notification keys.
+  - Affected paths: apps/web/components/DataManagementSection.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep Data Management focused on JSON download copy unless IA changes are explicitly approved; any future destructive/import flows should live elsewhere with separate UX review.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
