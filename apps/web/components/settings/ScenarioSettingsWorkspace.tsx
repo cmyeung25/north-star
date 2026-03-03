@@ -93,10 +93,6 @@ import {
   analyzeAssumptionImpact,
   type AssumptionImpactKey,
 } from "../../src/domain/assumptions/impactAnalyzer";
-import {
-  ASSUMPTION_PRESETS,
-  type AssumptionsPresetKey,
-} from "../../src/domain/assumptions/presets";
 import { buildOnboardingAssumptionsDraft } from "../../src/domain/onboarding/v2/assumptions";
 import {
   buildOnboardingAssumptionsAutoFillPatch,
@@ -120,6 +116,12 @@ type ToastState = {
   message: string;
   color?: string;
 };
+
+type AssumptionsEditSection =
+  | "planningHorizon"
+  | "baseMonth"
+  | "displayMode"
+  | "modelAssumptions";
 
 const isHousingCategory = (category: string) => category === "housing";
 
@@ -188,8 +190,18 @@ export default function ScenarioSettingsWorkspace({
   const [toast, setToast] = useState<ToastState | null>(null);
   const [previewScope, setPreviewScope] = useState<PreviewScope>("12m");
   const [syncToast, setSyncToast] = useState<ToastState | null>(null);
-  const [baseMonthInput, setBaseMonthInput] = useState("");
-  const [baseMonthError, setBaseMonthError] = useState<string | null>(null);
+  const [activeAssumptionModal, setActiveAssumptionModal] =
+    useState<AssumptionsEditSection | null>(null);
+  const [discardConfirmModalOpen, setDiscardConfirmModalOpen] = useState(false);
+  const [horizonDraftValue, setHorizonDraftValue] = useState("");
+  const [baseMonthDraftInput, setBaseMonthDraftInput] = useState("");
+  const [baseMonthDraftError, setBaseMonthDraftError] = useState<string | null>(null);
+  const [displayDraft, setDisplayDraft] = useState({
+    annualInflationPct: 0,
+    viewMode: "nominal" as "nominal" | "real",
+  });
+  const [assumptionsDraft, setAssumptionsDraft] =
+    useState<ScenarioAssumptionsOverride | null>(null);
   const [memberBirthMonthInputs, setMemberBirthMonthInputs] = useState<
     Record<string, string>
   >({});
@@ -236,8 +248,6 @@ export default function ScenarioSettingsWorkspace({
   const [affectedAssumptionKey, setAffectedAssumptionKey] = useState<
     keyof ScenarioAssumptionsOverride | null
   >(null);
-  const [selectedAssumptionPreset, setSelectedAssumptionPreset] =
-    useState<AssumptionsPresetKey>("baseline");
   const [resetAssumptionsModalOpen, setResetAssumptionsModalOpen] = useState(false);
   const [hasAppliedOnboardingBaseline, setHasAppliedOnboardingBaseline] =
     useState(false);
@@ -306,8 +316,9 @@ export default function ScenarioSettingsWorkspace({
     [activeScenarioId, scenarioIdFromQuery, scenarios]
   );
   const scenario = getScenarioById(scenarios, resolvedScenarioId);
+  const assumptions = scenario?.assumptions;
   const includeBudgetRulesInProjection =
-    scenario?.assumptions.includeBudgetRulesInProjection ?? true;
+    assumptions?.includeBudgetRulesInProjection ?? true;
   const defaultSmartInvestPolicy = useMemo(
     () => buildDefaultSmartInvestPolicy(t("smartInvestDefaultAllocation")),
     [t]
@@ -342,22 +353,6 @@ export default function ScenarioSettingsWorkspace({
     }
     return analyzeAssumptionImpact(scenario, scenario.assumptions);
   }, [scenario]);
-  const selectedPresetPatch = ASSUMPTION_PRESETS[selectedAssumptionPreset];
-  const assumptionPresetPreviewValues = useMemo(() => {
-    if (!scenario) {
-      return null;
-    }
-    return {
-      ...scenario.assumptions,
-      ...selectedPresetPatch,
-    };
-  }, [scenario, selectedPresetPatch]);
-  const assumptionPresetImpactAnalysis = useMemo(() => {
-    if (!scenario || !assumptionPresetPreviewValues) {
-      return null;
-    }
-    return analyzeAssumptionImpact(scenario, assumptionPresetPreviewValues);
-  }, [assumptionPresetPreviewValues, scenario]);
   const impactCountByKey = useMemo<
     Partial<Record<keyof ScenarioAssumptionsOverride, number>>
   >(
@@ -374,58 +369,6 @@ export default function ScenarioSettingsWorkspace({
     }),
     [impactAnalysis]
   );
-  const assumptionPresetImpactCountByKey = useMemo<
-    Partial<Record<keyof ScenarioAssumptionsOverride, number>>
-  >(
-    () => ({
-      inflationRate:
-        assumptionPresetImpactAnalysis?.byAssumptionKey.inflationRate?.count ?? 0,
-      salaryGrowthRate:
-        assumptionPresetImpactAnalysis?.byAssumptionKey.salaryGrowthRate?.count ?? 0,
-      emergencyFundMonths: 0,
-      rentAnnualGrowthPct:
-        assumptionPresetImpactAnalysis?.byAssumptionKey.rentAnnualGrowthPct?.count ?? 0,
-      propertyAppreciationPct:
-        assumptionPresetImpactAnalysis?.byAssumptionKey.propertyAppreciationPct?.count ?? 0,
-      cashYieldPct:
-        assumptionPresetImpactAnalysis?.byAssumptionKey.cashYieldPct?.count ?? 0,
-      carDepreciationRatePct:
-        assumptionPresetImpactAnalysis?.byAssumptionKey.carDepreciationRatePct?.count ?? 0,
-    }),
-    [assumptionPresetImpactAnalysis]
-  );
-  const assumptionPresetDiffRows = useMemo(() => {
-    if (!scenario) {
-      return [] as Array<{
-        key: keyof ScenarioAssumptionsOverride;
-        beforeValue: number | undefined;
-        afterValue: number | undefined;
-        beforeImpact: number;
-        afterImpact: number;
-      }>;
-    }
-    return (Object.keys(selectedPresetPatch) as Array<keyof ScenarioAssumptionsOverride>)
-      .map((key) => {
-        const beforeValue = scenario.assumptions[key];
-        const afterValue = selectedPresetPatch[key];
-        if (beforeValue === afterValue) {
-          return null;
-        }
-        return {
-          key,
-          beforeValue,
-          afterValue,
-          beforeImpact: impactCountByKey[key] ?? 0,
-          afterImpact: assumptionPresetImpactCountByKey[key] ?? 0,
-        };
-      })
-      .filter((row): row is NonNullable<typeof row> => row !== null);
-  }, [
-    assumptionPresetImpactCountByKey,
-    impactCountByKey,
-    scenario,
-    selectedPresetPatch,
-  ]);
   const impactLabelByKey = useMemo<
     Record<AssumptionImpactKey | "emergencyFundMonths", string>
   >(
@@ -532,9 +475,36 @@ export default function ScenarioSettingsWorkspace({
   }, [formatCurrency, smartInvestPolicy, timelineText]);
 
   useEffect(() => {
-    setBaseMonthInput(appSettings.globalBaseMonth ?? "");
-    setBaseMonthError(null);
+    setHorizonDraftValue(String(appSettings.globalHorizonMonths));
+  }, [appSettings.globalHorizonMonths]);
+
+  useEffect(() => {
+    setBaseMonthDraftInput(appSettings.globalBaseMonth ?? "");
+    setBaseMonthDraftError(null);
   }, [appSettings.globalBaseMonth]);
+
+  useEffect(() => {
+    setDisplayDraft({
+      annualInflationPct: appSettings.annualInflationPct,
+      viewMode: appSettings.viewMode,
+    });
+  }, [appSettings.annualInflationPct, appSettings.viewMode]);
+
+  useEffect(() => {
+    if (!scenario) {
+      setAssumptionsDraft(null);
+      return;
+    }
+    setAssumptionsDraft({
+      inflationRate: scenario.assumptions?.inflationRate,
+      salaryGrowthRate: scenario.assumptions?.salaryGrowthRate,
+      emergencyFundMonths: scenario.assumptions?.emergencyFundMonths,
+      rentAnnualGrowthPct: scenario.assumptions?.rentAnnualGrowthPct,
+      propertyAppreciationPct: scenario.assumptions?.propertyAppreciationPct,
+      cashYieldPct: scenario.assumptions?.cashYieldPct,
+      carDepreciationRatePct: scenario.assumptions?.carDepreciationRatePct,
+    });
+  }, [scenario]);
 
   useEffect(() => {
     setMemberBirthMonthInputs((current) => {
@@ -833,23 +803,15 @@ export default function ScenarioSettingsWorkspace({
     }
   };
 
-  const handleAssumptionChange = (
-    patch: Parameters<typeof updateScenarioAssumptions>[1]
-  ) => {
-    if (!scenario) {
-      return;
-    }
-    updateScenarioAssumptions(scenario.id, patch);
-    showToast(common("saved"), "teal");
-  };
-
-  const handleApplyAssumptionPreset = () => {
-    if (!scenario || assumptionPresetDiffRows.length === 0) {
-      return;
-    }
-    updateScenarioAssumptions(scenario.id, selectedPresetPatch);
-    showToast(common("saved"), "teal");
-  };
+  const handleAssumptionDraftChange = useCallback(
+    (patch: ScenarioAssumptionsOverride) => {
+      setAssumptionsDraft((current) => ({
+        ...(current ?? {}),
+        ...patch,
+      }));
+    },
+    []
+  );
 
   const defaultAssumptionsForReset = useMemo<ScenarioAssumptionsOverride>(() => {
     const onboardingDefaults = buildOnboardingAssumptionsDraft();
@@ -1041,6 +1003,122 @@ export default function ScenarioSettingsWorkspace({
     baseMonth && horizonMonths > 0
       ? buildMonthRange(baseMonth, horizonMonths).at(-1) ?? null
       : null;
+  const horizonSummaryLabel =
+    horizonOptions.find((option) => option.value === horizonValue)?.label ?? horizonValue;
+  const baseMonthSummaryLabel = baseMonth || common("actionAuto");
+  const modelAssumptionSummary = [
+    `${t("inflationRate")}: ${assumptions?.inflationRate ?? t("notAvailable")}%`,
+    `${t("salaryGrowth")}: ${assumptions?.salaryGrowthRate ?? t("notAvailable")}%`,
+    `${t("rentAnnualGrowth")}: ${assumptions?.rentAnnualGrowthPct ?? t("notAvailable")}%`,
+  ].join(" · ");
+  const displayModeSummary = `${
+    appSettings.viewMode === "real" ? t("viewReal") : t("viewNominal")
+  } · ${t("annualInflationPctDisplayLabel")} ${appSettings.annualInflationPct}%`;
+
+  const resetAssumptionDraftBySection = useCallback(
+    (section: AssumptionsEditSection) => {
+      if (section === "planningHorizon") {
+        setHorizonDraftValue(horizonValue);
+        return;
+      }
+      if (section === "baseMonth") {
+        setBaseMonthDraftInput(baseMonth ?? "");
+        setBaseMonthDraftError(null);
+        return;
+      }
+      if (section === "displayMode") {
+        setDisplayDraft({
+          annualInflationPct: appSettings.annualInflationPct,
+          viewMode: appSettings.viewMode,
+        });
+        return;
+      }
+      setAssumptionsDraft({
+        inflationRate: assumptions?.inflationRate,
+        salaryGrowthRate: assumptions?.salaryGrowthRate,
+        emergencyFundMonths: assumptions?.emergencyFundMonths,
+        rentAnnualGrowthPct: assumptions?.rentAnnualGrowthPct,
+        propertyAppreciationPct: assumptions?.propertyAppreciationPct,
+        cashYieldPct: assumptions?.cashYieldPct,
+        carDepreciationRatePct: assumptions?.carDepreciationRatePct,
+      });
+    },
+    [
+      appSettings.annualInflationPct,
+      appSettings.viewMode,
+      assumptions?.carDepreciationRatePct,
+      assumptions?.cashYieldPct,
+      assumptions?.emergencyFundMonths,
+      assumptions?.inflationRate,
+      assumptions?.propertyAppreciationPct,
+      assumptions?.rentAnnualGrowthPct,
+      assumptions?.salaryGrowthRate,
+      baseMonth,
+      horizonValue,
+    ]
+  );
+
+  const isAssumptionsDraftDirty = useMemo(() => {
+    if (!assumptionsDraft) {
+      return false;
+    }
+    return (
+      assumptionsDraft.inflationRate !== assumptions?.inflationRate ||
+      assumptionsDraft.salaryGrowthRate !== assumptions?.salaryGrowthRate ||
+      assumptionsDraft.emergencyFundMonths !== assumptions?.emergencyFundMonths ||
+      assumptionsDraft.rentAnnualGrowthPct !== assumptions?.rentAnnualGrowthPct ||
+      assumptionsDraft.propertyAppreciationPct !== assumptions?.propertyAppreciationPct ||
+      assumptionsDraft.cashYieldPct !== assumptions?.cashYieldPct ||
+      assumptionsDraft.carDepreciationRatePct !== assumptions?.carDepreciationRatePct
+    );
+  }, [assumptions, assumptionsDraft]);
+
+  const hasUnsavedChangesInModal = useCallback(
+    (section: AssumptionsEditSection | null) => {
+      if (!section) {
+        return false;
+      }
+      if (section === "planningHorizon") {
+        return horizonDraftValue !== horizonValue;
+      }
+      if (section === "baseMonth") {
+        return (baseMonthDraftInput.trim() || "") !== (baseMonth || "");
+      }
+      if (section === "displayMode") {
+        return (
+          displayDraft.annualInflationPct !== appSettings.annualInflationPct ||
+          displayDraft.viewMode !== appSettings.viewMode
+        );
+      }
+      return isAssumptionsDraftDirty;
+    },
+    [
+      appSettings.annualInflationPct,
+      appSettings.viewMode,
+      baseMonth,
+      baseMonthDraftInput,
+      displayDraft.annualInflationPct,
+      displayDraft.viewMode,
+      horizonDraftValue,
+      horizonValue,
+      isAssumptionsDraftDirty,
+    ]
+  );
+
+  const handleRequestCloseAssumptionModal = useCallback(
+    (section: AssumptionsEditSection | null) => {
+      if (!section) {
+        return;
+      }
+      if (hasUnsavedChangesInModal(section)) {
+        setDiscardConfirmModalOpen(true);
+        return;
+      }
+      resetAssumptionDraftBySection(section);
+      setActiveAssumptionModal(null);
+    },
+    [hasUnsavedChangesInModal, resetAssumptionDraftBySection]
+  );
   const formatAgeYears = (value: number) =>
     Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
   const buildZeroPreview = useCallback(
@@ -1128,7 +1206,6 @@ export default function ScenarioSettingsWorkspace({
     );
   }
 
-  const { assumptions } = scenario;
 
   const lastSyncedLabel = cloudSummary?.lastSyncedAt
     ? common("lastSyncedAt", {
@@ -1451,130 +1528,216 @@ export default function ScenarioSettingsWorkspace({
             </Accordion.Item>
           </Accordion>
 
-          <Card withBorder radius="md" padding="md" mt="md">
+          <Stack gap="md" mt="md">
+            <Card withBorder radius="md" padding="md">
+              <Group justify="space-between" align="flex-start" wrap="wrap">
+                <Stack gap={4}>
+                  <Text fw={600}>{t("planningHorizon")}</Text>
+                  <Text size="sm" c="dimmed">{horizonSummaryLabel}</Text>
+                </Stack>
+                <Button variant="light" onClick={() => setActiveAssumptionModal("planningHorizon")}>
+                  {common("actionEdit")}
+                </Button>
+              </Group>
+            </Card>
+
+            <Card withBorder radius="md" padding="md">
+              <Group justify="space-between" align="flex-start" wrap="wrap">
+                <Stack gap={4}>
+                  <Text fw={600}>{t("baseMonth")}</Text>
+                  <Text size="sm" c="dimmed">{baseMonthSummaryLabel}</Text>
+                </Stack>
+                <Button variant="light" onClick={() => setActiveAssumptionModal("baseMonth")}>
+                  {common("actionEdit")}
+                </Button>
+              </Group>
+            </Card>
+
+            <Card withBorder radius="md" padding="md">
+              <Group justify="space-between" align="flex-start" wrap="wrap">
+                <Stack gap={4}>
+                  <Text fw={600}>{t("displayModeTitle")}</Text>
+                  <Text size="sm" c="dimmed">{displayModeSummary}</Text>
+                </Stack>
+                <Button variant="light" onClick={() => setActiveAssumptionModal("displayMode")}>
+                  {common("actionEdit")}
+                </Button>
+              </Group>
+            </Card>
+
+            <Card withBorder radius="md" padding="md">
+              <Group justify="space-between" align="flex-start" wrap="wrap">
+                <Stack gap={4}>
+                  <Text fw={600}>{t("scenarioAssumptionsTitle")}</Text>
+                  <Text size="sm" c="dimmed">{modelAssumptionSummary}</Text>
+                </Stack>
+                <Button variant="light" onClick={() => setActiveAssumptionModal("modelAssumptions")}>
+                  {common("actionEdit")}
+                </Button>
+              </Group>
+            </Card>
+          </Stack>
+
+          <Modal
+            opened={activeAssumptionModal === "planningHorizon"}
+            onClose={() => handleRequestCloseAssumptionModal("planningHorizon")}
+            title={t("planningHorizon")}
+            centered
+          >
             <Stack gap="md">
-              <Stack gap={6}>
-                <Text fw={600}>{t("planningHorizon")}</Text>
-                <SegmentedControl
-                  data={horizonOptions}
-                  value={horizonValue}
-                  onChange={(value) => {
-                    setGlobalHorizonMonths(Number(value));
+              <SegmentedControl
+                data={horizonOptions}
+                value={horizonDraftValue}
+                onChange={setHorizonDraftValue}
+              />
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => handleRequestCloseAssumptionModal("planningHorizon")}>
+                  {common("actionCancel")}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setGlobalHorizonMonths(Number(horizonDraftValue));
+                    setActiveAssumptionModal(null);
                     showToast(common("saved"), "teal");
                   }}
-                />
-              </Stack>
+                >
+                  {common("actionSave")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
 
-              <Stack gap={6}>
-                <TextInput
-                  label={t("baseMonth")}
-                  placeholder={common("yearMonthPlaceholder")}
-                  value={baseMonthInput}
-                  onChange={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setBaseMonthInput(nextValue);
-                    if (baseMonthError) {
-                      setBaseMonthError(null);
-                    }
-                  }}
-                  onBlur={() => {
-                    const trimmed = baseMonthInput.trim();
+          <Modal
+            opened={activeAssumptionModal === "baseMonth"}
+            onClose={() => handleRequestCloseAssumptionModal("baseMonth")}
+            title={t("baseMonth")}
+            centered
+          >
+            <Stack gap="md">
+              <TextInput
+                label={t("baseMonth")}
+                placeholder={common("yearMonthPlaceholder")}
+                value={baseMonthDraftInput}
+                onChange={(event) => {
+                  setBaseMonthDraftInput(event.currentTarget.value);
+                  if (baseMonthDraftError) {
+                    setBaseMonthDraftError(null);
+                  }
+                }}
+                error={baseMonthDraftError ?? undefined}
+              />
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed">{baseMonthHelper}</Text>
+                <Button size="xs" variant="subtle" onClick={() => setBaseMonthDraftInput("")}>
+                  {common("actionAuto")}
+                </Button>
+              </Group>
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => handleRequestCloseAssumptionModal("baseMonth")}>
+                  {common("actionCancel")}
+                </Button>
+                <Button
+                  onClick={() => {
+                    const trimmed = baseMonthDraftInput.trim();
                     if (trimmed === "") {
                       setGlobalBaseMonth(null);
-                      setBaseMonthError(null);
+                      setBaseMonthDraftError(null);
+                      setActiveAssumptionModal(null);
+                      showToast(common("saved"), "teal");
                       return;
                     }
                     const normalized = normalizeMonthStrict(trimmed);
                     if (!normalized.ok) {
-                      setBaseMonthError(validation("useYearMonth"));
+                      setBaseMonthDraftError(validation("useYearMonth"));
                       return;
                     }
                     setGlobalBaseMonth(normalized.month);
-                    setBaseMonthInput(normalized.month);
-                    setBaseMonthError(null);
+                    setBaseMonthDraftInput(normalized.month);
+                    setBaseMonthDraftError(null);
+                    setActiveAssumptionModal(null);
+                    showToast(common("saved"), "teal");
                   }}
-                  error={baseMonthError ?? undefined}
-                />
-                <Group justify="space-between" align="center">
-                  <Text size="xs" c="dimmed">
-                    {baseMonthHelper}
-                  </Text>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    onClick={() => {
-                      setBaseMonthInput("");
-                      setGlobalBaseMonth(null);
-                    }}
-                  >
-                    {common("actionAuto")}
-                  </Button>
-                </Group>
-              </Stack>
-
-              <Group grow>
-                <Card withBorder radius="md" padding="sm">
-                  <Stack gap={4}>
-                    <Text size="sm" fw={600}>
-                      {t("displayModeTitle")}
-                    </Text>
-                    <NumberInput
-                      label={t("annualInflationPctDisplayLabel")}
-                      description={t("annualInflationPctDisplayHint")}
-                      value={appSettings.annualInflationPct}
-                      min={0}
-                      step={0.1}
-                      decimalScale={2}
-                      onChange={(value) =>
-                        setAnnualInflationPct(typeof value === "number" ? value : 0)
-                      }
-                    />
-                    <Stack gap={4}>
-                      <Text size="sm" fw={500}>
-                        {t("viewModeLabel")}
-                      </Text>
-                      <SegmentedControl
-                        data={[
-                          { value: "nominal", label: t("viewNominal") },
-                          { value: "real", label: t("viewReal") },
-                        ]}
-                        value={appSettings.viewMode}
-                        onChange={(value) => setViewMode(value as "nominal" | "real")}
-                      />
-                      <Text size="xs" c="dimmed">
-                        {t("viewRealHint")}
-                      </Text>
-                    </Stack>
-                  </Stack>
-                </Card>
+                >
+                  {common("actionSave")}
+                </Button>
               </Group>
             </Stack>
-          </Card>
+          </Modal>
 
-          <Card withBorder radius="md" padding="md" mt="md">
+          <Modal
+            opened={activeAssumptionModal === "displayMode"}
+            onClose={() => handleRequestCloseAssumptionModal("displayMode")}
+            title={t("displayModeTitle")}
+            centered
+          >
             <Stack gap="md">
-              <Stack gap={2}>
-                <Text fw={600}>{t("scenarioAssumptionsTitle")}</Text>
-                <Text size="sm" c="dimmed">
-                  {t("scenarioAssumptionsHint")}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {t("inflationRateProjectionHint")}
-                </Text>
+              <NumberInput
+                label={t("annualInflationPctDisplayLabel")}
+                description={t("annualInflationPctDisplayHint")}
+                value={displayDraft.annualInflationPct}
+                min={0}
+                step={0.1}
+                decimalScale={2}
+                onChange={(value) =>
+                  setDisplayDraft((current) => ({
+                    ...current,
+                    annualInflationPct: typeof value === "number" ? value : 0,
+                  }))
+                }
+              />
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>{t("viewModeLabel")}</Text>
+                <SegmentedControl
+                  data={[
+                    { value: "nominal", label: t("viewNominal") },
+                    { value: "real", label: t("viewReal") },
+                  ]}
+                  value={displayDraft.viewMode}
+                  onChange={(value) =>
+                    setDisplayDraft((current) => ({
+                      ...current,
+                      viewMode: value as "nominal" | "real",
+                    }))
+                  }
+                />
+                <Text size="xs" c="dimmed">{t("viewRealHint")}</Text>
               </Stack>
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => handleRequestCloseAssumptionModal("displayMode")}>
+                  {common("actionCancel")}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setAnnualInflationPct(displayDraft.annualInflationPct);
+                    setViewMode(displayDraft.viewMode);
+                    setActiveAssumptionModal(null);
+                    showToast(common("saved"), "teal");
+                  }}
+                >
+                  {common("actionSave")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
+
+          <Modal
+            opened={activeAssumptionModal === "modelAssumptions"}
+            onClose={() => handleRequestCloseAssumptionModal("modelAssumptions")}
+            title={t("scenarioAssumptionsTitle")}
+            centered
+            size="lg"
+          >
+            <Stack gap="md">
+              <Text size="sm" c="dimmed">{t("scenarioAssumptionsHint")}</Text>
+              <Text size="xs" c="dimmed">{t("inflationRateProjectionHint")}</Text>
               <Card withBorder radius="md" padding="sm">
                 <Text size="sm" c="dimmed">
-                  {t("initialCashMovedHint")}{" "}
-                  <Link
-                    href={buildMoneyAssetsUrl(caseId, scenario.id, { focus: "cash" })}
-                  >
-                    {t("initialCashMovedLink")}
-                  </Link>
+                  {t("initialCashMovedHint")} <Link href={buildMoneyAssetsUrl(caseId, scenario.id, { focus: "cash" })}>{t("initialCashMovedLink")}</Link>
                 </Text>
               </Card>
               <ScenarioAssumptionsOverrideForm
-                values={assumptions}
-                baseline={assumptions}
+                values={assumptionsDraft ?? assumptions ?? {}}
+                baseline={assumptions ?? {}}
                 impactCountByKey={impactCountByKey}
                 onViewAffectedEvents={(key) => setAffectedAssumptionKey(key)}
                 labels={{
@@ -1601,103 +1764,73 @@ export default function ScenarioSettingsWorkspace({
                   guardrailSuggestedSalaryGrowth: (value) =>
                     t("guardrailSuggestedSalaryGrowth", { value }),
                 }}
-                onChange={handleAssumptionChange}
+                onChange={handleAssumptionDraftChange}
               />
-              <Group justify="flex-end">
-                <Button
-                  variant="subtle"
-                  color="gray"
-                  onClick={handleClearOnboardingBaselineMarker}
-                  disabled={!hasAppliedOnboardingBaseline}
-                >
-                  {t("onboardingBaselineMarkerReset")}
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={() => setResetAssumptionsModalOpen(true)}
-                  disabled={resetAssumptionDiffRows.length === 0}
-                >
-                  {t("resetDefaultsAction")}
-                </Button>
-              </Group>
-              <Divider />
-              <Stack gap="xs">
-                <Group justify="space-between" align="center">
-                  <Text size="sm" c="dimmed">
-                    {t("assumptionSourceLabel")}
-                  </Text>
-                  <Badge color={hasAppliedOnboardingBaseline ? "teal" : "gray"}>
-                    {hasAppliedOnboardingBaseline
-                      ? t("assumptionSourceOnboardingBaseline")
-                      : t("assumptionSourceManual")}
-                  </Badge>
-                </Group>
-                <Group align="end" grow>
-                  <Select
-                    label={t("presetLabel")}
-                    data={[
-                      { value: "conservative", label: t("presetConservative") },
-                      { value: "baseline", label: t("presetBaseline") },
-                      { value: "growth", label: t("presetGrowth") },
-                    ]}
-                    value={selectedAssumptionPreset}
-                    onChange={(value) => {
-                      if (value) {
-                        setSelectedAssumptionPreset(value as AssumptionsPresetKey);
-                      }
-                    }}
-                  />
+              <Group justify="space-between" wrap="wrap">
+                <Group>
                   <Button
-                    onClick={handleApplyAssumptionPreset}
-                    disabled={assumptionPresetDiffRows.length === 0}
+                    variant="subtle"
+                    color="gray"
+                    onClick={handleClearOnboardingBaselineMarker}
+                    disabled={!hasAppliedOnboardingBaseline}
                   >
-                    {t("presetApply")}
+                    {t("onboardingBaselineMarkerReset")}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => setResetAssumptionsModalOpen(true)}
+                    disabled={resetAssumptionDiffRows.length === 0}
+                  >
+                    {t("resetDefaultsAction")}
                   </Button>
                 </Group>
-                <Text size="sm" c="dimmed">
-                  {t("presetDiffHint")}
-                </Text>
-                {assumptionPresetDiffRows.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    {t("presetDiffEmpty")}
-                  </Text>
-                ) : (
-                  <Stack gap={8}>
-                    {assumptionPresetDiffRows.map((row) => (
-                      <Group key={row.key} justify="space-between" wrap="wrap">
-                        <Text size="sm">{impactLabelByKey[row.key]}</Text>
-                        <Group gap={8}>
-                          <Badge variant="light" color="gray">
-                            {t("presetBeforeValue", {
-                              value:
-                                typeof row.beforeValue === "number"
-                                  ? row.beforeValue
-                                  : t("notAvailable"),
-                            })}
-                          </Badge>
-                          <Text size="sm">→</Text>
-                          <Badge variant="light" color="teal">
-                            {t("presetAfterValue", {
-                              value:
-                                typeof row.afterValue === "number"
-                                  ? row.afterValue
-                                  : t("notAvailable"),
-                            })}
-                          </Badge>
-                          <Text size="xs" c="dimmed">
-                            {t("presetImpactDiff", {
-                              before: row.beforeImpact,
-                              after: row.afterImpact,
-                            })}
-                          </Text>
-                        </Group>
-                      </Group>
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
+                <Group>
+                  <Button variant="default" onClick={() => handleRequestCloseAssumptionModal("modelAssumptions")}>
+                    {common("actionCancel")}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (assumptionsDraft) {
+                        updateScenarioAssumptions(scenario.id, assumptionsDraft);
+                      }
+                      setActiveAssumptionModal(null);
+                      showToast(common("saved"), "teal");
+                    }}
+                  >
+                    {common("actionSave")}
+                  </Button>
+                </Group>
+              </Group>
             </Stack>
-          </Card>
+          </Modal>
+
+          <Modal
+            opened={discardConfirmModalOpen}
+            onClose={() => setDiscardConfirmModalOpen(false)}
+            title={t("discardModalTitle")}
+            centered
+          >
+            <Stack gap="sm">
+              <Text size="sm" c="dimmed">{t("discardModalBody")}</Text>
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setDiscardConfirmModalOpen(false)}>
+                  {common("actionCancel")}
+                </Button>
+                <Button
+                  color="red"
+                  onClick={() => {
+                    setDiscardConfirmModalOpen(false);
+                    if (activeAssumptionModal) {
+                      resetAssumptionDraftBySection(activeAssumptionModal);
+                    }
+                    setActiveAssumptionModal(null);
+                  }}
+                >
+                  {common("actionConfirm")}
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
 
           <Modal
             opened={resetAssumptionsModalOpen}
