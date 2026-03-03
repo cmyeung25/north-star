@@ -37,9 +37,28 @@ export type MoneyTagConfig = {
   semanticColor: MoneyTagSemanticColorKey;
   color: MoneyTagTone;
   prefix: string;
-  icon?: string;
+  icon: MoneyTagIconKey;
   priority: number;
 };
+
+export type MoneyTagIconKey =
+  | "income"
+  | "expense"
+  | "category"
+  | "frequency"
+  | "owner"
+  | "growth"
+  | "adjustment"
+  | "projection"
+  | "asset"
+  | "liability"
+  | "source"
+  | "lifecycle";
+
+const defaultMoneyTagAppearance = {
+  size: "sm",
+  radius: "xl",
+} satisfies Pick<MoneyTagConfig, "size" | "radius">;
 
 const withSemanticColor = (
   config: Omit<MoneyTagConfig, "color"> & { semanticColor: MoneyTagSemanticColorKey }
@@ -50,111 +69,99 @@ const withSemanticColor = (
 
 export const moneyTagConfig = {
   incomeType: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "domain-income",
     prefix: "TYPE",
-    icon: "＋",
+    icon: "income",
     priority: 10,
   }),
   expenseType: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "domain-expense",
     prefix: "TYPE",
-    icon: "－",
+    icon: "expense",
     priority: 10,
   }),
   category: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "meta-category",
     prefix: "CAT",
-    icon: "▣",
+    icon: "category",
     priority: 20,
   }),
   cadence: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "meta-frequency",
     prefix: "FREQ",
-    icon: "↻",
+    icon: "frequency",
     priority: 30,
   }),
   member: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "outline",
-    radius: "xl",
     semanticColor: "meta-owner",
     prefix: "OWN",
-    icon: "👤",
+    icon: "owner",
     priority: 40,
   }),
   growth: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "meta-growth",
     prefix: "GR",
-    icon: "↗",
+    icon: "growth",
     priority: 50,
   }),
   adjustment: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "outline",
-    radius: "xl",
     semanticColor: "meta-adjustment",
     prefix: "ADJ",
-    icon: "±",
+    icon: "adjustment",
     priority: 60,
   }),
   projection: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "meta-projection",
     prefix: "PRJ",
-    icon: "◎",
+    icon: "projection",
     priority: 70,
   }),
   assetType: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "domain-asset",
     prefix: "TYPE",
-    icon: "⬢",
+    icon: "asset",
     priority: 80,
   }),
   liabilityType: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "domain-liability",
     prefix: "TYPE",
-    icon: "⬣",
+    icon: "liability",
     priority: 80,
   }),
   source: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "outline",
-    radius: "xl",
     semanticColor: "meta-source",
     prefix: "SRC",
-    icon: "⌁",
+    icon: "source",
     priority: 90,
   }),
   attribute: withSemanticColor({
-    size: "sm",
+    ...defaultMoneyTagAppearance,
     variant: "light",
-    radius: "xl",
     semanticColor: "meta-lifecycle",
     prefix: "LIFE",
-    icon: "◷",
+    icon: "lifecycle",
     priority: 100,
   }),
 } satisfies Record<string, MoneyTagConfig>;
