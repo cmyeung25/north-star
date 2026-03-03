@@ -69,6 +69,7 @@ import {
 import { scenarioAssumptionSchema } from "../../domain/scenarioAssumptions";
 import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenarioSave.actions";
 import { useScenarioContext } from "../../hooks/useScenarioContext";
+import { useScenarioCloudStore } from "../../store/scenarioCloudStore";
 import { exportScenarioState } from "../../store/scenarioState";
 import {
   memberCasesPath,
@@ -2000,6 +2001,13 @@ export default function OnboardingDraftWizard() {
         if (!saveResult.ok) {
           throw new Error("REVISION_CONFLICT");
         }
+
+        useScenarioCloudStore.getState().markSaved(
+          scenarioContext.scenarioId,
+          JSON.stringify(payload),
+          saveResult.revision,
+          saveResult.lastSavedAt,
+        );
       } catch (error) {
         console.error("Failed to persist onboarding payload", error);
         recordScenarioMigrationEvent({
