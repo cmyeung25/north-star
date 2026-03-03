@@ -146,7 +146,6 @@ export default function ScenarioSettingsWorkspace({
     value: String(resolvePlanningHorizonMonths(years)),
     label: t(`horizonYears${years}`),
   }));
-  const baseMonthHelper = t("baseMonthHelper");
   const authState = useAuthState();
   const scenarioContext = useScenarioContext();
   const caseId = scenarioContext?.caseId ?? "";
@@ -1005,7 +1004,7 @@ export default function ScenarioSettingsWorkspace({
       : null;
   const horizonSummaryLabel =
     horizonOptions.find((option) => option.value === horizonValue)?.label ?? horizonValue;
-  const baseMonthSummaryLabel = baseMonth || common("actionAuto");
+  const baseMonthSummaryLabel = baseMonth || t("notAvailable");
   const modelAssumptionSummary = [
     `${t("inflationRate")}: ${assumptions?.inflationRate ?? t("notAvailable")}%`,
     `${t("salaryGrowth")}: ${assumptions?.salaryGrowthRate ?? t("notAvailable")}%`,
@@ -1626,12 +1625,6 @@ export default function ScenarioSettingsWorkspace({
                 }}
                 error={baseMonthDraftError ?? undefined}
               />
-              <Group justify="space-between">
-                <Text size="xs" c="dimmed">{baseMonthHelper}</Text>
-                <Button size="xs" variant="subtle" onClick={() => setBaseMonthDraftInput("")}>
-                  {common("actionAuto")}
-                </Button>
-              </Group>
               <Group justify="flex-end">
                 <Button variant="default" onClick={() => handleRequestCloseAssumptionModal("baseMonth")}>
                   {common("actionCancel")}
@@ -1640,10 +1633,7 @@ export default function ScenarioSettingsWorkspace({
                   onClick={() => {
                     const trimmed = baseMonthDraftInput.trim();
                     if (trimmed === "") {
-                      setGlobalBaseMonth(null);
-                      setBaseMonthDraftError(null);
-                      setActiveAssumptionModal(null);
-                      showToast(common("saved"), "teal");
+                      setBaseMonthDraftError(t("baseMonthRequired"));
                       return;
                     }
                     const normalized = normalizeMonthStrict(trimmed);

@@ -1108,9 +1108,11 @@ export default function OnboardingDraftWizard() {
         ? ""
         : t("monthInvalid"),
     startMonth:
-      profile.startMonth && !isValidMonthKey(profile.startMonth)
-        ? t("monthInvalid")
-        : "",
+      !profile.startMonth
+        ? t("requiredField")
+        : !isValidMonthKey(profile.startMonth)
+          ? t("monthInvalid")
+          : "",
     baseCurrency: profile.baseCurrency.trim()
       ? ""
       : t("requiredField"),
@@ -1721,7 +1723,9 @@ export default function OnboardingDraftWizard() {
   const hasDebtsErrors = Object.keys(debtsErrors.debts).length > 0;
 
   const validationIssueStepMap: Array<{ prefix: string; stepIndex: number }> = [
+    { prefix: "profile.startMonth", stepIndex: 0 },
     { prefix: "assumptions.", stepIndex: 2 },
+    { prefix: "assumptions.baseMonth", stepIndex: 0 },
     { prefix: "members.", stepIndex: 1 },
     { prefix: "assets.", stepIndex: 6 },
     { prefix: "liabilities.", stepIndex: 7 },
@@ -1854,6 +1858,12 @@ export default function OnboardingDraftWizard() {
       return;
     }
 
+    if (!profile.startMonth || !isValidMonthKey(profile.startMonth)) {
+      setStepValidationAttempted((current) => ({ ...current, 0: true }));
+      setStep(0);
+      return;
+    }
+
     const desiredMemberIds = new Set(
       (scenarioPreview.members ?? []).map((member) => member.id)
     );
@@ -1879,6 +1889,7 @@ export default function OnboardingDraftWizard() {
       target: { scenarioId },
       draft: buildScenarioDraftFromOnboardingState({
         scenarioPreview,
+        baseMonth: profile.startMonth,
         nowIso,
       }),
       context: {
@@ -2332,7 +2343,7 @@ export default function OnboardingDraftWizard() {
               <IncomeStep
                 incomes={incomes}
                 members={household.members}
-                baseMonth={profile.startMonth || resolvedBaseMonth}
+                baseMonth={profile.startMonth}
                 incomeGrowthPct={assumptions.incomeGrowthPct}
                 errors={shouldShowStepErrors ? incomeErrors : {}}
                 onChange={setIncomes}
@@ -2347,7 +2358,7 @@ export default function OnboardingDraftWizard() {
             content: (
               <LivingSpendStep
                 livingSpend={livingSpend}
-                baseMonth={profile.startMonth || resolvedBaseMonth}
+                baseMonth={profile.startMonth}
                 horizonYears={profile.horizonYears}
                 inflationPct={assumptions.inflationPct}
                 errors={shouldShowStepErrors ? livingSpendErrors : { fixed: {}, travel: {}, tax: {}, otherFixed: {} }}
@@ -2363,7 +2374,7 @@ export default function OnboardingDraftWizard() {
             content: (
               <HousingStep
                 housing={housing}
-                baseMonth={profile.startMonth || resolvedBaseMonth}
+                baseMonth={profile.startMonth}
                 errors={housingErrors}
                 onChange={setHousing}
                 t={t}
@@ -2377,7 +2388,7 @@ export default function OnboardingDraftWizard() {
             content: (
               <AssetsStep
                 assets={assets}
-                baseMonth={profile.startMonth || resolvedBaseMonth}
+                baseMonth={profile.startMonth}
                 members={household.members}
                 errors={assetsErrors}
                 onChange={setAssets}
@@ -2392,7 +2403,7 @@ export default function OnboardingDraftWizard() {
             content: (
               <DebtsStep
                 debts={debts}
-                baseMonth={profile.startMonth || resolvedBaseMonth}
+                baseMonth={profile.startMonth}
                 errors={debtsErrors}
                 onChange={setDebts}
                 t={t}
@@ -2406,7 +2417,7 @@ export default function OnboardingDraftWizard() {
             content: (
               <InsuranceStep
                 insurance={insurance}
-                baseMonth={profile.startMonth || resolvedBaseMonth}
+                baseMonth={profile.startMonth}
                 members={household.members}
                 errors={insuranceErrors}
                 onChange={setInsurance}
@@ -2422,7 +2433,7 @@ export default function OnboardingDraftWizard() {
               <ReviewStep
                 draft={draft}
                 scenario={scenario ?? null}
-                baseMonth={profile.startMonth || resolvedBaseMonth}
+                baseMonth={profile.startMonth}
                 horizonYears={profile.horizonYears}
                 scenarioPreview={scenarioPreview}
                 scenarioIsV2={scenarioIsV2}

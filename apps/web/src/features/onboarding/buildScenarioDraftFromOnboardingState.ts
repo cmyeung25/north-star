@@ -4,15 +4,20 @@ import type { Scenario } from "../../store/scenarioStore";
 
 export const buildScenarioDraftFromOnboardingState = ({
   scenarioPreview,
+  baseMonth,
   nowIso,
 }: {
   scenarioPreview: Scenario;
+  baseMonth: string;
   nowIso: string;
 }): SubmitScenarioDraftInput["draft"] => {
   const lifecycle = deriveScenarioLifecycleState({ source: "onboarding", nowIso });
 
   return {
-    assumptions: scenarioPreview.assumptions,
+    assumptions: {
+      ...scenarioPreview.assumptions,
+      baseMonth,
+    },
     members: scenarioPreview.members,
     assets: scenarioPreview.assets,
     liabilities: scenarioPreview.liabilities,
