@@ -389,3 +389,9 @@ PR requirement:
   - Affected paths: apps/web/src/features/money/ExpenseEventList.tsx; apps/web/app/[locale]/money/MoneyClient.tsx; apps/web/src/features/money/__tests__/MoneyEventList.i18n.test.tsx; AGENTS.md
   - Guardrails for next agent: For money meta tags, always pass both owner id and member lookup when rendering ownership badges; without lookup, member-owned events will degrade to household label.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Plan Lab header actions had overlapping badges and mixed-priority controls, making IA hierarchy unclear across edit/compare/save workflows.
+  - What changed: Reorganized Plan Lab header actions into primary/secondary/tertiary groups with desktop grouped panels and a mobile simplified action sheet; replaced overlapping status badges with a single flow-step pill (`Draft` / `Comparing` / `Ready to Save`); replaced Edit/Compare segmented toggle with explicit enter/exit compare CTA and kept toast feedback on mode switch; added corresponding zh-HK/en i18n keys for new IA copy.
+  - Affected paths: apps/web/features/planLab/PlanLabPanel.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep Plan Lab header IA grouped by workflow priority (experiment editing, compare context, save actions); avoid restoring multi-badge status semantics when a single flow-step indicator is sufficient; new Plan Lab CTA copy must be added to both zh-HK/en message files.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
