@@ -301,3 +301,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json
   - Guardrails for next agent: Keep this panel scoped to active scenario data only; use scenario-level event views + member linkage and avoid cross-scenario/case aggregation.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Completing onboarding could immediately trigger cloud save revision conflict because local cloud meta revision was not updated after onboarding server save.
+  - What changed: Updated onboarding v2 and v3 completion save flows to call `useScenarioCloudStore.getState().markSaved(...)` with the server-returned revision/lastSavedAt after `saveScenarioPayloadAction` succeeds, keeping subsequent Save to Cloud requests in-sync.
+  - Affected paths: apps/web/src/features/onboarding/OnboardingDraftWizard.tsx; apps/web/src/features/onboarding/v3/OnboardingV3Wizard.tsx; AGENTS.md
+  - Guardrails for next agent: Any flow that performs direct server save outside ScenarioSaveToolbar must also update scenarioCloudStore revision metadata immediately to avoid stale expectedRevision conflicts.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

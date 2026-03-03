@@ -22,6 +22,7 @@ import { mapOnboardingV3EventTypes } from "./eventTypeMapper";
 import { memberCasesPath, scenarioDashboardPath } from "../../../../lib/routes/appRoutes";
 import { saveScenarioPayloadAction } from "../../../../app/(app)/app/actions/scenarioSave.actions";
 import { useScenarioContext } from "../../../hooks/useScenarioContext";
+import { useScenarioCloudStore } from "../../../store/scenarioCloudStore";
 import { exportScenarioState } from "../../../store/scenarioState";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
@@ -531,6 +532,13 @@ export default function OnboardingV3Wizard() {
         if (!saveResult.ok) {
           throw new Error("REVISION_CONFLICT");
         }
+
+        useScenarioCloudStore.getState().markSaved(
+          scenarioContext.scenarioId,
+          JSON.stringify(payload),
+          saveResult.revision,
+          saveResult.lastSavedAt,
+        );
       } catch (error) {
         console.error("Failed to persist onboarding v3 payload", error);
         setValidationMessages([t("errors.saveFailed")]);
