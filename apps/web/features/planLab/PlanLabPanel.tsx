@@ -226,6 +226,8 @@ import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
 import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
 import { buildMonthScale } from "../../lib/chart/monthScale";
+import MoneyMetaTags from "../../src/features/money/MoneyMetaTags";
+import type { MoneyTagItem } from "../../src/features/money/moneyTagConfig";
 import { compareMonthKey } from "../../src/utils/monthKey";
 import {
   adaptPlanLabRowMeta,
@@ -884,7 +886,7 @@ type PlanLabAccordionRowProps = {
   title: string;
   badges: PlanLabRowBadge[];
   summary?: string;
-  meta?: string;
+  metaTags?: MoneyTagItem[];
   enabled?: boolean;
   highlighted?: boolean;
   onToggle?: () => void;
@@ -903,7 +905,7 @@ const PlanLabAccordionRow = memo(
       title,
       badges,
       summary,
-      meta,
+      metaTags,
       enabled,
       highlighted,
       onToggle,
@@ -934,11 +936,7 @@ const PlanLabAccordionRow = memo(
                 <Text fw={600} size="sm" lineClamp={1}>
                   {title}
                 </Text>
-                {meta ? (
-                  <Text size="xs" c="dimmed" lineClamp={2}>
-                    {meta}
-                  </Text>
-                ) : null}
+                {metaTags && metaTags.length > 0 ? <MoneyMetaTags tags={metaTags} /> : null}
                 <Group gap={4} wrap="wrap">
                   {badges.map((badge) => (
                     <Badge
@@ -1052,14 +1050,14 @@ PlanLabAccordionRow.displayName = "PlanLabAccordionRow";
 type PlanLabBundleItemRowProps = {
   title: string;
   badges: PlanLabRowBadge[];
-  meta?: string;
+  metaTags?: MoneyTagItem[];
   highlighted?: boolean;
 };
 
 const PlanLabBundleItemRow = ({
   title,
   badges,
-  meta,
+  metaTags,
   highlighted,
 }: PlanLabBundleItemRowProps) => (
   <Paper
@@ -1076,11 +1074,7 @@ const PlanLabBundleItemRow = ({
         <Text fw={600} size="sm" lineClamp={1}>
           {title}
         </Text>
-        {meta ? (
-          <Text size="xs" c="dimmed" lineClamp={2}>
-            {meta}
-          </Text>
-        ) : null}
+        {metaTags && metaTags.length > 0 ? <MoneyMetaTags tags={metaTags} /> : null}
         <Group gap={4} wrap="wrap">
           {badges.map((badge, index) => (
             <Badge
@@ -1206,7 +1200,9 @@ export default function PlanLabPanel({
 
   const [chartType, setChartType] = useState<ChartType>("netWorth");
   const [mode, setMode] = useState<"edit" | "compare">(initialMode ?? "edit");
-  const [groupBy] = useState<PlanLabGroupBy>("domain");
+  const [groupBy, setGroupBy] = useState<PlanLabGroupBy>(
+    (initialMode ?? "edit") === "compare" ? "member" : "domain"
+  );
   const [planLibraryOpen, setPlanLibraryOpen] = useState(false);
   const [savePlanOpen, setSavePlanOpen] = useState(false);
   const [savePlanNotes, setSavePlanNotes] = useState<string | undefined>(undefined);
@@ -1265,6 +1261,10 @@ export default function PlanLabPanel({
   );
   const [targetMonthInput, setTargetMonthInput] = useState("");
   const [chartPreviewOpen, setChartPreviewOpen] = useState(false);
+  useEffect(() => {
+    setGroupBy(mode === "compare" ? "member" : "domain");
+  }, [mode]);
+
   const [hoverMonthIdx, setHoverMonthIdx] = useState<number | null>(null);
   const [lockedMonthIdx, setLockedMonthIdx] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -5452,23 +5452,9 @@ export default function PlanLabPanel({
       if (changeBadge) {
         badges.push(changeBadge);
       }
-      const normalizedCategory = item.category?.toLowerCase();
-      const mappedCategoryLabel = normalizedCategory ? GROUP_LABEL[normalizedCategory] : undefined;
-      const categoryLabel = mappedCategoryLabel ?? categoryLabels[item.category] ?? item.category;
-      if (categoryLabel) {
-        badges.push({ label: categoryLabel });
-      }
-      if (item.memberName) {
-        badges.push({ label: item.memberName, color: "gray" });
-      }
       return badges;
     },
-    [
-      categoryLabels,
-      getScenarioItemChangeBadge,
-      isItemImpactedByEnabledExperiment,
-      translate,
-    ]
+    [getScenarioItemChangeBadge, isItemImpactedByEnabledExperiment, translate]
   );
 
   const frequencyLabels = useMemo<Record<NonNullable<ScenarioEditorItem["frequency"]>, string>>(
@@ -5479,6 +5465,15 @@ export default function PlanLabPanel({
       oneOff: translate("planLabFrequencyOneOff", "一次性"),
       everyNMonths: translate("planLabFrequencyEveryNMonths", "每 N 個月"),
       schedule: translate("planLabFrequencySchedule", "排程"),
+    }),
+    [translate]
+  );
+
+  const lifecycleLabels = useMemo(
+    () => ({
+      oneOff: translate("planLabTagLifecycleOneOff", "一次性"),
+      hasEndMonth: translate("planLabTagLifecycleHasEndMonth", "有結束月份"),
+      ongoing: translate("planLabTagLifecycleOngoing", "持續"),
     }),
     [translate]
   );
@@ -5511,7 +5506,9 @@ export default function PlanLabPanel({
         currency: scenario.baseCurrency,
         locale,
         frequencyLabels,
+        lifecycleLabels,
         householdLabel: translate("planLabMemberHousehold", "家庭"),
+        orphanedLabel: translate("planLabTagLinkStateOrphaned", "孤兒項目"),
         memberLookupRecord: Object.fromEntries(
           combinedMembers.map((member) => [member.id, member.name])
         ),
@@ -5519,10 +5516,15 @@ export default function PlanLabPanel({
       map.set(item.id, meta);
     });
     return map;
-  }, [combinedMembers, frequencyLabels, locale, scenario.baseCurrency, scenarioItems, translate]);
+  }, [combinedMembers, frequencyLabels, lifecycleLabels, locale, scenario.baseCurrency, scenarioItems, translate]);
 
   const getScenarioItemSummary = useCallback(
     (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id)?.summary ?? "",
+    [scenarioItemMetaById]
+  );
+
+  const getScenarioItemMetaTags = useCallback(
+    (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id)?.tags ?? [],
     [scenarioItemMetaById]
   );
 
@@ -7621,7 +7623,7 @@ export default function PlanLabPanel({
                   ref={(node) => registerItemRef(item.id, node)}
                   title={sourceItem.title}
                   badges={getScenarioItemBadges(sourceItem)}
-                  meta={getScenarioItemScheduleSummary(sourceItem) ?? getScenarioItemSummary(sourceItem)}
+                  metaTags={getScenarioItemMetaTags(sourceItem)}
                   highlighted={highlightedItemId === sourceItem.id}
                   primaryAction={{
                     label: isAffected
@@ -8424,6 +8426,16 @@ export default function PlanLabPanel({
                       {translate("planLabScenarioEditor", "Baseline 檢視器")}
                     </Text>
                   </MantineTooltip>
+                  <SegmentedControl
+                    size="xs"
+                    value={groupBy}
+                    onChange={(value) => setGroupBy(value as PlanLabGroupBy)}
+                    data={[
+                      { label: translate("planLabGroupByDomain", "Domain"), value: "domain" },
+                      { label: translate("planLabGroupByMember", "Member"), value: "member" },
+                      { label: translate("planLabGroupByStartMonth", "Start Month"), value: "timeBucket" },
+                    ]}
+                  />
                 </Group>
                 {groupedItems.length === 0 && !showBundleSection ? (
                   <Text size="sm" c="dimmed">
@@ -8539,7 +8551,7 @@ export default function PlanLabPanel({
                                       }
                                       title={bundle.title}
                                       badges={bundleBadges}
-                                      meta={summaryText}
+                                      summary={summaryText}
                                       highlighted={
                                         highlightedItemId ===
                                         buildBundleRowId(bundle.id)
@@ -8590,7 +8602,7 @@ export default function PlanLabPanel({
                                                 key={item.id}
                                                 title={getBundleChildTitle(item)}
                                                 badges={getScenarioItemBadges(item)}
-                                                meta={getScenarioItemScheduleSummary(item) ?? getScenarioItemSummary(item)}
+                                                metaTags={getScenarioItemMetaTags(item)}
                                                 highlighted={
                                                   highlightedItemId === item.id
                                                 }
@@ -8744,7 +8756,7 @@ export default function PlanLabPanel({
                                         }
                                         title={bundle.title}
                                         badges={bundleBadges}
-                                        meta={summaryText}
+                                        summary={summaryText}
                                         highlighted={
                                           highlightedItemId ===
                                           buildBundleRowId(bundle.id)
@@ -8797,7 +8809,7 @@ export default function PlanLabPanel({
                                                   key={sourceItem.id}
                                                   title={getBundleChildTitle(sourceItem)}
                                                   badges={getScenarioItemBadges(sourceItem)}
-                                                  meta={getScenarioItemScheduleSummary(sourceItem) ?? getScenarioItemSummary(sourceItem)}
+                                                  metaTags={getScenarioItemMetaTags(sourceItem)}
                                                   highlighted={
                                                     highlightedItemId === sourceItem.id
                                                   }
