@@ -84,7 +84,7 @@ import {
 } from "../../src/domain/assumptions/planningHorizon";
 import { buildDefaultsForNewMember } from "../../src/domain/onboarding/buildDefaultsForNewMember";
 import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
-import { scenarioDashboardPath } from "../../lib/routes/appRoutes";
+import { scenarioDashboardPath, scenarioMoneyPath } from "../../lib/routes/appRoutes";
 import { computeDashboardMetrics } from "../../src/domain/dashboard/metrics";
 import ProjectionPreviewPanel, { type PreviewScope } from "../ProjectionPreviewPanel";
 import {
@@ -1237,9 +1237,65 @@ export default function ScenarioSettingsWorkspace({
     eldercare: budgetText("categoryEldercare"),
     petcare: budgetText("categoryPetcare"),
   };
-  const householdBudgetRules = useMemo(
-    () => budgetRules.filter((rule) => !rule.memberId),
-    [budgetRules]
+  const assignableEventViews = useMemo(() => {
+    if (!scenario) {
+      return [];
+    }
+    return buildScenarioEventViews(scenario, eventLibrary).filter(
+      (view) => view.definition.kind === "cashflow"
+    );
+  }, [eventLibrary, scenario]);
+  const eventsByMemberId = useMemo(() => {
+    const grouped = new Map<string, typeof assignableEventViews>();
+    assignableEventViews.forEach((view) => {
+      const memberKey = view.definition.memberId ?? "household";
+      const existing = grouped.get(memberKey) ?? [];
+      grouped.set(memberKey, [...existing, view]);
+    });
+    return grouped;
+  }, [assignableEventViews]);
+  const resolveEventEditHref = useCallback(
+    (eventId: string, eventType: string) => {
+      if (!scenario || !caseId) {
+        return "#";
+      }
+      const group = getEventMeta(eventType).group;
+      const tab = group === "income" ? "income" : "expenses";
+      const query = new URLSearchParams({ tab, editEventId: eventId });
+      return `${scenarioMoneyPath(caseId, scenario.id)}?${query.toString()}`;
+    },
+    [caseId, scenario]
+  );
+  const resolveEventAmountLabel = useCallback(
+    (eventView: (typeof assignableEventViews)[number]) => {
+      const monthlyAmount = Number(eventView.rule.monthlyAmount ?? 0);
+      const oneTimeAmount = Number(eventView.rule.oneTimeAmount ?? 0);
+      if (monthlyAmount !== 0) {
+        return formatCurrency(monthlyAmount);
+      }
+      if (oneTimeAmount !== 0) {
+        return formatCurrency(oneTimeAmount);
+      }
+      return formatCurrency(0);
+    },
+    [formatCurrency]
+  );
+  const resolveEventPeriodLabel = useCallback(
+    (eventView: (typeof assignableEventViews)[number]) => {
+      const startMonth = eventView.rule.startMonth?.trim() ?? "";
+      const endMonth = eventView.rule.endMonth?.trim() ?? "";
+      if (startMonth && endMonth) {
+        return `${startMonth} → ${endMonth}`;
+      }
+      if (startMonth) {
+        return `${startMonth} → ${common("ongoing")}`;
+      }
+      if (endMonth) {
+        return membersText("memberEventsPeriodUntil", { endMonth });
+      }
+      return membersText("memberEventsPeriodUnspecified");
+    },
+    [common, membersText]
   );
   const formatApplyScopeLabel = (applyScope: ApplyScope | undefined) => {
     const scope = applyScope?.scope ?? "all";
@@ -2134,9 +2190,7 @@ export default function ScenarioSettingsWorkspace({
                         ? getMemberAgeYears(member, horizonEndMonth!, validBaseMonth!)
                         : null;
                     const showAgeError = !hasBirthMonth && !hasAgeAtBase;
-                    const memberBudgetRules = budgetRules.filter(
-                      (rule) => rule.memberId === member.id
-                    );
+                    const memberEventViews = eventsByMemberId.get(member.id) ?? [];
 
                     return (
                       <Accordion.Item key={member.id} value={member.id}>
@@ -2312,65 +2366,36 @@ export default function ScenarioSettingsWorkspace({
                                   : formatAgeYears(endAge)}
                               </Text>
                             </Group>
-                            <Stack gap="xs" display={"none"}>
-                              <Group justify="space-between" align="center">
-                                <Text fw={600}>
-                                  {membersText("memberBudgetTitle")}
-                                </Text>
-                                <Button
-                                  size="xs"
-                                  variant="light"
-                                  onClick={() => {
-                                    const nextId = createBudgetRuleForMember(member.id);
-                                    setActiveTab("persistence");
-                                    setExpandedBudgetRuleId(nextId);
-                                  }}
-                                >
-                                  {membersText("addMemberRule")}
-                                </Button>
-                              </Group>
-                              {memberBudgetRules.length === 0 ? (
+                            <Stack gap="xs">
+                              <Text fw={600}>{membersText("memberEventsTitle")}</Text>
+                              {memberEventViews.length === 0 ? (
                                 <Text size="xs" c="dimmed">
-                                  {membersText("memberBudgetEmpty")}
+                                  {membersText("memberEventsEmpty")}
                                 </Text>
                               ) : (
                                 <Stack gap="xs">
-                                  {memberBudgetRules.map((rule) => (
-                                    <Card
-                                      key={rule.id}
-                                      withBorder
-                                      radius="md"
-                                      padding="sm"
-                                    >
-                                      <Group
-                                        justify="space-between"
-                                        align="center"
-                                        wrap="wrap"
-                                      >
+                                  {memberEventViews.map((eventView) => (
+                                    <Card key={eventView.definition.id} withBorder radius="md" padding="sm">
+                                      <Group justify="space-between" align="center" wrap="wrap">
                                         <Stack gap={2}>
-                                          <Text fw={500}>{rule.name}</Text>
-                                          <Text size="xs" c="dimmed">
-                                            {budgetCategoryLabels[rule.category] ??
-                                              rule.category}
-                                          </Text>
+                                          <Text fw={500}>{eventView.definition.title}</Text>
+                                          <Group gap="xs" wrap="wrap">
+                                            <Badge variant="outline">{eventView.definition.type}</Badge>
+                                            <Text size="xs" c="dimmed">{resolveEventAmountLabel(eventView)}</Text>
+                                            <Text size="xs" c="dimmed">{resolveEventPeriodLabel(eventView)}</Text>
+                                          </Group>
                                         </Stack>
-                                        <Group gap="xs" align="center">
-                                          <Text size="sm">
-                                            {formatCurrency(
-                                              -Math.abs(rule.monthlyAmount ?? 0)
-                                            )}
-                                          </Text>
-                                          <Button
-                                            size="xs"
-                                            variant="light"
-                                            onClick={() => {
-                                              setActiveTab("persistence");
-                                              setExpandedBudgetRuleId(rule.id);
-                                            }}
-                                          >
-                                            {common("actionEdit")}
-                                          </Button>
-                                        </Group>
+                                        <Button
+                                          size="xs"
+                                          variant="light"
+                                          component={Link}
+                                          href={resolveEventEditHref(
+                                            eventView.definition.id,
+                                            eventView.definition.type
+                                          )}
+                                        >
+                                          {membersText("memberEventsEdit")}
+                                        </Button>
                                       </Group>
                                     </Card>
                                   ))}
@@ -2383,52 +2408,44 @@ export default function ScenarioSettingsWorkspace({
                     );
                   })}
                 </Accordion>
-                <Card withBorder radius="md" padding="md" display={"none"}>
+                <Card withBorder radius="md" padding="md">
                   <Stack gap="xs">
                     <Group justify="space-between" align="center">
-                      <Text fw={600}>{membersText("householdBudgetTitle")}</Text>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() => {
-                          const nextId = createBudgetRuleForMember(undefined);
-                          setActiveTab("persistence");
-                          setExpandedBudgetRuleId(nextId);
-                        }}
-                      >
-                        {membersText("addHouseholdRule")}
-                      </Button>
+                      <Text fw={600}>{membersText("householdCardTitle")}</Text>
+                      <Badge variant="light">
+                        {membersText("memberEventsCount", {
+                          count: (eventsByMemberId.get("household") ?? []).length,
+                        })}
+                      </Badge>
                     </Group>
-                    {householdBudgetRules.length === 0 ? (
+                    {(eventsByMemberId.get("household") ?? []).length === 0 ? (
                       <Text size="xs" c="dimmed">
-                        {membersText("householdBudgetEmpty")}
+                        {membersText("householdEventsEmpty")}
                       </Text>
                     ) : (
                       <Stack gap="xs">
-                        {householdBudgetRules.map((rule) => (
-                          <Card key={rule.id} withBorder radius="md" padding="sm">
+                        {(eventsByMemberId.get("household") ?? []).map((eventView) => (
+                          <Card key={eventView.definition.id} withBorder radius="md" padding="sm">
                             <Group justify="space-between" align="center" wrap="wrap">
                               <Stack gap={2}>
-                                <Text fw={500}>{rule.name}</Text>
-                                <Text size="xs" c="dimmed">
-                                  {budgetCategoryLabels[rule.category] ?? rule.category}
-                                </Text>
+                                <Text fw={500}>{eventView.definition.title}</Text>
+                                <Group gap="xs" wrap="wrap">
+                                  <Badge variant="outline">{eventView.definition.type}</Badge>
+                                  <Text size="xs" c="dimmed">{resolveEventAmountLabel(eventView)}</Text>
+                                  <Text size="xs" c="dimmed">{resolveEventPeriodLabel(eventView)}</Text>
+                                </Group>
                               </Stack>
-                              <Group gap="xs" align="center">
-                                <Text size="sm">
-                                  {formatCurrency(-Math.abs(rule.monthlyAmount ?? 0))}
-                                </Text>
-                                <Button
-                                  size="xs"
-                                  variant="light"
-                                  onClick={() => {
-                                    setActiveTab("persistence");
-                                    setExpandedBudgetRuleId(rule.id);
-                                  }}
-                                >
-                                  {common("actionEdit")}
-                                </Button>
-                              </Group>
+                              <Button
+                                size="xs"
+                                variant="light"
+                                component={Link}
+                                href={resolveEventEditHref(
+                                  eventView.definition.id,
+                                  eventView.definition.type
+                                )}
+                              >
+                                {membersText("memberEventsEdit")}
+                              </Button>
                             </Group>
                           </Card>
                         ))}

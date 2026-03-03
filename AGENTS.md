@@ -295,3 +295,9 @@ PR requirement:
   - Affected paths: AGENTS.md
   - Guardrails for next agent: Run all four Quality Gates or document failure reason + impacted scope + fallback validation; append to this changelog for any future UX/architecture/domain/routing/persistence changes.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Members settings tab had hidden event/budget UI (`display="none"`) and lacked visible event assignment overview per member/household.
+  - What changed: Replaced hidden members-panel budget blocks with visible active-scenario event grouping list built from `buildScenarioEventViews`; grouped by `memberId` with fallback `household`; added per-event “go to edit” links to Money flow and added fixed household card for unassigned events; added corresponding i18n keys.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json
+  - Guardrails for next agent: Keep this panel scoped to active scenario data only; use scenario-level event views + member linkage and avoid cross-scenario/case aggregation.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

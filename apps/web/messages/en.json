@@ -2524,7 +2524,15 @@
     "addHouseholdRule": "Add household rule",
     "householdBudgetEmpty": "No household rules yet.",
     "legacySectionTitle": "Advanced / legacy fields",
-    "legacySectionNote": "These fields are kept for compatibility and do not currently affect projection results."
+    "legacySectionNote": "These fields are kept for compatibility and do not currently affect projection results.",
+    "memberEventsTitle": "Assignable events",
+    "memberEventsEmpty": "No events are assigned to this member yet.",
+    "memberEventsEdit": "Go to edit",
+    "memberEventsCount": "{count} events",
+    "memberEventsPeriodUntil": "Until {endMonth}",
+    "memberEventsPeriodUnspecified": "Period not set",
+    "householdCardTitle": "Household",
+    "householdEventsEmpty": "No unassigned household events yet."
   },
   "budgetRules": {
     "title": "Budget rules",
