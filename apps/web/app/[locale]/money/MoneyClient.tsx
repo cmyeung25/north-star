@@ -70,7 +70,7 @@ import {
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
 import { formatCurrency } from "../../../lib/i18n";
-import { memberCasesPath, scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
+import { memberCasesPath, scenarioPeoplePath, scenarioSettingsPath } from "../../../lib/routes/canonicalRoutes";
 import { buildScenarioEventViews } from "../../../src/domain/events/utils";
 import { monthsBetween } from "../../../src/domain/members/age";
 import { isValidMonthStr } from "../../../src/utils/month";
@@ -2851,20 +2851,19 @@ export default function MoneyClient({
   }, []);
 
   const handleSaveCashBaseline = useCallback(
-    ({ amount, baseMonth: nextBaseMonth }: { amount: number; baseMonth: string | null }) => {
+    ({ amount }: { amount: number }) => {
       if (!scenarioIdValue) {
         return;
       }
       const sanitizedAmount = Math.max(0, amount);
       setScenarioInitialCash(scenarioIdValue, sanitizedAmount);
-      setScenarioBaseMonth(scenarioIdValue, nextBaseMonth);
       upsertScenarioAssets(scenarioIdValue, [
         {
           id: cashAsset?.id ?? "cash",
           kind: "cash",
           label: cashAsset?.label ?? t("assetTypeCash"),
           currentValue: sanitizedAmount,
-          startMonth: nextBaseMonth ?? undefined,
+          startMonth: cashAsset?.startMonth,
           currency: cashAsset?.currency ?? scenario?.baseCurrency,
           source: cashAsset?.source ?? "manual",
         },
@@ -2876,9 +2875,9 @@ export default function MoneyClient({
       cashAsset?.id,
       cashAsset?.label,
       cashAsset?.source,
+      cashAsset?.startMonth,
       scenario?.baseCurrency,
       scenarioIdValue,
-      setScenarioBaseMonth,
       setScenarioInitialCash,
       t,
       upsertScenarioAssets,
@@ -4020,13 +4019,17 @@ export default function MoneyClient({
                 currency={scenario?.baseCurrency ?? "USD"}
                 locale={locale}
                 onEdit={handleOpenCashEditModal}
+                settingsHref={
+                  params.caseId && scenarioIdValue
+                    ? `${scenarioSettingsPath(params.caseId, scenarioIdValue, locale as Locale)}#global`
+                    : "#global"
+                }
               />
             </div>
             <EditCashBaselineModal
               opened={cashEditOpened}
               currency={scenario?.baseCurrency ?? "USD"}
               value={initialCashValue}
-              baseMonth={baseMonth}
               onClose={() => setCashEditOpened(false)}
               onSave={handleSaveCashBaseline}
             />

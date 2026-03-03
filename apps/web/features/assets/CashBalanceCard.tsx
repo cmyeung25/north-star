@@ -1,9 +1,10 @@
 "use client";
 
 import React, { forwardRef } from "react";
-import { Button, Card, Group, Stack, Text } from "@mantine/core";
+import { Anchor, Button, Card, Group, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { formatCurrency } from "../../lib/i18n";
+import { Link } from "../../src/i18n/navigation";
 
 type CashBalanceCardProps = {
   value: number;
@@ -11,10 +12,11 @@ type CashBalanceCardProps = {
   currency: string;
   locale: string;
   onEdit: () => void;
+  settingsHref: string;
 };
 
 const CashBalanceCard = forwardRef<HTMLDivElement, CashBalanceCardProps>(
-  ({ value, baseMonth, currency, locale, onEdit }, ref) => {
+  ({ value, baseMonth, currency, locale, onEdit, settingsHref }, ref) => {
     const t = useTranslations("money");
 
     return (
@@ -42,7 +44,12 @@ const CashBalanceCard = forwardRef<HTMLDivElement, CashBalanceCardProps>(
               <Text size="xs" c="dimmed">
                 {t("cashCardMonthLabel")}
               </Text>
-              <Text fw={600}>{baseMonth ?? t("cashCardMonthUnset")}</Text>
+              <Group gap="xs" align="center">
+                <Text fw={600}>{baseMonth ?? t("cashCardMonthUnset")}</Text>
+                <Anchor component={Link} href={settingsHref} size="sm">
+                  {t("cashCardGoToSettings")}
+                </Anchor>
+              </Group>
             </div>
           </Group>
         </Stack>

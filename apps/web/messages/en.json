@@ -1216,9 +1216,9 @@
     "insuranceCashValueLabel": "Cash value ({currency})",
     "insuranceReturnLabel": "Expected return (%)",
     "assetsTitle": "Assets",
-    "assetsDescription": "Homes, investments, insurance policies, and cars.",
+    "assetsDescription": "Homes, investments, insurance policies, and cars. Base month is managed in Settings.",
     "cashCardTitle": "Cash & deposits",
-    "cashCardHint": "Set your starting cash balance and base month.",
+    "cashCardHint": "Set your starting cash balance; base month is managed in Settings.",
     "cashCardAmountLabel": "Cash amount ({currency})",
     "cashCardMonthLabel": "Base month",
     "cashCardMonthUnset": "Not set",
@@ -1891,7 +1891,8 @@
       "tax": "Tax",
       "debt_repayment": "Debt repayment",
       "other": "Other"
-    }
+    },
+    "cashCardGoToSettings": "Go to Settings"
   },
   "entryLauncher": {
     "title": "Add new money items",
