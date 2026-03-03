@@ -4913,7 +4913,8 @@ export default function MoneyClient({
                 baseCurrency={scenario.baseCurrency}
                 scenarioStartMonth={scenario.assumptions.baseMonth ?? null}
                 scenarioHorizonMonths={scenario.assumptions.horizonMonths ?? null}
-                  inflationPct={scenario.assumptions.inflationRate ?? null}
+                incomeGrowthPct={scenario.assumptions.salaryGrowthRate ?? null}
+                inflationPct={scenario.assumptions.inflationRate ?? null}
                 rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
                 members={members}
                 event={
