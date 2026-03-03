@@ -7,6 +7,9 @@ import {
   resolveEventCardAmount,
   resolveEventCardEndMonth,
   resolveEventCardStartMonth,
+  resolveProjectionPreviewRow,
+  resolveDisplayMonths,
+  resolveAdjustmentSummary,
 } from "../eventCardUtils";
 
 describe("eventCardUtils", () => {
@@ -91,6 +94,58 @@ describe("eventCardUtils", () => {
       expense: 1200,
       net: -1200,
       month: "2026-06",
+    });
+  });
+  it("resolves projection preview row using anchor month", () => {
+    const rows: LedgerRow[] = [
+      { month: "2026-01", amount: -1000, sourceEventId: "evt", kind: "expense" },
+      { month: "2026-06", amount: -1200, sourceEventId: "evt", kind: "expense" },
+      { month: "2027-01", amount: -1500, sourceEventId: "evt", kind: "expense" },
+    ];
+
+    const row = resolveProjectionPreviewRow(rows, "2026-06");
+
+    expect(row?.month).toBe("2026-06");
+  });
+
+  it("prefers grouped months when adjustments are present", () => {
+    expect(
+      resolveDisplayMonths({
+        startMonth: "2024-01",
+        endMonth: "2024-12",
+        groupStartMonth: "2024-02",
+        groupEndMonth: "2024-11",
+        hasAdjustments: true,
+      })
+    ).toEqual({ startMonth: "2024-02", endMonth: "2024-11" });
+  });
+
+  it("builds latest adjustment summary from adjustment list", () => {
+    const adjustments: ScenarioEvent[] = [
+      {
+        id: "adj-1",
+        baseEventId: "base",
+        type: "cashflow",
+        kind: "income",
+        cadence: "monthly",
+        amount: 1000,
+        startMonth: "2024-01",
+      },
+      {
+        id: "adj-2",
+        baseEventId: "base",
+        type: "cashflow",
+        kind: "income",
+        cadence: "monthly",
+        amount: 1200,
+        startMonth: "2024-02",
+      },
+    ];
+
+    expect(resolveAdjustmentSummary({ adjustments, resolveAmount: (event) => event.type === "cashflow" ? event.amount : 0 })).toEqual({
+      count: 2,
+      month: "2024-02",
+      amount: 1200,
     });
   });
 

@@ -1,24 +1,26 @@
 "use client";
 
 import React from "react";
-import { ActionIcon, Button, Card, Group, Menu, Stack, Text } from "@mantine/core";
+import { ActionIcon, Button, Group, Menu, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { ScenarioEvent } from "../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../engine/scenarioV2Compiler";
-import { compareMonthKey } from "../../utils/monthKey";
 import { formatCurrency } from "../../../lib/i18n";
 import {
+  resolveAdjustmentSummary,
+  resolveDisplayMonths,
   resolveEventCardAmount,
   resolveEventCardEndMonth,
   resolveEventCardStartMonth,
-  resolveEventMonthlyImpact,
+  resolveProjectionPreviewRow,
 } from "./eventCardUtils";
 import { groupEventSeries } from "./eventSeriesGrouping";
 import MoneyMetaTags from "./MoneyMetaTags";
 import { resolveEventCategoryKey } from "./categoryMeta";
 import { buildMoneyMetaTagViewModel } from "./moneyMetaTagViewModel";
 import type { EventAdjustmentSpec } from "./adjustments/createEventAdjustment";
+import MoneyEventCard from "./MoneyEventCard";
 
 type Props = {
   events: ScenarioEvent[];
@@ -55,137 +57,127 @@ export default function ExpenseEventList({
   return (
     <Stack gap="sm">
       {groupedEvents.map(({ baseEvent, adjustments, groupStartMonth, groupEndMonth }) => {
-        const groupRows = [baseEvent, ...adjustments]
-          .flatMap((event) => ledgerRowsByEventId.get(event.id) ?? [])
-          .sort((left, right) => compareMonthKey(right.month, left.month));
-        const projectionRow =
-          groupRows.find((row) => (anchorMonth ? row.month === anchorMonth : false)) ??
-          groupRows.find((row) => (anchorMonth ? compareMonthKey(row.month, anchorMonth) <= 0 : false)) ??
-          groupRows[0];
+        const groupRows = [baseEvent, ...adjustments].flatMap((event) => ledgerRowsByEventId.get(event.id) ?? []);
+        const projectionRow = resolveProjectionPreviewRow(groupRows, anchorMonth);
         const amount = resolveEventCardAmount(baseEvent);
         const primaryAmount = Math.abs(amount ?? 0);
         const startMonth = resolveEventCardStartMonth(baseEvent);
         const endMonth = resolveEventCardEndMonth(baseEvent);
-        const impact = resolveEventMonthlyImpact(groupRows);
+        const displayMonths = resolveDisplayMonths({
+          startMonth,
+          endMonth,
+          groupStartMonth,
+          groupEndMonth,
+          hasAdjustments: adjustments.length > 0,
+        });
         const expanded = Boolean(expandedIds[baseEvent.id]);
-        const latestAdjustment = adjustments[adjustments.length - 1];
+        const adjustmentSummary = resolveAdjustmentSummary({
+          adjustments,
+          resolveAmount: (event) => resolveEventCardAmount(event) ?? 0,
+        });
 
         return (
-          <Card key={baseEvent.id} withBorder radius="md" padding="md">
-            <Group justify="space-between" align="flex-start" wrap="wrap">
-              <Stack gap={4}>
-                <Text fw={600}>{baseEvent.label ?? t("ledgerRowFallbackLabel")}</Text>
-                <Text fw={700}>{formatCurrency(primaryAmount, baseCurrency, locale)}</Text>
-                {impact ? (
-                  <>
-                    <Text size="sm" c="dimmed">
-                      {t("eventCardMonthlyExpense", {
-                        amount: formatCurrency(impact.expense, baseCurrency, locale),
-                      })}
-                    </Text>
-                    <Text size="sm" c="dimmed">
-                      {t("eventCardMonthlyNet", {
-                        amount: formatCurrency(impact.net, baseCurrency, locale),
-                      })}
-                    </Text>
-                  </>
-                ) : (
-                  <Text size="sm" c="dimmed">
-                    {t("eventCardMonthlyNet", {
-                      amount:
-                        amount !== null
-                          ? formatCurrency(amount, baseCurrency, locale)
-                          : t("amountUnset"),
-                    })}
-                  </Text>
-                )}
-                <Text size="sm" c="dimmed">
-                  {t("eventCardMonths", {
-                    startMonth: adjustments.length > 0 ? (groupStartMonth ?? startMonth ?? t("amountUnset")) : (startMonth ?? t("amountUnset")),
-                    endMonth: adjustments.length > 0 ? (groupEndMonth ?? endMonth ?? t("eventCardOpenEnded")) : (endMonth ?? t("eventCardOpenEnded")),
+          <MoneyEventCard
+            key={baseEvent.id}
+            title={baseEvent.label ?? t("ledgerRowFallbackLabel")}
+            primaryAmount={formatCurrency(primaryAmount, baseCurrency, locale)}
+            metaTags={
+              <MoneyMetaTags
+                tags={buildMoneyMetaTagViewModel(baseEvent, {
+                  householdLabel: t("householdLabel"),
+                  ownerId: baseEvent.memberId,
+                  resolveTypeLabel: () => {
+                    if (baseEvent.type === "housing") {
+                      return baseEvent.kind === "rent" ? t("eventTypeRent") : t("eventTypeMortgage");
+                    }
+                    if (baseEvent.type === "loan") {
+                      return t("eventTypeLoan");
+                    }
+                    if (baseEvent.type === "insurance") {
+                      return t("eventTypeInsurance");
+                    }
+                    return t("eventTypeExpense");
+                  },
+                  resolveFrequencyLabel: (meta) =>
+                    meta.frequency === "none"
+                      ? null
+                      : t(
+                          meta.frequency === "monthly"
+                            ? "ledgerEventCadenceMonthly"
+                            : meta.frequency === "yearly"
+                              ? "ledgerEventCadenceYearly"
+                              : meta.frequency === "oneOff"
+                                ? "ledgerEventCadenceOneOff"
+                                : meta.frequency === "quarterly"
+                                  ? "ledgerEventCadenceQuarterly"
+                                  : "ledgerEventCadenceEveryN"
+                        ),
+                  resolveLifecycleLabel: (meta) =>
+                    meta.lifecycle === "oneOff"
+                      ? t("ledgerEventCadenceOneOff")
+                      : meta.lifecycle === "hasEndMonth"
+                        ? t("eventLifecycleHasEndMonth")
+                        : t("eventCardOpenEnded"),
+                  categoryLabel:
+                    baseEvent.type === "cashflow"
+                      ? (() => {
+                          const categoryKey = resolveEventCategoryKey(baseEvent);
+                          return categoryKey ? t(`expenseCategory.${categoryKey}`) : null;
+                        })()
+                      : null,
+                  adjustmentCount: adjustments.length,
+                  adjustmentLabel: t("eventAdjustmentCountBadge", { count: adjustments.length }),
+                }).tags}
+              />
+            }
+            monthRange={
+              <Text size="sm" c="dimmed">
+                {t("eventCardMonths", {
+                  startMonth: displayMonths.startMonth ?? t("amountUnset"),
+                  endMonth: displayMonths.endMonth ?? t("eventCardOpenEnded"),
+                })}
+              </Text>
+            }
+            projectionSummary={
+              projectionRow ? (
+                <Text size="xs" c="dimmed">
+                  {t("incomeProjectedPreview", {
+                    month: projectionRow.month,
+                    amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
                   })}
                 </Text>
-                <MoneyMetaTags
-                  tags={buildMoneyMetaTagViewModel(baseEvent, {
-                    householdLabel: t("householdLabel"),
-                    ownerId: baseEvent.memberId,
-                    resolveTypeLabel: () => {
-                      if (baseEvent.type === "housing") {
-                        return baseEvent.kind === "rent" ? t("eventTypeRent") : t("eventTypeMortgage");
-                      }
-                      if (baseEvent.type === "loan") {
-                        return t("eventTypeLoan");
-                      }
-                      if (baseEvent.type === "insurance") {
-                        return t("eventTypeInsurance");
-                      }
-                      return t("eventTypeExpense");
-                    },
-                    resolveFrequencyLabel: (meta) =>
-                      meta.frequency === "none"
-                        ? null
-                        : t(
-                            meta.frequency === "monthly"
-                              ? "ledgerEventCadenceMonthly"
-                              : meta.frequency === "yearly"
-                                ? "ledgerEventCadenceYearly"
-                                : meta.frequency === "oneOff"
-                                  ? "ledgerEventCadenceOneOff"
-                                  : meta.frequency === "quarterly"
-                                    ? "ledgerEventCadenceQuarterly"
-                                    : "ledgerEventCadenceEveryN"
-                          ),
-                    resolveLifecycleLabel: (meta) =>
-                      meta.lifecycle === "oneOff"
-                        ? t("ledgerEventCadenceOneOff")
-                        : meta.lifecycle === "hasEndMonth"
-                          ? t("eventLifecycleHasEndMonth")
-                          : t("eventCardOpenEnded"),
-                    categoryLabel:
-                      baseEvent.type === "cashflow"
-                        ? (() => {
-                            const categoryKey = resolveEventCategoryKey(baseEvent);
-                            return categoryKey ? t(`expenseCategory.${categoryKey}`) : null;
-                          })()
-                        : null,
-                    adjustmentCount: adjustments.length,
-                    adjustmentLabel: t("eventAdjustmentCountBadge", { count: adjustments.length }),
-                    projectionLabel: projectionRow
-                      ? t("incomeProjectedPreview", {
-                          month: projectionRow.month,
-                          amount: formatCurrency(Math.abs(projectionRow.amount), baseCurrency, locale),
-                        })
-                      : null,
-                  }).tags}
-                />
-                {adjustments.length > 0 && latestAdjustment && (
-                  <Stack gap={4} mt={4}>
-                    <Group justify="space-between">
-                      <Text size="sm" fw={600}>
-                        {t("eventAdjustmentLatestSummary", {
-                          count: adjustments.length,
-                          month: resolveEventCardStartMonth(latestAdjustment) ?? t("eventAdjustmentUnknownMonth"),
-                          amount: formatCurrency(Math.abs(resolveEventCardAmount(latestAdjustment) ?? 0), baseCurrency, locale),
-                        })}
+              ) : null
+            }
+            adjustmentSummary={
+              adjustmentSummary ? (
+                <Stack gap={4} mt={4}>
+                  <Group justify="space-between">
+                    <Text size="sm" fw={600}>
+                      {t("eventAdjustmentLatestSummary", {
+                        count: adjustmentSummary.count,
+                        month: adjustmentSummary.month ?? t("eventAdjustmentUnknownMonth"),
+                        amount: formatCurrency(adjustmentSummary.amount, baseCurrency, locale),
+                      })}
+                    </Text>
+                    <Button size="xs" variant="subtle" onClick={() => setExpandedIds((current) => ({ ...current, [baseEvent.id]: !expanded }))}>
+                      {expanded ? t("eventAdjustmentCollapse") : t("eventAdjustmentExpand")}
+                    </Button>
+                  </Group>
+                  {expanded && adjustments.map((event) => (
+                    <Group key={event.id} justify="space-between" wrap="nowrap">
+                      <Text size="sm" c="dimmed">
+                        {resolveEventCardStartMonth(event) ?? "--"} → {resolveEventCardEndMonth(event) ?? t("eventCardOpenEnded")} · {formatCurrency(Math.abs(resolveEventCardAmount(event) ?? 0), baseCurrency, locale)}
                       </Text>
-                      <Button size="xs" variant="subtle" onClick={() => setExpandedIds((current) => ({ ...current, [baseEvent.id]: !expanded }))}>
-                        {expanded ? t("eventAdjustmentCollapse") : t("eventAdjustmentExpand")}
-                      </Button>
-                    </Group>
-                    {expanded && adjustments.map((event) => (
-                      <Group key={event.id} justify="space-between" wrap="nowrap">
-                        <Text size="sm" c="dimmed">
-                          {resolveEventCardStartMonth(event) ?? "--"} → {resolveEventCardEndMonth(event) ?? t("eventCardOpenEnded")} · {formatCurrency(Math.abs(resolveEventCardAmount(event) ?? 0), baseCurrency, locale)}
-                        </Text>
-                        <Group gap={4}>
-                          <Button size="xs" variant="subtle" onClick={() => onEditEvent(event.id)}>{common("actionEdit")}</Button>
-                          <Button size="xs" variant="subtle" color="red" onClick={() => onDeleteEvent(event.id)}>{common("actionDelete")}</Button>
-                        </Group>
+                      <Group gap={4}>
+                        <Button size="xs" variant="subtle" onClick={() => onEditEvent(event.id)}>{common("actionEdit")}</Button>
+                        <Button size="xs" variant="subtle" color="red" onClick={() => onDeleteEvent(event.id)}>{common("actionDelete")}</Button>
                       </Group>
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
+                    </Group>
+                  ))}
+                </Stack>
+              ) : null
+            }
+            actions={
               <Group gap="xs">
                 <Button size="xs" variant="light" onClick={() => onEditEvent(baseEvent.id)}>{common("actionEdit")}</Button>
                 <Menu position="bottom-end" withinPortal>
@@ -212,8 +204,8 @@ export default function ExpenseEventList({
                   </Menu.Dropdown>
                 </Menu>
               </Group>
-            </Group>
-          </Card>
+            }
+          />
         );
       })}
     </Stack>

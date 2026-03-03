@@ -142,6 +142,51 @@ export const resolveLedgerDirection = (rows: LedgerRow[]) => {
   return { hasIncome, hasExpense };
 };
 
+export const resolveProjectionPreviewRow = (
+  rows: LedgerRow[],
+  anchorMonth?: string | null
+): LedgerRow | undefined => {
+  if (rows.length === 0) {
+    return undefined;
+  }
+  const sortedRows = [...rows].sort((left, right) => compareMonthKey(left.month, right.month));
+  return (
+    sortedRows.find((row) => (anchorMonth ? row.month === anchorMonth : false)) ??
+    sortedRows.find((row) => (anchorMonth ? compareMonthKey(row.month, anchorMonth) <= 0 : false)) ??
+    sortedRows[0]
+  );
+};
+
+export const resolveDisplayMonths = (params: {
+  startMonth: string | null;
+  endMonth: string | null;
+  groupStartMonth?: string | null;
+  groupEndMonth?: string | null;
+  hasAdjustments: boolean;
+}) => {
+  const { startMonth, endMonth, groupStartMonth, groupEndMonth, hasAdjustments } = params;
+  return {
+    startMonth: hasAdjustments ? (groupStartMonth ?? startMonth) : startMonth,
+    endMonth: hasAdjustments ? (groupEndMonth ?? endMonth) : endMonth,
+  };
+};
+
+export const resolveAdjustmentSummary = (params: {
+  adjustments: ScenarioEvent[];
+  resolveAmount: (event: ScenarioEvent) => number;
+}) => {
+  const { adjustments, resolveAmount } = params;
+  const latestAdjustment = adjustments.at(-1);
+  if (!latestAdjustment) {
+    return null;
+  }
+  return {
+    count: adjustments.length,
+    month: resolveEventCardStartMonth(latestAdjustment),
+    amount: Math.abs(resolveAmount(latestAdjustment)),
+  };
+};
+
 export const filterEventsByLedgerImpact = (
   events: ScenarioEvent[],
   ledgerRowsByEventId: Map<string, LedgerRow[]>,
