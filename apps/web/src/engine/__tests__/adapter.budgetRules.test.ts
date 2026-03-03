@@ -55,4 +55,19 @@ describe("mapScenarioToEngineInput budget rules", () => {
       )
     ).toBe(true);
   });
+
+  it("maps assumptions.cashYieldPct into projection input", () => {
+    const scenario = buildScenario({
+      assumptions: {
+        baseMonth: "2024-01",
+        horizonMonths: 2,
+        initialCash: 0,
+        cashYieldPct: 3.2,
+      },
+    });
+
+    const { input } = mapScenarioToEngineInput(scenario, [], { strict: false });
+
+    expect(input.cashYieldPct).toBe(3.2);
+  });
 });

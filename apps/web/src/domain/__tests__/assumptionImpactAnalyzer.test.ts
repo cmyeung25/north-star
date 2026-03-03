@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Scenario } from "../../store/scenarioStore";
 import type { ScenarioEvent } from "../scenarioV2/events";
 import { analyzeAssumptionImpact } from "../assumptions/impactAnalyzer";
+import { mapScenarioToEngineInput } from "../../engine/adapter";
+import { computeProjection } from "@north-star/engine";
 
 const buildScenario = (overrides?: Partial<Pick<Scenario, "events" | "assets" | "assumptions">>) => ({
   assumptions: {
@@ -18,6 +20,28 @@ const buildScenario = (overrides?: Partial<Pick<Scenario, "events" | "assets" | 
   },
   events: overrides?.events ?? [],
   assets: overrides?.assets ?? [],
+  liabilities: [],
+});
+
+
+const buildEngineScenario = (cashYieldPct: number): Scenario => ({
+  id: `scenario-cash-yield-${cashYieldPct}`,
+  name: "Cash Yield Scenario",
+  baseCurrency: "HKD",
+  updatedAt: 0,
+  kpis: {
+    lowestMonthlyBalance: 0,
+    runwayMonths: 0,
+    netWorthYear5: 0,
+    riskLevel: "Low",
+  },
+  assumptions: {
+    horizonMonths: 12,
+    initialCash: 100000,
+    baseMonth: "2025-01",
+    cashYieldPct,
+  },
+  events: [],
   liabilities: [],
 });
 
@@ -131,4 +155,19 @@ describe("analyzeAssumptionImpact", () => {
     expect(result.byEventId).toEqual({});
     expect(result.summary.totalImpactedEventCount).toBe(0);
   });
+
+
+  it("produces different cashBalance and netWorth curves when cashYieldPct changes", () => {
+    const scenarioLowYield = buildEngineScenario(0);
+    const scenarioHighYield = buildEngineScenario(12);
+
+    const lowProjection = computeProjection(mapScenarioToEngineInput(scenarioLowYield, []).input);
+    const highProjection = computeProjection(mapScenarioToEngineInput(scenarioHighYield, []).input);
+
+    expect(highProjection.cashBalance[11] > lowProjection.cashBalance[11]).toBe(true);
+    expect(highProjection.netWorth[11] > lowProjection.netWorth[11]).toBe(true);
+    expect((highProjection.breakdown?.cashflow.byKey["cash:yield"]?.[0] ?? 0) > 0).toBe(true);
+    expect(lowProjection.breakdown?.cashflow.byKey["cash:yield"]).toBeUndefined();
+  });
+
 });
