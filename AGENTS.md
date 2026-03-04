@@ -431,3 +431,9 @@ PR requirement:
   - Affected paths: apps/web/src/features/onboarding/v3/eventTypeMapper.ts; apps/web/src/features/onboarding/v3/__tests__/eventTypeMapper.test.ts; docs/onboarding-v3-event-mapping.md; AGENTS.md
   - Guardrails for next agent: Treat `onboarding:v3:*` tags as onboarding-internal transport metadata only—do not rely on them for runtime UI categorization after onboarding submission; preserve semantic tags required by downstream category logic.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: Settings members tab Add Member flow only exposed a seed-defaults switch and created members with default placeholder values first, which risked incomplete member data and weak required-field UX feedback.
+  - What changed: Refactored Add Member modal into a structured form draft (`name/kind/basis/birthMonth/ageAtBaseMonth`) with validation state; added reusable `validateAddMemberDraft` and `buildMemberFromAddDraft` helpers; updated submit path to build full member payload directly from user input (including month normalization via `normalizeMonthStrict`) before `createMember(...)`; added zh-HK/en i18n keys for modal labels/hints; expanded members test suite to cover required-field validation and complete member payload creation.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep Add Member submission input-first (no placeholder member creation then patch); retain validation + normalization behavior parity with members edit forms; keep `createMember` scoped to active scenario boundary semantics.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
