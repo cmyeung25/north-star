@@ -953,6 +953,7 @@ const PlanLabAccordionRow = memo(
           outline: highlighted ? "2px solid rgba(18, 184, 134, 0.7)" : "none",
           outlineOffset: 2,
           cursor: onClick ? "pointer" : "default",
+          marginBottom: 8,
         }}
       >
         <Accordion.Item value={id}>
