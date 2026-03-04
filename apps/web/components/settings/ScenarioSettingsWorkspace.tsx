@@ -402,6 +402,7 @@ export default function ScenarioSettingsWorkspace({
   const locale = useLocale();
   const t = useTranslations("assumptions");
   const membersText = useTranslations("members");
+  const moneyText = useTranslations("money");
   const common = useTranslations("common");
   const timelineText = useTranslations("timeline");
   const validation = useTranslations("validation");
@@ -1197,16 +1198,39 @@ export default function ScenarioSettingsWorkspace({
           householdLabel: membersText("householdCardTitle"),
           ownerId: eventView.definition.memberId,
           memberLookupRecord,
-          resolveTypeLabel: (meta) => `${meta.domain}/${meta.kind}`,
-          resolveFrequencyLabel: (meta) => (meta.frequency === "none" ? null : meta.frequency),
-          resolveLifecycleLabel: (meta) => meta.lifecycle,
-          resolveSourceLabel: (source) => source,
-          resolveLinkStateLabel: (linkState) => (linkState === "orphaned" ? "orphaned" : null),
+          resolveTypeLabel: (meta) =>
+            meta.kind === "income" ? moneyText("eventTypeIncome") : moneyText("eventTypeExpense"),
+          resolveFrequencyLabel: (meta) =>
+            meta.frequency === "none"
+              ? null
+              : meta.frequency === "monthly"
+                ? moneyText("ledgerEventCadenceMonthly")
+                : meta.frequency === "yearly"
+                  ? moneyText("ledgerEventCadenceYearly")
+                  : meta.frequency === "oneOff"
+                    ? moneyText("ledgerEventCadenceOneOff")
+                    : meta.frequency === "quarterly"
+                      ? moneyText("ledgerEventCadenceQuarterly")
+                      : moneyText("ledgerEventCadenceEveryN"),
+          resolveLifecycleLabel: (meta) =>
+            meta.lifecycle === "oneOff"
+              ? moneyText("ledgerEventCadenceOneOff")
+              : meta.lifecycle === "hasEndMonth"
+                ? moneyText("eventLifecycleHasEndMonth")
+                : moneyText("eventCardOpenEnded"),
+          resolveSourceLabel: (source) =>
+            source === "baseline-only"
+              ? membersText("memberEventsTagSourceBaselineOnly")
+              : source === "experiment-only"
+                ? membersText("memberEventsTagSourceExperimentOnly")
+                : membersText("memberEventsTagSourceApplied"),
+          resolveLinkStateLabel: (linkState) =>
+            linkState === "orphaned" ? membersText("memberEventsTagLinkStateOrphaned") : null,
           source: "baseline-only",
           linkState: eventView.linkState ?? "linked",
         }
       ).tags,
-    [memberLookupRecord, membersText]
+    [memberLookupRecord, membersText, moneyText]
   );
 
   const recoveryHref =
