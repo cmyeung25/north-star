@@ -455,3 +455,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; AGENTS.md
   - Guardrails for next agent: Prefer `MonthField` for scenario/settings month-form UX to keep month picker/clear interactions consistent; keep strict month normalization on blur/save paths and avoid bypassing existing validation messages.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: 設定→成員設定在部分情境下無法顯示已關聯事件，主因是 `scenario.events` 的 cashflow 項目若沒有對應 event library definition，會被 `buildScenarioEventViews` 直接略過，導致成員卡片顯示「尚未關聯任何事件」。
+  - What changed: 調整 `createFallbackEventViewFromScenarioEvent`，即使 event library 缺少對應 definition，也會以 scenario cashflow event 自身資料建立 fallback `ScenarioEventView`（含 `id/title/memberId/rule`，legacy type 由 `mapScenarioCashflowToLegacyType` 推導）；保留 `linkState: orphaned`，確保 members tab 仍可顯示並導向修正。新增單元測試覆蓋「無 library 定義仍可顯示 member assignable event」案例。
+  - Affected paths: apps/web/src/domain/events/utils.ts; apps/web/src/domain/events/__tests__/utils.test.ts; AGENTS.md
+  - Guardrails for next agent: 成員關聯事件顯示應以 active scenario `scenario.events` 為最後保底來源，不可因 event library 缺項而整筆消失；若後續要限制 fallback 顯示，需先提供 UI remediation 路徑與遷移策略。
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
