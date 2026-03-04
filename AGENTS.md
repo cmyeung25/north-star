@@ -473,3 +473,9 @@ PR requirement:
   - Affected paths: apps/web/src/domain/ledger/types.ts; apps/web/src/engine/scenarioV2Compiler.ts; apps/web/src/engine/useProjectionWithLedger.ts; apps/web/src/engine/usePlanLabProjectionWithLedger.ts; apps/web/src/domain/kpis/incomeCoverage.ts; apps/web/src/domain/kpis/__tests__/incomeCoverage.test.ts; apps/web/app/[locale]/money/MoneyClient.tsx; apps/web/src/features/money/IncomeSummarySection.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: For income composition KPIs, prefer structured subtype semantics over text heuristics; if fallback keyword classification is still triggered in UI, treat it as migration/normalization debt and avoid adding new KPI logic that relies on sourceId/label keyword parsing.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: Settings → Members tab related-event cards used a bespoke compact row format that did not align with Money area card hierarchy/meta tag presentation, causing visual/semantic inconsistency.
+  - What changed: Refactored `ScenarioSettingsWorkspace` related-event rendering into shared `renderRelatedEventCard` with card structure aligned to Money cards (title + primary amount + MoneyMetaTags + period row + action), and reused it for both member and household sections.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; AGENTS.md
+  - Guardrails for next agent: Keep Members-tab related events using `MoneyMetaTags` and the unified card section order; avoid reintroducing ad-hoc `Badge + tiny text` tag rows for this panel.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

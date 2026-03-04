@@ -1232,6 +1232,51 @@ export default function ScenarioSettingsWorkspace({
       ).tags,
     [memberLookupRecord, membersText, moneyText]
   );
+  const renderRelatedEventCard = useCallback(
+    (eventView: (typeof assignableEventViews)[number], testIdPrefix: "settings-member-event" | "settings-household-event") => (
+      <Card
+        key={eventView.definition.id}
+        withBorder
+        radius="md"
+        padding="md"
+        data-testid={`${testIdPrefix}-${eventView.definition.id}`}
+        style={
+          focusEventId === eventView.definition.id
+            ? { outline: "2px solid var(--mantine-color-aurora-5)" }
+            : undefined
+        }
+      >
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Stack gap={4} flex={1}>
+            <Stack gap={2}>
+              <Text fw={600}>{eventView.definition.title}</Text>
+              <Text fw={700}>{resolveEventAmountLabel(eventView)}</Text>
+            </Stack>
+            <MoneyMetaTags tags={resolveSettingsEventTags(eventView)} />
+            <Text size="sm" c="dimmed">
+              {membersText("memberEventsPeriod")}: {resolveEventPeriodLabel(eventView)}
+            </Text>
+          </Stack>
+          <Button
+            size="xs"
+            variant="light"
+            component={Link}
+            href={resolveEventEditHref(eventView.definition.id, eventView.definition.type)}
+          >
+            {membersText("memberEventsEdit")}
+          </Button>
+        </Group>
+      </Card>
+    ),
+    [
+      focusEventId,
+      membersText,
+      resolveEventAmountLabel,
+      resolveEventEditHref,
+      resolveEventPeriodLabel,
+      resolveSettingsEventTags,
+    ]
+  );
 
   const recoveryHref =
     caseId && scenarios[0]?.id
@@ -1972,32 +2017,9 @@ export default function ScenarioSettingsWorkspace({
                                 </Text>
                               ) : (
                                 <Stack gap="xs">
-                                  {memberEventViews.map((eventView) => (
-                                    <Card key={eventView.definition.id} withBorder radius="md" padding="sm" data-testid={`settings-member-event-${eventView.definition.id}`} style={focusEventId === eventView.definition.id ? { outline: "2px solid var(--mantine-color-aurora-5)" } : undefined}>
-                                      <Group justify="space-between" align="center" wrap="wrap">
-                                        <Stack gap={2}>
-                                          <Text fw={500}>{eventView.definition.title}</Text>
-                                          <Group gap="xs" wrap="wrap">
-                                            <Badge variant="outline">{eventView.definition.type}</Badge>
-                                            <Text size="xs" c="dimmed">{resolveEventAmountLabel(eventView)}</Text>
-                                            <Text size="xs" c="dimmed">{resolveEventPeriodLabel(eventView)}</Text>
-                                          </Group>
-                                          <MoneyMetaTags tags={resolveSettingsEventTags(eventView)} />
-                                        </Stack>
-                                        <Button
-                                          size="xs"
-                                          variant="light"
-                                          component={Link}
-                                          href={resolveEventEditHref(
-                                            eventView.definition.id,
-                                            eventView.definition.type
-                                          )}
-                                        >
-                                          {membersText("memberEventsEdit")}
-                                        </Button>
-                                      </Group>
-                                    </Card>
-                                  ))}
+                                  {memberEventViews.map((eventView) =>
+                                    renderRelatedEventCard(eventView, "settings-member-event")
+                                  )}
                                 </Stack>
                               )}
                             </Stack>
@@ -2023,32 +2045,9 @@ export default function ScenarioSettingsWorkspace({
                       </Text>
                     ) : (
                       <Stack gap="xs">
-                        {(eventsByMemberId.get("household") ?? []).map((eventView) => (
-                          <Card key={eventView.definition.id} withBorder radius="md" padding="sm" data-testid={`settings-household-event-${eventView.definition.id}`} style={focusEventId === eventView.definition.id ? { outline: "2px solid var(--mantine-color-aurora-5)" } : undefined}>
-                            <Group justify="space-between" align="center" wrap="wrap">
-                              <Stack gap={2}>
-                                <Text fw={500}>{eventView.definition.title}</Text>
-                                <Group gap="xs" wrap="wrap">
-                                  <Badge variant="outline">{eventView.definition.type}</Badge>
-                                  <Text size="xs" c="dimmed">{resolveEventAmountLabel(eventView)}</Text>
-                                  <Text size="xs" c="dimmed">{resolveEventPeriodLabel(eventView)}</Text>
-                                </Group>
-                                <MoneyMetaTags tags={resolveSettingsEventTags(eventView)} />
-                              </Stack>
-                              <Button
-                                size="xs"
-                                variant="light"
-                                component={Link}
-                                href={resolveEventEditHref(
-                                  eventView.definition.id,
-                                  eventView.definition.type
-                                )}
-                              >
-                                {membersText("memberEventsEdit")}
-                              </Button>
-                            </Group>
-                          </Card>
-                        ))}
+                        {(eventsByMemberId.get("household") ?? []).map((eventView) =>
+                          renderRelatedEventCard(eventView, "settings-household-event")
+                        )}
                       </Stack>
                     )}
                   </Stack>
