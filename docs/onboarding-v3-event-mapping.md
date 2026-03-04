@@ -43,4 +43,5 @@ Onboarding v3 目前收集的是 `scenarioV2` 的 `cashflow` 事件（`kind: inc
 ## 實作備註
 
 - mapper 目前把標準語意放在 `event.meta.timelineEventType` / `event.meta.timelineIncomeSubtype`，並保留原始 `cashflow` 事件，避免影響現有 projection 流程。
+- mapper 會在映射後移除 `onboarding:v3:*` 內部標籤，避免 Plan Lab/Baseline 卡片直接顯示 onboarding 內部 category code（例如 `onboarding:v3:expense:daily-monthly`）；保留語意標籤（如 `tax`、`income:rental`）供後續分類使用。
 - 之後若 engine/compiler 支援直接接受這些語意，可再把欄位提升到正式 adapter/compiler 流程。
