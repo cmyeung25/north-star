@@ -5,6 +5,7 @@ export type CashflowItem = {
   sourceId: string;
   label?: string;
   category?: string;
+  incomeSubtype?: string;
   memberId?: string;
   bucketId?: string;
   bucketName?: string;

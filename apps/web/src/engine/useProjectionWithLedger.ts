@@ -111,6 +111,7 @@ const compileEventLedger = (
       sourceId: entry.sourceEventId,
       label: entry.title,
       category: entry.category,
+      incomeSubtype: definition?.incomeSubtype,
       memberId: definition?.memberId,
     };
   });
@@ -647,7 +648,8 @@ export const useProjectionWithLedger = (
           sourceId: entry.sourceEventId,
           label: entry.label,
           memberId: entry.memberId,
-          category: entry.kind ?? (entry.amount >= 0 ? "income" : "expense"),
+          category: entry.kind === "income" ? entry.incomeSubtype ?? "other" : entry.kind ?? (entry.amount >= 0 ? "income" : "expense"),
+          incomeSubtype: entry.incomeSubtype,
         }))
       : compileEventLedger(scenarioForLedger, eventLibrary, members);
     const budgetRules = normalizeBudgetRulesForLedger(options.budgetRules ?? []);

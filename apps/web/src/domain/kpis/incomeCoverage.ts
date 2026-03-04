@@ -56,12 +56,35 @@ export type IncomeCoverageRatios = {
   assetLinkedExpenseRatio: number | null;
 };
 
+export type IncomeCoverageBreakdown = {
+  totalIncome: number;
+  nonSalaryIncome: number;
+  fallbackClassifiedIncome: number;
+};
+
+export type IncomeCoverageResult = IncomeCoverageRatios & {
+  breakdown: IncomeCoverageBreakdown;
+};
+
+const isSalaryIncome = (item: CashflowItem) => {
+  if (item.amount <= 0) {
+    return false;
+  }
+
+  if (typeof item.incomeSubtype === "string") {
+    return item.incomeSubtype.toLowerCase() === "salary";
+  }
+
+  return hasAnyKeyword(toSearchText(item), SALARY_KEYWORDS);
+};
+
 export const computeIncomeCoverageRatios = (
   horizonMonths: string[],
   ledgerByMonth: Record<string, CashflowItem[]>
-): IncomeCoverageRatios => {
+): IncomeCoverageResult => {
   let totalIncome = 0;
   let nonSalaryIncome = 0;
+  let fallbackClassifiedIncome = 0;
   let passiveIncome = 0;
   let coreLivingExpense = 0;
   let assetLinkedExpense = 0;
@@ -74,7 +97,10 @@ export const computeIncomeCoverageRatios = (
       if (item.amount <= 0) {
         return false;
       }
-      return !hasAnyKeyword(toSearchText(item), SALARY_KEYWORDS);
+      if (typeof item.incomeSubtype !== "string") {
+        fallbackClassifiedIncome += item.amount;
+      }
+      return !isSalaryIncome(item);
     });
     passiveIncome += sumAmounts(items, (item) => {
       if (item.amount <= 0) {
@@ -95,5 +121,10 @@ export const computeIncomeCoverageRatios = (
     nonSalaryIncomeRatio: totalIncome > 0 ? nonSalaryIncome / totalIncome : null,
     passiveIncomeCoverage: coreLivingExpense > 0 ? passiveIncome / coreLivingExpense : null,
     assetLinkedExpenseRatio: coreLivingExpense > 0 ? assetLinkedExpense / coreLivingExpense : null,
+    breakdown: {
+      totalIncome,
+      nonSalaryIncome,
+      fallbackClassifiedIncome,
+    },
   };
 };

@@ -22,6 +22,10 @@ type IncomeSummarySectionProps = {
   projectedDelta12m: number | null;
   expiringCount: number;
   topSources: Array<{ id: string; label: string; amount: number; share: number }>;
+  nonSalaryIncomeRatio: number | null;
+  nonSalaryIncomeAmount: number;
+  totalIncomeAmount: number;
+  usesFallbackClassification: boolean;
 };
 
 export default function IncomeSummarySection({
@@ -39,6 +43,10 @@ export default function IncomeSummarySection({
   projectedDelta12m,
   expiringCount,
   topSources,
+  nonSalaryIncomeRatio,
+  nonSalaryIncomeAmount,
+  totalIncomeAmount,
+  usesFallbackClassification,
 }: IncomeSummarySectionProps) {
   const t = useTranslations("money");
 
@@ -74,6 +82,24 @@ export default function IncomeSummarySection({
           </Text>
         </Card>
       </SimpleGrid>
+
+      <Card withBorder radius="md" padding="sm">
+        <Text size="xs" c="dimmed">{t("incomeCoverageNonSalaryRatio")}</Text>
+        <Text fw={700}>
+          {nonSalaryIncomeRatio === null ? t("amountUnset") : `${(nonSalaryIncomeRatio * 100).toFixed(1)}%`}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {t("incomeCoverageNonSalaryFormula", {
+            nonSalary: formatCurrency(nonSalaryIncomeAmount, currency, locale),
+            total: formatCurrency(totalIncomeAmount, currency, locale),
+          })}
+        </Text>
+        {usesFallbackClassification ? (
+          <Text size="xs" c="orange">
+            {t("incomeCoverageFallbackHint")}
+          </Text>
+        ) : null}
+      </Card>
 
       <Group grow display="none">
         <SegmentedControl data={memberData} value={selectedMemberId} onChange={onMemberChange} />
