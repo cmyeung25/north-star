@@ -1,6 +1,6 @@
 import { buildMoneyMetaTags } from "../../src/domain/events/buildMoneyMetaTags";
-import { buildMoneyMetaTagViewModel } from "../../src/features/money/moneyMetaTagViewModel";
 import type { MetaTag } from "../../src/domain/events/buildMoneyMetaTags";
+import { buildMoneyMetaTagViewModel } from "../../src/features/money/moneyMetaTagViewModel";
 import type { SharedViewSource } from "../../src/domain/events/eventTaxonomy";
 import type { MoneyTagItem } from "../../src/features/money/moneyTagConfig";
 import { formatCurrency } from "../../lib/i18n";
@@ -63,7 +63,7 @@ const resolveMetaInput = (row: PlanLabMetaTagAdapterInput) => {
 
   return {
     id: row.eventId ?? row.id,
-    kind: row.category?.toLowerCase() === "income" ? "income" : "expense",
+    kind: eventTypeLabelByCategory(row.category),
     type: "cashflow",
     cadence,
     startMonth: row.startMonth,
@@ -72,27 +72,33 @@ const resolveMetaInput = (row: PlanLabMetaTagAdapterInput) => {
   };
 };
 
-const resolveTypeLabel = (meta: MetaTag) => `${meta.domain} · ${meta.kind}`;
+const eventTypeLabelByCategory = (category: string): "income" | "expense" =>
+  category?.toLowerCase() === "income" ? "income" : "expense";
 
-const resolveLifecycleLabel = (meta: MetaTag) => {
-  if (meta.lifecycle === "oneOff") return "oneOff";
-  if (meta.lifecycle === "hasEndMonth") return "hasEndMonth";
-  return "ongoing";
+const resolveTypeLabel = (
+  category: string,
+  typeLabels: { income: string; expense: string; asset: string; liability: string },
+  isPositionAsset: boolean,
+  isPositionLiability: boolean
+) => {
+  if (isPositionAsset) return typeLabels.asset;
+  if (isPositionLiability) return typeLabels.liability;
+  return eventTypeLabelByCategory(category) === "income" ? typeLabels.income : typeLabels.expense;
 };
 
 const resolveFrequencyLabel = (
-  meta: MetaTag,
+  frequency: PlanLabFrequency | undefined,
   frequencyLabels: Record<NonNullable<PlanLabFrequency>, string>,
+  intervalMonthsLabel: (intervalMonths: number) => string,
   intervalMonths?: number | null
 ) => {
-  if (meta.frequency === "none") return null;
-  if (meta.frequency === "everyNMonths") {
+  if (!frequency) return null;
+  if (frequency === "everyNMonths") {
     return intervalMonths && intervalMonths > 0
-      ? `每 ${intervalMonths} 個月`
+      ? intervalMonthsLabel(intervalMonths)
       : frequencyLabels.everyNMonths;
   }
-  if (meta.frequency === "recurring") return frequencyLabels.schedule;
-  return frequencyLabels[meta.frequency as NonNullable<PlanLabFrequency>] ?? null;
+  return frequencyLabels[frequency] ?? null;
 };
 
 export const adaptPlanLabRowMeta = ({
@@ -104,6 +110,8 @@ export const adaptPlanLabRowMeta = ({
   householdLabel,
   orphanedLabel,
   memberLookupRecord,
+  typeLabels,
+  intervalMonthsLabel,
 }: {
   row: PlanLabMetaTagAdapterInput;
   currency: string;
@@ -113,6 +121,8 @@ export const adaptPlanLabRowMeta = ({
   householdLabel: string;
   orphanedLabel: string;
   memberLookupRecord: Record<string, string>;
+  typeLabels: { income: string; expense: string; asset: string; liability: string };
+  intervalMonthsLabel: (intervalMonths: number) => string;
 }): {
   summary: string;
   tags: MoneyTagItem[];
@@ -125,9 +135,23 @@ export const adaptPlanLabRowMeta = ({
     householdLabel,
     ownerId,
     memberLookupRecord,
-    resolveTypeLabel,
-    resolveLifecycleLabel: (meta) => lifecycleLabels[resolveLifecycleLabel(meta)],
-    resolveFrequencyLabel: (meta) => resolveFrequencyLabel(meta, frequencyLabels, row.intervalMonths),
+    resolveTypeLabel: () =>
+      resolveTypeLabel(
+        row.category,
+        typeLabels,
+        row.positionKind === "asset",
+        row.positionKind === "liability"
+      ),
+    resolveLifecycleLabel: (meta) =>
+      lifecycleLabels[
+        meta.lifecycle === "oneOff"
+          ? "oneOff"
+          : meta.lifecycle === "hasEndMonth"
+            ? "hasEndMonth"
+            : "ongoing"
+      ],
+    resolveFrequencyLabel: () =>
+      resolveFrequencyLabel(row.frequency, frequencyLabels, intervalMonthsLabel, row.intervalMonths),
     source: row.source,
     linkState: row.linkState,
   });
@@ -137,7 +161,11 @@ export const adaptPlanLabRowMeta = ({
     moneyMetaParts.push(formatCurrency(row.amount, currency, locale));
   }
   if (row.startMonth || row.endMonth) {
-    moneyMetaParts.push(row.endMonth ? `${row.startMonth ?? "—"} 至 ${row.endMonth}` : `${row.startMonth ?? "—"} 起`);
+    moneyMetaParts.push(
+      row.endMonth
+        ? `${row.startMonth ?? "—"} → ${row.endMonth}`
+        : `${row.startMonth ?? "—"} → ${lifecycleLabels.ongoing}`
+    );
   }
 
   const ownershipLabel =
