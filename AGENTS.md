@@ -437,3 +437,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep Add Member submission input-first (no placeholder member creation then patch); retain validation + normalization behavior parity with members edit forms; keep `createMember` scoped to active scenario boundary semantics.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: Scenario Settings members add-member modal still offered default seeding toggle and add-member flow created event/budget side effects, conflicting with current requirement that member creation is isolated from event/budget writes.
+  - What changed: Removed `seedDefaultsOnAddMember` state and modal Switch UI; simplified add-member persistence path to member-only creation via `persistNewMember`; removed `members.seedDefaultsLabel` locale keys (zh-HK/en); added members workspace unit test asserting no event/budget upsert side effects when persisting a new member; confirmed `buildDefaultsForNewMember` has no remaining call sites (now dead-code candidate for follow-up PR).
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep add-member action scoped to member entity creation only unless product explicitly reintroduces guided defaults with separate UX and data-scope review; if removing `buildDefaultsForNewMember`, do so in dedicated cleanup PR with dependency audit.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

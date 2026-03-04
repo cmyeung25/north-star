@@ -2559,7 +2559,6 @@
     "addMemberBirthMonthHint": "Use YYYY-MM; month value will be normalized automatically.",
     "addMemberAgeAtBaseMonthLabel": "Age at base month (years)",
     "addMemberAgeAtBaseMonthHint": "If birth month is unknown, provide age at base month.",
-    "seedDefaultsLabel": "Create default income/budget items for this member",
     "removeMember": "Remove",
     "nameLabel": "Name",
     "kindLabel": "Type",

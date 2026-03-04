@@ -14,7 +14,6 @@ import {
   SegmentedControl,
   Stack,
   Tabs,
-  Switch,
   Text,
   TextInput,
   Title,
@@ -46,7 +45,6 @@ import DateOrAgeBasisPicker from "../DateOrAgeBasisPicker";
 import PositionDetailList from "../timeline/PositionDetailList";
 import {
   buildMemberAssignableEventViews,
-  buildScenarioEventViews,
 } from "../../src/domain/events/utils";
 import { getEventMeta } from "../../src/events/eventCatalog";
 import { buildDefaultSmartInvestPolicy } from "../../src/domain/smartInvest/defaultPolicy";
@@ -55,7 +53,6 @@ import {
   PLANNING_HORIZON_YEARS,
   resolvePlanningHorizonMonths,
 } from "../../src/domain/assumptions/planningHorizon";
-import { buildDefaultsForNewMember } from "../../src/domain/onboarding/buildDefaultsForNewMember";
 import { useProjectionWithLedger } from "../../src/engine/useProjectionWithLedger";
 import { scenarioDashboardPath, scenarioMoneyPath } from "../../lib/routes/appRoutes";
 import { computeDashboardMetrics } from "../../src/domain/dashboard/metrics";
@@ -106,6 +103,13 @@ export type AddMemberDraft = {
   basis: AddMemberDraftBasis;
   birthMonth: string;
   ageAtBaseMonth: string;
+};
+
+type AddMemberPersistenceActions = {
+  createMember: (member: ReturnType<typeof buildMemberFromAddDraft>) => void;
+  createBudgetRule?: (...args: unknown[]) => void;
+  upsertEventDefinition?: (...args: unknown[]) => void;
+  upsertScenarioEventRef?: (...args: unknown[]) => void;
 };
 
 type AddMemberDraftValidationState = {
@@ -195,6 +199,13 @@ export const buildMemberFromAddDraft = (
   milestones: options.buildDefaultMilestones(draft.kind),
 });
 
+export const persistNewMember = (
+  newMember: ReturnType<typeof buildMemberFromAddDraft>,
+  actions: AddMemberPersistenceActions
+) => {
+  actions.createMember(newMember);
+};
+
 export default function ScenarioSettingsWorkspace({
   scenarioId,
   titleKey = "settingsTitle",
@@ -236,13 +247,6 @@ export default function ScenarioSettingsWorkspace({
   const createMember = useScenarioStore((state) => state.createMember);
   const updateMember = useScenarioStore((state) => state.updateMember);
   const deleteMember = useScenarioStore((state) => state.deleteMember);
-  const createBudgetRule = useScenarioStore((state) => state.createBudgetRule);
-  const upsertEventDefinition = useScenarioStore(
-    (state) => state.upsertEventDefinition
-  );
-  const upsertScenarioEventRef = useScenarioStore(
-    (state) => state.upsertScenarioEventRef
-  );
   const [toast, setToast] = useState<ToastState | null>(null);
   const [previewScope, setPreviewScope] = useState<PreviewScope>("12m");
   const [activeAssumptionModal, setActiveAssumptionModal] =
@@ -278,7 +282,6 @@ export default function ScenarioSettingsWorkspace({
   );
   const [expandedMemberIds, setExpandedMemberIds] = useState<string[]>([]);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
-  const [seedDefaultsOnAddMember, setSeedDefaultsOnAddMember] = useState(true);
   const [addMemberDraft, setAddMemberDraft] = useState<AddMemberDraft>(
     createDefaultAddMemberDraft
   );
@@ -597,33 +600,7 @@ export default function ScenarioSettingsWorkspace({
       buildDefaultMilestones,
     });
 
-    createMember(newMember);
-
-    if (scenario && seedDefaultsOnAddMember) {
-      const eventViews = buildScenarioEventViews(scenario, eventLibrary);
-      const { eventDefinitionsToUpsert, budgetRulesToUpsert } =
-        buildDefaultsForNewMember({
-          member: newMember,
-          members: [...members, newMember],
-          baseMonth: scenario.assumptions.baseMonth ?? "",
-          scenarioId: scenario.id,
-          baseCurrency: scenario.baseCurrency,
-          existingBudgetRules: budgetRules,
-          existingEventViews: eventViews,
-        });
-
-      eventDefinitionsToUpsert.forEach((definition) => {
-        upsertEventDefinition(definition);
-        upsertScenarioEventRef(scenario.id, {
-          refId: definition.id,
-          enabled: true,
-        });
-      });
-
-      budgetRulesToUpsert.forEach((rule) => {
-        createBudgetRule(rule);
-      });
-    }
+    persistNewMember(newMember, { createMember });
 
     showSavedToast();
     setAddMemberDraft(createDefaultAddMemberDraft());
@@ -1630,7 +1607,6 @@ export default function ScenarioSettingsWorkspace({
                   size="xs"
                   variant="light"
                   onClick={() => {
-                    setSeedDefaultsOnAddMember(true);
                     setAddMemberDraft(createDefaultAddMemberDraft());
                     setAddMemberDraftValidation({
                       name: null,
@@ -2072,11 +2048,6 @@ export default function ScenarioSettingsWorkspace({
                   }}
                 />
               )}
-              <Switch
-                checked={seedDefaultsOnAddMember}
-                onChange={(event) => setSeedDefaultsOnAddMember(event.currentTarget.checked)}
-                label={membersText("seedDefaultsLabel")}
-              />
               <Group justify="flex-end">
                 <Button
                   variant="light"
