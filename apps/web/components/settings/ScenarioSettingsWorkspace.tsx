@@ -28,6 +28,7 @@ import {
   useScenarioStore,
   createMemberId,
   type MemberMilestone,
+  type ScenarioMember,
   type ScenarioMemberKind,
 } from "../../src/store/scenarioStore";
 import { type ApplyScope } from "../../src/domain/applyScope";
@@ -124,6 +125,20 @@ type AddMemberDraftValidationMessages = {
   invalidMonth: string;
 };
 
+type MemberEditModalProps = {
+  opened: boolean;
+  draft: AddMemberDraft;
+  validationState: AddMemberDraftValidationState;
+  onClose: () => void;
+  onSave: () => void;
+  onDelete?: () => void;
+  onDraftChange: (patch: Partial<AddMemberDraft>) => void;
+  onValidationStateChange: (patch: Partial<AddMemberDraftValidationState>) => void;
+  membersText: ReturnType<typeof useTranslations<"members">>;
+  common: ReturnType<typeof useTranslations<"common">>;
+  validation: ReturnType<typeof useTranslations<"validation">>;
+};
+
 export const validateAddMemberDraft = (
   draft: AddMemberDraft,
   messages: AddMemberDraftValidationMessages
@@ -173,6 +188,158 @@ const createDefaultAddMemberDraft = (): AddMemberDraft => ({
   ageAtBaseMonth: "",
 });
 
+const buildAddMemberDraftFromMember = (member: ScenarioMember): AddMemberDraft => {
+  const hasBirthMonth = typeof member.birthMonth === "string" && member.birthMonth.length > 0;
+  return {
+    name: member.name,
+    kind: member.kind,
+    basis: hasBirthMonth ? "month" : "age",
+    birthMonth: member.birthMonth ?? "",
+    ageAtBaseMonth:
+      typeof member.ageAtBaseMonth === "number" ? String(member.ageAtBaseMonth) : "",
+  };
+};
+
+const MemberDraftFormFields = ({
+  draft,
+  validationState,
+  onDraftChange,
+  onValidationStateChange,
+  membersText,
+  common,
+  validation,
+}: Pick<
+  MemberEditModalProps,
+  | "draft"
+  | "validationState"
+  | "onDraftChange"
+  | "onValidationStateChange"
+  | "membersText"
+  | "common"
+  | "validation"
+>) => (
+  <>
+    <TextInput
+      label={membersText("addMemberNameLabel")}
+      placeholder={membersText("addMemberNamePlaceholder")}
+      value={draft.name}
+      error={validationState.name}
+      onChange={(event) => {
+        onDraftChange({ name: event.currentTarget.value });
+        onValidationStateChange({ name: null });
+      }}
+    />
+    <Select
+      label={membersText("addMemberKindLabel")}
+      data={[
+        { value: "person", label: membersText("kindPerson") },
+        { value: "pet", label: membersText("kindPet") },
+      ]}
+      value={draft.kind}
+      onChange={(value) => {
+        if (!value) {
+          return;
+        }
+        onDraftChange({ kind: value as ScenarioMemberKind });
+      }}
+    />
+    <DateOrAgeBasisPicker
+      value={draft.basis}
+      onChange={(value) => {
+        onDraftChange({ basis: value });
+        onValidationStateChange({ birthMonth: null, ageAtBaseMonth: null });
+      }}
+      monthLabel={membersText("basisMonth")}
+      ageLabel={membersText("basisAge")}
+    />
+    {draft.basis === "month" ? (
+      <TextInput
+        label={membersText("addMemberBirthMonthLabel")}
+        placeholder={common("yearMonthPlaceholder")}
+        description={membersText("addMemberBirthMonthHint")}
+        value={draft.birthMonth}
+        error={validationState.birthMonth}
+        onChange={(event) => {
+          onDraftChange({ birthMonth: event.currentTarget.value });
+          onValidationStateChange({ birthMonth: null });
+        }}
+        onBlur={() => {
+          const trimmed = draft.birthMonth.trim();
+          if (!trimmed) {
+            return;
+          }
+          const normalized = normalizeMonthStrict(trimmed);
+          if (!normalized.ok) {
+            onValidationStateChange({ birthMonth: validation("useYearMonth") });
+            return;
+          }
+          onDraftChange({ birthMonth: normalized.month });
+        }}
+      />
+    ) : (
+      <NumberInput
+        label={membersText("addMemberAgeAtBaseMonthLabel")}
+        description={membersText("addMemberAgeAtBaseMonthHint")}
+        min={0}
+        value={draft.ageAtBaseMonth === "" ? "" : Number(draft.ageAtBaseMonth)}
+        error={validationState.ageAtBaseMonth}
+        onChange={(value) => {
+          onDraftChange({
+            ageAtBaseMonth:
+              typeof value === "number" && Number.isFinite(value) ? String(value) : "",
+          });
+          onValidationStateChange({ ageAtBaseMonth: null });
+        }}
+      />
+    )}
+  </>
+);
+
+const EditMemberModal = ({
+  opened,
+  draft,
+  validationState,
+  onClose,
+  onSave,
+  onDelete,
+  onDraftChange,
+  onValidationStateChange,
+  membersText,
+  common,
+  validation,
+}: MemberEditModalProps) => (
+  <Modal opened={opened} onClose={onClose} title={membersText("editMember")} centered>
+    <Stack>
+      <MemberDraftFormFields
+        draft={draft}
+        validationState={validationState}
+        onDraftChange={onDraftChange}
+        onValidationStateChange={onValidationStateChange}
+        membersText={membersText}
+        common={common}
+        validation={validation}
+      />
+      <Group justify="space-between">
+        <Button
+          size="xs"
+          color="red"
+          variant="light"
+          onClick={onDelete}
+          disabled={!onDelete}
+        >
+          {membersText("removeMember")}
+        </Button>
+        <Group justify="flex-end">
+          <Button variant="light" onClick={onClose}>
+            {membersText("discardChanges")}
+          </Button>
+          <Button onClick={onSave}>{membersText("saveMember")}</Button>
+        </Group>
+      </Group>
+    </Stack>
+  </Modal>
+);
+
 export const buildMemberFromAddDraft = (
   draft: AddMemberDraft,
   options: {
@@ -199,6 +366,24 @@ export const buildMemberFromAddDraft = (
   milestones: options.buildDefaultMilestones(draft.kind),
 });
 
+
+export const buildMemberPatchFromDraft = (
+  draft: AddMemberDraft
+): Pick<ScenarioMember, "name" | "kind" | "birthMonth" | "ageAtBaseMonth"> => {
+  const normalizedBirthMonth = normalizeMonthStrict(draft.birthMonth.trim());
+  return {
+    name: draft.name.trim(),
+    kind: draft.kind,
+    birthMonth:
+      draft.basis === "month" && normalizedBirthMonth.ok
+        ? normalizedBirthMonth.month
+        : undefined,
+    ageAtBaseMonth:
+      draft.basis === "age" && draft.ageAtBaseMonth.trim().length > 0
+        ? Number(draft.ageAtBaseMonth.trim())
+        : undefined,
+  };
+};
 export const persistNewMember = (
   newMember: ReturnType<typeof buildMemberFromAddDraft>,
   actions: AddMemberPersistenceActions
@@ -261,12 +446,17 @@ export default function ScenarioSettingsWorkspace({
   });
   const [assumptionsDraft, setAssumptionsDraft] =
     useState<ScenarioAssumptionsOverride | null>(null);
-  const [memberBirthMonthInputs, setMemberBirthMonthInputs] = useState<
-    Record<string, string>
-  >({});
-  const [memberBirthMonthErrors, setMemberBirthMonthErrors] = useState<
-    Record<string, string | null>
-  >({});
+  const [isEditMemberModalOpen, setIsEditMemberModalOpen] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editMemberDraft, setEditMemberDraft] = useState<AddMemberDraft>(
+    createDefaultAddMemberDraft
+  );
+  const [editMemberDraftValidation, setEditMemberDraftValidation] =
+    useState<AddMemberDraftValidationState>({
+      name: null,
+      birthMonth: null,
+      ageAtBaseMonth: null,
+    });
   const resolvedTabOrder = useMemo<SettingsTabKey[]>(
     () => (tabOrder ?? ["assumptions", "members", "persistence"]) as SettingsTabKey[],
     [tabOrder]
@@ -301,7 +491,6 @@ export default function ScenarioSettingsWorkspace({
     useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoAppliedScenarioIdsRef = useRef<Set<string>>(new Set());
-  const prevMemberMonthRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (
@@ -531,31 +720,6 @@ export default function ScenarioSettingsWorkspace({
     });
   }, [scenario]);
 
-  useEffect(() => {
-    setMemberBirthMonthInputs((current) => {
-      const next = { ...current };
-      const previous = prevMemberMonthRef.current;
-      members.forEach((member) => {
-        const stored = member.birthMonth ?? "";
-        if (next[member.id] === undefined || next[member.id] === previous[member.id]) {
-          next[member.id] = stored;
-        }
-      });
-      Object.keys(next).forEach((key) => {
-        if (!members.some((member) => member.id === key)) {
-          delete next[key];
-        }
-      });
-      prevMemberMonthRef.current = members.reduce<Record<string, string>>(
-        (acc, member) => {
-          acc[member.id] = member.birthMonth ?? "";
-          return acc;
-        },
-        {}
-      );
-      return next;
-    });
-  }, [members]);
 
   const showToast = useCallback(
     (
@@ -610,6 +774,48 @@ export default function ScenarioSettingsWorkspace({
       ageAtBaseMonth: null,
     });
     setIsAddMemberModalOpen(false);
+  };
+
+  const openEditMemberModal = (member: ScenarioMember) => {
+    setEditingMemberId(member.id);
+    setEditMemberDraft(buildAddMemberDraftFromMember(member));
+    setEditMemberDraftValidation({
+      name: null,
+      birthMonth: null,
+      ageAtBaseMonth: null,
+    });
+    setIsEditMemberModalOpen(true);
+  };
+
+  const handleSaveMemberDraft = () => {
+    if (!editingMemberId) {
+      return;
+    }
+    const validationResult = validateAddMemberDraft(editMemberDraft, {
+      requiredName: membersText("memberNameRequired"),
+      requiredAgeOrMonth: membersText("memberBirthOrAgeRequired"),
+      invalidMonth: validation("useYearMonth"),
+    });
+    if (!validationResult.isValid) {
+      setEditMemberDraftValidation(validationResult.errors);
+      return;
+    }
+
+    updateMember(editingMemberId, buildMemberPatchFromDraft(editMemberDraft));
+
+    setIsEditMemberModalOpen(false);
+    setEditingMemberId(null);
+    showSavedToast();
+  };
+
+  const handleDeleteEditingMember = () => {
+    if (!editingMemberId || members.length <= 1) {
+      return;
+    }
+    deleteMember(editingMemberId);
+    setIsEditMemberModalOpen(false);
+    setEditingMemberId(null);
+    showSavedToast();
   };
 
   const handleAssumptionDraftChange = useCallback(
@@ -1630,19 +1836,10 @@ export default function ScenarioSettingsWorkspace({
                   variant="separated"
                 >
                   {members.map((member, index) => {
-                    const birthMonthInput =
-                      memberBirthMonthInputs[member.id] ?? member.birthMonth ?? "";
-                    const birthMonthError =
-                      memberBirthMonthErrors[member.id] ?? undefined;
                     const hasBirthMonth =
                       typeof member.birthMonth === "string" &&
                       isValidMonthStr(member.birthMonth);
                     const hasAgeAtBase = typeof member.ageAtBaseMonth === "number";
-                    const memberBasis = birthMonthInput.trim()
-                      ? "month"
-                      : hasAgeAtBase
-                        ? "age"
-                        : "month";
                     const baseMonthValue = baseMonth;
                     const validBaseMonth =
                       baseMonthValue && isValidMonthStr(baseMonthValue)
@@ -1683,138 +1880,46 @@ export default function ScenarioSettingsWorkspace({
                               </Text>
                               <Button
                                 size="xs"
-                                color="red"
                                 variant="light"
-                                disabled={members.length <= 1}
-                                onClick={() => {
-                                  deleteMember(member.id);
-                                  showSavedToast();
-                                }}
+                                onClick={() => openEditMemberModal(member)}
                               >
-                                {membersText("removeMember")}
+                                {membersText("editMember")}
                               </Button>
                             </Group>
-                            <Group grow>
-                              <TextInput
-                                label={membersText("nameLabel")}
-                                value={member.name}
-                                onChange={(event) =>
-                                  updateMember(member.id, {
-                                    name: event.currentTarget.value,
-                                  })
-                                }
-                              />
-                              <Select
-                                label={membersText("kindLabel")}
-                                data={[
-                                  { value: "person", label: membersText("kindPerson") },
-                                  { value: "pet", label: membersText("kindPet") },
-                                ]}
-                                value={member.kind}
-                                onChange={(value) => {
-                                  if (!value) {
-                                    return;
-                                  }
-                                  updateMember(member.id, {
-                                    kind: value as typeof member.kind,
-                                  });
-                                }}
-                              />
-                            </Group>
-                            <Stack gap="xs">
-                              <DateOrAgeBasisPicker
-                                value={memberBasis}
-                                onChange={(value) => {
-                                  if (value === "month") {
-                                    updateMember(member.id, { ageAtBaseMonth: undefined });
-                                  } else {
-                                    updateMember(member.id, {
-                                      birthMonth: undefined,
-                                      ageAtBaseMonth: member.ageAtBaseMonth ?? 0,
-                                    });
-                                    setMemberBirthMonthInputs((current) => ({
-                                      ...current,
-                                      [member.id]: "",
-                                    }));
-                                    setMemberBirthMonthErrors((current) => ({
-                                      ...current,
-                                      [member.id]: null,
-                                    }));
-                                  }
-                                }}
-                                monthLabel={membersText("basisMonth")}
-                                ageLabel={membersText("basisAge")}
-                              />
-                              <Group grow>
-                                {memberBasis === "month" ? (
-                                  <TextInput
-                                    label={membersText("birthMonthLabel")}
-                                    placeholder={common("yearMonthPlaceholder")}
-                                    value={birthMonthInput}
-                                    error={birthMonthError}
-                                    onChange={(event) => {
-                                      const nextValue = event.currentTarget.value;
-                                      setMemberBirthMonthInputs((current) => ({
-                                        ...current,
-                                        [member.id]: nextValue,
-                                      }));
-                                      setMemberBirthMonthErrors((current) => ({
-                                        ...current,
-                                        [member.id]: null,
-                                      }));
-                                    }}
-                                    onBlur={() => {
-                                      const trimmed = birthMonthInput.trim();
-                                      if (trimmed === "") {
-                                        updateMember(member.id, { birthMonth: undefined });
-                                        setMemberBirthMonthErrors((current) => ({
-                                          ...current,
-                                          [member.id]: null,
-                                        }));
-                                        setMemberBirthMonthInputs((current) => ({
-                                          ...current,
-                                          [member.id]: "",
-                                        }));
-                                        return;
-                                      }
-                                      const normalized = normalizeMonthStrict(trimmed);
-                                      if (!normalized.ok) {
-                                        setMemberBirthMonthErrors((current) => ({
-                                          ...current,
-                                          [member.id]: validation("useYearMonth"),
-                                        }));
-                                        return;
-                                      }
-                                      updateMember(member.id, {
-                                        birthMonth: normalized.month,
-                                      });
-                                      setMemberBirthMonthErrors((current) => ({
-                                        ...current,
-                                        [member.id]: null,
-                                      }));
-                                      setMemberBirthMonthInputs((current) => ({
-                                        ...current,
-                                        [member.id]: normalized.month,
-                                      }));
-                                    }}
-                                  />
-                                ) : (
-                                  <NumberInput
-                                    label={membersText("ageAtBaseLabel")}
-                                    value={member.ageAtBaseMonth ?? ""}
-                                    min={0}
-                                    step={0.5}
-                                    decimalScale={2}
-                                    onChange={(value) =>
-                                      updateMember(member.id, {
-                                        ageAtBaseMonth:
-                                          typeof value === "number" ? value : undefined,
-                                      })
-                                    }
-                                  />
-                                )}
-                              </Group>
-                            </Stack>
+                            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                              <Stack gap={2}>
+                                <Text size="xs" c="dimmed">
+                                  {membersText("nameLabel")}
+                                </Text>
+                                <Text>{member.name || membersText("defaultName")}</Text>
+                              </Stack>
+                              <Stack gap={2}>
+                                <Text size="xs" c="dimmed">
+                                  {membersText("kindLabel")}
+                                </Text>
+                                <Badge variant="light" w="fit-content">
+                                  {member.kind === "person"
+                                    ? membersText("kindPerson")
+                                    : membersText("kindPet")}
+                                </Badge>
+                              </Stack>
+                              <Stack gap={2}>
+                                <Text size="xs" c="dimmed">
+                                  {membersText("birthMonthLabel")}
+                                </Text>
+                                <Text>{member.birthMonth ?? t("notAvailable")}</Text>
+                              </Stack>
+                              <Stack gap={2}>
+                                <Text size="xs" c="dimmed">
+                                  {membersText("ageAtBaseLabel")}
+                                </Text>
+                                <Text>
+                                  {typeof member.ageAtBaseMonth === "number"
+                                    ? formatAgeYears(member.ageAtBaseMonth)
+                                    : t("notAvailable")}
+                                </Text>
+                              </Stack>
+                            </SimpleGrid>
                             {showAgeError && (
                               <Text size="xs" c="red">
                                 {membersText("ageRequired")}
@@ -1940,114 +2045,22 @@ export default function ScenarioSettingsWorkspace({
             centered
           >
             <Stack>
-              <TextInput
-                label={membersText("addMemberNameLabel")}
-                placeholder={membersText("addMemberNamePlaceholder")}
-                value={addMemberDraft.name}
-                error={addMemberDraftValidation.name}
-                onChange={(event) => {
-                  setAddMemberDraft((current) => ({
-                    ...current,
-                    name: event.currentTarget.value,
-                  }));
-                  setAddMemberDraftValidation((current) => ({ ...current, name: null }));
-                }}
-              />
-              <Select
-                label={membersText("addMemberKindLabel")}
-                data={[
-                  { value: "person", label: membersText("kindPerson") },
-                  { value: "pet", label: membersText("kindPet") },
-                ]}
-                value={addMemberDraft.kind}
-                onChange={(value) => {
-                  if (!value) {
-                    return;
-                  }
-                  setAddMemberDraft((current) => ({
-                    ...current,
-                    kind: value as ScenarioMemberKind,
-                  }));
-                }}
-              />
-              <DateOrAgeBasisPicker
-                value={addMemberDraft.basis}
-                onChange={(value) => {
-                  setAddMemberDraft((current) => ({
-                    ...current,
-                    basis: value,
-                  }));
+              <MemberDraftFormFields
+                draft={addMemberDraft}
+                validationState={addMemberDraftValidation}
+                onDraftChange={(patch) =>
+                  setAddMemberDraft((current) => ({ ...current, ...patch }))
+                }
+                onValidationStateChange={(patch) =>
                   setAddMemberDraftValidation((current) => ({
                     ...current,
-                    birthMonth: null,
-                    ageAtBaseMonth: null,
-                  }));
-                }}
-                monthLabel={membersText("basisMonth")}
-                ageLabel={membersText("basisAge")}
+                    ...patch,
+                  }))
+                }
+                membersText={membersText}
+                common={common}
+                validation={validation}
               />
-              {addMemberDraft.basis === "month" ? (
-                <TextInput
-                  label={membersText("addMemberBirthMonthLabel")}
-                  placeholder={common("yearMonthPlaceholder")}
-                  description={membersText("addMemberBirthMonthHint")}
-                  value={addMemberDraft.birthMonth}
-                  error={addMemberDraftValidation.birthMonth}
-                  onChange={(event) => {
-                    setAddMemberDraft((current) => ({
-                      ...current,
-                      birthMonth: event.currentTarget.value,
-                    }));
-                    setAddMemberDraftValidation((current) => ({
-                      ...current,
-                      birthMonth: null,
-                    }));
-                  }}
-                  onBlur={() => {
-                    const trimmed = addMemberDraft.birthMonth.trim();
-                    if (!trimmed) {
-                      return;
-                    }
-                    const normalized = normalizeMonthStrict(trimmed);
-                    if (!normalized.ok) {
-                      setAddMemberDraftValidation((current) => ({
-                        ...current,
-                        birthMonth: validation("useYearMonth"),
-                      }));
-                      return;
-                    }
-                    setAddMemberDraft((current) => ({
-                      ...current,
-                      birthMonth: normalized.month,
-                    }));
-                  }}
-                />
-              ) : (
-                <NumberInput
-                  label={membersText("addMemberAgeAtBaseMonthLabel")}
-                  description={membersText("addMemberAgeAtBaseMonthHint")}
-                  min={0}
-                  value={
-                    addMemberDraft.ageAtBaseMonth === ""
-                      ? ""
-                      : Number(addMemberDraft.ageAtBaseMonth)
-                  }
-                  error={addMemberDraftValidation.ageAtBaseMonth}
-                  onChange={(value) => {
-                    setAddMemberDraft((current) => ({
-                      ...current,
-                      ageAtBaseMonth:
-                        typeof value === "number" && Number.isFinite(value)
-                          ? String(value)
-                          : "",
-                    }));
-                    setAddMemberDraftValidation((current) => ({
-                      ...current,
-                      ageAtBaseMonth: null,
-                    }));
-                  }}
-                />
-              )}
               <Group justify="flex-end">
                 <Button
                   variant="light"
@@ -2068,6 +2081,37 @@ export default function ScenarioSettingsWorkspace({
               </Group>
             </Stack>
           </Modal>
+          <EditMemberModal
+            opened={isEditMemberModalOpen}
+            draft={editMemberDraft}
+            validationState={editMemberDraftValidation}
+            onClose={() => {
+              setIsEditMemberModalOpen(false);
+              setEditingMemberId(null);
+              setEditMemberDraftValidation({
+                name: null,
+                birthMonth: null,
+                ageAtBaseMonth: null,
+              });
+            }}
+            onSave={handleSaveMemberDraft}
+            onDelete={members.length <= 1 ? undefined : handleDeleteEditingMember}
+            onDraftChange={(patch) =>
+              setEditMemberDraft((current) => ({
+                ...current,
+                ...patch,
+              }))
+            }
+            onValidationStateChange={(patch) =>
+              setEditMemberDraftValidation((current) => ({
+                ...current,
+                ...patch,
+              }))
+            }
+            membersText={membersText}
+            common={common}
+            validation={validation}
+          />
         </Tabs.Panel>
 
       </Tabs>

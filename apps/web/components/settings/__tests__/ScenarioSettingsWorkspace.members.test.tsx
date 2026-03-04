@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
 import ScenarioSettingsWorkspace, {
   buildMemberFromAddDraft,
+  buildMemberPatchFromDraft,
   persistNewMember,
   validateAddMemberDraft,
   type AddMemberDraft,
@@ -156,6 +157,55 @@ describe("ScenarioSettingsWorkspace members tab", () => {
     expect(html).not.toContain("memberEventsEmpty");
   });
 
+
+  it("renders member accordion as read-only and exposes edit action", () => {
+    const html = renderToString(
+      React.createElement(
+        MantineProvider,
+        null,
+        React.createElement(ScenarioSettingsWorkspace, {
+          scenarioId: "scenario-1",
+          defaultTab: "members",
+        })
+      )
+    );
+
+    expect(html).toContain("editMember");
+    expect(html).not.toContain("name=\"nameLabel\"");
+    expect(html).not.toContain("name=\"kindLabel\"");
+  });
+
+  it("buildMemberPatchFromDraft only commits changed values on save", () => {
+    expect(
+      buildMemberPatchFromDraft({
+        name: "  Alice Updated  ",
+        kind: "person",
+        basis: "month",
+        birthMonth: "2024-1",
+        ageAtBaseMonth: "",
+      })
+    ).toEqual({
+      name: "Alice Updated",
+      kind: "person",
+      birthMonth: "2024-01",
+      ageAtBaseMonth: undefined,
+    });
+
+    expect(
+      buildMemberPatchFromDraft({
+        name: "Bob",
+        kind: "pet",
+        basis: "age",
+        birthMonth: "",
+        ageAtBaseMonth: "5.5",
+      })
+    ).toEqual({
+      name: "Bob",
+      kind: "pet",
+      birthMonth: undefined,
+      ageAtBaseMonth: 5.5,
+    });
+  });
   it("requires required modal fields before submit", () => {
     const invalidDraft: AddMemberDraft = {
       name: "",
