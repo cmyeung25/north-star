@@ -2600,7 +2600,6 @@
     "addMemberBirthMonthHint": "請輸入 YYYY-MM，系統會自動正規化月份格式。",
     "addMemberAgeAtBaseMonthLabel": "基準月份年齡（歲）",
     "addMemberAgeAtBaseMonthHint": "如未能提供出生月份，請填寫基準月份年齡。",
-    "seedDefaultsLabel": "為此成員建立預設收入／預算項目",
     "removeMember": "移除",
     "nameLabel": "姓名",
     "kindLabel": "類型",

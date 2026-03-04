@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
 import ScenarioSettingsWorkspace, {
   buildMemberFromAddDraft,
+  persistNewMember,
   validateAddMemberDraft,
   type AddMemberDraft,
 } from "../ScenarioSettingsWorkspace";
@@ -205,5 +206,49 @@ describe("ScenarioSettingsWorkspace members tab", () => {
       applyScope: { scope: "all" },
     });
     expect(member.milestones).toHaveLength(1);
+  });
+
+  it("persistNewMember only creates member without event/budget side effects", () => {
+    const member = buildMemberFromAddDraft(
+      {
+        name: "Casey",
+        kind: "person",
+        basis: "age",
+        birthMonth: "",
+        ageAtBaseMonth: "29",
+      },
+      {
+        createId: () => "member-casey",
+        buildDefaultMilestones: () => [],
+      }
+    );
+
+    let createMemberCalls = 0;
+    let createMemberPayload: unknown = null;
+    let createBudgetRuleCalls = 0;
+    let upsertEventDefinitionCalls = 0;
+    let upsertScenarioEventRefCalls = 0;
+
+    persistNewMember(member, {
+      createMember: (payload) => {
+        createMemberCalls += 1;
+        createMemberPayload = payload;
+      },
+      createBudgetRule: () => {
+        createBudgetRuleCalls += 1;
+      },
+      upsertEventDefinition: () => {
+        upsertEventDefinitionCalls += 1;
+      },
+      upsertScenarioEventRef: () => {
+        upsertScenarioEventRefCalls += 1;
+      },
+    });
+
+    expect(createMemberCalls).toBe(1);
+    expect(createMemberPayload).toEqual(member);
+    expect(createBudgetRuleCalls).toBe(0);
+    expect(upsertEventDefinitionCalls).toBe(0);
+    expect(upsertScenarioEventRefCalls).toBe(0);
   });
 });
