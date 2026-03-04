@@ -13,6 +13,7 @@ const EXPENSE_TRAVEL_TAG = "onboarding:v3:expense:travel";
 const EXPENSE_TAX_TAG = "onboarding:v3:expense:tax";
 const INCOME_SALARY_TAG = "onboarding:v3:income:salary";
 const INCOME_RENT_TAG = "onboarding:v3:income:rent";
+const ONBOARDING_V3_TAG_PREFIX = "onboarding:v3:";
 
 const withTag = (tags: string[] | undefined, tag: string) => {
   if (!tag) {
@@ -90,6 +91,15 @@ const mapIncomeEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
 const mapCashflowEventType = (event: CashflowLikeEvent): CashflowLikeEvent =>
   mapExpenseEvent(mapIncomeEvent(event));
 
+const stripOnboardingV3Tags = (event: CashflowLikeEvent): CashflowLikeEvent => {
+  if (!event.tags?.length) {
+    return event;
+  }
+
+  const tags = event.tags.filter((tag) => !tag.startsWith(ONBOARDING_V3_TAG_PREFIX));
+  return tags.length === event.tags.length ? event : { ...event, tags };
+};
+
 export const mapOnboardingV3EventTypes = (
   events: Array<ScenarioEvent | ScenarioEventDraft>
 ): Array<ScenarioEvent | ScenarioEventDraft> =>
@@ -98,7 +108,7 @@ export const mapOnboardingV3EventTypes = (
       return event;
     }
 
-    const mapped = mapCashflowEventType(event);
+    const mapped = stripOnboardingV3Tags(mapCashflowEventType(event));
     const semanticMeta = mapped.meta as TimelineSemanticMeta | undefined;
     if (!semanticMeta?.timelineEventType && !semanticMeta?.timelineIncomeSubtype) {
       return mapped;

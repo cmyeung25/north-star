@@ -70,4 +70,19 @@ describe("mapOnboardingV3EventTypes", () => {
     expect(mapped.meta?.timelineIncomeSubtype).toBe("rental");
     expect(mapped.tags).toContain("income:rental");
   });
+
+  it("removes onboarding v3 internal tags after mapping", () => {
+    const events: ScenarioEvent[] = [
+      {
+        ...baseExpense,
+        id: "e4",
+        tags: ["onboarding:v3:expense:daily-monthly", "onboarding:v3:expense:source-onboarding", "keep:manual"],
+      },
+    ];
+
+    const [mapped] = mapOnboardingV3EventTypes(events) as ScenarioEvent[];
+    expect(mapped.tags).toEqual(["keep:manual"]);
+    expect(mapped.meta?.timelineEventType).toBe("custom");
+  });
+
 });

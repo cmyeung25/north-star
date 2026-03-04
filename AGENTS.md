@@ -425,3 +425,9 @@ PR requirement:
   - Affected paths: apps/web/features/planLab/PlanLabPanel.tsx; apps/web/features/planLab/__tests__/PlanLabPanel.i18n.test.ts; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: In PlanLabPanel, visible user text should come from translation keys first; fallback copy is safety-only and any repeatedly-used fallback must be promoted to zh-HK/en message files; keep experiment action verb semantics consistent (新增 = action trigger, 套用 = apply current draft, 儲存 = persist).
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: Onboarding v3 cashflow events retained internal `onboarding:v3:*` tags after submit, causing Plan Lab baseline cards to surface onboarding category-code strings (e.g. `onboarding:v3:expense:daily-monthly`) in UI metadata.
+  - What changed: Updated onboarding v3 `mapOnboardingV3EventTypes` to strip `onboarding:v3:*` tags after semantic mapping while preserving functional tags (e.g. `tax`, `income:rental`); added mapper test coverage for tag stripping and updated onboarding mapping doc with the internal-tag cleanup rule.
+  - Affected paths: apps/web/src/features/onboarding/v3/eventTypeMapper.ts; apps/web/src/features/onboarding/v3/__tests__/eventTypeMapper.test.ts; docs/onboarding-v3-event-mapping.md; AGENTS.md
+  - Guardrails for next agent: Treat `onboarding:v3:*` tags as onboarding-internal transport metadata only—do not rely on them for runtime UI categorization after onboarding submission; preserve semantic tags required by downstream category logic.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
