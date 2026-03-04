@@ -1020,6 +1020,7 @@
     "planLabGroupByDomain": "Domain",
     "planLabGroupByMember": "Member",
     "planLabGroupByStartMonth": "Start Month",
+    "planLabFrequencyEveryNMonthsWithValue": "Every {count} months",
     "planLabTagLinkStateOrphaned": "Orphaned",
     "planLabTagLifecycleOneOff": "One-off",
     "planLabTagLifecycleHasEndMonth": "Has end month",
@@ -2606,6 +2607,10 @@
     "memberEventsPeriodUntil": "Until {endMonth}",
     "memberEventsPeriodUnspecified": "Period not set",
     "householdCardTitle": "Household",
+    "memberEventsTagSourceBaselineOnly": "Baseline only",
+    "memberEventsTagSourceExperimentOnly": "Experiment only",
+    "memberEventsTagSourceApplied": "Applied to scenario",
+    "memberEventsTagLinkStateOrphaned": "Orphaned",
     "householdEventsEmpty": "No unassigned household events yet."
   },
   "budgetRules": {

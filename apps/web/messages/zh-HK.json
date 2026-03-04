@@ -1042,6 +1042,7 @@
     "planLabGroupByDomain": "領域",
     "planLabGroupByMember": "成員",
     "planLabGroupByStartMonth": "開始月份",
+    "planLabFrequencyEveryNMonthsWithValue": "每 {count} 個月",
     "planLabTagLinkStateOrphaned": "孤兒項目",
     "planLabTagLifecycleOneOff": "一次性",
     "planLabTagLifecycleHasEndMonth": "有結束月份",
@@ -2653,6 +2654,10 @@
     "memberEventsPeriodUntil": "至 {endMonth}",
     "memberEventsPeriodUnspecified": "期間未設定",
     "householdCardTitle": "家庭",
+    "memberEventsTagSourceBaselineOnly": "僅基準",
+    "memberEventsTagSourceExperimentOnly": "僅實驗",
+    "memberEventsTagSourceApplied": "已套用至情境",
+    "memberEventsTagLinkStateOrphaned": "孤兒項目",
     "householdEventsEmpty": "尚未有未指定成員的事件。"
   },
   "budgetRules": {

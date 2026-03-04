@@ -461,3 +461,9 @@ PR requirement:
   - Affected paths: apps/web/src/domain/events/utils.ts; apps/web/src/domain/events/__tests__/utils.test.ts; AGENTS.md
   - Guardrails for next agent: 成員關聯事件顯示應以 active scenario `scenario.events` 為最後保底來源，不可因 event library 缺項而整筆消失；若後續要限制 fallback 顯示，需先提供 UI remediation 路徑與遷移策略。
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: Settings members tab and Plan Lab meta tags still surfaced internal enum strings (e.g., baseline-only/orphaned/domain-kind raw text), causing visible non-i18n labels and inconsistent tag semantics across pages.
+  - What changed: Updated settings members-tag resolver to use money/members translation keys for type, frequency, lifecycle, source, and link-state labels; refactored Plan Lab meta-tag adapter to receive localized type labels and interval-month formatter from caller instead of hardcoded strings; added/updated zh-HK/en locale keys for member tag source/link-state labels and Plan Lab interval label; aligned related tests with key-based rendering.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/features/planLab/planLabMetaTagAdapter.ts; apps/web/features/planLab/PlanLabPanel.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; apps/web/features/planLab/__tests__/planLabMetaTagAdapter.test.ts; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Any new money/meta tag label must come from translation keys via resolver callbacks; avoid direct enum string rendering in UI tags (domain/kind/frequency/lifecycle/source/linkState) and pass localized formatters from route-level adapters when composing tags.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

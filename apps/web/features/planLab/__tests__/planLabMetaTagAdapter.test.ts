@@ -32,6 +32,13 @@ const buildMeta = (row: PlanLabMetaTagAdapterInput, memberLookupRecord: Record<s
     householdLabel: "家庭",
     orphanedLabel: "孤兒項目",
     memberLookupRecord,
+    typeLabels: {
+      income: "收入",
+      expense: "支出",
+      asset: "資產",
+      liability: "負債",
+    },
+    intervalMonthsLabel: (intervalMonths) => `每 ${intervalMonths} 個月`,
   });
 
 describe("adaptPlanLabRowMeta", () => {

@@ -5571,6 +5571,16 @@ export default function PlanLabPanel({
         memberLookupRecord: Object.fromEntries(
           combinedMembers.map((member) => [member.id, member.name])
         ),
+        typeLabels: {
+          income: translate("eventTypeIncome", "收入"),
+          expense: translate("eventTypeExpense", "支出"),
+          asset: translate("assetTypeOther", "資產"),
+          liability: translate("liabilityTypeOther", "負債"),
+        },
+        intervalMonthsLabel: (intervalMonths) =>
+          translate("planLabFrequencyEveryNMonthsWithValue", "每 {count} 個月", {
+            count: intervalMonths,
+          }),
       })
       map.set(item.id, meta);
     });
