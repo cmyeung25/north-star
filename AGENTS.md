@@ -443,3 +443,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep add-member action scoped to member entity creation only unless product explicitly reintroduces guided defaults with separate UX and data-scope review; if removing `buildDefaultsForNewMember`, do so in dedicated cleanup PR with dependency audit.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: Members accordion rows allowed inline editing (TextInput/Select/NumberInput) with immediate onChange writes, which conflicted with read-only list UX and made edit/save intent unclear.
+  - What changed: Converted member accordion panel fields to read-only descriptors (Text/Badge rows), added per-member Edit action opening in-file `EditMemberModal`, reused add-member draft fields/validation for edit flow, and changed member update path to save-once (`updateMember(member.id, patch)` only on modal Save); kept member delete action inside modal footer and added zh-HK/en i18n keys (`editMember`, `saveMember`, `discardChanges`); expanded members settings tests to assert read-only list semantics and save-patch transformation coverage.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
+  - Guardrails for next agent: Keep members accordion display read-only; route edits through explicit modal draft state and commit only on Save; avoid reintroducing inline onChange writes in member list rows.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
