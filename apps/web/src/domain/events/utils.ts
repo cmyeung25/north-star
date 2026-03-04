@@ -146,45 +146,50 @@ const createFallbackEventViewFromScenarioEvent = (
   eventLibraryMap: Map<string, EventDefinition>
 ): ScenarioEventView | null => {
   const fallbackDefinition = eventLibraryMap.get(event.id);
-  if (!fallbackDefinition) {
-    return null;
-  }
 
+  const fallbackRefId = fallbackDefinition?.id ?? event.id;
   const fallbackRef: ScenarioEventRef = {
-    refId: fallbackDefinition.id,
+    refId: fallbackRefId,
     enabled: true,
   };
 
   const monthlyAmount = event.cadence === "oneOff" ? 0 : Math.abs(event.amount);
   const oneTimeAmount = event.cadence === "oneOff" ? Math.abs(event.amount) : 0;
+  const startMonth = event.startMonth ?? event.occurrenceMonth;
+  const endMonth = event.endMonth;
 
-  return {
-    definition: {
-      ...fallbackDefinition,
-      memberId: event.memberId ?? fallbackDefinition.memberId,
-      rule: {
-        ...fallbackDefinition.rule,
-        startMonth: event.startMonth ?? event.occurrenceMonth ?? fallbackDefinition.rule.startMonth,
-        endMonth: event.endMonth ?? fallbackDefinition.rule.endMonth,
-        monthlyAmount,
-        oneTimeAmount,
-      },
-    },
-    ref: fallbackRef,
-    rule: resolveEventRule(
-      {
+  const resolvedFallbackDefinition: EventDefinition = fallbackDefinition
+    ? {
         ...fallbackDefinition,
+        memberId: event.memberId ?? fallbackDefinition.memberId,
         rule: {
           ...fallbackDefinition.rule,
-          startMonth: event.startMonth ?? event.occurrenceMonth ?? fallbackDefinition.rule.startMonth,
-          endMonth: event.endMonth ?? fallbackDefinition.rule.endMonth,
+          startMonth: startMonth ?? fallbackDefinition.rule.startMonth,
+          endMonth: endMonth ?? fallbackDefinition.rule.endMonth,
           monthlyAmount,
           oneTimeAmount,
         },
-        memberId: event.memberId ?? fallbackDefinition.memberId,
-      },
-      fallbackRef
-    ),
+      }
+    : {
+        id: event.id,
+        title: event.label ?? event.id,
+        type: mapScenarioCashflowToLegacyType(event),
+        kind: "cashflow",
+        currency: undefined,
+        memberId: event.memberId,
+        rule: {
+          mode: "params",
+          startMonth,
+          endMonth,
+          monthlyAmount,
+          oneTimeAmount,
+        },
+      };
+
+  return {
+    definition: resolvedFallbackDefinition,
+    ref: fallbackRef,
+    rule: resolveEventRule(resolvedFallbackDefinition, fallbackRef),
     linkState: "orphaned" as const,
   };
 };

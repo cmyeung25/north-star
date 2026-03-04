@@ -104,6 +104,32 @@ describe("buildScenarioEventViews", () => {
     expect(view?.linkState).toBe("orphaned");
   });
 
+  it("creates orphaned member-assignable views even when event library entry is missing", () => {
+    const scenario = buildBaseScenario({
+      eventRefs: [],
+      events: [
+        {
+          id: "event-salary-raw",
+          type: "cashflow",
+          kind: "income",
+          cadence: "monthly",
+          amount: 32000,
+          startMonth: "2026-07",
+          memberId: "member-amy",
+          label: "Salary Raw",
+        },
+      ],
+    });
+
+    const [view] = buildMemberAssignableEventViews(scenario, []);
+
+    expect(view?.definition.id).toBe("event-salary-raw");
+    expect(view?.definition.title).toBe("Salary Raw");
+    expect(view?.definition.memberId).toBe("member-amy");
+    expect(view?.rule.monthlyAmount).toBe(32000);
+    expect(view?.linkState).toBe("orphaned");
+  });
+
   it("marks ref-based views as orphaned when no matching scenario event is found", () => {
     const eventLibrary: EventDefinition[] = [
       {
