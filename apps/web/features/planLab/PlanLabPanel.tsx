@@ -6352,7 +6352,6 @@ export default function PlanLabPanel({
 
   const targetPresetOptions = useMemo(() => {
     const netWorthSeries = baselineProjection.projection?.netWorth ?? [];
-    console.log(netWorthSeries);
     let baselineNetWorth = netWorthSeries[0];
     if (!Number.isFinite(baselineNetWorth) || baselineNetWorth <= 1000000) {
       baselineNetWorth = 1000000;
@@ -8423,7 +8422,6 @@ export default function PlanLabPanel({
     });
     setEditingItem(null);
   };
-
   return (
     <Stack gap="xs">
       {planToast && (
