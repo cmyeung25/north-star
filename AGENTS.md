@@ -449,3 +449,9 @@ PR requirement:
   - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/components/settings/__tests__/ScenarioSettingsWorkspace.members.test.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep members accordion display read-only; route edits through explicit modal draft state and commit only on Save; avoid reintroducing inline onChange writes in member list rows.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-04
+  - Context / Why: Scenario Settings members/month-related form fields used generic `TextInput` with duplicated month parsing logic, while shared month input behavior (native month picker + clear affordance) already exists in `MonthField`.
+  - What changed: Applied shared `MonthField` in `ScenarioSettingsWorkspace` for Add/Edit member birth-month input and assumptions base-month modal input; preserved existing normalization/validation (`normalizeMonthStrict`, `validation.useYearMonth`) and error reset behavior while switching handlers to string-based `onChange`.
+  - Affected paths: apps/web/components/settings/ScenarioSettingsWorkspace.tsx; AGENTS.md
+  - Guardrails for next agent: Prefer `MonthField` for scenario/settings month-form UX to keep month picker/clear interactions consistent; keep strict month normalization on blur/save paths and avoid bypassing existing validation messages.
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

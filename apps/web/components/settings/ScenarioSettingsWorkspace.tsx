@@ -43,6 +43,7 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { isValidMonthStr, normalizeMonthStrict } from "../../src/utils/month";
 import DataManagementSection from "../DataManagementSection";
 import DateOrAgeBasisPicker from "../DateOrAgeBasisPicker";
+import MonthField from "../MonthField";
 import PositionDetailList from "../timeline/PositionDetailList";
 import {
   buildMemberAssignableEventViews,
@@ -253,14 +254,14 @@ const MemberDraftFormFields = ({
       ageLabel={membersText("basisAge")}
     />
     {draft.basis === "month" ? (
-      <TextInput
+      <MonthField
         label={membersText("addMemberBirthMonthLabel")}
         placeholder={common("yearMonthPlaceholder")}
         description={membersText("addMemberBirthMonthHint")}
         value={draft.birthMonth}
         error={validationState.birthMonth}
-        onChange={(event) => {
-          onDraftChange({ birthMonth: event.currentTarget.value });
+        onChange={(value) => {
+          onDraftChange({ birthMonth: value });
           onValidationStateChange({ birthMonth: null });
         }}
         onBlur={() => {
@@ -1443,12 +1444,12 @@ export default function ScenarioSettingsWorkspace({
             centered
           >
             <Stack gap="md">
-              <TextInput
+              <MonthField
                 label={t("baseMonth")}
                 placeholder={common("yearMonthPlaceholder")}
                 value={baseMonthDraftInput}
-                onChange={(event) => {
-                  setBaseMonthDraftInput(event.currentTarget.value);
+                onChange={(value) => {
+                  setBaseMonthDraftInput(value);
                   if (baseMonthDraftError) {
                     setBaseMonthDraftError(null);
                   }
