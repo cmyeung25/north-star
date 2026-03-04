@@ -20,5 +20,38 @@ describe("computeIncomeCoverageRatios", () => {
     expect(ratios.nonSalaryIncomeRatio).toBeCloseTo(5_000 / 25_000);
     expect(ratios.passiveIncomeCoverage).toBeCloseTo(5_000 / 11_000);
     expect(ratios.assetLinkedExpenseRatio).toBeCloseTo(9_000 / 11_000);
+    expect(ratios.breakdown.totalIncome).toBe(25_000);
+    expect(ratios.breakdown.nonSalaryIncome).toBe(5_000);
+  });
+
+  it("treats salary subtype as salary even when text does not include salary keyword", () => {
+    const ratios = computeIncomeCoverageRatios(
+      ["2025-01"],
+      {
+        "2025-01": [
+          {
+            month: "2025-01",
+            amount: 20_000,
+            source: "event",
+            sourceId: "evt-uuid-1",
+            label: "每月薪金",
+            category: "income",
+            incomeSubtype: "salary",
+          },
+          {
+            month: "2025-01",
+            amount: 5_000,
+            source: "event",
+            sourceId: "evt-uuid-2",
+            label: "股息",
+            category: "dividend",
+            incomeSubtype: "dividend",
+          },
+        ],
+      }
+    );
+
+    expect(ratios.nonSalaryIncomeRatio).toBeCloseTo(5_000 / 25_000);
+    expect(ratios.breakdown.fallbackClassifiedIncome).toBe(0);
   });
 });

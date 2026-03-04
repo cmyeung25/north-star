@@ -138,6 +138,7 @@ import {
   type IncomeSortOption,
   type IncomeStatusFilter,
 } from "../../../src/features/money/incomeViewModels";
+import { computeIncomeCoverageRatios } from "../../../src/domain/kpis/incomeCoverage";
 import {
   buildSalaryAdjustmentTags,
   deriveRecurringGroupId,
@@ -845,6 +846,10 @@ export default function MoneyClient({
       }),
     [filteredIncomeEvents, ledgerRowsByEventId, scenario?.assumptions.baseMonth, selectedDashboardMonth]
   );
+  const incomeCoverageRatios = useMemo(() => {
+    const horizonMonths = months.slice(0, 12);
+    return computeIncomeCoverageRatios(horizonMonths, ledgerByMonth);
+  }, [ledgerByMonth, months]);
   const standaloneExpenseEvents = useMemo(
     () => expenseEvents.filter((event) => !event.source?.bundleInstanceId),
     [expenseEvents]
@@ -3979,6 +3984,10 @@ export default function MoneyClient({
               projectedDelta12m={incomeSummary.projectedDelta12m}
               expiringCount={incomeSummary.expiringCount}
               topSources={incomeSummary.topSources}
+              nonSalaryIncomeRatio={incomeCoverageRatios.nonSalaryIncomeRatio}
+              nonSalaryIncomeAmount={incomeCoverageRatios.breakdown.nonSalaryIncome}
+              totalIncomeAmount={incomeCoverageRatios.breakdown.totalIncome}
+              usesFallbackClassification={incomeCoverageRatios.breakdown.fallbackClassifiedIncome > 0}
             />
             {renderBundleSliceSection(
               bundleSlicesByType.income,

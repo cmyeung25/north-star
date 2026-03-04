@@ -43,6 +43,7 @@ export type LedgerRow = {
   memberId?: string;
   tags?: string[];
   kind?: "income" | "expense";
+  incomeSubtype?: string;
   linkedLiabilityId?: string;
 };
 
@@ -621,6 +622,7 @@ export const compileScenarioV2ToLedger = (
       memberId: event.memberId,
       tags: event.tags ? [...event.tags] : undefined,
       kind: event.kind,
+      incomeSubtype: event.kind === "income" ? event.category ?? "other" : undefined,
     }));
   });
 

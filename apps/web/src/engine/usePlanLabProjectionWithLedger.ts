@@ -98,6 +98,7 @@ const compileEventLedger = (
       sourceId: entry.sourceEventId,
       label: entry.title,
       category: entry.category,
+      incomeSubtype: definition?.incomeSubtype,
       memberId: definition?.memberId,
     };
   });
