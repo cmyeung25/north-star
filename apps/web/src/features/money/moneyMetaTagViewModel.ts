@@ -3,6 +3,7 @@ import {
   type MoneyMetaInput,
   type MetaTag,
 } from "../../domain/events/buildMoneyMetaTags";
+import type { SharedViewLinkState, SharedViewSource } from "../../domain/events/eventTaxonomy";
 import type { MoneyTagItem } from "./moneyTagConfig";
 
 export type BuildMoneyMetaTagViewModelOptions = {
@@ -19,13 +20,17 @@ export type BuildMoneyMetaTagViewModelOptions = {
   projectionLabel?: string | null;
   sourceLabel?: string | null;
   attributeLabel?: string | null;
+  resolveSourceLabel?: (source: string) => string;
+  resolveLinkStateLabel?: (linkState: string) => string | null;
+  source?: SharedViewSource;
+  linkState?: SharedViewLinkState;
 };
 
 export const buildMoneyMetaTagViewModel = (
   input: MoneyMetaInput,
   options: BuildMoneyMetaTagViewModelOptions
 ): { metaTags: MetaTag[]; tags: MoneyTagItem[] } => {
-  const metaTags = buildMoneyMetaTags(input);
+  const metaTags = buildMoneyMetaTags(input, { source: options.source, linkState: options.linkState });
   const [meta] = metaTags;
   const tags: MoneyTagItem[] = [
     {
@@ -82,8 +87,21 @@ export const buildMoneyMetaTagViewModel = (
   if (options.projectionLabel) {
     tags.push({ key: `projection-${(input as { id: string }).id}`, label: options.projectionLabel, kind: "projection" });
   }
-  if (options.sourceLabel) {
-    tags.push({ key: `source-${(input as { id: string }).id}`, label: options.sourceLabel, kind: "source" });
+  const sourceLabel = options.sourceLabel ??
+    (options.resolveSourceLabel ? options.resolveSourceLabel(meta.source) : null);
+  if (sourceLabel) {
+    tags.push({ key: `source-${(input as { id: string }).id}`, label: sourceLabel, kind: "source" });
+  }
+
+  const linkStateLabel = options.resolveLinkStateLabel
+    ? options.resolveLinkStateLabel(meta.linkState)
+    : null;
+  if (linkStateLabel) {
+    tags.push({
+      key: `link-state-${(input as { id: string }).id}`,
+      label: linkStateLabel,
+      kind: "source",
+    });
   }
   if (options.attributeLabel) {
     tags.push({ key: `attribute-extra-${(input as { id: string }).id}`, label: options.attributeLabel, kind: "attribute" });

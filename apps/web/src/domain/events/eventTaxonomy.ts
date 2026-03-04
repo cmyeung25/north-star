@@ -14,6 +14,13 @@ export const structuralEventTypes = [
 export const cashflowEventKinds = ["income", "expense"] as const;
 export const housingEventKinds = ["rent", "mortgage"] as const;
 export const adjustmentEventKinds = ["asset", "liability", "cash"] as const;
+export const sharedViewBelongsToValues = ["member", "household"] as const;
+export const sharedViewLinkStateValues = ["linked", "orphaned"] as const;
+export const sharedViewSourceValues = [
+  "baseline-only",
+  "experiment-only",
+  "applied-to-scenario",
+] as const;
 
 const eventTypeValues = eventTypes as [EngineEventType, ...EngineEventType[]];
 
@@ -50,6 +57,18 @@ export type AdjustmentEventKind = (typeof adjustmentEventKinds)[number];
 export type LegacyEventType = EngineEventType;
 export type IncomeSubtype = (typeof incomeSubtypes)[number];
 export type ExpenseCategory = (typeof expenseCategories)[number];
+export type SharedViewBelongsTo = (typeof sharedViewBelongsToValues)[number];
+export type SharedViewLinkState = (typeof sharedViewLinkStateValues)[number];
+export type SharedViewSource = (typeof sharedViewSourceValues)[number];
+
+export type SharedEventViewContract = {
+  domain: "income" | "expense" | "asset" | "liability";
+  type: string;
+  kind: string;
+  belongsTo: SharedViewBelongsTo;
+  linkState: SharedViewLinkState;
+  source: SharedViewSource;
+};
 
 export const StructuralEventTypeSchema = z.enum(structuralEventTypes);
 export const CashflowEventKindSchema = z.enum(cashflowEventKinds);
@@ -58,3 +77,6 @@ export const AdjustmentEventKindSchema = z.enum(adjustmentEventKinds);
 export const LegacyEventTypeSchema = z.enum(eventTypeValues);
 export const IncomeSubtypeSchema = z.enum(incomeSubtypes);
 export const ExpenseCategorySchema = z.enum(expenseCategories);
+export const SharedViewBelongsToSchema = z.enum(sharedViewBelongsToValues);
+export const SharedViewLinkStateSchema = z.enum(sharedViewLinkStateValues);
+export const SharedViewSourceSchema = z.enum(sharedViewSourceValues);

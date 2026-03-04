@@ -37,6 +37,8 @@ import ScenarioAssumptionsOverrideForm from "../ScenarioAssumptionsOverrideForm"
 import type { ScenarioAssumptionsOverride } from "../ScenarioAssumptionsOverrideForm";
 import { Link } from "../../src/i18n/navigation";
 import { buildMonthRange } from "@north-star/engine";
+import MoneyMetaTags from "../../src/features/money/MoneyMetaTags";
+import { buildMoneyMetaTagViewModel } from "../../src/features/money/moneyMetaTagViewModel";
 import { getMemberAgeYears } from "../../src/domain/members/age";
 import { isValidMonthStr, normalizeMonthStrict } from "../../src/utils/month";
 import DataManagementSection from "../DataManagementSection";
@@ -180,6 +182,7 @@ export default function ScenarioSettingsWorkspace({
   const [expandedMemberIds, setExpandedMemberIds] = useState<string[]>([]);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [seedDefaultsOnAddMember, setSeedDefaultsOnAddMember] = useState(true);
+  const [focusEventId, setFocusEventId] = useState<string | null>(null);
   const [affectedAssumptionKey, setAffectedAssumptionKey] = useState<
     keyof ScenarioAssumptionsOverride | null
   >(null);
@@ -218,6 +221,14 @@ export default function ScenarioSettingsWorkspace({
       setActiveTab(resolvedHash);
     }
   }, [resolvedTabOrder]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const search = new URLSearchParams(window.location.search);
+    setFocusEventId(search.get("focusEventId"));
+  }, []);
 
   const handleTabChange = (value: string | null) => {
     const nextTab = (value ?? defaultTab) as SettingsTabKey;
@@ -860,6 +871,41 @@ export default function ScenarioSettingsWorkspace({
     },
     [common, membersText]
   );
+  const memberLookupRecord = useMemo(
+    () => Object.fromEntries(members.map((member) => [member.id, member.name])),
+    [members]
+  );
+  const resolveSettingsEventTags = useCallback(
+    (eventView: (typeof assignableEventViews)[number]) =>
+      buildMoneyMetaTagViewModel(
+        {
+          id: eventView.definition.id,
+          kind: eventView.definition.incomeSubtype ? "income" : "expense",
+          type: "cashflow",
+          memberId: eventView.definition.memberId,
+          cadence:
+            typeof eventView.rule.oneTimeAmount === "number" && eventView.rule.oneTimeAmount > 0
+              ? "oneOff"
+              : "monthly",
+          startMonth: eventView.rule.startMonth,
+          endMonth: eventView.rule.endMonth,
+        },
+        {
+          householdLabel: membersText("householdCardTitle"),
+          ownerId: eventView.definition.memberId,
+          memberLookupRecord,
+          resolveTypeLabel: (meta) => `${meta.domain}/${meta.kind}`,
+          resolveFrequencyLabel: (meta) => (meta.frequency === "none" ? null : meta.frequency),
+          resolveLifecycleLabel: (meta) => meta.lifecycle,
+          resolveSourceLabel: (source) => source,
+          resolveLinkStateLabel: (linkState) => (linkState === "orphaned" ? "orphaned" : null),
+          source: "baseline-only",
+          linkState: eventView.linkState ?? "linked",
+        }
+      ).tags,
+    [memberLookupRecord, membersText]
+  );
+
   const recoveryHref =
     caseId && scenarios[0]?.id
       ? scenarioDashboardPath(caseId, scenarios[0].id)
@@ -1696,7 +1742,7 @@ export default function ScenarioSettingsWorkspace({
                               ) : (
                                 <Stack gap="xs">
                                   {memberEventViews.map((eventView) => (
-                                    <Card key={eventView.definition.id} withBorder radius="md" padding="sm">
+                                    <Card key={eventView.definition.id} withBorder radius="md" padding="sm" data-testid={`settings-member-event-${eventView.definition.id}`} style={focusEventId === eventView.definition.id ? { outline: "2px solid var(--mantine-color-aurora-5)" } : undefined}>
                                       <Group justify="space-between" align="center" wrap="wrap">
                                         <Stack gap={2}>
                                           <Text fw={500}>{eventView.definition.title}</Text>
@@ -1705,6 +1751,7 @@ export default function ScenarioSettingsWorkspace({
                                             <Text size="xs" c="dimmed">{resolveEventAmountLabel(eventView)}</Text>
                                             <Text size="xs" c="dimmed">{resolveEventPeriodLabel(eventView)}</Text>
                                           </Group>
+                                          <MoneyMetaTags tags={resolveSettingsEventTags(eventView)} />
                                         </Stack>
                                         <Button
                                           size="xs"
@@ -1746,7 +1793,7 @@ export default function ScenarioSettingsWorkspace({
                     ) : (
                       <Stack gap="xs">
                         {(eventsByMemberId.get("household") ?? []).map((eventView) => (
-                          <Card key={eventView.definition.id} withBorder radius="md" padding="sm">
+                          <Card key={eventView.definition.id} withBorder radius="md" padding="sm" data-testid={`settings-household-event-${eventView.definition.id}`} style={focusEventId === eventView.definition.id ? { outline: "2px solid var(--mantine-color-aurora-5)" } : undefined}>
                             <Group justify="space-between" align="center" wrap="wrap">
                               <Stack gap={2}>
                                 <Text fw={500}>{eventView.definition.title}</Text>
@@ -1755,6 +1802,7 @@ export default function ScenarioSettingsWorkspace({
                                   <Text size="xs" c="dimmed">{resolveEventAmountLabel(eventView)}</Text>
                                   <Text size="xs" c="dimmed">{resolveEventPeriodLabel(eventView)}</Text>
                                 </Group>
+                                <MoneyMetaTags tags={resolveSettingsEventTags(eventView)} />
                               </Stack>
                               <Button
                                 size="xs"

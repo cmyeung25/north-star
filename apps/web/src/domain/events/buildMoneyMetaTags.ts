@@ -1,5 +1,10 @@
 import type { ScenarioEvent } from "../scenarioV2/events";
 import type { ScenarioAsset, ScenarioLiability } from "../../store/scenarioStore";
+import type {
+  SharedEventViewContract,
+  SharedViewLinkState,
+  SharedViewSource,
+} from "./eventTaxonomy";
 
 export type InputItem = {
   id: string;
@@ -25,11 +30,7 @@ export type MetaTagFrequency =
   | "none";
 export type MetaTagLifecycle = "oneOff" | "ongoing" | "hasEndMonth";
 
-export type MetaTag = {
-  domain: MetaTagDomain;
-  type: string;
-  kind: string;
-  belongsTo: MetaTagBelongsTo;
+export type MetaTag = SharedEventViewContract & {
   frequency: MetaTagFrequency;
   lifecycle: MetaTagLifecycle;
 };
@@ -89,6 +90,12 @@ const resolveBelongsTo = (value: MoneyMetaInput): MetaTagBelongsTo => {
   return value.memberId || value.ownerMemberId ? "member" : "household";
 };
 
+const resolveLinkState = (overrides?: { linkState?: SharedViewLinkState }): SharedViewLinkState =>
+  overrides?.linkState ?? "linked";
+
+const resolveSource = (overrides?: { source?: SharedViewSource }): SharedViewSource =>
+  overrides?.source ?? "baseline-only";
+
 const resolveFrequency = (value: MoneyMetaInput): MetaTagFrequency => {
   if (isScenarioEvent(value)) {
     if (value.type === "cashflow") return value.cadence;
@@ -124,13 +131,18 @@ const resolveLifecycle = (value: MoneyMetaInput): MetaTagLifecycle => {
   return value.endMonth ? "hasEndMonth" : "ongoing";
 };
 
-export const buildMoneyMetaTags = (value: MoneyMetaInput): MetaTag[] => {
+export const buildMoneyMetaTags = (
+  value: MoneyMetaInput,
+  overrides?: { source?: SharedViewSource; linkState?: SharedViewLinkState }
+): MetaTag[] => {
   return [
     {
       domain: resolveDomain(value),
       type: resolveType(value),
       kind: resolveKind(value),
       belongsTo: resolveBelongsTo(value),
+      linkState: resolveLinkState(overrides),
+      source: resolveSource(overrides),
       frequency: resolveFrequency(value),
       lifecycle: resolveLifecycle(value),
     },

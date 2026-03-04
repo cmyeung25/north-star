@@ -1,6 +1,7 @@
 import { buildMoneyMetaTags } from "../../src/domain/events/buildMoneyMetaTags";
 import { buildMoneyMetaTagViewModel } from "../../src/features/money/moneyMetaTagViewModel";
 import type { MetaTag } from "../../src/domain/events/buildMoneyMetaTags";
+import type { SharedViewSource } from "../../src/domain/events/eventTaxonomy";
 import type { MoneyTagItem } from "../../src/features/money/moneyTagConfig";
 import { formatCurrency } from "../../lib/i18n";
 
@@ -37,6 +38,7 @@ export type PlanLabMetaTagAdapterInput = {
     startMonth?: string;
   };
   linkState?: "linked" | "orphaned";
+  source?: SharedViewSource;
 };
 
 const resolveMetaInput = (row: PlanLabMetaTagAdapterInput) => {
@@ -126,6 +128,8 @@ export const adaptPlanLabRowMeta = ({
     resolveTypeLabel,
     resolveLifecycleLabel: (meta) => lifecycleLabels[resolveLifecycleLabel(meta)],
     resolveFrequencyLabel: (meta) => resolveFrequencyLabel(meta, frequencyLabels, row.intervalMonths),
+    source: row.source,
+    linkState: row.linkState,
   });
 
   const moneyMetaParts: string[] = [];
@@ -145,7 +149,7 @@ export const adaptPlanLabRowMeta = ({
     .filter(Boolean)
     .join(" • ");
 
-  if (row.linkState === "orphaned") {
+  if (row.linkState === "orphaned" && !viewModel.tags.some((tag) => tag.key === `link-state-${row.id}`)) {
     viewModel.tags.push({
       key: `link-state-${row.id}`,
       label: orphanedLabel,

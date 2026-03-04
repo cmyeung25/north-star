@@ -413,3 +413,9 @@ PR requirement:
   - Affected paths: apps/web/features/planLab/PlanLabPanel.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep decision narrative strings under `overview.planLab*` keys (no hardcoded narrative copy), and when adding new driver interactions continue reusing the shared chart/timeline lock state to avoid dual sources of truth.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
+- Date: 2026-03-03
+  - Context / Why: Plan Lab、Money、Settings 之間的 ownership/tag/source 語意仍有模組差異，且 Plan Lab 修正流程缺少到 Money/Settings 的快速深連結。
+  - What changed: 建立 shared view contract（`domain/type/kind/belongsTo/linkState/source`）並由 money meta pipeline 輸出；Plan Lab row metadata 改為注入 shared `source`（baseline-only / experiment-only / applied-to-scenario）與 source badge；在 Plan Lab 散件列加入「前往 Money 編輯」與「前往 Settings members」深連結 helper；Settings members 卡片改為使用同一 money meta tags（含 ownership + source/link-state 語意）顯示。
+  - Affected paths: apps/web/src/domain/events/eventTaxonomy.ts; apps/web/src/domain/events/buildMoneyMetaTags.ts; apps/web/src/domain/events/eventMappingRegistry.ts; apps/web/features/planLab/PlanLabPanel.tsx; apps/web/features/planLab/planLabMetaTagAdapter.ts; apps/web/components/settings/ScenarioSettingsWorkspace.tsx; apps/web/src/features/money/moneyMetaTagViewModel.ts
+  - Guardrails for next agent: 跨模組（Plan Lab/Money/Settings）顯示事件語意時，必須以 shared contract 欄位為單一來源；新增來源狀態時先擴充 taxonomy contract，再同步 Plan Lab badge 與 Money/Settings tag 呈現；Plan Lab 的修正入口需維持可直接 deep-link 到 Money edit 與 Settings members。
+  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
