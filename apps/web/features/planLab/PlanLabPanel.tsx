@@ -976,11 +976,6 @@ const PlanLabAccordionRow = memo(
                   ))}
                 </Group>
               </Stack>
-              {typeof summary === "string" ? (
-                <Text display="none" size="xs" c="dimmed" ta="center" maw={200} lineClamp={2}>
-                  {summary || "—"}
-                </Text>
-              ) : null}
               <Group gap="xs" wrap="nowrap">
                 {onToggle && (
                   <Switch
@@ -1039,6 +1034,7 @@ const PlanLabAccordionRow = memo(
                       <ActionIcon
                         size="sm"
                         variant="light"
+                        aria-label={t("actionMore")}
                         onClick={(event) => event.stopPropagation()}
                       >
                         <Text size="sm">⋯</Text>
@@ -4327,7 +4323,7 @@ export default function PlanLabPanel({
           return;
         }
         setPlanToast(
-          translate("planLabExperimentUnsupported", "此項目暫未支援建立實驗。")
+          translate("planLabExperimentUnsupported", "此項目暫未支援新增實驗。")
         );
         return;
       }
@@ -5637,7 +5633,7 @@ export default function PlanLabPanel({
                       })
                     }
                   >
-                    {translate("planLabCreateExperimentAction", "建立實驗")}
+                    {translate("planLabCreateExperimentAction", "新增實驗")}
                   </Button>
                   <Menu withinPortal position="bottom-end">
                     <Menu.Target>
@@ -7816,7 +7812,7 @@ export default function PlanLabPanel({
                       : {
                           label: translate(
                             "planLabCreateExperimentAction",
-                            "建立實驗"
+                            "新增實驗"
                           ),
                           onClick: () => handleCreateExperimentFromItem(sourceItem),
                           disabled: !canCreateExperimentFromItem(sourceItem),
@@ -8781,7 +8777,7 @@ export default function PlanLabPanel({
                                           : {
                                               label: translate(
                                                 "planLabBundleCreateExperiment",
-                                                "建立組合實驗"
+                                                "新增組合實驗"
                                               ),
                                               onClick: () =>
                                                 handleCreateBundleExperiment(bundle.id),
@@ -8986,7 +8982,7 @@ export default function PlanLabPanel({
                                             : {
                                                 label: translate(
                                                   "planLabBundleCreateExperiment",
-                                                  "建立組合實驗"
+                                                  "新增組合實驗"
                                                 ),
                                                 onClick: () =>
                                                   handleCreateBundleExperiment(bundle.id),
@@ -9120,7 +9116,7 @@ export default function PlanLabPanel({
                         <Text size="sm" c="dimmed">
                           {translate(
                             "planLabExperimentsEmptyCompact",
-                            "建立實驗以比較 baseline 與新方案，並即時反映 KPI/圖表。"
+                            "新增實驗以比較 baseline 與新方案，並即時反映 KPI/圖表。"
                           )}
                         </Text>
                         <Button size="sm" onClick={handleAddExperimentAction}>
@@ -9178,14 +9174,14 @@ export default function PlanLabPanel({
                           {scenarioIsV2
                             ? translate(
                                 "planLabExperimentsEmptyRich",
-                                "實驗用嚟建立可開關/可調參數嘅測試。你而家新增咗項目，但未建立實驗。"
+                                "實驗用嚟新增可開關/可調參數嘅測試。你而家新增咗項目，但未新增實驗。"
                               )
                             : t("planLabExperimentsEmpty")}
                         </Text>
                         {scenarioIsV2 ? (
                           <Group gap="xs">
                             <Button size="xs" onClick={openExperimentTemplatesDrawer}>
-                              {translate("planLabCreateExperimentAction", "建立實驗")}
+                              {translate("planLabCreateExperimentAction", "新增實驗")}
                             </Button>
                             {ungroupedPatchItemIds.length > 0 && (
                               <Button
@@ -10369,7 +10365,7 @@ export default function PlanLabPanel({
                   variant="light"
                   onClick={() => handleCreateBundleExperiment(activeBundleCard.id)}
                 >
-                  {translate("planLabBundleCreateExperiment", "建立組合實驗")}
+                  {translate("planLabBundleCreateExperiment", "新增組合實驗")}
                 </Button>
               )}
             </Group>
@@ -10418,7 +10414,7 @@ export default function PlanLabPanel({
           <Text size="sm" c="dimmed">
             {translate(
               "planLabEnvOverrideHint",
-              "你正在建立實驗，不會改動 baseline；可隨時開關比較 KPI/圖表。"
+              "你正在新增實驗，不會改動 baseline；可隨時開關比較 KPI/圖表。"
             )}
           </Text>
           <ScenarioAssumptionsOverrideForm
@@ -10474,7 +10470,7 @@ export default function PlanLabPanel({
               {translate("planLabCancel", "取消")}
             </Button>
             <Button onClick={saveEnvAssumptionsExperiment}>
-              {translate("planLabCreateExperimentAction", "建立實驗")}
+              {translate("planLabCreateExperimentAction", "新增實驗")}
             </Button>
           </Group>
         </Stack>
@@ -11019,7 +11015,7 @@ export default function PlanLabPanel({
                 <Text size="sm" c="dimmed">
                   {translate(
                     "planLabExperimentSmartInvestHint",
-                    "智能投資調整請先建立實驗，再於詳情中調整。"
+                    "智能投資調整請先新增實驗，再於詳情中調整。"
                   )}
                 </Text>
               )}
@@ -11724,7 +11720,7 @@ export default function PlanLabPanel({
         }}
         position={isMobile ? "bottom" : "right"}
         size={isMobile ? "100%" : "md"}
-        title={translate("planLabExperimentLandingTitle", "建立實驗")}
+        title={translate("planLabExperimentLandingTitle", "新增實驗")}
         styles={drawerStyles}
       >
         <Stack gap="md">
@@ -11787,7 +11783,7 @@ export default function PlanLabPanel({
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            {translate("planLabEventExperimentDrawerHint", "你正在建立實驗，不會改動 baseline。")}
+            {translate("planLabEventExperimentDrawerHint", "你正在新增實驗，不會改動 baseline。")}
           </Text>
           <Select
             label={translate("planLabEventExperimentTarget", "目標事件")}
@@ -11830,7 +11826,7 @@ export default function PlanLabPanel({
             <Text size="xs" c="orange">
               {translate(
                 "planLabEventExperimentBundleHint",
-                "此項目由人生組合生成，請用「建立組合實驗」修改。"
+                "此項目由人生組合生成，請用「新增組合實驗」修改。"
               )}
             </Text>
           ) : null}
@@ -12181,7 +12177,7 @@ export default function PlanLabPanel({
               {translate("planLabActionCancel", "取消")}
             </Button>
             <Button onClick={submitEventExperiment} disabled={!canSubmitEventExperiment}>
-              {translate("planLabEventExperimentCreate", "建立實驗")}
+              {translate("planLabEventExperimentCreate", "新增實驗")}
             </Button>
           </Group>
         </Stack>
