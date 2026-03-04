@@ -2,7 +2,11 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
-import ScenarioSettingsWorkspace from "../ScenarioSettingsWorkspace";
+import ScenarioSettingsWorkspace, {
+  buildMemberFromAddDraft,
+  validateAddMemberDraft,
+  type AddMemberDraft,
+} from "../ScenarioSettingsWorkspace";
 
 (globalThis as { React?: typeof React }).React = React;
 
@@ -149,5 +153,57 @@ describe("ScenarioSettingsWorkspace members tab", () => {
     expect(html).toContain("Alice");
     expect(html).toContain("baseline-only");
     expect(html).not.toContain("memberEventsEmpty");
+  });
+
+  it("requires required modal fields before submit", () => {
+    const invalidDraft: AddMemberDraft = {
+      name: "",
+      kind: "person",
+      basis: "month",
+      birthMonth: "",
+      ageAtBaseMonth: "",
+    };
+
+    const result = validateAddMemberDraft(invalidDraft, {
+      requiredName: "memberNameRequired",
+      requiredAgeOrMonth: "memberBirthOrAgeRequired",
+      invalidMonth: "useYearMonth",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.name).toBe("memberNameRequired");
+    expect(result.errors.birthMonth).toBe("memberBirthOrAgeRequired");
+  });
+
+  it("builds complete member payload from modal draft", () => {
+    const draft: AddMemberDraft = {
+      name: "  Charlie  ",
+      kind: "person",
+      basis: "month",
+      birthMonth: "2024-1",
+      ageAtBaseMonth: "",
+    };
+
+    const member = buildMemberFromAddDraft(draft, {
+      createId: () => "member-new",
+      buildDefaultMilestones: () => [
+        {
+          id: "m1",
+          kind: "schoolStart",
+          label: "milestoneSchoolStart",
+          atAgeYears: 6,
+        },
+      ],
+    });
+
+    expect(member).toMatchObject({
+      id: "member-new",
+      name: "Charlie",
+      kind: "person",
+      birthMonth: "2024-01",
+      ageAtBaseMonth: undefined,
+      applyScope: { scope: "all" },
+    });
+    expect(member.milestones).toHaveLength(1);
   });
 });
