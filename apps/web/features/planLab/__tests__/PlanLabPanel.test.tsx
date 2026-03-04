@@ -3,7 +3,12 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
-import PlanLabPanel, { GROUP_LABEL, buildScenarioItemMetaParts } from "../PlanLabPanel";
+import PlanLabPanel, {
+  GROUP_LABEL,
+  buildScenarioItemMetaParts,
+  resolvePlanLabMoneyEditHref,
+  resolvePlanLabSettingsMembersHref,
+} from "../PlanLabPanel";
 import type { EventDefinition } from "../../../src/domain/events/types";
 import type { Scenario } from "../../../src/store/scenarioStore";
 
@@ -118,6 +123,25 @@ describe("PlanLabPanel", () => {
   it("maps income/expense group labels to localized text", () => {
     expect(GROUP_LABEL.income).toBe("收入");
     expect(GROUP_LABEL.expense).toBe("支出");
+  });
+
+
+  it("builds deep links from Plan Lab to Money and Settings members", () => {
+    expect(
+      resolvePlanLabMoneyEditHref({
+        caseId: "case-1",
+        scenarioId: "scenario-1",
+        eventId: "event-1",
+        category: "income",
+      })
+    ).toContain("tab=income&editEventId=event-1");
+    expect(
+      resolvePlanLabSettingsMembersHref({
+        caseId: "case-1",
+        scenarioId: "scenario-1",
+        eventId: "event-1",
+      })
+    ).toContain("focusEventId=event-1#members");
   });
 
   it("builds meta line without undefined/null placeholders", () => {

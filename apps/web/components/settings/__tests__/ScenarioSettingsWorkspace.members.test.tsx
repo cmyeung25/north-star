@@ -132,7 +132,7 @@ vi.mock("../../../src/store/scenarioStore", () => ({
 
 
 describe("ScenarioSettingsWorkspace members tab", () => {
-  it("shows member events from scenario.events even when eventRefs are empty", () => {
+  it("shows member ownership and shared tag semantics for scenario events", () => {
     const html = renderToString(
       React.createElement(
         MantineProvider,
@@ -146,6 +146,8 @@ describe("ScenarioSettingsWorkspace members tab", () => {
 
     expect(html).toContain("Salary A");
     expect(html).toContain("Salary B");
+    expect(html).toContain("Alice");
+    expect(html).toContain("baseline-only");
     expect(html).not.toContain("memberEventsEmpty");
   });
 });

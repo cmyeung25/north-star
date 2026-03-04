@@ -107,7 +107,11 @@ import {
   computeProjectionWithSmartInvest,
   useProjectionWithLedger,
 } from "../../src/engine/useProjectionWithLedger";
-import { scenarioDashboardPath } from "../../lib/routes/appRoutes";
+import {
+  scenarioDashboardPath,
+  scenarioMoneyPath,
+  scenarioSettingsPath,
+} from "../../lib/routes/appRoutes";
 import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import { useUiStore } from "../../src/store/uiStore";
 import type { TimeSeriesPoint } from "../overview/types";
@@ -246,6 +250,27 @@ import {
   getEventBaseEventId,
   getEventStartMonth,
 } from "../../src/domain/scenarioV2/eventSegments";
+import type { SharedViewSource } from "../../src/domain/events/eventTaxonomy";
+
+export const resolvePlanLabMoneyEditHref = (
+  params: { caseId: string; scenarioId: string; eventId?: string | null; category?: string | null }
+) => {
+  if (!params.caseId || !params.scenarioId || !params.eventId) {
+    return null;
+  }
+  const tab = params.category === "income" ? "income" : "expenses";
+  return `${scenarioMoneyPath(params.caseId, params.scenarioId)}?tab=${tab}&editEventId=${params.eventId}`;
+};
+
+export const resolvePlanLabSettingsMembersHref = (
+  params: { caseId: string; scenarioId: string; eventId?: string | null }
+) => {
+  if (!params.caseId || !params.scenarioId) {
+    return null;
+  }
+  const query = params.eventId ? `?focusEventId=${params.eventId}` : "";
+  return `${scenarioSettingsPath(params.caseId, params.scenarioId)}${query}#members`;
+};
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
@@ -319,6 +344,7 @@ type ScenarioEditorItem = {
     isBase: boolean;
   }>;
   linkState?: "linked" | "orphaned";
+  source?: SharedViewSource;
 };
 
 type EventExperimentDraft = {
@@ -5439,24 +5465,6 @@ export default function PlanLabPanel({
     [getScenarioItemChangeStatus, translate]
   );
 
-  const getScenarioItemBadges = useCallback(
-    (item: ScenarioEditorItem): PlanLabRowBadge[] => {
-      const badges: PlanLabRowBadge[] = [];
-      if (isItemImpactedByEnabledExperiment(item)) {
-        badges.push({
-          label: translate("planLabBadgeAffected", "受影響"),
-          color: "blue",
-        });
-      }
-      const changeBadge = getScenarioItemChangeBadge(item);
-      if (changeBadge) {
-        badges.push(changeBadge);
-      }
-      return badges;
-    },
-    [getScenarioItemChangeBadge, isItemImpactedByEnabledExperiment, translate]
-  );
-
   const frequencyLabels = useMemo<Record<NonNullable<ScenarioEditorItem["frequency"]>, string>>(
     () => ({
       monthly: translate("planLabFrequencyMonthly", "每月"),
@@ -5476,6 +5484,60 @@ export default function PlanLabPanel({
       ongoing: translate("planLabTagLifecycleOngoing", "持續"),
     }),
     [translate]
+  );
+
+  const resolveScenarioItemSource = useCallback(
+    (item: ScenarioEditorItem): SharedViewSource => {
+      if (isItemImpactedByEnabledExperiment(item)) {
+        return "experiment-only";
+      }
+      if (getScenarioItemChangeStatus(item)) {
+        return "applied-to-scenario";
+      }
+      return "baseline-only";
+    },
+    [getScenarioItemChangeStatus, isItemImpactedByEnabledExperiment]
+  );
+
+  const resolveScenarioItemSourceBadge = useCallback(
+    (source: SharedViewSource): PlanLabRowBadge => {
+      if (source === "experiment-only") {
+        return {
+          label: translate("planLabBadgeSourceExperimentOnly", "實驗專用"),
+          color: "blue",
+        };
+      }
+      if (source === "applied-to-scenario") {
+        return {
+          label: translate("planLabBadgeSourceApplied", "已套用至情境"),
+          color: "teal",
+        };
+      }
+      return {
+        label: translate("planLabBadgeSourceBaselineOnly", "僅基準"),
+        color: "gray",
+      };
+    },
+    [translate]
+  );
+
+  const getScenarioItemBadges = useCallback(
+    (item: ScenarioEditorItem): PlanLabRowBadge[] => {
+      const badges: PlanLabRowBadge[] = [];
+      if (isItemImpactedByEnabledExperiment(item)) {
+        badges.push({
+          label: translate("planLabBadgeAffected", "受影響"),
+          color: "blue",
+        });
+      }
+      const changeBadge = getScenarioItemChangeBadge(item);
+      if (changeBadge) {
+        badges.push(changeBadge);
+      }
+      badges.push(resolveScenarioItemSourceBadge(resolveScenarioItemSource(item)));
+      return badges;
+    },
+    [getScenarioItemChangeBadge, isItemImpactedByEnabledExperiment, resolveScenarioItemSource, resolveScenarioItemSourceBadge, translate]
   );
 
   const scenarioItemMetaById = useMemo(() => {
@@ -5500,6 +5562,7 @@ export default function PlanLabPanel({
         position: item.position,
         title: item.title,
         linkState: item.linkState,
+        source: resolveScenarioItemSource(item),
       };
       const meta = adaptPlanLabRowMeta({
         row: sourceEntity,
@@ -5516,7 +5579,7 @@ export default function PlanLabPanel({
       map.set(item.id, meta);
     });
     return map;
-  }, [combinedMembers, frequencyLabels, lifecycleLabels, locale, scenario.baseCurrency, scenarioItems, translate]);
+  }, [combinedMembers, frequencyLabels, lifecycleLabels, locale, resolveScenarioItemSource, scenario.baseCurrency, scenarioItems, translate]);
 
   const getScenarioItemSummary = useCallback(
     (item: ScenarioEditorItem) => scenarioItemMetaById.get(item.id)?.summary ?? "",
@@ -7759,6 +7822,35 @@ export default function PlanLabPanel({
                           disabled: !canCreateExperimentFromItem(sourceItem),
                         }
                   }
+                  menuItems={[
+                    {
+                      label: translate("planLabGoToMoneyEdit", "前往 Money 編輯"),
+                      onClick: () => {
+                        const href = resolvePlanLabMoneyEditHref({
+                          caseId,
+                          scenarioId: scenario.id,
+                          eventId: sourceItem.eventId,
+                          category: sourceItem.category,
+                        });
+                        if (!href) return;
+                        router.push(href);
+                      },
+                      disabled: !resolvePlanLabMoneyEditHref({ caseId, scenarioId: scenario.id, eventId: sourceItem.eventId, category: sourceItem.category }),
+                    },
+                    {
+                      label: translate("planLabGoToSettingsMembers", "前往 Settings members"),
+                      onClick: () => {
+                        const href = resolvePlanLabSettingsMembersHref({
+                          caseId,
+                          scenarioId: scenario.id,
+                          eventId: sourceItem.eventId,
+                        });
+                        if (!href) return;
+                        router.push(href);
+                      },
+                      disabled: !resolvePlanLabSettingsMembersHref({ caseId, scenarioId: scenario.id, eventId: sourceItem.eventId }),
+                    },
+                  ]}
                   panel={getScenarioItemPanelContent(sourceItem)}
                 />
               );

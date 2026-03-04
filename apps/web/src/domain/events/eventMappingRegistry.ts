@@ -1,11 +1,14 @@
 import type { TimelineEvent } from "../../features/timeline/schema";
 import type { ScenarioEvent } from "../scenarioV2/events";
+import { buildMoneyMetaTags } from "./buildMoneyMetaTags";
 import type {
   CashflowEventKind,
   ExpenseCategory,
   IncomeSubtype,
   LegacyEventType,
   StructuralEventType,
+  SharedEventViewContract,
+  SharedViewSource,
 } from "./eventTaxonomy";
 
 type CashflowMapping = {
@@ -182,3 +185,19 @@ export const legacyIncomeEventTypes = new Set<LegacyEventType>([
   "insurance_payout",
   "investment_withdrawal",
 ]);
+
+
+export const mapScenarioEventToSharedView = (
+  event: ScenarioEvent,
+  options?: { source?: SharedViewSource }
+): SharedEventViewContract => {
+  const [meta] = buildMoneyMetaTags(event, { source: options?.source ?? "baseline-only" });
+  return {
+    domain: meta.domain,
+    type: meta.type,
+    kind: meta.kind,
+    belongsTo: meta.belongsTo,
+    linkState: meta.linkState,
+    source: meta.source,
+  };
+};

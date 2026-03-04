@@ -35,8 +35,35 @@ describe("moneyMetaTagViewModel", () => {
       belongsTo: "member",
       frequency: "monthly",
       lifecycle: "ongoing",
+      source: "baseline-only",
+      linkState: "linked",
     });
     expect(result.tags.map((tag) => tag.kind)).toEqual(["incomeType", "attribute", "cadence", "member"]);
+  });
+
+
+
+  it("supports shared source/link-state labels", () => {
+    const result = buildMoneyMetaTagViewModel(
+      {
+        id: "e-orphan",
+        type: "cashflow",
+        kind: "expense",
+        cadence: "monthly",
+        amount: 1200,
+      },
+      {
+        ...buildOptions(),
+        resolveSourceLabel: (source) => `src:${source}`,
+        resolveLinkStateLabel: (state) => `link:${state}`,
+        source: "experiment-only",
+        linkState: "orphaned",
+      }
+    );
+
+    expect(result.metaTags[0]).toMatchObject({ source: "experiment-only", linkState: "orphaned" });
+    expect(result.tags.some((tag) => tag.label === "src:experiment-only")).toBe(true);
+    expect(result.tags.some((tag) => tag.label === "link:orphaned")).toBe(true);
   });
 
   it("builds expense tags for housing/loan/insurance", () => {
