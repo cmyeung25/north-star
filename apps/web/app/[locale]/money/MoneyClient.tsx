@@ -854,29 +854,6 @@ export default function MoneyClient({
     () => expenseEvents.filter((event) => !event.source?.bundleInstanceId),
     [expenseEvents]
   );
-  const milestoneGeneratedSourceByEventId = useMemo(() => {
-    const milestoneById = new Map(
-      (scenario?.milestoneEvents ?? []).map((milestone) => [milestone.id, milestone])
-    );
-    const sourceByEventId = new Map<string, string>();
-
-    scenarioEventViews.forEach((view) => {
-      const generatedByEventId = view.definition.generatedByEventId;
-      if (!generatedByEventId) {
-        return;
-      }
-      const milestone = milestoneById.get(generatedByEventId);
-      const trace = milestone?.notes?.trim() || milestone?.id || generatedByEventId;
-      sourceByEventId.set(
-        view.definition.id,
-        t("milestoneGeneratedSourceTrace", {
-          trace,
-        })
-      );
-    });
-
-    return sourceByEventId;
-  }, [scenario?.milestoneEvents, scenarioEventViews, t]);
   const expenseSummary = useMemo(
     () =>
       buildExpenseSummary({
@@ -4018,7 +3995,6 @@ export default function MoneyClient({
             )}
             <IncomeEventList
               events={visibleIncomeEvents}
-              milestoneGeneratedSourceByEventId={milestoneGeneratedSourceByEventId}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
@@ -4071,7 +4047,6 @@ export default function MoneyClient({
             )}
             <ExpenseEventList
               events={standaloneExpenseEvents}
-              milestoneGeneratedSourceByEventId={milestoneGeneratedSourceByEventId}
               ledgerRowsByEventId={ledgerRowsByEventId}
               baseCurrency={scenario?.baseCurrency ?? "USD"}
               locale={locale}
