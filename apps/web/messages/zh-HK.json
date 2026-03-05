@@ -1138,6 +1138,7 @@
     "flowDeleteTitle": "刪除收支",
     "flowDeleteBody": "確定要刪除這筆收支嗎？此動作無法復原。",
     "eventGeneratedBadge": "由事件生成",
+    "milestoneGeneratedSourceTrace": "里程碑來源：{trace}",
     "eventGeneratedTitle": "由事件生成",
     "eventGeneratedHint": "此項目由里程碑事件管理。請編輯事件或先 Detach 才可手動修改。",
     "eventGeneratedEdit": "編輯事件",
@@ -1425,6 +1426,8 @@
     "milestoneEventTypeExpense": "支出里程碑",
     "milestoneEventTypeAsset": "資產里程碑",
     "milestoneEventTypeLiability": "負債里程碑",
+    "milestoneEventDeleteConfirmTitle": "確認移除里程碑事件",
+    "milestoneEventDeleteConfirmDescription": "確定要移除「{label}」嗎？相關生成項目將會一併從此情境移除。",
     "milestoneWizardTitle": "里程碑事件精靈",
     "milestoneStepType": "類型",
     "milestoneStepMonth": "月份",
@@ -2003,7 +2006,8 @@
     "milestoneApplySuccessWithWarnings": "已套用里程碑事件，但請留意警示。",
     "milestoneApplyFailed": "套用里程碑事件失敗，請檢查欄位。",
     "milestoneApplyWrongScenario": "只能套用到目前啟用的情境。",
-    "milestoneDeleteSuccess": "里程碑事件已刪除。"
+    "milestoneDeleteSuccess": "里程碑事件已刪除。",
+    "milestoneDeleteFailed": "無法移除里程碑事件，請稍後再試。"
   },
   "entryLauncher": {
     "title": "新增金錢項目",

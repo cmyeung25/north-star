@@ -39,6 +39,7 @@ type Props = {
   onDeleteEvent: (eventId: string) => void;
   onCreateEventAdjustment: (baseEvent: ScenarioEvent, spec: EventAdjustmentSpec) => void;
   anchorMonth?: string | null;
+  milestoneGeneratedSourceByEventId?: Map<string, string>;
 };
 
 const isSalaryBase = (event: ScenarioEvent) =>
@@ -58,6 +59,7 @@ export default function IncomeEventList({
   onDeleteEvent,
   onCreateEventAdjustment,
   anchorMonth,
+  milestoneGeneratedSourceByEventId,
 }: Props) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -173,6 +175,10 @@ export default function IncomeEventList({
                       : null,
                   adjustmentCount: adjustments.length,
                   adjustmentLabel: t("eventAdjustmentCountBadge", { count: adjustments.length }),
+                  sourceLabel: milestoneGeneratedSourceByEventId?.get(baseEvent.id)
+                    ? t("eventGeneratedBadge")
+                    : null,
+                  attributeLabel: milestoneGeneratedSourceByEventId?.get(baseEvent.id) ?? null,
                 }).tags}
               />
             }
