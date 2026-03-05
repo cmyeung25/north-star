@@ -1,7 +1,7 @@
-import type { ScenarioMember } from "../../store/scenarioStore";
+﻿import type { ScenarioMember } from "../../store/scenarioStore";
 import type { ScenarioEventView } from "../events/types";
+import type { MilestoneMarker } from "../../../features/overview/types";
 import { appliesToScenario } from "../applyScope";
-import { computeMilestonesForScenario } from "../members/milestones";
 import { normalizeMonthStrict } from "../../utils/month";
 
 export type MonthlyHighlight = {
@@ -18,10 +18,9 @@ export type MonthlyHighlights = {
 
 type GetMonthlyHighlightsParams = {
   scenarioId: string;
-  baseMonth?: string | null;
-  horizonMonths?: number;
   members: ScenarioMember[];
   eventViews: ScenarioEventView[];
+  milestoneMarkers?: MilestoneMarker[];
   targetMonth?: string | null;
 };
 
@@ -30,10 +29,9 @@ const isWithinRange = (target: string, start: string, end?: string | null) =>
 
 export const getMonthlyHighlights = ({
   scenarioId,
-  baseMonth,
-  horizonMonths = 0,
   members,
   eventViews,
+  milestoneMarkers,
   targetMonth,
 }: GetMonthlyHighlightsParams): MonthlyHighlights => {
   const normalizedTarget = targetMonth ? normalizeMonthStrict(targetMonth) : null;
@@ -48,26 +46,18 @@ export const getMonthlyHighlights = ({
       .map((member) => [member.id, member.name])
   );
 
-  const normalizedBaseMonth = baseMonth ? normalizeMonthStrict(baseMonth) : null;
-  const milestones =
-    normalizedBaseMonth?.ok && horizonMonths > 0
-      ? computeMilestonesForScenario(
-          scenarioId,
-          members,
-          normalizedBaseMonth.month,
-          horizonMonths
-        )
-          .filter((entry) => {
-            const normalizedMonth = normalizeMonthStrict(entry.month);
-            return normalizedMonth.ok && normalizedMonth.month === targetMonthValue;
-          })
-          .map((entry) => ({
-            id: entry.id,
-            kind: "milestone" as const,
-            label: entry.label,
-            memberName: entry.memberName,
-          }))
-      : [];
+  const milestones = (milestoneMarkers ?? [])
+    .filter((entry) => {
+      const normalizedMonth = normalizeMonthStrict(entry.month);
+      return normalizedMonth.ok && normalizedMonth.month === targetMonthValue;
+    })
+    .map((entry) => ({
+      id: entry.id,
+      kind: "milestone" as const,
+      label: entry.label,
+      memberName: entry.memberName || undefined,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   const events = eventViews
     .filter((view) => view.ref.highlighted && view.definition.kind === "cashflow")
@@ -93,9 +83,7 @@ export const getMonthlyHighlights = ({
           return [];
         }
         const endMonthValue = normalizedEnd?.ok ? normalizedEnd.month : null;
-        if (
-          !isWithinRange(targetMonthValue, normalizedStart.month, endMonthValue)
-        ) {
+        if (!isWithinRange(targetMonthValue, normalizedStart.month, endMonthValue)) {
           return [];
         }
       }
@@ -117,3 +105,4 @@ export const getMonthlyHighlights = ({
 
   return { milestones, events };
 };
+

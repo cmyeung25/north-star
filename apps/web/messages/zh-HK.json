@@ -2662,7 +2662,7 @@
     "memberEventsTagSourceApplied": "已套用至情境",
     "memberEventsTagLinkStateOrphaned": "孤兒項目",
     "householdEventsEmpty": "尚未有未指定成員的事件。",
-    "milestonesLegacyReadonlyNotice": "members.milestones 已改為舊版唯讀來源。請改用里程碑事件（可預覽影響的事件節點）作為單一來源。"
+    "milestonesLegacyReadonlyNotice": "members.milestones 已自動遷移至 milestone events，現僅保留為歷史唯讀欄位。"
   },
   "budgetRules": {
     "title": "預算規則",

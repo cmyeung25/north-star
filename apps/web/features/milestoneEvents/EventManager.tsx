@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Button, Card, Group, Stack, Text, Title } from "@mantine/core";
 import { useMemo } from "react";
@@ -6,6 +6,10 @@ import { useTranslations } from "next-intl";
 import type { MilestoneEvent } from "../../src/domain/milestoneEvents/types";
 
 const resolveEventLabel = (t: ReturnType<typeof useTranslations>, event: MilestoneEvent) => {
+  if (event.mode === "marker") {
+    return t("milestoneEventTitle");
+  }
+
   switch (event.eventType) {
     case "income":
       return t("milestoneEventTypeIncome");
@@ -16,7 +20,7 @@ const resolveEventLabel = (t: ReturnType<typeof useTranslations>, event: Milesto
     case "liability":
       return t("milestoneEventTypeLiability");
     default:
-      return event.eventType;
+      return t("milestoneEventTitle");
   }
 };
 
@@ -89,3 +93,4 @@ export default function EventManager({ events, onCreate, onEdit, onDelete }: Eve
     </Stack>
   );
 }
+

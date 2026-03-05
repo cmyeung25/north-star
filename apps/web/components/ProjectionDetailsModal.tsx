@@ -25,6 +25,7 @@ import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
 import { getMonthlyHighlights } from "../src/domain/timeline/getMonthlyHighlights";
 import type { ScenarioEventView } from "../src/domain/events/types";
+import type { MilestoneMarker } from "../features/overview/types";
 import { useJumpToSource } from "../src/hooks/useJumpToSource";
 import { isInvestmentCashflow } from "../src/domain/ledger/cashflowFilters";
 import { resolveMonthInList } from "../src/utils/month";
@@ -50,6 +51,7 @@ type ProjectionDetailsModalProps = {
   baseMonth?: string | null;
   horizonMonths?: number;
   members?: ScenarioMember[];
+  milestoneMarkers?: MilestoneMarker[];
   eventViews?: ScenarioEventView[];
   isScenarioV2?: boolean;
 };
@@ -126,9 +128,8 @@ export default function ProjectionDetailsModal({
   currency,
   memberLookup,
   scenarioId,
-  baseMonth,
-  horizonMonths,
   members,
+  milestoneMarkers,
   eventViews,
   isScenarioV2 = false,
 }: ProjectionDetailsModalProps) {
@@ -328,13 +329,12 @@ export default function ProjectionDetailsModal({
     }
     return getMonthlyHighlights({
       scenarioId,
-      baseMonth,
-      horizonMonths,
       members,
       eventViews,
+      milestoneMarkers,
       targetMonth: resolvedMonth,
     });
-  }, [baseMonth, eventViews, horizonMonths, members, resolvedMonth, scenarioId]);
+  }, [eventViews, members, milestoneMarkers, resolvedMonth, scenarioId]);
 
   const hasHighlights =
     highlights.milestones.length > 0 || highlights.events.length > 0;

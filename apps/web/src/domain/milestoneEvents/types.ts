@@ -1,4 +1,4 @@
-import type { AssetItemUpsert } from "../../../features/assets/types";
+﻿import type { AssetItemUpsert } from "../../../features/assets/types";
 import type { LiabilityItemUpsert } from "../../../features/liabilities/types";
 import type {
   MoneyItem,
@@ -9,6 +9,7 @@ import type {
 import type { BudgetRule } from "../../store/scenarioStore";
 
 export type MilestoneEventType = "income" | "expense" | "asset" | "liability";
+export type MilestoneEventMode = "impact" | "marker";
 
 export type MilestoneEventTemplateType =
   | "member_birth"
@@ -54,17 +55,31 @@ export type MilestoneEventPayload =
   | { kind: "asset"; data: MilestoneAssetPayload }
   | { kind: "liability"; data: MilestoneLiabilityPayload };
 
-export type MilestoneEvent = {
+export type MilestoneEventBase = {
   id: string;
-  eventType: MilestoneEventType;
+  mode: MilestoneEventMode;
   templateType?: MilestoneEventTemplateType;
+  memberId?: string;
   effectiveMonth: string;
-  payload: MilestoneEventPayload;
   notes?: string;
   createdAt: number;
   updatedAt: number;
-  legacy?: boolean;
 };
+
+export type MilestoneImpactEvent = MilestoneEventBase & {
+  mode: "impact";
+  eventType: MilestoneEventType;
+  payload: MilestoneEventPayload;
+};
+
+export type MilestoneMarkerEvent = MilestoneEventBase & {
+  mode: "marker";
+  templateType?: MilestoneEventTemplateType;
+  eventType?: MilestoneEventType;
+  payload?: MilestoneEventPayload;
+};
+
+export type MilestoneEvent = MilestoneImpactEvent | MilestoneMarkerEvent;
 
 export type MilestoneEventDraft = Omit<MilestoneEvent, "id" | "createdAt" | "updatedAt"> & {
   id?: string;
@@ -120,3 +135,4 @@ export const resolveMoneyItemKindFromEvent = (
   }
   return null;
 };
+

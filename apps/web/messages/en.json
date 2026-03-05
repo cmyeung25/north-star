@@ -2615,7 +2615,7 @@
     "memberEventsTagSourceApplied": "Applied to scenario",
     "memberEventsTagLinkStateOrphaned": "Orphaned",
     "householdEventsEmpty": "No unassigned household events yet.",
-    "milestonesLegacyReadonlyNotice": "Member milestones are now legacy read-only. Use milestone events (previewable impact nodes) as the single source."
+    "milestonesLegacyReadonlyNotice": "Member milestones have been auto-migrated to milestone events. Legacy member milestones are now read-only history."
   },
   "budgetRules": {
     "title": "Budget rules",

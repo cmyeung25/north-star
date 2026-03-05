@@ -35,6 +35,9 @@ import type {
   MilestoneEventCompileResult,
   GeneratedEntitySummary,
 } from "../domain/milestoneEvents/types";
+import {
+  migrateLegacyMemberMilestonesToEvents,
+} from "../domain/milestoneEvents/migrateLegacyMemberMilestones";
 import type { Plan, PlanLabMeta } from "../domain/planLab/types";
 import type { EventType } from "../features/timeline/schema";
 import type { SmartInvestPolicy } from "../domain/smartInvest/types";
@@ -441,6 +444,7 @@ export type ScenarioMeta = {
   lastSavedAt?: string;
   isSeeded?: boolean;
   skipOnboarding?: boolean;
+  memberMilestonesMigratedAt?: string;
   planLab?: PlanLabMeta;
 };
 
@@ -851,11 +855,69 @@ const normalizeBudgetRules = (rules?: BudgetRule[]): BudgetRule[] =>
   })) ?? [];
 
 const normalizeMilestoneEvents = (events?: MilestoneEvent[]): MilestoneEvent[] =>
-  events?.map((event) => ({
-    ...event,
-    createdAt: event.createdAt ?? now(),
-    updatedAt: event.updatedAt ?? event.createdAt ?? now(),
-  })) ?? [];
+  events?.map((event): MilestoneEvent => {
+    const raw = event as Partial<MilestoneEvent> & {
+      id: string;
+      effectiveMonth: string;
+      createdAt?: number;
+      updatedAt?: number;
+      notes?: string;
+      templateType?: MilestoneEvent["templateType"];
+      memberId?: string;
+      eventType?: MilestoneEvent["eventType"];
+      payload?: MilestoneEvent["payload"];
+      mode?: MilestoneEvent["mode"];
+    };
+
+    const mode = raw.mode ?? (raw.payload ? "impact" : "marker");
+
+    if (mode === "impact") {
+      if (!raw.payload) {
+        return {
+          id: raw.id,
+          mode: "marker",
+          templateType: raw.templateType ?? "custom",
+          memberId: raw.memberId,
+          effectiveMonth: raw.effectiveMonth,
+          notes: raw.notes,
+          createdAt: raw.createdAt ?? now(),
+          updatedAt: raw.updatedAt ?? raw.createdAt ?? now(),
+        };
+      }
+
+      const inferredEventType =
+        raw.eventType ??
+        (raw.payload.kind === "money"
+          ? "expense"
+          : raw.payload.kind === "asset"
+            ? "asset"
+            : "liability");
+
+      return {
+        id: raw.id,
+        mode: "impact",
+        eventType: inferredEventType,
+        templateType: raw.templateType,
+        memberId: raw.memberId,
+        effectiveMonth: raw.effectiveMonth,
+        notes: raw.notes,
+        createdAt: raw.createdAt ?? now(),
+        updatedAt: raw.updatedAt ?? raw.createdAt ?? now(),
+        payload: raw.payload as Exclude<MilestoneEvent["payload"], undefined>,
+      };
+    }
+
+    return {
+      id: raw.id,
+      mode: "marker",
+      templateType: raw.templateType ?? "custom",
+      memberId: raw.memberId,
+      effectiveMonth: raw.effectiveMonth,
+      notes: raw.notes,
+      createdAt: raw.createdAt ?? now(),
+      updatedAt: raw.updatedAt ?? raw.createdAt ?? now(),
+    };
+  }) ?? [];
 
 const ensureScenarioIncluded = (
   applyScope: ApplyScope | undefined,
@@ -1520,11 +1582,16 @@ const cloneClientComputed = (clientComputed?: ScenarioClientComputed) =>
   clientComputed ? { ...clientComputed } : undefined;
 
 const cloneMilestoneEvents = (events?: MilestoneEvent[]) =>
-  events?.map((event) => ({
-    ...event,
-    payload: JSON.parse(JSON.stringify(event.payload)) as MilestoneEvent["payload"],
-  }));
+  events?.map((event) => {
+    if (event.mode === "marker") {
+      return { ...event };
+    }
 
+    return {
+      ...event,
+      payload: JSON.parse(JSON.stringify(event.payload)) as Exclude<MilestoneEvent["payload"], undefined>,
+    };
+  });
 const clonePositions = (positions?: ScenarioPositions): ScenarioPositions | undefined => {
   if (!positions) {
     return positions;
@@ -1955,7 +2022,6 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   const normalizedClientComputed = cloneClientComputed(migratedScenario.clientComputed);
   const normalizedSnapshots = cloneSnapshots(migratedScenario.snapshots);
   const normalizedPlans = clonePlans(migratedScenario.plans);
-  const normalizedMilestoneEvents = normalizeMilestoneEvents(migratedScenario.milestoneEvents);
   const normalizedBundleInstances =
     cloneBundleInstances(migratedScenario.bundleInstances) ??
     (migratedScenario.meta?.schemaVersion === 2 ? [] : undefined);
@@ -1963,15 +2029,35 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     ...defaultAssumptions,
     ...migratedScenario.assumptions,
   };
+  const shouldMigrateLegacyMemberMilestones =
+    !migratedScenario.meta?.memberMilestonesMigratedAt;
+  const legacyMilestoneMigration = migrateLegacyMemberMilestonesToEvents({
+    scenarioId: migratedScenario.id,
+    members: shouldMigrateLegacyMemberMilestones ? normalizedScenarioMembers : [],
+    milestoneEvents: migratedScenario.milestoneEvents,
+    baseMonth: normalizedAssumptions.baseMonth,
+  });
+  const normalizedMilestoneEvents = normalizeMilestoneEvents(
+    legacyMilestoneMigration.milestoneEvents
+  );
   const nextClientComputed = shouldAutoCompleteOnboarding(migratedScenario)
     ? { ...(normalizedClientComputed ?? {}), onboardingCompleted: true }
     : normalizedClientComputed;
+  const nextMeta =
+    legacyMilestoneMigration.addedCount > 0
+      ? {
+          ...(migratedScenario.meta ?? {}),
+          memberMilestonesMigratedAt:
+            migratedScenario.meta?.memberMilestonesMigratedAt ?? new Date().toISOString(),
+        }
+      : migratedScenario.meta;
 
   if (!normalizedPositions) {
     return {
       ...scenario,
       ...migratedScenario,
       assumptions: normalizedAssumptions,
+      meta: nextMeta,
       members: normalizedScenarioMembers,
       assets: normalizedAssets,
       liabilities: normalizedLiabilities,
@@ -1989,6 +2075,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   return {
     ...migratedScenario,
     assumptions: normalizedAssumptions,
+    meta: nextMeta,
     members: normalizedScenarioMembers,
     assets: normalizedAssets,
     liabilities: normalizedLiabilities,
@@ -2003,7 +2090,6 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
     version: scenario.version ?? defaultScenarioVersion,
   };
 };
-
 export const normalizeScenarioList = (scenarios: Scenario[]) =>
   scenarios.map((scenario) => normalizeScenario(scenario));
 
@@ -4203,12 +4289,14 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
     const eventId = draft.id ?? `milestone-${nanoid(8)}`;
     const existingEvent = scenario.milestoneEvents?.find((event) => event.id === eventId);
     const timestamp = now();
+    const normalizedMode = draft.mode ?? (draft.payload ? "impact" : "marker");
     const event: MilestoneEvent = {
       ...draft,
+      mode: normalizedMode,
       id: eventId,
       createdAt: existingEvent?.createdAt ?? timestamp,
       updatedAt: timestamp,
-    };
+    } as MilestoneEvent;
 
     const snapshot = buildMilestoneScenarioSnapshot({
       scenario,

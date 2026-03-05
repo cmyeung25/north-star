@@ -5,14 +5,17 @@ import {
   Badge,
   Button,
   Card,
+  Drawer,
   Group,
   Menu,
   MultiSelect,
   SegmentedControl,
+  Select,
   SimpleGrid,
   Stack,
   Table,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -31,6 +34,7 @@ import {
 import FullScreenChartModal, {
   type FullScreenChartType,
 } from "../../../components/FullScreenChartModal";
+import MonthField from "../../../components/MonthField";
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
 import RunwayDetailModal from "../../../components/metrics/RunwayDetailModal";
 import RiskDetailModal from "../../../components/metrics/RiskDetailModal";
@@ -75,11 +79,30 @@ import { isInvestmentCashflow } from "../../../src/domain/ledger/cashflowFilters
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
 import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/buildOverviewTimelineMarkers";
+import type { MilestoneEventTemplateType } from "../../../src/domain/milestoneEvents/types";
+import { normalizeMonthStrict } from "../../../src/utils/month";
 
 type OverviewClientProps = {
   scenarioId?: string;
 };
 
+type MilestoneMarkerDraft = {
+  id?: string;
+  label: string;
+  effectiveMonth: string;
+  memberId: string;
+  templateType: MilestoneEventTemplateType;
+};
+
+const createMilestoneDraft = (
+  baseMonth: string,
+  memberId: string
+): MilestoneMarkerDraft => ({
+  label: "",
+  effectiveMonth: baseMonth,
+  memberId,
+  templateType: "custom",
+});
 export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
@@ -88,6 +111,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const caseId = params.caseId ?? "";
   const t = useTranslations("overview");
   const tDashboard = useTranslations("overview.dashboard");
+  const moneyT = useTranslations("money");
   const common = useTranslations("common");
   const exportT = useTranslations("export");
   const searchParams = useSearchParams();
@@ -100,6 +124,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const globalHorizonMonths = appSettings.globalHorizonMonths;
   const setViewModeSetting = useScenarioStore((state) => state.setViewMode);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
+  const applyMilestoneEvent = useScenarioStore((state) => state.applyMilestoneEvent);
+  const removeMilestoneEvent = useScenarioStore((state) => state.removeMilestoneEvent);
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const openBreakdown = useUiStore((state) => state.openBreakdown);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
@@ -126,6 +152,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     data: TimeSeriesPoint[];
     markers: MilestoneMarker[],
   } | null>(null);
+  const [milestoneDrawerOpened, setMilestoneDrawerOpened] = useState(false);
+  const [milestoneDraft, setMilestoneDraft] = useState<MilestoneMarkerDraft>(() =>
+    createMilestoneDraft("", "")
+  );
 
   useEffect(() => {
     if (
@@ -431,6 +461,72 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       })
       .slice(0, 3);
   }, [milestoneMarkers, monthIndexLookup, months, projection?.baseMonth]);
+  const markerMilestoneEvents = useMemo(
+    () =>
+      [...(selectedScenario?.milestoneEvents ?? [])]
+        .filter((event) => event.mode === "marker")
+        .sort((a, b) => a.effectiveMonth.localeCompare(b.effectiveMonth)),
+    [selectedScenario?.milestoneEvents]
+  );
+  const defaultMilestoneMonth = projection?.baseMonth ?? months[0] ?? "";
+  const defaultMilestoneMemberId = scenarioMembers[0]?.id ?? "";
+
+  const handleOpenMilestoneCreate = () => {
+    setMilestoneDraft(createMilestoneDraft(defaultMilestoneMonth, defaultMilestoneMemberId));
+    setMilestoneDrawerOpened(true);
+  };
+
+  const handleOpenMilestoneEdit = (eventId: string) => {
+    const target = markerMilestoneEvents.find((event) => event.id === eventId);
+    if (!target) {
+      return;
+    }
+
+    setMilestoneDraft({
+      id: target.id,
+      label: target.notes ?? "",
+      effectiveMonth: target.effectiveMonth,
+      memberId: target.memberId ?? "",
+      templateType: target.templateType ?? "custom",
+    });
+    setMilestoneDrawerOpened(true);
+  };
+
+  const normalizedMilestoneDraftMonth = normalizeMonthStrict(milestoneDraft.effectiveMonth);
+  const milestoneMonthError =
+    milestoneDraft.effectiveMonth && !normalizedMilestoneDraftMonth.ok
+      ? moneyT("flowFormMonthRequired")
+      : undefined;
+
+  const handleSaveMilestone = () => {
+    if (!selectedScenario || !normalizedMilestoneDraftMonth.ok) {
+      return;
+    }
+
+    applyMilestoneEvent(selectedScenario.id, {
+      id: milestoneDraft.id,
+      mode: "marker",
+      templateType: milestoneDraft.templateType,
+      memberId: milestoneDraft.memberId || undefined,
+      effectiveMonth: normalizedMilestoneDraftMonth.month,
+      notes: milestoneDraft.label.trim() || undefined,
+    });
+
+    setMilestoneDraft(
+      createMilestoneDraft(normalizedMilestoneDraftMonth.month, milestoneDraft.memberId)
+    );
+  };
+
+  const handleDeleteMilestone = (eventId: string) => {
+    if (!selectedScenario) {
+      return;
+    }
+
+    removeMilestoneEvent(selectedScenario.id, eventId);
+    if (milestoneDraft.id === eventId) {
+      setMilestoneDraft(createMilestoneDraft(defaultMilestoneMonth, defaultMilestoneMemberId));
+    }
+  };
 
   const compareChartData = useMemo(() => {
     if (compareProjections.length === 0) {
@@ -989,7 +1085,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
                   <Text fw={600}>{sd("quickLinks.peopleTitle", "成員摘要")}</Text>
-                  <Button component={Link} href={peopleHubHref} size="xs" variant="light">{t("peopleSummaryCta")}</Button>
+                  <Group gap="xs">
+                    <Button size="xs" variant="default" onClick={handleOpenMilestoneCreate}>
+                      {moneyT("milestoneEventTitle")}
+                    </Button>
+                    <Button component={Link} href={peopleHubHref} size="xs" variant="light">
+                      {t("peopleSummaryCta")}
+                    </Button>
+                  </Group>
                 </Group>
                 <Text size="sm">{t("peopleSummaryMembers", { count: scenarioMembers.length })}</Text>
                 {upcomingMilestones.length > 0 ? (
@@ -1004,6 +1107,116 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </Stack>
             </Card>
           </SimpleGrid>
+          <Drawer
+            opened={milestoneDrawerOpened}
+            onClose={() => setMilestoneDrawerOpened(false)}
+            title={moneyT("milestoneEventTitle")}
+            position="right"
+            size="md"
+          >
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>{moneyT("milestoneEventTitle")}</Text>
+                <Button size="xs" variant="light" onClick={handleOpenMilestoneCreate}>
+                  {moneyT("milestoneEventCreate")}
+                </Button>
+              </Group>
+
+              {markerMilestoneEvents.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {moneyT("milestoneEventEmpty")}
+                </Text>
+              ) : (
+                <Stack gap="xs">
+                  {markerMilestoneEvents.map((event) => {
+                    const marker = milestoneMarkers.find((entry) => entry.id === event.id);
+                    const memberName = event.memberId ? memberLookup[event.memberId] : undefined;
+                    const displayLabel =
+                      event.notes?.trim() || marker?.label || moneyT("milestoneEventTitle");
+                    return (
+                      <Card key={event.id} withBorder padding="xs" radius="sm">
+                        <Group justify="space-between" align="flex-start" wrap="nowrap">
+                          <Stack gap={2}>
+                            <Text size="sm" fw={600}>
+                              {displayLabel}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {event.effectiveMonth}
+                              {memberName ? ` (${memberName})` : ""}
+                            </Text>
+                          </Stack>
+                          <Group gap={4}>
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              onClick={() => handleOpenMilestoneEdit(event.id)}
+                            >
+                              {common("actionEdit")}
+                            </Button>
+                            <Button
+                              size="compact-xs"
+                              color="red"
+                              variant="subtle"
+                              onClick={() => handleDeleteMilestone(event.id)}
+                            >
+                              {common("actionDelete")}
+                            </Button>
+                          </Group>
+                        </Group>
+                      </Card>
+                    );
+                  })}
+                </Stack>
+              )}
+
+              <TextInput
+                label={moneyT("milestoneNotes")}
+                value={milestoneDraft.label}
+                onChange={(event) =>
+                  setMilestoneDraft((current) => ({
+                    ...current,
+                    label: event.currentTarget.value,
+                  }))
+                }
+              />
+              <MonthField
+                label={moneyT("milestoneEffectiveMonth")}
+                value={milestoneDraft.effectiveMonth}
+                onChange={(value) =>
+                  setMilestoneDraft((current) => ({
+                    ...current,
+                    effectiveMonth: value,
+                  }))
+                }
+                error={milestoneMonthError}
+              />
+              <Select
+                label={moneyT("milestoneMember")}
+                value={milestoneDraft.memberId}
+                data={[
+                  { value: "", label: t("flowMemberHousehold") },
+                  ...scenarioMembers.map((member) => ({
+                    value: member.id,
+                    label: member.name,
+                  })),
+                ]}
+                onChange={(value) =>
+                  setMilestoneDraft((current) => ({
+                    ...current,
+                    memberId: value ?? "",
+                  }))
+                }
+              />
+              <Group justify="flex-end">
+                <Button variant="default" onClick={handleOpenMilestoneCreate}>
+                  {common("actionClear")}
+                </Button>
+                <Button onClick={handleSaveMilestone} disabled={!normalizedMilestoneDraftMonth.ok}>
+                  {common("actionSave")}
+                </Button>
+              </Group>
+            </Stack>
+          </Drawer>
           <MonthlyBreakdownModalHost
             months={months}
             ledgerByMonth={ledgerByMonth}
@@ -1020,6 +1233,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             horizonMonths={selectedScenario.assumptions.horizonMonths}
             members={members}
             eventViews={scenarioEventViews}
+            milestoneMarkers={milestoneMarkers}
           />
           <RunwayDetailModal
             opened={runwayDetailOpen}
