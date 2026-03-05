@@ -25,9 +25,16 @@ type EventManagerProps = {
   onCreate: () => void;
   onEdit: (event: MilestoneEvent) => void;
   onDelete: (eventId: string) => void;
+  highlightedEventId?: string | null;
 };
 
-export default function EventManager({ events, onCreate, onEdit, onDelete }: EventManagerProps) {
+export default function EventManager({
+  events,
+  onCreate,
+  onEdit,
+  onDelete,
+  highlightedEventId,
+}: EventManagerProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
 
@@ -57,7 +64,20 @@ export default function EventManager({ events, onCreate, onEdit, onDelete }: Eve
       ) : (
         <Stack gap="sm">
           {sortedEvents.map((event) => (
-            <Card key={event.id} withBorder radius="md" padding="sm">
+            <Card
+              key={event.id}
+              withBorder
+              radius="md"
+              padding="sm"
+              style={{
+                transition: "box-shadow 180ms ease, border-color 180ms ease",
+                borderColor: event.id === highlightedEventId ? "var(--mantine-color-teal-5)" : undefined,
+                boxShadow:
+                  event.id === highlightedEventId
+                    ? "0 0 0 2px color-mix(in srgb, var(--mantine-color-teal-4) 35%, transparent)"
+                    : undefined,
+              }}
+            >
               <Group justify="space-between" align="flex-start" wrap="wrap">
                 <Stack gap={4}>
                   <Text fw={600}>{resolveEventLabel(t, event)}</Text>
