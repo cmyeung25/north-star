@@ -9,6 +9,7 @@ import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBrea
 import { resolveMonthInList } from "../src/utils/month";
 import type { ScenarioEventView } from "../src/domain/events/types";
 import type { ScenarioMember } from "../src/store/scenarioStore";
+import type { MilestoneMarker } from "../features/overview/types";
 
 type MonthlyBreakdownModalHostProps = {
   months: string[];
@@ -26,6 +27,7 @@ type MonthlyBreakdownModalHostProps = {
   horizonMonths?: number;
   members?: ScenarioMember[];
   eventViews?: ScenarioEventView[];
+  milestoneMarkers?: MilestoneMarker[];
   isScenarioV2?: boolean;
 };
 
@@ -45,6 +47,7 @@ export default function MonthlyBreakdownModalHost({
   horizonMonths,
   members,
   eventViews,
+  milestoneMarkers,
   isScenarioV2,
 }: MonthlyBreakdownModalHostProps) {
   const activeModal = useUiStore((state) => state.activeModal);
@@ -92,6 +95,7 @@ export default function MonthlyBreakdownModalHost({
       horizonMonths={horizonMonths}
       members={members}
       eventViews={eventViews}
+      milestoneMarkers={milestoneMarkers}
       isScenarioV2={isScenarioV2}
     />
   );

@@ -1,4 +1,4 @@
-import { compareMonthKey, isValidMonthKey } from "../../utils/monthKey";
+﻿import { compareMonthKey, isValidMonthKey } from "../../utils/monthKey";
 import type { MoneyItemCadence, MoneyItemUpsert } from "../../../features/moneyFlow/types";
 import {
   type MilestoneEvent,
@@ -78,6 +78,20 @@ export const compileEventToOps = (
 
   if (!isValidMonthKey(event.effectiveMonth)) {
     addFieldError(fieldErrors, warnings, "effectiveMonth", "Effective month is required.");
+  }
+
+  if (event.mode === "marker") {
+    return { ops, warnings, fieldErrors };
+  }
+
+  if (!event.payload) {
+    addFieldError(fieldErrors, warnings, "payload", "Missing event payload.");
+    return { ops, warnings, fieldErrors };
+  }
+
+  if (!event.eventType) {
+    addFieldError(fieldErrors, warnings, "eventType", "Unsupported event type.");
+    return { ops, warnings, fieldErrors };
   }
 
   if (event.eventType === "income" || event.eventType === "expense") {
@@ -261,3 +275,4 @@ export const compileEventToOps = (
   addFieldError(fieldErrors, warnings, "eventType", "Unsupported event type.");
   return { ops, warnings, fieldErrors };
 };
+

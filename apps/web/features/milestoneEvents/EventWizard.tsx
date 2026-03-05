@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Button,
@@ -128,7 +128,7 @@ const buildDefaultDraft = (
   if (event) {
     const base: EventDraftState = {
       id: event.id,
-      eventType: event.eventType,
+      eventType: event.mode === "impact" ? event.eventType : "income",
       effectiveMonth: event.effectiveMonth,
       notes: event.notes ?? "",
       money: {
@@ -163,7 +163,7 @@ const buildDefaultDraft = (
       },
     };
 
-    if (event.payload.kind === "money") {
+    if (event.mode === "impact" && event.payload.kind === "money") {
       base.money = {
         cadence: event.payload.data.cadence,
         amount: String(event.payload.data.amount ?? ""),
@@ -177,7 +177,7 @@ const buildDefaultDraft = (
       };
     }
 
-    if (event.payload.kind === "asset") {
+    if (event.mode === "impact" && event.payload.kind === "asset") {
       base.asset = {
         assetType: event.payload.data.assetType,
         name: event.payload.data.name ?? "",
@@ -189,7 +189,7 @@ const buildDefaultDraft = (
       };
     }
 
-    if (event.payload.kind === "liability") {
+    if (event.mode === "impact" && event.payload.kind === "liability") {
       base.liability = {
         liabilityType: event.payload.data.liabilityType,
         name: event.payload.data.name ?? "",
@@ -255,6 +255,7 @@ const buildEventFromDraft = (draft: EventDraftState): MilestoneEvent => {
   if (draft.eventType === "income" || draft.eventType === "expense") {
     return {
       id: eventId,
+      mode: "impact",
       eventType: draft.eventType,
       effectiveMonth: draft.effectiveMonth,
       notes: draft.notes || undefined,
@@ -280,6 +281,7 @@ const buildEventFromDraft = (draft: EventDraftState): MilestoneEvent => {
   if (draft.eventType === "asset") {
     return {
       id: eventId,
+      mode: "impact",
       eventType: "asset",
       effectiveMonth: draft.effectiveMonth,
       notes: draft.notes || undefined,
@@ -302,6 +304,7 @@ const buildEventFromDraft = (draft: EventDraftState): MilestoneEvent => {
 
   return {
     id: eventId,
+    mode: "impact",
     eventType: "liability",
     effectiveMonth: draft.effectiveMonth,
     notes: draft.notes || undefined,
@@ -426,6 +429,7 @@ export default function EventWizard({
     }
     const eventDraft: MilestoneEventDraft = {
       id: draft.id,
+      mode: "impact",
       eventType: previewEvent.eventType,
       effectiveMonth: previewEvent.effectiveMonth,
       notes: previewEvent.notes,
@@ -968,3 +972,5 @@ export default function EventWizard({
     </Drawer>
   );
 }
+
+

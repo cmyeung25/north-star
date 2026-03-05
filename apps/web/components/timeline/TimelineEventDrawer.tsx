@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Button,
@@ -39,7 +39,8 @@ import {
   iconMap,
   listEventTypesForGroup,
 } from "./utils";
-import { purgeSalaryStepMilestones } from "../../src/domain/members/salaryStepMilestones";
+import { monthAtAge } from "../../src/domain/members/age";
+import { buildLegacyMemberMilestoneEventId } from "../../src/domain/milestoneEvents/migrateLegacyMemberMilestones";
 
 type AddEventStep = "group" | "type" | "details" | "groupDetails";
 
@@ -79,7 +80,9 @@ type TimelineEventDrawerProps =
 export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
   const t = useTranslations("timeline");
   const common = useTranslations("common");
-  const updateMember = useScenarioStore((state) => state.updateMember);
+  const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const applyMilestoneEvent = useScenarioStore((state) => state.applyMilestoneEvent);
+  const removeMilestoneEvent = useScenarioStore((state) => state.removeMilestoneEvent);
 
   const [step, setStep] = useState<AddEventStep>("group");
   const [selectedGroup, setSelectedGroup] = useState<EventGroup | null>(null);
@@ -234,7 +237,6 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       targets
     );
     syncRetirementMilestone(resolvedEvent);
-    purgeMemberSalaryStepMilestones(resolvedEvent);
     props.onCreateComplete?.(resolvedEvent.startMonth ?? null);
     props.onClose();
   };
@@ -284,7 +286,6 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
       parentId: editingParentId ?? undefined,
     });
     syncRetirementMilestone(updated);
-    purgeMemberSalaryStepMilestones(updated);
     props.onClose();
   };
 
@@ -312,67 +313,60 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     props.onClose();
   };
 
+  const resolveRetirementMonth = (
+    event: TimelineEventFormResult["event"],
+    member: ScenarioMember
+  ): string | null => {
+    if (event.endMonth) {
+      return event.endMonth;
+    }
+
+    if (typeof event.endAtAgeYears === "number" && props.assumptions.baseMonth) {
+      return monthAtAge(member, event.endAtAgeYears, props.assumptions.baseMonth);
+    }
+
+    return null;
+  };
+
   const syncRetirementMilestone = (event: TimelineEventFormResult["event"]) => {
+    if (!activeScenarioId || !event.memberId) {
+      return;
+    }
+
     const isIncome = getEventMeta(event.type).group === "income";
-    const isSalary = event.incomeSubtype === "salary";
-    const hasEndAge = typeof event.endAtAgeYears === "number";
+    const isSalary = (event.incomeSubtype ?? "salary") === "salary";
     const member = props.members.find((entry) => entry.id === event.memberId);
     if (!member) {
       return;
     }
 
-    const milestoneId = `retirement-${event.id}`;
-    const milestones = member.milestones ?? [];
+    const milestoneId = buildLegacyMemberMilestoneEventId(
+      member.id,
+      `retirement-${event.id}`
+    );
     const shouldHaveMilestone =
-      isIncome && isSalary && hasEndAge && member.kind === "person";
+      isIncome && isSalary && member.kind === "person" && typeof event.endAtAgeYears === "number";
 
     if (!shouldHaveMilestone) {
-      if (milestones.some((entry) => entry.id === milestoneId)) {
-        updateMember(member.id, {
-          milestones: milestones.filter((entry) => entry.id !== milestoneId),
-        });
-      }
+      removeMilestoneEvent(activeScenarioId, milestoneId);
       return;
     }
 
-    const label = t("retirementDerivedLabel");
-    const nextMilestone = {
+    const effectiveMonth = resolveRetirementMonth(event, member);
+    if (!effectiveMonth) {
+      removeMilestoneEvent(activeScenarioId, milestoneId);
+      return;
+    }
+
+    applyMilestoneEvent(activeScenarioId, {
       id: milestoneId,
-      kind: "retirement" as const,
-      label,
-      atAgeYears: event.endAtAgeYears,
-      applyScope: { scope: "all" } as const,
-      sourceEventId: event.id,
-    };
-    const nextMilestones = milestones.some((entry) => entry.id === milestoneId)
-      ? milestones.map((entry) =>
-          entry.id === milestoneId ? { ...entry, ...nextMilestone } : entry
-        )
-      : [...milestones, nextMilestone];
-
-    updateMember(member.id, { milestones: nextMilestones });
+      mode: "marker",
+      templateType: "member_retirement",
+      memberId: member.id,
+      effectiveMonth,
+      notes: t("retirementDerivedLabel"),
+    });
   };
-
-  const purgeMemberSalaryStepMilestones = (
-    event: TimelineEventFormResult["event"]
-  ) => {
-    const isSalaryEvent = event.type === "salary";
-    const isSalarySubtype = (event.incomeSubtype ?? "salary") === "salary";
-    if (!isSalaryEvent || !isSalarySubtype || !event.memberId) {
-      return;
-    }
-
-    const member = props.members.find((entry) => entry.id === event.memberId);
-    if (!member) {
-      return;
-    }
-
-    const nextMilestones = purgeSalaryStepMilestones(member.milestones, event.id);
-    if ((member.milestones ?? []).length !== nextMilestones.length) {
-      updateMember(member.id, { milestones: nextMilestones });
-    }
-  };
-
   const title =
     props.mode === "create"
       ? t("addEvent")
@@ -684,3 +678,6 @@ export default function TimelineEventDrawer(props: TimelineEventDrawerProps) {
     </Drawer>
   );
 }
+
+
+

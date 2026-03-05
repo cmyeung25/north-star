@@ -1,4 +1,4 @@
-import type { MilestoneMarker } from "../../../features/overview/types";
+﻿import type { MilestoneMarker } from "../../../features/overview/types";
 import type { MilestoneEvent, MilestoneEventTemplateType } from "../milestoneEvents/types";
 import type { ScenarioMember } from "../../store/scenarioStore";
 import { appliesToScenario } from "../applyScope";
@@ -24,14 +24,6 @@ export type BuildOverviewTimelineMarkersParams = {
 export type OverviewTimelineMarkerSelectorResult = {
   markers: MilestoneMarker[];
   highlightedEvents: HighlightedTimelineEventInput[];
-};
-
-const legacyTemplateTypeByMemberMilestoneKind: Partial<
-  Record<string, MilestoneEventTemplateType>
-> = {
-  birth: "member_birth",
-  schoolStart: "member_school_start",
-  retirement: "member_retirement",
 };
 
 const fallbackTemplateLabelByType: Record<MilestoneEventTemplateType, string> = {
@@ -69,30 +61,23 @@ const normalizeMarkerMonth = (month?: string | null) => {
   return normalized.ok ? normalized.month : null;
 };
 
-const resolveTemplateType = (event: MilestoneEvent): MilestoneEventTemplateType => {
-  if (event.templateType) {
-    return event.templateType;
-  }
-
-  if (event.legacy) {
-    const legacyKind = event.payload.kind === "money" ? event.payload.data.category : undefined;
-    return legacyTemplateTypeByMemberMilestoneKind[legacyKind ?? ""] ?? "custom";
-  }
-
-  return "custom";
-};
-
-const buildMilestoneEventMarker = (event: MilestoneEvent): MilestoneMarker | null => {
+const buildMilestoneEventMarker = (
+  event: MilestoneEvent,
+  memberLookup: Map<string, string>
+): MilestoneMarker | null => {
   const month = normalizeMarkerMonth(event.effectiveMonth);
   if (!month) {
     return null;
   }
-  const templateType = resolveTemplateType(event);
+
+  const templateType = event.templateType ?? "custom";
+  const memberName = event.memberId ? memberLookup.get(event.memberId) ?? "" : "";
+
   return {
     id: event.id,
     month,
     label: event.notes?.trim() || fallbackTemplateLabelByType[templateType],
-    memberName: "",
+    memberName,
     kind: templateType,
   };
 };
@@ -130,7 +115,7 @@ export const buildOverviewTimelineMarkers = ({
 
   const markers = [
     ...(milestoneEvents ?? []).flatMap((event) => {
-      const marker = buildMilestoneEventMarker(event);
+      const marker = buildMilestoneEventMarker(event, memberLookup);
       return marker ? [marker] : [];
     }),
     ...highlightedEvents.flatMap((event) => {
@@ -150,3 +135,4 @@ export const buildOverviewTimelineMarkers = ({
     }),
   };
 };
+

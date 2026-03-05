@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { buildOverviewTimelineMarkers } from "../buildOverviewTimelineMarkers";
 
 describe("buildOverviewTimelineMarkers", () => {
@@ -13,19 +13,11 @@ describe("buildOverviewTimelineMarkers", () => {
       milestoneEvents: [
         {
           id: "me-1",
-          eventType: "expense",
+          mode: "marker",
           templateType: "member_school_start",
           effectiveMonth: "2026-09",
-          payload: {
-            kind: "money",
-            data: {
-              cadence: "oneOff",
-              amount: 1000,
-              currency: "HKD",
-              category: "education",
-              month: "2026-09",
-            },
-          },
+          memberId: "m1",
+          notes: "School starts",
           createdAt: 0,
           updatedAt: 0,
         },
@@ -48,7 +40,10 @@ describe("buildOverviewTimelineMarkers", () => {
       kind: "highlighted_event",
     });
     expect(result.markers[1]).toMatchObject({
+      label: "School starts",
+      memberName: "Alex",
       kind: "member_school_start",
     });
   });
 });
+
