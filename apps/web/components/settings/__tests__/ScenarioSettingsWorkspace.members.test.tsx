@@ -237,14 +237,6 @@ describe("ScenarioSettingsWorkspace members tab", () => {
 
     const member = buildMemberFromAddDraft(draft, {
       createId: () => "member-new",
-      buildDefaultMilestones: () => [
-        {
-          id: "m1",
-          kind: "schoolStart",
-          label: "milestoneSchoolStart",
-          atAgeYears: 6,
-        },
-      ],
     });
 
     expect(member).toMatchObject({
@@ -255,7 +247,7 @@ describe("ScenarioSettingsWorkspace members tab", () => {
       ageAtBaseMonth: undefined,
       applyScope: { scope: "all" },
     });
-    expect(member.milestones).toHaveLength(1);
+    expect(member.milestones).toHaveLength(0);
   });
 
   it("persistNewMember only creates member without event/budget side effects", () => {
@@ -269,7 +261,6 @@ describe("ScenarioSettingsWorkspace members tab", () => {
       },
       {
         createId: () => "member-casey",
-        buildDefaultMilestones: () => [],
       }
     );
 

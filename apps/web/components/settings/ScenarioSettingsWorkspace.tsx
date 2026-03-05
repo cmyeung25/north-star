@@ -27,7 +27,6 @@ import {
   resolveScenarioIdFromQuery,
   useScenarioStore,
   createMemberId,
-  type MemberMilestone,
   type ScenarioMember,
   type ScenarioMemberKind,
 } from "../../src/store/scenarioStore";
@@ -345,7 +344,6 @@ export const buildMemberFromAddDraft = (
   draft: AddMemberDraft,
   options: {
     createId: () => string;
-    buildDefaultMilestones: (kind: ScenarioMemberKind) => MemberMilestone[];
   }
 ) => ({
   ...(draft.basis === "month"
@@ -364,7 +362,7 @@ export const buildMemberFromAddDraft = (
       ? Number(draft.ageAtBaseMonth.trim())
       : undefined,
   applyScope: { scope: "all" } as ApplyScope,
-  milestones: options.buildDefaultMilestones(draft.kind),
+  milestones: [],
 });
 
 
@@ -763,7 +761,6 @@ export default function ScenarioSettingsWorkspace({
 
     const newMember = buildMemberFromAddDraft(draft, {
       createId: createMemberId,
-      buildDefaultMilestones,
     });
 
     persistNewMember(newMember, { createMember });
@@ -1282,40 +1279,6 @@ export default function ScenarioSettingsWorkspace({
     caseId && scenarios[0]?.id
       ? scenarioDashboardPath(caseId, scenarios[0].id)
       : "/";
-
-  const createMilestoneId = () =>
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `milestone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  const buildDefaultMilestones = (kind: ScenarioMemberKind): MemberMilestone[] => {
-    if (kind !== "person") {
-      return [];
-    }
-    return [
-      {
-        id: createMilestoneId(),
-        kind: "schoolStart",
-        label: membersText("milestoneSchoolStart"),
-        atAgeYears: 6,
-        applyScope: { scope: "all" } as ApplyScope,
-      },
-      {
-        id: createMilestoneId(),
-        kind: "graduation",
-        label: membersText("milestoneGraduation"),
-        atAgeYears: 22,
-        applyScope: { scope: "all" } as ApplyScope,
-      },
-      {
-        id: createMilestoneId(),
-        kind: "retirement",
-        label: membersText("milestoneRetirement"),
-        atAgeYears: 65,
-        applyScope: { scope: "all" } as ApplyScope,
-      },
-    ];
-  };
 
   const formatAgeYears = (value: number) =>
     Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
@@ -1898,6 +1861,9 @@ export default function ScenarioSettingsWorkspace({
               <Text size="sm" c="dimmed">
                 {membersText("subtitle")}
               </Text>
+              <Notification color="yellow" variant="light" withCloseButton={false}>
+                <Text size="sm">{membersText("milestonesLegacyReadonlyNotice")}</Text>
+              </Notification>
               <Stack gap="sm">
                 <Accordion
                   multiple
