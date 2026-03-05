@@ -777,26 +777,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     setEditingMilestoneEvent(null);
   };
 
-  const handleDeleteMilestone = async (eventId: string): Promise<boolean> => {
+  const handleDeleteMilestone = (eventId: string) => {
     if (!activeScenarioId || activeScenarioId !== selectedScenario.id) {
       setMilestoneToast({ color: "red", message: t("milestoneApplyWrongScenario") });
-      return false;
+      return;
     }
-    const eventToRemove = milestoneEvents.find((event) => event.id === eventId);
-    if (!eventToRemove) {
-      setMilestoneToast({ color: "red", message: t("milestoneDeleteFailed") });
-      return false;
-    }
-
-    try {
-      removeMilestoneEvent(activeScenarioId, eventId);
-      setMilestoneToast({ color: "teal", message: t("milestoneDeleteSuccess") });
-      return true;
-    } catch {
-      applyMilestoneEvent(activeScenarioId, eventToRemove);
-      setMilestoneToast({ color: "red", message: t("milestoneDeleteFailed") });
-      return false;
-    }
+    removeMilestoneEvent(activeScenarioId, eventId);
+    setMilestoneToast({ color: "teal", message: t("milestoneDeleteSuccess") });
   };
 
   const handleMilestoneValidationFeedback = (feedback: {
