@@ -497,9 +497,3 @@ PR requirement:
   - Affected paths: apps/web/features/milestoneEvents/EventManager.tsx; apps/web/app/[locale]/overview/OverviewClient.tsx; apps/web/app/[locale]/money/MoneyClient.tsx; apps/web/src/features/money/IncomeEventList.tsx; apps/web/src/features/money/ExpenseEventList.tsx; apps/web/messages/zh-HK.json; apps/web/messages/en.json; AGENTS.md
   - Guardrails for next agent: Keep milestone-generated source labels driven by scenario-local milestoneEvents + definition.generatedByEventId mapping only; preserve explicit delete safeguard UX (confirm or equivalent undo) and failure rollback feedback for milestone operations.
   - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build
-- Date: 2026-03-05
-  - Context / Why: 里程碑資料來源需由 `members[].milestones` 遷移到 `scenario.milestoneEvents`，同時避免舊資料讀取造成跨情境誤顯示。
-  - What changed: 在 scenario hydration/normalize 階段新增 legacy mapper（僅當 `milestoneEvents` 為空才回填），將 `members[].milestones` 映射為 `scenario.milestoneEvents` 並保留 `legacy/sourceEventId/memberMilestoneId` metadata；timeline/overview/monthly highlights 改為優先讀 `milestoneEvents`，僅在空陣列時 fallback 舊路徑。
-  - Affected paths: apps/web/src/store/scenarioStore.ts; apps/web/src/domain/timeline/getMonthlyHighlights.ts; apps/web/components/ProjectionDetailsModal.tsx; apps/web/components/MonthlyBreakdownModalHost.tsx
-  - Guardrails for next agent: 來源優先序固定為 `scenario.milestoneEvents` > `members[].milestones(fallback only when empty)`；若需回滾，僅可關閉 mapper/read-through 分支並保留 `members` 原資料，不得把 milestone event 寫回其他 scenario（防止 leakage）。
-  - Validation commands run: pnpm -w lint; pnpm -w typecheck; pnpm -w test; pnpm -w --filter web build

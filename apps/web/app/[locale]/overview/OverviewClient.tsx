@@ -1168,7 +1168,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             baseMonth={selectedScenario.assumptions.baseMonth}
             horizonMonths={selectedScenario.assumptions.horizonMonths}
             members={members}
-            milestoneEvents={selectedScenario.milestoneEvents}
             eventViews={scenarioEventViews}
           />
           <RunwayDetailModal

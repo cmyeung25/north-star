@@ -42,7 +42,6 @@ const buildBirthMilestone = (member: ScenarioMember): MemberMilestone | null => 
 //   return month;
 // };
 
-/** @deprecated Legacy fallback for member.milestones. Prefer scenario.milestoneEvents as source of truth; only used when milestoneEvents is empty. */
 export const computeMilestonesForScenario = (
   scenarioId: string,
   members: ScenarioMember[],

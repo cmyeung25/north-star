@@ -8,7 +8,6 @@ import type { LedgerMonthSummary } from "../src/domain/ledger/ledgerUtils";
 import type { NetWorthBreakdown } from "../src/domain/netWorth/buildNetWorthBreakdown";
 import { resolveMonthInList } from "../src/utils/month";
 import type { ScenarioEventView } from "../src/domain/events/types";
-import type { MilestoneEvent } from "../src/domain/milestoneEvents/types";
 import type { ScenarioMember } from "../src/store/scenarioStore";
 
 type MonthlyBreakdownModalHostProps = {
@@ -26,7 +25,6 @@ type MonthlyBreakdownModalHostProps = {
   baseMonth?: string | null;
   horizonMonths?: number;
   members?: ScenarioMember[];
-  milestoneEvents?: MilestoneEvent[];
   eventViews?: ScenarioEventView[];
   isScenarioV2?: boolean;
 };
@@ -46,7 +44,6 @@ export default function MonthlyBreakdownModalHost({
   baseMonth,
   horizonMonths,
   members,
-  milestoneEvents,
   eventViews,
   isScenarioV2,
 }: MonthlyBreakdownModalHostProps) {
@@ -94,7 +91,6 @@ export default function MonthlyBreakdownModalHost({
       baseMonth={baseMonth}
       horizonMonths={horizonMonths}
       members={members}
-      milestoneEvents={milestoneEvents}
       eventViews={eventViews}
       isScenarioV2={isScenarioV2}
     />
