@@ -50,7 +50,7 @@ import {
 } from "../../../src/engine/adapter";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { useScenarioProjections } from "../../../src/engine/useScenarioProjections";
-import { buildScenarioEventViews, buildScenarioTimelineEvents } from "../../../src/domain/events/utils";
+import { buildScenarioEventViews } from "../../../src/domain/events/utils";
 import {
   buildRunwayNetCashflowSeries,
   computeRunwaySimulation,
@@ -70,11 +70,11 @@ import { Link } from "../../../src/i18n/navigation";
 import { safeT } from "../../../src/i18n/safeT";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
 import { appliesToScenario } from "../../../src/domain/applyScope";
-import { computeMilestonesForScenario } from "../../../src/domain/members/milestones";
 import { useUiStore } from "../../../src/store/uiStore";
 import { isInvestmentCashflow } from "../../../src/domain/ledger/cashflowFilters";
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
+import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/buildOverviewTimelineMarkers";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -248,35 +248,46 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         : [],
     [members, selectedScenario]
   );
-  const milestoneMarkers = useMemo(() => {
-    if (!selectedScenario || !projection?.baseMonth) {
-      return [];
-    }
-    const markers = computeMilestonesForScenario(
-      selectedScenario.id,
-      scenarioMembers,
-      projection.baseMonth,
-      globalHorizonMonths
-    );
-    return markers;
-  }, [
-    globalHorizonMonths,
-    projection?.baseMonth,
-    scenarioMembers,
-    selectedScenario,
-  ]);
+  const highlightedTimelineEvents = useMemo(
+    () =>
+      scenarioEventViews
+        .filter((view) => view.ref.highlighted && view.definition.kind === "cashflow")
+        .map((view) => ({
+          id: view.definition.id,
+          name: view.definition.title,
+          startMonth:
+            view.rule.mode === "schedule"
+              ? view.rule.schedule?.[0]?.month
+              : view.rule.startMonth,
+          highlighted: view.ref.highlighted ?? false,
+          memberId: view.definition.memberId,
+        })),
+    [scenarioEventViews]
+  );
+  const overviewTimelineMarkers = useMemo(
+    () =>
+      selectedScenario
+        ? buildOverviewTimelineMarkers({
+            scenarioId: selectedScenario.id,
+            baseMonth: projection?.baseMonth ?? null,
+            horizonMonths: globalHorizonMonths,
+            members,
+            milestoneEvents: selectedScenario.milestoneEvents,
+            highlightedEvents: highlightedTimelineEvents,
+          })
+        : { markers: [], highlightedEvents: [] },
+    [
+      globalHorizonMonths,
+      highlightedTimelineEvents,
+      members,
+      projection?.baseMonth,
+      selectedScenario,
+    ]
+  );
+  const milestoneMarkers = overviewTimelineMarkers.markers;
   const monthIndexLookup = useMemo(
     () => new Map(months.map((month, index) => [month, index])),
     [months]
-  );
-  const timelineEvents = useMemo(
-    () =>
-      selectedScenario
-        ? buildScenarioTimelineEvents(selectedScenario, eventLibrary).filter(
-            (event) => event.enabled && !event.derived && event.highlighted
-          )
-        : [],
-    [eventLibrary, selectedScenario]
   );
   const memberLookup = useMemo(
     () =>
@@ -531,11 +542,11 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const nextKeyEvent = useMemo(
     () =>
       getNextKeyEvent({
-        events: timelineEvents,
+        events: overviewTimelineMarkers.highlightedEvents,
         milestones: milestoneMarkers,
         baseMonth: projection?.baseMonth ?? months[0] ?? null,
       }),
-    [milestoneMarkers, months, projection?.baseMonth, timelineEvents]
+    [milestoneMarkers, months, overviewTimelineMarkers.highlightedEvents, projection?.baseMonth]
   );
 
   if (!selectedScenario) {

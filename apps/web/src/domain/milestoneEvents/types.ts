@@ -10,6 +10,12 @@ import type { BudgetRule } from "../../store/scenarioStore";
 
 export type MilestoneEventType = "income" | "expense" | "asset" | "liability";
 
+export type MilestoneEventTemplateType =
+  | "member_birth"
+  | "member_school_start"
+  | "member_retirement"
+  | "custom";
+
 export type MilestoneMoneyPayload = {
   cadence: MoneyItemCadence;
   amount: number;
@@ -51,6 +57,7 @@ export type MilestoneEventPayload =
 export type MilestoneEvent = {
   id: string;
   eventType: MilestoneEventType;
+  templateType?: MilestoneEventTemplateType;
   effectiveMonth: string;
   payload: MilestoneEventPayload;
   notes?: string;
