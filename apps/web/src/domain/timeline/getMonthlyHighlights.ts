@@ -1,5 +1,4 @@
 import type { ScenarioMember } from "../../store/scenarioStore";
-import type { MilestoneEvent } from "../milestoneEvents/types";
 import type { ScenarioEventView } from "../events/types";
 import { appliesToScenario } from "../applyScope";
 import { computeMilestonesForScenario } from "../members/milestones";
@@ -22,7 +21,6 @@ type GetMonthlyHighlightsParams = {
   baseMonth?: string | null;
   horizonMonths?: number;
   members: ScenarioMember[];
-  milestoneEvents?: MilestoneEvent[];
   eventViews: ScenarioEventView[];
   targetMonth?: string | null;
 };
@@ -35,7 +33,6 @@ export const getMonthlyHighlights = ({
   baseMonth,
   horizonMonths = 0,
   members,
-  milestoneEvents,
   eventViews,
   targetMonth,
 }: GetMonthlyHighlightsParams): MonthlyHighlights => {
@@ -52,24 +49,8 @@ export const getMonthlyHighlights = ({
   );
 
   const normalizedBaseMonth = baseMonth ? normalizeMonthStrict(baseMonth) : null;
-  const normalizedMilestoneEvents = milestoneEvents ?? [];
   const milestones =
-    normalizedMilestoneEvents.length > 0
-      ? normalizedMilestoneEvents
-          .filter((event) => {
-            const normalizedMonth = normalizeMonthStrict(event.effectiveMonth);
-            return normalizedMonth.ok && normalizedMonth.month === targetMonthValue;
-          })
-          .map((event) => ({
-            id: event.id,
-            kind: "milestone" as const,
-            label: event.notes?.trim() || "Milestone",
-            memberName:
-              event.payload.kind === "money" && event.payload.data.memberId
-                ? memberLookup.get(event.payload.data.memberId)
-                : undefined,
-          }))
-      : normalizedBaseMonth?.ok && horizonMonths > 0
+    normalizedBaseMonth?.ok && horizonMonths > 0
       ? computeMilestonesForScenario(
           scenarioId,
           members,

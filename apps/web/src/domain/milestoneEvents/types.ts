@@ -64,7 +64,6 @@ export type MilestoneEvent = {
   createdAt: number;
   updatedAt: number;
   legacy?: boolean;
-  metadata?: Record<string, unknown>;
 };
 
 export type MilestoneEventDraft = Omit<MilestoneEvent, "id" | "createdAt" | "updatedAt"> & {
