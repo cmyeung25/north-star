@@ -857,6 +857,71 @@ const normalizeMilestoneEvents = (events?: MilestoneEvent[]): MilestoneEvent[] =
     updatedAt: event.updatedAt ?? event.createdAt ?? now(),
   })) ?? [];
 
+const legacyTemplateTypeByMemberMilestoneKind: Partial<
+  Record<MemberMilestoneKind, MilestoneEvent["templateType"]>
+> = {
+  birth: "member_birth",
+  schoolStart: "member_school_start",
+  retirement: "member_retirement",
+  graduation: "custom",
+  custom: "custom",
+};
+
+const mapLegacyMemberMilestonesToMilestoneEvents = (
+  members?: ScenarioMember[]
+): MilestoneEvent[] => {
+  if (!members?.length) {
+    return [];
+  }
+
+  return members.flatMap((member) =>
+    (member.milestones ?? []).flatMap((milestone) => {
+      if (!milestone.month) {
+        return [];
+      }
+
+      return [
+        {
+          id: `legacy-member-milestone-${member.id}-${milestone.id}`,
+          eventType: "expense" as const,
+          templateType: legacyTemplateTypeByMemberMilestoneKind[milestone.kind] ?? "custom",
+          effectiveMonth: milestone.month,
+          payload: {
+            kind: "money" as const,
+            data: {
+              cadence: "oneOff" as const,
+              amount: 0,
+              currency: defaultCurrency,
+              category: milestone.kind,
+              memberId: member.id,
+              month: milestone.month,
+            },
+          },
+          notes: milestone.label,
+          legacy: true,
+          metadata: {
+            legacy: true,
+            sourceEventId: milestone.sourceEventId,
+            memberId: member.id,
+            memberMilestoneId: milestone.id,
+            memberMilestoneKind: milestone.kind,
+          },
+          createdAt: now(),
+          updatedAt: now(),
+        },
+      ];
+    })
+  );
+};
+
+const resolveScenarioMilestoneEvents = (scenario: LegacyScenario): MilestoneEvent[] => {
+  const normalizedMilestoneEvents = normalizeMilestoneEvents(scenario.milestoneEvents);
+  if (normalizedMilestoneEvents.length > 0) {
+    return normalizedMilestoneEvents;
+  }
+  return mapLegacyMemberMilestonesToMilestoneEvents(scenario.members);
+};
+
 const ensureScenarioIncluded = (
   applyScope: ApplyScope | undefined,
   scenarioId: string
@@ -1955,7 +2020,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   const normalizedClientComputed = cloneClientComputed(migratedScenario.clientComputed);
   const normalizedSnapshots = cloneSnapshots(migratedScenario.snapshots);
   const normalizedPlans = clonePlans(migratedScenario.plans);
-  const normalizedMilestoneEvents = normalizeMilestoneEvents(migratedScenario.milestoneEvents);
+  const normalizedMilestoneEvents = resolveScenarioMilestoneEvents(migratedScenario);
   const normalizedBundleInstances =
     cloneBundleInstances(migratedScenario.bundleInstances) ??
     (migratedScenario.meta?.schemaVersion === 2 ? [] : undefined);
