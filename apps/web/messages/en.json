@@ -1962,13 +1962,7 @@
       "other": "Other"
     },
     "cashCardGoToSettings": "Go to Settings",
-    "eventLifecycleHasEndMonth": "Has end month",
-    "milestoneValidationBlocked": "There are still errors. Fix the fields before applying.",
-    "milestoneApplySuccess": "Milestone event applied to the active scenario.",
-    "milestoneApplySuccessWithWarnings": "Milestone event applied with warnings. Please review the risks.",
-    "milestoneApplyFailed": "Failed to apply milestone event. Please check the fields.",
-    "milestoneApplyWrongScenario": "Milestone events can only be applied to the active scenario.",
-    "milestoneDeleteSuccess": "Milestone event deleted."
+    "eventLifecycleHasEndMonth": "Has end month"
   },
   "entryLauncher": {
     "title": "Add new money items",
