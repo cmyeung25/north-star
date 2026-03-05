@@ -9950,6 +9950,7 @@ export default function PlanLabPanel({
         scenarioId={scenario.id}
         baseMonth={scenario.assumptions.baseMonth}
         horizonMonths={scenario.assumptions.horizonMonths}
+        milestoneEvents={scenario.milestoneEvents}
       />
 
       <PlanLibraryDrawer

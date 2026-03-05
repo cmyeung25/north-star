@@ -5382,6 +5382,7 @@ export default function MoneyClient({
           baseMonth={scenario?.assumptions.baseMonth}
           horizonMonths={scenario?.assumptions.horizonMonths}
           members={members}
+          milestoneEvents={scenario?.milestoneEvents}
           eventViews={scenarioEventViews}
           isScenarioV2={scenarioIsV2}
         />
