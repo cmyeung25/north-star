@@ -334,7 +334,6 @@ type EventWizardProps = {
   snapshot: MilestoneScenarioSnapshot;
   initialEvent?: MilestoneEvent | null;
   onApply: (draft: MilestoneEventDraft) => void;
-  onValidationFeedback?: (feedback: { level: "warning" | "error"; message: string }) => void;
 };
 
 export default function EventWizard({
@@ -348,7 +347,6 @@ export default function EventWizard({
   snapshot,
   initialEvent,
   onApply,
-  onValidationFeedback,
 }: EventWizardProps) {
   const t = useTranslations("money");
   const common = useTranslations("common");
@@ -415,18 +413,6 @@ export default function EventWizard({
     Object.keys(previewResult.fieldErrors).length > 0 ||
     previewResult.warnings.some((warning) => warning.level === "error");
 
-  useEffect(() => {
-    const firstError = previewResult.warnings.find((warning) => warning.level === "error");
-    if (firstError) {
-      onValidationFeedback?.({ level: "error", message: firstError.message });
-      return;
-    }
-    const firstWarning = previewResult.warnings.find((warning) => warning.level === "warning");
-    if (firstWarning) {
-      onValidationFeedback?.({ level: "warning", message: firstWarning.message });
-    }
-  }, [onValidationFeedback, previewResult]);
-
   const categoryOptions =
     draft.eventType === "expense" && draft.money.cadence === "recurring"
       ? budgetCategories
@@ -436,11 +422,6 @@ export default function EventWizard({
 
   const handleApply = () => {
     if (hasErrors) {
-      const firstError = previewResult.warnings.find((warning) => warning.level === "error");
-      onValidationFeedback?.({
-        level: "error",
-        message: firstError?.message ?? t("milestoneValidationBlocked"),
-      });
       return;
     }
     const eventDraft: MilestoneEventDraft = {
@@ -451,24 +432,6 @@ export default function EventWizard({
       payload: previewEvent.payload,
     };
     onApply(eventDraft);
-  };
-
-  const handleStepChange = (nextStep: number) => {
-    const clamped = Math.max(0, Math.min(3, nextStep));
-    if (clamped <= step) {
-      setStep(clamped);
-      return;
-    }
-    const firstError = previewResult.warnings.find((warning) => warning.level === "error");
-    if (firstError) {
-      onValidationFeedback?.({ level: "error", message: firstError.message });
-      return;
-    }
-    const firstWarning = previewResult.warnings.find((warning) => warning.level === "warning");
-    if (firstWarning) {
-      onValidationFeedback?.({ level: "warning", message: firstWarning.message });
-    }
-    setStep(clamped);
   };
 
   const renderPreviewOps = () => {
@@ -558,7 +521,7 @@ export default function EventWizard({
       title={t("milestoneWizardTitle")}
     >
       <Stack gap="md">
-        <Stepper active={step} onStepClick={handleStepChange} size="sm">
+        <Stepper active={step} onStepClick={setStep} size="sm">
           <Stepper.Step label={t("milestoneStepType")} />
           <Stepper.Step label={t("milestoneStepMonth")} />
           <Stepper.Step label={t("milestoneStepPayload")} />
@@ -985,13 +948,13 @@ export default function EventWizard({
           <Group>
             <Button
               variant="default"
-              onClick={() => handleStepChange(step - 1)}
+              onClick={() => setStep((current) => Math.max(0, current - 1))}
               disabled={step === 0}
             >
               {t("milestoneBack")}
             </Button>
             {step < 3 ? (
-              <Button onClick={() => handleStepChange(step + 1)}>
+              <Button onClick={() => setStep((current) => Math.min(3, current + 1))}>
                 {t("milestoneNext")}
               </Button>
             ) : (

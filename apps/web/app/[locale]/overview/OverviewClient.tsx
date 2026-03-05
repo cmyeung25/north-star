@@ -8,7 +8,6 @@ import {
   Group,
   Menu,
   MultiSelect,
-  Notification,
   SegmentedControl,
   SimpleGrid,
   Stack,
@@ -42,8 +41,6 @@ import NetCashflowChart from "../../../features/overview/components/NetCashflowC
 import NetWorthChart from "../../../features/overview/components/NetWorthChart";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
-import EventManager from "../../../features/milestoneEvents/EventManager";
-import EventWizard from "../../../features/milestoneEvents/EventWizard";
 import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import { memberCasesPath, scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
@@ -69,9 +66,6 @@ import {
   resolveScenarioIdFromQuery,
   useScenarioStore,
 } from "../../../src/store/scenarioStore";
-import { buildMilestoneScenarioSnapshot } from "../../../src/domain/milestoneEvents/snapshot";
-import type { MilestoneEvent } from "../../../src/domain/milestoneEvents/types";
-import { incomeSubtypes, expenseCategories } from "../../../src/domain/events/eventTaxonomy";
 import { Link } from "../../../src/i18n/navigation";
 import { safeT } from "../../../src/i18n/safeT";
 import { getMemberAgeYears } from "../../../src/domain/members/age";
@@ -84,11 +78,6 @@ import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/build
 
 type OverviewClientProps = {
   scenarioId?: string;
-};
-
-type MilestoneToastState = {
-  color: "teal" | "yellow" | "red";
-  message: string;
 };
 
 export default function OverviewClient({ scenarioId }: OverviewClientProps) {
@@ -111,8 +100,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const globalHorizonMonths = appSettings.globalHorizonMonths;
   const setViewModeSetting = useScenarioStore((state) => state.setViewMode);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
-  const applyMilestoneEvent = useScenarioStore((state) => state.applyMilestoneEvent);
-  const removeMilestoneEvent = useScenarioStore((state) => state.removeMilestoneEvent);
   const breakdownMonth = useUiStore((state) => state.breakdownMonth);
   const openBreakdown = useUiStore((state) => state.openBreakdown);
   const setBreakdownMonth = useUiStore((state) => state.setBreakdownMonth);
@@ -132,10 +119,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
   const [riskDetailOpen, setRiskDetailOpen] = useState(false);
-  const [milestoneWizardOpened, setMilestoneWizardOpened] = useState(false);
-  const [editingMilestoneEvent, setEditingMilestoneEvent] = useState<MilestoneEvent | null>(null);
-  const [highlightedMilestoneEventId, setHighlightedMilestoneEventId] = useState<string | null>(null);
-  const [milestoneToast, setMilestoneToast] = useState<MilestoneToastState | null>(null);
   const [cashflowView, setCashflowView] = useState<"all" | "operational">("all");
   const [primaryChartTab, setPrimaryChartTab] = useState<"cash" | "netWorth" | "netCashflow">("cash");
   const [fullscreenChart, setFullscreenChart] = useState<{
@@ -160,34 +143,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
 
   const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
-  const milestoneEvents = selectedScenario?.milestoneEvents ?? [];
-  const milestoneSnapshot = useMemo(
-    () =>
-      selectedScenario
-        ? buildMilestoneScenarioSnapshot({
-            scenario: selectedScenario,
-            eventLibrary,
-            budgetRules,
-          })
-        : null,
-    [budgetRules, eventLibrary, selectedScenario]
-  );
-  const incomeCategoryOptions = useMemo(
-    () =>
-      incomeSubtypes.map((category) => ({
-        value: category,
-        label: t(`incomeCategory.${category}`),
-      })),
-    [t]
-  );
-  const expenseCategoryOptions = useMemo(
-    () =>
-      expenseCategories.map((category) => ({
-        value: category,
-        label: t(`expenseCategory.${category}`),
-      })),
-    [t]
-  );
   const scenarioEventViews = useMemo(
     () => (selectedScenario ? buildScenarioEventViews(selectedScenario, eventLibrary) : []),
     [eventLibrary, selectedScenario]
@@ -200,16 +155,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       })),
     [scenarios]
   );
-
-  useEffect(() => {
-    if (!highlightedMilestoneEventId) {
-      return;
-    }
-    const timeoutId = window.setTimeout(() => {
-      setHighlightedMilestoneEventId(null);
-    }, 2200);
-    return () => window.clearTimeout(timeoutId);
-  }, [highlightedMilestoneEventId]);
 
   useEffect(() => {
     if (hasCompareQuery) {
@@ -731,71 +676,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     openBreakdown(month);
   };
 
-  const handleCreateMilestone = () => {
-    setEditingMilestoneEvent(null);
-    setMilestoneWizardOpened(true);
-  };
-
-  const handleEditMilestone = (event: MilestoneEvent) => {
-    setEditingMilestoneEvent(event);
-    setMilestoneWizardOpened(true);
-  };
-
-  const handleApplyMilestone = (draftEvent: {
-    id?: string;
-    eventType: MilestoneEvent["eventType"];
-    effectiveMonth: string;
-    notes?: string;
-    payload: MilestoneEvent["payload"];
-  }) => {
-    const targetScenarioId = activeScenarioId;
-    if (!targetScenarioId || targetScenarioId !== selectedScenario.id) {
-      setMilestoneToast({ color: "red", message: t("milestoneApplyWrongScenario") });
-      return;
-    }
-
-    const compileResult = applyMilestoneEvent(targetScenarioId, draftEvent);
-    const hasError =
-      Object.keys(compileResult.fieldErrors).length > 0 ||
-      compileResult.warnings.some((warning) => warning.level === "error");
-
-    if (hasError) {
-      setMilestoneToast({
-        color: "red",
-        message: compileResult.warnings[0]?.message ?? t("milestoneApplyFailed"),
-      });
-      return;
-    }
-
-    const hasWarning = compileResult.warnings.some((warning) => warning.level === "warning");
-    setMilestoneToast({
-      color: hasWarning ? "yellow" : "teal",
-      message: hasWarning ? t("milestoneApplySuccessWithWarnings") : t("milestoneApplySuccess"),
-    });
-    setHighlightedMilestoneEventId(draftEvent.id ?? null);
-    setMilestoneWizardOpened(false);
-    setEditingMilestoneEvent(null);
-  };
-
-  const handleDeleteMilestone = (eventId: string) => {
-    if (!activeScenarioId || activeScenarioId !== selectedScenario.id) {
-      setMilestoneToast({ color: "red", message: t("milestoneApplyWrongScenario") });
-      return;
-    }
-    removeMilestoneEvent(activeScenarioId, eventId);
-    setMilestoneToast({ color: "teal", message: t("milestoneDeleteSuccess") });
-  };
-
-  const handleMilestoneValidationFeedback = (feedback: {
-    level: "warning" | "error";
-    message: string;
-  }) => {
-    setMilestoneToast({
-      color: feedback.level === "error" ? "red" : "yellow",
-      message: feedback.message,
-    });
-  };
-
   const moneyTimelineHref = `${scenarioMoneyPath(caseId, selectedScenario.id)}?tab=timeline`;
   const moneyHubHref = scenarioMoneyPath(caseId, selectedScenario.id);
   const moneyInputsHref = `${moneyHubHref}&tab=inputs`;
@@ -812,11 +692,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   ];
   return (
     <Stack gap="sm" pb={isDesktop ? undefined : 120}>
-      {milestoneToast ? (
-        <Notification color={milestoneToast.color} onClose={() => setMilestoneToast(null)}>
-          {milestoneToast.message}
-        </Notification>
-      ) : null}
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <div>
@@ -1080,17 +955,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
       {!showCompare && (
         <>
-          {milestoneSnapshot ? (
-            <Card withBorder radius="md" padding="md">
-              <EventManager
-                events={milestoneEvents}
-                onCreate={handleCreateMilestone}
-                onEdit={handleEditMilestone}
-                onDelete={handleDeleteMilestone}
-                highlightedEventId={highlightedMilestoneEventId}
-              />
-            </Card>
-          ) : null}
           <Accordion variant="separated" radius="md" defaultValue="snapshot">
             <Accordion.Item value="snapshot">
               <Accordion.Control>{sd("snapshot.title", "投影快照")}</Accordion.Control>
@@ -1186,24 +1050,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                   : t("fullscreenTitleCashBalance")
             }
           />
-          {milestoneSnapshot ? (
-            <EventWizard
-              opened={milestoneWizardOpened}
-              onClose={() => {
-                setMilestoneWizardOpened(false);
-                setEditingMilestoneEvent(null);
-              }}
-              baseCurrency={selectedScenario.baseCurrency}
-              members={scenarioMembers}
-              incomeCategories={incomeCategoryOptions}
-              expenseCategories={expenseCategoryOptions}
-              budgetCategories={expenseCategoryOptions}
-              snapshot={milestoneSnapshot}
-              initialEvent={editingMilestoneEvent}
-              onApply={handleApplyMilestone}
-              onValidationFeedback={handleMilestoneValidationFeedback}
-            />
-          ) : null}
         </>
       )}
     </Stack>
