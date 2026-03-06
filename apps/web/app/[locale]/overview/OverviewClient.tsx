@@ -9,6 +9,7 @@ import {
   Group,
   Menu,
   MultiSelect,
+  Notification,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -19,7 +20,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { type Locale } from "../../../src/i18n/routing";
@@ -79,7 +80,7 @@ import { isInvestmentCashflow } from "../../../src/domain/ledger/cashflowFilters
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
 import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
 import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/buildOverviewTimelineMarkers";
-import type { MilestoneEventTemplateType } from "../../../src/domain/milestoneEvents/types";
+import type { MilestoneEvent, MilestoneEventTemplateType } from "../../../src/domain/milestoneEvents/types";
 import { normalizeMonthStrict } from "../../../src/utils/month";
 
 type OverviewClientProps = {
@@ -94,6 +95,41 @@ type MilestoneMarkerDraft = {
   templateType: MilestoneEventTemplateType;
 };
 
+type MilestoneTemplateFilter = "all" | MilestoneEventTemplateType;
+type MilestoneSource = "manual" | "system";
+type MilestoneSourceFilter = "all" | MilestoneSource;
+type MilestoneStatus = "upcoming" | "expired" | "completed";
+type MilestoneStatusFilter = "all" | MilestoneStatus;
+
+type MilestoneToastState = {
+  color: "teal" | "red" | "orange";
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+};
+
+type ManagedMilestoneItem = {
+  id: string;
+  label: string;
+  month: string;
+  memberId: string;
+  memberName: string;
+  templateType: MilestoneEventTemplateType;
+  source: MilestoneSource;
+  status: MilestoneStatus;
+  diffMonths: number | null;
+  isSystemDerived: boolean;
+};
+
+type PendingDeletedMilestone = {
+  scenarioId: string;
+  id: string;
+  templateType: MilestoneEventTemplateType;
+  memberId?: string;
+  effectiveMonth: string;
+  notes?: string;
+};
+
 const createMilestoneDraft = (
   baseMonth: string,
   memberId: string
@@ -103,6 +139,57 @@ const createMilestoneDraft = (
   memberId,
   templateType: "custom",
 });
+
+const MILESTONE_MANAGER_QUERY_VALUE = "manage";
+const SYSTEM_MILESTONE_ID_PREFIX = "legacy-member-milestone:";
+
+const isSystemMilestoneEvent = (event: Pick<MilestoneEvent, "id" | "templateType">) =>
+  event.id.startsWith(SYSTEM_MILESTONE_ID_PREFIX) ||
+  event.templateType === "member_retirement";
+
+const monthToIndex = (month: string): number | null => {
+  const normalized = normalizeMonthStrict(month);
+  if (!normalized.ok) {
+    return null;
+  }
+  const [year, monthNum] = normalized.month.split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(monthNum)) {
+    return null;
+  }
+  return year * 12 + (monthNum - 1);
+};
+
+const getMonthDiff = (targetMonth: string, baseMonth: string): number | null => {
+  const targetIndex = monthToIndex(targetMonth);
+  const baseIndex = monthToIndex(baseMonth);
+  if (targetIndex === null || baseIndex === null) {
+    return null;
+  }
+  return targetIndex - baseIndex;
+};
+
+const resolveMilestoneStatus = (
+  targetMonth: string,
+  baseMonth: string
+): MilestoneStatus => {
+  const diff = getMonthDiff(targetMonth, baseMonth);
+  if (diff === null || diff >= 0) {
+    return "upcoming";
+  }
+  if (diff >= -6) {
+    return "expired";
+  }
+  return "completed";
+};
+
+const normalizeDraftForCompare = (draft: MilestoneMarkerDraft) => ({
+  id: draft.id ?? "",
+  label: draft.label.trim(),
+  effectiveMonth: draft.effectiveMonth.trim(),
+  memberId: draft.memberId,
+  templateType: draft.templateType ?? "custom",
+});
+
 export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
@@ -140,6 +227,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       .map((id) => id.trim())
       .filter(Boolean);
   }, [searchParams]);
+  const milestoneManagerQuery = searchParams.get("milestones");
   const hasCompareQuery = compareScenarioIdsFromQuery.length > 0;
   const [viewMode, setViewMode] = useState<"single" | "compare">("single");
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
@@ -156,6 +244,21 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [milestoneDraft, setMilestoneDraft] = useState<MilestoneMarkerDraft>(() =>
     createMilestoneDraft("", "")
   );
+  const [milestoneDraftBaseline, setMilestoneDraftBaseline] = useState<MilestoneMarkerDraft>(() =>
+    createMilestoneDraft("", "")
+  );
+  const [milestoneSearchQuery, setMilestoneSearchQuery] = useState("");
+  const [milestoneMemberFilter, setMilestoneMemberFilter] = useState("all");
+  const [milestoneTemplateFilter, setMilestoneTemplateFilter] = useState<MilestoneTemplateFilter>("all");
+  const [milestoneSourceFilter, setMilestoneSourceFilter] = useState<MilestoneSourceFilter>("all");
+  const [milestoneStatusFilter, setMilestoneStatusFilter] = useState<MilestoneStatusFilter>("all");
+  const [milestoneMonthFrom, setMilestoneMonthFrom] = useState("");
+  const [milestoneMonthTo, setMilestoneMonthTo] = useState("");
+  const [milestoneToast, setMilestoneToast] = useState<MilestoneToastState | null>(null);
+  const [pendingDeletedMilestone, setPendingDeletedMilestone] = useState<PendingDeletedMilestone | null>(null);
+  const [milestoneQueryConsumed, setMilestoneQueryConsumed] = useState(false);
+  const milestoneToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const milestoneUndoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (
@@ -173,6 +276,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
 
   const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
+  const selectedScenarioId = selectedScenario?.id ?? "";
   const scenarioEventViews = useMemo(
     () => (selectedScenario ? buildScenarioEventViews(selectedScenario, eventLibrary) : []),
     [eventLibrary, selectedScenario]
@@ -278,41 +382,19 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         : [],
     [members, selectedScenario]
   );
-  const highlightedTimelineEvents = useMemo(
-    () =>
-      scenarioEventViews
-        .filter((view) => view.ref.highlighted && view.definition.kind === "cashflow")
-        .map((view) => ({
-          id: view.definition.id,
-          name: view.definition.title,
-          startMonth:
-            view.rule.mode === "schedule"
-              ? view.rule.schedule?.[0]?.month
-              : view.rule.startMonth,
-          highlighted: view.ref.highlighted ?? false,
-          memberId: view.definition.memberId,
-        })),
-    [scenarioEventViews]
-  );
   const overviewTimelineMarkers = useMemo(
     () =>
       selectedScenario
         ? buildOverviewTimelineMarkers({
-            scenarioId: selectedScenario.id,
+            scenarioId: selectedScenarioId,
             baseMonth: projection?.baseMonth ?? null,
             horizonMonths: globalHorizonMonths,
             members,
             milestoneEvents: selectedScenario.milestoneEvents,
-            highlightedEvents: highlightedTimelineEvents,
+            highlightedEvents: [],
           })
         : { markers: [], highlightedEvents: [] },
-    [
-      globalHorizonMonths,
-      highlightedTimelineEvents,
-      members,
-      projection?.baseMonth,
-      selectedScenario,
-    ]
+    [globalHorizonMonths, members, projection?.baseMonth, selectedScenario, selectedScenarioId]
   );
   const milestoneMarkers = overviewTimelineMarkers.markers;
   const monthIndexLookup = useMemo(
@@ -470,9 +552,219 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
   const defaultMilestoneMonth = projection?.baseMonth ?? months[0] ?? "";
   const defaultMilestoneMemberId = scenarioMembers[0]?.id ?? "";
+  const milestoneManagerHref = `${scenarioDashboardPath(caseId, selectedScenarioId, locale as Locale)}?milestones=${MILESTONE_MANAGER_QUERY_VALUE}`;
+
+  const showMilestoneToast = (nextToast: MilestoneToastState) => {
+    if (milestoneToastTimeoutRef.current) {
+      clearTimeout(milestoneToastTimeoutRef.current);
+    }
+    setMilestoneToast(nextToast);
+    milestoneToastTimeoutRef.current = setTimeout(() => {
+      setMilestoneToast(null);
+      milestoneToastTimeoutRef.current = null;
+    }, 6000);
+  };
+
+  useEffect(
+    () => () => {
+      if (milestoneToastTimeoutRef.current) {
+        clearTimeout(milestoneToastTimeoutRef.current);
+      }
+      if (milestoneUndoTimeoutRef.current) {
+        clearTimeout(milestoneUndoTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const resolveMilestoneTemplateLabel = useCallback((templateType: MilestoneEventTemplateType) => {
+    switch (templateType) {
+      case "member_birth":
+        return moneyT("milestoneManagerTemplateBirth");
+      case "member_school_start":
+        return moneyT("milestoneManagerTemplateSchoolStart");
+      case "member_retirement":
+        return moneyT("milestoneManagerTemplateRetirement");
+      default:
+        return moneyT("milestoneManagerTemplateCustom");
+    }
+  }, [moneyT]);
+
+  const normalizedMilestoneFilterFrom = milestoneMonthFrom
+    ? normalizeMonthStrict(milestoneMonthFrom)
+    : null;
+  const normalizedMilestoneFilterTo = milestoneMonthTo
+    ? normalizeMonthStrict(milestoneMonthTo)
+    : null;
+  const milestoneMonthFromError =
+    milestoneMonthFrom && !normalizedMilestoneFilterFrom?.ok
+      ? moneyT("flowFormMonthRequired")
+      : undefined;
+  const milestoneMonthToError =
+    milestoneMonthTo && !normalizedMilestoneFilterTo?.ok
+      ? moneyT("flowFormMonthRequired")
+      : undefined;
+  const milestoneMonthRangeInvalid =
+    normalizedMilestoneFilterFrom?.ok &&
+    normalizedMilestoneFilterTo?.ok &&
+    normalizedMilestoneFilterFrom.month > normalizedMilestoneFilterTo.month;
+
+  const milestoneMarkerLookup = useMemo(
+    () => new Map(milestoneMarkers.map((marker) => [marker.id, marker])),
+    [milestoneMarkers]
+  );
+
+  const managedMilestoneItems = useMemo<ManagedMilestoneItem[]>(() => {
+    const baseMonth = projection?.baseMonth ?? defaultMilestoneMonth;
+    return markerMilestoneEvents.map((event) => {
+      const templateType = event.templateType ?? "custom";
+      const marker = milestoneMarkerLookup.get(event.id);
+      const memberId = event.memberId ?? "";
+      const memberName = memberId ? memberLookup[memberId] ?? "" : "";
+      const source: MilestoneSource = isSystemMilestoneEvent(event) ? "system" : "manual";
+      const status = resolveMilestoneStatus(event.effectiveMonth, baseMonth);
+      const label =
+        event.notes?.trim() ||
+        marker?.label ||
+        resolveMilestoneTemplateLabel(templateType);
+
+      return {
+        id: event.id,
+        label,
+        month: event.effectiveMonth,
+        memberId,
+        memberName,
+        templateType,
+        source,
+        status,
+        diffMonths: getMonthDiff(event.effectiveMonth, baseMonth),
+        isSystemDerived: source === "system",
+      };
+    });
+  }, [
+    defaultMilestoneMonth,
+    markerMilestoneEvents,
+    memberLookup,
+    milestoneMarkerLookup,
+    projection?.baseMonth,
+    resolveMilestoneTemplateLabel,
+  ]);
+
+  const filteredMilestoneItems = useMemo(() => {
+    const keyword = milestoneSearchQuery.trim().toLowerCase();
+
+    const list = managedMilestoneItems.filter((item) => {
+      if (keyword) {
+        const matched =
+          item.label.toLowerCase().includes(keyword) ||
+          item.memberName.toLowerCase().includes(keyword) ||
+          item.month.includes(keyword);
+        if (!matched) {
+          return false;
+        }
+      }
+
+      if (milestoneMemberFilter !== "all" && item.memberId !== milestoneMemberFilter) {
+        return false;
+      }
+
+      if (milestoneTemplateFilter !== "all" && item.templateType !== milestoneTemplateFilter) {
+        return false;
+      }
+
+      if (milestoneSourceFilter !== "all" && item.source !== milestoneSourceFilter) {
+        return false;
+      }
+
+      if (milestoneStatusFilter !== "all" && item.status !== milestoneStatusFilter) {
+        return false;
+      }
+
+      if (normalizedMilestoneFilterFrom?.ok && item.month < normalizedMilestoneFilterFrom.month) {
+        return false;
+      }
+
+      if (normalizedMilestoneFilterTo?.ok && item.month > normalizedMilestoneFilterTo.month) {
+        return false;
+      }
+
+      if (milestoneMonthRangeInvalid) {
+        return false;
+      }
+
+      return true;
+    });
+
+    const groupWeight = (item: ManagedMilestoneItem) => {
+      if (typeof item.diffMonths === "number" && item.diffMonths >= 0 && item.diffMonths <= 12) {
+        return 0;
+      }
+      if (typeof item.diffMonths === "number" && item.diffMonths > 12) {
+        return 1;
+      }
+      return 2;
+    };
+
+    return list.sort((a, b) => {
+      const groupA = groupWeight(a);
+      const groupB = groupWeight(b);
+      if (groupA !== groupB) {
+        return groupA - groupB;
+      }
+
+      if (typeof a.diffMonths === "number" && typeof b.diffMonths === "number") {
+        if (groupA === 2) {
+          return b.diffMonths - a.diffMonths;
+        }
+        return a.diffMonths - b.diffMonths;
+      }
+
+      const monthCompare = a.month.localeCompare(b.month);
+      if (monthCompare !== 0) {
+        return monthCompare;
+      }
+      return a.label.localeCompare(b.label);
+    });
+  }, [
+    managedMilestoneItems,
+    milestoneMemberFilter,
+    milestoneMonthRangeInvalid,
+    milestoneSearchQuery,
+    milestoneSourceFilter,
+    milestoneStatusFilter,
+    milestoneTemplateFilter,
+    normalizedMilestoneFilterFrom,
+    normalizedMilestoneFilterTo,
+  ]);
+
+  const milestoneHasActiveFilters = Boolean(
+    milestoneSearchQuery.trim() ||
+      milestoneMemberFilter !== "all" ||
+      milestoneTemplateFilter !== "all" ||
+      milestoneSourceFilter !== "all" ||
+      milestoneStatusFilter !== "all" ||
+      milestoneMonthFrom ||
+      milestoneMonthTo
+  );
+
+  const handleClearMilestoneFilters = () => {
+    setMilestoneSearchQuery("");
+    setMilestoneMemberFilter("all");
+    setMilestoneTemplateFilter("all");
+    setMilestoneSourceFilter("all");
+    setMilestoneStatusFilter("all");
+    setMilestoneMonthFrom("");
+    setMilestoneMonthTo("");
+    showMilestoneToast({
+      color: "teal",
+      message: moneyT("milestoneManagerFiltersClearedToast"),
+    });
+  };
 
   const handleOpenMilestoneCreate = () => {
-    setMilestoneDraft(createMilestoneDraft(defaultMilestoneMonth, defaultMilestoneMemberId));
+    const nextDraft = createMilestoneDraft(defaultMilestoneMonth, defaultMilestoneMemberId);
+    setMilestoneDraft(nextDraft);
+    setMilestoneDraftBaseline(nextDraft);
     setMilestoneDrawerOpened(true);
   };
 
@@ -482,15 +774,47 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       return;
     }
 
-    setMilestoneDraft({
+    if (isSystemMilestoneEvent(target)) {
+      showMilestoneToast({
+        color: "orange",
+        message: moneyT("milestoneManagerSystemLocked"),
+      });
+      return;
+    }
+
+    const nextDraft = {
       id: target.id,
       label: target.notes ?? "",
       effectiveMonth: target.effectiveMonth,
       memberId: target.memberId ?? "",
       templateType: target.templateType ?? "custom",
-    });
+    };
+
+    setMilestoneDraft(nextDraft);
+    setMilestoneDraftBaseline(nextDraft);
     setMilestoneDrawerOpened(true);
   };
+
+  useEffect(() => {
+    setMilestoneQueryConsumed(false);
+  }, [milestoneManagerQuery, selectedScenarioId]);
+
+  useEffect(() => {
+    if (milestoneManagerQuery !== MILESTONE_MANAGER_QUERY_VALUE || milestoneQueryConsumed) {
+      return;
+    }
+    const nextDraft = createMilestoneDraft(defaultMilestoneMonth, defaultMilestoneMemberId);
+    setMilestoneDraft(nextDraft);
+    setMilestoneDraftBaseline(nextDraft);
+    setMilestoneDrawerOpened(true);
+    setMilestoneQueryConsumed(true);
+  }, [
+    defaultMilestoneMemberId,
+    defaultMilestoneMonth,
+    milestoneManagerQuery,
+    milestoneQueryConsumed,
+    selectedScenarioId,
+  ]);
 
   const normalizedMilestoneDraftMonth = normalizeMonthStrict(milestoneDraft.effectiveMonth);
   const milestoneMonthError =
@@ -498,12 +822,101 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       ? moneyT("flowFormMonthRequired")
       : undefined;
 
+  const selectedDraftMilestone = useMemo(
+    () => markerMilestoneEvents.find((event) => event.id === milestoneDraft.id),
+    [markerMilestoneEvents, milestoneDraft.id]
+  );
+  const isEditingSystemMilestone =
+    selectedDraftMilestone ? isSystemMilestoneEvent(selectedDraftMilestone) : false;
+
+  const duplicateMilestoneEvent = useMemo(() => {
+    if (!normalizedMilestoneDraftMonth.ok) {
+      return null;
+    }
+    return markerMilestoneEvents.find((event) => {
+      if (event.id === milestoneDraft.id) {
+        return false;
+      }
+      if (event.effectiveMonth !== normalizedMilestoneDraftMonth.month) {
+        return false;
+      }
+      const memberId = event.memberId ?? "";
+      if (memberId !== milestoneDraft.memberId) {
+        return false;
+      }
+      const templateType = event.templateType ?? "custom";
+      return templateType === milestoneDraft.templateType;
+    });
+  }, [markerMilestoneEvents, milestoneDraft.id, milestoneDraft.memberId, milestoneDraft.templateType, normalizedMilestoneDraftMonth]);
+
+  const isMilestoneDraftDirty = useMemo(() => {
+    return (
+      JSON.stringify(normalizeDraftForCompare(milestoneDraft)) !==
+      JSON.stringify(normalizeDraftForCompare(milestoneDraftBaseline))
+    );
+  }, [milestoneDraft, milestoneDraftBaseline]);
+
+  const handleCloseMilestoneDrawer = () => {
+    if (isMilestoneDraftDirty) {
+      const shouldClose = window.confirm(moneyT("milestoneManagerUnsavedConfirm"));
+      if (!shouldClose) {
+        return;
+      }
+    }
+    setMilestoneDrawerOpened(false);
+  };
+
+  const handleUndoDeleteMilestone = () => {
+    if (!pendingDeletedMilestone || !selectedScenarioId || pendingDeletedMilestone.scenarioId !== selectedScenarioId) {
+      return;
+    }
+
+    const result = applyMilestoneEvent(selectedScenarioId, {
+      id: pendingDeletedMilestone.id,
+      mode: "marker",
+      templateType: pendingDeletedMilestone.templateType,
+      memberId: pendingDeletedMilestone.memberId,
+      effectiveMonth: pendingDeletedMilestone.effectiveMonth,
+      notes: pendingDeletedMilestone.notes,
+    });
+
+    if (Object.keys(result.fieldErrors).length > 0) {
+      showMilestoneToast({
+        color: "red",
+        message: moneyT("milestoneManagerSaveFailed"),
+      });
+      return;
+    }
+
+    setPendingDeletedMilestone(null);
+    showMilestoneToast({
+      color: "teal",
+      message: moneyT("milestoneManagerUndoToast"),
+    });
+  };
+
   const handleSaveMilestone = () => {
     if (!selectedScenario || !normalizedMilestoneDraftMonth.ok) {
       return;
     }
 
-    applyMilestoneEvent(selectedScenario.id, {
+    if (isEditingSystemMilestone) {
+      showMilestoneToast({
+        color: "orange",
+        message: moneyT("milestoneManagerSystemLocked"),
+      });
+      return;
+    }
+
+    if (duplicateMilestoneEvent) {
+      showMilestoneToast({
+        color: "red",
+        message: moneyT("milestoneManagerDuplicateError"),
+      });
+      return;
+    }
+
+    const result = applyMilestoneEvent(selectedScenarioId, {
       id: milestoneDraft.id,
       mode: "marker",
       templateType: milestoneDraft.templateType,
@@ -512,22 +925,81 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       notes: milestoneDraft.label.trim() || undefined,
     });
 
-    setMilestoneDraft(
-      createMilestoneDraft(normalizedMilestoneDraftMonth.month, milestoneDraft.memberId)
-    );
-  };
-
-  const handleDeleteMilestone = (eventId: string) => {
-    if (!selectedScenario) {
+    if (Object.keys(result.fieldErrors).length > 0) {
+      showMilestoneToast({
+        color: "red",
+        message: moneyT("milestoneManagerSaveFailed"),
+      });
       return;
     }
 
-    removeMilestoneEvent(selectedScenario.id, eventId);
-    if (milestoneDraft.id === eventId) {
-      setMilestoneDraft(createMilestoneDraft(defaultMilestoneMonth, defaultMilestoneMemberId));
-    }
+    const nextDraft = createMilestoneDraft(
+      normalizedMilestoneDraftMonth.month,
+      milestoneDraft.memberId
+    );
+    setMilestoneDraft(nextDraft);
+    setMilestoneDraftBaseline(nextDraft);
+    showMilestoneToast({
+      color: "teal",
+      message: moneyT("milestoneManagerSavedToast"),
+    });
   };
 
+  const handleDeleteMilestone = (eventId: string) => {
+    const target = markerMilestoneEvents.find((event) => event.id === eventId);
+    if (!target) {
+      return;
+    }
+
+    const isSystem = isSystemMilestoneEvent(target);
+    const confirmMessage = isSystem
+      ? moneyT("milestoneManagerDeleteConfirmSystem")
+      : moneyT("milestoneManagerDeleteConfirm");
+    const confirmed = window.confirm(confirmMessage);
+    if (!confirmed) {
+      return;
+    }
+
+    if (!selectedScenarioId) {
+      return;
+    }
+
+    removeMilestoneEvent(selectedScenarioId, eventId);
+
+    const pending: PendingDeletedMilestone = {
+      scenarioId: selectedScenarioId,
+      id: target.id,
+      templateType: target.templateType ?? "custom",
+      memberId: target.memberId,
+      effectiveMonth: target.effectiveMonth,
+      notes: target.notes,
+    };
+    setPendingDeletedMilestone(pending);
+    if (milestoneUndoTimeoutRef.current) {
+      clearTimeout(milestoneUndoTimeoutRef.current);
+    }
+    milestoneUndoTimeoutRef.current = setTimeout(() => {
+      setPendingDeletedMilestone((current) =>
+        current?.id === pending.id ? null : current
+      );
+      milestoneUndoTimeoutRef.current = null;
+    }, 10000);
+
+    if (milestoneDraft.id === eventId) {
+      const resetDraft = createMilestoneDraft(defaultMilestoneMonth, defaultMilestoneMemberId);
+      setMilestoneDraft(resetDraft);
+      setMilestoneDraftBaseline(resetDraft);
+    }
+
+    showMilestoneToast({
+      color: "orange",
+      message: isSystem
+        ? moneyT("milestoneManagerDeleteSystemToast")
+        : moneyT("milestoneManagerDeletedToast"),
+      actionLabel: moneyT("milestoneManagerUndoAction"),
+      onAction: handleUndoDeleteMilestone,
+    });
+  };
   const compareChartData = useMemo(() => {
     if (compareProjections.length === 0) {
       return [];
@@ -663,74 +1135,77 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const kpiItems = [
     {
-      label: sd("kpi.minCash", "最低現金結餘"),
+      label: sd("kpi.minCash", "Min cash"),
       value: dashboardMetrics.minCash12m
         ? `${formatCurrency(dashboardMetrics.minCash12m.value, selectedScenario.baseCurrency, locale)} · ${dashboardMetrics.minCash12m.month}`
         : sd("common.emptyValue", "--"),
-      helper: sd("kpi.scope12m", "未來 12 個月"),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
-      label: sd("kpi.deficitMonths", "負現金流月份"),
+      label: sd("kpi.deficitMonths", "Deficit months"),
       value: `${dashboardMetrics.deficitMonthsCount12m} / 12`,
-      helper: sd("kpi.scope12m", "未來 12 個月"),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
-      label: sd("kpi.avgNetCashflow", "平均每月淨現金流"),
-      value: `${formatCurrency(dashboardMetrics.avgNetCashflow12m ?? 0, selectedScenario.baseCurrency, locale)} / ${sd("common.month", "月")}`,
-      helper: sd("kpi.scope12m", "未來 12 個月"),
+      label: sd("kpi.avgNetCashflow", "Avg net cashflow"),
+      value: `${formatCurrency(dashboardMetrics.avgNetCashflow12m ?? 0, selectedScenario.baseCurrency, locale)} / ${sd("common.month", "month")}`,
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
-      label: sd("kpi.cashRunway", "可支撐月數"),
+      label: sd("kpi.cashRunway", "Cash runway"),
       value: dashboardMetrics.cashRunwayMonths === null
-        ? sd("kpi.runwayUnavailable", "未有資料")
-        : sd("kpi.runwayMonths", `${dashboardMetrics.cashRunwayMonths.toFixed(1)} 個月`, { months: dashboardMetrics.cashRunwayMonths.toFixed(1) }),
-      helper: sd("kpi.runwayProxyHint", "以平均必要支出估算。"),
+        ? sd("kpi.runwayUnavailable", "Not available")
+        : sd("kpi.runwayMonths", `${dashboardMetrics.cashRunwayMonths.toFixed(1)} months`, {
+            months: dashboardMetrics.cashRunwayMonths.toFixed(1),
+          }),
+      helper: sd("kpi.runwayProxyHint", "Proxy based on current trajectory"),
     },
     {
-      label: sd("kpi.firstMillionMonth", "第一桶金 (1百萬)"),
-      value: dashboardMetrics.firstMillionMonth ?? sd("kpi.notReachedWithinHorizon", "未達標（在 {years} 年內）", { years: Math.round((globalHorizonMonths ?? 0) / 12) }),
-      helper: dashboardMetrics.firstMillionMonth
-        ? sd("kpi.scopeHorizon", "以全期投影（至 {endMonth}）", { endMonth: dashboardMetrics.endMonth ?? "--" })
-        : sd("kpi.scopeHorizon", "以全期投影（至 {endMonth}）", { endMonth: dashboardMetrics.endMonth ?? "--" }),
+      label: sd("kpi.firstMillionMonth", "First million month"),
+      value: dashboardMetrics.firstMillionMonth ?? sd("kpi.notReachedWithinHorizon", "Not reached within horizon", {
+        years: Math.round((globalHorizonMonths ?? 0) / 12),
+      }),
+      helper: sd("kpi.scopeHorizon", "Scope: projection horizon to {endMonth}", {
+        endMonth: dashboardMetrics.endMonth ?? "--",
+      }),
     },
     {
-      label: sd("kpi.avgNonSalaryIncome", "非工資收入（平均）"),
+      label: sd("kpi.avgNonSalaryIncome", "Avg non-salary income"),
       value: formatCurrency(dashboardMetrics.avgNonSalaryIncome12m ?? 0, selectedScenario.baseCurrency, locale),
-      helper: sd("kpi.scope12m", "未來 12 個月"),
-      tooltip: sd("kpi.avgNonSalaryIncomeFormula", "未來12個月非薪金收入總和 ÷ 12"),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      tooltip: sd("kpi.avgNonSalaryIncomeFormula", "Total non-salary income over 12 months / 12"),
     },
     {
-      label: sd("kpi.nonSalaryIncomeRatio", "非薪金收入比率"),
+      label: sd("kpi.nonSalaryIncomeRatio", "Non-salary income ratio"),
       value: formatRatio(dashboardMetrics.nonSalaryIncomeRatio),
-      helper: sd("kpi.scope12m", "未來 12 個月"),
-      tooltip: sd("kpi.nonSalaryIncomeRatioFormula", "非薪金收入 ÷ 總收入（未來12個月）"),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      tooltip: sd("kpi.nonSalaryIncomeRatioFormula", "Non-salary income / total income over 12 months"),
     },
     {
-      label: sd("kpi.passiveIncomeCoverage", "退休覆蓋率"),
+      label: sd("kpi.passiveIncomeCoverage", "Passive income coverage"),
       value: formatRatio(dashboardMetrics.passiveIncomeCoverage),
-      helper: sd("kpi.scope12m", "未來 12 個月"),
-      tooltip: sd("kpi.passiveIncomeCoverageFormula", "租金/股息/利息收入 ÷ 核心生活支出（未來12個月）"),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      tooltip: sd("kpi.passiveIncomeCoverageFormula", "Rental + dividends + interest / expenses over rolling 12 months"),
     },
     {
-      label: sd("kpi.assetLinkedExpenseRatio", "資產相關支出比率"),
+      label: sd("kpi.assetLinkedExpenseRatio", "Asset-linked expense ratio"),
       value: formatRatio(dashboardMetrics.assetLinkedExpenseRatio),
-      helper: sd("kpi.scope12m", "未來 12 個月"),
-      tooltip: sd("kpi.assetLinkedExpenseRatioFormula", "物業/車輛相關支出 ÷ 核心生活支出（未來12個月）"),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      tooltip: sd("kpi.assetLinkedExpenseRatioFormula", "Housing + car linked expenses / total expenses over rolling 12 months"),
     },
     {
-      label: sd("kpi.avgFunBudget", "每月可自由支出（平均）"),
+      label: sd("kpi.avgFunBudget", "Avg fun budget"),
       value: formatCurrency(dashboardMetrics.avgFunBudget12m ?? 0, selectedScenario.baseCurrency, locale),
-      helper: sd("kpi.avgFunBudgetHint", "以平均月淨現金流作 proxy"),
+      helper: sd("kpi.avgFunBudgetHint", "Proxy from net cashflow trend"),
     },
     {
-      label: sd("kpi.riskLevel", "風險等級"),
-      value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "高") : sd("kpi.riskLow", "低"),
-      badgeLabel: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "高") : sd("kpi.riskLow", "低"),
+      label: sd("kpi.riskLevel", "Risk level"),
+      value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
+      badgeLabel: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
       badgeColor: dashboardMetrics.riskLevel === "red" ? "red" : "green",
-      helper: sd("kpi.scope12m", "未來 12 個月"),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
   ];
-
   const handleScenarioChange = (nextScenarioId: string) => {
     setActiveScenario(nextScenarioId);
     router.push(scenarioDashboardPath(caseId, nextScenarioId, locale as Locale));
@@ -779,12 +1254,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     ? scenarioPeoplePath(params.caseId, selectedScenario.id, locale as Locale)
     : memberCasesPath(locale as Locale);
   const completenessItems = [
-    { key: "income", label: sd("completeness.income", "收入"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: `${moneyHubHref}&tab=income` },
-    { key: "expenses", label: sd("completeness.expenses", "支出"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: `${moneyHubHref}&tab=expenses` },
-    { key: "assets", label: sd("completeness.assets", "資產"), done: Boolean(selectedScenario.positions?.homes?.length || selectedScenario.positions?.cars?.length || selectedScenario.positions?.investments?.length), href: `${moneyHubHref}&tab=assets` },
-    { key: "liabilities", label: sd("completeness.liabilities", "負債"), done: Boolean(selectedScenario.positions?.loans?.length), href: `${moneyHubHref}&tab=liabilities` },
-    { key: "members", label: sd("completeness.members", "成員"), done: scenarioMembers.length > 0, href: peopleHubHref },
-    { key: "rules", label: sd("completeness.rules", "規則"), done: budgetRules.length > 0, href: `${moneyHubHref}&tab=inputs` },
+    { key: "income", label: sd("completeness.income", "Income"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount > 0)), href: `${moneyHubHref}&tab=income` },
+    { key: "expenses", label: sd("completeness.expenses", "Expenses"), done: Object.values(ledgerByMonth).some((items) => items.some((item) => item.amount < 0)), href: `${moneyHubHref}&tab=expenses` },
+    { key: "assets", label: sd("completeness.assets", "Assets"), done: Boolean(selectedScenario.positions?.homes?.length || selectedScenario.positions?.cars?.length || selectedScenario.positions?.investments?.length), href: `${moneyHubHref}&tab=assets` },
+    { key: "liabilities", label: sd("completeness.liabilities", "Liabilities"), done: Boolean(selectedScenario.positions?.loans?.length), href: `${moneyHubHref}&tab=liabilities` },
+    { key: "members", label: sd("completeness.members", "Members"), done: scenarioMembers.length > 0, href: peopleHubHref },
+    { key: "rules", label: sd("completeness.rules", "Rules"), done: budgetRules.length > 0, href: `${moneyHubHref}&tab=inputs` },
   ];
   return (
     <Stack gap="sm" pb={isDesktop ? undefined : 120}>
@@ -892,12 +1367,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           <Stack gap="md">
             <Group justify="space-between" align="flex-start" wrap="wrap">
               <div>
-                <Text fw={700}>{sd("healthSummary.title", "財務健康總覽")}</Text>
-                <Text size="xs" c="dimmed">{sd("healthSummary.subtitle", "以未來 12 個月投影評估風險與可承受度。")}</Text>
+                <Text fw={700}>{sd("healthSummary.title", "Financial Health Summary")}</Text>
+                <Text size="xs" c="dimmed">{sd("healthSummary.subtitle", "Review 12-month financial health and risk signals")}</Text>
               </div>
               <Group gap="xs">
-                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "打開實驗室")}</Button>
-                <Button display="none" component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "補齊資料")}</Button>
+                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "Open Plan Lab")}</Button>
+                <Button display="none" component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "Complete data")}</Button>
               </Group>
             </Group>
             {isDesktop ? (
@@ -911,11 +1386,11 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             )}
             <Card withBorder radius="md" padding="sm" display="none">
               <Stack gap={6}>
-                <Text fw={600} size="sm">{sd("completeness.title", "資料完整度")}</Text>
+                <Text fw={600} size="sm">{sd("completeness.title", "Completeness")}</Text>
                 <Group gap="xs" wrap="wrap">
                   {completenessItems.map((item) => (
                     <Button key={sd(`completeness.${item.key}`, item.key)} component={Link} href={item.href} variant="light" size="xs">
-                      {item.done ? "✔" : "✖"} {item.label}
+                      {item.done ? "OK" : "TODO"} {item.label}
                     </Button>
                   ))}
                 </Group>
@@ -923,13 +1398,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             </Card>
             <Card withBorder radius="md" padding="sm" display="none">
               <Stack gap={6}>
-                <Text fw={600} size="sm">{sd("nextKeyEvent.title", "下一個關鍵點")}</Text>
+                <Text fw={600} size="sm">{sd("nextKeyEvent.title", "Next key event")}</Text>
                 {nextKeyEvent ? (
                   <Text size="sm">{nextKeyEvent.label} · {nextKeyEvent.month}</Text>
                 ) : (
                   <Stack gap="xs" align="flex-start">
-                    <Text size="sm" c="dimmed">{sd("nextKeyEvent.empty", "你未設定重要事件（例如旅行／結婚／入市／預產）。新增一個即可看到風險變化。")}</Text>
-                    <Button component={Link} href={moneyTimelineHref} size="xs">{sd("nextKeyEvent.addEvent", "新增事件")}</Button>
+                    <Text size="sm" c="dimmed">{sd("nextKeyEvent.empty", "No key events yet. Add milestones to preview upcoming timeline points.")}</Text>
+                    <Button component={Link} href={milestoneManagerHref} size="xs">{sd("nextKeyEvent.addEvent", "Add event")}</Button>
                   </Stack>
                 )}
               </Stack>
@@ -1014,14 +1489,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         <Card withBorder radius="md" padding="md">
           <Stack gap="sm">
             <Group justify="space-between" align="center" wrap="wrap">
-              <Text fw={600}>{sd("chart.title", "預覽圖表")}</Text>
+              <Text fw={600}>{sd("chart.title", "Overview charts")}</Text>
               <Group gap="xs">
                 <SegmentedControl
                   size="xs"
                   data={[
-                    { value: "cash", label: sd("chart.tabs.cash", "現金結餘") },
-                    { value: "netWorth", label: sd("chart.tabs.netWorth", "資產淨值") },
-                    { value: "netCashflow", label: sd("chart.tabs.netCashflow", "淨現金流") },
+                    { value: "cash", label: sd("chart.tabs.cash", "Cash balance") },
+                    { value: "netWorth", label: sd("chart.tabs.netWorth", "Net worth") },
+                    { value: "netCashflow", label: sd("chart.tabs.netCashflow", "Net cashflow") },
                   ]}
                   value={primaryChartTab}
                   onChange={(value) => setPrimaryChartTab(value as "cash" | "netWorth" | "netCashflow")}
@@ -1038,13 +1513,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </Group>
             </Group>
             {primaryChartTab === "cash" ? (
-              <CashBalanceChart data={cashSeries} markers={milestoneMarkers} title={sd("chart.tabs.cash", "現金結餘")} />
+              <CashBalanceChart data={cashSeries} markers={milestoneMarkers} title={sd("chart.tabs.cash", "Cash balance")} />
             ) : primaryChartTab === "netWorth" ? (
-              <NetWorthChart data={netWorthSeries} markers={milestoneMarkers} title={sd("chart.tabs.netWorth", "資產淨值")} />
+              <NetWorthChart data={netWorthSeries} markers={milestoneMarkers} title={sd("chart.tabs.netWorth", "Net worth")} />
             ) : (
-              <NetCashflowChart data={displayedNetCashflowSeries} markers={milestoneMarkers} title={sd("chart.tabs.netCashflow", "淨現金流")} />
+              <NetCashflowChart data={displayedNetCashflowSeries} markers={milestoneMarkers} title={sd("chart.tabs.netCashflow", "Net cashflow")} />
             )}
-            <Text size="xs" c="dimmed">{sd("chart.toggleHint", "切換不同視角以查看現金壓力與資產走勢。")}</Text>
+            <Text size="xs" c="dimmed">{sd("chart.toggleHint", "Toggle between cash, net worth, and net cashflow views.")}</Text>
           </Stack>
         </Card>
       )}
@@ -1053,7 +1528,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         <>
           <Accordion variant="separated" radius="md" defaultValue="snapshot">
             <Accordion.Item value="snapshot">
-              <Accordion.Control>{sd("snapshot.title", "投影快照")}</Accordion.Control>
+              <Accordion.Control>{sd("snapshot.title", "Snapshots")}</Accordion.Control>
               <Accordion.Panel>
                 <AutoSnapshotsCard
                   snapshots={autoSnapshots}
@@ -1067,7 +1542,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Card withBorder radius="md" padding="md" display={"none"}>
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
-                  <Text fw={600}>{sd("quickLinks.moneyTitle", "金錢摘要")}</Text>
+                  <Text fw={600}>{sd("quickLinks.moneyTitle", "Money summary")}</Text>
                   <Button component={Link} href={moneyHubHref} size="xs" variant="light">{t("moneySummaryCta")}</Button>
                 </Group>
                 <SimpleGrid cols={2} spacing="xs">
@@ -1084,10 +1559,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
-                  <Text fw={600}>{sd("quickLinks.peopleTitle", "成員摘要")}</Text>
+                  <Text fw={600}>{sd("quickLinks.peopleTitle", "People summary")}</Text>
                   <Group gap="xs">
                     <Button size="xs" variant="default" onClick={handleOpenMilestoneCreate}>
-                      {moneyT("milestoneEventTitle")}
+                      {moneyT("milestoneManagerTitle")}
                     </Button>
                     <Button component={Link} href={peopleHubHref} size="xs" variant="light">
                       {t("peopleSummaryCta")}
@@ -1109,112 +1584,318 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
           </SimpleGrid>
           <Drawer
             opened={milestoneDrawerOpened}
-            onClose={() => setMilestoneDrawerOpened(false)}
-            title={moneyT("milestoneEventTitle")}
+            onClose={handleCloseMilestoneDrawer}
+            title={moneyT("milestoneManagerTitle")}
             position="right"
             size="md"
           >
             <Stack gap="sm">
-              <Group justify="space-between" align="center">
-                <Text fw={600}>{moneyT("milestoneEventTitle")}</Text>
+              {milestoneToast && (
+                <Notification color={milestoneToast.color} onClose={() => setMilestoneToast(null)}>
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text size="sm">{milestoneToast.message}</Text>
+                    {milestoneToast.actionLabel && milestoneToast.onAction ? (
+                      <Button
+                        size="compact-xs"
+                        variant="light"
+                        onClick={milestoneToast.onAction}
+                      >
+                        {milestoneToast.actionLabel}
+                      </Button>
+                    ) : null}
+                  </Group>
+                </Notification>
+              )}
+
+              <Group justify="space-between" align="center" wrap="wrap">
+                <Text fw={600}>{moneyT("milestoneManagerTitle")}</Text>
                 <Button size="xs" variant="light" onClick={handleOpenMilestoneCreate}>
                   {moneyT("milestoneEventCreate")}
                 </Button>
               </Group>
+              <Text size="xs" c="dimmed">
+                {moneyT("milestoneManagerHint")}
+              </Text>
 
-              {markerMilestoneEvents.length === 0 ? (
+              <Card withBorder radius="md" padding="sm">
+                <Stack gap="xs">
+                  <TextInput
+                    label={moneyT("milestoneManagerSearch")}
+                    placeholder={moneyT("milestoneManagerSearchPlaceholder")}
+                    value={milestoneSearchQuery}
+                    onChange={(event) => setMilestoneSearchQuery(event.currentTarget.value)}
+                  />
+                  <Group grow align="flex-end" wrap="wrap">
+                    <Select
+                      label={moneyT("milestoneMember")}
+                      value={milestoneMemberFilter}
+                      data={[
+                        { value: "all", label: moneyT("milestoneManagerFilterAll") },
+                        { value: "", label: t("flowMemberHousehold") },
+                        ...scenarioMembers.map((member) => ({
+                          value: member.id,
+                          label: member.name,
+                        })),
+                      ]}
+                      onChange={(value) => setMilestoneMemberFilter(value ?? "all")}
+                    />
+                    <Select
+                      label={moneyT("milestoneManagerTemplate")}
+                      value={milestoneTemplateFilter}
+                      data={[
+                        { value: "all", label: moneyT("milestoneManagerFilterAll") },
+                        { value: "custom", label: resolveMilestoneTemplateLabel("custom") },
+                        { value: "member_birth", label: resolveMilestoneTemplateLabel("member_birth") },
+                        { value: "member_school_start", label: resolveMilestoneTemplateLabel("member_school_start") },
+                        { value: "member_retirement", label: resolveMilestoneTemplateLabel("member_retirement") },
+                      ]}
+                      onChange={(value) =>
+                        setMilestoneTemplateFilter((value as MilestoneTemplateFilter) ?? "all")
+                      }
+                    />
+                    <Select
+                      label={moneyT("milestoneManagerSource")}
+                      value={milestoneSourceFilter}
+                      data={[
+                        { value: "all", label: moneyT("milestoneManagerFilterAll") },
+                        { value: "manual", label: moneyT("milestoneManagerSourceManual") },
+                        { value: "system", label: moneyT("milestoneManagerSourceSystem") },
+                      ]}
+                      onChange={(value) =>
+                        setMilestoneSourceFilter((value as MilestoneSourceFilter) ?? "all")
+                      }
+                    />
+                    <Select
+                      label={moneyT("milestoneManagerStatus")}
+                      value={milestoneStatusFilter}
+                      data={[
+                        { value: "all", label: moneyT("milestoneManagerFilterAll") },
+                        { value: "upcoming", label: moneyT("milestoneManagerStatusUpcoming") },
+                        { value: "expired", label: moneyT("milestoneManagerStatusExpired") },
+                        { value: "completed", label: moneyT("milestoneManagerStatusCompleted") },
+                      ]}
+                      onChange={(value) =>
+                        setMilestoneStatusFilter((value as MilestoneStatusFilter) ?? "all")
+                      }
+                    />
+                  </Group>
+                  <Group grow align="flex-end" wrap="wrap">
+                    <MonthField
+                      label={moneyT("milestoneManagerMonthFrom")}
+                      value={milestoneMonthFrom}
+                      onChange={setMilestoneMonthFrom}
+                      error={milestoneMonthFromError}
+                    />
+                    <MonthField
+                      label={moneyT("milestoneManagerMonthTo")}
+                      value={milestoneMonthTo}
+                      onChange={setMilestoneMonthTo}
+                      error={
+                        milestoneMonthToError ??
+                        (milestoneMonthRangeInvalid
+                          ? moneyT("milestoneManagerMonthRangeInvalid")
+                          : undefined)
+                      }
+                    />
+                    <Button
+                      variant="default"
+                      onClick={handleClearMilestoneFilters}
+                      disabled={!milestoneHasActiveFilters}
+                    >
+                      {moneyT("milestoneManagerClearFilters")}
+                    </Button>
+                  </Group>
+                </Stack>
+              </Card>
+
+              {filteredMilestoneItems.length === 0 ? (
                 <Text size="sm" c="dimmed">
-                  {moneyT("milestoneEventEmpty")}
+                  {moneyT("milestoneManagerEmptyFiltered")}
                 </Text>
               ) : (
                 <Stack gap="xs">
-                  {markerMilestoneEvents.map((event) => {
-                    const marker = milestoneMarkers.find((entry) => entry.id === event.id);
-                    const memberName = event.memberId ? memberLookup[event.memberId] : undefined;
-                    const displayLabel =
-                      event.notes?.trim() || marker?.label || moneyT("milestoneEventTitle");
-                    return (
-                      <Card key={event.id} withBorder padding="xs" radius="sm">
+                  {filteredMilestoneItems.map((item) => (
+                    <Card key={item.id} withBorder padding="xs" radius="sm">
+                      <Stack gap={6}>
                         <Group justify="space-between" align="flex-start" wrap="nowrap">
                           <Stack gap={2}>
                             <Text size="sm" fw={600}>
-                              {displayLabel}
+                              {item.label}
                             </Text>
                             <Text size="xs" c="dimmed">
-                              {event.effectiveMonth}
-                              {memberName ? ` (${memberName})` : ""}
+                              {item.month}
+                              {item.memberName ? ` (${item.memberName})` : ""}
                             </Text>
                           </Stack>
                           <Group gap={4}>
-                            <Button
-                              size="compact-xs"
-                              variant="subtle"
-                              onClick={() => handleOpenMilestoneEdit(event.id)}
-                            >
-                              {common("actionEdit")}
-                            </Button>
+                            {item.isSystemDerived ? (
+                              <Button
+                                component={Link}
+                                href={moneyTimelineHref}
+                                size="compact-xs"
+                                variant="light"
+                              >
+                                {moneyT("milestoneManagerGoToSource")}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="compact-xs"
+                                variant="subtle"
+                                onClick={() => handleOpenMilestoneEdit(item.id)}
+                              >
+                                {common("actionEdit")}
+                              </Button>
+                            )}
                             <Button
                               size="compact-xs"
                               color="red"
                               variant="subtle"
-                              onClick={() => handleDeleteMilestone(event.id)}
+                              onClick={() => handleDeleteMilestone(item.id)}
                             >
                               {common("actionDelete")}
                             </Button>
                           </Group>
                         </Group>
-                      </Card>
-                    );
-                  })}
+                        <Group gap={6}>
+                          <Badge variant="light" color={item.source === "system" ? "indigo" : "gray"}>
+                            {item.source === "system"
+                              ? moneyT("milestoneManagerSourceSystem")
+                              : moneyT("milestoneManagerSourceManual")}
+                          </Badge>
+                          <Badge variant="light" color="teal">
+                            {resolveMilestoneTemplateLabel(item.templateType)}
+                          </Badge>
+                          <Badge
+                            variant="light"
+                            color={
+                              item.status === "upcoming"
+                                ? "blue"
+                                : item.status === "expired"
+                                  ? "orange"
+                                  : "gray"
+                            }
+                          >
+                            {item.status === "upcoming"
+                              ? moneyT("milestoneManagerStatusUpcoming")
+                              : item.status === "expired"
+                                ? moneyT("milestoneManagerStatusExpired")
+                                : moneyT("milestoneManagerStatusCompleted")}
+                          </Badge>
+                        </Group>
+                        {item.isSystemDerived ? (
+                          <Text size="xs" c="dimmed">
+                            {moneyT("milestoneManagerSystemHint")}
+                          </Text>
+                        ) : null}
+                      </Stack>
+                    </Card>
+                  ))}
                 </Stack>
               )}
 
-              <TextInput
-                label={moneyT("milestoneNotes")}
-                value={milestoneDraft.label}
-                onChange={(event) =>
-                  setMilestoneDraft((current) => ({
-                    ...current,
-                    label: event.currentTarget.value,
-                  }))
-                }
-              />
-              <MonthField
-                label={moneyT("milestoneEffectiveMonth")}
-                value={milestoneDraft.effectiveMonth}
-                onChange={(value) =>
-                  setMilestoneDraft((current) => ({
-                    ...current,
-                    effectiveMonth: value,
-                  }))
-                }
-                error={milestoneMonthError}
-              />
-              <Select
-                label={moneyT("milestoneMember")}
-                value={milestoneDraft.memberId}
-                data={[
-                  { value: "", label: t("flowMemberHousehold") },
-                  ...scenarioMembers.map((member) => ({
-                    value: member.id,
-                    label: member.name,
-                  })),
-                ]}
-                onChange={(value) =>
-                  setMilestoneDraft((current) => ({
-                    ...current,
-                    memberId: value ?? "",
-                  }))
-                }
-              />
-              <Group justify="flex-end">
-                <Button variant="default" onClick={handleOpenMilestoneCreate}>
-                  {common("actionClear")}
-                </Button>
-                <Button onClick={handleSaveMilestone} disabled={!normalizedMilestoneDraftMonth.ok}>
-                  {common("actionSave")}
-                </Button>
-              </Group>
+              <Card withBorder radius="md" padding="sm">
+                <Stack gap="xs">
+                  <Text fw={600}>{moneyT("milestoneManagerEditorTitle")}</Text>
+                  {isEditingSystemMilestone ? (
+                    <Text size="xs" c="dimmed">
+                      {moneyT("milestoneManagerSystemLocked")}
+                    </Text>
+                  ) : null}
+                  <TextInput
+                    label={moneyT("milestoneNotes")}
+                    value={milestoneDraft.label}
+                    disabled={isEditingSystemMilestone}
+                    onChange={(event) =>
+                      setMilestoneDraft((current) => ({
+                        ...current,
+                        label: event.currentTarget.value,
+                      }))
+                    }
+                  />
+                  <Select
+                    label={moneyT("milestoneManagerTemplate")}
+                    value={milestoneDraft.templateType}
+                    disabled={isEditingSystemMilestone}
+                    data={[
+                      { value: "custom", label: resolveMilestoneTemplateLabel("custom") },
+                      { value: "member_birth", label: resolveMilestoneTemplateLabel("member_birth") },
+                      { value: "member_school_start", label: resolveMilestoneTemplateLabel("member_school_start") },
+                      { value: "member_retirement", label: resolveMilestoneTemplateLabel("member_retirement") },
+                    ]}
+                    onChange={(value) =>
+                      setMilestoneDraft((current) => ({
+                        ...current,
+                        templateType: (value as MilestoneEventTemplateType) ?? "custom",
+                      }))
+                    }
+                  />
+                  <MonthField
+                    label={moneyT("milestoneEffectiveMonth")}
+                    value={milestoneDraft.effectiveMonth}
+                    onChange={(value) =>
+                      setMilestoneDraft((current) => ({
+                        ...current,
+                        effectiveMonth: value,
+                      }))
+                    }
+                    error={milestoneMonthError}
+                    disabled={isEditingSystemMilestone}
+                  />
+                  <Select
+                    label={moneyT("milestoneMember")}
+                    value={milestoneDraft.memberId}
+                    disabled={isEditingSystemMilestone}
+                    data={[
+                      { value: "", label: t("flowMemberHousehold") },
+                      ...scenarioMembers.map((member) => ({
+                        value: member.id,
+                        label: member.name,
+                      })),
+                    ]}
+                    onChange={(value) =>
+                      setMilestoneDraft((current) => ({
+                        ...current,
+                        memberId: value ?? "",
+                      }))
+                    }
+                  />
+                  {duplicateMilestoneEvent ? (
+                    <Text size="xs" c="red">
+                      {moneyT("milestoneManagerDuplicateError")}
+                    </Text>
+                  ) : null}
+                  <Group justify="flex-end">
+                    <Button variant="default" onClick={handleOpenMilestoneCreate}>
+                      {common("actionClear")}
+                    </Button>
+                    <Button
+                      onClick={handleSaveMilestone}
+                      disabled={
+                        !normalizedMilestoneDraftMonth.ok ||
+                        Boolean(duplicateMilestoneEvent) ||
+                        isEditingSystemMilestone
+                      }
+                    >
+                      {common("actionSave")}
+                    </Button>
+                  </Group>
+                </Stack>
+              </Card>
+
+              <Card withBorder radius="md" padding="sm">
+                <Stack gap={4}>
+                  <Text fw={600}>{moneyT("milestoneManagerCadenceTitle")}</Text>
+                  <Text size="xs" c="dimmed">
+                    {moneyT("milestoneManagerCadenceMonthly")}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {moneyT("milestoneManagerCadenceQuarterly")}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {moneyT("milestoneManagerCadenceAfterEvent")}
+                  </Text>
+                </Stack>
+              </Card>
             </Stack>
           </Drawer>
           <MonthlyBreakdownModalHost

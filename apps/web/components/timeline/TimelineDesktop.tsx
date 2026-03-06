@@ -78,6 +78,7 @@ import type {
   ScenarioAssumptions,
   ScenarioMember,
 } from "../../src/store/scenarioStore";
+import { useScenarioStore } from "../../src/store/scenarioStore";
 import type { SmartInvestPolicy } from "../../src/domain/smartInvest/types";
 import type { ProjectionResult } from "@north-star/engine";
 import type { AdapterWarning } from "../../src/engine/adapter";
@@ -437,45 +438,29 @@ export default function TimelineDesktop({
     return groups;
   }, [eventRows, t]);
 
+  const scenarioMilestoneEvents = useScenarioStore((state) =>
+    state.scenarios.find((entry) => entry.id === scenarioId)?.milestoneEvents ?? []
+  );
+
   const milestoneRows = useMemo(() => {
-    const normalizeMonths = (values: Array<string | null | undefined>) =>
-      Array.from(new Set(values.filter(Boolean) as string[])).sort();
-    const homeMonths = normalizeMonths(
-      homePositions.map((home) =>
-        (home.mode ?? "new_purchase") === "existing"
-          ? home.existing?.asOfMonth
-          : home.purchaseMonth
-      )
-    );
-    const carMonths = normalizeMonths(carPositions.map((car) => car.purchaseMonth));
-    const childMonths = normalizeMonths(
-      eventViews
-        .filter(
-          (view) => view.definition.kind === "cashflow" && view.definition.type === "baby"
-        )
-        .map((view) => view.rule.startMonth)
-    );
-    const retirementCandidates = normalizeMonths(
-      eventViews
-        .filter(
-          (view) =>
-            view.definition.kind === "cashflow" && view.definition.type === "salary"
-        )
-        .map((view) => view.rule.endMonth)
-    );
-    const retirementMonth = retirementCandidates[0];
+    return [...scenarioMilestoneEvents]
+      .filter((event) => event.mode === "marker")
+      .sort((a, b) => a.effectiveMonth.localeCompare(b.effectiveMonth))
+      .map((event) => {
+        const templateType = event.templateType ?? "custom";
+        const fallbackLabel =
+          templateType === "member_birth"
+            ? t("overviewChild")
+            : templateType === "member_retirement"
+              ? t("overviewRetirement")
+              : t("overviewMilestone");
 
-    return [
-      { label: t("overviewHome"), months: homeMonths },
-      { label: t("overviewCar"), months: carMonths },
-      { label: t("overviewChild"), months: childMonths },
-      {
-        label: t("overviewRetirement"),
-        months: retirementMonth ? [retirementMonth] : [],
-      },
-    ].filter((row) => row.months.length > 0);
-  }, [carPositions, eventViews, homePositions, t]);
-
+        return {
+          label: event.notes?.trim() || fallbackLabel,
+          months: [event.effectiveMonth],
+        };
+      });
+  }, [scenarioMilestoneEvents, t]);
   const memberLookup = useMemo(
     () => new Map(members.map((member) => [member.id, member.name])),
     [members]
@@ -510,6 +495,7 @@ export default function TimelineDesktop({
   };
 
   const overviewUrl = scenarioDashboardPath(caseId, scenarioId);
+  const milestoneManagerUrl = `${overviewUrl}?milestones=manage`;
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;
@@ -1917,7 +1903,12 @@ export default function TimelineDesktop({
             ) : (
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
-                  <Text fw={600}>{t("overviewTitle")}</Text>
+                  <Group justify="space-between" align="center" wrap="wrap">
+                    <Text fw={600}>{t("overviewTitle")}</Text>
+                    <Button component={Link} href={milestoneManagerUrl} size="xs" variant="light">
+                      {t("goToMilestoneManager")}
+                    </Button>
+                  </Group>
                   <Table>
                     <Table.Thead>
                       <Table.Tr>
@@ -1926,8 +1917,8 @@ export default function TimelineDesktop({
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
-                      {milestoneRows.map((row) => (
-                        <Table.Tr key={row.label}>
+                      {milestoneRows.map((row, index) => (
+                        <Table.Tr key={`${row.label}-${row.months.join(",")}-${index}`}>
                           <Table.Td>{row.label}</Table.Td>
                           <Table.Td>{row.months.join(", ")}</Table.Td>
                         </Table.Tr>
