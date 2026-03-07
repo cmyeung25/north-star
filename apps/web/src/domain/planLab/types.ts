@@ -1,4 +1,4 @@
-import type { EventDefinition, ScenarioEventRef } from "../events/types";
+﻿import type { EventDefinition, ScenarioEventRef } from "../events/types";
 import type { ScenarioEvent } from "../scenarioV2/events";
 import type {
   BudgetRule,
@@ -141,6 +141,57 @@ export type PlanLabExperiment =
   | PlanLabIncomeAdjustExperiment
   | PlanLabTravelAnnualExperiment
   | PlanLabSmartInvestAdjustExperiment;
+export type PlanLabDecisionTemplateId =
+  | "home_purchase"
+  | "new_baby"
+  | "income_shock";
+
+export type PlanLabDecisionTemplateLauncher =
+  | "bundle_home_purchase"
+  | "bundle_new_baby"
+  | "income_shock_override";
+
+export type PlanLabDecisionTemplateDefaultPayload = {
+  incomeShock?: {
+    amountMultiplier: number;
+    durationMonths: number;
+    startOffsetMonths: number;
+  };
+};
+
+export type PlanLabDecisionTemplateAvailability = {
+  enabled: boolean;
+  reasonKey?: string;
+  reasonFallback?: string;
+};
+
+export type PlanLabDecisionTemplateSpec = {
+  id: PlanLabDecisionTemplateId;
+  launcher: PlanLabDecisionTemplateLauncher;
+  defaultPayload?: PlanLabDecisionTemplateDefaultPayload;
+};
+
+export type PlanLabDecisionRecommendedActionId =
+  | "delay_target"
+  | "build_cash_buffer"
+  | "protect_income"
+  | "reduce_negative_driver";
+
+export type PlanLabDecisionRecommendedAction = {
+  id: PlanLabDecisionRecommendedActionId;
+  label: string;
+  reason: string;
+};
+
+export type PlanLabDecisionSummary = {
+  targetTiming: string;
+  riskTiming: string;
+  riskTrend: string;
+  riskLevel: string;
+  maxPositiveDriver?: { title: string; contribution: number } | null;
+  maxNegativeDriver?: { title: string; contribution: number } | null;
+  recommendedActions: PlanLabDecisionRecommendedAction[];
+};
 
 export type PlanLabScorecardSettings = {
   firstBucketTargetAmount?: number;
@@ -276,3 +327,4 @@ export type OnboardingDraft = {
     planLabDraft?: PlanLabDraft;
   };
 };
+

@@ -6,20 +6,26 @@ Last updated: 2026-03-07
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 55% | 核心能力存在，但尚未整合為封測可重複的主旅程 |
-| Public MVP readiness | 35% | 輸出可行動性、market entry 與支援營運仍有明顯缺口 |
+| Closed Beta readiness | 58% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，但 onboarding/guardrails 仍待整合 |
+| Public MVP readiness | 38% | 可行動摘要層已有最小可用品質，但 market entry 與營運支援仍有明顯缺口 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
 | Onboarding + Property Bundle | 65% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架 | 需補齊既有物業 household 的一致輸入與審核體驗 |
-| Plan Lab 決策化 | 60% | 已有實驗、比較、群組化與保存能力 | 需加強「常見家庭決策」一鍵模板與可理解輸出 |
+| Plan Lab 決策化 | 72% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 75% | case/scenario、cloud save、revision conflict 機制可用 | 需與 onboarding/preset/compare 流程更緊密整合 |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
-| Actionable Output | 45% | 有 overview/stress/compare 視圖與 KPI 基礎 | 需補「風險年 + 差異主因 + 下一步建議」摘要層 |
+| Actionable Output | 52% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 入口整合 | 30% | 既有 scenario seeds 與模板能力已存在 | 尚未完整接入 member/app 主流程作為第一步入口 |
 | GTM / 營運就緒 | 20% | 有 marketing pages 基礎 | 缺 sample journey 導流、beta feedback loop、支援流程 |
 
+
+## Latest Update (2026-03-07)
+- Plan Lab「新增實驗」入口新增決策模板模式，v1 提供 `home_purchase`、`new_baby`、`income_shock`。
+- 置業/生育模板沿用既有 life-event bundle wizard，預設打包為 experiment group。
+- 收入衝擊模板沿用 baseline override 流程，預設 `-20%`、`12 個月`、`baseMonth+1`，若無可用收入事件則禁用並顯示原因。
+- 決策摘要層新增 risk timing / risk trend / top drivers / recommended actions（heuristic，無 engine 變更）。
 ## 已存在但未進主流程
 - Scenario presets/seeds 已具備多種香港家庭情境，但尚未成為 member 主旅程首要入口。
 - Plan Lab 已有實驗與比較骨架，但常見決策模板與結論導向輸出仍需產品化。

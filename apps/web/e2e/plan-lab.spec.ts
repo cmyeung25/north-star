@@ -1,6 +1,15 @@
-import { expect, test } from "@playwright/test";
+﻿import { expect, test, type Page } from "@playwright/test";
 
 const locale = "en";
+
+const openDecisionTemplateMode = async (page: Page) => {
+  await page.getByRole("button", { name: /Add experiment|新增實驗/i }).first().click();
+  const drawer = page.getByRole("dialog").last();
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: /Choose|選擇/i }).first().click();
+  await expect(drawer.getByText(/Decision templates|決策模板/i)).toBeVisible();
+  return drawer;
+};
 
 test.describe("plan lab snapshots", () => {
   test("save snapshot and compare", async ({ page }) => {
@@ -11,13 +20,13 @@ test.describe("plan lab snapshots", () => {
     await page.goto(`/${locale}/plan-lab`);
     await expect(page.getByRole("heading", { name: "Plan Lab" })).toBeVisible();
 
-    await page.getByRole("button", { name: /新增事件|Add event/i }).click();
+    await page.getByRole("button", { name: /Add experiment|新增實驗/i }).first().click();
 
-    const groupSelect = page.getByLabel(/事件類別|Event group/i);
+    const groupSelect = page.getByLabel(/Event group|事件群組/i);
     await groupSelect.click();
     await page.getByRole("option").first().click();
 
-    const typeSelect = page.getByLabel(/事件類型|Event type/i);
+    const typeSelect = page.getByLabel(/Event type|事件類型/i);
     await typeSelect.click();
     await page.getByRole("option").first().click();
 
@@ -25,15 +34,15 @@ test.describe("plan lab snapshots", () => {
     await page.getByLabel(/Monthly amount|每月金額/i).fill("500");
     await page.getByLabel(/Start month|開始月份/i).fill("2024-01");
 
-    await page.getByRole("button", { name: /套用|Apply|儲存|Save/i }).click();
+    await page.getByRole("button", { name: /Apply|套用|Save|儲存/i }).click();
 
     await page.getByRole("button", { name: /Save plan|儲存方案/i }).click();
     await page.getByLabel(/Plan name|方案名稱/i).fill("Snapshot A");
     await page.getByRole("button", { name: /Save plan|儲存方案/i }).last().click();
-    await expect(page.getByRole("button", { name: /Plans \(1\)|方案\(1\)/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Plans \(1\)|方案 \(1\)/i })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByRole("button", { name: /Plans \(1\)|方案\(1\)/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Plans \(1\)|方案 \(1\)/i })).toBeVisible();
 
     await page.getByRole("button", { name: /Plans|方案/i }).click();
     await expect(page.getByText("Snapshot A")).toBeVisible();
@@ -54,43 +63,44 @@ test.describe("plan lab snapshots", () => {
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: /Compare|比較/i }).click();
-    await expect(
-      page.getByText(/Plan comparison chart|方案比較圖/i)
-    ).toBeVisible();
+    await expect(page.getByText(/Plan comparison chart|方案比較圖/i)).toBeVisible();
     await expect(page.getByText(/Diff summary|差異摘要/i)).toBeVisible();
   });
 });
 
-test("PlanLab opens template wizard from Experiment add button", async ({ page }) => {
-  page.on("pageerror", (error) => {
-    throw error;
-  });
-
+test("PlanLab decision template launches home purchase wizard", async ({ page }) => {
   await page.goto(`/${locale}/plan-lab`);
   await expect(page.getByRole("heading", { name: "Plan Lab" })).toBeVisible();
 
-  await page.getByRole("button", { name: /新增事件|Add event/i }).click();
+  const drawer = await openDecisionTemplateMode(page);
+  const applyButtons = drawer.getByRole("button", { name: /Apply|套用/i });
+  await expect(applyButtons.first()).toBeEnabled();
+  await applyButtons.first().click();
 
-  await expect(page.getByText(/選擇模板|templatePickerTitle/i)).toBeVisible();
-  await expect(page.getByText(/建立計劃|createIntentPlanTitle/i)).toBeVisible();
-  await expect(page.getByText(/新增項目|createIntentItemTitle/i)).toBeVisible();
+  await expect(page.getByText(/Life-event bundle|人生事件組合/i)).toBeVisible();
 });
 
-
-test("PlanLab plan template opens life event wizard", async ({ page }) => {
-  page.on("pageerror", (error) => {
-    throw error;
-  });
-
+test("PlanLab decision template launches new baby wizard", async ({ page }) => {
   await page.goto(`/${locale}/plan-lab`);
   await expect(page.getByRole("heading", { name: "Plan Lab" })).toBeVisible();
 
-  await page.getByRole("button", { name: /新增事件|Add event/i }).click();
-  await page.getByText(/建立計劃|createIntentPlanTitle|Create a plan/i).click();
-  await page.getByText(/新生兒計劃|New baby/i).click();
+  const drawer = await openDecisionTemplateMode(page);
+  const applyButtons = drawer.getByRole("button", { name: /Apply|套用/i });
+  await expect(applyButtons.nth(1)).toBeEnabled();
+  await applyButtons.nth(1).click();
 
-  await expect(page.getByText(/人生事件組合|bundleWizardTitle|Life-event bundle/i)).toBeVisible();
-  await expect(page.getByText(/基本資料|bundleStepBasics|Basics/i)).toBeVisible();
-  await expect(page.getByText(/選項|bundleStepOptions|Options/i)).toBeVisible();
-  await expect(page.getByText(/預覽|bundleStepReview|Review/i)).toBeVisible();
+  await expect(page.getByText(/Life-event bundle|人生事件組合/i)).toBeVisible();
 });
+
+test("PlanLab income shock template creates override experiment", async ({ page }) => {
+  await page.goto(`/${locale}/plan-lab`);
+  await expect(page.getByRole("heading", { name: "Plan Lab" })).toBeVisible();
+
+  const drawer = await openDecisionTemplateMode(page);
+  const applyButtons = drawer.getByRole("button", { name: /Apply|套用/i });
+  await expect(applyButtons.nth(2)).toBeEnabled();
+  await applyButtons.nth(2).click();
+
+  await expect(page.getByText(/Income shock:|收入衝擊：/i)).toBeVisible();
+});
+

@@ -212,6 +212,9 @@ Account hub consolidation – All account management features (profile, security
 
 Event taxonomy & mapping registry – Structural semantics are now centralized: `type` is reserved for structural event type (`cashflow/housing/loan/insurance/adjustment`), `kind` for structural sub-kind, and legacy business categories stay in `incomeSubtype`/`category`. Shared unions live in `apps/web/src/domain/events/eventTaxonomy.ts`, while legacy↔v2 conversion is consolidated in `apps/web/src/domain/events/eventMappingRegistry.ts` with fail-fast handling for unknown legacy types.
 
+
+Plan Lab decision template v1 & summary layer – Plan Lab now exposes decision templates (`home_purchase`, `new_baby`, `income_shock`) directly from the Add Experiment entry. Bundle-based templates reuse existing life-event wizard paths with experiment packing, while income shock reuses baseline override flow with guard-based availability. Decision summary uses KPI-delta heuristics (risk timing/trend, top drivers, recommended actions) and does not modify engine interfaces.
+
 9 Checklist for PR authors
 
 Before submitting changes, check:

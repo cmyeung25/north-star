@@ -22,6 +22,9 @@ Last updated: 2026-03-07
 2. Plan Lab 決策模板化
 - 將常見決策（生育、收入衝擊、利率上升、置業/換樓）變成可直接套用的實驗模板。
 - 支援 baseline vs experiment 比較與保存。
+- [x] v1 已交付：`home_purchase`、`new_baby`、`income_shock` 三類模板已接入「新增實驗」入口，並沿用既有 patch/group 流程（不污染 baseline）。
+- [x] v1 已交付：新增最小可用決策摘要層（risk timing/trend、top drivers、recommended actions），以 KPI 差值 heuristic 產生（不改 engine）。
+- [ ] 下一批模板：利率上升與換樓模板，待 beta 回饋後定義預設 payload 與入口優先序。
 3. Guardrails / Completeness 層
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。
 4. Presets 接入主流程

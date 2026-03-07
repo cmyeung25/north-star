@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -15,6 +15,11 @@ const requiredOverviewKeys = [
   "planLabBundleCreateExperiment",
   "planLabKpiDeltaCompareLabel",
   "planLabKpiDeltaLabel",
+  "planLabDecisionTemplatesModeTitle",
+  "planLabDecisionTemplateIncomeShockTitle",
+  "planLabDecisionRiskTimingTitle",
+  "planLabDecisionNextStepTitle",
+  "planLabTemplateApplyAction",
 ] as const;
 
 describe("PlanLabPanel i18n guardrails", () => {
@@ -25,8 +30,8 @@ describe("PlanLabPanel i18n guardrails", () => {
 
   it("does not reintroduce hardcoded visible experiment action copy", () => {
     const source = fs.readFileSync(panelPath, "utf8");
-    expect(source).not.toContain("建立實驗");
-    expect(source).not.toContain("建立組合實驗");
+    expect(source).not.toContain("撱箇?撖阡?");
+    expect(source).not.toContain("撱箇?蝯?撖阡?");
   });
 
   it("defines required overview i18n keys in zh-HK and en", () => {

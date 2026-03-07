@@ -31,3 +31,10 @@ Last updated: 2026-03-07
 - Context: 現況已有 auth/cloud save、Plan Lab、scenario seeds、quality gates 基礎；缺口在旅程整合與可行動輸出。
 - Decision: 上市策略採「整合既有能力成完整旅程」，不以 engine 重做作為主軸。
 - Guardrails: 維持「minimal change / no engine modifications」原則；若觸及 engine 需額外回歸證據與相容性說明。
+
+### D-2026-03-07-05
+- Date: 2026-03-07
+- Status: Accepted
+- Context: Phase A 需要將 Plan Lab 轉成可直接採用的家庭決策入口，同時補齊最小可行動摘要，但必須維持 engine 穩定與 scenario 隔離。
+- Decision: Plan Lab 決策模板 v1 只上線 `home_purchase`、`new_baby`、`income_shock` 三類，全部走既有 patch + experiment group 管線；摘要層以 KPI delta heuristic 產生 risk trend/timing、driver 與建議，不新增 engine 計算介面。
+- Guardrails: 不可寫回 baseline；模板執行需受 availability guard 保護（例如無可編輯收入事件時禁用 income shock）；所有新文案必須走 i18n key。

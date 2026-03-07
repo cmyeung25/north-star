@@ -56,6 +56,7 @@ import {
 } from "recharts";
 import type {
   PlanLabAffectedEntity,
+  PlanLabDecisionTemplateId,
   PlanLabDraft,
   PlanLabExperiment,
   PlanLabExperimentGroupKind,
@@ -229,6 +230,11 @@ import {
 import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
 import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
+import {
+  buildIncomeShockDefaultPayload,
+  buildPlanLabDecisionTemplateOptions,
+} from "./decisionTemplates";
+import { buildPlanLabDecisionSummary } from "./decisionSummary";
 import { buildMonthScale } from "../../lib/chart/monthScale";
 import MoneyMetaTags from "../../src/features/money/MoneyMetaTags";
 import type { MoneyTagItem } from "../../src/features/money/moneyTagConfig";
@@ -3997,16 +4003,92 @@ export default function PlanLabPanel({
     [closeAllPlanLabDrawers]
   );
 
+  const applyEventOverrideExperiment = useCallback(
+    (baselineEvent: ScenarioEvent, spec: EventOverrideExperimentSpec) => {
+      const patch = buildEventOverridePatch(baselineEvent, spec);
+      if (Object.keys(patch).length === 0) {
+        return false;
+      }
+
+      const changes = formatExperimentChanges(
+        baselineEvent,
+        spec,
+        scenario.baseCurrency,
+        locale
+      );
+      const summary = formatExperimentSummary(changes);
+
+      setScenarioV2Patches((current) => ({
+        ...current,
+        events: {
+          ...current.events,
+          update: {
+            ...current.events.update,
+            [baselineEvent.id]: {
+              ...(current.events.update[baselineEvent.id] ?? {}),
+              ...patch,
+            } as Partial<ScenarioEvent>,
+          },
+        },
+      }));
+
+      const itemId = `events:${baselineEvent.id}`;
+      const affectedEntityType =
+        baselineEvent.type === "cashflow"
+          ? baselineEvent.kind === "income"
+            ? "income"
+            : "expense"
+          : baselineEvent.type;
+
+      setExperimentGroups((current) => [
+        ...current,
+        {
+          experimentId: spec.id,
+          title:
+            changes.length > 0
+              ? `${baselineEvent.label ?? baselineEvent.id}: ${summary}`
+              : spec.title,
+          kind: "MODIFY_BASELINE_EVENT",
+          target: { baselineEventId: baselineEvent.id },
+          changes,
+          affectedEntities: [
+            {
+              itemId,
+              label: baselineEvent.label ?? baselineEvent.id,
+              type: affectedEntityType,
+            },
+          ],
+          isEnabled: true,
+          itemIds: [itemId],
+          primaryEventId: baselineEvent.id,
+          templateId: spec.type,
+          createdAt: Date.now(),
+        },
+      ]);
+
+      return true;
+    },
+    [locale, scenario.baseCurrency]
+  );
+
   const submitEventExperiment = useCallback(() => {
     if (!eventExperimentDraft.targetEventId) {
-      setPlanToast(translate("planLabExperimentPickEvent", "請先選擇一個散件事件。"));
+      setPlanToast(
+        translate(
+          "planLabExperimentPickEvent",
+          "Pick one baseline event before creating an experiment."
+        )
+      );
       return;
     }
+
     const baselineEvent = (baselineScenarioV2.events ?? []).find(
       (event) => event.id === eventExperimentDraft.targetEventId
     );
     if (!baselineEvent) {
-      setPlanToast(translate("planLabExperimentEventMissing", "找不到目標事件。"));
+      setPlanToast(
+        translate("planLabExperimentEventMissing", "The selected baseline event no longer exists.")
+      );
       return;
     }
 
@@ -4016,7 +4098,12 @@ export default function PlanLabPanel({
       baselineEvent.type === "cashflow" &&
       !baselineEvent.endMonth
     ) {
-      setPlanToast(translate("planLabExperimentEndOffsetRequiresBaseline", "原事件未有結束月份，請改用指定月份。"));
+      setPlanToast(
+        translate(
+          "planLabExperimentEndOffsetRequiresBaseline",
+          "Set a baseline end month before applying end-month offset."
+        )
+      );
       return;
     }
 
@@ -4037,77 +4124,45 @@ export default function PlanLabPanel({
         error: error instanceof Error ? error.message : String(error),
         draft: eventExperimentDraft,
       });
-      setPlanToast(translate("planLabEventExperimentMonthInvalid", "請輸入有效月份（YYYY-MM）。"));
+      setPlanToast(
+        translate(
+          "planLabEventExperimentMonthInvalid",
+          "Please use a valid month in YYYY-MM format."
+        )
+      );
       return;
     }
 
     const spec: EventOverrideExperimentSpec = {
       id: `event_override_${nanoid(8)}`,
-      title: `事件實驗：${baselineEvent.label ?? baselineEvent.id}`,
+      title: translate("planLabEventExperimentTitle", "Event experiment: {event}", {
+        event: baselineEvent.label ?? baselineEvent.id,
+      }),
       type: "event_override",
       targetEventId: baselineEvent.id,
       changes: experimentChanges,
       uiMetadata,
     };
-    const patch = buildEventOverridePatch(baselineEvent, spec);
-    console.info("[plan-lab:event-experiment:create:entity]", spec);
-    console.info("[plan-lab:event-experiment:create:patch]", patch);
-    const changes = formatExperimentChanges(
-      baselineEvent,
-      spec,
-      scenario.baseCurrency,
-      locale
-    );
-    const summary = formatExperimentSummary(changes);
-    setScenarioV2Patches((current) => ({
-      ...current,
-      events: {
-        ...current.events,
-        update: {
-          ...current.events.update,
-          [baselineEvent.id]: {
-            ...(current.events.update[baselineEvent.id] ?? {}),
-            ...patch,
-          } as Partial<ScenarioEvent>,
-        },
-      },
-    }));
-    const itemId = `events:${baselineEvent.id}`;
-    setExperimentGroups((current) => [
-      ...current,
-      {
-        experimentId: spec.id,
-        title:
-          changes.length > 0
-            ? `${baselineEvent.label ?? baselineEvent.id}（${summary}）`
-            : spec.title,
-        kind: "MODIFY_BASELINE_EVENT",
-        target: { baselineEventId: baselineEvent.id },
-        changes,
-        affectedEntities: [
-          {
-            itemId,
-            label: baselineEvent.label ?? baselineEvent.id,
-            type: baselineEvent.type === "cashflow" ? baselineEvent.kind : baselineEvent.type,
-          },
-        ],
-        isEnabled: true,
-        itemIds: [itemId],
-        primaryEventId: baselineEvent.id,
-        templateId: spec.type,
-        createdAt: Date.now(),
-      },
-    ]);
+
+    const created = applyEventOverrideExperiment(baselineEvent, spec);
+    if (!created) {
+      setPlanToast(
+        translate(
+          "planLabExperimentApplyFailed",
+          "This event cannot be overridden with the current template."
+        )
+      );
+      return;
+    }
+
     setEventExperimentDrawerOpen(false);
   }, [
+    applyEventOverrideExperiment,
     baselineScenarioV2.events,
     eventExperimentDraft,
-    locale,
     members,
     scenario.assumptions.baseMonth,
-    scenario.baseCurrency,
-    setScenarioV2Patches,
-    t,
+    translate,
   ]);
 
   const standaloneEventExperimentOptions = useMemo(
@@ -4131,6 +4186,133 @@ export default function PlanLabPanel({
     [baselineScenarioV2.events]
   );
 
+  const baselineEditableIncomeEvents = useMemo<CashflowEvent[]>(
+    () =>
+      (baselineScenarioV2.events ?? []).filter(
+        (event): event is CashflowEvent =>
+          event.type === "cashflow" &&
+          event.kind === "income" &&
+          event.cadence !== "oneOff" &&
+          !event.source?.bundleInstanceId
+      ),
+    [baselineScenarioV2.events]
+  );
+
+  const decisionTemplateOptions = useMemo(
+    () =>
+      buildPlanLabDecisionTemplateOptions({
+        hasEligibleIncomeEvent: baselineEditableIncomeEvents.length > 0,
+        translate,
+      }).map((option) => ({
+        ...option,
+        availability: option.availability.reasonKey
+          ? {
+              ...option.availability,
+              reasonFallback: translate(
+                option.availability.reasonKey,
+                option.availability.reasonFallback ?? ""
+              ),
+            }
+          : option.availability,
+      })),
+    [baselineEditableIncomeEvents.length, translate]
+  );
+
+  const handleSelectDecisionTemplate = useCallback(
+    (templateId: PlanLabDecisionTemplateId) => {
+      if (templateId === "home_purchase" || templateId === "new_baby") {
+        const mappedTemplateId: TemplateId =
+          templateId === "home_purchase" ? "life_home_purchase" : "life_new_baby_plan";
+        const template = getTemplateDef(mappedTemplateId);
+        if (!template) {
+          setPlanToast(
+            translate(
+              "planLabDecisionTemplateMissing",
+              "This decision template is currently unavailable."
+            )
+          );
+          return;
+        }
+        setExperimentTemplatesOpen(false);
+        handleTemplateSelect(template);
+        return;
+      }
+
+      const targetIncomeEvent = [...baselineEditableIncomeEvents].sort(
+        (left, right) => right.amount - left.amount
+      )[0];
+      if (!targetIncomeEvent) {
+        setPlanToast(
+          translate(
+            "planLabDecisionTemplateIncomeShockDisabled",
+            "No editable baseline income event available."
+          )
+        );
+        return;
+      }
+
+      const payload = buildIncomeShockDefaultPayload({
+        baseMonth: scenario.assumptions.baseMonth ?? null,
+        fallbackStartMonth: targetIncomeEvent.startMonth ?? null,
+      });
+      if (!payload) {
+        setPlanToast(
+          translate(
+            "planLabDecisionTemplateIncomeShockInvalidMonth",
+            "Cannot resolve default months for this income shock template."
+          )
+        );
+        return;
+      }
+
+      const spec: EventOverrideExperimentSpec = {
+        id: `event_override_${nanoid(8)}`,
+        title: translate(
+          "planLabDecisionTemplateIncomeShockExperimentTitle",
+          "Income shock: {event}",
+          { event: targetIncomeEvent.label ?? targetIncomeEvent.id }
+        ),
+        type: "event_override",
+        targetEventId: targetIncomeEvent.id,
+        changes: {
+          amountMultiplier: payload.amountMultiplier,
+          startMonth: payload.startMonth,
+          setEndMonth: payload.endMonth,
+        },
+        uiMetadata: {
+          startTimingMode: "month",
+          endTimingMode: "month",
+        },
+      };
+
+      const created = applyEventOverrideExperiment(targetIncomeEvent, spec);
+      if (!created) {
+        setPlanToast(
+          translate(
+            "planLabExperimentApplyFailed",
+            "This event cannot be overridden with the current template."
+          )
+        );
+        return;
+      }
+
+      setExperimentTemplatesOpen(false);
+      setPlanToast(
+        translate(
+          "planLabDecisionTemplateApplied",
+          "Decision template applied: {title}",
+          { title: targetIncomeEvent.label ?? targetIncomeEvent.id }
+        )
+      );
+    },
+    [
+      applyEventOverrideExperiment,
+      baselineEditableIncomeEvents,
+      handleTemplateSelect,
+      scenario.assumptions.baseMonth,
+      translate,
+    ]
+  );
   const environmentTemplateOptions = useMemo(
     () => [
       {
@@ -6063,11 +6245,6 @@ export default function PlanLabPanel({
     []
   );
 
-  const cashRiskLevelRank = useMemo(
-    () => ({ unknown: -1, healthy: 0, warning: 1, danger: 2 } as const),
-    []
-  );
-
   const handleTopDriverClick = useCallback(
     (driver: PlanLabTopDriver) => {
       const monthIdx = driverMonth
@@ -6299,66 +6476,53 @@ export default function PlanLabPanel({
   }, [optionSeries.cash, planLabProjection.ledger, planLabProjection.months]);
 
   const decisionSummary = useMemo(() => {
-    const baseMonth = baselineProjection.projection?.baseMonth ?? null;
-    const targetDelta =
-      baseMonth && optionKpis?.targetMonth && baselineKpis?.targetMonth
-        ? monthIndex(baseMonth, optionKpis.targetMonth) - monthIndex(baseMonth, baselineKpis.targetMonth)
-        : null;
-    const targetTiming =
-      typeof targetDelta === "number"
-        ? targetDelta < 0
-          ? t("planLabDecisionTargetEarlier", { months: Math.abs(targetDelta) })
-          : targetDelta > 0
-            ? t("planLabDecisionTargetLater", { months: Math.abs(targetDelta) })
-            : t("planLabDecisionTargetUnchanged")
-        : t("planLabDecisionTargetUnknown");
-
     const optionRiskLevel = resolveCashRiskLevel(cashRiskScorecard);
     const baselineRiskLevel = resolveCashRiskLevel(baselineCashRiskScorecard);
-    const optionRiskRank = cashRiskLevelRank[optionRiskLevel];
-    const baselineRiskRank = cashRiskLevelRank[baselineRiskLevel];
-    const riskTrend =
-      optionRiskRank >= 0 && baselineRiskRank >= 0
-        ? optionRiskRank < baselineRiskRank
-          ? t("planLabDecisionRiskImproved")
-          : optionRiskRank > baselineRiskRank
-            ? t("planLabDecisionRiskWorsened")
-            : t("planLabDecisionRiskUnchanged")
-        : t("planLabDecisionRiskUnknown");
+    const optionMinCash = optionKpis?.minCash?.value;
+    const baselineMinCash = baselineKpis?.minCash?.value;
+    const minCashDelta =
+      typeof optionMinCash === "number" && typeof baselineMinCash === "number"
+        ? optionMinCash - baselineMinCash
+        : null;
 
-    const riskLevel =
-      optionRiskLevel === "danger"
-        ? t("planLabDecisionRiskLevelDanger")
-        : optionRiskLevel === "warning"
-          ? t("planLabDecisionRiskLevelWarning")
-          : optionRiskLevel === "healthy"
-            ? t("planLabDecisionRiskLevelHealthy")
-            : t("planLabDecisionRiskLevelUnknown");
+    const optionEndNetWorth = optionKpis?.endNetWorth;
+    const baselineEndNetWorth = baselineKpis?.endNetWorth;
+    const endNetWorthDelta =
+      typeof optionEndNetWorth === "number" && typeof baselineEndNetWorth === "number"
+        ? optionEndNetWorth - baselineEndNetWorth
+        : null;
 
-    const maxPositiveDriver = topDrivers
-      .filter((driver) => driver.contribution > 0)
-      .sort((a, b) => b.contribution - a.contribution)[0];
-    const maxNegativeDriver = topDrivers
-      .filter((driver) => driver.contribution < 0)
-      .sort((a, b) => a.contribution - b.contribution)[0];
-
-    return {
-      targetTiming,
-      riskTrend,
-      riskLevel,
-      maxPositiveDriver,
-      maxNegativeDriver,
-    };
+    return buildPlanLabDecisionSummary({
+      baseMonth: baselineProjection.projection?.baseMonth ?? null,
+      baselineTargetMonth: baselineKpis?.targetMonth ?? null,
+      optionTargetMonth: optionKpis?.targetMonth ?? null,
+      baselineFirstNegativeCashMonth: baselineKpis?.firstNegativeCashMonth ?? null,
+      optionFirstNegativeCashMonth: optionKpis?.firstNegativeCashMonth ?? null,
+      baselineRiskLevel,
+      optionRiskLevel,
+      minCashDelta,
+      endNetWorthDelta,
+      topDrivers: topDrivers.map((driver) => ({
+        title: driver.title,
+        contribution: driver.contribution,
+      })),
+      translate,
+    });
   }, [
     baselineCashRiskScorecard,
-    cashRiskLevelRank,
-    cashRiskScorecard,
+    baselineKpis?.endNetWorth,
+    baselineKpis?.firstNegativeCashMonth,
+    baselineKpis?.minCash?.value,
     baselineKpis?.targetMonth,
     baselineProjection.projection?.baseMonth,
+    cashRiskScorecard,
+    optionKpis?.endNetWorth,
+    optionKpis?.firstNegativeCashMonth,
+    optionKpis?.minCash?.value,
     optionKpis?.targetMonth,
     resolveCashRiskLevel,
     topDrivers,
-    t,
+    translate,
   ]);
 
   const targetPresetOptions = useMemo(() => {
@@ -9538,16 +9702,16 @@ export default function PlanLabPanel({
               <Card withBorder radius="xs" padding="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                 <Stack gap="sm">
                   <Group justify="space-between" align="center" wrap="wrap">
-                    <Text fw={600}>{translate("planLabDecisionSummaryTitle", "決策摘要")}</Text>
+                    <Text fw={600}>{translate("planLabDecisionSummaryTitle", "Decision summary")}</Text>
                     <Badge variant="light" color="violet">
-                      {translate("planLabDecisionSummaryBadge", "摘要層")}
+                      {translate("planLabDecisionSummaryBadge", "Summary layer")}
                     </Badge>
                   </Group>
                   <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
                     <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                       <Stack gap={4}>
                         <Text size="xs" c="dimmed">
-                          {translate("planLabDecisionTargetTitle", "目標達成節奏")}
+                          {translate("planLabDecisionTargetTitle", "Goal timing")}
                         </Text>
                         <Text size="sm" fw={700}>{decisionSummary.targetTiming}</Text>
                       </Stack>
@@ -9555,7 +9719,7 @@ export default function PlanLabPanel({
                     <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                       <Stack gap={4}>
                         <Text size="xs" c="dimmed">
-                          {translate("planLabDecisionCashRiskTitle", "現金風險變化")}
+                          {translate("planLabDecisionCashRiskTitle", "Cash risk trend")}
                         </Text>
                         <Text size="sm" fw={700}>{decisionSummary.riskTrend}</Text>
                         <Text size="xs" c="dimmed">
@@ -9566,24 +9730,55 @@ export default function PlanLabPanel({
                     <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                       <Stack gap={4}>
                         <Text size="xs" c="dimmed">
-                          {translate("planLabDecisionPositiveDriverTitle", "最大正向 Driver")}
+                          {translate("planLabDecisionRiskTimingTitle", "Risk timing")}
+                        </Text>
+                        <Text size="sm" fw={700}>{decisionSummary.riskTiming}</Text>
+                      </Stack>
+                    </Paper>
+                    <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                      <Stack gap={4}>
+                        <Text size="xs" c="dimmed">
+                          {translate("planLabDecisionPositiveDriverTitle", "Top positive driver")}
                         </Text>
                         <Text size="sm" fw={700}>
-                          {decisionSummary.maxPositiveDriver?.title ?? translate("planLabDecisionNoDriver", "未有顯著正向 driver")}
+                          {decisionSummary.maxPositiveDriver?.title ?? translate("planLabDecisionNoDriver", "No significant driver")}
                         </Text>
                       </Stack>
                     </Paper>
                     <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                       <Stack gap={4}>
                         <Text size="xs" c="dimmed">
-                          {translate("planLabDecisionNegativeDriverTitle", "最大負向 Driver")}
+                          {translate("planLabDecisionNegativeDriverTitle", "Top negative driver")}
                         </Text>
                         <Text size="sm" fw={700}>
-                          {decisionSummary.maxNegativeDriver?.title ?? translate("planLabDecisionNoDriver", "未有顯著負向 driver")}
+                          {decisionSummary.maxNegativeDriver?.title ?? translate("planLabDecisionNoDriver", "No significant driver")}
                         </Text>
                       </Stack>
                     </Paper>
                   </SimpleGrid>
+                  <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
+                    <Stack gap={6}>
+                      <Text size="xs" c="dimmed">
+                        {translate("planLabDecisionNextStepTitle", "Recommended next steps")}
+                      </Text>
+                      {decisionSummary.recommendedActions.length === 0 ? (
+                        <Text size="sm" c="dimmed">
+                          {translate("planLabDecisionNoAction", "No immediate action required. Continue monitoring monthly cashflow.")}
+                        </Text>
+                      ) : (
+                        <Stack gap="xs">
+                          {decisionSummary.recommendedActions.map((action) => (
+                            <Paper key={action.id} withBorder radius="xs" p="xs">
+                              <Stack gap={2}>
+                                <Text size="sm" fw={600}>{action.label}</Text>
+                                <Text size="xs" c="dimmed">{action.reason}</Text>
+                              </Stack>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                  </Paper>
                 </Stack>
               </Card>
 
@@ -10384,14 +10579,45 @@ export default function PlanLabPanel({
 
       <ExperimentTemplatesDrawer
         opened={experimentTemplatesOpen}
-        title={translate("planLabExperimentTemplatesTitle", "實驗模板")}
+        title={translate("planLabExperimentTemplatesTitle", "Experiment templates")}
+        labels={{
+          decisionTemplateTitle: translate("planLabDecisionTemplatesModeTitle", "Decision templates"),
+          decisionTemplateDescription: translate(
+            "planLabDecisionTemplatesModeDesc",
+            "Apply common family decisions in one click"
+          ),
+          addEventTitle: translate("planLabTemplateModeAddEventTitle", "Add new event"),
+          addEventDescription: translate(
+            "planLabTemplateModeAddEventDesc",
+            "Open template picker to add a new event"
+          ),
+          modifyBaselineTitle: translate("planLabTemplateModeModifyBaselineTitle", "Modify baseline event"),
+          modifyBaselineDescription: translate(
+            "planLabTemplateModeModifyBaselineDesc",
+            "Create override experiment from baseline events"
+          ),
+          modifyEnvironmentTitle: translate("planLabTemplateModeModifyEnvTitle", "Adjust assumptions"),
+          modifyEnvironmentDescription: translate(
+            "planLabTemplateModeModifyEnvDesc",
+            "Create environment override experiment"
+          ),
+          chooseActionLabel: translate("planLabTemplateChooseAction", "Choose"),
+          applyLabel: translate("planLabTemplateApplyAction", "Apply"),
+          backLabel: translate("planLabTemplateBackAction", "Back"),
+          emptyDecisionTemplatesLabel: translate(
+            "planLabDecisionTemplatesEmpty",
+            "No decision templates available for this scenario"
+          ),
+        }}
         groups={[]}
+        decisionTemplates={decisionTemplateOptions}
         baselineEventOptions={baselineEventTemplateOptions}
         envOptions={environmentTemplateOptions}
         onClose={() => setExperimentTemplatesOpen(false)}
         onSelect={() => {
           // no-op: add-event flow is handled by onSelectAddEvent
         }}
+        onSelectDecisionTemplate={handleSelectDecisionTemplate}
         onSelectAddEvent={() => {
           openPlanLabAddFlowDrawer();
         }}

@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { Button, Card, Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
+import type { PlanLabDecisionTemplateOption } from "./decisionTemplates";
 
 export type PlanLabExperimentTemplate = {
   id: string;
@@ -16,38 +17,59 @@ export type PlanLabExperimentTemplateGroup = {
   templates: PlanLabExperimentTemplate[];
 };
 
-type TemplateMode = "add_event" | "modify_baseline_event" | "modify_env";
+export type ExperimentTemplatesDrawerLabels = {
+  addEventTitle: string;
+  addEventDescription: string;
+  modifyBaselineTitle: string;
+  modifyBaselineDescription: string;
+  modifyEnvironmentTitle: string;
+  modifyEnvironmentDescription: string;
+  decisionTemplateTitle: string;
+  decisionTemplateDescription: string;
+  chooseActionLabel: string;
+  applyLabel: string;
+  backLabel: string;
+  emptyDecisionTemplatesLabel: string;
+};
+
+type TemplateMode =
+  | "add_event"
+  | "modify_baseline_event"
+  | "modify_env"
+  | "decision_template";
 
 type ExperimentTemplatesDrawerProps = {
   opened: boolean;
   title: string;
+  labels: ExperimentTemplatesDrawerLabels;
   groups: PlanLabExperimentTemplateGroup[];
   baselineEventOptions?: PlanLabExperimentTemplate[];
   envOptions?: PlanLabExperimentTemplate[];
+  decisionTemplates?: PlanLabDecisionTemplateOption[];
   onClose: () => void;
   onSelect: (templateId: string) => void;
+  onSelectDecisionTemplate?: (templateId: PlanLabDecisionTemplateOption["id"]) => void;
   onSelectAddEvent?: () => void;
   onSelectBaselineEvent?: (eventId: string) => void;
   onSelectEnvKey?: (envKey: string) => void;
+  withinPortal?: boolean;
 };
-
-const modeCards: Array<{ id: TemplateMode; title: string; description: string }> = [
-  { id: "add_event", title: "新增事件", description: "人生組合與獨立事件模板" },
-  { id: "modify_baseline_event", title: "修改基準事件", description: "先選基準事件，再建立實驗" },
-  { id: "modify_env", title: "修改環境假設", description: "建立環境假設覆寫實驗" },
-];
 
 export default function ExperimentTemplatesDrawer({
   opened,
   title,
+  labels,
   groups,
   baselineEventOptions,
   envOptions,
+  decisionTemplates,
   onClose,
   onSelect,
+  onSelectDecisionTemplate,
   onSelectAddEvent,
   onSelectBaselineEvent,
   onSelectEnvKey,
+  withinPortal = true,
 }: ExperimentTemplatesDrawerProps) {
   const [mode, setMode] = useState<TemplateMode | null>(null);
 
@@ -57,10 +79,36 @@ export default function ExperimentTemplatesDrawer({
     }
   }, [opened]);
 
+  const modeCards: Array<{ id: TemplateMode; title: string; description: string }> = useMemo(
+    () => [
+      {
+        id: "decision_template",
+        title: labels.decisionTemplateTitle,
+        description: labels.decisionTemplateDescription,
+      },
+      {
+        id: "add_event",
+        title: labels.addEventTitle,
+        description: labels.addEventDescription,
+      },
+      {
+        id: "modify_baseline_event",
+        title: labels.modifyBaselineTitle,
+        description: labels.modifyBaselineDescription,
+      },
+      {
+        id: "modify_env",
+        title: labels.modifyEnvironmentTitle,
+        description: labels.modifyEnvironmentDescription,
+      },
+    ],
+    [labels]
+  );
+
   const currentTitle = useMemo(() => {
     if (!mode) return title;
     return modeCards.find((card) => card.id === mode)?.title ?? title;
-  }, [mode, title]);
+  }, [mode, modeCards, title]);
 
   return (
     <Drawer
@@ -69,6 +117,7 @@ export default function ExperimentTemplatesDrawer({
       title={currentTitle}
       position="right"
       size="md"
+      withinPortal={withinPortal}
       styles={{
         body: {
           display: "flex",
@@ -101,12 +150,50 @@ export default function ExperimentTemplatesDrawer({
                       setMode(card.id);
                     }}
                   >
-                    選擇
+                    {labels.chooseActionLabel}
                   </Button>
                 </Stack>
               </Card>
             ))}
           </SimpleGrid>
+        )}
+
+        {mode === "decision_template" && (
+          <Stack gap="sm">
+            {(decisionTemplates ?? []).length === 0 ? (
+              <Text size="sm" c="dimmed">
+                {labels.emptyDecisionTemplatesLabel}
+              </Text>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                {(decisionTemplates ?? []).map((template) => (
+                  <Card key={template.id} withBorder radius="md" p="sm">
+                    <Stack gap={6}>
+                      <Text fw={600} size="sm">
+                        {template.title}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {template.description}
+                      </Text>
+                      {template.availability.enabled === false && template.availability.reasonFallback ? (
+                        <Text size="xs" c="orange">
+                          {template.availability.reasonFallback}
+                        </Text>
+                      ) : null}
+                      <Button
+                        size="xs"
+                        variant="light"
+                        disabled={template.availability.enabled === false}
+                        onClick={() => onSelectDecisionTemplate?.(template.id)}
+                      >
+                        {labels.applyLabel}
+                      </Button>
+                    </Stack>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            )}
+          </Stack>
         )}
 
         {mode === "add_event" &&
@@ -136,7 +223,7 @@ export default function ExperimentTemplatesDrawer({
                         disabled={template.disabled}
                         onClick={() => onSelect(template.id)}
                       >
-                        建立實驗
+                        {labels.applyLabel}
                       </Button>
                     </Stack>
                   </Card>
@@ -166,7 +253,7 @@ export default function ExperimentTemplatesDrawer({
                     disabled={event.disabled}
                     onClick={() => onSelectBaselineEvent?.(event.id)}
                   >
-                    建立
+                    {labels.applyLabel}
                   </Button>
                 </Group>
               </Card>
@@ -190,7 +277,7 @@ export default function ExperimentTemplatesDrawer({
                     ) : null}
                   </Stack>
                   <Button size="xs" variant="light" onClick={() => onSelectEnvKey?.(env.id)}>
-                    建立
+                    {labels.applyLabel}
                   </Button>
                 </Group>
               </Card>
@@ -201,7 +288,7 @@ export default function ExperimentTemplatesDrawer({
         {mode && (
           <Group justify="flex-end">
             <Button variant="default" size="xs" onClick={() => setMode(null)}>
-              返回類型
+              {labels.backLabel}
             </Button>
           </Group>
         )}
