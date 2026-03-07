@@ -31,6 +31,7 @@ Last updated: 2026-03-07
 - 把現有 scenario seeds/presets 接入 member/app 主要入口，作為首次建模捷徑。
 5. Beta 回饋閉環
 - 以封閉測試流程建立「收集問題 -> 分類 -> 迭代 -> 驗收」節奏。
+- [x] Local dev now has a dev-only E2E auth bootstrap (dedicated Supabase test account + reset) so Playwright can validate member/app flows without weakening normal auth boundaries.
 
 ### 完成定義
 - 一個雙職家庭可於 20 分鐘內建立基線，並完成至少一個重大決策比較。

@@ -1,6 +1,8 @@
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const port = Number(process.env.PORT ?? 3000);
+const authFile = path.join(__dirname, "e2e", ".auth", "e2e-user.json");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -20,8 +22,16 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authFile,
+      },
+      dependencies: ["setup"],
     },
   ],
 });

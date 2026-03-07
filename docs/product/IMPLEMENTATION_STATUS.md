@@ -14,7 +14,7 @@ Last updated: 2026-03-07
 |---|---:|---|---|
 | Onboarding + Property Bundle | 65% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架 | 需補齊既有物業 household 的一致輸入與審核體驗 |
 | Plan Lab 決策化 | 72% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
-| Persistence / Auth | 75% | case/scenario、cloud save、revision conflict 機制可用 | 需與 onboarding/preset/compare 流程更緊密整合 |
+| Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
 | Actionable Output | 52% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 入口整合 | 30% | 既有 scenario seeds 與模板能力已存在 | 尚未完整接入 member/app 主流程作為第一步入口 |
@@ -28,6 +28,7 @@ Last updated: 2026-03-07
 - 決策摘要層新增 risk timing / risk trend / top drivers / recommended actions（heuristic，無 engine 變更）。
 - Fixed zh-HK Plan Lab decision-summary/template placeholder strings (`????`) to real i18n copy.
 - Localized Plan Lab decision template/summary keys in `zh-HK.json` to Traditional Chinese copy (replacing temporary English fallback).
+- Added dev-only Supabase E2E auth bootstrap/reset endpoints plus Playwright authenticated storage-state setup for local product validation without weakening normal auth redirects.
 ## 已存在但未進主流程
 - Scenario presets/seeds 已具備多種香港家庭情境，但尚未成為 member 主旅程首要入口。
 - Plan Lab 已有實驗與比較骨架，但常見決策模板與結論導向輸出仍需產品化。

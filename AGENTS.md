@@ -151,6 +151,8 @@ Auth pages live under /{locale}/auth/. They handle registration and login via em
 
 On successful login, the server must redirect to /{locale}/member/cases (never directly to /{locale}/app). This ensures the user explicitly picks or creates a case before entering a scenario.
 
+Dev-only E2E auth bootstrap may exist under /api/e2e/auth/* for local Playwright runs, but it must remain gated behind development-only env flags + shared secret, use a dedicated non-human Supabase account, and still land on /{locale}/member/cases. It must never weaken normal middleware/layout auth checks for production or preview traffic.
+
 Session management is handled via Supabase (server‑side) and the AuthContext provider client‑side. Use hooks (e.g. useSession) to access the current user.
 
 For locale‑aware redirection, the middleware reads the locale from the path or cookie (aurin_locale), and rewrites/redirects accordingly.
@@ -166,6 +168,8 @@ App area (/{locale}/app/*): deep scenario editing, dashboards, Plan Lab and onbo
 No direct deep linking from marketing or auth to the app. Always pass through the member area to pick a case.
 
 Locale prefix always present. Actual pages should not be duplicated; use middleware rewrites to map /{locale}/… to a single underlying implementation.
+
+Dev-only E2E auth bootstrap: local Playwright runs may authenticate through guarded /api/e2e/auth/bootstrap and /api/e2e/auth/reset routes using a dedicated Supabase test account and storage-state setup. Keep this strictly development-only; do not convert it into a general auth bypass or skip the /member/cases entry rule.
 
 Case‑sensitive paths. Use consistent lowercase folder names (marketing), [locale], etc. Do not accidentally commit both (Marketing) and (marketing); Vercel’s Linux file system will treat them as distinct.
 
