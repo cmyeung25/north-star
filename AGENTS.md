@@ -350,3 +350,68 @@ In your final response, report:
 - implementation completion delta
 - remaining gaps
 - recommended next step
+
+
+## File Encoding Safety (Critical)
+
+This repository contains UTF-8 text files with mixed English / Traditional Chinese content.
+When editing files, always preserve the original encoding and line endings.
+Never introduce mojibake or silent encoding conversion.
+
+### Rules
+1. Treat all text files as **UTF-8** unless the file explicitly indicates otherwise.
+2. **Do not** use unsafe shell redirection or default PowerShell file-write commands for overwriting text files, because they may change encoding or line endings.
+3. Prefer **patch-based edits** that preserve existing file bytes and only change the intended lines.
+4. If a full-file rewrite is unavoidable, use an explicit UTF-8-safe method and preserve LF/CRLF style of the original file.
+5. After editing any user-facing copy, markdown, config, or docs containing Chinese text, verify that no mojibake was introduced.
+6. Never mass-rewrite a file just to reformat it if the task only requires a small content change.
+
+### Preferred edit methods
+- First choice: use structured patch editing / apply_patch style changes.
+- Second choice: use a script that reads and writes with explicit UTF-8 encoding.
+- Avoid: direct `>` redirection, `Out-File`, `Set-Content`, or other commands without explicit encoding control.
+
+### PowerShell safety
+If PowerShell must be used:
+- Read with explicit UTF-8
+- Write with explicit UTF-8
+- Preserve newline style where possible
+- Do not assume PowerShell defaults are safe
+
+Example safe approach:
+- Use .NET / script-based file IO with explicit UTF-8
+- Or use Node/Python scripts with explicit `utf-8` encoding
+
+### Validation checklist after editing
+- Chinese text displays correctly
+- No `�` replacement characters
+- No garbled text like `Ã¥`, `Ã¤`, `ä½ `, etc.
+- Diff only contains intended content changes
+- File did not accidentally switch encoding or line endings
+
+### Recovery rule
+If encoding corruption is detected:
+1. Stop further edits to the corrupted file
+2. Restore the last known-good version
+3. Re-apply the change using UTF-8-safe editing
+4. Mention in the summary that a restore + safe reapply was performed
+
+
+## Editing Constraint for Windows / PowerShell
+
+On Windows, never overwrite markdown, JSON, TS, TSX, YAML, or text content files using default PowerShell file output commands.
+Assume such commands are unsafe unless UTF-8 is explicitly enforced.
+
+For small changes, always prefer minimal patch edits.
+For scripted edits, use Python / Node with explicit UTF-8 encoding.
+Do not rewrite the whole file unless necessary.
+
+## Recommended file-edit order
+
+1. apply_patch / minimal diff edit
+2. Python script with explicit UTF-8 read/write
+3. Node script with explicit UTF-8 read/write
+4. Editor save with confirmed UTF-8
+5. Avoid raw shell overwrite commands
+
+When a file contains Chinese, Japanese, or other non-ASCII text, perform an explicit post-edit encoding sanity check before finishing.
