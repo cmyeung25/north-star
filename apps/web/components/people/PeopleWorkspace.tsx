@@ -13,6 +13,8 @@ type PeopleWorkspaceProps = {
 const tabMap = {
   assumptions: "assumptions",
   members: "members",
+  milestone: "milestones",
+  milestones: "milestones",
   budget: "persistence",
   settings: "persistence",
 } as const;
@@ -35,7 +37,7 @@ export default function PeopleWorkspace({
         titleKey="settingsTitle"
         subtitleKey="settingsSubtitle"
         defaultTab={defaultTab}
-        tabOrder={["assumptions", "members", "persistence"]}
+        tabOrder={["assumptions", "members", "milestones", "persistence"]}
         initialAction={initialAdd}
         initialRuleId={initialRuleId}
       />

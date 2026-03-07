@@ -552,7 +552,6 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   );
   const defaultMilestoneMonth = projection?.baseMonth ?? months[0] ?? "";
   const defaultMilestoneMemberId = scenarioMembers[0]?.id ?? "";
-  const milestoneManagerHref = `${scenarioDashboardPath(caseId, selectedScenarioId, locale as Locale)}?milestones=${MILESTONE_MANAGER_QUERY_VALUE}`;
 
   const showMilestoneToast = (nextToast: MilestoneToastState) => {
     if (milestoneToastTimeoutRef.current) {
@@ -1404,7 +1403,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 ) : (
                   <Stack gap="xs" align="flex-start">
                     <Text size="sm" c="dimmed">{sd("nextKeyEvent.empty", "No key events yet. Add milestones to preview upcoming timeline points.")}</Text>
-                    <Button component={Link} href={milestoneManagerHref} size="xs">{sd("nextKeyEvent.addEvent", "Add event")}</Button>
+                    <Button component={Link} href={`${peopleHubHref}#milestones`} size="xs">{sd("nextKeyEvent.addEvent", "Add event")}</Button>
                   </Stack>
                 )}
               </Stack>
@@ -1561,8 +1560,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 <Group justify="space-between" align="center">
                   <Text fw={600}>{sd("quickLinks.peopleTitle", "People summary")}</Text>
                   <Group gap="xs">
-                    <Button size="xs" variant="default" onClick={handleOpenMilestoneCreate}>
-                      {moneyT("milestoneManagerTitle")}
+                    <Button component={Link} href={`${peopleHubHref}#milestones`} size="xs" variant="default">
+                      {common("settingsTabMilestonesAction")}
                     </Button>
                     <Button component={Link} href={peopleHubHref} size="xs" variant="light">
                       {t("peopleSummaryCta")}

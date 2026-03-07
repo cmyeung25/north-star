@@ -42,6 +42,7 @@ import { getMemberAgeYears } from "../../src/domain/members/age";
 import { isValidMonthStr, normalizeMonthStrict } from "../../src/utils/month";
 import DataManagementSection from "../DataManagementSection";
 import DateOrAgeBasisPicker from "../DateOrAgeBasisPicker";
+import MilestoneManagementPanel from "./MilestoneManagementPanel";
 import MonthField from "../MonthField";
 import PositionDetailList from "../timeline/PositionDetailList";
 import {
@@ -69,7 +70,7 @@ import {
   shouldAutoApplyOnboardingAssumptions,
 } from "../../src/domain/assumptions/onboardingAutoApply";
 
-type SettingsTabKey = "assumptions" | "members" | "persistence";
+type SettingsTabKey = "assumptions" | "members" | "milestones" | "persistence";
 
 type ScenarioSettingsWorkspaceProps = {
   scenarioId?: string;
@@ -458,7 +459,8 @@ export default function ScenarioSettingsWorkspace({
       ageAtBaseMonth: null,
     });
   const resolvedTabOrder = useMemo<SettingsTabKey[]>(
-    () => (tabOrder ?? ["assumptions", "members", "persistence"]) as SettingsTabKey[],
+    () =>
+      (tabOrder ?? ["assumptions", "members", "milestones", "persistence"]) as SettingsTabKey[],
     [tabOrder]
   );
   const [activeTab, setActiveTab] = useState<SettingsTabKey>(defaultTab);
@@ -466,6 +468,7 @@ export default function ScenarioSettingsWorkspace({
     () => ({
       assumptions: common("settingsTabAssumptionsAction"),
       members: common("settingsTabMembersAction"),
+      milestones: common("settingsTabMilestonesAction"),
       persistence: common("settingsTabPersistenceAction"),
     }),
     [common]
@@ -509,6 +512,8 @@ export default function ScenarioSettingsWorkspace({
     const hash = window.location.hash.replace("#", "");
     const legacyHashMap: Record<string, SettingsTabKey> = {
       global: "assumptions",
+      milestone: "milestones",
+      milestones: "milestones",
       data: "persistence",
       other: "persistence",
       budget: "persistence",
@@ -1215,16 +1220,6 @@ export default function ScenarioSettingsWorkspace({
               : meta.lifecycle === "hasEndMonth"
                 ? moneyText("eventLifecycleHasEndMonth")
                 : moneyText("eventCardOpenEnded"),
-          resolveSourceLabel: (source) =>
-            source === "baseline-only"
-              ? membersText("memberEventsTagSourceBaselineOnly")
-              : source === "experiment-only"
-                ? membersText("memberEventsTagSourceExperimentOnly")
-                : membersText("memberEventsTagSourceApplied"),
-          resolveLinkStateLabel: (linkState) =>
-            linkState === "orphaned" ? membersText("memberEventsTagLinkStateOrphaned") : null,
-          source: "baseline-only",
-          linkState: eventView.linkState ?? "linked",
         }
       ).tags,
     [memberLookupRecord, membersText, moneyText]
@@ -2102,6 +2097,13 @@ export default function ScenarioSettingsWorkspace({
             common={common}
             validation={validation}
           />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="milestones" pt="md">
+          <Text size="sm" c="dimmed" mb="md">
+            {common("settingsSectionMilestonesMicrocopy")}
+          </Text>
+          <MilestoneManagementPanel caseId={caseId} scenario={scenario} members={members} />
         </Tabs.Panel>
 
       </Tabs>

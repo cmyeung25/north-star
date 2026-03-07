@@ -21,7 +21,7 @@ import {
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { monthIndex, type EventGroup } from "@north-star/engine";
 import { useLocale, useTranslations } from "next-intl";
-import { scenarioDashboardPath } from "../../lib/routes/appRoutes";
+import { scenarioDashboardPath, scenarioPeoplePath } from "../../lib/routes/appRoutes";
 import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import HomeDetailsForm from "./HomeDetailsForm";
 import CarDetailsForm from "./CarDetailsForm";
@@ -515,7 +515,7 @@ export default function TimelineMobile({
   };
 
   const overviewUrl = scenarioDashboardPath(caseId, scenarioId);
-  const milestoneManagerUrl = `${overviewUrl}?milestones=manage`;
+  const milestoneManagerUrl = `${scenarioPeoplePath(caseId, scenarioId)}#milestones`;
   const editingHome =
     homePositions.find((home) => home.id === editingHomeId) ?? null;
   const editingCar = carPositions.find((car) => car.id === editingCarId) ?? null;

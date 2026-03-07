@@ -153,7 +153,8 @@ describe("ScenarioSettingsWorkspace members tab", () => {
     expect(html).toContain("Salary A");
     expect(html).toContain("Salary B");
     expect(html).toContain("Alice");
-    expect(html).toContain("memberEventsTagSourceBaselineOnly");
+    expect(html).not.toContain("memberEventsTagSourceBaselineOnly");
+    expect(html).not.toContain("memberEventsTagLinkStateOrphaned");
     expect(html).not.toContain("memberEventsEmpty");
   });
 
@@ -293,3 +294,4 @@ describe("ScenarioSettingsWorkspace members tab", () => {
     expect(upsertScenarioEventRefCalls).toBe(0);
   });
 });
+
