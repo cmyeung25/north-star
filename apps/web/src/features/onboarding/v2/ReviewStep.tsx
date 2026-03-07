@@ -27,6 +27,10 @@ import {
 import type {
   OnboardingV2Draft,
 } from "../../../domain/onboarding/v2/draftTypes";
+import {
+  buildOnboardingReviewFlagDefinitions,
+  type ReviewFlagDefinition,
+} from "./reviewFlagDefinitions";
 
 type ReviewStepProps = {
   draft: OnboardingV2Draft;
@@ -185,106 +189,37 @@ export default function ReviewStep({
   }, [baseMonth, ledgerRows, projectionResult]);
 
 
+  const reviewFlagDefinitions = useMemo<ReviewFlagDefinition[]>(
+    () =>
+      buildOnboardingReviewFlagDefinitions({
+        draft,
+        scenarioIsV2,
+        summary: {
+          incomeTotal: summary.incomeTotal,
+          expenseTotal: summary.expenseTotal,
+          cashNow: summary.cashNow,
+        },
+      }),
+    [draft, scenarioIsV2, summary.cashNow, summary.expenseTotal, summary.incomeTotal]
+  );
+
   const dataQualityFlags = useMemo<DataQualityFlag[]>(() => {
-    const flags: DataQualityFlag[] = [];
-    if (!scenarioIsV2) {
-      flags.push({
-        id: "scenario-legacy",
-        severity: "critical",
-        message: t("flagScenarioV2Required"),
-        actionLabel: t("flagScenarioV2RequiredAction"),
-        onAction: () => router.push(`/${locale}/scenarios`),
-      });
-      return flags;
-    }
-    const own = draft.housing.own;
-    const propertyMarketValue = Number(own.propertyMarketValue ?? 0);
-    const mortgageBaseValue =
-      own.mortgageBaseMode === "CUSTOM"
-        ? Number(own.mortgageBaseValue ?? propertyMarketValue)
-        : propertyMarketValue;
-    const downPaymentPercent =
-      own.downPaymentMode === "percent"
-        ? Number(own.downPaymentPercent ?? 0)
-        : propertyMarketValue > 0
-          ? (Number(own.downPaymentAmount ?? 0) / propertyMarketValue) * 100
-          : 0;
-    const downPaymentAmount =
-      own.downPaymentMode === "percent"
-        ? (propertyMarketValue * downPaymentPercent) / 100
-        : Number(own.downPaymentAmount ?? 0);
-    const loanAmount = Math.max(0, mortgageBaseValue - downPaymentAmount);
-    const mortgageRate = Number(own.mortgageRatePct ?? 0);
-    const mortgageTerm = Number(own.mortgageTermYears ?? 0);
-
-    if (
-      draft.housing.mode === "own" &&
-      own.mortgageEnabled &&
-      (loanAmount <= 0 || mortgageRate <= 0 || mortgageTerm <= 0)
-    ) {
-      flags.push({
-        id: "mortgage-missing-details",
-        severity: "warning",
-        message: t("flagMortgageMissingDetails"),
-        actionLabel: t("flagFixInStep", { step: t("step.housing") }),
-        onAction: () => onJumpToStep(stepIndex.housing),
-      });
-    }
-
-    draft.debts.forEach((debt) => {
-      const principal = Number(debt.principalOutstanding ?? 0);
-      const interestRate = debt.interestRatePct;
-      const termYears = debt.termYears;
-      if (principal <= 0 || interestRate === null || termYears === null) {
-        flags.push({
-          id: `loan-missing-${debt.id}`,
-          severity: "warning",
-          message: t("flagLoanMissingDetails", {
-            label: debt.label || t("flagLoanMissingDetailsFallback"),
-          }),
-          actionLabel: t("flagFixInStep", { step: t("step.debts") }),
-          onAction: () => onJumpToStep(stepIndex.debts),
-        });
-      }
-    });
-
-    const savingsPoliciesMissingValue = draft.insurance.policies.filter(
-      (policy) =>
-        policy.type === "savings" &&
-        policy.cashValueKnown &&
-        (!policy.cashValue || policy.cashValue <= 0)
-    );
-    if (savingsPoliciesMissingValue.length > 0) {
-      flags.push({
-        id: "savings-missing-cash-value",
-        severity: "warning",
-        message: t("flagSavingsMissingCashValue", {
-          count: savingsPoliciesMissingValue.length,
-        }),
-        actionLabel: t("flagFixInStep", { step: t("step.insurance") }),
-        onAction: () => onJumpToStep(stepIndex.insurance),
-      });
-    }
-
-    if (summary.incomeTotal <= 0 && summary.expenseTotal > 0) {
-      flags.push({
-        id: "income-zero",
-        severity: "critical",
-        message: t("flagIncomeZero"),
-        actionLabel: t("flagFixInStep", { step: t("step.income") }),
-        onAction: () => onJumpToStep(stepIndex.income),
-      });
-    }
-
-    if (draft.assets.cash.amount <= 0 && summary.expenseTotal > 0) {
-      flags.push({
-        id: "cash-zero",
-        severity: "critical",
-        message: t("flagCashZero"),
-        actionLabel: t("flagFixInStep", { step: t("step.assets") }),
-        onAction: () => onJumpToStep(stepIndex.assets),
-      });
-    }
+    const flags = reviewFlagDefinitions.map((flag) => ({
+      id: flag.id,
+      severity: flag.severity,
+      message: t(flag.messageKey, flag.messageValues),
+      actionLabel:
+        flag.action.type === "scenarioList"
+          ? t("flagScenarioV2RequiredAction")
+          : t("flagFixInStep", { step: t(`step.${flag.action.step}`) }),
+      onAction: () => {
+        if (flag.action.type === "scenarioList") {
+          router.push(`/${locale}/scenarios`);
+          return;
+        }
+        onJumpToStep(stepIndex[flag.action.step]);
+      },
+    }));
 
     projectionWarnings.forEach((warning, index) => {
       flags.push({
@@ -297,7 +232,7 @@ export default function ReviewStep({
     });
 
     return flags;
-  }, [draft, locale, onJumpToStep, projectionWarnings, router, scenarioIsV2, summary, t]);
+  }, [locale, onJumpToStep, projectionWarnings, reviewFlagDefinitions, router, t]);
 
   return (
     <Stack gap="lg">

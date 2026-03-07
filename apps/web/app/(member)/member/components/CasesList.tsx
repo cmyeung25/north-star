@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { useMemo, useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import {
   ActionIcon,
@@ -15,8 +16,6 @@ import {
   Text,
   ThemeIcon,
 } from "@mantine/core";
-import { useTranslations } from "next-intl";
-import { useLocale } from "next-intl";
 import {
   createCaseAction,
   deleteCaseAction,
@@ -28,6 +27,15 @@ import { caseEnterPath, scenarioOnboardingPath } from "../../../../lib/routes/ca
 import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDialogs";
 import { RouteLoadingOverlay } from "../../../../src/components/loading/route-loading-overlay";
 import type { Locale } from "../../../../src/i18n/routing";
+import {
+  getScenarioSeeds,
+  type ScenarioSeedTranslator,
+} from "../../../../src/scenarios/scenarioSeeds";
+import { getDraftStorageKey } from "../../../../src/features/onboarding/draftStorage";
+import {
+  buildOnboardingDraftStateFromSeed,
+  MEMBER_CASE_PRESET_SEED_IDS,
+} from "../../../../src/features/onboarding/seedPrefill";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
 
@@ -38,7 +46,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     <Paper p="xl">
       <Stack align="center" gap="sm">
         <ThemeIcon size={44} radius="xl" variant="light" color="polar">
-          <Text>📁</Text>
+          <Text>??</Text>
         </ThemeIcon>
         <Text fw={600}>{t("emptyTitle")}</Text>
         <Text c="dimmed" ta="center" maw={380}>
@@ -50,8 +58,11 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   );
 }
 
+const presetSeedIdSet = new Set<string>(MEMBER_CASE_PRESET_SEED_IDS);
+
 export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const t = useTranslations("member.list");
+  const tMessages = useTranslations();
   const loadingT = useTranslations("loading");
   const router = useRouter();
   const locale = useLocale();
@@ -60,10 +71,33 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [currency, setCurrency] = useState("HKD");
+  const [createStartMode, setCreateStartMode] = useState<"blank" | "preset">("blank");
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<CaseSummary | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CaseSummary | null>(null);
   const [openingCase, setOpeningCase] = useState<CaseSummary | null>(null);
+
+  const presetSeeds = useMemo(
+    () =>
+      getScenarioSeeds(tMessages as unknown as ScenarioSeedTranslator).filter((seed) =>
+        presetSeedIdSet.has(seed.id)
+      ),
+    [tMessages]
+  );
+
+  const selectedPreset = useMemo(
+    () => presetSeeds.find((seed) => seed.id === selectedPresetId) ?? null,
+    [presetSeeds, selectedPresetId]
+  );
+
+  const resetCreateDialog = () => {
+    setCreateOpen(false);
+    setNewTitle("");
+    setCurrency("HKD");
+    setCreateStartMode("blank");
+    setSelectedPresetId(null);
+  };
 
   const submit = <T,>(fn: () => Promise<T>, onDone?: (result: T) => void) => {
     setError(null);
@@ -75,6 +109,14 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
         })
         .catch((reason) => setError(reason instanceof Error ? reason.message : t("actionFailed")));
     });
+  };
+
+  const handleSelectPreset = (presetId: string) => {
+    setSelectedPresetId(presetId);
+    const preset = presetSeeds.find((seed) => seed.id === presetId);
+    if (preset && newTitle.trim().length === 0) {
+      setNewTitle(preset.title);
+    }
   };
 
   return (
@@ -142,7 +184,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                         <Menu withinPortal position="bottom-end">
                           <Menu.Target>
                             <ActionIcon variant="subtle" aria-label={t("moreActionsAriaLabel")}>
-                              ⋯
+                              ??
                             </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
@@ -182,16 +224,37 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
         title={newTitle}
         currency={currency}
         loading={isPending}
-        onClose={() => setCreateOpen(false)}
+        startMode={createStartMode}
+        selectedPresetId={selectedPresetId}
+        presets={presetSeeds.map((seed) => ({
+          id: seed.id,
+          title: seed.title,
+          description: seed.description,
+          tags: seed.tags,
+          keyNumbers: seed.keyNumbers,
+        }))}
+        onClose={resetCreateDialog}
         onTitleChange={setNewTitle}
         onCurrencyChange={setCurrency}
+        onStartModeChange={(value) => {
+          setCreateStartMode(value);
+          if (value === "blank") {
+            setSelectedPresetId(null);
+          }
+        }}
+        onPresetChange={handleSelectPreset}
         onSubmit={() =>
           submit(
             () => createCaseAction({ title: newTitle, currency }),
             ({ caseId, scenarioId }) => {
-              setCreateOpen(false);
-              setNewTitle("");
-              setCurrency("HKD");
+              if (createStartMode === "preset" && selectedPreset) {
+                const draftState = buildOnboardingDraftStateFromSeed(selectedPreset.payload);
+                window.localStorage.setItem(
+                  getDraftStorageKey(scenarioId),
+                  JSON.stringify(draftState)
+                );
+              }
+              resetCreateDialog();
               router.push(scenarioOnboardingPath(caseId, scenarioId, locale as Locale));
             },
           )

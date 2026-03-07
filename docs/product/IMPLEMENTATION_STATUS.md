@@ -29,6 +29,7 @@ Last updated: 2026-03-07
 - Fixed zh-HK Plan Lab decision-summary/template placeholder strings (`????`) to real i18n copy.
 - Localized Plan Lab decision template/summary keys in `zh-HK.json` to Traditional Chinese copy (replacing temporary English fallback).
 - Added dev-only Supabase E2E auth bootstrap/reset endpoints plus Playwright authenticated storage-state setup for local product validation without weakening normal auth redirects.
+- Fixed onboarding seed prefill regex parsing so preset-based onboarding can import `seedPrefill.ts` and keep rent/mortgage classification stable for preset hydration.
 ## 已存在但未進主流程
 - Scenario presets/seeds 已具備多種香港家庭情境，但尚未成為 member 主旅程首要入口。
 - Plan Lab 已有實驗與比較骨架，但常見決策模板與結論導向輸出仍需產品化。

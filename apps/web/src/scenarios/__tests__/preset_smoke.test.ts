@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildOnboardingDraftStateFromSeed } from "../../features/onboarding/seedPrefill";
 import { getScenarioSeeds } from "../scenarioSeeds";
 
 const t = Object.assign((key: string) => key, {
@@ -34,5 +35,17 @@ describe("quick start preset smoke", () => {
     );
 
     expect(Boolean(yearlyBonus)).toBe(true);
+  });
+
+  it("hydrates the single-renter preset into rent housing without counting rent twice", () => {
+    const seed = getScenarioSeeds(t).find((entry) => entry.id === "single-renter");
+
+    expect(Boolean(seed)).toBe(true);
+
+    const draft = buildOnboardingDraftStateFromSeed(seed!.payload);
+
+    expect(draft.housing.mode).toBe("rent");
+    expect(draft.housing.rent.amount).toBe(12000);
+    expect(draft.livingSpend.fixed.amount).toBe(6000);
   });
 });
