@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-08 (overview health scorecard)
+Last updated: 2026-03-08 (overview KPI watchlist)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -15,12 +15,14 @@ Last updated: 2026-03-08 (overview health scorecard)
 | Plan Lab 決策化 | 72% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
-| Actionable Output | 56% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議），Overview 新增 KPI health scorecard 與狀態分佈條 | 仍需擴展到跨頁輸出與可下載/可分享格式 |
+| Actionable Output | 60% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset ???? | 58% | member ??? modal ??? blank/preset create mode?preset ? onboarding-prefill ???? 6 ???? seeds?seed ?? i18n ??????? raw keys | app ????????????? beta ???????? |
 | GTM / 營運就緒 | 20% | 有 marketing pages 基礎 | 缺 sample journey 導流、beta feedback loop、支援流程 |
 
 
 ## Latest Update (2026-03-08)
+- Overview dashboard 新增 KPI watchlist：KPI 顯示改為 library（全部可用）+ watchlist（已選）兩層，預設保留核心指標；watchlist 編輯支援增刪/排序，並跟隨 active scenario 儲存避免跨 scenario leakage。
+- 新增互動測試覆蓋 watchlist 持久化：更新後經 hydrate/reload 仍保留，且不影響其他 scenario。
 - Overview dashboard 新增 KPI health scorecard：以 domain classification 模組統一計算 excellent/progressing/vulnerable/informational/no-data，並在 KPI 卡與分佈條共用 i18n status key。
 - 新增 health scorecard domain 單元測試，覆蓋 KPI 分級規則與分佈計數。
 ## 已存在但未進主流程

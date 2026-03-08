@@ -52,3 +52,10 @@ Last updated: 2026-03-08
 - Context: The member create-case modal already had a blank/preset scaffold, and the repo also contains a direct seed-to-scenario draft path. Phase A needs a safe preset entry that lowers first-run friction without changing lifecycle, hydration, or routing assumptions.
 - Decision: In member flow, `create mode preset` means onboarding-prefill only: create the case/scenario first, map the selected seed into a scenario-scoped onboarding draft, and then route into onboarding. The initial productized allowlist for this member entry is six seeds: `single-renter`, `dual-income-home`, `dual-income-rental`, `new-baby`, `new-baby-helper`, and `high-asset`.
 - Guardrails: Do not mark the scenario onboarded up front, do not route directly to app/dashboard, and do not add a second server-side seed creation path for member create-case.
+
+### D-2026-03-08-02
+- Date: 2026-03-08
+- Status: Accepted
+- Context: Overview KPI 數量持續增加，需要讓使用者自訂重點卡片，同時必須維持 scenario 隔離、避免偏好跨 case/scenario 洩漏。
+- Decision: KPI watchlist 偏好採 scenario-scoped 儲存（`scenario.meta.overviewKpiWatchlist`），Overview UI 採 library（全部可用）+ watchlist（已選）雙層；預設保留核心 KPI，編輯能力提供增刪與排序。
+- Guardrails: 只允許寫入 active scenario 的 meta；不得引入全域設定寫入路徑；重載後需由既有 scenario store persistence/hydration 還原且不影響其他 scenario。
