@@ -1,6 +1,5 @@
 ﻿# North Star Product Roadmap
-
-Last updated: 2026-03-07
+Last updated: 2026-03-08
 
 ## Product Focus
 - 產品定位: 香港/亞洲家庭人生現金流決策平台。
@@ -28,7 +27,9 @@ Last updated: 2026-03-07
 3. Guardrails / Completeness 層
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。
 4. Presets 接入主流程
-- 把現有 scenario seeds/presets 接入 member/app 主要入口，作為首次建模捷徑。
+- [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。
+- [x] v1 已交付：member 入口 preset allowlist 擴至 6 個產品化 seeds（single-renter、dual-income-home、dual-income-rental、new-baby、new-baby-helper、high-asset）。
+- [ ] app 內延伸入口與分組資訊架構待後續 beta 回饋收斂。
 5. Beta 回饋閉環
 - 以封閉測試流程建立「收集問題 -> 分類 -> 迭代 -> 驗收」節奏。
 - [x] Local dev now has a dev-only E2E auth bootstrap (dedicated Supabase test account + reset) so Playwright can validate member/app flows without weakening normal auth boundaries.

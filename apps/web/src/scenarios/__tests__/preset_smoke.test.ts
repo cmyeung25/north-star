@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildOnboardingDraftStateFromSeed } from "../../features/onboarding/seedPrefill";
+import {
+  buildOnboardingDraftStateFromSeed,
+  MEMBER_CASE_PRESET_SEED_IDS,
+} from "../../features/onboarding/seedPrefill";
 import { getScenarioSeeds } from "../scenarioSeeds";
 
 const t = Object.assign((key: string) => key, {
@@ -20,6 +23,22 @@ describe("quick start preset smoke", () => {
       expect(seed.summary.monthlyIncome > 0).toBe(true);
       expect(seed.summary.monthlyExpense > 0).toBe(true);
     });
+  });
+
+  it("keeps member case preset allowlist aligned with the six productized seeds", () => {
+    const ids = getScenarioSeeds(t)
+      .filter((seed) => MEMBER_CASE_PRESET_SEED_IDS.includes(seed.id as (typeof MEMBER_CASE_PRESET_SEED_IDS)[number]))
+      .map((seed) => seed.id);
+
+    expect(MEMBER_CASE_PRESET_SEED_IDS).toEqual([
+      "single-renter",
+      "dual-income-home",
+      "dual-income-rental",
+      "new-baby",
+      "new-baby-helper",
+      "high-asset",
+    ]);
+    expect(ids).toEqual([...MEMBER_CASE_PRESET_SEED_IDS]);
   });
 
   it("keeps 13th month bonus in dual-income-home", () => {

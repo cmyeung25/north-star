@@ -1,6 +1,6 @@
 ﻿# North Star Product Decisions
 
-Last updated: 2026-03-07
+Last updated: 2026-03-08
 
 ## Decision Log
 
@@ -45,3 +45,10 @@ Last updated: 2026-03-07
 - Context: Local Playwright E2E coverage needs authenticated case/scenario access, but the app currently relies on a real Supabase user for persistence and must not weaken production auth or the /member/cases entry rule.
 - Decision: Add a development-only E2E auth bootstrap/reset flow that signs into a dedicated Supabase account via guarded API routes and reuses Playwright storage state; do not implement a general auth bypass or change normal middleware/layout protection.
 - Guardrails: Only enable when `NODE_ENV=development` and `E2E_AUTH_BOOTSTRAP=1`; require a shared secret header; use a dedicated non-human account only; keep post-auth destination at `/{locale}/member/cases`; never expose this flow as a production or preview auth shortcut.
+
+### D-2026-03-08-01
+- Date: 2026-03-08
+- Status: Accepted
+- Context: The member create-case modal already had a blank/preset scaffold, and the repo also contains a direct seed-to-scenario draft path. Phase A needs a safe preset entry that lowers first-run friction without changing lifecycle, hydration, or routing assumptions.
+- Decision: In member flow, `create mode preset` means onboarding-prefill only: create the case/scenario first, map the selected seed into a scenario-scoped onboarding draft, and then route into onboarding. The initial productized allowlist for this member entry is six seeds: `single-renter`, `dual-income-home`, `dual-income-rental`, `new-baby`, `new-baby-helper`, and `high-asset`.
+- Guardrails: Do not mark the scenario onboarded up front, do not route directly to app/dashboard, and do not add a second server-side seed creation path for member create-case.

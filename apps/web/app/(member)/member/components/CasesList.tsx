@@ -31,11 +31,8 @@ import {
   getScenarioSeeds,
   type ScenarioSeedTranslator,
 } from "../../../../src/scenarios/scenarioSeeds";
-import { getDraftStorageKey } from "../../../../src/features/onboarding/draftStorage";
-import {
-  buildOnboardingDraftStateFromSeed,
-  MEMBER_CASE_PRESET_SEED_IDS,
-} from "../../../../src/features/onboarding/seedPrefill";
+import { MEMBER_CASE_PRESET_SEED_IDS } from "../../../../src/features/onboarding/seedPrefill";
+import { writePresetDraftToStorage } from "./presetDraftStorage";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
 
@@ -293,11 +290,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
             () => createCaseAction({ title: newTitle, currency }),
             ({ caseId, scenarioId }) => {
               if (createStartMode === "preset" && selectedPreset) {
-                const draftState = buildOnboardingDraftStateFromSeed(selectedPreset.payload);
-                window.localStorage.setItem(
-                  getDraftStorageKey(scenarioId),
-                  JSON.stringify(draftState)
-                );
+                writePresetDraftToStorage(scenarioId, selectedPreset.payload);
               }
               resetCreateDialog();
               router.push(scenarioOnboardingPath(caseId, scenarioId, locale as Locale));

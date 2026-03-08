@@ -21,6 +21,8 @@ export const MEMBER_CASE_PRESET_SEED_IDS = [
   "single-renter",
   "dual-income-home",
   "dual-income-rental",
+  "new-baby",
+  "new-baby-helper",
   "high-asset",
 ] as const;
 

@@ -1,6 +1,5 @@
 ﻿# North Star Implementation Status
-
-Last updated: 2026-03-07
+Last updated: 2026-03-08
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -17,11 +16,15 @@ Last updated: 2026-03-07
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
 | Actionable Output | 52% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 入口整合 | 30% | 既有 scenario seeds 與模板能力已存在 | 尚未完整接入 member/app 主流程作為第一步入口 |
+| Preset 入口整合 | 55% | member 建案例 modal 已接入 blank/preset create mode；preset 以 onboarding-prefill 方式覆蓋 6 個產品化 seeds | app 內延伸入口、分組資訊架構與 beta 成效追蹤仍待補齊 |
 | GTM / 營運就緒 | 20% | 有 marketing pages 基礎 | 缺 sample journey 導流、beta feedback loop、支援流程 |
 
 
-## Latest Update (2026-03-07)
+## Latest Update (2026-03-08)
+- Completed member create-case preset v1: fixed `member.caseDialogs` create-mode/preset i18n so the modal no longer leaks raw message keys.
+- Expanded member preset allowlist to six productized seeds, including `new-baby` and `new-baby-helper`.
+- Locked member `create mode preset` to onboarding-prefill: create case/scenario first, store a scenario-scoped onboarding draft, then enter onboarding rather than jumping directly into an onboarded app scenario.
+
 - Plan Lab「新增實驗」入口新增決策模板模式，v1 提供 `home_purchase`、`new_baby`、`income_shock`。
 - 置業/生育模板沿用既有 life-event bundle wizard，預設打包為 experiment group。
 - 收入衝擊模板沿用 baseline override 流程，預設 `-20%`、`12 個月`、`baseMonth+1`，若無可用收入事件則禁用並顯示原因。
@@ -31,7 +34,7 @@ Last updated: 2026-03-07
 - Added dev-only Supabase E2E auth bootstrap/reset endpoints plus Playwright authenticated storage-state setup for local product validation without weakening normal auth redirects.
 - Fixed onboarding seed prefill regex parsing so preset-based onboarding can import `seedPrefill.ts` and keep rent/mortgage classification stable for preset hydration.
 ## 已存在但未進主流程
-- Scenario presets/seeds 已具備多種香港家庭情境，但尚未成為 member 主旅程首要入口。
+- Scenario presets/seeds 已接入 member 建案例入口作為 onboarding-prefill v1；app 內延伸入口與分組資訊架構仍待產品化。
 - Plan Lab 已有實驗與比較骨架，但常見決策模板與結論導向輸出仍需產品化。
 - Cloud save/revision conflict 已可運作，仍需把「首次建模 -> 長期回訪」路徑整合成更低摩擦流程。
 
@@ -52,4 +55,4 @@ Last updated: 2026-03-07
 ## Next Recommended Priority
 1. 以「可完成一次重大家庭決策」為目標，收斂 Onboarding + Property Bundle 旅程。
 2. 讓 Plan Lab 以模板化決策入口驅動，並補齊比較摘要的可行動建議。
-3. 將 presets 接入 member 主流程，建立封閉 beta 回饋閉環與量化追蹤。
+3. 將 member preset onboarding-prefill 延伸到 app 內延伸入口，並建立封閉 beta 回饋閉環與量化追蹤。

@@ -219,6 +219,8 @@ Event taxonomy & mapping registry – Structural semantics are now centralized: 
 
 Plan Lab decision template v1 & summary layer – Plan Lab now exposes decision templates (`home_purchase`, `new_baby`, `income_shock`) directly from the Add Experiment entry. Bundle-based templates reuse existing life-event wizard paths with experiment packing, while income shock reuses baseline override flow with guard-based availability. Decision summary uses KPI-delta heuristics (risk timing/trend, top drivers, recommended actions) and does not modify engine interfaces.
 
+Member create-case preset v1 - The member `/member/cases` create dialog now treats `preset` as an onboarding-prefill path only. It creates the case/scenario first, stores a scenario-scoped onboarding draft derived from an allowlisted seed, and then routes into onboarding. Do not reinterpret this member entry as direct scenario creation or skip onboarding; the current allowlist is six presets (`single-renter`, `dual-income-home`, `dual-income-rental`, `new-baby`, `new-baby-helper`, `high-asset`).
+
 9 Checklist for PR authors
 
 Before submitting changes, check:

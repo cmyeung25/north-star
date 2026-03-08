@@ -4459,7 +4459,16 @@
       "create": "Create",
       "save": "Save",
       "delete": "Delete",
-      "deleteConfirm": "Delete this case and all scenarios? This cannot be undone."
+      "deleteConfirm": "Delete this case and all scenarios? This cannot be undone.",
+      "createModeLabel": "Start with",
+      "createModeBlank": "Blank case",
+      "createModePreset": "Preset prefill",
+      "createModeHintBlank": "Start from an empty onboarding flow and enter everything yourself.",
+      "createModeHintPreset": "Use a household preset to prefill onboarding. You can edit everything later.",
+      "presetTitle": "Preset library",
+      "presetHint": "Choose a starting point for members, income, housing, and assets.",
+      "presetApply": "Use this preset",
+      "presetSelected": "Selected"
     },
     "scenarioDialogs": {
       "createTitle": "Create scenario",
