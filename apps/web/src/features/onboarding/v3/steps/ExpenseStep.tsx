@@ -16,9 +16,11 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { UI_EXPENSE_CATEGORY_KEYS } from "../../../money/categoryMeta";
+import MoneyMetaTags from "../../../money/MoneyMetaTags";
 import MonthField from "../../../../../components/MonthField";
 import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
 import type { CashflowEvent } from "../../../../domain/scenarioV2/events";
+import type { MoneyTagItem } from "../../../money/moneyTagConfig";
 import type { GeneratedItemMetadata } from "../../../../domain/scenarioDraft/types";
 
 type AnnualMode = "monthly" | "yearly";
@@ -133,16 +135,27 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
     return tMoney(`expenseCategory.${category}`);
   };
 
+  const buildExpenseCategoryTag = (rowId: string, category?: CashflowEvent["expenseCategory"]): MoneyTagItem[] => {
+    const label = resolveExpenseCategoryLabel(category);
+    if (!label) {
+      return [];
+    }
+
+    return [
+      {
+        key: `expense-category-${rowId}`,
+        label,
+        kind: "category",
+      },
+    ];
+  };
+
   return (
     <Stack gap="md">
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
           <Text fw={600}>{t("expense.settingTitle")}</Text>
-          {resolveExpenseCategoryLabel(daily?.expenseCategory) ? (
-            <Text size="xs" c="dimmed">
-              {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(daily?.expenseCategory) ?? "" })}
-            </Text>
-          ) : null}
+          <MoneyMetaTags tags={buildExpenseCategoryTag("daily-monthly", daily?.expenseCategory)} />
           <Select
             label={t("expense.fields.category")}
             data={expenseCategoryOptions}
@@ -188,11 +201,7 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
           <Text fw={600}>{t("expense.travelTitle")}</Text>
-          {resolveExpenseCategoryLabel(travel?.expenseCategory) ? (
-            <Text size="xs" c="dimmed">
-              {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(travel?.expenseCategory) ?? "" })}
-            </Text>
-          ) : null}
+          <MoneyMetaTags tags={buildExpenseCategoryTag("travel", travel?.expenseCategory)} />
           <Select
             label={t("expense.fields.category")}
             data={expenseCategoryOptions}
@@ -210,11 +219,7 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
           <Text fw={600}>{t("expense.taxTitle")}</Text>
-          {resolveExpenseCategoryLabel(tax?.expenseCategory) ? (
-            <Text size="xs" c="dimmed">
-              {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(tax?.expenseCategory) ?? "" })}
-            </Text>
-          ) : null}
+          <MoneyMetaTags tags={buildExpenseCategoryTag("tax", tax?.expenseCategory)} />
           <Select
             label={t("expense.fields.category")}
             data={expenseCategoryOptions}
@@ -237,11 +242,7 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
           </Group>
           {otherFixed.map((row) => (
             <Stack key={row.id} gap="xs">
-              {resolveExpenseCategoryLabel(row.expenseCategory) ? (
-                <Text size="xs" c="dimmed">
-                  {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(row.expenseCategory) ?? "" })}
-                </Text>
-              ) : null}
+              <MoneyMetaTags tags={buildExpenseCategoryTag(row.id, row.expenseCategory)} />
               <Group grow>
               <TextInput value={row.label ?? ""} placeholder={t("expense.otherFixedLabel")} onChange={(e) => onUpdateManualItem(row.id, { label: e.currentTarget.value })} />
               <NumberInput value={row.amount} min={0} onChange={(value) => onUpdateManualItem(row.id, { amount: typeof value === "number" ? value : 0 })} />

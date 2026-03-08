@@ -242,6 +242,7 @@ export default function OnboardingV3Wizard() {
           label: member.name?.trim() ? `${member.name.trim()} ${t("steps.income.templates.salary")}` : t("steps.income.templates.salary"),
           amount: 20000,
           cadence: "monthly",
+          category: "salary",
           memberId: member.id,
           startMonth: current.profile.startMonth ?? "",
           growthMode: "assumption",
