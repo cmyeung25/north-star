@@ -15,9 +15,11 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { UI_INCOME_CATEGORY_KEYS } from "../../../money/categoryMeta";
+import MoneyMetaTags from "../../../money/MoneyMetaTags";
 import MonthField from "../../../../../components/MonthField";
 import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
 import type { CashflowEvent } from "../../../../domain/scenarioV2/events";
+import type { MoneyTagItem } from "../../../money/moneyTagConfig";
 import type { GeneratedItemMetadata } from "../../../../domain/scenarioDraft/types";
 
 type Row = CashflowEvent & { metadata?: GeneratedItemMetadata };
@@ -99,6 +101,21 @@ export default function IncomeStep({
     }
 
     return tMoney(`incomeCategory.${category}`);
+  };
+
+  const buildIncomeCategoryTag = (rowId: string, category?: CashflowEvent["category"]): MoneyTagItem[] => {
+    const label = resolveIncomeCategoryLabel(category);
+    if (!label) {
+      return [];
+    }
+
+    return [
+      {
+        key: `income-category-${rowId}`,
+        label,
+        kind: "category",
+      },
+    ];
   };
 
   const addManual = (rule: string | undefined, item: Omit<ManualRow, "id">) => {
@@ -253,13 +270,7 @@ export default function IncomeStep({
                         <Text size="sm" fw={600}>
                           {resolveManualTitle(row.title)}
                         </Text>
-                        {resolveIncomeCategoryLabel(row.category) ? (
-                          <Text size="xs" c="dimmed">
-                            {t("income.categoryPreview", {
-                              category: resolveIncomeCategoryLabel(row.category) ?? "",
-                            })}
-                          </Text>
-                        ) : null}
+                        <MoneyMetaTags tags={buildIncomeCategoryTag(row.id, row.category)} />
                         <Group gap="xs">
                           <Button variant="subtle" onClick={() => onDuplicateManualItem(row.id)}>
                             {t("income.actions.copy")}

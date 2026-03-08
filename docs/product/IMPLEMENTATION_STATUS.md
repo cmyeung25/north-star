@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-08 (onboarding category confirm update)
+Last updated: 2026-03-08 (onboarding meta tag alignment)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -21,6 +21,8 @@ Last updated: 2026-03-08 (onboarding category confirm update)
 
 
 ## Latest Update (2026-03-08)
+- Onboarding v3 家庭成員自動建立的薪資事件現在會寫入 `category: salary`，避免後續在 onboarding / Money 顯示時被歸類為「其他」。
+- Onboarding v3 收入與支出步驟的分類摘要改為共用 `MoneyMetaTags`（與 Money 頁相同 badge style），分類資訊呈現一致。
 - Fixed onboarding v3 income/expense event category mapping so auto-salary and onboarding-created cashflows persist with correct `category`/`expenseCategory` values when entering Money page (instead of falling back to non-salary/other buckets).
 - Audited `apps/web/messages/zh-HK.json` for encoding and placeholder drift; restored `scenarios.seeds.*` Traditional Chinese copy and kept shared placeholders aligned with `en.json`.
 - Added a locale guardrail test to scan zh-HK messages for mojibake markers and placeholder-token mismatches on shared keys.
