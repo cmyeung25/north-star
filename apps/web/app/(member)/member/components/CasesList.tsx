@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale, useMessages, useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import {
@@ -28,8 +28,8 @@ import { CreateCaseDialog, DeleteCaseDialog, RenameCaseDialog } from "./CaseDial
 import { RouteLoadingOverlay } from "../../../../src/components/loading/route-loading-overlay";
 import type { Locale } from "../../../../src/i18n/routing";
 import {
+  createScenarioSeedTranslatorFromMessages,
   getScenarioSeeds,
-  type ScenarioSeedTranslator,
 } from "../../../../src/scenarios/scenarioSeeds";
 import { MEMBER_CASE_PRESET_SEED_IDS } from "../../../../src/features/onboarding/seedPrefill";
 import { writePresetDraftToStorage } from "./presetDraftStorage";
@@ -104,7 +104,7 @@ const presetSeedIdSet = new Set<string>(MEMBER_CASE_PRESET_SEED_IDS);
 
 export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const t = useTranslations("member.list");
-  const tMessages = useTranslations();
+  const messages = useMessages();
   const loadingT = useTranslations("loading");
   const router = useRouter();
   const locale = useLocale();
@@ -120,12 +120,17 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const [deleteTarget, setDeleteTarget] = useState<CaseSummary | null>(null);
   const [openingCase, setOpeningCase] = useState<CaseSummary | null>(null);
 
+  const seedTranslator = useMemo(
+    () => createScenarioSeedTranslatorFromMessages(messages as Record<string, unknown>),
+    [messages]
+  );
+
   const presetSeeds = useMemo(
     () =>
-      getScenarioSeeds(tMessages as unknown as ScenarioSeedTranslator).filter((seed) =>
+      getScenarioSeeds(seedTranslator).filter((seed) =>
         presetSeedIdSet.has(seed.id)
       ),
-    [tMessages]
+    [seedTranslator]
   );
 
   const selectedPreset = useMemo(

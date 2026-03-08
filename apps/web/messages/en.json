@@ -3965,6 +3965,8 @@
         "monthlyExpense": "Monthly expense",
         "cash": "Cash",
         "propertyMortgage": "Property / mortgage",
+        "propertyValue": "Property value",
+        "mortgageBalance": "Mortgage balance",
         "rentalIncome": "Rental income",
         "baby": "Baby costs",
         "helper": "Helper costs",

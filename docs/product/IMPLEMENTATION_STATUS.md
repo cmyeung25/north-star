@@ -16,11 +16,13 @@ Last updated: 2026-03-08
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
 | Actionable Output | 52% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 入口整合 | 55% | member 建案例 modal 已接入 blank/preset create mode；preset 以 onboarding-prefill 方式覆蓋 6 個產品化 seeds | app 內延伸入口、分組資訊架構與 beta 成效追蹤仍待補齊 |
+| Preset ???? | 58% | member ??? modal ??? blank/preset create mode?preset ? onboarding-prefill ???? 6 ???? seeds?seed ?? i18n ??????? raw keys | app ????????????? beta ???????? |
 | GTM / 營運就緒 | 20% | 有 marketing pages 基礎 | 缺 sample journey 導流、beta feedback loop、支援流程 |
 
 
 ## Latest Update (2026-03-08)
+- Fixed literal `????` placeholders in zh-HK preset seed copy so member create-case cards render real Traditional Chinese content.
+- Fixed member create-case preset seed-card i18n wiring and restored zh-HK `seeds` copy so preset cards no longer render raw `seeds.*` keys or duplicated property/mortgage labels.
 - Completed member create-case preset v1: fixed `member.caseDialogs` create-mode/preset i18n so the modal no longer leaks raw message keys.
 - Expanded member preset allowlist to six productized seeds, including `new-baby` and `new-baby-helper`.
 - Locked member `create mode preset` to onboarding-prefill: create case/scenario first, store a scenario-scoped onboarding draft, then enter onboarding rather than jumping directly into an onboarded app scenario.

@@ -89,6 +89,41 @@ type ScenarioSeedDefinition = {
 
 const SEED_HORIZON_MONTHS = 120;
 
+const resolveMessageValue = (messages: Record<string, unknown>, key: string): unknown =>
+  key.split(".").reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== "object") {
+      return undefined;
+    }
+    return (current as Record<string, unknown>)[segment];
+  }, messages);
+
+const interpolateMessage = (
+  template: string,
+  values?: Record<string, string | number>
+): string => {
+  if (!values) {
+    return template;
+  }
+
+  return template.replace(/\{(\w+)\}/g, (match, token) => {
+    const value = values[token];
+    return value === undefined ? match : String(value);
+  });
+};
+
+export const createScenarioSeedTranslatorFromMessages = (
+  messages: Record<string, unknown>
+): ScenarioSeedTranslator => {
+  const translator = ((key: string, values?: Record<string, string | number>) => {
+    const resolved = resolveMessageValue(messages, key);
+    return typeof resolved === "string" ? interpolateMessage(resolved, values) : key;
+  }) as ScenarioSeedTranslator;
+
+  translator.raw = (key: string) => resolveMessageValue(messages, key);
+
+  return translator;
+};
+
 const offsetMonth = (baseMonth: MonthKey, deltaMonths: number): MonthKey =>
   addMonths(baseMonth, deltaMonths) as MonthKey;
 
@@ -318,23 +353,35 @@ const getKeyNumberValue = (summary: ScenarioSeedSummary, metric: ScenarioSeedKey
   }
 };
 
+const normalizeSeedTags = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((tag): tag is string => typeof tag === "string");
+  }
+
+  if (value && typeof value === "object") {
+    return Object.values(value).filter((tag): tag is string => typeof tag === "string");
+  }
+
+  return [];
+};
+
 const seedDefinitions: ScenarioSeedDefinition[] = [
   {
     id: "single-renter",
-    titleKey: "seeds.profiles.singleRenter.title",
-    descriptionKey: "seeds.profiles.singleRenter.description",
-    tagsKey: "seeds.profiles.singleRenter.tags",
+    titleKey: "scenarios.seeds.profiles.singleRenter.title",
+    descriptionKey: "scenarios.seeds.profiles.singleRenter.description",
+    tagsKey: "scenarios.seeds.profiles.singleRenter.tags",
     keyNumbers: [
       {
-        labelKey: "seeds.keyNumbers.monthlyIncome",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyIncome",
         metric: "monthlyIncome",
       },
       {
-        labelKey: "seeds.keyNumbers.monthlyExpense",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyExpense",
         metric: "monthlyExpense",
       },
       {
-        labelKey: "seeds.keyNumbers.cash",
+        labelKey: "scenarios.seeds.keyNumbers.cash",
         metric: "cash",
       },
     ],
@@ -345,7 +392,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const members = [
         buildMember(
           memberId,
-          t("seeds.profiles.singleRenter.memberName"),
+          t("scenarios.seeds.profiles.singleRenter.memberName"),
           memberBirthMonth
         ),
       ];
@@ -353,14 +400,14 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildAsset({
           id: "seed-single-cash",
           kind: "cash",
-          label: t("seeds.assetLabels.cash"),
+          label: t("scenarios.seeds.assetLabels.cash"),
           currentValue: 50000,
           startMonth: baseMonth,
         }),
         buildAsset({
           id: "seed-single-invest",
           kind: "investment",
-          label: t("seeds.assetLabels.investments"),
+          label: t("scenarios.seeds.assetLabels.investments"),
           currentValue: 80000,
           startMonth: baseMonth,
         }),
@@ -369,7 +416,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-single-income",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 25000,
           startMonth: baseMonth,
           memberId,
@@ -377,14 +424,14 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-single-rent",
           kind: "expense",
-          label: t("seeds.eventLabels.rent"),
+          label: t("scenarios.seeds.eventLabels.rent"),
           amount: 12000,
           startMonth: baseMonth,
         }),
         buildMonthlyCashflow({
           id: "seed-single-living",
           kind: "expense",
-          label: t("seeds.eventLabels.living"),
+          label: t("scenarios.seeds.eventLabels.living"),
           amount: 6000,
           startMonth: baseMonth,
         }),
@@ -411,20 +458,20 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
   },
   {
     id: "dual-income-home",
-    titleKey: "seeds.profiles.dualIncomeHome.title",
-    descriptionKey: "seeds.profiles.dualIncomeHome.description",
-    tagsKey: "seeds.profiles.dualIncomeHome.tags",
+    titleKey: "scenarios.seeds.profiles.dualIncomeHome.title",
+    descriptionKey: "scenarios.seeds.profiles.dualIncomeHome.description",
+    tagsKey: "scenarios.seeds.profiles.dualIncomeHome.tags",
     keyNumbers: [
       {
-        labelKey: "seeds.keyNumbers.monthlyIncome",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyIncome",
         metric: "monthlyIncome",
       },
       {
-        labelKey: "seeds.keyNumbers.propertyMortgage",
+        labelKey: "scenarios.seeds.keyNumbers.propertyValue",
         metric: "property",
       },
       {
-        labelKey: "seeds.keyNumbers.propertyMortgage",
+        labelKey: "scenarios.seeds.keyNumbers.mortgageBalance",
         metric: "mortgage",
       },
     ],
@@ -437,12 +484,12 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const members = [
         buildMember(
           memberA,
-          t("seeds.profiles.dualIncomeHome.memberNameA"),
+          t("scenarios.seeds.profiles.dualIncomeHome.memberNameA"),
           memberABirthMonth
         ),
         buildMember(
           memberB,
-          t("seeds.profiles.dualIncomeHome.memberNameB"),
+          t("scenarios.seeds.profiles.dualIncomeHome.memberNameB"),
           memberBBirthMonth
         ),
       ];
@@ -450,21 +497,21 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildAsset({
           id: "seed-couple-cash",
           kind: "cash",
-          label: t("seeds.assetLabels.cash"),
+          label: t("scenarios.seeds.assetLabels.cash"),
           currentValue: 200000,
           startMonth: baseMonth,
         }),
         buildAsset({
           id: "seed-couple-invest",
           kind: "investment",
-          label: t("seeds.assetLabels.investments"),
+          label: t("scenarios.seeds.assetLabels.investments"),
           currentValue: 50000,
           startMonth: baseMonth,
         }),
       ];
 
       const homeBundleId = "seed-dual-income-home";
-      const homeBundleTitle = t("seeds.bundleLabels.homePurchase");
+      const homeBundleTitle = t("scenarios.seeds.bundleLabels.homePurchase");
       const homeInput: HomePurchaseBundleInput = {
         bundleId: homeBundleId,
         label: homeBundleTitle,
@@ -480,13 +527,13 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         feesOneOff: [
           {
             id: "seed-home-fee-stamp",
-            label: t("seeds.eventLabels.stampDuty"),
+            label: t("scenarios.seeds.eventLabels.stampDuty"),
             amount: 200000,
             month: baseMonth,
           },
           {
             id: "seed-home-fee-legal",
-            label: t("seeds.eventLabels.legalFee"),
+            label: t("scenarios.seeds.eventLabels.legalFee"),
             amount: 60000,
             month: baseMonth,
           },
@@ -494,7 +541,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         ongoingCosts: [
           {
             id: "seed-home-fee-management",
-            label: t("seeds.eventLabels.managementFee"),
+            label: t("scenarios.seeds.eventLabels.managementFee"),
             amount: 1500,
             startMonth: baseMonth,
           },
@@ -514,7 +561,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-couple-income-a",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 35000,
           startMonth: baseMonth,
           memberId: memberA,
@@ -522,7 +569,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-couple-income-b",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 30000,
           startMonth: baseMonth,
           memberId: memberB,
@@ -534,13 +581,13 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
           cadence: "yearly" as const,
           amount: 30000,
           startMonth: baseMonth,
-          label: t("seeds.eventLabels.bonus"),
+          label: t("scenarios.seeds.eventLabels.bonus"),
           memberId: memberA,
         },
         buildMonthlyCashflow({
           id: "seed-couple-living",
           kind: "expense",
-          label: t("seeds.eventLabels.living"),
+          label: t("scenarios.seeds.eventLabels.living"),
           amount: 14000,
           startMonth: baseMonth,
         }),
@@ -578,20 +625,20 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
   },
   {
     id: "dual-income-rental",
-    titleKey: "seeds.profiles.dualIncomeRental.title",
-    descriptionKey: "seeds.profiles.dualIncomeRental.description",
-    tagsKey: "seeds.profiles.dualIncomeRental.tags",
+    titleKey: "scenarios.seeds.profiles.dualIncomeRental.title",
+    descriptionKey: "scenarios.seeds.profiles.dualIncomeRental.description",
+    tagsKey: "scenarios.seeds.profiles.dualIncomeRental.tags",
     keyNumbers: [
       {
-        labelKey: "seeds.keyNumbers.monthlyIncome",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyIncome",
         metric: "monthlyIncome",
       },
       {
-        labelKey: "seeds.keyNumbers.rentalIncome",
+        labelKey: "scenarios.seeds.keyNumbers.rentalIncome",
         metric: "rentalIncome",
       },
       {
-        labelKey: "seeds.keyNumbers.propertyMortgage",
+        labelKey: "scenarios.seeds.keyNumbers.mortgageBalance",
         metric: "mortgage",
       },
     ],
@@ -604,12 +651,12 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const members = [
         buildMember(
           memberA,
-          t("seeds.profiles.dualIncomeRental.memberNameA"),
+          t("scenarios.seeds.profiles.dualIncomeRental.memberNameA"),
           memberABirthMonth
         ),
         buildMember(
           memberB,
-          t("seeds.profiles.dualIncomeRental.memberNameB"),
+          t("scenarios.seeds.profiles.dualIncomeRental.memberNameB"),
           memberBBirthMonth
         ),
       ];
@@ -617,14 +664,14 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildAsset({
           id: "seed-rental-cash",
           kind: "cash",
-          label: t("seeds.assetLabels.cash"),
+          label: t("scenarios.seeds.assetLabels.cash"),
           currentValue: 300000,
           startMonth: baseMonth,
         }),
       ];
 
       const homeBundleId = "seed-dual-income-rental";
-      const homeBundleTitle = t("seeds.bundleLabels.homePurchase");
+      const homeBundleTitle = t("scenarios.seeds.bundleLabels.homePurchase");
       const homeInput: HomePurchaseBundleInput = {
         bundleId: homeBundleId,
         label: homeBundleTitle,
@@ -640,7 +687,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         feesOneOff: [
           {
             id: "seed-rental-fee-stamp",
-            label: t("seeds.eventLabels.stampDuty"),
+            label: t("scenarios.seeds.eventLabels.stampDuty"),
             amount: 240000,
             month: baseMonth,
           },
@@ -648,7 +695,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         ongoingCosts: [
           {
             id: "seed-rental-fee-management",
-            label: t("seeds.eventLabels.managementFee"),
+            label: t("scenarios.seeds.eventLabels.managementFee"),
             amount: 1800,
             startMonth: baseMonth,
           },
@@ -673,7 +720,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-rental-income-a",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 35000,
           startMonth: baseMonth,
           memberId: memberA,
@@ -681,7 +728,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-rental-income-b",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 32000,
           startMonth: baseMonth,
           memberId: memberB,
@@ -689,7 +736,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-rental-living",
           kind: "expense",
-          label: t("seeds.eventLabels.living"),
+          label: t("scenarios.seeds.eventLabels.living"),
           amount: 15000,
           startMonth: baseMonth,
         }),
@@ -728,20 +775,20 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
   },
   {
     id: "new-baby",
-    titleKey: "seeds.profiles.newBaby.title",
-    descriptionKey: "seeds.profiles.newBaby.description",
-    tagsKey: "seeds.profiles.newBaby.tags",
+    titleKey: "scenarios.seeds.profiles.newBaby.title",
+    descriptionKey: "scenarios.seeds.profiles.newBaby.description",
+    tagsKey: "scenarios.seeds.profiles.newBaby.tags",
     keyNumbers: [
       {
-        labelKey: "seeds.keyNumbers.monthlyIncome",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyIncome",
         metric: "monthlyIncome",
       },
       {
-        labelKey: "seeds.keyNumbers.monthlyExpense",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyExpense",
         metric: "monthlyExpense",
       },
       {
-        labelKey: "seeds.keyNumbers.cash",
+        labelKey: "scenarios.seeds.keyNumbers.cash",
         metric: "cash",
       },
     ],
@@ -756,17 +803,17 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const members = [
         buildMember(
           memberA,
-          t("seeds.profiles.newBaby.memberNameA"),
+          t("scenarios.seeds.profiles.newBaby.memberNameA"),
           memberABirthMonth
         ),
         buildMember(
           memberB,
-          t("seeds.profiles.newBaby.memberNameB"),
+          t("scenarios.seeds.profiles.newBaby.memberNameB"),
           memberBBirthMonth
         ),
         buildMember(
           memberC,
-          t("seeds.profiles.newBaby.memberNameC"),
+          t("scenarios.seeds.profiles.newBaby.memberNameC"),
           babyMonth
         ),
       ];
@@ -774,13 +821,13 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildAsset({
           id: "seed-baby-cash",
           kind: "cash",
-          label: t("seeds.assetLabels.cash"),
+          label: t("scenarios.seeds.assetLabels.cash"),
           currentValue: 150000,
           startMonth: baseMonth,
         }),
       ];
       const babyBundleId = "seed-new-baby";
-      const babyBundleTitle = t("seeds.bundleLabels.newBaby");
+      const babyBundleTitle = t("scenarios.seeds.bundleLabels.newBaby");
       const babyInput: NewBabyPlanInput = {
         birthMonth: babyMonth,
         deliveryCost: 80000,
@@ -789,11 +836,11 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         schoolingEnabled: false,
       };
       const babyLabels: NewBabyPlanLabels = {
-        deliveryCost: t("seeds.bundleLabels.deliveryCost"),
-        childcare: t("seeds.bundleLabels.childcare"),
-        helperMonthly: t("seeds.bundleLabels.helperMonthly"),
-        agencyFee: t("seeds.bundleLabels.agencyFee"),
-        schooling: t("seeds.bundleLabels.schooling"),
+        deliveryCost: t("scenarios.seeds.bundleLabels.deliveryCost"),
+        childcare: t("scenarios.seeds.bundleLabels.childcare"),
+        helperMonthly: t("scenarios.seeds.bundleLabels.helperMonthly"),
+        agencyFee: t("scenarios.seeds.bundleLabels.agencyFee"),
+        schooling: t("scenarios.seeds.bundleLabels.schooling"),
       };
       let babyEventIndex = 0;
       const babyEvents = buildNewBabyBundleEvents(
@@ -811,7 +858,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-baby-income-a",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 30000,
           startMonth: baseMonth,
           memberId: memberA,
@@ -819,7 +866,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-baby-income-b",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 26000,
           startMonth: baseMonth,
           memberId: memberB,
@@ -827,13 +874,13 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-baby-living",
           kind: "expense",
-          label: t("seeds.eventLabels.living"),
+          label: t("scenarios.seeds.eventLabels.living"),
           amount: 16000,
           startMonth: baseMonth,
         }),
         buildOneOffExpense({
           id: "seed-baby-setup",
-          label: t("seeds.eventLabels.babySetup"),
+          label: t("scenarios.seeds.eventLabels.babySetup"),
           amount: 15000,
           occurrenceMonth: babyMonth,
         }),
@@ -868,20 +915,20 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
   },
   {
     id: "new-baby-helper",
-    titleKey: "seeds.profiles.newBabyHelper.title",
-    descriptionKey: "seeds.profiles.newBabyHelper.description",
-    tagsKey: "seeds.profiles.newBabyHelper.tags",
+    titleKey: "scenarios.seeds.profiles.newBabyHelper.title",
+    descriptionKey: "scenarios.seeds.profiles.newBabyHelper.description",
+    tagsKey: "scenarios.seeds.profiles.newBabyHelper.tags",
     keyNumbers: [
       {
-        labelKey: "seeds.keyNumbers.monthlyIncome",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyIncome",
         metric: "monthlyIncome",
       },
       {
-        labelKey: "seeds.keyNumbers.monthlyExpense",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyExpense",
         metric: "monthlyExpense",
       },
       {
-        labelKey: "seeds.keyNumbers.cash",
+        labelKey: "scenarios.seeds.keyNumbers.cash",
         metric: "cash",
       },
     ],
@@ -898,28 +945,28 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const members = [
         buildMember(
           memberA,
-          t("seeds.profiles.newBabyHelper.memberNameA"),
+          t("scenarios.seeds.profiles.newBabyHelper.memberNameA"),
           memberABirthMonth
         ),
         buildMember(
           memberB,
-          t("seeds.profiles.newBabyHelper.memberNameB"),
+          t("scenarios.seeds.profiles.newBabyHelper.memberNameB"),
           memberBBirthMonth
         ),
-        buildMember(memberC, t("seeds.profiles.newBaby.memberNameC"), babyMonth),
+        buildMember(memberC, t("scenarios.seeds.profiles.newBaby.memberNameC"), babyMonth),
         buildMember(memberD, t("eventTypes.helper"), helperBirthMonth),
       ];
       const assets = [
         buildAsset({
           id: "seed-helper-cash",
           kind: "cash",
-          label: t("seeds.assetLabels.cash"),
+          label: t("scenarios.seeds.assetLabels.cash"),
           currentValue: 180000,
           startMonth: baseMonth,
         }),
       ];
       const babyBundleId = "seed-new-baby-helper";
-      const babyBundleTitle = t("seeds.bundleLabels.newBaby");
+      const babyBundleTitle = t("scenarios.seeds.bundleLabels.newBaby");
       const babyInput: NewBabyPlanInput = {
         birthMonth: babyMonth,
         deliveryCost: 90000,
@@ -930,11 +977,11 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         schoolingEnabled: false,
       };
       const babyLabels: NewBabyPlanLabels = {
-        deliveryCost: t("seeds.bundleLabels.deliveryCost"),
-        childcare: t("seeds.bundleLabels.childcare"),
-        helperMonthly: t("seeds.bundleLabels.helperMonthly"),
-        agencyFee: t("seeds.bundleLabels.agencyFee"),
-        schooling: t("seeds.bundleLabels.schooling"),
+        deliveryCost: t("scenarios.seeds.bundleLabels.deliveryCost"),
+        childcare: t("scenarios.seeds.bundleLabels.childcare"),
+        helperMonthly: t("scenarios.seeds.bundleLabels.helperMonthly"),
+        agencyFee: t("scenarios.seeds.bundleLabels.agencyFee"),
+        schooling: t("scenarios.seeds.bundleLabels.schooling"),
       };
       let babyEventIndex = 0;
       const babyEvents = buildNewBabyBundleEvents(
@@ -952,7 +999,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-helper-income-a",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 32000,
           startMonth: baseMonth,
           memberId: memberA,
@@ -960,7 +1007,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-helper-income-b",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 28000,
           startMonth: baseMonth,
           memberId: memberB,
@@ -968,7 +1015,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-helper-living",
           kind: "expense",
-          label: t("seeds.eventLabels.living"),
+          label: t("scenarios.seeds.eventLabels.living"),
           amount: 17000,
           startMonth: baseMonth,
         }),
@@ -1003,20 +1050,20 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
   },
   {
     id: "high-asset",
-    titleKey: "seeds.profiles.highAsset.title",
-    descriptionKey: "seeds.profiles.highAsset.description",
-    tagsKey: "seeds.profiles.highAsset.tags",
+    titleKey: "scenarios.seeds.profiles.highAsset.title",
+    descriptionKey: "scenarios.seeds.profiles.highAsset.description",
+    tagsKey: "scenarios.seeds.profiles.highAsset.tags",
     keyNumbers: [
       {
-        labelKey: "seeds.keyNumbers.monthlyIncome",
+        labelKey: "scenarios.seeds.keyNumbers.monthlyIncome",
         metric: "monthlyIncome",
       },
       {
-        labelKey: "seeds.keyNumbers.investments",
+        labelKey: "scenarios.seeds.keyNumbers.investments",
         metric: "investments",
       },
       {
-        labelKey: "seeds.keyNumbers.propertyMortgage",
+        labelKey: "scenarios.seeds.keyNumbers.mortgageBalance",
         metric: "mortgage",
       },
     ],
@@ -1029,12 +1076,12 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
       const members = [
         buildMember(
           memberA,
-          t("seeds.profiles.highAsset.memberNameA"),
+          t("scenarios.seeds.profiles.highAsset.memberNameA"),
           memberABirthMonth
         ),
         buildMember(
           memberB,
-          t("seeds.profiles.highAsset.memberNameB"),
+          t("scenarios.seeds.profiles.highAsset.memberNameB"),
           memberBBirthMonth
         ),
       ];
@@ -1042,20 +1089,20 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildAsset({
           id: "seed-wealth-cash",
           kind: "cash",
-          label: t("seeds.assetLabels.cash"),
+          label: t("scenarios.seeds.assetLabels.cash"),
           currentValue: 800000,
           startMonth: baseMonth,
         }),
         buildAsset({
           id: "seed-wealth-invest",
           kind: "investment",
-          label: t("seeds.assetLabels.investments"),
+          label: t("scenarios.seeds.assetLabels.investments"),
           currentValue: 2000000,
           startMonth: baseMonth,
         }),
       ];
       const homeBundleId = "seed-high-asset-home";
-      const homeBundleTitle = t("seeds.bundleLabels.homePurchase");
+      const homeBundleTitle = t("scenarios.seeds.bundleLabels.homePurchase");
       const homeInput: HomePurchaseBundleInput = {
         bundleId: homeBundleId,
         label: homeBundleTitle,
@@ -1071,7 +1118,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         feesOneOff: [
           {
             id: "seed-wealth-fee-stamp",
-            label: t("seeds.eventLabels.stampDuty"),
+            label: t("scenarios.seeds.eventLabels.stampDuty"),
             amount: 400000,
             month: baseMonth,
           },
@@ -1079,7 +1126,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         ongoingCosts: [
           {
             id: "seed-wealth-fee-management",
-            label: t("seeds.eventLabels.managementFee"),
+            label: t("scenarios.seeds.eventLabels.managementFee"),
             amount: 2500,
             startMonth: baseMonth,
           },
@@ -1099,7 +1146,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-wealth-income-a",
           kind: "income",
-          label: t("seeds.eventLabels.salary"),
+          label: t("scenarios.seeds.eventLabels.salary"),
           amount: 80000,
           startMonth: baseMonth,
           memberId: memberA,
@@ -1107,7 +1154,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-wealth-income-b",
           kind: "income",
-          label: t("seeds.eventLabels.bonus"),
+          label: t("scenarios.seeds.eventLabels.bonus"),
           amount: 50000,
           startMonth: baseMonth,
           memberId: memberB,
@@ -1115,7 +1162,7 @@ const seedDefinitions: ScenarioSeedDefinition[] = [
         buildMonthlyCashflow({
           id: "seed-wealth-living",
           kind: "expense",
-          label: t("seeds.eventLabels.living"),
+          label: t("scenarios.seeds.eventLabels.living"),
           amount: 30000,
           startMonth: baseMonth,
         }),
@@ -1161,7 +1208,7 @@ export const getScenarioSeeds = (t: ScenarioSeedTranslator): ScenarioSeedCard[] 
       id: seed.id,
       title: t(seed.titleKey),
       description: t(seed.descriptionKey),
-      tags: (t.raw(seed.tagsKey) as string[]) ?? [],
+      tags: normalizeSeedTags(t.raw(seed.tagsKey)),
       keyNumbers: seed.keyNumbers.map((item) => ({
         label: t(item.labelKey),
         value: Intl.NumberFormat(undefined, {

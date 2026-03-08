@@ -19,6 +19,19 @@ describe("scenario seed mapping", () => {
     expect(seed?.summary.liabilitiesTotal).toBe(4800000);
   });
 
+  it("normalizes raw translator tag payloads into string arrays", () => {
+    const translator = Object.assign((key: string) => key, {
+      raw: (key: string) =>
+        key === "scenarios.seeds.profiles.singleRenter.tags"
+          ? { 0: "Single", 1: "Renting" }
+          : [],
+    });
+
+    const seed = getScenarioSeeds(translator).find((entry) => entry.id === "single-renter");
+
+    expect(seed?.tags).toEqual(["Single", "Renting"]);
+  });
+
   it("keeps new-baby bundle one-off summary aligned with generated leaf events", () => {
     const seed = getScenarioSeeds(t).find((entry) => entry.id === "new-baby");
     expect(seed !== undefined).toBe(true);

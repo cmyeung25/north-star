@@ -50,7 +50,7 @@ describe("quick start preset smoke", () => {
         event.type === "cashflow" &&
         event.kind === "income" &&
         event.cadence === "yearly" &&
-        event.label === "seeds.eventLabels.bonus"
+        event.label === "scenarios.seeds.eventLabels.bonus"
     );
 
     expect(Boolean(yearlyBonus)).toBe(true);

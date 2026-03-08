@@ -6,7 +6,7 @@ import zhHkMessages from "../../../../messages/zh-HK.json";
 import { writePresetDraftToStorage } from "./presetDraftStorage";
 import { getDraftStorageKey } from "../../../../src/features/onboarding/draftStorage";
 import { MEMBER_CASE_PRESET_SEED_IDS } from "../../../../src/features/onboarding/seedPrefill";
-import { getScenarioSeeds } from "../../../../src/scenarios/scenarioSeeds";
+import { createScenarioSeedTranslatorFromMessages, getScenarioSeeds } from "../../../../src/scenarios/scenarioSeeds";
 
 const dialogSourcePath = path.resolve(
   process.cwd(),
@@ -35,6 +35,25 @@ const seedTranslator = Object.assign((key: string) => key, {
   raw: () => [],
 });
 
+const rawKeyPattern = /^([a-z][\w-]*\.)+[a-z][\w-]*$/i;
+
+const localizedSeedExpectations = [
+  {
+    locale: "en",
+    messages: enMessages,
+    singleRenterTitle: "Single professional | Rent & save",
+    singleRenterLabels: ["Monthly income", "Monthly expense", "Cash"],
+    homeLabels: ["Monthly income", "Property value", "Mortgage balance"],
+  },
+  {
+    locale: "zh-HK",
+    messages: zhHkMessages,
+    singleRenterTitle: "????? | ????",
+    singleRenterLabels: ["????", "????", "??"],
+    homeLabels: ["????", "????", "????"],
+  },
+] as const;
+
 describe("member create-case preset flow", () => {
   it("defines localized create-mode copy for every key referenced by CaseDialogs", () => {
     const source = fs.readFileSync(dialogSourcePath, "utf8");
@@ -47,6 +66,33 @@ describe("member create-case preset flow", () => {
       expect(typeof zh.member.caseDialogs[key] === "string").toBe(true);
       expect(en.member.caseDialogs[key] === key).toBe(false);
       expect(zh.member.caseDialogs[key] === key).toBe(false);
+    }
+  });
+
+  it("localizes preset cards for en and zh-HK", () => {
+    for (const expectation of localizedSeedExpectations) {
+      const translator = createScenarioSeedTranslatorFromMessages(
+        expectation.messages as Record<string, unknown>
+      );
+      const seeds = getScenarioSeeds(translator);
+
+      seeds.forEach((seed) => {
+        expect(rawKeyPattern.test(seed.title)).toBe(false);
+        expect(rawKeyPattern.test(seed.description)).toBe(false);
+        seed.tags.forEach((tag) => expect(rawKeyPattern.test(tag)).toBe(false));
+        seed.keyNumbers.forEach((item) => expect(rawKeyPattern.test(item.label)).toBe(false));
+      });
+
+      const singleRenter = seeds.find((seed) => seed.id === "single-renter");
+      const dualIncomeHome = seeds.find((seed) => seed.id === "dual-income-home");
+
+      expect(singleRenter?.title).toBe(expectation.singleRenterTitle);
+      expect(singleRenter?.keyNumbers.map((item) => item.label)).toEqual(
+        expectation.singleRenterLabels
+      );
+      expect(dualIncomeHome?.keyNumbers.map((item) => item.label)).toEqual(
+        expectation.homeLabels
+      );
     }
   });
 
