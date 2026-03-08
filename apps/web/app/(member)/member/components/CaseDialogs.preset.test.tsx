@@ -36,6 +36,38 @@ const seedTranslator = Object.assign((key: string) => key, {
 });
 
 const rawKeyPattern = /^([a-z][\w-]*\.)+[a-z][\w-]*$/i;
+const suspiciousLocalizedValuePattern = /\?{2,}|\uFFFD|\u00C3.|\u00E2.|\u00E4\u00BD|\u00E5./;
+const placeholderTokenPattern = /\{([a-zA-Z0-9_]+)\}/g;
+
+function flattenStringValues(
+  value: unknown,
+  path = "",
+  result: Record<string, string> = {}
+): Record<string, string> {
+  if (typeof value === "string") {
+    result[path] = value;
+    return result;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => {
+      flattenStringValues(entry, `${path}[${index}]`, result);
+    });
+    return result;
+  }
+
+  if (value && typeof value === "object") {
+    Object.entries(value).forEach(([key, entry]) => {
+      flattenStringValues(entry, path ? `${path}.${key}` : key, result);
+    });
+  }
+
+  return result;
+}
+
+function getPlaceholderTokens(value: string): string[] {
+  return Array.from(value.matchAll(placeholderTokenPattern), ([, token]) => token).sort();
+}
 
 const localizedSeedExpectations = [
   {
@@ -48,9 +80,17 @@ const localizedSeedExpectations = [
   {
     locale: "zh-HK",
     messages: zhHkMessages,
-    singleRenterTitle: "????? | ????",
-    singleRenterLabels: ["????", "????", "??"],
-    homeLabels: ["????", "????", "????"],
+    singleRenterTitle: zhHkMessages.scenarios.seeds.profiles.singleRenter.title,
+    singleRenterLabels: [
+      zhHkMessages.scenarios.seeds.keyNumbers.monthlyIncome,
+      zhHkMessages.scenarios.seeds.keyNumbers.monthlyExpense,
+      zhHkMessages.scenarios.seeds.keyNumbers.cash,
+    ],
+    homeLabels: [
+      zhHkMessages.scenarios.seeds.keyNumbers.monthlyIncome,
+      zhHkMessages.scenarios.seeds.keyNumbers.propertyValue,
+      zhHkMessages.scenarios.seeds.keyNumbers.mortgageBalance,
+    ],
   },
 ] as const;
 
@@ -92,6 +132,29 @@ describe("member create-case preset flow", () => {
       );
       expect(dualIncomeHome?.keyNumbers.map((item) => item.label)).toEqual(
         expectation.homeLabels
+      );
+    }
+  });
+
+  it("keeps zh-HK copy free from mojibake markers and preserves placeholders", () => {
+    const zhFlat = flattenStringValues(zhHkMessages);
+    const enFlat = flattenStringValues(enMessages);
+
+    for (const [key, value] of Object.entries(zhFlat)) {
+      expect(
+        suspiciousLocalizedValuePattern.test(value),
+        `unexpected zh-HK mojibake marker in ${key}`
+      ).toBe(false);
+    }
+
+    for (const [key, enValue] of Object.entries(enFlat)) {
+      const zhValue = zhFlat[key];
+      if (zhValue === undefined) {
+        continue;
+      }
+
+      expect(getPlaceholderTokens(zhValue), `placeholder mismatch for ${key}`).toEqual(
+        getPlaceholderTokens(enValue)
       );
     }
   });

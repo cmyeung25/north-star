@@ -3746,68 +3746,68 @@
     "compareTemplateCarOwnership": "擁車開支",
     "compareTemplateCarOwnershipHint": "加入預設的汽車資產項目。",
     "seeds": {
-      "sectionTitle": "??????????",
-      "sectionDescription": "????????????????????",
-      "useSeed": "?????",
-      "preview": "??",
-      "previewTitle": "????",
-      "previewMembers": "????",
-      "previewMonthlyIncome": "????",
-      "previewMonthlyExpense": "????",
-      "previewMonthlyNet": "??????",
-      "previewAssets": "??",
-      "previewLiabilities": "??",
-      "previewBundles": "????",
-      "previewBundlesEmpty": "?",
-      "previewStartMonth": "????",
-      "seedCreated": "?????????{name}?",
-      "seedFailed": "?????????????",
+      "sectionTitle": "快速開始（測試情境）",
+      "sectionDescription": "建立已預填的測試情境，直接進入 Plan Lab。",
+      "useSeed": "使用此測試情境",
+      "preview": "預覽",
+      "previewTitle": "情境預覽",
+      "previewMembers": "家庭成員",
+      "previewMonthlyIncome": "每月收入",
+      "previewMonthlyExpense": "每月支出",
+      "previewMonthlyNet": "每月淨現金流",
+      "previewAssets": "資產",
+      "previewLiabilities": "負債",
+      "previewBundles": "已包含組合",
+      "previewBundlesEmpty": "無",
+      "previewStartMonth": "起始月份",
+      "seedCreated": "已建立測試情境：「{name}」",
+      "seedFailed": "建立情境失敗，請稍後再試。",
       "keyNumbers": {
-        "monthlyIncome": "????",
-        "monthlyExpense": "????",
-        "cash": "??",
-        "propertyMortgage": "?? / ??",
-        "propertyValue": "????",
-        "mortgageBalance": "????",
-        "rentalIncome": "????",
-        "baby": "????",
-        "helper": "????",
-        "investments": "??"
+        "monthlyIncome": "每月收入",
+        "monthlyExpense": "每月支出",
+        "cash": "現金",
+        "propertyMortgage": "物業 / 按揭",
+        "propertyValue": "物業價值",
+        "mortgageBalance": "按揭結餘",
+        "rentalIncome": "租金收入",
+        "baby": "育兒開支",
+        "helper": "外傭開支",
+        "investments": "投資"
       },
       "bundleLabels": {
-        "homePurchase": "????",
-        "newBaby": "?????",
-        "deliveryCost": "????",
-        "childcare": "????",
-        "helperMonthly": "????",
-        "agencyFee": "???",
-        "schooling": "????"
+        "homePurchase": "置業規劃",
+        "newBaby": "新手爸媽計劃",
+        "deliveryCost": "分娩開支",
+        "childcare": "育兒支出",
+        "helperMonthly": "外傭薪金",
+        "agencyFee": "中介費",
+        "schooling": "教育開支"
       },
       "assetLabels": {
-        "cash": "??",
-        "investments": "??"
+        "cash": "現金",
+        "investments": "投資"
       },
       "eventLabels": {
-        "salary": "??",
-        "bonus": "?? / ??",
-        "rent": "??",
-        "living": "????",
-        "stampDuty": "???",
-        "legalFee": "???",
-        "managementFee": "???",
-        "babySetup": "????"
+        "salary": "薪金",
+        "bonus": "花紅 / 獎金",
+        "rent": "租金",
+        "living": "生活開支",
+        "stampDuty": "印花稅",
+        "legalFee": "法律費用",
+        "managementFee": "管理費",
+        "babySetup": "BB 用品"
       },
       "profiles": {
         "singleRenter": {
-          "title": "????? | ????",
-          "description": "1 ???????????????????????????????",
+          "title": "單身上班族 | 租屋儲蓄",
+          "description": "1 人家庭、固定薪金，包含租金與基本生活開支，以及起步現金和投資。",
           "tags": [
-            "1 ?",
-            "????",
-            "??",
-            "?? + ??"
+            "1 人",
+            "固定薪金",
+            "租屋",
+            "現金 + 投資"
           ],
-          "memberName": "??",
+          "memberName": "Alex",
           "keyNumbers": {
             "monthlyIncome": "$25k",
             "monthlyExpense": "$18k",
@@ -3815,16 +3815,16 @@
           }
         },
         "dualIncomeHome": {
-          "title": "????? | ????",
-          "description": "2 ??????????????????????????",
+          "title": "雙收入伴侶 | 置業規劃",
+          "description": "2 人家庭、雙收入，包含置業組合、按揭與相關費用。",
           "tags": [
-            "2 ?",
-            "???",
-            "????",
-            "??"
+            "2 人",
+            "雙收入",
+            "置業組合",
+            "按揭"
           ],
-          "memberNameA": "??",
-          "memberNameB": "??",
+          "memberNameA": "Jamie",
+          "memberNameB": "Morgan",
           "keyNumbers": {
             "monthlyIncome": "$65k",
             "monthlyExpense": "$35.5k",
@@ -3832,16 +3832,16 @@
           }
         },
         "dualIncomeRental": {
-          "title": "????? | ???????",
-          "description": "2 ?????????????????????????????",
+          "title": "雙收入伴侶 | 置業 + 租金收入",
+          "description": "2 人家庭，置業後有部分租金收入，方便檢查現金流。",
           "tags": [
-            "2 ?",
-            "???",
-            "?? + ??",
-            "????"
+            "2 人",
+            "雙收入",
+            "置業 + 出租",
+            "租金收入"
           ],
-          "memberNameA": "??",
-          "memberNameB": "??",
+          "memberNameA": "Jordan",
+          "memberNameB": "Taylor",
           "keyNumbers": {
             "monthlyIncome": "$67k",
             "rentalIncome": "$12k",
@@ -3849,51 +3849,51 @@
           }
         },
         "newBaby": {
-          "title": "????? | ????",
-          "description": "2 ???? BB???????????????",
+          "title": "新手爸媽家庭 | 育兒開支",
+          "description": "2 名成人加 BB，包含分娩開支與持續育兒支出。",
           "tags": [
-            "2-3 ?",
-            "???",
-            "??? + ??",
-            "??"
+            "2-3 人",
+            "新生 BB",
+            "一次性 + 持續",
+            "育兒"
           ],
-          "memberNameA": "??",
-          "memberNameB": "??",
+          "memberNameA": "Casey",
+          "memberNameB": "Riley",
           "memberNameC": "BB",
           "keyNumbers": {
             "monthlyIncome": "$56k",
-            "baby": "$5k / ?",
+            "baby": "$5k / 月",
             "cash": "$150k"
           }
         },
         "newBabyHelper": {
-          "title": "????? | ?????",
-          "description": "??????????????????????",
+          "title": "新手爸媽家庭 | 育兒 + 外傭",
+          "description": "雙收入家庭，包含 BB 開支、外傭薪金與中介費。",
           "tags": [
-            "2 ?",
-            "???",
-            "????",
-            "?????"
+            "2 人",
+            "新生 BB",
+            "外傭開支",
+            "一次性費用"
           ],
-          "memberNameA": "??",
-          "memberNameB": "??",
+          "memberNameA": "Sky",
+          "memberNameB": "Noah",
           "keyNumbers": {
             "monthlyIncome": "$60k",
-            "helper": "$5k / ?",
-            "baby": "$6k / ?"
+            "helper": "$5k / 月",
+            "baby": "$6k / 月"
           }
         },
         "highAsset": {
-          "title": "????? | ????????",
-          "description": "????????????????????? KPI ?????",
+          "title": "高資產家庭 | 物業按揭 + 投資",
+          "description": "較高現金與投資，加上物業按揭，用於測試 KPI 組合變化。",
           "tags": [
-            "???",
-            "?? + ??",
-            "??",
-            "????"
+            "高資產",
+            "物業 + 按揭",
+            "投資",
+            "較高收入"
           ],
-          "memberNameA": "??",
-          "memberNameB": "??",
+          "memberNameA": "Harper",
+          "memberNameB": "Quinn",
           "keyNumbers": {
             "monthlyIncome": "$130k",
             "investments": "$2M",

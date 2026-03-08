@@ -390,11 +390,17 @@ Example safe approach:
 
 ### Validation checklist after editing
 - Chinese text displays correctly
-- No `�` replacement characters
-- No garbled text like `Ã¥`, `Ã¤`, `ä½ `, etc.
+- No unexpected replacement characters such as `U+FFFD`
+- No garbled text fragments such as repeated `?` runs, high-bit mojibake prefixes, or other broken UTF-8 markers
 - Diff only contains intended content changes
 - File did not accidentally switch encoding or line endings
 
+### Locale JSON audit checklist
+- Read locale files with an explicit UTF-8 reader (for example, Node `fs.readFileSync(..., "utf8")`) before deciding whether the file itself is corrupted; do not rely on PowerShell console rendering alone.
+- Compare placeholder token sets against `apps/web/messages/en.json` for shared string keys so tokens like `{name}` and `{count}` do not drift.
+- Search the target locale file for mojibake markers before and after edits (for example: `????`, `U+FFFD`, unexpected high-bit garbage prefixes, or repeated ASCII `?` runs).
+- If corruption is isolated to one subtree, replace only that subtree or exact block instead of reformatting the whole locale file.
+- After locale-copy edits, run at least one i18n test that exercises the affected message group and one direct scan for suspicious markers.
 ### Recovery rule
 If encoding corruption is detected:
 1. Stop further edits to the corrupted file

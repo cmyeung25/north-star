@@ -21,6 +21,8 @@ Last updated: 2026-03-08
 
 
 ## Latest Update (2026-03-08)
+- Audited `apps/web/messages/zh-HK.json` for encoding and placeholder drift; restored `scenarios.seeds.*` Traditional Chinese copy and kept shared placeholders aligned with `en.json`.
+- Added a locale guardrail test to scan zh-HK messages for mojibake markers and placeholder-token mismatches on shared keys.
 - Fixed literal `????` placeholders in zh-HK preset seed copy so member create-case cards render real Traditional Chinese content.
 - Fixed member create-case preset seed-card i18n wiring and restored zh-HK `seeds` copy so preset cards no longer render raw `seeds.*` keys or duplicated property/mortgage labels.
 - Completed member create-case preset v1: fixed `member.caseDialogs` create-mode/preset i18n so the modal no longer leaks raw message keys.
