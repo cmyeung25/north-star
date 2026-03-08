@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-08 (overview KPI detail CTA)
+Last updated: 2026-03-08 (overview KPI null-safe formatter)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -27,6 +27,8 @@ Last updated: 2026-03-08 (overview KPI detail CTA)
 - 新增互動測試覆蓋 watchlist 持久化：更新後經 hydrate/reload 仍保留，且不影響其他 scenario。
 - Overview dashboard 新增 KPI health scorecard：以 domain classification 模組統一計算 excellent/progressing/vulnerable/informational/no-data，並在 KPI 卡與分佈條共用 i18n status key。
 - 新增 health scorecard domain 單元測試，覆蓋 KPI 分級規則與分佈計數。
+- Overview KPI 顯示改為統一 null-safe formatter：`avgNetCashflow12m`、`avgNonSalaryIncome12m`、`avgFunBudget12m` 遇到 `null` 顯示 `dashboard.common.emptyValue`，不再以 `0` 代替；對應 scorecard 同步標示為 `no-data`。
+- 新增 formatter 單元測試，覆蓋 `null / 0 / 負值` 顯示與 score status 行為。
 ## 已存在但未進主流程
 - Scenario presets/seeds 已接入 member 建案例入口作為 onboarding-prefill v1；app 內延伸入口與分組資訊架構仍待產品化。
 - Plan Lab 已有實驗與比較骨架，但常見決策模板與結論導向輸出仍需產品化。

@@ -48,6 +48,10 @@ import NetWorthChart from "../../../features/overview/components/NetWorthChart";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
 import HealthScorecard from "../../../features/overview/components/HealthScorecard";
+import {
+  formatNullableCurrencyKpiValue,
+  resolveNullableMetricScoreStatus,
+} from "../../../features/overview/overviewKpiFormatting";
 import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import { memberCasesPath, scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
@@ -1178,6 +1182,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     healthScoreEntries.map((entry) => [entry.metric, entry.status])
   );
 
+  const nullableMetricValues: Partial<Record<DashboardMetricKey, number | null>> = {
+    avgNetCashflow: dashboardMetrics.avgNetCashflow12m,
+    avgNonSalaryIncome: dashboardMetrics.avgNonSalaryIncome12m,
+    avgFunBudget: dashboardMetrics.avgFunBudget12m,
+  };
+
   const kpiLibrary = [
     {
       metric: "minCash" as const,
@@ -1196,7 +1206,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "avgNetCashflow" as const,
       label: sd("kpi.avgNetCashflow", "Avg net cashflow"),
-      value: `${formatCurrency(dashboardMetrics.avgNetCashflow12m ?? 0, selectedScenario.baseCurrency, locale)} / ${sd("common.month", "month")}`,
+      value: formatNullableCurrencyKpiValue({
+        value: dashboardMetrics.avgNetCashflow12m,
+        currency: selectedScenario.baseCurrency,
+        locale,
+        emptyValueLabel: sd("common.emptyValue", "--"),
+        monthLabel: sd("common.month", "month"),
+      }),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
@@ -1224,7 +1240,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "avgNonSalaryIncome" as const,
       label: sd("kpi.avgNonSalaryIncome", "Avg non-salary income"),
-      value: formatCurrency(dashboardMetrics.avgNonSalaryIncome12m ?? 0, selectedScenario.baseCurrency, locale),
+      value: formatNullableCurrencyKpiValue({
+        value: dashboardMetrics.avgNonSalaryIncome12m,
+        currency: selectedScenario.baseCurrency,
+        locale,
+        emptyValueLabel: sd("common.emptyValue", "--"),
+      }),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
       tooltip: sd("kpi.avgNonSalaryIncomeFormula", "Total non-salary income over 12 months / 12"),
     },
@@ -1252,7 +1273,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "avgFunBudget" as const,
       label: sd("kpi.avgFunBudget", "Avg fun budget"),
-      value: formatCurrency(dashboardMetrics.avgFunBudget12m ?? 0, selectedScenario.baseCurrency, locale),
+      value: formatNullableCurrencyKpiValue({
+        value: dashboardMetrics.avgFunBudget12m,
+        currency: selectedScenario.baseCurrency,
+        locale,
+        emptyValueLabel: sd("common.emptyValue", "--"),
+      }),
       helper: sd("kpi.avgFunBudgetHint", "Proxy from net cashflow trend"),
     },
     {
@@ -1264,7 +1290,11 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       onDetails: () => setRiskDetailOpen(true),
     },
   ].map((item) => {
-    const status = healthScoreByMetric.get(item.metric) ?? "no-data";
+    const status = resolveNullableMetricScoreStatus(
+      item.metric,
+      healthScoreByMetric.get(item.metric) ?? "no-data",
+      nullableMetricValues
+    );
     return {
       ...item,
       badgeLabel: statusLabel(status),
