@@ -21,6 +21,7 @@ Last updated: 2026-03-08
 
 
 ## Latest Update (2026-03-08)
+- Fixed onboarding v3 income/expense event category mapping so auto-salary and onboarding-created cashflows persist with correct `category`/`expenseCategory` values when entering Money page (instead of falling back to non-salary/other buckets).
 - Audited `apps/web/messages/zh-HK.json` for encoding and placeholder drift; restored `scenarios.seeds.*` Traditional Chinese copy and kept shared placeholders aligned with `en.json`.
 - Added a locale guardrail test to scan zh-HK messages for mojibake markers and placeholder-token mismatches on shared keys.
 - Fixed literal `????` placeholders in zh-HK preset seed copy so member create-case cards render real Traditional Chinese content.
