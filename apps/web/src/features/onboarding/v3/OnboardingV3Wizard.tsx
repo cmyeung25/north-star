@@ -15,6 +15,11 @@ import IncomeStep from "./steps/IncomeStep";
 import ExpenseStep from "./steps/ExpenseStep";
 import ReviewStep from "./steps/ReviewStep";
 import { createInitialScenarioDraftV3State, type OnboardingAsset } from "./types";
+import {
+  clearOnboardingDraftState,
+  loadOnboardingV3DraftState,
+  persistOnboardingV3DraftState,
+} from "./draftStorage";
 import { submitOnboardingV3Payload } from "./submissionFacade";
 import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenarioDraft";
 import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
@@ -124,7 +129,7 @@ const monthsBetween = (fromMonth?: string, toMonth?: string) => {
   return (to.year - from.year) * 12 + (to.month - from.month);
 };
 
-const isAutoSalaryManualEvent = (event: ScenarioEventDraft): event is CashflowDraftWithId =>
+const isAutoSalaryManualEvent = (event: ScenarioEventDraft) =>
   hasId(event) &&
   isCashflowDraft(event) &&
   event.kind === "income" &&
@@ -132,6 +137,7 @@ const isAutoSalaryManualEvent = (event: ScenarioEventDraft): event is CashflowDr
 
 export default function OnboardingV3Wizard() {
   const t = useTranslations("onboardingV3");
+  const seedEventLabelT = useTranslations("scenarios.seeds.eventLabels");
   const appShellT = useTranslations("app.shell");
   const params = useParams<{ caseId?: string | string[]; scenarioId?: string | string[] }>();
   const router = useRouter();
@@ -140,14 +146,32 @@ export default function OnboardingV3Wizard() {
   const scenarios = useScenarioStore((state) => state.scenarios);
   const scenarioContext = useScenarioContext();
   const scenario = getScenarioById(scenarios, scenarioId ?? null);
+  const prefillLabels = useMemo(
+    () => ({
+      dailyExpenseLabel: t("steps.expense.dailyMonthlyLabel"),
+      incomeBonusLabel: t("steps.income.templates.bonus"),
+      incomeSalaryLabel: t("steps.income.templates.salary"),
+      rentExpenseLabel: seedEventLabelT("rent"),
+      taxExpenseLabel: t("steps.expense.taxTitle"),
+      travelExpenseLabel: t("steps.expense.travelTitle"),
+    }),
+    [seedEventLabelT, t]
+  );
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draft, setDraft] = useState(() =>
-    createInitialScenarioDraftV3State({ defaultMemberName: t("defaults.memberName") })
+    loadOnboardingV3DraftState({
+      fallbackState: createInitialScenarioDraftV3State({
+        defaultMemberName: t("defaults.memberName"),
+      }),
+      labels: prefillLabels,
+      scenarioId,
+    })
   );
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
   const [dismissedAutoSalaryMemberIds, setDismissedAutoSalaryMemberIds] = useState<string[]>([]);
-  const defaultSalaryGrowthRate = scenario?.assumptions?.salaryGrowthRate ?? 3;
+  const defaultSalaryGrowthRate =
+    draft.assumptions.salaryGrowthRate ?? scenario?.assumptions?.salaryGrowthRate ?? 3;
 
   useEffect(() => {
     setDraft((current) => {
@@ -170,6 +194,21 @@ export default function OnboardingV3Wizard() {
           .map((event) => event.memberId)
           .filter((memberId): memberId is string => typeof memberId === "string" && memberId.length > 0)
       );
+      const existingManualSalaryIds = new Set(
+        current.events.reduce<string[]>((memberIds, event) => {
+          if (!hasId(event) || !isCashflowDraft(event) || event.kind !== "income") {
+            return memberIds;
+          }
+          if (isAutoSalaryManualEvent(event)) {
+            return memberIds;
+          }
+          if (event.tags?.includes("onboarding:v3:income:salary") !== true || !event.memberId) {
+            return memberIds;
+          }
+          memberIds.push(event.memberId);
+          return memberIds;
+        }, [])
+      );
 
       const retainedEvents = current.events.filter((event) => {
         if (!isAutoSalaryManualEvent(event)) {
@@ -186,7 +225,11 @@ export default function OnboardingV3Wizard() {
 
       const appendedEvents: ScenarioEventDraft[] = [];
       for (const member of adultMembers) {
-        if (dismissedIds.has(member.id) || existingAutoSalaryIds.has(member.id)) {
+        if (
+          dismissedIds.has(member.id) ||
+          existingAutoSalaryIds.has(member.id) ||
+          existingManualSalaryIds.has(member.id)
+        ) {
           continue;
         }
 
@@ -214,6 +257,10 @@ export default function OnboardingV3Wizard() {
       };
     });
   }, [dismissedAutoSalaryMemberIds, draft.members, draft.profile.startMonth, t]);
+
+  useEffect(() => {
+    persistOnboardingV3DraftState(scenarioId, draft);
+  }, [draft, scenarioId]);
 
   const derived = useMemo(() => deriveFromProperty({ profile: draft.profile, assets: draft.assets }), [draft.assets, draft.profile]);
   const autoRows = useMemo(() => derived.events as AutoCashflowRow[], [derived.events]);
@@ -467,6 +514,7 @@ export default function OnboardingV3Wizard() {
       target: { scenarioId },
       draft: {
         assumptions: {
+          ...draft.assumptions,
           baseMonth: draft.profile.startMonth,
           horizonMonths: draft.profile.horizonMonths,
           initialCash,
@@ -546,6 +594,8 @@ export default function OnboardingV3Wizard() {
         return;
       }
     }
+
+    clearOnboardingDraftState(scenarioId);
 
     if (caseId) {
       router.replace(scenarioDashboardPath(caseId, scenarioId));

@@ -6,6 +6,11 @@ import zhHkMessages from "../../../../messages/zh-HK.json";
 import { writePresetDraftToStorage } from "./presetDraftStorage";
 import { getDraftStorageKey } from "../../../../src/features/onboarding/draftStorage";
 import { MEMBER_CASE_PRESET_SEED_IDS } from "../../../../src/features/onboarding/seedPrefill";
+import {
+  getOnboardingV3DraftStorageKey,
+  loadOnboardingV3DraftState,
+} from "../../../../src/features/onboarding/v3/draftStorage";
+import { createInitialScenarioDraftV3State } from "../../../../src/features/onboarding/v3/types";
 import { createScenarioSeedTranslatorFromMessages, getScenarioSeeds } from "../../../../src/scenarios/scenarioSeeds";
 
 const dialogSourcePath = path.resolve(
@@ -192,5 +197,42 @@ describe("member create-case preset flow", () => {
     expect(savedDraft.assets.cash.amount).toBe(150000);
     expect(savedDraft.housing.mode).toBe("rent");
     expect(draft.household.childCount).toBe(1);
+  });
+
+  it("hydrates member preset drafts into onboarding v3 state", () => {
+    const seed = getScenarioSeeds(seedTranslator).find((entry) => entry.id === "dual-income-home");
+    expect(seed !== undefined).toBe(true);
+
+    const store = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+    };
+
+    writePresetDraftToStorage("scenario-dual-income-home", seed!.payload, storage);
+
+    const v3Draft = loadOnboardingV3DraftState({
+      fallbackState: createInitialScenarioDraftV3State({ defaultMemberName: "Me" }),
+      labels: {
+        dailyExpenseLabel: enMessages.onboardingV3.steps.expense.dailyMonthlyLabel,
+        incomeBonusLabel: enMessages.onboardingV3.steps.income.templates.bonus,
+        incomeSalaryLabel: enMessages.onboardingV3.steps.income.templates.salary,
+        rentExpenseLabel: enMessages.scenarios.seeds.eventLabels.rent,
+        taxExpenseLabel: enMessages.onboardingV3.steps.expense.taxTitle,
+        travelExpenseLabel: enMessages.onboardingV3.steps.expense.travelTitle,
+      },
+      scenarioId: "scenario-dual-income-home",
+      storage,
+    });
+
+    expect(v3Draft.assetToggles.propertyEnabled).toBe(true);
+    expect(v3Draft.assets.find((asset) => asset.assetType === "property")?.currentValue).toBe(6000000);
+    expect(v3Draft.events.some((event) => event.type === "cashflow" && event.kind === "income")).toBe(true);
+    expect(store.has(getOnboardingV3DraftStorageKey("scenario-dual-income-home"))).toBe(true);
   });
 });

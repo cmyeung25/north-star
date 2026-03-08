@@ -1,4 +1,8 @@
-import type { ScenarioAsset, ScenarioMember } from "../../../store/scenarioStore";
+import type {
+  ScenarioAssumptions,
+  ScenarioAsset,
+  ScenarioMember,
+} from "../../../store/scenarioStore";
 import type { ScenarioEventDraft } from "../../../domain/scenarioV2/events";
 import type { ScenarioDraftV3 } from "../../../domain/scenarioDraft/types";
 
@@ -39,6 +43,7 @@ export type ScenarioDraftV3AssetToggles = {
 
 export type ScenarioDraftV3State = {
   profile: NonNullable<ScenarioDraftV3["profile"]>;
+  assumptions: Partial<ScenarioAssumptions>;
   members: ScenarioMember[];
   assets: OnboardingAsset[];
   assetToggles: ScenarioDraftV3AssetToggles;
@@ -65,6 +70,7 @@ export const createInitialScenarioDraftV3State = (
     startMonth: getCurrentYearMonth(),
     horizonMonths: 120,
   },
+  assumptions: {},
   members: [{ id: "self", name: localeStrings.defaultMemberName, kind: "person" }],
   assets: [],
   assetToggles: {
