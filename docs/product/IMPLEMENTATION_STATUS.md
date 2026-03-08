@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-08 (overview KPI watchlist)
+Last updated: 2026-03-08 (overview KPI detail CTA)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -21,6 +21,8 @@ Last updated: 2026-03-08 (overview KPI watchlist)
 
 
 ## Latest Update (2026-03-08)
+- Overview KPI `cashRunway` / `riskLevel` 卡片已綁定詳情 CTA（含 mobile carousel 可操作），可直接開啟對應詳情互動。
+- 新增 KPI CTA 互動測試：驗證 mobile carousel CTA 可點擊、且 CTA 觸發後 detail 狀態（modal host）開啟。
 - Overview dashboard 新增 KPI watchlist：KPI 顯示改為 library（全部可用）+ watchlist（已選）兩層，預設保留核心指標；watchlist 編輯支援增刪/排序，並跟隨 active scenario 儲存避免跨 scenario leakage。
 - 新增互動測試覆蓋 watchlist 持久化：更新後經 hydrate/reload 仍保留，且不影響其他 scenario。
 - Overview dashboard 新增 KPI health scorecard：以 domain classification 模組統一計算 excellent/progressing/vulnerable/informational/no-data，並在 KPI 卡與分佈條共用 i18n status key。

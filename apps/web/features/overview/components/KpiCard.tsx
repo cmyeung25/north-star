@@ -1,3 +1,4 @@
+import React from "react";
 import { Badge, Button, Card, Group, Stack, Text, Tooltip } from "@mantine/core";
 
 interface KpiCardProps {

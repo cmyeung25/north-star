@@ -56,6 +56,7 @@ Last updated: 2026-03-08
 - 提供風險年份、方案差異摘要、關鍵驅動因子與下一步建議。
 - [x] Overview 已新增 KPI health scorecard（excellent/progressing/vulnerable/informational/no-data）與分佈視覺條，並與 KPI 卡共用同一組 i18n status key。
 - [x] Overview 已新增 scenario-scoped KPI watchlist（library + watchlist）：使用者可在總覽編輯 KPI 增刪與排序，且偏好只儲存在 active scenario，重載後保留。
+- [x] Overview `cashRunway` / `riskLevel` KPI 卡加入詳情 CTA，並可於 mobile carousel 觸發對應詳情互動（runway/risk）。
 2. Market Entry + Sample Journey
 - 上線市場入口頁（價值主張、適用族群、示例旅程）。
 - 提供可直接體驗的家庭場景範本與引導。
