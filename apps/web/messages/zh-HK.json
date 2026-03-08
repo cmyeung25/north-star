@@ -1026,6 +1026,18 @@
         "peopleTitle": "成員摘要",
         "goMoney": "進入金錢專區",
         "goPeople": "進入成員專區"
+      },
+      "healthScorecard": {
+        "title": "KPI 健康分層",
+        "subtitle": "按健康狀態統計各項 KPI 指標",
+        "total": "共 {count} 項指標",
+        "status": {
+          "excellent": "穩健",
+          "progressing": "進展中",
+          "vulnerable": "需關注",
+          "informational": "資訊指標",
+          "no-data": "資料不足"
+        }
       }
     },
     "breakdownSummaryDelta": "按月對比：淨資產 {netWorth}、現金 {cash}",

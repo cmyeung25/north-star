@@ -54,6 +54,7 @@ Last updated: 2026-03-08
 ### 主要交付
 1. Actionable Output
 - 提供風險年份、方案差異摘要、關鍵驅動因子與下一步建議。
+- [x] Overview 已新增 KPI health scorecard（excellent/progressing/vulnerable/informational/no-data）與分佈視覺條，並與 KPI 卡共用同一組 i18n status key。
 2. Market Entry + Sample Journey
 - 上線市場入口頁（價值主張、適用族群、示例旅程）。
 - 提供可直接體驗的家庭場景範本與引導。

@@ -1004,6 +1004,18 @@
         "peopleTitle": "People summary",
         "goMoney": "Go to Money",
         "goPeople": "Go to People"
+      },
+      "healthScorecard": {
+        "title": "KPI health scorecard",
+        "subtitle": "Distribution of KPI metrics by health status",
+        "total": "{count} metrics",
+        "status": {
+          "excellent": "Excellent",
+          "progressing": "Progressing",
+          "vulnerable": "Vulnerable",
+          "informational": "Informational",
+          "no-data": "No data"
+        }
       }
     },
     "breakdownSummaryDelta": "MoM: Net worth {netWorth}, cash {cash}",
