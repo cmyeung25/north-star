@@ -1551,7 +1551,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 <Text size="xs" c="dimmed">{sd("healthSummary.subtitle", "Review 12-month financial health and risk signals")}</Text>
               </div>
               <Group gap="xs">
-                <ActionIcon
+                <Button
                   variant="light"
                   aria-label={sd("kpiWatchlist.editAction", "Edit KPI watchlist")}
                   onClick={() => {
@@ -1559,10 +1559,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                     setWatchlistEditorOpened(true);
                   }}
                 >
-                  ⚙️
-                </ActionIcon>
-                <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "Open Plan Lab")}</Button>
-                <Button display="none" component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "Complete data")}</Button>
+                  {sd("kpiWatchlist.editAction", "Edit KPI watchlist")}
+                </Button>
+                <Button display={"none"} component={Link} href={planLabFamilyEntryHref}>
+                  {sd("cta.openPlanLab", "Open Plan Lab")}
+                </Button>
+                <Button display="none" component={Link} href={moneyInputsHref} variant="light">
+                  {sd("cta.completeData", "Complete data")}
+                </Button>
               </Group>
             </Group>
             {isDesktop ? (
