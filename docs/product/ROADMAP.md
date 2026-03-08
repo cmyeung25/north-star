@@ -60,6 +60,7 @@ Last updated: 2026-03-08
 - [x] Overview KPI `avgNetCashflow` / `avgNonSalaryIncome` / `avgFunBudget` 已改為 null-safe 顯示：`null` 顯示 emptyValue，並與 scorecard 的 `no-data` 對齊。
 - [x] Overview DashboardMetrics 新增靜態推導 KPI（`savingsRate12m`、`expenseToIncomeRatio12m`、`debtToAssetRatio`、`netWorthGrowth12m`），並補齊 KPI 卡 tooltip 公式與 i18n（en/zh-HK）。
 - [x] Overview KPI formatter 已統一處理 no-data：數值為 `null/NaN` 顯示 `dashboard.common.emptyValue`；比率型 KPI 在分母為 `0` 時回傳 `null`，避免顯示誤導性的 `0.0%`。
+- [x] `zh-HK` locale 已清理 overview 與 Plan Lab/health summary 常見殘留英文術語（如 Baseline/Scorecard/proxy），並新增 locale lint 測試確保 placeholder token（如 `{months}`、`{endMonth}`、`{years}`）與 `en` 對齊。
 2. Market Entry + Sample Journey
 - 上線市場入口頁（價值主張、適用族群、示例旅程）。
 - 提供可直接體驗的家庭場景範本與引導。
