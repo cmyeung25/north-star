@@ -49,6 +49,7 @@ import {
 } from "../domain/events/mergeDuplicates";
 import { buildEventLibraryMap, resolveEventRule } from "../domain/events/utils";
 import { migrateScenarioCashflowCategoryLazy } from "../domain/events/eventMappingRegistry";
+import type { DashboardMetricKey } from "../domain/dashboard/healthScorecard";
 import { clearLocalData } from "../persistence/storage";
 import { isValidMonthStr } from "../utils/month";
 import { buildMonthDateRef } from "../domain/dateRef";
@@ -446,6 +447,7 @@ export type ScenarioMeta = {
   skipOnboarding?: boolean;
   memberMilestonesMigratedAt?: string;
   planLab?: PlanLabMeta;
+  overviewKpiWatchlist?: DashboardMetricKey[];
 };
 
 export type ScenarioClientComputed = {
@@ -592,6 +594,10 @@ type ScenarioStoreState = {
     scenarioIds: string[]
   ) => void;
   updateScenarioMeta: (id: string, patch: Partial<ScenarioMeta>) => void;
+  setScenarioOverviewKpiWatchlist: (
+    id: string,
+    watchlist: DashboardMetricKey[]
+  ) => void;
   updateScenarioClientComputed: (
     id: string,
     patch: Partial<ScenarioClientComputed>
@@ -1581,6 +1587,16 @@ const cloneBudgetRules = (rules?: BudgetRule[]) =>
 const cloneClientComputed = (clientComputed?: ScenarioClientComputed) =>
   clientComputed ? { ...clientComputed } : undefined;
 
+const cloneScenarioMeta = (meta?: ScenarioMeta): ScenarioMeta | undefined =>
+  meta
+    ? {
+        ...meta,
+        overviewKpiWatchlist: meta.overviewKpiWatchlist
+          ? [...meta.overviewKpiWatchlist]
+          : undefined,
+      }
+    : undefined;
+
 const cloneMilestoneEvents = (events?: MilestoneEvent[]) =>
   events?.map((event) => {
     if (event.mode === "marker") {
@@ -2057,7 +2073,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
       ...scenario,
       ...migratedScenario,
       assumptions: normalizedAssumptions,
-      meta: nextMeta,
+      meta: cloneScenarioMeta(nextMeta),
       members: normalizedScenarioMembers,
       assets: normalizedAssets,
       liabilities: normalizedLiabilities,
@@ -2075,7 +2091,7 @@ export const normalizeScenario = (scenario: LegacyScenario): Scenario => {
   return {
     ...migratedScenario,
     assumptions: normalizedAssumptions,
-    meta: nextMeta,
+    meta: cloneScenarioMeta(nextMeta),
     members: normalizedScenarioMembers,
     assets: normalizedAssets,
     liabilities: normalizedLiabilities,
@@ -2329,7 +2345,7 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
       snapshots: cloneSnapshots(source.snapshots),
       plans: [],
       bundleInstances: cloneBundleInstances(source.bundleInstances),
-      meta: source.meta ? { ...source.meta } : undefined,
+      meta: cloneScenarioMeta(source.meta),
     };
 
     set((state) => ({
@@ -3841,6 +3857,23 @@ export const useScenarioStore = create<ScenarioStoreState>((set, get) => ({
           ? {
               ...scenario,
               meta: { ...(scenario.meta ?? {}), ...patch },
+              updatedAt: now(),
+            }
+          : scenario
+      ),
+    }));
+  },
+  setScenarioOverviewKpiWatchlist: (id, watchlist) => {
+    const nextWatchlist = Array.from(new Set(watchlist));
+    set((state) => ({
+      scenarios: state.scenarios.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              meta: {
+                ...(scenario.meta ?? {}),
+                overviewKpiWatchlist: [...nextWatchlist],
+              },
               updatedAt: now(),
             }
           : scenario

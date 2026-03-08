@@ -2,6 +2,7 @@
 
 import {
   Accordion,
+  ActionIcon,
   Badge,
   Button,
   Card,
@@ -84,6 +85,7 @@ import {
   summarizeHealthScorecard,
   type DashboardMetricKey,
   type HealthScorecardStatus,
+  HEALTH_SCORECARD_METRICS,
 } from "../../../src/domain/dashboard/healthScorecard";
 import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
 import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/buildOverviewTimelineMarkers";
@@ -149,6 +151,12 @@ const createMilestoneDraft = (
 
 const MILESTONE_MANAGER_QUERY_VALUE = "manage";
 const SYSTEM_MILESTONE_ID_PREFIX = "legacy-member-milestone:";
+const DEFAULT_KPI_WATCHLIST: DashboardMetricKey[] = [
+  "minCash",
+  "deficitMonths",
+  "avgNetCashflow",
+  "cashRunway",
+];
 
 const isSystemMilestoneEvent = (event: Pick<MilestoneEvent, "id" | "templateType">) =>
   event.id.startsWith(SYSTEM_MILESTONE_ID_PREFIX) ||
@@ -215,6 +223,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const budgetRules = useScenarioStore((state) => state.budgetRules);
   const appSettings = useScenarioStore((state) => state.appSettings);
   const activeScenarioId = useScenarioStore((state) => state.activeScenarioId);
+  const setScenarioOverviewKpiWatchlist = useScenarioStore(
+    (state) => state.setScenarioOverviewKpiWatchlist
+  );
   const globalHorizonMonths = appSettings.globalHorizonMonths;
   const setViewModeSetting = useScenarioStore((state) => state.setViewMode);
   const setActiveScenario = useScenarioStore((state) => state.setActiveScenario);
@@ -240,6 +251,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
   const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
   const [riskDetailOpen, setRiskDetailOpen] = useState(false);
+  const [watchlistEditorOpened, setWatchlistEditorOpened] = useState(false);
+  const [watchlistDraft, setWatchlistDraft] = useState<DashboardMetricKey[]>(
+    DEFAULT_KPI_WATCHLIST
+  );
   const [cashflowView, setCashflowView] = useState<"all" | "operational">("all");
   const [primaryChartTab, setPrimaryChartTab] = useState<"cash" | "netWorth" | "netCashflow">("cash");
   const [fullscreenChart, setFullscreenChart] = useState<{
@@ -1162,9 +1177,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const healthScoreByMetric = new Map<DashboardMetricKey, HealthScorecardStatus>(
     healthScoreEntries.map((entry) => [entry.metric, entry.status])
   );
-  const healthScoreDistribution = summarizeHealthScorecard(healthScoreEntries);
 
-  const kpiItems = [
+  const kpiLibrary = [
     {
       metric: "minCash" as const,
       label: sd("kpi.minCash", "Min cash"),
@@ -1253,6 +1267,51 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       badgeColor: statusColor(status),
     };
   });
+
+  const kpiLibraryByMetric = new Map(kpiLibrary.map((item) => [item.metric, item]));
+  const normalizedWatchlist =
+    selectedScenario.meta?.overviewKpiWatchlist?.filter((metric) =>
+      HEALTH_SCORECARD_METRICS.includes(metric)
+    ) ?? [];
+  const kpiWatchlistMetrics =
+    normalizedWatchlist.length > 0 ? normalizedWatchlist : DEFAULT_KPI_WATCHLIST;
+  const kpiWatchlist = kpiWatchlistMetrics
+    .map((metric) => kpiLibraryByMetric.get(metric))
+    .filter((item): item is (typeof kpiLibrary)[number] => item !== undefined);
+
+  const healthScoreDistribution = summarizeHealthScorecard(
+    healthScoreEntries.filter((entry) => kpiWatchlistMetrics.includes(entry.metric))
+  );
+
+  const handleWatchlistToggle = (metric: DashboardMetricKey) => {
+    setWatchlistDraft((current) =>
+      current.includes(metric)
+        ? current.filter((entry) => entry !== metric)
+        : [...current, metric]
+    );
+  };
+
+  const moveWatchlistItem = (index: number, direction: -1 | 1) => {
+    setWatchlistDraft((current) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(targetIndex, 0, item);
+      return next;
+    });
+  };
+
+  const handleSaveWatchlist = () => {
+    if (!selectedScenario.id) {
+      return;
+    }
+    const fallback = watchlistDraft.length > 0 ? watchlistDraft : DEFAULT_KPI_WATCHLIST;
+    setScenarioOverviewKpiWatchlist(selectedScenario.id, fallback);
+    setWatchlistEditorOpened(false);
+  };
 
   const healthScoreSegments = [
     { status: "excellent" as const, count: healthScoreDistribution.excellent, color: "teal", label: statusLabel("excellent") },
@@ -1427,23 +1486,33 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 <Text size="xs" c="dimmed">{sd("healthSummary.subtitle", "Review 12-month financial health and risk signals")}</Text>
               </div>
               <Group gap="xs">
+                <ActionIcon
+                  variant="light"
+                  aria-label={sd("kpiWatchlist.editAction", "Edit KPI watchlist")}
+                  onClick={() => {
+                    setWatchlistDraft(kpiWatchlistMetrics);
+                    setWatchlistEditorOpened(true);
+                  }}
+                >
+                  ⚙️
+                </ActionIcon>
                 <Button component={Link} href={planLabFamilyEntryHref}>{sd("cta.openPlanLab", "Open Plan Lab")}</Button>
                 <Button display="none" component={Link} href={moneyInputsHref} variant="light">{sd("cta.completeData", "Complete data")}</Button>
               </Group>
             </Group>
             {isDesktop ? (
               <SimpleGrid cols={4} spacing="sm">
-                {kpiItems.map((item) => (
+                {kpiWatchlist.map((item) => (
                   <KpiCard key={item.label} {...item} />
                 ))}
               </SimpleGrid>
             ) : (
-              <KpiCarousel items={kpiItems} />
+              <KpiCarousel items={kpiWatchlist} />
             )}
             <HealthScorecard
               title={sd("healthScorecard.title", "KPI health scorecard")}
               subtitle={sd("healthScorecard.subtitle", "Distribution of KPI health classifications") }
-              totalLabel={sd("healthScorecard.total", "{count} metrics", { count: kpiItems.length })}
+              totalLabel={sd("healthScorecard.total", "{count} metrics", { count: kpiWatchlist.length })}
               segments={healthScoreSegments}
               distribution={healthScoreDistribution}
             />
@@ -1645,6 +1714,92 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               </Stack>
             </Card>
           </SimpleGrid>
+          <Drawer
+            opened={watchlistEditorOpened}
+            onClose={() => setWatchlistEditorOpened(false)}
+            title={sd("kpiWatchlist.title", "KPI watchlist")}
+            position="right"
+            size="sm"
+          >
+            <Stack gap="sm">
+              <Text size="sm" c="dimmed">
+                {sd(
+                  "kpiWatchlist.description",
+                  "Choose KPI cards to pin in overview and drag order with arrows."
+                )}
+              </Text>
+              <Stack gap="xs">
+                {kpiLibrary.map((item) => {
+                  const selected = watchlistDraft.includes(item.metric);
+                  return (
+                    <Card key={item.metric} withBorder radius="md" padding="xs">
+                      <Group justify="space-between" align="center" wrap="nowrap">
+                        <Stack gap={0}>
+                          <Text size="sm" fw={600}>{item.label}</Text>
+                          <Text size="xs" c="dimmed">{item.helper}</Text>
+                        </Stack>
+                        <Button
+                          size="compact-xs"
+                          variant={selected ? "light" : "default"}
+                          onClick={() => handleWatchlistToggle(item.metric)}
+                        >
+                          {selected
+                            ? sd("kpiWatchlist.remove", "Remove")
+                            : sd("kpiWatchlist.add", "Add")}
+                        </Button>
+                      </Group>
+                    </Card>
+                  );
+                })}
+              </Stack>
+
+              <Card withBorder radius="md" padding="sm">
+                <Stack gap="xs">
+                  <Text fw={600} size="sm">
+                    {sd("kpiWatchlist.selectedTitle", "Selected order")}
+                  </Text>
+                  {watchlistDraft.map((metric, index) => {
+                    const item = kpiLibraryByMetric.get(metric);
+                    if (!item) {
+                      return null;
+                    }
+                    return (
+                      <Group key={metric} justify="space-between" wrap="nowrap">
+                        <Text size="sm">{item.label}</Text>
+                        <Group gap={4}>
+                          <Button
+                            size="compact-xs"
+                            variant="default"
+                            disabled={index === 0}
+                            onClick={() => moveWatchlistItem(index, -1)}
+                          >
+                            ↑
+                          </Button>
+                          <Button
+                            size="compact-xs"
+                            variant="default"
+                            disabled={index === watchlistDraft.length - 1}
+                            onClick={() => moveWatchlistItem(index, 1)}
+                          >
+                            ↓
+                          </Button>
+                        </Group>
+                      </Group>
+                    );
+                  })}
+                </Stack>
+              </Card>
+
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setWatchlistDraft(kpiWatchlistMetrics)}>
+                  {sd("kpiWatchlist.reset", "Reset")}
+                </Button>
+                <Button onClick={handleSaveWatchlist}>
+                  {common("actionSave")}
+                </Button>
+              </Group>
+            </Stack>
+          </Drawer>
           <Drawer
             opened={milestoneDrawerOpened}
             onClose={handleCloseMilestoneDrawer}

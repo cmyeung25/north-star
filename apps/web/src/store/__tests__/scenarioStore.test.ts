@@ -8,6 +8,7 @@ import {
   isLegacyOnboardingScenario,
   resetAppState,
   resetScenarioStore,
+  selectPersistedState,
   selectHasExistingProfile,
   useScenarioStore,
   type Scenario,
@@ -181,6 +182,40 @@ describe("hydrateFromPersistedState", () => {
     const rule = hydrated.eventLibrary[0]?.rule;
     expect(rule?.startAt).toEqual({ mode: "MONTH", month: "2024-01" });
     expect(rule?.endAt).toEqual(null);
+  });
+
+  it("persists overview KPI watchlist per scenario after reload", () => {
+    const primary = buildScenario({ id: "scenario-a", name: "A" });
+    const secondary = buildScenario({ id: "scenario-b", name: "B" });
+    useScenarioStore.setState({
+      scenarios: [primary, secondary],
+      eventLibrary: buildEventLibrary(),
+      activeScenarioId: primary.id,
+      appSettings: {
+        globalBaseMonth: primary.assumptions.baseMonth,
+        globalHorizonMonths: primary.assumptions.horizonMonths,
+        annualInflationPct: 0,
+        viewMode: "nominal",
+      },
+      members: [],
+      budgetRules: [],
+    });
+
+    const { setScenarioOverviewKpiWatchlist } = useScenarioStore.getState();
+    setScenarioOverviewKpiWatchlist(primary.id, ["minCash", "cashRunway"]);
+
+    const payload = selectPersistedState(useScenarioStore.getState());
+    hydrateFromPersistedState(payload);
+
+    const state = useScenarioStore.getState();
+    const reloadedPrimary = state.scenarios.find((entry) => entry.id === primary.id);
+    const reloadedSecondary = state.scenarios.find((entry) => entry.id === secondary.id);
+
+    expect(reloadedPrimary?.meta?.overviewKpiWatchlist).toEqual([
+      "minCash",
+      "cashRunway",
+    ]);
+    expect(reloadedSecondary?.meta?.overviewKpiWatchlist).toBeUndefined();
   });
 });
 

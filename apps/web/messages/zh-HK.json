@@ -1038,6 +1038,15 @@
           "informational": "資訊指標",
           "no-data": "資料不足"
         }
+      },
+      "kpiWatchlist": {
+        "title": "KPI 關注清單",
+        "description": "選擇要釘選於總覽的 KPI 卡片，並可用箭嘴調整次序。",
+        "editAction": "編輯 KPI 關注清單",
+        "add": "加入",
+        "remove": "移除",
+        "selectedTitle": "已選排序",
+        "reset": "重設"
       }
     },
     "breakdownSummaryDelta": "按月對比：淨資產 {netWorth}、現金 {cash}",

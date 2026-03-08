@@ -1016,6 +1016,15 @@
           "informational": "Informational",
           "no-data": "No data"
         }
+      },
+      "kpiWatchlist": {
+        "title": "KPI watchlist",
+        "description": "Choose KPI cards to pin in overview and reorder with arrows.",
+        "editAction": "Edit KPI watchlist",
+        "add": "Add",
+        "remove": "Remove",
+        "selectedTitle": "Selected order",
+        "reset": "Reset"
       }
     },
     "breakdownSummaryDelta": "MoM: Net worth {netWorth}, cash {cash}",
