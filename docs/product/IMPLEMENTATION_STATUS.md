@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-08 (onboarding meta tag alignment)
+Last updated: 2026-03-08 (overview health scorecard)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -15,31 +15,14 @@ Last updated: 2026-03-08 (onboarding meta tag alignment)
 | Plan Lab 決策化 | 72% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
-| Actionable Output | 52% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
+| Actionable Output | 56% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議），Overview 新增 KPI health scorecard 與狀態分佈條 | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset ???? | 58% | member ??? modal ??? blank/preset create mode?preset ? onboarding-prefill ???? 6 ???? seeds?seed ?? i18n ??????? raw keys | app ????????????? beta ???????? |
 | GTM / 營運就緒 | 20% | 有 marketing pages 基礎 | 缺 sample journey 導流、beta feedback loop、支援流程 |
 
 
 ## Latest Update (2026-03-08)
-- Onboarding v3 家庭成員自動建立的薪資事件現在會寫入 `category: salary`，避免後續在 onboarding / Money 顯示時被歸類為「其他」。
-- Onboarding v3 收入與支出步驟的分類摘要改為共用 `MoneyMetaTags`（與 Money 頁相同 badge style），分類資訊呈現一致。
-- Fixed onboarding v3 income/expense event category mapping so auto-salary and onboarding-created cashflows persist with correct `category`/`expenseCategory` values when entering Money page (instead of falling back to non-salary/other buckets).
-- Audited `apps/web/messages/zh-HK.json` for encoding and placeholder drift; restored `scenarios.seeds.*` Traditional Chinese copy and kept shared placeholders aligned with `en.json`.
-- Added a locale guardrail test to scan zh-HK messages for mojibake markers and placeholder-token mismatches on shared keys.
-- Fixed literal `????` placeholders in zh-HK preset seed copy so member create-case cards render real Traditional Chinese content.
-- Fixed member create-case preset seed-card i18n wiring and restored zh-HK `seeds` copy so preset cards no longer render raw `seeds.*` keys or duplicated property/mortgage labels.
-- Completed member create-case preset v1: fixed `member.caseDialogs` create-mode/preset i18n so the modal no longer leaks raw message keys.
-- Expanded member preset allowlist to six productized seeds, including `new-baby` and `new-baby-helper`.
-- Locked member `create mode preset` to onboarding-prefill: create case/scenario first, store a scenario-scoped onboarding draft, then enter onboarding rather than jumping directly into an onboarded app scenario.
-
-- Plan Lab「新增實驗」入口新增決策模板模式，v1 提供 `home_purchase`、`new_baby`、`income_shock`。
-- 置業/生育模板沿用既有 life-event bundle wizard，預設打包為 experiment group。
-- 收入衝擊模板沿用 baseline override 流程，預設 `-20%`、`12 個月`、`baseMonth+1`，若無可用收入事件則禁用並顯示原因。
-- 決策摘要層新增 risk timing / risk trend / top drivers / recommended actions（heuristic，無 engine 變更）。
-- Fixed zh-HK Plan Lab decision-summary/template placeholder strings (`????`) to real i18n copy.
-- Localized Plan Lab decision template/summary keys in `zh-HK.json` to Traditional Chinese copy (replacing temporary English fallback).
-- Added dev-only Supabase E2E auth bootstrap/reset endpoints plus Playwright authenticated storage-state setup for local product validation without weakening normal auth redirects.
-- Fixed onboarding seed prefill regex parsing so preset-based onboarding can import `seedPrefill.ts` and keep rent/mortgage classification stable for preset hydration.
+- Overview dashboard 新增 KPI health scorecard：以 domain classification 模組統一計算 excellent/progressing/vulnerable/informational/no-data，並在 KPI 卡與分佈條共用 i18n status key。
+- 新增 health scorecard domain 單元測試，覆蓋 KPI 分級規則與分佈計數。
 ## 已存在但未進主流程
 - Scenario presets/seeds 已接入 member 建案例入口作為 onboarding-prefill v1；app 內延伸入口與分組資訊架構仍待產品化。
 - Plan Lab 已有實驗與比較骨架，但常見決策模板與結論導向輸出仍需產品化。

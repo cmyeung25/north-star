@@ -46,6 +46,7 @@ import NetCashflowChart from "../../../features/overview/components/NetCashflowC
 import NetWorthChart from "../../../features/overview/components/NetWorthChart";
 import ScenarioContextSelector from "../../../features/overview/components/ScenarioContextSelector";
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
+import HealthScorecard from "../../../features/overview/components/HealthScorecard";
 import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
 import { formatCurrency } from "../../../lib/i18n";
 import { memberCasesPath, scenarioPeoplePath } from "../../../lib/routes/canonicalRoutes";
@@ -78,6 +79,12 @@ import { appliesToScenario } from "../../../src/domain/applyScope";
 import { useUiStore } from "../../../src/store/uiStore";
 import { isInvestmentCashflow } from "../../../src/domain/ledger/cashflowFilters";
 import { computeDashboardMetrics } from "../../../src/domain/dashboard/metrics";
+import {
+  buildHealthScorecard,
+  summarizeHealthScorecard,
+  type DashboardMetricKey,
+  type HealthScorecardStatus,
+} from "../../../src/domain/dashboard/healthScorecard";
 import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
 import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/buildOverviewTimelineMarkers";
 import type { MilestoneEvent, MilestoneEventTemplateType } from "../../../src/domain/milestoneEvents/types";
@@ -1132,8 +1139,34 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     return `${(value * 100).toFixed(1)}%`;
   };
 
+  const statusLabel = (status: HealthScorecardStatus) =>
+    sd(`healthScorecard.status.${status}`, status);
+
+  const statusColor = (status: HealthScorecardStatus) => {
+    switch (status) {
+      case "excellent":
+        return "teal";
+      case "progressing":
+        return "blue";
+      case "vulnerable":
+        return "red";
+      case "informational":
+        return "gray";
+      case "no-data":
+      default:
+        return "gray";
+    }
+  };
+
+  const healthScoreEntries = buildHealthScorecard(dashboardMetrics);
+  const healthScoreByMetric = new Map<DashboardMetricKey, HealthScorecardStatus>(
+    healthScoreEntries.map((entry) => [entry.metric, entry.status])
+  );
+  const healthScoreDistribution = summarizeHealthScorecard(healthScoreEntries);
+
   const kpiItems = [
     {
+      metric: "minCash" as const,
       label: sd("kpi.minCash", "Min cash"),
       value: dashboardMetrics.minCash12m
         ? `${formatCurrency(dashboardMetrics.minCash12m.value, selectedScenario.baseCurrency, locale)} · ${dashboardMetrics.minCash12m.month}`
@@ -1141,16 +1174,19 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
+      metric: "deficitMonths" as const,
       label: sd("kpi.deficitMonths", "Deficit months"),
       value: `${dashboardMetrics.deficitMonthsCount12m} / 12`,
       helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
+      metric: "avgNetCashflow" as const,
       label: sd("kpi.avgNetCashflow", "Avg net cashflow"),
       value: `${formatCurrency(dashboardMetrics.avgNetCashflow12m ?? 0, selectedScenario.baseCurrency, locale)} / ${sd("common.month", "month")}`,
       helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
+      metric: "cashRunway" as const,
       label: sd("kpi.cashRunway", "Cash runway"),
       value: dashboardMetrics.cashRunwayMonths === null
         ? sd("kpi.runwayUnavailable", "Not available")
@@ -1160,6 +1196,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       helper: sd("kpi.runwayProxyHint", "Proxy based on current trajectory"),
     },
     {
+      metric: "firstMillionMonth" as const,
       label: sd("kpi.firstMillionMonth", "First million month"),
       value: dashboardMetrics.firstMillionMonth ?? sd("kpi.notReachedWithinHorizon", "Not reached within horizon", {
         years: Math.round((globalHorizonMonths ?? 0) / 12),
@@ -1169,42 +1206,62 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       }),
     },
     {
+      metric: "avgNonSalaryIncome" as const,
       label: sd("kpi.avgNonSalaryIncome", "Avg non-salary income"),
       value: formatCurrency(dashboardMetrics.avgNonSalaryIncome12m ?? 0, selectedScenario.baseCurrency, locale),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
       tooltip: sd("kpi.avgNonSalaryIncomeFormula", "Total non-salary income over 12 months / 12"),
     },
     {
+      metric: "nonSalaryIncomeRatio" as const,
       label: sd("kpi.nonSalaryIncomeRatio", "Non-salary income ratio"),
       value: formatRatio(dashboardMetrics.nonSalaryIncomeRatio),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
       tooltip: sd("kpi.nonSalaryIncomeRatioFormula", "Non-salary income / total income over 12 months"),
     },
     {
+      metric: "passiveIncomeCoverage" as const,
       label: sd("kpi.passiveIncomeCoverage", "Passive income coverage"),
       value: formatRatio(dashboardMetrics.passiveIncomeCoverage),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
       tooltip: sd("kpi.passiveIncomeCoverageFormula", "Rental + dividends + interest / expenses over rolling 12 months"),
     },
     {
+      metric: "assetLinkedExpenseRatio" as const,
       label: sd("kpi.assetLinkedExpenseRatio", "Asset-linked expense ratio"),
       value: formatRatio(dashboardMetrics.assetLinkedExpenseRatio),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
       tooltip: sd("kpi.assetLinkedExpenseRatioFormula", "Housing + car linked expenses / total expenses over rolling 12 months"),
     },
     {
+      metric: "avgFunBudget" as const,
       label: sd("kpi.avgFunBudget", "Avg fun budget"),
       value: formatCurrency(dashboardMetrics.avgFunBudget12m ?? 0, selectedScenario.baseCurrency, locale),
       helper: sd("kpi.avgFunBudgetHint", "Proxy from net cashflow trend"),
     },
     {
+      metric: "riskLevel" as const,
       label: sd("kpi.riskLevel", "Risk level"),
       value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
-      badgeLabel: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
-      badgeColor: dashboardMetrics.riskLevel === "red" ? "red" : "green",
       helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
+  ].map((item) => {
+    const status = healthScoreByMetric.get(item.metric) ?? "no-data";
+    return {
+      ...item,
+      badgeLabel: statusLabel(status),
+      badgeColor: statusColor(status),
+    };
+  });
+
+  const healthScoreSegments = [
+    { status: "excellent" as const, count: healthScoreDistribution.excellent, color: "teal", label: statusLabel("excellent") },
+    { status: "progressing" as const, count: healthScoreDistribution.progressing, color: "blue", label: statusLabel("progressing") },
+    { status: "vulnerable" as const, count: healthScoreDistribution.vulnerable, color: "red", label: statusLabel("vulnerable") },
+    { status: "informational" as const, count: healthScoreDistribution.informational, color: "gray", label: statusLabel("informational") },
+    { status: "no-data" as const, count: healthScoreDistribution["no-data"], color: "gray", label: statusLabel("no-data") },
   ];
+
   const handleScenarioChange = (nextScenarioId: string) => {
     setActiveScenario(nextScenarioId);
     router.push(scenarioDashboardPath(caseId, nextScenarioId, locale as Locale));
@@ -1383,6 +1440,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             ) : (
               <KpiCarousel items={kpiItems} />
             )}
+            <HealthScorecard
+              title={sd("healthScorecard.title", "KPI health scorecard")}
+              subtitle={sd("healthScorecard.subtitle", "Distribution of KPI health classifications") }
+              totalLabel={sd("healthScorecard.total", "{count} metrics", { count: kpiItems.length })}
+              segments={healthScoreSegments}
+              distribution={healthScoreDistribution}
+            />
             <Card withBorder radius="md" padding="sm" display="none">
               <Stack gap={6}>
                 <Text fw={600} size="sm">{sd("completeness.title", "Completeness")}</Text>
