@@ -89,9 +89,12 @@ export const computeDashboardMetrics = (
     return current;
   }, null);
 
-  const netCashflows12m = horizonMonths.map(
-    (month) => projectionNetCashflowByMonth[month] ?? 0
+  const hasCompleteNetCashflow = horizonMonths.every((month) =>
+    hasOwn(projectionNetCashflowByMonth, month)
   );
+  const netCashflows12m = hasCompleteNetCashflow
+    ? horizonMonths.map((month) => projectionNetCashflowByMonth[month] ?? 0)
+    : [];
   const avgNetCashflow12m = average(netCashflows12m);
   const deficitMonthsCount12m = netCashflows12m.filter((value) => value < 0).length;
 
@@ -116,20 +119,19 @@ export const computeDashboardMetrics = (
     return null;
   })();
 
-  const nonSalaryIncomeByMonth = horizonMonths.map((month) => {
-    const items = ledgerByMonth[month] ?? [];
-    return items
-      .filter((item) => item.amount > 0 && !isSalaryEntry(item))
-      .reduce((sum, item) => sum + item.amount, 0);
-  });
+  const hasCompleteLedger = horizonMonths.every((month) => hasOwn(ledgerByMonth, month));
+  const nonSalaryIncomeByMonth = hasCompleteLedger
+    ? horizonMonths.map((month) => {
+        const items = ledgerByMonth[month] ?? [];
+        return items
+          .filter((item) => item.amount > 0 && !isSalaryEntry(item))
+          .reduce((sum, item) => sum + item.amount, 0);
+      })
+    : [];
   const avgNonSalaryIncome12m = average(nonSalaryIncomeByMonth);
   const incomeCoverageRatios = computeIncomeCoverageRatios(horizonMonths, ledgerByMonth);
 
   const avgFunBudget12m = avgNetCashflow12m;
-  const hasCompleteNetCashflow = horizonMonths.every((month) =>
-    hasOwn(projectionNetCashflowByMonth, month)
-  );
-  const hasCompleteLedger = horizonMonths.every((month) => hasOwn(ledgerByMonth, month));
 
   const totalNetCashflow12m = hasCompleteNetCashflow
     ? horizonMonths.reduce((sum, month) => sum + (projectionNetCashflowByMonth[month] ?? 0), 0)

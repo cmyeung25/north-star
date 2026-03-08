@@ -73,6 +73,28 @@ describe("computeDashboardMetrics", () => {
     expect(metrics.expenseToIncomeRatio12m).toBeNull();
     expect(metrics.debtToAssetRatio).toBeCloseTo(0.3);
     expect(metrics.netWorthGrowth12m).toBeCloseTo((1_060_000 - 900_000) / 900_000);
+    expect(metrics.avgNetCashflow12m).toBeNull();
+    expect(metrics.avgNonSalaryIncome12m).toBeNull();
+    expect(metrics.avgFunBudget12m).toBeNull();
+  });
+
+  it("returns null percentage ratios when denominator is zero", () => {
+    const months = baseProjection.months;
+    const netCashflow = Object.fromEntries(months.map((month) => [month, 500]));
+    const ledger: Record<string, CashflowItem[]> = Object.fromEntries(
+      months.map((month) => [
+        month,
+        [{ month, amount: -2_000, source: "event", sourceId: "living" }],
+      ])
+    );
+
+    const metrics = computeDashboardMetrics(baseProjection, netCashflow, ledger);
+
+    expect(metrics.savingsRate12m).toBeNull();
+    expect(metrics.expenseToIncomeRatio12m).toBeNull();
+    expect(metrics.nonSalaryIncomeRatio).toBeNull();
+    expect(metrics.passiveIncomeCoverage).toBeNull();
+    expect(metrics.assetLinkedExpenseRatio).toBeNull();
   });
 
   it("supports negative savings rate under sustained negative cashflow", () => {
