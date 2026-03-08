@@ -949,7 +949,7 @@
       },
       "kpi": {
         "scope12m": "Next 12 months",
-        "scopeHorizon": "以全期投影（至 {endMonth}）",
+        "scopeHorizon": "Using full-horizon projection (through {endMonth})",
         "minCash": "Minimum cash balance",
         "deficitMonths": "Deficit cashflow months",
         "avgNetCashflow": "Average monthly net cashflow",
@@ -959,7 +959,7 @@
         "runwayProxyHint": "Estimated from average essential spending.",
         "firstMillionMonth": "First million month",
         "notReached": "Not reached",
-        "notReachedWithinHorizon": "未達標（在 {years} 年內）",
+        "notReachedWithinHorizon": "Not reached (within {years} years)",
         "avgNonSalaryIncome": "Non-salary income (avg)",
         "avgFunBudget": "Monthly discretionary budget (avg)",
         "avgFunBudgetHint": "Using average monthly net cashflow as proxy",
