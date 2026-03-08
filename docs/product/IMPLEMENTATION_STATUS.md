@@ -60,6 +60,8 @@ Last updated: 2026-03-08 (zh-HK overview/plan-lab locale lint)
 - Event mapping 保留使用者在 onboarding 所選分類（若有），僅在未指定時套用原 onboarding tag 預設。
 - 修正 onboarding v3 draft storage 測試基線：`dual-income-rental` 種子情境在遷移後 `mortgageRatePct` 應為 `3.25`（與 seed housing payload 一致），避免 quality gate 被過期預期值阻塞。
 - Overview KPI i18n 對齊：`overview.dashboard.kpi.scopeHorizon`、`overview.dashboard.kpi.notReachedWithinHorizon` 的 `en` 文案已改為英文，同時確認與 `zh-HK` placeholder token（`{endMonth}`、`{years}`）一致且無 drift。
+- Overview KPI 健康分層統計改為以完整 KPI library 計算（不再只統計 watchlist 已選項），`healthScorecard.total` 亦同步顯示全量 KPI 數；`zh-HK` 補齊 `nonSalaryIncomeRatio`、`passiveIncomeCoverage`、`assetLinkedExpenseRatio` 及公式文案，避免非品牌英文 fallback 混入。
+- Overview KPI 卡片「查看可支撐月數 / 查看風險說明」CTA 改為使用 `overview.*` 命名空間翻譯（`t(...)`），修正先前誤用 `overview.dashboard.*` 導致 zh-HK 顯示英文 fallback（`View runway details` / `View risk details`）。
 
 ## Next Recommended Priority
 1. 以「可完成一次重大家庭決策」為目標，收斂 Onboarding + Property Bundle 旅程。

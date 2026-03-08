@@ -1230,7 +1230,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             months: dashboardMetrics.cashRunwayMonths.toFixed(1),
           }),
       helper: sd("kpi.runwayProxyHint", "Proxy based on current trajectory"),
-      detailsLabel: sd("runwayDetailCta", "View runway details"),
+      detailsLabel: t("runwayDetailCta"),
       onDetails: () => setRunwayDetailOpen(true),
     },
     {
@@ -1319,7 +1319,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       label: sd("kpi.riskLevel", "Risk level"),
       value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
-      detailsLabel: sd("riskDetailCta", "View risk details"),
+      detailsLabel: t("riskDetailCta"),
       onDetails: () => setRiskDetailOpen(true),
     },
   ].map((item) => {
@@ -1346,9 +1346,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     .map((metric) => kpiLibraryByMetric.get(metric))
     .filter((item): item is (typeof kpiLibrary)[number] => item !== undefined);
 
-  const healthScoreDistribution = summarizeHealthScorecard(
-    healthScoreEntries.filter((entry) => kpiWatchlistMetrics.includes(entry.metric))
-  );
+  const healthScoreDistribution = summarizeHealthScorecard(healthScoreEntries);
 
   const handleWatchlistToggle = (metric: DashboardMetricKey) => {
     setWatchlistDraft((current) =>
@@ -1579,7 +1577,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             <HealthScorecard
               title={sd("healthScorecard.title", "KPI health scorecard")}
               subtitle={sd("healthScorecard.subtitle", "Distribution of KPI health classifications") }
-              totalLabel={sd("healthScorecard.total", "{count} metrics", { count: kpiWatchlist.length })}
+              totalLabel={sd("healthScorecard.total", "{count} metrics", { count: healthScoreEntries.length })}
               segments={healthScoreSegments}
               distribution={healthScoreDistribution}
             />
