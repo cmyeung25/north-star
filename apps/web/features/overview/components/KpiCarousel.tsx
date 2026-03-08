@@ -1,3 +1,4 @@
+import React from "react";
 import { Group, ScrollArea } from "@mantine/core";
 import KpiCard from "./KpiCard";
 

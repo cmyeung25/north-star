@@ -1208,6 +1208,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             months: dashboardMetrics.cashRunwayMonths.toFixed(1),
           }),
       helper: sd("kpi.runwayProxyHint", "Proxy based on current trajectory"),
+      detailsLabel: sd("runwayDetailCta", "View runway details"),
+      onDetails: () => setRunwayDetailOpen(true),
     },
     {
       metric: "firstMillionMonth" as const,
@@ -1258,6 +1260,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       label: sd("kpi.riskLevel", "Risk level"),
       value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
+      detailsLabel: sd("riskDetailCta", "View risk details"),
+      onDetails: () => setRiskDetailOpen(true),
     },
   ].map((item) => {
     const status = healthScoreByMetric.get(item.metric) ?? "no-data";

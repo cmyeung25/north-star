@@ -9,9 +9,11 @@ declare module "vitest" {
 
   type Matchers = {
     toBe: (...args: unknown[]) => void;
+    toBeTruthy: (...args: unknown[]) => void;
     toEqual: (...args: unknown[]) => void;
     toContain: (...args: unknown[]) => void;
     toHaveLength: (...args: unknown[]) => void;
+    toHaveBeenCalledTimes: (...args: unknown[]) => void;
     toMatchObject: (...args: unknown[]) => void;
     toBeUndefined: (...args: unknown[]) => void;
     toBeNull: (...args: unknown[]) => void;
