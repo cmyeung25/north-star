@@ -35,7 +35,7 @@ const mapExpenseEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.includes(EXPENSE_TRAVEL_TAG)) {
     return {
       ...event,
-      expenseCategory: "travel",
+      expenseCategory: event.expenseCategory ?? "travel",
       meta: { ...(event.meta ?? {}), timelineEventType: "travel" as const },
     };
   }
@@ -43,7 +43,7 @@ const mapExpenseEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.includes(EXPENSE_TAX_TAG)) {
     return {
       ...event,
-      expenseCategory: "tax",
+      expenseCategory: event.expenseCategory ?? "tax",
       tags: withTag(tags, "tax"),
       meta: { ...(event.meta ?? {}), timelineEventType: "custom" as const },
     };
@@ -52,7 +52,7 @@ const mapExpenseEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.includes(EXPENSE_DAILY_TAG)) {
     return {
       ...event,
-      expenseCategory: "daily_living",
+      expenseCategory: event.expenseCategory ?? "daily_living",
       meta: { ...(event.meta ?? {}), timelineEventType: "custom" as const },
     };
   }
@@ -60,7 +60,7 @@ const mapExpenseEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.includes(EXPENSE_OTHER_FIXED_TAG)) {
     return {
       ...event,
-      expenseCategory: "other",
+      expenseCategory: event.expenseCategory ?? "other",
       meta: { ...(event.meta ?? {}), timelineEventType: "custom" as const },
     };
   }
@@ -78,7 +78,7 @@ const mapIncomeEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.includes(INCOME_SALARY_TAG)) {
     return {
       ...event,
-      category: "salary",
+      category: event.category ?? "salary",
       meta: {
         ...(event.meta ?? {}),
         timelineEventType: "salary" as const,
@@ -90,7 +90,7 @@ const mapIncomeEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.includes(INCOME_RENT_TAG)) {
     return {
       ...event,
-      category: "rental",
+      category: event.category ?? "rental",
       tags: withTag(tags, "income:rental"),
       meta: {
         ...(event.meta ?? {}),
@@ -103,7 +103,7 @@ const mapIncomeEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.includes(INCOME_BONUS_TAG)) {
     return {
       ...event,
-      category: "bonus",
+      category: event.category ?? "bonus",
       meta: {
         ...(event.meta ?? {}),
         timelineEventType: "custom" as const,
@@ -115,7 +115,7 @@ const mapIncomeEvent = (event: CashflowLikeEvent): CashflowLikeEvent => {
   if (tags.some((tag) => tag.startsWith("onboarding:v3:income:"))) {
     return {
       ...event,
-      category: "other",
+      category: event.category ?? "other",
       meta: {
         ...(event.meta ?? {}),
         timelineEventType: "custom" as const,

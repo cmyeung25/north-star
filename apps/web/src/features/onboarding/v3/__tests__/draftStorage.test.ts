@@ -107,7 +107,7 @@ describe("onboarding v3 draft storage", () => {
     expect(v3Draft.assumptions.salaryGrowthRate).toBe(3);
     expect(v3Draft.assumptions.rentAnnualGrowthPct).toBe(2);
     expect(v3Draft.assumptions.propertyAppreciationPct).toBe(2);
-    expect(v3Draft.assumptions.mortgageRatePct).toBe(4);
+    expect(v3Draft.assumptions.mortgageRatePct).toBe(3.25);
   });
 
   it("prefers an existing v3 draft over v2 migration", () => {
