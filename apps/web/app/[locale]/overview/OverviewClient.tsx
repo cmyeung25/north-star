@@ -49,7 +49,6 @@ import ScenarioContextSelector from "../../../features/overview/components/Scena
 import AutoSnapshotsCard from "../../../features/overview/components/AutoSnapshotsCard";
 import HealthScorecard from "../../../features/overview/components/HealthScorecard";
 import {
-  formatNullableCurrencyKpiValue,
   resolveNullableMetricScoreStatus,
 } from "../../../features/overview/overviewKpiFormatting";
 import type { TimeSeriesPoint, MilestoneMarker } from "../../../features/overview/types";
@@ -1149,14 +1148,23 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const showCompare = viewMode === "compare";
   const sd = (key: string, fallback: string, values?: Record<string, string | number>) =>
     safeT(tDashboard, key, fallback, values);
+  const emptyValueLabel = sd("common.emptyValue", "--");
 
-
-  const formatRatio = (value: number | null) => {
+  const formatKpiValue = (value: number | null, formatter: (presentValue: number) => string) => {
     if (value === null || !Number.isFinite(value)) {
-      return sd("common.emptyValue", "--");
+      return emptyValueLabel;
     }
-    return `${(value * 100).toFixed(1)}%`;
+    return formatter(value);
   };
+
+  const formatCurrencyKpi = (value: number | null, monthLabel?: string) =>
+    formatKpiValue(value, (presentValue) => {
+      const formatted = formatCurrency(presentValue, selectedScenario.baseCurrency, locale);
+      return monthLabel ? `${formatted} / ${monthLabel}` : formatted;
+    });
+
+  const formatRatio = (value: number | null) =>
+    formatKpiValue(value, (presentValue) => `${(presentValue * 100).toFixed(1)}%`);
 
   const statusLabel = (status: HealthScorecardStatus) =>
     sd(`healthScorecard.status.${status}`, status);
@@ -1198,7 +1206,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       label: sd("kpi.minCash", "Min cash"),
       value: dashboardMetrics.minCash12m
         ? `${formatCurrency(dashboardMetrics.minCash12m.value, selectedScenario.baseCurrency, locale)} · ${dashboardMetrics.minCash12m.month}`
-        : sd("common.emptyValue", "--"),
+        : emptyValueLabel,
       helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
@@ -1210,13 +1218,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "avgNetCashflow" as const,
       label: sd("kpi.avgNetCashflow", "Avg net cashflow"),
-      value: formatNullableCurrencyKpiValue({
-        value: dashboardMetrics.avgNetCashflow12m,
-        currency: selectedScenario.baseCurrency,
-        locale,
-        emptyValueLabel: sd("common.emptyValue", "--"),
-        monthLabel: sd("common.month", "month"),
-      }),
+      value: formatCurrencyKpi(dashboardMetrics.avgNetCashflow12m, sd("common.month", "month")),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
     },
     {
@@ -1244,12 +1246,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "avgNonSalaryIncome" as const,
       label: sd("kpi.avgNonSalaryIncome", "Avg non-salary income"),
-      value: formatNullableCurrencyKpiValue({
-        value: dashboardMetrics.avgNonSalaryIncome12m,
-        currency: selectedScenario.baseCurrency,
-        locale,
-        emptyValueLabel: sd("common.emptyValue", "--"),
-      }),
+      value: formatCurrencyKpi(dashboardMetrics.avgNonSalaryIncome12m),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
       tooltip: sd("kpi.avgNonSalaryIncomeFormula", "Total non-salary income over 12 months / 12"),
     },
@@ -1277,12 +1274,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "avgFunBudget" as const,
       label: sd("kpi.avgFunBudget", "Avg fun budget"),
-      value: formatNullableCurrencyKpiValue({
-        value: dashboardMetrics.avgFunBudget12m,
-        currency: selectedScenario.baseCurrency,
-        locale,
-        emptyValueLabel: sd("common.emptyValue", "--"),
-      }),
+      value: formatCurrencyKpi(dashboardMetrics.avgFunBudget12m),
       helper: sd("kpi.avgFunBudgetHint", "Proxy from net cashflow trend"),
     },
     {
