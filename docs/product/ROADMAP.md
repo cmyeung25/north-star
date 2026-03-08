@@ -58,6 +58,7 @@ Last updated: 2026-03-08
 - [x] Overview 已新增 scenario-scoped KPI watchlist（library + watchlist）：使用者可在總覽編輯 KPI 增刪與排序，且偏好只儲存在 active scenario，重載後保留。
 - [x] Overview `cashRunway` / `riskLevel` KPI 卡加入詳情 CTA，並可於 mobile carousel 觸發對應詳情互動（runway/risk）。
 - [x] Overview KPI `avgNetCashflow` / `avgNonSalaryIncome` / `avgFunBudget` 已改為 null-safe 顯示：`null` 顯示 emptyValue，並與 scorecard 的 `no-data` 對齊。
+- [x] Overview DashboardMetrics 新增靜態推導 KPI（`savingsRate12m`、`expenseToIncomeRatio12m`、`debtToAssetRatio`、`netWorthGrowth12m`），並補齊 KPI 卡 tooltip 公式與 i18n（en/zh-HK）。
 2. Market Entry + Sample Journey
 - 上線市場入口頁（價值主張、適用族群、示例旅程）。
 - 提供可直接體驗的家庭場景範本與引導。

@@ -16,6 +16,10 @@ const makeMetrics = (overrides: Partial<DashboardMetrics>): DashboardMetrics => 
   passiveIncomeCoverage: null,
   assetLinkedExpenseRatio: null,
   avgFunBudget12m: null,
+  savingsRate12m: null,
+  expenseToIncomeRatio12m: null,
+  debtToAssetRatio: null,
+  netWorthGrowth12m: null,
   riskLevel: "green",
   endMonth: "2030-12",
   ...overrides,
@@ -35,6 +39,10 @@ describe("healthScorecard", () => {
         passiveIncomeCoverage: 1.2,
         assetLinkedExpenseRatio: 0.42,
         avgFunBudget12m: -10,
+        savingsRate12m: 0.22,
+        expenseToIncomeRatio12m: 0.95,
+        debtToAssetRatio: 0.4,
+        netWorthGrowth12m: -0.02,
         riskLevel: "red",
       })
     );
@@ -51,6 +59,10 @@ describe("healthScorecard", () => {
     expect(byMetric.get("passiveIncomeCoverage")).toBe("excellent");
     expect(byMetric.get("assetLinkedExpenseRatio")).toBe("progressing");
     expect(byMetric.get("avgFunBudget")).toBe("vulnerable");
+    expect(byMetric.get("savingsRate")).toBe("excellent");
+    expect(byMetric.get("expenseToIncomeRatio")).toBe("vulnerable");
+    expect(byMetric.get("debtToAssetRatio")).toBe("progressing");
+    expect(byMetric.get("netWorthGrowth")).toBe("vulnerable");
     expect(byMetric.get("riskLevel")).toBe("vulnerable");
   });
 
@@ -67,16 +79,20 @@ describe("healthScorecard", () => {
         passiveIncomeCoverage: 0.2,
         assetLinkedExpenseRatio: null,
         avgFunBudget12m: 5000,
+        savingsRate12m: null,
+        expenseToIncomeRatio12m: 0.65,
+        debtToAssetRatio: 0.25,
+        netWorthGrowth12m: 0.12,
         riskLevel: "green",
       })
     );
 
     expect(summarizeHealthScorecard(entries)).toEqual({
-      excellent: 4,
+      excellent: 7,
       progressing: 2,
       vulnerable: 2,
       informational: 0,
-      "no-data": 3,
+      "no-data": 4,
     });
   });
 });

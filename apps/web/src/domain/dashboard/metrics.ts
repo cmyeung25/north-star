@@ -14,6 +14,10 @@ export type DashboardMetrics = {
   passiveIncomeCoverage: number | null;
   assetLinkedExpenseRatio: number | null;
   avgFunBudget12m: number | null;
+  savingsRate12m: number | null;
+  expenseToIncomeRatio12m: number | null;
+  debtToAssetRatio: number | null;
+  netWorthGrowth12m: number | null;
   riskLevel: "green" | "red";
   endMonth: string | null;
 };
@@ -29,9 +33,16 @@ const EMPTY_METRICS: DashboardMetrics = {
   passiveIncomeCoverage: null,
   assetLinkedExpenseRatio: null,
   avgFunBudget12m: null,
+  savingsRate12m: null,
+  expenseToIncomeRatio12m: null,
+  debtToAssetRatio: null,
+  netWorthGrowth12m: null,
   riskLevel: "green",
   endMonth: null,
 };
+
+const hasOwn = (target: object, key: string) =>
+  Object.prototype.hasOwnProperty.call(target, key);
 
 const isSalaryEntry = (item: CashflowItem) => {
   const text = `${item.sourceId} ${item.label ?? ""} ${item.category ?? ""}`.toLowerCase();
@@ -115,6 +126,50 @@ export const computeDashboardMetrics = (
   const incomeCoverageRatios = computeIncomeCoverageRatios(horizonMonths, ledgerByMonth);
 
   const avgFunBudget12m = avgNetCashflow12m;
+  const hasCompleteNetCashflow = horizonMonths.every((month) =>
+    hasOwn(projectionNetCashflowByMonth, month)
+  );
+  const hasCompleteLedger = horizonMonths.every((month) => hasOwn(ledgerByMonth, month));
+
+  const totalNetCashflow12m = hasCompleteNetCashflow
+    ? horizonMonths.reduce((sum, month) => sum + (projectionNetCashflowByMonth[month] ?? 0), 0)
+    : null;
+  const totalIncome12m = hasCompleteLedger
+    ? horizonMonths.reduce((sum, month) => {
+        const items = ledgerByMonth[month] ?? [];
+        return sum + items.filter((item) => item.amount > 0).reduce((acc, item) => acc + item.amount, 0);
+      }, 0)
+    : null;
+  const totalExpense12m = hasCompleteLedger
+    ? horizonMonths.reduce((sum, month) => {
+        const items = ledgerByMonth[month] ?? [];
+        return sum + items.filter((item) => item.amount < 0).reduce((acc, item) => acc + Math.abs(item.amount), 0);
+      }, 0)
+    : null;
+
+  const savingsRate12m =
+    totalNetCashflow12m === null || totalIncome12m === null || totalIncome12m <= 0
+      ? null
+      : totalNetCashflow12m / totalIncome12m;
+  const expenseToIncomeRatio12m =
+    totalExpense12m === null || totalIncome12m === null || totalIncome12m <= 0
+      ? null
+      : totalExpense12m / totalIncome12m;
+
+  const assetsNow = projection.assets?.total?.[0];
+  const liabilitiesNow = projection.liabilities?.total?.[0];
+  const debtToAssetRatio =
+    assetsNow === undefined || liabilitiesNow === undefined || assetsNow <= 0
+      ? null
+      : liabilitiesNow / assetsNow;
+
+  const startNetWorth = projection.netWorth[0];
+  const endingNetWorth = projection.netWorth[Math.min(11, projection.netWorth.length - 1)];
+  const netWorthGrowth12m =
+    startNetWorth === undefined || endingNetWorth === undefined || startNetWorth === 0
+      ? null
+      : (endingNetWorth - startNetWorth) / Math.abs(startNetWorth);
+
   const riskLevel = (minCash12m?.value ?? 0) < 0 || (cashRunwayMonths !== null && cashRunwayMonths < 6)
     ? "red"
     : "green";
@@ -131,6 +186,10 @@ export const computeDashboardMetrics = (
     passiveIncomeCoverage: incomeCoverageRatios.passiveIncomeCoverage,
     assetLinkedExpenseRatio: incomeCoverageRatios.assetLinkedExpenseRatio,
     avgFunBudget12m,
+    savingsRate12m,
+    expenseToIncomeRatio12m,
+    debtToAssetRatio,
+    netWorthGrowth12m,
     riskLevel,
     endMonth,
   };

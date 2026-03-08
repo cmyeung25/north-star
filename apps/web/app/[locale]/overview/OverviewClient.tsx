@@ -1186,6 +1186,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     avgNetCashflow: dashboardMetrics.avgNetCashflow12m,
     avgNonSalaryIncome: dashboardMetrics.avgNonSalaryIncome12m,
     avgFunBudget: dashboardMetrics.avgFunBudget12m,
+    savingsRate: dashboardMetrics.savingsRate12m,
+    expenseToIncomeRatio: dashboardMetrics.expenseToIncomeRatio12m,
+    debtToAssetRatio: dashboardMetrics.debtToAssetRatio,
+    netWorthGrowth: dashboardMetrics.netWorthGrowth12m,
   };
 
   const kpiLibrary = [
@@ -1280,6 +1284,43 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         emptyValueLabel: sd("common.emptyValue", "--"),
       }),
       helper: sd("kpi.avgFunBudgetHint", "Proxy from net cashflow trend"),
+    },
+    {
+      metric: "savingsRate" as const,
+      label: sd("kpi.savingsRate", "Savings rate (12m)"),
+      value: formatRatio(dashboardMetrics.savingsRate12m),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      tooltip: sd(
+        "kpi.savingsRateFormula",
+        "(Total net cashflow over 12 months) / (Total income over 12 months)"
+      ),
+    },
+    {
+      metric: "expenseToIncomeRatio" as const,
+      label: sd("kpi.expenseToIncomeRatio", "Expense-to-income ratio (12m)"),
+      value: formatRatio(dashboardMetrics.expenseToIncomeRatio12m),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      tooltip: sd(
+        "kpi.expenseToIncomeRatioFormula",
+        "(Total expenses over 12 months) / (Total income over 12 months)"
+      ),
+    },
+    {
+      metric: "debtToAssetRatio" as const,
+      label: sd("kpi.debtToAssetRatio", "Debt-to-asset ratio"),
+      value: formatRatio(dashboardMetrics.debtToAssetRatio),
+      helper: sd("kpi.scopeCurrentSnapshot", "Scope: current snapshot"),
+      tooltip: sd("kpi.debtToAssetRatioFormula", "Current liabilities / current assets"),
+    },
+    {
+      metric: "netWorthGrowth" as const,
+      label: sd("kpi.netWorthGrowth12m", "Net worth growth (12m)"),
+      value: formatRatio(dashboardMetrics.netWorthGrowth12m),
+      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      tooltip: sd(
+        "kpi.netWorthGrowth12mFormula",
+        "(Net worth at month 12 - net worth at month 1) / |net worth at month 1|"
+      ),
     },
     {
       metric: "riskLevel" as const,
