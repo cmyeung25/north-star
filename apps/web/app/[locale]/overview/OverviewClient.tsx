@@ -1230,7 +1230,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             months: dashboardMetrics.cashRunwayMonths.toFixed(1),
           }),
       helper: sd("kpi.runwayProxyHint", "Proxy based on current trajectory"),
-      detailsLabel: sd("runwayDetailCta", "View runway details"),
+      detailsLabel: t("runwayDetailCta"),
       onDetails: () => setRunwayDetailOpen(true),
     },
     {
@@ -1319,7 +1319,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       label: sd("kpi.riskLevel", "Risk level"),
       value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
       helper: sd("kpi.scope12m", "Scope: 12 months"),
-      detailsLabel: sd("riskDetailCta", "View risk details"),
+      detailsLabel: t("riskDetailCta"),
       onDetails: () => setRiskDetailOpen(true),
     },
   ].map((item) => {
