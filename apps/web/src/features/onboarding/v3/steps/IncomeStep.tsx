@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { UI_INCOME_CATEGORY_KEYS } from "../../../money/categoryMeta";
 import MonthField from "../../../../../components/MonthField";
 import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
 import type { CashflowEvent } from "../../../../domain/scenarioV2/events";
@@ -33,6 +34,7 @@ type ManualRow = {
   endMonth?: string;
   followIncomeGrowth: boolean;
   tags?: string[];
+  category?: CashflowEvent["category"];
 };
 
 type Props = {
@@ -67,6 +69,7 @@ export default function IncomeStep({
 }: Props) {
   const tGenerated = useTranslations("onboarding.generatedCashflow");
   const t = useTranslations("onboardingV3.steps");
+  const tMoney = useTranslations("money");
   const [duplicateMessage, setDuplicateMessage] = useState<string>("");
   const followIncomeGrowthRate = Number.isFinite(defaultSalaryGrowthRate) ? defaultSalaryGrowthRate : 3;
 
@@ -80,6 +83,23 @@ export default function IncomeStep({
     ],
     [members, t]
   );
+
+  const incomeCategoryOptions = useMemo(
+    () =>
+      UI_INCOME_CATEGORY_KEYS.map((key) => ({
+        value: key,
+        label: tMoney(`incomeCategory.${key}`),
+      })),
+    [tMoney]
+  );
+
+  const resolveIncomeCategoryLabel = (category?: CashflowEvent["category"]) => {
+    if (!category) {
+      return null;
+    }
+
+    return tMoney(`incomeCategory.${category}`);
+  };
 
   const addManual = (rule: string | undefined, item: Omit<ManualRow, "id">) => {
     if (rule && rows.some((row) => row.metadata?.generatedByRule === rule)) {
@@ -106,6 +126,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: true,
+        category: "salary" as const,
         tags: ["onboarding:v3:income:salary", "onboarding:v3:income:source-onboarding"],
       },
     },
@@ -121,6 +142,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: false,
+        category: "bonus" as const,
         tags: ["onboarding:v3:income:bonus", "onboarding:v3:income:source-onboarding"],
       },
     },
@@ -136,6 +158,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: false,
+        category: "rental" as const,
         tags: ["onboarding:v3:income:rent", "onboarding:v3:income:source-onboarding"],
       },
     },
@@ -154,6 +177,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: false,
+        category: "other" as const,
         tags: ["onboarding:v3:income:allowance", "onboarding:v3:income:source-onboarding"],
       },
     },
@@ -169,6 +193,7 @@ export default function IncomeStep({
         startMonth: defaultStartMonth,
         endMonth: undefined,
         followIncomeGrowth: true,
+        category: "other" as const,
         tags: ["onboarding:v3:income:manual", "onboarding:v3:income:source-onboarding"],
       },
     },
@@ -228,6 +253,13 @@ export default function IncomeStep({
                         <Text size="sm" fw={600}>
                           {resolveManualTitle(row.title)}
                         </Text>
+                        {resolveIncomeCategoryLabel(row.category) ? (
+                          <Text size="xs" c="dimmed">
+                            {t("income.categoryPreview", {
+                              category: resolveIncomeCategoryLabel(row.category) ?? "",
+                            })}
+                          </Text>
+                        ) : null}
                         <Group gap="xs">
                           <Button variant="subtle" onClick={() => onDuplicateManualItem(row.id)}>
                             {t("income.actions.copy")}
@@ -296,6 +328,16 @@ export default function IncomeStep({
                           onChange={(value) => onUpdateManualItem(row.id, { memberId: value ?? "" })}
                         />
                       </Group>
+                      <Select
+                        label={t("income.fields.category")}
+                        data={incomeCategoryOptions}
+                        value={row.category ?? "other"}
+                        onChange={(value) =>
+                          onUpdateManualItem(row.id, {
+                            category: (value as ManualRow["category"]) ?? "other",
+                          })
+                        }
+                      />
                       <Group grow align="flex-start">
                         <MonthField
                           label={t("income.fields.startMonth")}

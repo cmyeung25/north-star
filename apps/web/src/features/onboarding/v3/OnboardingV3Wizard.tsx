@@ -43,6 +43,8 @@ type ManualCashflowDraftInput = {
   startMonth?: string;
   endMonth?: string;
   followIncomeGrowth?: boolean;
+  category?: CashflowDraft["category"];
+  expenseCategory?: CashflowDraft["expenseCategory"];
   tags?: string[];
   customGrowthRatePct?: number;
 };
@@ -328,6 +330,8 @@ export default function OnboardingV3Wizard() {
           startMonth: item.startMonth ?? current.profile.startMonth ?? "",
           endMonth: item.endMonth,
           growthMode: item.followIncomeGrowth === false ? "none" : "assumption",
+          category: item.category,
+          expenseCategory: item.expenseCategory,
           tags: item.tags,
           customGrowthRatePct: item.customGrowthRatePct,
           meta: {
@@ -438,6 +442,7 @@ export default function OnboardingV3Wizard() {
                         typeof patch.followIncomeGrowth === "boolean"
                           ? (patch.followIncomeGrowth ? "assumption" : "none")
                           : event.growthMode,
+                      category: patch.category ?? event.category,
                     }
                   : event
               ),
@@ -469,6 +474,7 @@ export default function OnboardingV3Wizard() {
                       cadence: patch.cadence ?? event.cadence,
                       startMonth: patch.startMonth ?? event.startMonth,
                       endMonth: patch.endMonth ?? event.endMonth,
+                      expenseCategory: patch.expenseCategory ?? event.expenseCategory,
                       tags: patch.tags ?? event.tags,
                       customGrowthRatePct: patch.customGrowthRatePct ?? event.customGrowthRatePct,
                     }

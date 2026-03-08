@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-08
+Last updated: 2026-03-08 (onboarding category confirm update)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -11,7 +11,7 @@ Last updated: 2026-03-08
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
-| Onboarding + Property Bundle | 65% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架 | 需補齊既有物業 household 的一致輸入與審核體驗 |
+| Onboarding + Property Bundle | 68% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架，且 v3 收入/支出手動列可直接確認分類並顯示分類摘要 | 需補齊既有物業 household 的一致輸入與審核體驗與 completeness guardrails |
 | Plan Lab 決策化 | 72% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
@@ -56,6 +56,11 @@ Last updated: 2026-03-08
 | `pnpm -w typecheck` | PASS | 全 workspace typecheck 通過 |
 | `pnpm -w test` | PASS (WARN) | 測試全綠；有非阻斷 stderr/console 訊息與 turbo outputs 警告 |
 | `pnpm -w --filter web build` | PASS (WARN) | build 成功；有 webpack cache big strings 非阻斷警告 |
+
+## Latest Delta (2026-03-08)
+- Onboarding v3（收入/支出步驟）已加入每筆手動項目的分類 dropdown，並顯示分類摘要；沿用既有 `money` category i18n keys 與 taxonomy，不改 engine/interface。
+- Event mapping 保留使用者在 onboarding 所選分類（若有），僅在未指定時套用原 onboarding tag 預設。
+- 修正 onboarding v3 draft storage 測試基線：`dual-income-rental` 種子情境在遷移後 `mortgageRatePct` 應為 `3.25`（與 seed housing payload 一致），避免 quality gate 被過期預期值阻塞。
 
 ## Next Recommended Priority
 1. 以「可完成一次重大家庭決策」為目標，收斂 Onboarding + Property Bundle 旅程。

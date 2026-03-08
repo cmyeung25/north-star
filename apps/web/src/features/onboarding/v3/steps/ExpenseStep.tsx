@@ -6,6 +6,7 @@ import {
   MultiSelect,
   NumberInput,
   SegmentedControl,
+  Select,
   Stack,
   Switch,
   Table,
@@ -14,6 +15,7 @@ import {
 } from "@mantine/core";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { UI_EXPENSE_CATEGORY_KEYS } from "../../../money/categoryMeta";
 import MonthField from "../../../../../components/MonthField";
 import GeneratedCashflowRow from "../../../../../components/GeneratedCashflowRow";
 import type { CashflowEvent } from "../../../../domain/scenarioV2/events";
@@ -30,6 +32,7 @@ type ManualRow = {
   endMonth?: string;
   customGrowthRatePct?: number;
   tags?: string[];
+  expenseCategory?: CashflowEvent["expenseCategory"];
 };
 
 type Row = CashflowEvent & { metadata?: GeneratedItemMetadata };
@@ -63,6 +66,7 @@ const sectionTag = (section: string) => `onboarding:v3:expense:${section}`;
 
 export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAddManualItem, onUpdateManualItem, onRemoveManualItem }: Props) {
   const t = useTranslations("onboardingV3.steps");
+  const tMoney = useTranslations("money");
   const [dailyAdvancedOpen, setDailyAdvancedOpen] = useState(false);
 
   const daily = manualRows.find((row) => hasTag(row, sectionTag("daily-monthly")));
@@ -84,6 +88,12 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
       cadence: "monthly",
       startMonth: defaultStartMonth,
       tags: [tag, sectionTag("source-onboarding")],
+      expenseCategory:
+        section === "daily-monthly"
+          ? "daily_living"
+          : section === "travel"
+            ? "travel"
+            : "tax",
       ...patch,
     });
   };
@@ -106,11 +116,41 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
     return [...tags, `allocation:${months.join(",")}`];
   };
 
+  const expenseCategoryOptions = useMemo(
+    () =>
+      UI_EXPENSE_CATEGORY_KEYS.map((key) => ({
+        value: key,
+        label: tMoney(`expenseCategory.${key}`),
+      })),
+    [tMoney]
+  );
+
+  const resolveExpenseCategoryLabel = (category?: CashflowEvent["expenseCategory"]) => {
+    if (!category) {
+      return null;
+    }
+
+    return tMoney(`expenseCategory.${category}`);
+  };
+
   return (
     <Stack gap="md">
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
           <Text fw={600}>{t("expense.settingTitle")}</Text>
+          {resolveExpenseCategoryLabel(daily?.expenseCategory) ? (
+            <Text size="xs" c="dimmed">
+              {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(daily?.expenseCategory) ?? "" })}
+            </Text>
+          ) : null}
+          <Select
+            label={t("expense.fields.category")}
+            data={expenseCategoryOptions}
+            value={daily?.expenseCategory ?? "daily_living"}
+            onChange={(value) =>
+              upsertSection("daily-monthly", { expenseCategory: (value as ManualRow["expenseCategory"]) ?? "daily_living" }, t("expense.dailyMonthlyLabel"))
+            }
+          />
           <NumberInput
             label={t("expense.dailyMonthlyLabel")}
             min={0}
@@ -148,6 +188,19 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
           <Text fw={600}>{t("expense.travelTitle")}</Text>
+          {resolveExpenseCategoryLabel(travel?.expenseCategory) ? (
+            <Text size="xs" c="dimmed">
+              {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(travel?.expenseCategory) ?? "" })}
+            </Text>
+          ) : null}
+          <Select
+            label={t("expense.fields.category")}
+            data={expenseCategoryOptions}
+            value={travel?.expenseCategory ?? "travel"}
+            onChange={(value) =>
+              upsertSection("travel", { expenseCategory: (value as ManualRow["expenseCategory"]) ?? "travel" }, t("expense.travelTitle"))
+            }
+          />
           <SegmentedControl value={travelMode} data={[{ label: t("expense.modeMonthly"), value: "monthly" }, { label: t("expense.modeYearly"), value: "yearly" }]} onChange={(value) => upsertSection("travel", { cadence: value === "yearly" ? "yearly" : "monthly" }, t("expense.travelTitle"))} />
           <NumberInput label={travelMode === "yearly" ? t("expense.yearlyAmount") : t("expense.monthlyAmount")} min={0} value={travel?.amount ?? 0} onChange={(value) => upsertSection("travel", { amount: typeof value === "number" ? value : 0 }, t("expense.travelTitle"))} />
           {travelMode === "yearly" ? <MultiSelect label={t("expense.allocateMonths")} data={monthOptions} value={travelAnnualMonths} onChange={(value) => upsertSection("travel", { tags: withAllocationTags(value, travel?.tags) }, t("expense.travelTitle"))} /> : null}
@@ -157,6 +210,19 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
           <Text fw={600}>{t("expense.taxTitle")}</Text>
+          {resolveExpenseCategoryLabel(tax?.expenseCategory) ? (
+            <Text size="xs" c="dimmed">
+              {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(tax?.expenseCategory) ?? "" })}
+            </Text>
+          ) : null}
+          <Select
+            label={t("expense.fields.category")}
+            data={expenseCategoryOptions}
+            value={tax?.expenseCategory ?? "tax"}
+            onChange={(value) =>
+              upsertSection("tax", { expenseCategory: (value as ManualRow["expenseCategory"]) ?? "tax" }, t("expense.taxTitle"))
+            }
+          />
           <SegmentedControl value={taxMode} data={[{ label: t("expense.modeMonthly"), value: "monthly" }, { label: t("expense.modeYearly"), value: "yearly" }]} onChange={(value) => upsertSection("tax", { cadence: value === "yearly" ? "yearly" : "monthly" }, t("expense.taxTitle"))} />
           <NumberInput label={taxMode === "yearly" ? t("expense.yearlyAmount") : t("expense.monthlyAmount")} min={0} value={tax?.amount ?? 0} onChange={(value) => upsertSection("tax", { amount: typeof value === "number" ? value : 0 }, t("expense.taxTitle"))} />
           {taxMode === "yearly" ? <MultiSelect label={t("expense.allocateMonths")} data={monthOptions} value={taxAnnualMonths} onChange={(value) => upsertSection("tax", { tags: withAllocationTags(value, tax?.tags) }, t("expense.taxTitle"))} /> : null}
@@ -167,16 +233,33 @@ export default function ExpenseStep({ rows, manualRows, defaultStartMonth, onAdd
         <Stack gap="sm">
           <Group justify="space-between">
             <Text fw={600}>{t("expense.otherFixedTitle")}</Text>
-            <Button size="xs" onClick={() => onAddManualItem({ label: "", amount: 0, cadence: "monthly", startMonth: defaultStartMonth, tags: [sectionTag("other-fixed"), sectionTag("source-onboarding")] })}>{t("expense.addOtherFixed")}</Button>
+            <Button size="xs" onClick={() => onAddManualItem({ label: "", amount: 0, cadence: "monthly", startMonth: defaultStartMonth, expenseCategory: "other", tags: [sectionTag("other-fixed"), sectionTag("source-onboarding")] })}>{t("expense.addOtherFixed")}</Button>
           </Group>
           {otherFixed.map((row) => (
-            <Group key={row.id} grow>
+            <Stack key={row.id} gap="xs">
+              {resolveExpenseCategoryLabel(row.expenseCategory) ? (
+                <Text size="xs" c="dimmed">
+                  {t("expense.categoryPreview", { category: resolveExpenseCategoryLabel(row.expenseCategory) ?? "" })}
+                </Text>
+              ) : null}
+              <Group grow>
               <TextInput value={row.label ?? ""} placeholder={t("expense.otherFixedLabel")} onChange={(e) => onUpdateManualItem(row.id, { label: e.currentTarget.value })} />
               <NumberInput value={row.amount} min={0} onChange={(value) => onUpdateManualItem(row.id, { amount: typeof value === "number" ? value : 0 })} />
+              <Select
+                data={expenseCategoryOptions}
+                label={t("expense.fields.category")}
+                value={row.expenseCategory ?? "other"}
+                onChange={(value) =>
+                  onUpdateManualItem(row.id, {
+                    expenseCategory: (value as ManualRow["expenseCategory"]) ?? "other",
+                  })
+                }
+              />
               <MonthField value={row.startMonth ?? defaultStartMonth} onChange={(value) => onUpdateManualItem(row.id, { startMonth: value || defaultStartMonth })} />
               <MonthField value={row.endMonth ?? ""} onChange={(value) => onUpdateManualItem(row.id, { endMonth: value || undefined })} />
               <Button color="red" variant="subtle" onClick={() => onRemoveManualItem(row.id)}>-</Button>
             </Group>
+            </Stack>
           ))}
         </Stack>
       </Card>

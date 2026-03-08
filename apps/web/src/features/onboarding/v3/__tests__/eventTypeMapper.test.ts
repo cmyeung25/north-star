@@ -113,6 +113,27 @@ describe("mapOnboardingV3EventTypes", () => {
     expect(mapped.expenseCategory).toBe("other");
   });
 
+
+  it("keeps user-selected income category override", () => {
+    const events: ScenarioEvent[] = [
+      { ...baseIncome, id: "i5", category: "interest", tags: ["onboarding:v3:income:salary"] },
+    ];
+
+    const mapped = asCashflowEvent((mapOnboardingV3EventTypes(events) as ScenarioEvent[])[0]);
+    expect(mapped.category).toBe("interest");
+    expect(mapped.meta?.timelineIncomeSubtype).toBe("salary");
+  });
+
+  it("keeps user-selected expense category override", () => {
+    const events: ScenarioEvent[] = [
+      { ...baseExpense, id: "e6", expenseCategory: "insurance", tags: ["onboarding:v3:expense:tax"] },
+    ];
+
+    const mapped = asCashflowEvent((mapOnboardingV3EventTypes(events) as ScenarioEvent[])[0]);
+    expect(mapped.expenseCategory).toBe("insurance");
+    expect(mapped.meta?.timelineEventType).toBe("custom");
+  });
+
   it("removes onboarding v3 internal tags after mapping", () => {
     const events: ScenarioEvent[] = [
       {
