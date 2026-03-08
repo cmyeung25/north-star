@@ -18,6 +18,10 @@ export type DashboardMetricKey =
   | "passiveIncomeCoverage"
   | "assetLinkedExpenseRatio"
   | "avgFunBudget"
+  | "savingsRate"
+  | "expenseToIncomeRatio"
+  | "debtToAssetRatio"
+  | "netWorthGrowth"
   | "riskLevel";
 
 export type HealthScorecardEntry = {
@@ -38,6 +42,10 @@ export const HEALTH_SCORECARD_METRICS: DashboardMetricKey[] = [
   "passiveIncomeCoverage",
   "assetLinkedExpenseRatio",
   "avgFunBudget",
+  "savingsRate",
+  "expenseToIncomeRatio",
+  "debtToAssetRatio",
+  "netWorthGrowth",
   "riskLevel",
 ];
 
@@ -141,6 +149,46 @@ const classifyMetric = (
       }
       return value === 0 ? "progressing" : "vulnerable";
     }
+    case "savingsRate": {
+      const value = dashboardMetrics.savingsRate12m;
+      if (value === null) {
+        return "no-data";
+      }
+      if (value >= 0.2) {
+        return "excellent";
+      }
+      return value >= 0.1 ? "progressing" : "vulnerable";
+    }
+    case "expenseToIncomeRatio": {
+      const value = dashboardMetrics.expenseToIncomeRatio12m;
+      if (value === null) {
+        return "no-data";
+      }
+      if (value <= 0.7) {
+        return "excellent";
+      }
+      return value <= 0.9 ? "progressing" : "vulnerable";
+    }
+    case "debtToAssetRatio": {
+      const value = dashboardMetrics.debtToAssetRatio;
+      if (value === null) {
+        return "no-data";
+      }
+      if (value <= 0.35) {
+        return "excellent";
+      }
+      return value <= 0.6 ? "progressing" : "vulnerable";
+    }
+    case "netWorthGrowth": {
+      const value = dashboardMetrics.netWorthGrowth12m;
+      if (value === null) {
+        return "no-data";
+      }
+      if (value >= 0.1) {
+        return "excellent";
+      }
+      return value >= 0 ? "progressing" : "vulnerable";
+    }
     case "riskLevel":
       return dashboardMetrics.riskLevel === "red" ? "vulnerable" : "excellent";
     default:
@@ -165,4 +213,3 @@ export const summarizeHealthScorecard = (
   }
   return summary;
 };
-
