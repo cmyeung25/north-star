@@ -39,6 +39,51 @@ import {
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
 
+function CasesIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M3.75 7.5A2.25 2.25 0 0 1 6 5.25h4.16c.6 0 1.16.24 1.59.66l1.34 1.34c.42.42.99.66 1.59.66H18A2.25 2.25 0 0 1 20.25 10v6.75A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25V7.5Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3.75 9.75h16.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MoreActionsIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="3" cy="8" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="13" cy="8" r="1.25" />
+    </svg>
+  );
+}
+
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   const t = useTranslations("member.list");
 
@@ -46,7 +91,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     <Paper p="xl">
       <Stack align="center" gap="sm">
         <ThemeIcon size={44} radius="xl" variant="light" color="polar">
-          <Text>??</Text>
+          <CasesIcon />
         </ThemeIcon>
         <Text fw={600}>{t("emptyTitle")}</Text>
         <Text c="dimmed" ta="center" maw={380}>
@@ -184,7 +229,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
                         <Menu withinPortal position="bottom-end">
                           <Menu.Target>
                             <ActionIcon variant="subtle" aria-label={t("moreActionsAriaLabel")}>
-                              ??
+                              <MoreActionsIcon />
                             </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
