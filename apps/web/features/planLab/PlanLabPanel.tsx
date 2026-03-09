@@ -11070,6 +11070,7 @@ export default function PlanLabPanel({
             baseCurrency={scenario.baseCurrency}
             event={v2EventDrawerMode === "edit" ? editingHousingEvent : null}
             initialDraft={templateHousingDraft ?? undefined}
+            allowedKinds={v2EventDrawerMode === "create" ? ["rent"] : undefined}
             rentGrowthPct={scenario.assumptions.rentAnnualGrowthPct ?? null}
             propertyAppreciationPct={
               scenario.assumptions.propertyAppreciationPct ?? null

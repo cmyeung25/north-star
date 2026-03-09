@@ -102,3 +102,11 @@ Last updated: 2026-03-08
 - Context: `rental_plan` has cost-profile cards, but users still reported buy-home bias in compare copy and occasional ambiguity about which launch path (rent flow vs buy-home wizard) would be used.
 - Decision: Keep `decisionTemplateCostProfile` scenario-scoped and extend rental mapping defaults explicitly (rent / deposit / agent fee / start month anchor), enforce a dedicated launch-path resolver where `rental_plan` always goes to rent housing create/edit (never buy-home bundle wizard), and add a housing-readable compare hint for rent-vs-buy framing.
 - Guardrails: No engine/interface changes; only active-scenario state may be read/written; compare hint is UI-only and must not alter projection calculations.
+
+
+### D-2026-03-09-07
+- Date: 2026-03-09
+- Status: Accepted
+- Context: Plan Lab 住屋決策已拆分為置業 bundle 與租樓流程，但「新增事件 > 住屋」create modal 仍可切換按揭，使用者容易與置業模板路徑混淆。
+- Decision: 在 Plan Lab 的 housing event create modal 僅允許 `rent`；`mortgage` 由 `home_purchase` 決策模板 + buy-home bundle wizard 入口承接。同步調整置業模板教學文案為「先填樓價」，並強化租樓方案為預填租金/按金/代理費。
+- Guardrails: 編輯既有 housing event 保留原類型；僅限制 Plan Lab create 入口，不更動 Money 頁一般模板能力；不修改 engine/domain 介面。
