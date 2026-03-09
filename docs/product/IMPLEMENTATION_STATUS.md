@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (marketing persona journey query -> member preset preselect)
+Last updated: 2026-03-09 (marketing sample journey cards + deep-link CTA validation)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -21,6 +21,8 @@ Last updated: 2026-03-09 (marketing persona journey query -> member preset prese
 
 
 ## Latest Update (2026-03-09)
+- Marketing landing page now includes `SampleJourneySection` cards (start condition + 3-step actions + visible outputs), and every card CTA uses the same `journey + preset` deep-link scheme to `/[locale]/member/cases`.
+- Added a focused UI test for `SampleJourneySection` rendering and CTA href query assertions (`journey` + allowlisted `preset`) to prevent regression in marketing-to-member handoff.
 - Persona banner CTA now appends `journey` and allowlisted `preset` query when routing to `/[locale]/member/cases`; signed-in users keep the same destination and signed-out users still go through auth before landing member/cases.
 - Member cases page now parses journey/preset entry intent with allowlist guard, auto-opens create dialog in preset mode, and keeps blank flow unchanged when query is absent/invalid.
 - Create-case dialog adds journey guidance copy (audience / decision goal / expected completion time) via i18n keys in both `en` and `zh-HK`.
