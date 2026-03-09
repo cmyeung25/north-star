@@ -440,5 +440,6 @@ When a file contains Chinese, Japanese, or other non-ASCII text, perform an expl
 - Plan Lab local cost ranges v1（2026-03-09）: 決策模板新增「本地常見成本範圍」+ 三檔估算（保守/中位/進取）+「為何這樣估算」教學提示；使用者檔位偏好儲存在 `scenario.meta.planLab.decisionTemplateCostProfile`，必須保持 scenario-scoped，禁止跨 scenario 共享。
 
 - Plan Lab housing split v1 (2026-03-09): `home_purchase` must stay on the buy-home bundle wizard path; `rental_plan` must stay on the rent housing event create/edit flow. If the active scenario has exactly one rent housing event, reopen it for edit; otherwise seed a rent draft only from the active scenario `decisionTemplateCostProfile`.
+- Rental life bundle parity v1 (2026-03-09): `life_rental_plan` must emit one rent housing event plus setup one-off cashflows (deposit / agent fee) under the same `source.bundleInstanceId` / `source.templateId`. Plan Lab and Money should treat rental and home purchase consistently as life-bundle cards/summaries; if older data lacks `bundleInstances[].wizardInput`, fallback wizard hydration may only read active-scenario bundle events.
 
 - Onboarding persona focus + Compare KPI prioritization v1（2026-03-09）: Onboarding v3 新增「人生階段重點」多選（`family/fertility/education/retirement`），提交後儲存在 `scenario.meta.personaFocuses`（scenario-scoped）；Plan Lab Compare 可隨時切換 persona focus，僅影響 KPI 卡片預設排序，不可鎖死使用路徑或跨 scenario 共用。

@@ -8,6 +8,7 @@ import {
   deriveEnvOverrideAffectedEntities,
   filterScenarioV2PatchesByExperimentGroups,
   removeExperimentGroupItemsFromPatches,
+  resolveExperimentGroupTitle,
   type PlanLabExperimentGroup,
 } from "../experimentGroups";
 
@@ -199,5 +200,13 @@ describe("deriveEnvOverrideAffectedEntities", () => {
       { itemId: "event-rent", label: "通脹", type: "event" },
       { itemId: "event-salary", label: "薪金增長", type: "event" },
     ]);
+  });
+});
+
+
+describe("resolveExperimentGroupTitle", () => {
+  it("uses life bundle fallbacks for rental and marriage bundle ids", () => {
+    expect(resolveExperimentGroupTitle("life_rental_plan")).toBe("租樓計劃");
+    expect(resolveExperimentGroupTitle("life_marriage_plan")).toBe("結婚計劃");
   });
 });

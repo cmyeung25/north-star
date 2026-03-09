@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (planlab housing split: rent flow defaults + active-scenario edit path)
+Last updated: 2026-03-09 (rental bundle compare parity + fallback re-edit hydration)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -21,6 +21,9 @@ Last updated: 2026-03-09 (planlab housing split: rent flow defaults + active-sce
 
 
 ## Latest Update (2026-03-09)
+- `life_rental_plan` now emits a rent housing event plus setup one-off cashflows (deposit / agent fee) with consistent bundle source metadata, so Plan Lab and Money can group it as one bundle.
+- Bundle wizard now supports rental fallback re-edit hydration from active-scenario bundle events when older data is missing `bundleInstances[].wizardInput`.
+- Plan Lab compare/title fallback now treats rental bundles the same way as home-purchase bundles, so both show up as life bundles instead of generic events.
 - Plan Lab 決策模板（結婚/生育/育兒/置業）已把所選成本檔位映射為 bundle wizard 初始輸入，使用者從模板套用進入 wizard 時，預設數值會與模板卡片一致（例如結婚中位檔對應 wedding budget 300k）。
 - Bundle wizard 新增 marriage input hydration：若由模板傳入 `life_marriage_plan` 的 wizardInput，會正確帶入婚禮月份、預算、travel 與 breakdown 相關欄位，避免回退到固定預設。
 - PlanLabPanel decision template handler 增加 retirement guard（沿用既有 unavailable toast），並在可映射模板時傳入 scenario baseMonth 作為 month anchor。

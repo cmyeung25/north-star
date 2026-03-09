@@ -566,6 +566,8 @@ export default function MoneyClient({
   const [bundleWizardInstanceId, setBundleWizardInstanceId] = useState<string | null>(null);
   const [bundleWizardInitialInput, setBundleWizardInitialInput] =
     useState<BundleWizardInput | null>(null);
+  const [bundleWizardEditingEventId, setBundleWizardEditingEventId] =
+    useState<string | null>(null);
   const [bundleViewId, setBundleViewId] = useState<string | null>(null);
   const [bundleEditNotice, setBundleEditNotice] = useState<{
     bundleId: string;
@@ -1192,6 +1194,7 @@ export default function MoneyClient({
         setBundleWizardMode("create");
         setBundleWizardInstanceId(null);
         setBundleWizardInitialInput(null);
+        setBundleWizardEditingEventId(null);
         setBundleWizardOpen(true);
         return;
       }
@@ -1943,6 +1946,29 @@ export default function MoneyClient({
   const handleViewBundle = useCallback((bundleId: string) => {
     setBundleViewId(bundleId);
   }, []);
+  const resolveBundleFallbackEditingEventId = useCallback(
+    (bundle: {
+      templateId?: string;
+      events: ScenarioEvent[];
+    }): string | null => {
+      if (bundle.templateId === "life_home_purchase") {
+        return (
+          bundle.events.find(
+            (event) => event.type === "housing" && event.kind === "mortgage"
+          )?.id ?? null
+        );
+      }
+      if (bundle.templateId === "life_rental_plan") {
+        return (
+          bundle.events.find(
+            (event) => event.type === "housing" && event.kind === "rent"
+          )?.id ?? null
+        );
+      }
+      return null;
+    },
+    []
+  );
   const handleEditBundle = useCallback(
     (bundleId: string) => {
       const bundle = bundleGroupById.get(bundleId);
@@ -1950,19 +1976,12 @@ export default function MoneyClient({
         return;
       }
       const record = bundleInstanceById.get(bundleId);
-      if (!record) {
-        setBundleEditNotice({
-          bundleId,
-          templateId: bundle.templateId,
-        });
-        return;
-      }
-      const templateDef = record.wizardInput?.templateId
-        ? getTemplateDef(record.wizardInput.templateId)
-        : bundle.templateId
-        ? getTemplateDef(bundle.templateId as TemplateId)
+      const templateId = record?.wizardInput?.templateId ?? bundle.templateId;
+      const templateDef = templateId
+        ? getTemplateDef(templateId as TemplateId)
         : null;
-      if (!templateDef) {
+      const fallbackEditingEventId = resolveBundleFallbackEditingEventId(bundle);
+      if (!templateDef || (!record?.wizardInput && !fallbackEditingEventId)) {
         setBundleEditNotice({
           bundleId,
           templateId: bundle.templateId,
@@ -1971,12 +1990,13 @@ export default function MoneyClient({
       }
       setBundleWizardMode("edit");
       setBundleWizardInstanceId(bundleId);
-      setBundleWizardInitialInput(record.wizardInput);
+      setBundleWizardInitialInput(record?.wizardInput ?? null);
+      setBundleWizardEditingEventId(fallbackEditingEventId);
       setBundleTemplate(templateDef);
       setBundleWizardOpen(true);
       setBundleEditNotice(null);
     },
-    [bundleGroupById, bundleInstanceById]
+    [bundleGroupById, bundleInstanceById, resolveBundleFallbackEditingEventId]
   );
   const handleRebuildBundle = useCallback(() => {
     if (!bundleEditNotice) {
@@ -1992,6 +2012,7 @@ export default function MoneyClient({
     setBundleWizardMode("create");
     setBundleWizardInstanceId(null);
     setBundleWizardInitialInput(null);
+    setBundleWizardEditingEventId(null);
     setBundleTemplate(templateDef);
     setBundleWizardOpen(true);
     setBundleEditNotice(null);
@@ -4649,6 +4670,7 @@ export default function MoneyClient({
         mode={bundleWizardMode}
         bundleInstanceId={bundleWizardInstanceId}
         initialWizardInput={bundleWizardInitialInput}
+        editingEventId={bundleWizardEditingEventId}
         scenarioId={scenarioIdValue}
         baseMonth={baseMonth}
         baseCurrency={scenario?.baseCurrency ?? "USD"}
@@ -4659,6 +4681,7 @@ export default function MoneyClient({
           setBundleWizardMode("create");
           setBundleWizardInstanceId(null);
           setBundleWizardInitialInput(null);
+          setBundleWizardEditingEventId(null);
         }}
         onOpenEventDrawer={handleOpenBundleEvent}
         onApplyEvents={handleApplyBundleEvents}

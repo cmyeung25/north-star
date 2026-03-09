@@ -1362,6 +1362,8 @@ export default function PlanLabPanel({
   const [bundleWizardInstanceId, setBundleWizardInstanceId] = useState<string | null>(null);
   const [bundleWizardInitialInput, setBundleWizardInitialInput] =
     useState<BundleWizardInput | null>(null);
+  const [bundleWizardEditingEventId, setBundleWizardEditingEventId] =
+    useState<string | null>(null);
   const [bundleWizardExperimentMode, setBundleWizardExperimentMode] = useState(false);
   const [bundleViewId, setBundleViewId] = useState<string | null>(null);
   const [bundleInstanceOverrides, setBundleInstanceOverrides] = useState<
@@ -1478,6 +1480,7 @@ export default function PlanLabPanel({
     setBundleWizardMode("create");
     setBundleWizardInstanceId(null);
     setBundleWizardInitialInput(null);
+    setBundleWizardEditingEventId(null);
     setBundleWizardExperimentMode(false);
     setBundleTemplate(null);
     setMortgageDetail(null);
@@ -2469,6 +2472,7 @@ export default function PlanLabPanel({
       setBundleWizardMode("create");
       setBundleWizardInstanceId(null);
       setBundleWizardInitialInput(options?.initialWizardInput ?? null);
+      setBundleWizardEditingEventId(null);
       setBundleWizardExperimentMode(false);
       setBundleWizardOpen(true);
       return;
@@ -2811,6 +2815,7 @@ export default function PlanLabPanel({
       setBundleWizardMode("create");
       setBundleWizardInstanceId(null);
       setBundleWizardInitialInput(null);
+      setBundleWizardEditingEventId(null);
       setBundleWizardExperimentMode(false);
       if (firstEventId) {
         handleLocateItem(`event:${firstEventId}`);
@@ -5099,6 +5104,29 @@ export default function PlanLabPanel({
     [closeAllPlanLabDrawers]
   );
 
+  const resolveBundleFallbackEditingEventId = useCallback(
+    (bundle: {
+      templateId?: string;
+      events: ScenarioEvent[];
+    }): string | null => {
+      if (bundle.templateId === "life_home_purchase") {
+        return (
+          bundle.events.find(
+            (event) => event.type === "housing" && event.kind === "mortgage"
+          )?.id ?? null
+        );
+      }
+      if (bundle.templateId === "life_rental_plan") {
+        return (
+          bundle.events.find(
+            (event) => event.type === "housing" && event.kind === "rent"
+          )?.id ?? null
+        );
+      }
+      return null;
+    },
+    []
+  );
   const handleEditBundle = useCallback(
     (bundleId: string) => {
       const bundle = bundleGroupById.get(bundleId);
@@ -5106,9 +5134,14 @@ export default function PlanLabPanel({
         return;
       }
       const record = bundleInstanceById.get(bundleId);
-      if (!record) {
+      const templateId = record?.wizardInput?.templateId ?? bundle.templateId;
+      const templateDef = templateId
+        ? getTemplateDef(templateId as TemplateId)
+        : null;
+      const fallbackEditingEventId = resolveBundleFallbackEditingEventId(bundle);
+      if (!templateDef || (!record?.wizardInput && !fallbackEditingEventId)) {
         setPlanToast(
-          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
+          translate("planLabBundleEditMissingInput", "Bundle configuration unavailable. Please recreate it.")
         );
         return;
       }
@@ -5116,25 +5149,22 @@ export default function PlanLabPanel({
       const isExperimentBundle = experimentGroups.some(
         (group) => group.bundleInstanceId === bundleId
       );
-      const templateDef = record.wizardInput?.templateId
-        ? getTemplateDef(record.wizardInput.templateId)
-        : bundle.templateId
-        ? getTemplateDef(bundle.templateId as TemplateId)
-        : null;
-      if (!templateDef || !record.wizardInput) {
-        setPlanToast(
-          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
-        );
-        return;
-      }
       setBundleWizardMode("edit");
       setBundleWizardInstanceId(bundleId);
-      setBundleWizardInitialInput(record.wizardInput);
+      setBundleWizardInitialInput(record?.wizardInput ?? null);
+      setBundleWizardEditingEventId(fallbackEditingEventId);
       setBundleWizardExperimentMode(isExperimentBundle);
       setBundleTemplate(templateDef);
       setBundleWizardOpen(true);
     },
-    [bundleGroupById, bundleInstanceById, closeAllPlanLabDrawers, experimentGroups, translate]
+    [
+      bundleGroupById,
+      bundleInstanceById,
+      closeAllPlanLabDrawers,
+      experimentGroups,
+      resolveBundleFallbackEditingEventId,
+      translate,
+    ]
   );
 
   const handleCreateBundleExperiment = useCallback(
@@ -5144,32 +5174,33 @@ export default function PlanLabPanel({
         return;
       }
       const record = bundleInstanceById.get(bundleId);
-      if (!record) {
+      const templateId = record?.wizardInput?.templateId ?? bundle.templateId;
+      const templateDef = templateId
+        ? getTemplateDef(templateId as TemplateId)
+        : null;
+      const fallbackEditingEventId = resolveBundleFallbackEditingEventId(bundle);
+      if (!templateDef || (!record?.wizardInput && !fallbackEditingEventId)) {
         setPlanToast(
-          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
+          translate("planLabBundleEditMissingInput", "Bundle configuration unavailable. Please recreate it.")
         );
         return;
       }
       closeAllPlanLabDrawers();
-      const templateDef = record.wizardInput?.templateId
-        ? getTemplateDef(record.wizardInput.templateId)
-        : bundle.templateId
-        ? getTemplateDef(bundle.templateId as TemplateId)
-        : null;
-      if (!templateDef || !record.wizardInput) {
-        setPlanToast(
-          translate("planLabBundleEditMissingInput", "找不到組合設定，請重新建立。")
-        );
-        return;
-      }
       setBundleWizardMode("edit");
       setBundleWizardInstanceId(bundleId);
-      setBundleWizardInitialInput(record.wizardInput);
+      setBundleWizardInitialInput(record?.wizardInput ?? null);
+      setBundleWizardEditingEventId(fallbackEditingEventId);
       setBundleWizardExperimentMode(true);
       setBundleTemplate(templateDef);
       setBundleWizardOpen(true);
     },
-    [bundleGroupById, bundleInstanceById, closeAllPlanLabDrawers, translate]
+    [
+      bundleGroupById,
+      bundleInstanceById,
+      closeAllPlanLabDrawers,
+      resolveBundleFallbackEditingEventId,
+      translate,
+    ]
   );
 
   const handleLocateBundle = useCallback(
@@ -10877,6 +10908,7 @@ export default function PlanLabPanel({
         mode={bundleWizardMode}
         bundleInstanceId={bundleWizardInstanceId}
         initialWizardInput={bundleWizardInitialInput}
+        editingEventId={bundleWizardEditingEventId}
         scenarioId={scenario.id}
         baseMonth={scenario.assumptions.baseMonth}
         baseCurrency={scenario.baseCurrency}
@@ -10887,6 +10919,7 @@ export default function PlanLabPanel({
           setBundleWizardMode("create");
           setBundleWizardInstanceId(null);
           setBundleWizardInitialInput(null);
+          setBundleWizardEditingEventId(null);
           setBundleWizardExperimentMode(false);
         }}
         onApplyEvents={handleApplyBundleEvents}

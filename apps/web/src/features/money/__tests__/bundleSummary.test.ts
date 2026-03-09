@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ScenarioEvent } from "../../../domain/scenarioV2/events";
 import type { LedgerRow } from "../../../engine/scenarioV2Compiler";
-import { computeBundleMonthlySummary } from "../bundleSummary";
+import {
+  computeBundleCashflowSummary,
+  computeBundleMonthlySummary,
+} from "../bundleSummary";
 
 describe("computeBundleMonthlySummary", () => {
   it("separates one-off cashflows from monthly recurring totals", () => {
@@ -171,4 +174,107 @@ describe("computeBundleMonthlySummary", () => {
     expect(summary.startMonthOneOffExpense).toBe(10000);
     expect(summary.startMonthNet).toBe(-30000);
   });
+  it("summarizes rental bundle monthly rent and setup one-offs using bundle rules", () => {
+    const events: ScenarioEvent[] = [
+      {
+        id: "housing-rent",
+        type: "housing",
+        kind: "rent",
+        startMonth: "2026-02",
+        endMonth: "2027-01",
+        rentMonthly: 28000,
+        rentAnnualGrowthPct: 3,
+        label: "Kowloon rental",
+        source: {
+          bundleInstanceId: "bundle-rental",
+          templateId: "life_rental_plan",
+          bundleTitle: "Rental plan",
+          componentKey: "rentalHousing",
+        },
+      },
+      {
+        id: "rent-deposit",
+        type: "cashflow",
+        kind: "expense",
+        cadence: "oneOff",
+        amount: 56000,
+        occurrenceMonth: "2026-02",
+        label: "Rental deposit",
+        source: {
+          bundleInstanceId: "bundle-rental",
+          templateId: "life_rental_plan",
+          bundleTitle: "Rental plan",
+          componentKey: "rentalDeposit",
+        },
+      },
+      {
+        id: "rent-agent-fee",
+        type: "cashflow",
+        kind: "expense",
+        cadence: "oneOff",
+        amount: 14000,
+        occurrenceMonth: "2026-02",
+        label: "Agent fee",
+        source: {
+          bundleInstanceId: "bundle-rental",
+          templateId: "life_rental_plan",
+          bundleTitle: "Rental plan",
+          componentKey: "rentalAgentFee",
+        },
+      },
+    ];
+
+    const ledgerRowsByEventId = new Map<string, LedgerRow[]>();
+    ledgerRowsByEventId.set("housing-rent", [
+      {
+        month: "2026-02",
+        amount: -28000,
+        sourceEventId: "housing-rent",
+        label: "Kowloon rental",
+        kind: "expense",
+      },
+    ]);
+    ledgerRowsByEventId.set("rent-deposit", [
+      {
+        month: "2026-02",
+        amount: -56000,
+        sourceEventId: "rent-deposit",
+        label: "Rental deposit",
+        kind: "expense",
+      },
+    ]);
+    ledgerRowsByEventId.set("rent-agent-fee", [
+      {
+        month: "2026-02",
+        amount: -14000,
+        sourceEventId: "rent-agent-fee",
+        label: "Agent fee",
+        kind: "expense",
+      },
+    ]);
+
+    const summary = computeBundleCashflowSummary(
+      events,
+      ledgerRowsByEventId,
+      "2026-02",
+      {
+        mortgagePayment: "Mortgage payment",
+        rentalIncome: "Rental income",
+        holdingCost: "Holding cost",
+        fallback: "Cashflow",
+      }
+    );
+
+    expect(summary.monthlyExpense).toBe(28000);
+    expect(summary.startMonthOneOffExpense).toBe(70000);
+    expect(summary.oneOffTotal).toBe(70000);
+    expect(summary.hasMonthlyImpact).toBe(true);
+    expect(summary.hasStartMonthOneOffImpact).toBe(true);
+    expect(summary.breakdown.map((item) => item.label)).toEqual(["Kowloon rental"]);
+    expect(summary.oneOffBreakdown.map((item) => item.label)).toEqual([
+      "Rental deposit",
+      "Agent fee",
+    ]);
+  });
+
 });

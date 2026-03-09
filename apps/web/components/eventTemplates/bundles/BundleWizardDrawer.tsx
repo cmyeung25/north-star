@@ -423,6 +423,39 @@ const hydrateRentalDraftFromInput = (
   eventId: input.eventId ?? `evt_v2_bundle_${nanoid(6)}`,
 });
 
+const hydrateRentalDraftFromEvent = (
+  event: ScenarioEventDraft,
+  fallbackMonth: string,
+  bundleEvents: ScenarioEventDraft[]
+): RentalDraft => {
+  if (event.type !== "housing" || event.kind !== "rent") {
+    return createRentalDraft(fallbackMonth);
+  }
+  const depositEvent = bundleEvents.find(
+    (candidate) =>
+      candidate.type === "cashflow" &&
+      candidate.kind === "expense" &&
+      candidate.source?.componentKey === "rentalDeposit"
+  );
+  const agentFeeEvent = bundleEvents.find(
+    (candidate) =>
+      candidate.type === "cashflow" &&
+      candidate.kind === "expense" &&
+      candidate.source?.componentKey === "rentalAgentFee"
+  );
+  return {
+    startMonth: event.startMonth ?? fallbackMonth,
+    endMonth: event.endMonth ?? "",
+    title: event.label ?? "",
+    rentMonthly: event.rentMonthly ?? 0,
+    rentAnnualGrowthPct: event.rentAnnualGrowthPct ?? 3,
+    depositAmount:
+      depositEvent?.type === "cashflow" ? Math.max(0, depositEvent.amount) : 0,
+    agentFeeAmount:
+      agentFeeEvent?.type === "cashflow" ? Math.max(0, agentFeeEvent.amount) : 0,
+    eventId: event.id ?? `evt_v2_bundle_${nanoid(6)}`,
+  };
+};
 const hydrateMarriageDraftFromInput = (
   input: MarriagePlanInput,
   fallbackMonth: string,
@@ -625,7 +658,7 @@ export default function BundleWizardDrawer({
   const isHomeBundle = resolvedTemplateId === "life_home_purchase";
   const isRentalBundle = resolvedTemplateId === "life_rental_plan";
   const isMarriageBundle = resolvedTemplateId === "life_marriage_plan";
-  const editingHomeEvent = useMemo(() => {
+  const editingBundleEvent = useMemo(() => {
     if (!editingEventId) {
       return null;
     }
@@ -633,12 +666,27 @@ export default function BundleWizardDrawer({
       scenarioEvents.find((event) => event.id === editingEventId) ?? null
     );
   }, [editingEventId, scenarioEvents]);
+  const editingBundleEvents = useMemo(() => {
+    const bundleId = editingBundleEvent?.source?.bundleInstanceId;
+    if (!bundleId) {
+      return [];
+    }
+    return scenarioEvents.filter(
+      (event) => event.source?.bundleInstanceId === bundleId
+    );
+  }, [editingBundleEvent, scenarioEvents]);
   const isEditingHomeBundle =
     mode === "edit" &&
-    Boolean(editingHomeEvent) &&
-    editingHomeEvent?.type === "housing" &&
-    editingHomeEvent.kind === "mortgage" &&
+    Boolean(editingBundleEvent) &&
+    editingBundleEvent?.type === "housing" &&
+    editingBundleEvent.kind === "mortgage" &&
     isHomeBundle;
+  const isEditingRentalBundle =
+    mode === "edit" &&
+    Boolean(editingBundleEvent) &&
+    editingBundleEvent?.type === "housing" &&
+    editingBundleEvent.kind === "rent" &&
+    isRentalBundle;
 
   useEffect(() => {
     if (!opened) {
@@ -655,7 +703,7 @@ export default function BundleWizardDrawer({
     if (mode === "edit") {
       setBundleInstanceId(
         initialBundleInstanceId ??
-          editingHomeEvent?.source?.bundleInstanceId ??
+          editingBundleEvent?.source?.bundleInstanceId ??
           `bundle_${nanoid(8)}`
       );
     } else {
@@ -676,8 +724,8 @@ export default function BundleWizardDrawer({
       setHomeDraft(
         hydrateHomeDraftFromInput(initialWizardInput.input, defaultMonth)
       );
-    } else if (isEditingHomeBundle && editingHomeEvent) {
-      setHomeDraft(hydrateHomeDraftFromEvent(editingHomeEvent, defaultMonth));
+    } else if (isEditingHomeBundle && editingBundleEvent) {
+      setHomeDraft(hydrateHomeDraftFromEvent(editingBundleEvent, defaultMonth));
     } else {
       setHomeDraft((current) => ({
         ...createHomeDraft(defaultMonth || current.startMonth),
@@ -687,6 +735,14 @@ export default function BundleWizardDrawer({
     if (initialWizardInput?.templateId === "life_rental_plan") {
       setRentalDraft(
         hydrateRentalDraftFromInput(initialWizardInput.input, defaultMonth)
+      );
+    } else if (isEditingRentalBundle && editingBundleEvent) {
+      setRentalDraft(
+        hydrateRentalDraftFromEvent(
+          editingBundleEvent,
+          defaultMonth,
+          editingBundleEvents
+        )
       );
     } else {
       setRentalDraft((current) => ({
@@ -709,10 +765,12 @@ export default function BundleWizardDrawer({
     }
   }, [
     defaultMonth,
-    editingHomeEvent,
+    editingBundleEvent,
+    editingBundleEvents,
     initialBundleInstanceId,
     initialWizardInput,
     isEditingHomeBundle,
+    isEditingRentalBundle,
     mode,
     opened,
     resolvedTemplateId,
@@ -1181,8 +1239,8 @@ export default function BundleWizardDrawer({
           }
         );
         setPreviewEvents([
-          isEditingHomeBundle && editingHomeEvent && !initialWizardInput
-            ? mergeHomePurchaseEvent(editingHomeEvent, nextEvent)
+          isEditingHomeBundle && editingBundleEvent && !initialWizardInput
+            ? mergeHomePurchaseEvent(editingBundleEvent, nextEvent)
             : nextEvent,
         ]);
       }

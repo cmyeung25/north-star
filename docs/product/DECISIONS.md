@@ -88,3 +88,10 @@ Last updated: 2026-03-08
 - Context: Plan Lab 原本單一 housing 模板同時承載「置業 bundle」與「租樓事件」兩條路徑，導致模板語意與操作預期不一致。
 - Decision: 將 housing 模板拆為 `home_purchase`（映射 `life_home_purchase` bundle wizard）與 `rental_plan`（直接走 rent housing event 建立/編輯流程）；兩者文案與成本區間分離。
 - Guardrails: template cost profile 仍寫入 `scenario.meta.planLab.decisionTemplateCostProfile` 且僅限 active scenario；不得新增跨 scenario 共用狀態；不修改 engine 介面。
+
+### D-2026-03-09-05
+- Date: 2026-03-09
+- Status: Accepted
+- Context: `rental_plan` already had a decision-template entry and rent-event flow, but bundle compare and fallback re-edit were still weaker than `life_home_purchase` when older scenarios lacked a stored `wizardInput` record.
+- Decision: Treat `life_rental_plan` as a first-class life bundle alongside `life_home_purchase`: the builder emits rent housing + setup one-off cashflows with shared bundle metadata, and Plan Lab / Money may rehydrate the wizard from active-scenario bundle events when no stored bundle wizard input exists.
+- Guardrails: Only read bundle events from the active scenario; do not cross scenario boundaries; do not change engine interfaces, event schema, or cost-profile persistence.
