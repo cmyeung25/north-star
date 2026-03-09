@@ -125,3 +125,9 @@ Last updated: 2026-03-08
 - Decision: KPI metric detail modal 改為僅保留 Action Items + Rating Scale，並補齊 rating 說明；`zh-HK` 相關 i18n key 全數改為中文。
 - Guardrails: 僅調整 Overview UI / i18n 呈現層；不變更 engine、scenario 資料模型或跨 scenario 狀態邏輯。
 
+### D-2026-03-09-10
+- Date: 2026-03-09
+- Status: Accepted
+- Context: Marketing persona 卡片需要把「樣本旅程」導流到 member 建案例流程，但必須維持登入後固定落地 `/member/cases`，並避免任意 preset query 注入。
+- Decision: Persona CTA 導向 `/{locale}/member/cases?journey=...&preset=...`；member/cases 以 allowlist resolver 解析 query（只允許 6 個 member presets），在 create dialog 預選 preset 並顯示 journey 引導文案（適用族群/目標決策/預期完成時間）。
+- Guardrails: Auth 成功後路徑仍維持 `/{locale}/member/cases`；query 只影響 member UI 初始化，不直接建立 scenario 或寫入跨 scenario 狀態；未知 journey/preset 一律忽略並回退 blank flow。
