@@ -233,6 +233,7 @@ import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentA
 import {
   buildIncomeShockDefaultPayload,
   buildPlanLabDecisionTemplateOptions,
+  type PlanLabCostProfileTier,
 } from "./decisionTemplates";
 import { buildPlanLabDecisionSummary } from "./decisionSummary";
 import { buildMonthScale } from "../../lib/chart/monthScale";
@@ -4203,6 +4204,7 @@ export default function PlanLabPanel({
       buildPlanLabDecisionTemplateOptions({
         hasEligibleIncomeEvent: baselineEditableIncomeEvents.length > 0,
         translate,
+        selectedCostProfile: scenario.meta?.planLab?.decisionTemplateCostProfile ?? {},
       }).map((option) => ({
         ...option,
         availability: option.availability.reasonKey
@@ -4215,14 +4217,32 @@ export default function PlanLabPanel({
             }
           : option.availability,
       })),
-    [baselineEditableIncomeEvents.length, translate]
+    [
+      baselineEditableIncomeEvents.length,
+      scenario.meta?.planLab?.decisionTemplateCostProfile,
+      translate,
+    ]
   );
 
   const handleSelectDecisionTemplate = useCallback(
     (templateId: PlanLabDecisionTemplateId) => {
-      if (templateId === "home_purchase" || templateId === "new_baby") {
-        const mappedTemplateId: TemplateId =
-          templateId === "home_purchase" ? "life_home_purchase" : "life_new_baby_plan";
+      if (templateId !== "income_shock") {
+        const templateMap: Partial<Record<PlanLabDecisionTemplateId, TemplateId>> = {
+          marriage: "life_marriage_plan",
+          childbirth: "life_new_baby_plan",
+          parenting: "life_new_baby_plan",
+          housing: "life_home_purchase",
+        };
+        const mappedTemplateId = templateMap[templateId];
+        if (!mappedTemplateId) {
+          setPlanToast(
+            translate(
+              "planLabDecisionTemplateMissing",
+              "This decision template is currently unavailable."
+            )
+          );
+          return;
+        }
         const template = getTemplateDef(mappedTemplateId);
         if (!template) {
           setPlanToast(
@@ -4313,6 +4333,21 @@ export default function PlanLabPanel({
       translate,
     ]
   );
+  const handleSelectDecisionTemplateCostProfile = useCallback(
+    (templateId: PlanLabDecisionTemplateId, tier: PlanLabCostProfileTier) => {
+      updateScenarioMeta(scenario.id, {
+        planLab: {
+          ...(scenario.meta?.planLab ?? {}),
+          decisionTemplateCostProfile: {
+            ...(scenario.meta?.planLab?.decisionTemplateCostProfile ?? {}),
+            [templateId]: tier,
+          },
+        },
+      });
+    },
+    [scenario.id, scenario.meta?.planLab, updateScenarioMeta]
+  );
+
   const environmentTemplateOptions = useMemo(
     () => [
       {
@@ -10608,6 +10643,11 @@ export default function PlanLabPanel({
             "planLabDecisionTemplatesEmpty",
             "No decision templates available for this scenario"
           ),
+          costRangeTitle: translate("planLabCostRangeTitle", "Common local cost ranges"),
+          estimateGuideLabel: translate("planLabEstimateGuideLabel", "Why this estimate"),
+          conservativeTierLabel: translate("planLabCostTierConservative", "Conservative"),
+          medianTierLabel: translate("planLabCostTierMedian", "Median"),
+          aggressiveTierLabel: translate("planLabCostTierAggressive", "Aggressive"),
         }}
         groups={[]}
         decisionTemplates={decisionTemplateOptions}
@@ -10618,6 +10658,7 @@ export default function PlanLabPanel({
           // no-op: add-event flow is handled by onSelectAddEvent
         }}
         onSelectDecisionTemplate={handleSelectDecisionTemplate}
+        onSelectDecisionTemplateCostProfile={handleSelectDecisionTemplateCostProfile}
         onSelectAddEvent={() => {
           openPlanLabAddFlowDrawer();
         }}
