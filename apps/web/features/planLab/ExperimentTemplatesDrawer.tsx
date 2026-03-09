@@ -175,7 +175,7 @@ export default function ExperimentTemplatesDrawer({
                 {labels.emptyDecisionTemplatesLabel}
               </Text>
             ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+              <SimpleGrid cols={{ base: 1, sm: 1 }} spacing="sm">
                 {(decisionTemplates ?? []).map((template) => (
                   <Card key={template.id} withBorder radius="md" p="sm">
                     <Stack gap={6}>
