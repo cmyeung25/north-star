@@ -4412,6 +4412,59 @@
           "description": "After seeing the full picture, run “what if” experiments and compare without guesswork."
         }
       },
+      "sampleJourney": {
+        "title": "Three sample journeys you can try now",
+        "subtitle": "Each journey includes a starting point, three concrete actions, and visible outputs.",
+        "startTitle": "Starting condition",
+        "stepsTitle": "3-step actions",
+        "step": "Step {number}",
+        "outputTitle": "Visible outputs",
+        "cta": "Try now",
+        "journeys": {
+          "officeSaver": {
+            "title": "Steady saver planning first home",
+            "startCondition": "Single professional, stable salary, unsure whether current savings pace supports a home plan.",
+            "steps": {
+              "one": "Open member cases from this journey and create a case with preset baseline.",
+              "two": "Review cashflow and timeline in Overview, then open Plan Lab rental vs buy experiment.",
+              "three": "Tune down payment timing and rerun compare before deciding next step."
+            },
+            "outputs": {
+              "runway": "Runway",
+              "risk": "Risk",
+              "compare": "Compare"
+            }
+          },
+          "coupleHome": {
+            "title": "Dual-income couple testing buy timing",
+            "startCondition": "Two incomes, preparing down payment, evaluating this-year vs next-year purchase timing.",
+            "steps": {
+              "one": "Start from preset case and confirm mortgage/housing assumptions.",
+              "two": "Launch home purchase decision template and adjust price, deposit, and start month.",
+              "three": "Compare plan variants to see monthly pressure and upfront cash hit side by side."
+            },
+            "outputs": {
+              "runway": "Runway",
+              "risk": "Risk",
+              "compare": "Compare"
+            }
+          },
+          "newParents": {
+            "title": "New family balancing childcare costs",
+            "startCondition": "Household expecting childcare and education expenses while maintaining monthly liquidity.",
+            "steps": {
+              "one": "Create case from new-baby preset with baseline household profile.",
+              "two": "Use Plan Lab to add helper/education assumptions with conservative vs aggressive options.",
+              "three": "Read compare summary and lock a phased spending path that avoids deficit months."
+            },
+            "outputs": {
+              "runway": "Runway",
+              "risk": "Risk",
+              "compare": "Compare"
+            }
+          }
+        }
+      },
       "faq": {
         "one": {
           "q": "Will scenarios affect each other?",

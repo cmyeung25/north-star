@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuthModal } from "./AuthModalController";
 import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
 import PersonaBannerSection from "./PersonaBannerSection";
+import SampleJourneySection from "./SampleJourneySection";
 
 export default function LandingPage() {
   const t = useTranslations("marketing.web");
@@ -114,6 +115,8 @@ export default function LandingPage() {
 
 
       <PersonaBannerSection isSignedIn={isSignedIn} />
+
+      <SampleJourneySection />
 
       <Stack gap="md">
         <Title order={2} c="white">

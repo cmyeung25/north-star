@@ -4165,6 +4165,59 @@
           "description": "睇到全局後，再用 Plan Lab 試「如果…會點？」—— 方案比較唔洗靠估。"
         }
       },
+      "sampleJourney": {
+        "title": "三條可即刻試嘅樣本旅程",
+        "subtitle": "每條旅程都包含起始條件、三步操作，同清楚可見嘅輸出。",
+        "startTitle": "起始條件",
+        "stepsTitle": "3-step 操作",
+        "step": "步驟 {number}",
+        "outputTitle": "可見輸出",
+        "cta": "立即體驗",
+        "journeys": {
+          "officeSaver": {
+            "title": "穩定儲蓄族：規劃首置",
+            "startCondition": "單身上班族，有穩定收入，但唔確定現時儲蓄速度可唔可以支持置業目標。",
+            "steps": {
+              "one": "由呢條旅程進入 member cases，用預設基線建立案例。",
+              "two": "先睇 Overview 現金流與時間線，再開 Plan Lab 比較租住 vs 置業。",
+              "three": "調整首期時點後重跑比較，再決定下一步。"
+            },
+            "outputs": {
+              "runway": "Runway",
+              "risk": "Risk",
+              "compare": "Compare"
+            }
+          },
+          "coupleHome": {
+            "title": "雙收入伴侶：比較置業時機",
+            "startCondition": "雙收入家庭，準備首期，想比較今年買與下年買嘅壓力差異。",
+            "steps": {
+              "one": "由預設案例起步，確認按揭與住屋假設。",
+              "two": "啟動置業決策模板，調整樓價、首期同開始月份。",
+              "three": "並排比較方案，睇每月壓力同前期現金衝擊。"
+            },
+            "outputs": {
+              "runway": "Runway",
+              "risk": "Risk",
+              "compare": "Compare"
+            }
+          },
+          "newParents": {
+            "title": "新手家庭：平衡育兒開支",
+            "startCondition": "家庭準備面對托育與教育支出，同時要維持每月流動性。",
+            "steps": {
+              "one": "由 new-baby 預設建立案例，先落地基線家庭資料。",
+              "two": "喺 Plan Lab 加入工人/教育假設，切換保守與進取方案。",
+              "three": "閱讀比較摘要，鎖定避免赤字月份嘅分階段支出路徑。"
+            },
+            "outputs": {
+              "runway": "Runway",
+              "risk": "Risk",
+              "compare": "Compare"
+            }
+          }
+        }
+      },
       "faq": {
         "one": {
           "q": "唔同情境會唔會互相影響？",
