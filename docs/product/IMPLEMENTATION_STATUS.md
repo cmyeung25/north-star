@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (rental bundle compare parity + fallback re-edit hydration)
+Last updated: 2026-03-09 (rental plan profile mapping + compare housing hint)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -21,6 +21,9 @@ Last updated: 2026-03-09 (rental bundle compare parity + fallback re-edit hydrat
 
 
 ## Latest Update (2026-03-09)
+- `buildBundleWizardInputForDecisionTemplate` now keeps `rental_plan` conservative / median / aggressive mapping explicit for rent monthly, deposit, agent fee, and anchored start month.
+- Plan Lab decision-template selection now resolves a dedicated launch path: `rental_plan` always goes through rent housing create/edit flow (never buy-home wizard), while `home_purchase` remains on bundle wizard.
+- Compare decision summary adds a housing-readable hint for rent-vs-buy framing (monthly housing cashflow pressure and upfront cash hit), reducing buy-home-only bias.
 - `life_rental_plan` now emits a rent housing event plus setup one-off cashflows (deposit / agent fee) with consistent bundle source metadata, so Plan Lab and Money can group it as one bundle.
 - Bundle wizard now supports rental fallback re-edit hydration from active-scenario bundle events when older data is missing `bundleInstances[].wizardInput`.
 - Plan Lab compare/title fallback now treats rental bundles the same way as home-purchase bundles, so both show up as life bundles instead of generic events.
@@ -31,8 +34,8 @@ Last updated: 2026-03-09 (rental bundle compare parity + fallback re-edit hydrat
 
 - Architecture Delta Log
   - Date: 2026-03-09
-  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/features/planLab/__tests__/decisionTemplates.test.ts`, `apps/web/features/planLab/__tests__/PlanLabPanel.i18n.test.ts`, `apps/web/messages/en.json`, `apps/web/messages/zh-HK.json`, `docs/product/IMPLEMENTATION_STATUS.md`, `AGENTS.md`
-  - Data-flow impact: `home_purchase` still produces scenario-scoped bundle wizard input without writing baseline data; `rental_plan` now stays inside the active scenario rent housing create/edit flow and only seeds defaults from the active scenario cost-profile preference.
+  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/decisionSummary.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/features/planLab/__tests__/decisionTemplates.test.ts`, `apps/web/features/planLab/__tests__/PlanLabPanel.test.tsx`, `apps/web/src/domain/planLab/types.ts`, `docs/product/IMPLEMENTATION_STATUS.md`, `docs/product/DECISIONS.md`, `AGENTS.md`
+  - Data-flow impact: `home_purchase` keeps scenario-scoped bundle wizard input; `rental_plan` launch is explicitly routed to active-scenario rent housing create/edit with scenario-scoped cost profile; compare summary only adds UI hint text and does not alter engine/domain calculations.
   - Backward compatibility: 未改 engine/domain public interfaces；income shock path 與既有 bundle apply path 保持不變。
   - Risk & rollback: If the new defaults feel off, revert the `buildBundleWizardInputForDecisionTemplate` / `buildHousingEventDraftForDecisionTemplate` mappings without touching stored scenario data.
 

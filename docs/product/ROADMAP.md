@@ -31,6 +31,7 @@ Last updated: 2026-03-08
 - [x] Plan Lab 決策模板與人生事件 wizard 預設值已打通：按所選成本檔位（保守/中位/進取）帶入對應 bundle 初始輸入，避免模板卡片估算與 wizard 建立值脫節。
 - [x] Plan Lab housing 模板已拆分為 `home_purchase`（bundle wizard）與 `rental_plan`（rent housing event），避免單一模板同時代表兩條操作路徑。
 - [x] `life_rental_plan` now uses the same life-bundle compare/edit model as home purchase, including rent housing + setup one-off outputs and wizard re-edit hydration.
+- [x] `rental_plan` 成本檔位映射已補齊（租金/按金/代理費/起租月份），且 Compare 摘要新增租 vs 買可讀提示（cashflow pressure + upfront cash hit），避免偏向置業語境。
 
 3. Guardrails / Completeness 層
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。

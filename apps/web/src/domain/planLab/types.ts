@@ -196,6 +196,7 @@ export type PlanLabDecisionSummary = {
   riskTiming: string;
   riskTrend: string;
   riskLevel: string;
+  housingDecisionHint?: string | null;
   maxPositiveDriver?: { title: string; contribution: number } | null;
   maxNegativeDriver?: { title: string; contribution: number } | null;
   recommendedActions: PlanLabDecisionRecommendedAction[];

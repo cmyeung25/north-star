@@ -286,6 +286,22 @@ export const resolvePlanLabSettingsMembersHref = (
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
 
+export const resolveDecisionTemplateLaunchPath = (params: {
+  templateId: PlanLabDecisionTemplateId;
+  activeRentEventCount: number;
+}): "bundle" | "rent_create" | "rent_edit" | "income_shock" | "retirement" => {
+  if (params.templateId === "rental_plan") {
+    return params.activeRentEventCount === 1 ? "rent_edit" : "rent_create";
+  }
+  if (params.templateId === "income_shock") {
+    return "income_shock";
+  }
+  if (params.templateId === "retirement") {
+    return "retirement";
+  }
+  return "bundle";
+};
+
 const PERSONA_FOCUS_KEYS: PersonaFocus[] = ["family", "fertility", "education", "retirement"];
 
 const PERSONA_KPI_PRIORITY: Record<PersonaFocus, string[]> = {
@@ -293,6 +309,50 @@ const PERSONA_KPI_PRIORITY: Record<PersonaFocus, string[]> = {
   fertility: ["assetLinkedExpenseRatio", "negativeCash", "minCash", "targetMonth"],
   education: ["educationExpensePressure", "assetLinkedExpenseRatio", "minCash", "negativeCash"],
   retirement: ["passiveIncomeCoverage", "targetMonthNetWorth", "minCash", "targetMonth"],
+};
+
+const buildRentalHousingDraftForDecisionTemplate = (params: {
+  tier: PlanLabCostProfileTier;
+  baseMonth?: string | null;
+}): Partial<HousingEventDraft> => {
+  const startMonth =
+    typeof params.baseMonth === "string" && /^\d{4}-\d{2}$/.test(params.baseMonth)
+      ? params.baseMonth
+      : "";
+  if (params.tier === "conservative") {
+    return {
+      kind: "rent",
+      startMonth,
+      rentMonthly: "16000",
+      rentAnnualGrowthPct: "2.5",
+      feesOneOff: [
+        { id: "rent_deposit", label: "按金", amount: "32000", month: startMonth },
+        { id: "rent_agent_fee", label: "代理費", amount: "8000", month: startMonth },
+      ],
+    };
+  }
+  if (params.tier === "aggressive") {
+    return {
+      kind: "rent",
+      startMonth,
+      rentMonthly: "50000",
+      rentAnnualGrowthPct: "4",
+      feesOneOff: [
+        { id: "rent_deposit", label: "按金", amount: "100000", month: startMonth },
+        { id: "rent_agent_fee", label: "代理費", amount: "25000", month: startMonth },
+      ],
+    };
+  }
+  return {
+    kind: "rent",
+    startMonth,
+    rentMonthly: "28000",
+    rentAnnualGrowthPct: "3",
+    feesOneOff: [
+      { id: "rent_deposit", label: "按金", amount: "56000", month: startMonth },
+      { id: "rent_agent_fee", label: "代理費", amount: "14000", month: startMonth },
+    ],
+  };
 };
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
@@ -1278,6 +1338,8 @@ export default function PlanLabPanel({
   const [draftEvents, setDraftEvents] = useState<PlanLabDraftEventAddition[]>([]);
   const [experiments, setExperiments] = useState<PlanLabExperiment[]>([]);
   const [experimentTemplatesOpen, setExperimentTemplatesOpen] = useState(false);
+  const [activeDecisionTemplateId, setActiveDecisionTemplateId] =
+    useState<PlanLabDecisionTemplateId | null>(null);
   const [envAssumptionsDrawerOpen, setEnvAssumptionsDrawerOpen] = useState(false);
   const [envAssumptionsViewGroupId, setEnvAssumptionsViewGroupId] = useState<string | null>(null);
   const [envAssumptionOverridesDraft, setEnvAssumptionOverridesDraft] = useState<ScenarioAssumptionsOverride>({});
@@ -4252,14 +4314,45 @@ export default function PlanLabPanel({
       const selectedCostProfile =
         decisionTemplateOptions.find((option) => option.id === templateId)
           ?.selectedCostProfile ?? "median";
+      setActiveDecisionTemplateId(templateId);
 
-      if (templateId !== "income_shock" && templateId !== "retirement") {
+      const launchPath = resolveDecisionTemplateLaunchPath({
+        templateId,
+        activeRentEventCount: (sandboxScenarioV2.events ?? []).filter(
+          (event) => event.type === "housing" && event.kind === "rent"
+        ).length,
+      });
+
+      if (launchPath === "rent_create") {
+        setExperimentTemplatesOpen(false);
+        setTemplateHousingDraft(
+          buildRentalHousingDraftForDecisionTemplate({
+            tier: selectedCostProfile,
+            baseMonth: scenario.assumptions.baseMonth ?? null,
+          })
+        );
+        openV2EventDrawer("create", "housing");
+        return;
+      }
+
+      if (launchPath === "rent_edit") {
+        const rentEvent = (sandboxScenarioV2.events ?? []).find(
+          (event) => event.type === "housing" && event.kind === "rent"
+        );
+        if (!rentEvent) {
+          return;
+        }
+        setExperimentTemplatesOpen(false);
+        openV2EventDrawer("edit", "housing", rentEvent.id);
+        return;
+      }
+
+      if (launchPath === "bundle") {
         const templateMap: Partial<Record<PlanLabDecisionTemplateId, TemplateId>> = {
           marriage: "life_marriage_plan",
           childbirth: "life_new_baby_plan",
           parenting: "life_new_baby_plan",
           home_purchase: "life_home_purchase",
-          rental_plan: "life_rental_plan",
         };
         const mappedTemplateId = templateMap[templateId];
         if (!mappedTemplateId) {
@@ -4282,7 +4375,10 @@ export default function PlanLabPanel({
           return;
         }
         const initialWizardInput = buildBundleWizardInputForDecisionTemplate({
-          templateId,
+          templateId: templateId as Exclude<
+            PlanLabDecisionTemplateId,
+            "retirement" | "income_shock"
+          >,
           selectedCostProfile,
           baseMonth: scenario.assumptions.baseMonth ?? null,
         });
@@ -4291,7 +4387,7 @@ export default function PlanLabPanel({
         return;
       }
 
-      if (templateId === "retirement") {
+      if (launchPath === "retirement") {
         setPlanToast(
           translate(
             "planLabDecisionTemplateMissing",
@@ -6614,9 +6710,11 @@ export default function PlanLabPanel({
         title: driver.title,
         contribution: driver.contribution,
       })),
+      activeDecisionTemplateId,
       translate,
     });
   }, [
+    activeDecisionTemplateId,
     baselineCashRiskScorecard,
     baselineKpis?.endNetWorth,
     baselineKpis?.firstNegativeCashMonth,
@@ -9928,6 +10026,11 @@ export default function PlanLabPanel({
                   </SimpleGrid>
                   <Paper withBorder radius="xs" p="xs" shadow="xs" style={{ borderColor: "var(--mantine-color-neutral-2)" }}>
                     <Stack gap={6}>
+                      {decisionSummary.housingDecisionHint ? (
+                        <Text size="xs" c="dimmed">
+                          {decisionSummary.housingDecisionHint}
+                        </Text>
+                      ) : null}
                       <Text size="xs" c="dimmed">
                         {translate("planLabDecisionNextStepTitle", "Recommended next steps")}
                       </Text>

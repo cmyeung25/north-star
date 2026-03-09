@@ -28,6 +28,7 @@ export type BuildPlanLabDecisionSummaryInput = {
   minCashDelta: number | null;
   endNetWorthDelta: number | null;
   topDrivers: PlanLabDecisionDriver[];
+  activeDecisionTemplateId?: string | null;
   translate: TranslateFn;
 };
 
@@ -209,11 +210,25 @@ export const buildPlanLabDecisionSummary = (
     riskTimingDelta
   );
 
+  const housingDecisionHint =
+    input.activeDecisionTemplateId === "rental_plan"
+      ? t(
+          "planLabDecisionHousingHintRental",
+          "For rent decisions, focus on monthly housing cashflow pressure and upfront cash hit (deposit + agent fee) versus buy-home plans."
+        )
+      : input.activeDecisionTemplateId === "home_purchase"
+      ? t(
+          "planLabDecisionHousingHintPurchase",
+          "For buy-home decisions, compare mortgage cashflow pressure and upfront down-payment hit against rent alternatives."
+        )
+      : null;
+
   return {
     targetTiming,
     riskTiming,
     riskTrend,
     riskLevel,
+    housingDecisionHint,
     maxPositiveDriver,
     maxNegativeDriver,
     recommendedActions,
