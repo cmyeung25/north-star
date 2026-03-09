@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (onboarding persona focus + compare KPI prioritization)
+Last updated: 2026-03-09 (planlab decision template ↔ life-event wizard integration)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -12,7 +12,7 @@ Last updated: 2026-03-09 (onboarding persona focus + compare KPI prioritization)
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
 | Onboarding + Property Bundle | 68% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架，且 v3 收入/支出手動列可直接確認分類並顯示分類摘要 | 需補齊既有物業 household 的一致輸入與審核體驗與 completeness guardrails |
-| Plan Lab 決策化 | 72% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
+| Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
@@ -21,6 +21,17 @@ Last updated: 2026-03-09 (onboarding persona focus + compare KPI prioritization)
 
 
 ## Latest Update (2026-03-09)
+- Plan Lab 決策模板（結婚/生育/育兒/置業）已把所選成本檔位映射為 bundle wizard 初始輸入，使用者從模板套用進入 wizard 時，預設數值會與模板卡片一致（例如結婚中位檔對應 wedding budget 300k）。
+- Bundle wizard 新增 marriage input hydration：若由模板傳入 `life_marriage_plan` 的 wizardInput，會正確帶入婚禮月份、預算、travel 與 breakdown 相關欄位，避免回退到固定預設。
+- PlanLabPanel decision template handler 增加 retirement guard（沿用既有 unavailable toast），並在可映射模板時傳入 scenario baseMonth 作為 month anchor。
+
+- Architecture Delta Log
+  - Date: 2026-03-09
+  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/components/eventTemplates/bundles/BundleWizardDrawer.tsx`
+  - Data-flow impact: Plan Lab decision template selection 現在會先產生 scenario-scoped wizard input（不寫 baseline），再交由既有 bundle wizard/experiment path 建立草稿事件。
+  - Backward compatibility: 未改 engine/domain public interfaces；income shock path 與既有 bundle apply path 保持不變。
+  - Risk & rollback: 若預設映射不符預期，可回退 `buildBundleWizardInputForDecisionTemplate` 對應表，不影響已存在 scenario 資料結構。
+
 - Onboarding v3 `Scenario basics` 新增「人生階段重點」多選（成家/生育/教育/退休），並依選擇顯示推薦模板清單（剛畢業/已婚/準退休分流）。
 - 提交 onboarding 後將 persona 偏好寫入 `scenario.meta.personaFocuses`（scenario-scoped），後續可於 Plan Lab 比較區塊隨時切換，不鎖定路徑。
 - Plan Lab Compare 的 Impact KPI 面板新增 persona-aware 預設排序：依焦點自動提升相關 KPI（例如教育焦點優先「教育成本壓力」）。

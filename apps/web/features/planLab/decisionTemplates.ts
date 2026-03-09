@@ -1,5 +1,11 @@
 ﻿import { addMonths } from "@north-star/engine";
 import type {
+  BundleWizardInput,
+  HomePurchaseBundleInput,
+  NewBabyPlanInput,
+  WeddingStyle,
+} from "../../src/domain/eventTemplates/bundles";
+import type {
   PlanLabDecisionTemplateAvailability,
   PlanLabDecisionTemplateDefaultPayload,
   PlanLabDecisionTemplateId,
@@ -77,6 +83,151 @@ export type PlanLabIncomeShockPayload = {
   startOffsetMonths: number;
   startMonth: string;
   endMonth: string;
+};
+
+const resolveAnchorMonth = (baseMonth?: string | null): string =>
+  isValidMonthKey(baseMonth ?? "") ? (baseMonth as string) : "";
+
+const resolveMarriageDefaults = (
+  tier: PlanLabCostProfileTier
+): Pick<Extract<BundleWizardInput, { templateId: "life_marriage_plan" }>['input'], 'weddingStyle' | 'totalWeddingBudget'> => {
+  if (tier === "conservative") {
+    return { weddingStyle: "small_banquet", totalWeddingBudget: 120000 };
+  }
+  if (tier === "aggressive") {
+    return { weddingStyle: "luxury_wedding", totalWeddingBudget: 600000 };
+  }
+  return { weddingStyle: "hotel_banquet", totalWeddingBudget: 300000 };
+};
+
+const resolveChildbirthDefaults = (tier: PlanLabCostProfileTier): NewBabyPlanInput => {
+  if (tier === "conservative") {
+    return {
+      birthMonth: "",
+      deliveryCost: 40000,
+      childcareMonthly: 5000,
+      helperEnabled: false,
+      helperMonthly: 0,
+      agencyFee: 0,
+      schoolingEnabled: false,
+      schoolingAmount: 0,
+      schoolingCadence: "monthly",
+    };
+  }
+  if (tier === "aggressive") {
+    return {
+      birthMonth: "",
+      deliveryCost: 260000,
+      childcareMonthly: 22000,
+      helperEnabled: true,
+      helperMonthly: 7000,
+      agencyFee: 18000,
+      schoolingEnabled: true,
+      schoolingAmount: 7000,
+      schoolingCadence: "monthly",
+    };
+  }
+  return {
+    birthMonth: "",
+    deliveryCost: 120000,
+    childcareMonthly: 12000,
+    helperEnabled: true,
+    helperMonthly: 5500,
+    agencyFee: 12000,
+    schoolingEnabled: false,
+    schoolingAmount: 0,
+    schoolingCadence: "monthly",
+  };
+};
+
+const resolveHousingDefaults = (tier: PlanLabCostProfileTier): HomePurchaseBundleInput => {
+  if (tier === "conservative") {
+    return {
+      startMonth: "",
+      purchasePrice: 6000000,
+      downPaymentMode: "percent",
+      downPaymentPercent: 30,
+      mortgageRatePct: 3.25,
+      mortgageTermYears: 30,
+      mortgagePayment: 18300,
+      mortgagePaymentIsEstimated: true,
+    };
+  }
+  if (tier === "aggressive") {
+    return {
+      startMonth: "",
+      purchasePrice: 15000000,
+      downPaymentMode: "percent",
+      downPaymentPercent: 40,
+      mortgageRatePct: 4,
+      mortgageTermYears: 30,
+      mortgagePayment: 43000,
+      mortgagePaymentIsEstimated: true,
+    };
+  }
+  return {
+    startMonth: "",
+    purchasePrice: 9000000,
+    downPaymentMode: "percent",
+    downPaymentPercent: 35,
+    mortgageRatePct: 3.5,
+    mortgageTermYears: 30,
+    mortgagePayment: 30000,
+    mortgagePaymentIsEstimated: true,
+  };
+};
+
+export const buildBundleWizardInputForDecisionTemplate = (params: {
+  templateId: Exclude<PlanLabDecisionTemplateId, "retirement" | "income_shock">;
+  selectedCostProfile: PlanLabCostProfileTier;
+  baseMonth?: string | null;
+}): BundleWizardInput => {
+  const anchorMonth = resolveAnchorMonth(params.baseMonth);
+  if (params.templateId === "marriage") {
+    const defaults = resolveMarriageDefaults(params.selectedCostProfile);
+    return {
+      templateId: "life_marriage_plan",
+      input: {
+        weddingMonth: anchorMonth,
+        weddingStyle: defaults.weddingStyle as WeddingStyle,
+        totalWeddingBudget: defaults.totalWeddingBudget,
+        breakdownEnabled: false,
+        breakdownItems: [],
+        includeTravel: false,
+      },
+    };
+  }
+  if (params.templateId === "housing") {
+    return {
+      templateId: "life_home_purchase",
+      input: {
+        ...resolveHousingDefaults(params.selectedCostProfile),
+        startMonth: anchorMonth,
+      },
+    };
+  }
+
+  const childbirthDefaults = resolveChildbirthDefaults(params.selectedCostProfile);
+  return {
+    templateId: "life_new_baby_plan",
+    input: {
+      ...childbirthDefaults,
+      birthMonth: anchorMonth,
+      schoolingStartMonth: anchorMonth,
+      ...(params.templateId === "parenting"
+        ? {
+            deliveryCost: 0,
+            schoolingEnabled: true,
+            schoolingAmount:
+              params.selectedCostProfile === "conservative"
+                ? 2500
+                : params.selectedCostProfile === "aggressive"
+                  ? 12000
+                  : 6000,
+          }
+        : null),
+    },
+  };
 };
 
 const buildCostRangeItems = (
