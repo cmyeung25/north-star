@@ -145,7 +145,8 @@ export type PlanLabDecisionTemplateId =
   | "marriage"
   | "childbirth"
   | "parenting"
-  | "housing"
+  | "home_purchase"
+  | "rental_plan"
   | "retirement"
   | "income_shock";
 
@@ -154,6 +155,7 @@ export type PlanLabDecisionTemplateLauncher =
   | "bundle_childbirth"
   | "bundle_parenting"
   | "bundle_housing"
+  | "event_rent_housing"
   | "bundle_retirement"
   | "income_shock_override";
 

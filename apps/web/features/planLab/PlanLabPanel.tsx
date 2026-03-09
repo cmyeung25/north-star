@@ -4242,11 +4242,23 @@ export default function PlanLabPanel({
   const handleSelectDecisionTemplate = useCallback(
     (templateId: PlanLabDecisionTemplateId) => {
       if (templateId !== "income_shock" && templateId !== "retirement") {
+        if (templateId === "rental_plan") {
+          setExperimentTemplatesOpen(false);
+          closeAllPlanLabDrawers();
+          setTemplateHousingDraft({
+            kind: "rent",
+            startMonth: scenario.assumptions.baseMonth ?? "",
+          });
+          setV2EventDefaultKind("expense");
+          openV2EventDrawer("create", "housing");
+          return;
+        }
+
         const templateMap: Partial<Record<PlanLabDecisionTemplateId, TemplateId>> = {
           marriage: "life_marriage_plan",
           childbirth: "life_new_baby_plan",
           parenting: "life_new_baby_plan",
-          housing: "life_home_purchase",
+          home_purchase: "life_home_purchase",
         };
         const mappedTemplateId = templateMap[templateId];
         if (!mappedTemplateId) {
@@ -4361,8 +4373,10 @@ export default function PlanLabPanel({
     [
       applyEventOverrideExperiment,
       baselineEditableIncomeEvents,
+      closeAllPlanLabDrawers,
       handleTemplateSelect,
       decisionTemplateOptions,
+      openV2EventDrawer,
       scenario.assumptions.baseMonth,
       translate,
     ]

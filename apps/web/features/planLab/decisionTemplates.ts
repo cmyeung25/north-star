@@ -197,7 +197,7 @@ export const buildBundleWizardInputForDecisionTemplate = (params: {
       },
     };
   }
-  if (params.templateId === "housing") {
+  if (params.templateId === "home_purchase") {
     return {
       templateId: "life_home_purchase",
       input: {
@@ -346,33 +346,65 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     availabilityGuard: () => ({ enabled: true }),
   },
   {
-    id: "housing",
+    id: "home_purchase",
     launcher: "bundle_housing",
-    titleKey: "planLabDecisionTemplateHousingTitle",
-    titleFallback: "Buy home / rent",
-    descriptionKey: "planLabDecisionTemplateHousingDesc",
-    descriptionFallback: "Compare ownership and rental paths with local cost ranges.",
-    estimateGuideKey: "planLabDecisionTemplateHousingGuide",
+    titleKey: "planLabDecisionTemplateHomePurchaseTitle",
+    titleFallback: "Home purchase",
+    descriptionKey: "planLabDecisionTemplateHomePurchaseDesc",
+    descriptionFallback: "Model buying a home with local mortgage and down-payment ranges.",
+    estimateGuideKey: "planLabDecisionTemplateHomePurchaseGuide",
     estimateGuideFallback:
-      "Ranges vary by district, floor area, ownership vs rental mode, and mortgage terms.",
+      "Ranges vary by district, floor area, down-payment ratio, and mortgage terms.",
     costRangeItems: [
       {
-        id: "housingMonthly",
-        labelKey: "planLabCostHousingMonthly",
-        labelFallback: "Monthly housing outflow",
+        id: "homePurchaseMonthly",
+        labelKey: "planLabCostHomePurchaseMonthly",
+        labelFallback: "Monthly owner housing outflow",
         valueKeys: {
-          conservative: "planLabCostHousingMonthlyConservative",
-          median: "planLabCostHousingMonthlyMedian",
-          aggressive: "planLabCostHousingMonthlyAggressive",
+          conservative: "planLabCostHomePurchaseMonthlyConservative",
+          median: "planLabCostHomePurchaseMonthlyMedian",
+          aggressive: "planLabCostHomePurchaseMonthlyAggressive",
+        },
+        valueFallbacks: {
+          conservative: "HKD 15k-25k / month",
+          median: "HKD 28k-42k / month",
+          aggressive: "HKD 45k-78k / month",
+        },
+        factorHintKey: "planLabCostHomePurchaseMonthlyFactor",
+        factorHintFallback:
+          "Driven by district premium, purchase price, down payment, and mortgage rate.",
+      },
+    ],
+    availabilityGuard: () => ({ enabled: true }),
+  },
+  {
+    id: "rental_plan",
+    launcher: "event_rent_housing",
+    titleKey: "planLabDecisionTemplateRentalPlanTitle",
+    titleFallback: "Rental plan",
+    descriptionKey: "planLabDecisionTemplateRentalPlanDesc",
+    descriptionFallback: "Create or update a rent housing event with local rent ranges.",
+    estimateGuideKey: "planLabDecisionTemplateRentalPlanGuide",
+    estimateGuideFallback:
+      "Ranges vary by district, floor area, tenancy term, and furnishing level.",
+    costRangeItems: [
+      {
+        id: "rentalMonthly",
+        labelKey: "planLabCostRentalPlanMonthly",
+        labelFallback: "Monthly rent outflow",
+        valueKeys: {
+          conservative: "planLabCostRentalPlanMonthlyConservative",
+          median: "planLabCostRentalPlanMonthlyMedian",
+          aggressive: "planLabCostRentalPlanMonthlyAggressive",
         },
         valueFallbacks: {
           conservative: "HKD 12k-20k / month",
-          median: "HKD 22k-38k / month",
-          aggressive: "HKD 40k-75k / month",
+          median: "HKD 22k-36k / month",
+          aggressive: "HKD 40k-65k / month",
         },
-        factorHintKey: "planLabCostHousingMonthlyFactor",
+        factorHintKey: "planLabCostRentalPlanMonthlyFactor",
         factorHintFallback:
-          "Driven by district premium, rent vs mortgage, and management/holding costs.",
+          "Driven by district premium, unit size, lease term, and furnishing needs.",
       },
     ],
     availabilityGuard: () => ({ enabled: true }),
