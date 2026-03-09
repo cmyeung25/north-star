@@ -10,7 +10,7 @@ type ChecklistItem = {
 };
 
 type Summary = {
-  scenarioSetup: { baseCurrency?: string; startMonth?: string; horizonMonths?: number };
+  scenarioSetup: { baseCurrency?: string; startMonth?: string; horizonMonths?: number; personaFocuses?: string[] };
   members: Array<{ id: string; name?: string }>;
   assets: OnboardingAsset[];
   derivedIncomeCount: number;
@@ -42,6 +42,7 @@ export default function ReviewStep({ items, summary, onEditStep }: Props) {
             <Text size="sm">{t("review.summary.baseCurrency", { value: summary.scenarioSetup.baseCurrency ?? "-" })}</Text>
             <Text size="sm">{t("review.summary.startMonth", { value: summary.scenarioSetup.startMonth ?? "-" })}</Text>
             <Text size="sm">{t("review.summary.horizonMonths", { value: summary.scenarioSetup.horizonMonths ?? 120 })}</Text>
+            <Text size="sm">{t("review.summary.personaFocuses", { value: (summary.scenarioSetup.personaFocuses ?? []).length > 0 ? (summary.scenarioSetup.personaFocuses ?? []).map((focus) => t(`scenarioSetup.personaFocus.${focus}`)).join("、") : t("review.summary.personaFocusesEmpty") })}</Text>
           </Stack>
         </Card>
         <Card withBorder>

@@ -24,12 +24,14 @@ describe("computePlanLabKpis", () => {
           { month: "2025-01", amount: 10_000, source: "event", sourceId: "salary-main", category: "salary" },
           { month: "2025-01", amount: 2_000, source: "event", sourceId: "dividend", category: "dividend" },
           { month: "2025-01", amount: -4_000, source: "event", sourceId: "rent", category: "property_ownership" },
+          { month: "2025-01", amount: -1_200, source: "event", sourceId: "school", category: "education" },
         ],
       }
     );
 
     expect(result?.nonSalaryIncomeRatio).toBeCloseTo(2_000 / 12_000);
-    expect(result?.passiveIncomeCoverage).toBeCloseTo(2_000 / 4_000);
-    expect(result?.assetLinkedExpenseRatio).toBeCloseTo(4_000 / 4_000);
+    expect(result?.passiveIncomeCoverage).toBeCloseTo(2_000 / 5_200);
+    expect(result?.assetLinkedExpenseRatio).toBeCloseTo(4_000 / 5_200);
+    expect(result?.educationExpenseRatio).toBeCloseTo(1_200 / 5_200);
   });
 });

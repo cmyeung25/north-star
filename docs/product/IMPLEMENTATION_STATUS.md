@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-08 (zh-HK overview/plan-lab locale lint)
+Last updated: 2026-03-09 (onboarding persona focus + compare KPI prioritization)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -19,6 +19,12 @@ Last updated: 2026-03-08 (zh-HK overview/plan-lab locale lint)
 | Preset ???? | 58% | member ??? modal ??? blank/preset create mode?preset ? onboarding-prefill ???? 6 ???? seeds?seed ?? i18n ??????? raw keys | app ????????????? beta ???????? |
 | GTM / 營運就緒 | 20% | 有 marketing pages 基礎 | 缺 sample journey 導流、beta feedback loop、支援流程 |
 
+
+## Latest Update (2026-03-09)
+- Onboarding v3 `Scenario basics` 新增「人生階段重點」多選（成家/生育/教育/退休），並依選擇顯示推薦模板清單（剛畢業/已婚/準退休分流）。
+- 提交 onboarding 後將 persona 偏好寫入 `scenario.meta.personaFocuses`（scenario-scoped），後續可於 Plan Lab 比較區塊隨時切換，不鎖定路徑。
+- Plan Lab Compare 的 Impact KPI 面板新增 persona-aware 預設排序：依焦點自動提升相關 KPI（例如教育焦點優先「教育成本壓力」）。
+- 新增 `educationExpenseRatio` KPI（教育支出 ÷ 核心生活支出，12 個月視窗），並接入 Plan Lab KPI diff 卡片與文案。
 
 ## Latest Update (2026-03-08)
 - Overview DashboardMetrics 已新增 4 個可由 projection + ledger 靜態推導 KPI：`savingsRate12m`、`expenseToIncomeRatio12m`、`debtToAssetRatio`、`netWorthGrowth12m`；在資料不足時回傳 `null`（不以 `0` fallback）。

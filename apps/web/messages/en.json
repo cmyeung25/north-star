@@ -3114,6 +3114,33 @@
           "baseCurrencyHelp": "Choose the currency used across this scenario.",
           "startMonth": "Start month",
           "startMonthHelp": "Defaults to the current month and remains editable."
+        },
+        "personaFocusLabel": "Current life stage focus",
+        "personaFocusDescription": "Select one or more major focuses. You can change them anytime in Plan Lab.",
+        "personaFocus": {
+          "family": "Family planning",
+          "fertility": "Childbirth",
+          "education": "Education",
+          "retirement": "Retirement"
+        },
+        "recommendationTitle": "Recommended templates",
+        "recommendations": {
+          "graduate": {
+            "marriage": "New graduate: Marriage",
+            "rentToBuy": "New graduate: Rent to buy",
+            "incomeGrowth": "New graduate: Income growth"
+          },
+          "married": {
+            "fertility": "Married: Childbirth",
+            "helper": "Married: Domestic helper",
+            "education": "Married: Child education",
+            "familySupport": "Married: Family support"
+          },
+          "nearRetirement": {
+            "retirementSpend": "Near retirement: Retirement spending",
+            "healthcare": "Near retirement: Healthcare",
+            "withdrawal": "Near retirement: Asset withdrawal strategy"
+          }
         }
       },
       "household": {
@@ -3311,6 +3338,8 @@
           "baseCurrency": "Base currency: {value}",
           "startMonth": "Start month: {value}",
           "horizonMonths": "Projection horizon (months): {value}",
+          "personaFocuses": "Life-stage focus: {value}",
+          "personaFocusesEmpty": "Not selected",
           "assetCount": "Asset count: {value}",
           "assetTotal": "Estimated total assets: {value}",
           "derivedIncome": "Auto-generated income rows: {value}",
@@ -4703,6 +4732,16 @@
   "planLabTertiaryGroupLabel": "Save",
   "planLabCompareA": "Plan A",
   "planLabCompareB": "Plan B",
+  "planLabPersonaFocusLabel": "Life-stage focus",
+  "planLabPersonaFocusPlaceholder": "Multi-select",
+  "planLabPersonaFocus": {
+    "family": "Family planning",
+    "fertility": "Childbirth",
+    "education": "Education",
+    "retirement": "Retirement"
+  },
+  "planLabKpiEducationExpensePressure": "Education cost pressure",
+  "planLabKpiEducationExpensePressureHint": "Formula: education expenses ÷ core living expenses (next 12 months)",
   "planLabCreateEditExperimentGroup": "Create / edit experiments",
   "planLabCompareGroup": "Compare",
   "planLabSaveGroup": "Save",

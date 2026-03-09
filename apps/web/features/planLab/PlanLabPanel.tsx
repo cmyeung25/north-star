@@ -15,6 +15,7 @@ import {
   Notification,
   NumberInput,
   Modal,
+  MultiSelect,
   Paper,
   ScrollArea,
   SegmentedControl,
@@ -79,6 +80,7 @@ import type {
   ScenarioAsset,
   ScenarioAssumptions,
   ScenarioLiability,
+  PersonaFocus,
   ScenarioMember,
   ScenarioMemberKind,
 } from "../../src/store/scenarioStore";
@@ -281,6 +283,15 @@ export const resolvePlanLabSettingsMembersHref = (
 
 const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
   event.type === "housing" && event.kind === "mortgage";
+
+const PERSONA_FOCUS_KEYS: PersonaFocus[] = ["family", "fertility", "education", "retirement"];
+
+const PERSONA_KPI_PRIORITY: Record<PersonaFocus, string[]> = {
+  family: ["minCash", "negativeCash", "assetLinkedExpenseRatio", "targetMonthNetWorth"],
+  fertility: ["assetLinkedExpenseRatio", "negativeCash", "minCash", "targetMonth"],
+  education: ["educationExpensePressure", "assetLinkedExpenseRatio", "minCash", "negativeCash"],
+  retirement: ["passiveIncomeCoverage", "targetMonthNetWorth", "minCash", "targetMonth"],
+};
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
@@ -6869,6 +6880,16 @@ export default function PlanLabPanel({
         tooltip: translate("planLabKpiPassiveIncomeCoverageHint", "公式：租金/股息/利息收入 ÷ 核心生活支出（未來12個月）"),
       },
       {
+        key: "educationExpensePressure",
+        better: "lower",
+        label: translate("planLabKpiEducationExpensePressure", "教育成本壓力"),
+        valueA: formatRatio(optionKpis?.educationExpenseRatio),
+        valueB: formatRatio(baselineKpis?.educationExpenseRatio),
+        delta: formatDeltaDisplay(kpiDiff.educationExpenseRatio, translate("planLabKpiPctUnit", "%")),
+        helper: translate("planLabKpiEducationExpensePressureHint", "公式：教育支出 ÷ 核心生活支出（未來12個月）"),
+        tooltip: translate("planLabKpiEducationExpensePressureHint", "公式：教育支出 ÷ 核心生活支出（未來12個月）"),
+      },
+      {
         key: "assetLinkedExpenseRatio",
         better: "lower",
         label: translate("planLabKpiAssetLinkedExpenseRatio", "資產相關支出比率"),
@@ -6895,6 +6916,21 @@ export default function PlanLabPanel({
     targetMonthNetWorthDelta,
     t,
   ]);
+
+  const personaFocuses = scenario.meta?.personaFocuses ?? [];
+
+  const personaOrderedKpiCards = useMemo(() => {
+    const priority = personaFocuses.flatMap((focus) => PERSONA_KPI_PRIORITY[focus] ?? []);
+    if (priority.length === 0) {
+      return kpiCards;
+    }
+    const rank = new Map(priority.map((key, index) => [key, index]));
+    return [...kpiCards].sort((left, right) => {
+      const l = rank.get(left.key) ?? Number.MAX_SAFE_INTEGER;
+      const r = rank.get(right.key) ?? Number.MAX_SAFE_INTEGER;
+      return l - r;
+    });
+  }, [kpiCards, personaFocuses]);
 
   const experimentTypeOptions = useMemo(
     () => [
@@ -9829,6 +9865,22 @@ export default function PlanLabPanel({
                   </Group>
                   <Stack gap="xs">
                     <SimpleGrid cols={{ base: 2, md: 2 }} spacing="sm">
+                      <MultiSelect
+                        label={translate("planLabPersonaFocusLabel", "人生階段重點")}
+                        data={PERSONA_FOCUS_KEYS.map((key) => ({
+                          value: key,
+                          label: translate(`planLabPersonaFocus.${key}`, key),
+                        }))}
+                        value={personaFocuses}
+                        onChange={(values) =>
+                          updateScenarioMeta(scenario.id, {
+                            personaFocuses: values as PersonaFocus[],
+                          })
+                        }
+                        placeholder={translate("planLabPersonaFocusPlaceholder", "可多選")}
+                        searchable={false}
+                        clearable
+                      />
                       <Select
                         label={translate("planLabKpiTargetLabel", "目標淨資產")}
                         placeholder={translate("planLabScorecardTargetPrompt", "設定目標")}
@@ -9870,7 +9922,7 @@ export default function PlanLabPanel({
                     </Text>
                   ) : (
                     <SimpleGrid cols={{ base: 2, md: 2 }} spacing="sm">
-                      {kpiCards.map((card) => {
+                      {personaOrderedKpiCards.map((card) => {
                         const deltaColor =  
                           card.delta?.direction === "up"
                             ? card.better === "higher" ? "teal" : "red"

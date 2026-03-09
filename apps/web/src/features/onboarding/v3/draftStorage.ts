@@ -466,6 +466,7 @@ const normalizeDraftState = (
     parsed.assumptions && typeof parsed.assumptions === "object"
       ? { ...fallbackState.assumptions, ...parsed.assumptions }
       : fallbackState.assumptions,
+  personaFocuses: Array.isArray(parsed.personaFocuses) ? parsed.personaFocuses : fallbackState.personaFocuses,
   members:
     Array.isArray(parsed.members) && parsed.members.length > 0
       ? parsed.members
@@ -515,6 +516,7 @@ export const convertOnboardingV2DraftToV3State = ({
       horizonMonths,
     },
     assumptions: buildAssumptions(draftState, profileStartMonth, horizonMonths),
+    personaFocuses: fallbackState.personaFocuses,
     members: mapMembers(draftState, fallbackState),
     assets: [cashAsset, propertyAsset, investmentAsset].filter(
       (asset): asset is NonNullable<typeof asset> => asset !== null

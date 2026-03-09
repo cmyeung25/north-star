@@ -54,6 +54,7 @@ export type IncomeCoverageRatios = {
   nonSalaryIncomeRatio: number | null;
   passiveIncomeCoverage: number | null;
   assetLinkedExpenseRatio: number | null;
+  educationExpenseRatio: number | null;
 };
 
 export type IncomeCoverageBreakdown = {
@@ -88,6 +89,7 @@ export const computeIncomeCoverageRatios = (
   let passiveIncome = 0;
   let coreLivingExpense = 0;
   let assetLinkedExpense = 0;
+  let educationExpense = 0;
 
   horizonMonths.forEach((month) => {
     const items = ledgerByMonth[month] ?? [];
@@ -115,12 +117,17 @@ export const computeIncomeCoverageRatios = (
     assetLinkedExpense += sumExpenseAbs(items, (item) =>
       assetLinkedExpenseCategorySet.has((item.category ?? "").toLowerCase())
     );
+    educationExpense += sumExpenseAbs(
+      items,
+      (item) => (item.category ?? "").toLowerCase() === "education"
+    );
   });
 
   return {
     nonSalaryIncomeRatio: totalIncome > 0 ? nonSalaryIncome / totalIncome : null,
     passiveIncomeCoverage: coreLivingExpense > 0 ? passiveIncome / coreLivingExpense : null,
     assetLinkedExpenseRatio: coreLivingExpense > 0 ? assetLinkedExpense / coreLivingExpense : null,
+    educationExpenseRatio: coreLivingExpense > 0 ? educationExpense / coreLivingExpense : null,
     breakdown: {
       totalIncome,
       nonSalaryIncome,

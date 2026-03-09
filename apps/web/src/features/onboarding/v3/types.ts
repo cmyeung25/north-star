@@ -1,4 +1,5 @@
 import type {
+  PersonaFocus,
   ScenarioAssumptions,
   ScenarioAsset,
   ScenarioMember,
@@ -43,6 +44,7 @@ export type ScenarioDraftV3AssetToggles = {
 
 export type ScenarioDraftV3State = {
   profile: NonNullable<ScenarioDraftV3["profile"]>;
+  personaFocuses: PersonaFocus[];
   assumptions: Partial<ScenarioAssumptions>;
   members: ScenarioMember[];
   assets: OnboardingAsset[];
@@ -71,6 +73,7 @@ export const createInitialScenarioDraftV3State = (
     horizonMonths: 120,
   },
   assumptions: {},
+  personaFocuses: [],
   members: [{ id: "self", name: localeStrings.defaultMemberName, kind: "person" }],
   assets: [],
   assetToggles: {

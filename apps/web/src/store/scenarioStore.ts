@@ -448,7 +448,10 @@ export type ScenarioMeta = {
   memberMilestonesMigratedAt?: string;
   planLab?: PlanLabMeta;
   overviewKpiWatchlist?: DashboardMetricKey[];
+  personaFocuses?: PersonaFocus[];
 };
+
+export type PersonaFocus = "family" | "fertility" | "education" | "retirement";
 
 export type ScenarioClientComputed = {
   onboardingPersona?: OnboardingPersona;
@@ -1594,6 +1597,7 @@ const cloneScenarioMeta = (meta?: ScenarioMeta): ScenarioMeta | undefined =>
         overviewKpiWatchlist: meta.overviewKpiWatchlist
           ? [...meta.overviewKpiWatchlist]
           : undefined,
+        personaFocuses: meta.personaFocuses ? [...meta.personaFocuses] : undefined,
         planLab: meta.planLab
           ? {
               ...meta.planLab,

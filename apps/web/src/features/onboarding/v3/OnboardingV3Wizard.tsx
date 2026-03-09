@@ -299,6 +299,7 @@ export default function OnboardingV3Wizard() {
       baseCurrency: draft.profile.baseCurrency,
       startMonth: draft.profile.startMonth,
       horizonMonths: draft.profile.horizonMonths,
+      personaFocuses: draft.personaFocuses,
     },
     members: draft.members,
     assets: draft.assets,
@@ -394,7 +395,7 @@ export default function OnboardingV3Wizard() {
   };
 
   const steps = [
-    { ...stepDefs[0], title: t(stepDefs[0].titleKey), content: <ScenarioSetupStep profile={draft.profile} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} /> },
+    { ...stepDefs[0], title: t(stepDefs[0].titleKey), content: <ScenarioSetupStep profile={draft.profile} personaFocuses={draft.personaFocuses} onChange={(profile) => setDraft((current) => ({ ...current, profile }))} onPersonaFocusesChange={(personaFocuses) => setDraft((current) => ({ ...current, personaFocuses }))} /> },
     { ...stepDefs[1], title: t(stepDefs[1].titleKey), content: <HouseholdStep members={draft.members} onChange={(members) => setDraft((current) => ({ ...current, members }))} /> },
     { ...stepDefs[2], title: t(stepDefs[2].titleKey), content: <AssetsStep assets={draft.assets} startMonth={draft.profile.startMonth ?? ""} baseCurrency={draft.profile.baseCurrency ?? "HKD"} assetToggles={draft.assetToggles} onAssetsChange={(assets) => setDraft((current) => ({ ...current, assets }))} onAssetTogglesChange={(assetToggles) => setDraft((current) => ({ ...current, assetToggles }))} /> },
     {
@@ -529,7 +530,7 @@ export default function OnboardingV3Wizard() {
         members: draft.members,
         assets: submissionAssets,
         events: mappedEvents,
-        meta: { onboardingVersion: 3, onboarded: true },
+        meta: { onboardingVersion: 3, onboarded: true, personaFocuses: draft.personaFocuses },
         clientComputed: { onboardingCompleted: true },
         baseCurrency: draft.profile.baseCurrency,
       },
