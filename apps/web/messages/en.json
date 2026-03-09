@@ -1040,7 +1040,8 @@
         "add": "Add",
         "remove": "Remove",
         "selectedTitle": "Selected order",
-        "reset": "Reset"
+        "reset": "Reset",
+        "currentStatus": "Current status"
       }
     },
     "breakdownSummaryDelta": "MoM: Net worth {netWorth}, cash {cash}",

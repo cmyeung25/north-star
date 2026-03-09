@@ -1062,7 +1062,8 @@
         "add": "加入",
         "remove": "移除",
         "selectedTitle": "已選排序",
-        "reset": "重設"
+        "reset": "重設",
+        "currentStatus": "現時狀態"
       }
     },
     "breakdownSummaryDelta": "按月對比：淨資產 {netWorth}、現金 {cash}",

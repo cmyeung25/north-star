@@ -1803,7 +1803,12 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                     <Card key={item.metric} withBorder radius="md" padding="xs">
                       <Group justify="space-between" align="center" wrap="nowrap">
                         <Stack gap={0}>
-                          <Text size="sm" fw={600}>{item.label}</Text>
+                          <Group gap={6} align="center">
+                            <Text size="sm" fw={600}>{item.label}</Text>
+                            <Badge size="xs" variant="light" color={item.badgeColor}>
+                              {sd("kpiWatchlist.currentStatus", "Current status")}: {item.badgeLabel}
+                            </Badge>
+                          </Group>
                           <Text size="xs" c="dimmed">{item.helper}</Text>
                         </Stack>
                         <Button
