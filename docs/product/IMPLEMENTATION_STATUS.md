@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (home/rental template estimate prefill alignment)
+Last updated: 2026-03-09 (overview metric detail i18n + readmore removal)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -36,6 +36,9 @@ Last updated: 2026-03-09 (home/rental template estimate prefill alignment)
 - PlanLabPanel decision template handler 增加 retirement guard（沿用既有 unavailable toast），並在可映射模板時傳入 scenario baseMonth 作為 month anchor。
 - Plan Lab housing template split: `home_purchase` stays on the `life_home_purchase` bundle wizard path; `rental_plan` now reuses the only active-scenario rent event when present, otherwise it seeds a rent draft from the selected cost profile.
 - Plan Lab「新增事件 > 住屋」在 create 模式僅保留租屋事件，避免與置業人生計劃路徑重疊；`rental_plan` 保持租金/按金/代理費預填，並更新置業成本提示文案為「先填樓價」。
+- Overview KPI metric detail modal 參考 Boldin 資訊層次，補齊評級說明內容，並調整為 Action Items + Rating Scale。
+- 移除 Read More/Learn More 區塊（目前未有文章內容），避免顯示空資訊入口。
+- `zh-HK` KPI detail 區塊標題與評級文案統一為中文，避免中英混雜。
 
 - Architecture Delta Log
   - Date: 2026-03-09

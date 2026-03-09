@@ -118,3 +118,10 @@ Last updated: 2026-03-08
 - Decision: `home_purchase` 模板補上「估算樓價」成本列與對應文案；`rental_plan` 無論 create 或 edit 路徑皆注入成本檔位估算到租屋 drawer（租金/按金/代理費）。
 - Guardrails: 僅變更 Plan Lab/UI-draft 層預填，不修改 engine/domain 介面；所有預填與偏好維持 active scenario scoped。
 
+### D-2026-03-09-09
+- Date: 2026-03-09
+- Status: Accepted
+- Context: Overview KPI metric detail 既有 Read More 區塊暫無文章內容，且 `zh-HK` locale 仍混有英文區塊標題，影響資訊完整性與語言一致性。
+- Decision: KPI metric detail modal 改為僅保留 Action Items + Rating Scale，並補齊 rating 說明；`zh-HK` 相關 i18n key 全數改為中文。
+- Guardrails: 僅調整 Overview UI / i18n 呈現層；不變更 engine、scenario 資料模型或跨 scenario 狀態邏輯。
+
