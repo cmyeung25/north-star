@@ -73,3 +73,10 @@ Last updated: 2026-03-08
 - Context: 使用者要求 onboarding 後可依人生階段分流模板建議，且 Compare 頁預設 KPI 需與 persona 相關，同時必須保留 scenario 隔離與可隨時切換。
 - Decision: 新增 scenario-scoped `scenario.meta.personaFocuses`（可多選：family/fertility/education/retirement）。Onboarding v3 負責收集與推薦模板，Plan Lab Compare 允許隨時切換並用於 KPI 卡排序。
 - Guardrails: persona 偏好只允許寫入 active scenario meta；不得新增跨 scenario 共用狀態；KPI 優先序屬 UI 呈現層，不修改 engine 介面。
+
+### D-2026-03-09-03
+- Date: 2026-03-09
+- Status: Accepted
+- Context: 使用者回饋 Plan Lab 決策模板選擇的成本檔位（保守/中位/進取）與後續人生事件 wizard 預設值存在落差，導致心理模型斷裂（例如模板顯示婚禮中位範圍，但 wizard 未對應該預算）。
+- Decision: Plan Lab decision template 在開啟 bundle wizard 前，先依模板 id + 成本檔位產生 `BundleWizardInput`（以 scenario baseMonth 作為月份 anchor）並注入 wizard 初始狀態；marriage/new_baby/home_purchase 皆走同一入口映射。
+- Guardrails: 僅作 UI/draft 層預填，不直接寫 baseline；所有偏好與草稿仍維持 scenario-scoped；不修改 engine 公式或 domain event schema。

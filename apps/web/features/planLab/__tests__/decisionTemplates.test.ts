@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   INCOME_SHOCK_DEFAULT_PAYLOAD,
+  buildBundleWizardInputForDecisionTemplate,
   buildIncomeShockDefaultPayload,
   buildPlanLabDecisionTemplateOptions,
 } from "../decisionTemplates";
@@ -60,5 +61,25 @@ describe("decisionTemplates", () => {
 
     expect(payload?.startMonth).toBe("2026-06");
     expect(payload?.endMonth).toBe("2027-05");
+  });
+
+  it("builds marriage wizard input defaults from selected cost profile", () => {
+    const input = buildBundleWizardInputForDecisionTemplate({
+      templateId: "marriage",
+      selectedCostProfile: "median",
+      baseMonth: "2026-03",
+    });
+
+    expect(input).toEqual({
+      templateId: "life_marriage_plan",
+      input: {
+        weddingMonth: "2026-03",
+        weddingStyle: "hotel_banquet",
+        totalWeddingBudget: 300000,
+        breakdownEnabled: false,
+        breakdownItems: [],
+        includeTravel: false,
+      },
+    });
   });
 });

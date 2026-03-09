@@ -233,6 +233,7 @@ import PlanLabTimelinePreview from "./PlanLabTimelinePreview";
 import { buildTimelineItemsForPreview } from "./timelinePreview";
 import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
 import {
+  buildBundleWizardInputForDecisionTemplate,
   buildIncomeShockDefaultPayload,
   buildPlanLabDecisionTemplateOptions,
   type PlanLabCostProfileTier,
@@ -2454,14 +2455,17 @@ export default function PlanLabPanel({
     setEventDrawerOpen(true);
   };
 
-  const handleTemplateSelect = (template: TemplateDef) => {
+  const handleTemplateSelect = (
+    template: TemplateDef,
+    options?: { initialWizardInput?: BundleWizardInput | null }
+  ) => {
     closeAllPlanLabDrawers();
     if (template.isBundle) {
       setTemplatePlanUnsupportedNotice(null);
       setBundleTemplate(template);
       setBundleWizardMode("create");
       setBundleWizardInstanceId(null);
-      setBundleWizardInitialInput(null);
+      setBundleWizardInitialInput(options?.initialWizardInput ?? null);
       setBundleWizardExperimentMode(false);
       setBundleWizardOpen(true);
       return;
@@ -4237,7 +4241,7 @@ export default function PlanLabPanel({
 
   const handleSelectDecisionTemplate = useCallback(
     (templateId: PlanLabDecisionTemplateId) => {
-      if (templateId !== "income_shock") {
+      if (templateId !== "income_shock" && templateId !== "retirement") {
         const templateMap: Partial<Record<PlanLabDecisionTemplateId, TemplateId>> = {
           marriage: "life_marriage_plan",
           childbirth: "life_new_baby_plan",
@@ -4264,8 +4268,26 @@ export default function PlanLabPanel({
           );
           return;
         }
+        const selectedCostProfile =
+          decisionTemplateOptions.find((option) => option.id === templateId)
+            ?.selectedCostProfile ?? "median";
+        const initialWizardInput = buildBundleWizardInputForDecisionTemplate({
+          templateId,
+          selectedCostProfile,
+          baseMonth: scenario.assumptions.baseMonth ?? null,
+        });
         setExperimentTemplatesOpen(false);
-        handleTemplateSelect(template);
+        handleTemplateSelect(template, { initialWizardInput });
+        return;
+      }
+
+      if (templateId === "retirement") {
+        setPlanToast(
+          translate(
+            "planLabDecisionTemplateMissing",
+            "This decision template is currently unavailable."
+          )
+        );
         return;
       }
 
@@ -4340,6 +4362,7 @@ export default function PlanLabPanel({
       applyEventOverrideExperiment,
       baselineEditableIncomeEvents,
       handleTemplateSelect,
+      decisionTemplateOptions,
       scenario.assumptions.baseMonth,
       translate,
     ]

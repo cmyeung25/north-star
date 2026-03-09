@@ -385,6 +385,46 @@ const hydrateHomeDraftFromInput = (
   };
 };
 
+const hydrateMarriageDraftFromInput = (
+  input: MarriagePlanInput,
+  fallbackMonth: string,
+  t: ReturnType<typeof useTranslations>
+): MarriageDraft => {
+  const weddingMonth = input.weddingMonth ?? fallbackMonth;
+  const travelBudgetMode = input.travelBudgetMode ?? "total";
+  const extraTravelBudgetMode = input.extraTravelBudgetMode ?? "total";
+  return {
+    title: input.title ?? t("bundleMarriageDefaultName"),
+    weddingMonth,
+    weddingStyle: input.weddingStyle ?? "simple_register",
+    totalWeddingBudget: input.totalWeddingBudget ?? 0,
+    breakdownEnabled: input.breakdownEnabled ?? false,
+    customBreakdown: input.breakdownEnabled ?? false,
+    breakdownItems:
+      input.breakdownItems.length > 0
+        ? input.breakdownItems.map((item) => ({ ...item }))
+        : normalizeWeddingBreakdown(
+            input.totalWeddingBudget ?? 0,
+            createDefaultWeddingBreakdown(t)
+          ),
+    includeTravel: input.includeTravel ?? false,
+    travelMonthMode: input.travelMonthMode ?? "same",
+    travelCustomMonth: input.travelCustomMonth ?? weddingMonth,
+    travelBudgetMode,
+    travelTotal: input.travelTotal ?? 0,
+    travellersCount: input.travellersCount ?? 2,
+    perPersonBudget: input.perPersonBudget ?? 10000,
+    honeymoonExtraEnabled: input.extraHoneymoonEnabled ?? false,
+    extraTravelMonthMode: input.extraTravelMonthMode ?? "plus1",
+    extraTravelCustomMonth: input.extraTravelCustomMonth ?? fallbackMonth,
+    extraTravelBudgetMode,
+    extraTravelTotal: input.extraTravelTotal ?? 0,
+    extraTravellersCount: input.extraTravellersCount ?? 2,
+    extraPerPersonBudget: input.extraPerPersonBudget ?? 10000,
+    isCustomized: false,
+  };
+};
+
 const estimateMonthlyPayment = ({
   principal,
   annualRatePct,
@@ -602,13 +642,19 @@ export default function BundleWizardDrawer({
         startMonth: defaultMonth || current.startMonth,
       }));
     }
-    setMarriageDraft((current) => ({
-      ...current,
-      title: t("bundleMarriageDefaultName"),
-      weddingMonth: defaultMonth || current.weddingMonth,
-      travelCustomMonth: defaultMonth || current.travelCustomMonth,
-      isCustomized: false,
-    }));
+    if (initialWizardInput?.templateId === "life_marriage_plan") {
+      setMarriageDraft(
+        hydrateMarriageDraftFromInput(initialWizardInput.input, defaultMonth, t)
+      );
+    } else {
+      setMarriageDraft((current) => ({
+        ...current,
+        title: t("bundleMarriageDefaultName"),
+        weddingMonth: defaultMonth || current.weddingMonth,
+        travelCustomMonth: defaultMonth || current.travelCustomMonth,
+        isCustomized: false,
+      }));
+    }
   }, [
     defaultMonth,
     editingHomeEvent,
