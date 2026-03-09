@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useLocale, useMessages, useTranslations } from "next-intl";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import {
   ActionIcon,
@@ -33,6 +33,7 @@ import {
 } from "../../../../src/scenarios/scenarioSeeds";
 import { MEMBER_CASE_PRESET_SEED_IDS } from "../../../../src/features/onboarding/seedPrefill";
 import { writePresetDraftToStorage } from "./presetDraftStorage";
+import type { MemberCasesEntryIntent } from "../../../../src/features/member/createCaseEntry";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
 
@@ -102,7 +103,13 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 
 const presetSeedIdSet = new Set<string>(MEMBER_CASE_PRESET_SEED_IDS);
 
-export function CasesList({ cases }: { cases: CaseSummary[] }) {
+export function CasesList({
+  cases,
+  entryIntent,
+}: {
+  cases: CaseSummary[];
+  entryIntent: MemberCasesEntryIntent;
+}) {
   const t = useTranslations("member.list");
   const messages = useMessages();
   const loadingT = useTranslations("loading");
@@ -119,6 +126,15 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
   const [renameTitle, setRenameTitle] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CaseSummary | null>(null);
   const [openingCase, setOpeningCase] = useState<CaseSummary | null>(null);
+
+  useEffect(() => {
+    if (!entryIntent.presetId) {
+      return;
+    }
+    setCreateOpen(true);
+    setCreateStartMode("preset");
+    setSelectedPresetId(entryIntent.presetId);
+  }, [entryIntent.presetId]);
 
   const seedTranslator = useMemo(
     () => createScenarioSeedTranslatorFromMessages(messages as Record<string, unknown>),
@@ -273,6 +289,7 @@ export function CasesList({ cases }: { cases: CaseSummary[] }) {
         loading={isPending}
         startMode={createStartMode}
         selectedPresetId={selectedPresetId}
+        journeyId={entryIntent.journey}
         presets={presetSeeds.map((seed) => ({
           id: seed.id,
           title: seed.title,

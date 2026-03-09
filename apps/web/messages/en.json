@@ -4657,7 +4657,30 @@
       "presetTitle": "Preset library",
       "presetHint": "Choose a starting point for members, income, housing, and assets.",
       "presetApply": "Use this preset",
-      "presetSelected": "Selected"
+      "presetSelected": "Selected",
+      "journey": {
+        "title": "Recommended journey",
+        "officeSaver": {
+          "audience": "Suitable for: solo professionals building savings while renting.",
+          "goal": "Decision goal: decide when to move from renting into a first-home plan.",
+          "eta": "Expected setup time: around 5–8 minutes."
+        },
+        "coupleHome": {
+          "audience": "Suitable for: dual-income couples preparing down payment and mortgage timing.",
+          "goal": "Decision goal: compare buy-now vs wait-one-year housing paths.",
+          "eta": "Expected setup time: around 8–12 minutes."
+        },
+        "newParents": {
+          "audience": "Suitable for: families planning childbirth, childcare, and schooling budgets.",
+          "goal": "Decision goal: compare baseline, conservative, and growth-family cost plans.",
+          "eta": "Expected setup time: around 10–15 minutes."
+        },
+        "mortgageOwner": {
+          "audience": "Suitable for: homeowners with active mortgage and asset-liability balancing needs.",
+          "goal": "Decision goal: evaluate repayment pressure and liquidity trade-offs.",
+          "eta": "Expected setup time: around 8–12 minutes."
+        }
+      }
     },
     "scenarioDialogs": {
       "createTitle": "Create scenario",

@@ -28,13 +28,34 @@ const requiredCaseDialogKeys = [
   "presetHint",
   "presetApply",
   "presetSelected",
+  "journey.title",
+  "journey.officeSaver.audience",
+  "journey.officeSaver.goal",
+  "journey.officeSaver.eta",
+  "journey.coupleHome.audience",
+  "journey.coupleHome.goal",
+  "journey.coupleHome.eta",
+  "journey.newParents.audience",
+  "journey.newParents.goal",
+  "journey.newParents.eta",
+  "journey.mortgageOwner.audience",
+  "journey.mortgageOwner.goal",
+  "journey.mortgageOwner.eta",
 ] as const;
 
 type MemberMessages = {
   member: {
-    caseDialogs: Record<string, string>;
+    caseDialogs: Record<string, unknown>;
   };
 };
+
+const getNestedMessage = (source: Record<string, unknown>, key: string) =>
+  key.split(".").reduce<unknown>((value, segment) => {
+    if (!value || typeof value !== "object") {
+      return undefined;
+    }
+    return (value as Record<string, unknown>)[segment];
+  }, source);
 
 const seedTranslator = Object.assign((key: string) => key, {
   raw: () => [],
@@ -106,11 +127,17 @@ describe("member create-case preset flow", () => {
     const zh = zhHkMessages as MemberMessages;
 
     for (const key of requiredCaseDialogKeys) {
-      expect(source.includes(`t("${key}")`)).toBe(true);
-      expect(typeof en.member.caseDialogs[key] === "string").toBe(true);
-      expect(typeof zh.member.caseDialogs[key] === "string").toBe(true);
-      expect(en.member.caseDialogs[key] === key).toBe(false);
-      expect(zh.member.caseDialogs[key] === key).toBe(false);
+      if (!key.startsWith("journey.") || key === "journey.title") {
+        expect(source.includes(`t("${key}")`)).toBe(true);
+      } else {
+        expect(source.includes("journey.")).toBe(true);
+      }
+      const enValue = getNestedMessage(en.member.caseDialogs, key);
+      const zhValue = getNestedMessage(zh.member.caseDialogs, key);
+      expect(typeof enValue === "string").toBe(true);
+      expect(typeof zhValue === "string").toBe(true);
+      expect(enValue === key).toBe(false);
+      expect(zhValue === key).toBe(false);
     }
   });
 

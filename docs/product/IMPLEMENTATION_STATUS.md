@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (overview metric detail i18n + readmore removal)
+Last updated: 2026-03-09 (marketing persona journey query -> member preset preselect)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -16,11 +16,15 @@ Last updated: 2026-03-09 (overview metric detail i18n + readmore removal)
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset ???? | 58% | member ??? modal ??? blank/preset create mode?preset ? onboarding-prefill ???? 6 ???? seeds?seed ?? i18n ??????? raw keys | app ????????????? beta ???????? |
-| GTM / 營運就緒 | 20% | 有 marketing pages 基礎 | 缺 sample journey 導流、beta feedback loop、支援流程 |
+| Preset 主流程整合 | 66% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset + 顯示對應 journey 引導文案；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
+| GTM / 營運就緒 | 28% | 已有 marketing pages 與 sample journey -> member/cases 導流入口 | 仍缺 beta feedback loop、支援流程 |
 
 
 ## Latest Update (2026-03-09)
+- Persona banner CTA now appends `journey` and allowlisted `preset` query when routing to `/[locale]/member/cases`; signed-in users keep the same destination and signed-out users still go through auth before landing member/cases.
+- Member cases page now parses journey/preset entry intent with allowlist guard, auto-opens create dialog in preset mode, and keeps blank flow unchanged when query is absent/invalid.
+- Create-case dialog adds journey guidance copy (audience / decision goal / expected completion time) via i18n keys in both `en` and `zh-HK`.
+- Added unit tests for entry intent parsing (allowlist, fallback, invalid input, blank flow) and extended member preset i18n coverage checks for all journey keys.
 - Plan Lab `home_purchase` 模板卡新增「估算樓價」成本列，並在描述中明確要求先估算樓價，減少卡片資訊與後續輸入斷層。
 - Plan Lab `rental_plan` 套用在 rent_edit 路徑時也會注入成本檔位估算（租金/按金/代理費），不再只打開 drawer。
 - HousingEventDrawer 在 edit 模式可接受 `initialDraft` 覆蓋，確保決策模板估算值能一致帶入租屋 drawer 欄位。
@@ -41,6 +45,11 @@ Last updated: 2026-03-09 (overview metric detail i18n + readmore removal)
 - `zh-HK` KPI detail 區塊標題與評級文案統一為中文，避免中英混雜。
 
 - Architecture Delta Log
+  - Date: 2026-03-09
+  - Changed modules: `apps/web/app/(marketing)/_components/PersonaBannerSection.tsx`, `apps/web/app/(member)/member/cases/page.tsx`, `apps/web/app/(member)/member/components/CasesList.tsx`, `apps/web/app/(member)/member/components/CaseDialogs.tsx`, `apps/web/src/features/member/createCaseEntry.ts`, `apps/web/messages/en.json`, `apps/web/messages/zh-HK.json`, member preset tests.
+  - Data-flow impact: marketing persona CTA query -> member cases searchParams parsing -> client create dialog state initialization; no engine/domain persistence changes.
+  - Backward compatibility: login redirect destination remains `/{locale}/member/cases`; invalid query values are ignored and default blank create flow remains.
+  - Risk & rollback: low UI-routing risk; rollback by removing query parsing module + passing no entryIntent so member create dialog returns to prior behavior.
   - Date: 2026-03-09
   - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/decisionSummary.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/features/planLab/__tests__/decisionTemplates.test.ts`, `apps/web/features/planLab/__tests__/PlanLabPanel.test.tsx`, `apps/web/src/domain/planLab/types.ts`, `docs/product/IMPLEMENTATION_STATUS.md`, `docs/product/DECISIONS.md`, `AGENTS.md`
   - Data-flow impact: `home_purchase` keeps scenario-scoped bundle wizard input; `rental_plan` launch is explicitly routed to active-scenario rent housing create/edit with scenario-scoped cost profile; compare summary only adds UI hint text and does not alter engine/domain calculations.

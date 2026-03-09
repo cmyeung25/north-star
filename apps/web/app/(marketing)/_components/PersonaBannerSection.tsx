@@ -4,6 +4,7 @@ import { Badge, Box, Button, Group, List, Overlay, Paper, Stack, Text, ThemeIcon
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuthModal } from "./AuthModalController";
+import { MEMBER_JOURNEY_PRESET_MAP } from "../../../src/features/member/createCaseEntry";
 
 type PersonaKey = "officeSaver" | "coupleHome" | "newParents" | "mortgageOwner";
 
@@ -87,7 +88,18 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                   <Button
                     variant="light"
                     color="gray"
-                    onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthModal("register"))}
+                    onClick={() => {
+                      const params = new URLSearchParams({
+                        journey: key,
+                        preset: MEMBER_JOURNEY_PRESET_MAP[key],
+                      });
+                      const targetPath = `/${locale}/member/cases?${params.toString()}`;
+                      if (isSignedIn) {
+                        router.push(targetPath);
+                        return;
+                      }
+                      openAuthModal("register");
+                    }}
                   >
                     {t(`personas.${key}.cta`)}
                   </Button>

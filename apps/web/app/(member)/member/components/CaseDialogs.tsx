@@ -30,6 +30,7 @@ type CreateCaseDialogProps = {
   loading?: boolean;
   startMode: "blank" | "preset";
   selectedPresetId: string | null;
+  journeyId?: string | null;
   presets: CreateCasePresetOption[];
   onClose: () => void;
   onTitleChange: (value: string) => void;
@@ -41,6 +42,15 @@ type CreateCaseDialogProps = {
 
 export function CreateCaseDialog(props: CreateCaseDialogProps) {
   const t = useTranslations("member.caseDialogs");
+
+  const journeySummary =
+    props.journeyId && props.startMode === "preset"
+      ? {
+          audience: t(`journey.${props.journeyId}.audience`),
+          goal: t(`journey.${props.journeyId}.goal`),
+          eta: t(`journey.${props.journeyId}.eta`),
+        }
+      : null;
 
   return (
     <Modal opened={props.opened} onClose={props.onClose} title={t("createTitle")} centered size="lg">
@@ -74,6 +84,16 @@ export function CreateCaseDialog(props: CreateCaseDialogProps) {
         </Stack>
         {props.startMode === "preset" ? (
           <Stack gap="xs">
+            {journeySummary ? (
+              <Card withBorder radius="md" padding="sm" bg="gray.0">
+                <Stack gap={4}>
+                  <Text fw={600} size="sm">{t("journey.title")}</Text>
+                  <Text size="sm" c="dimmed">{journeySummary.audience}</Text>
+                  <Text size="sm" c="dimmed">{journeySummary.goal}</Text>
+                  <Text size="sm" c="dimmed">{journeySummary.eta}</Text>
+                </Stack>
+              </Card>
+            ) : null}
             <Group justify="space-between" align="center">
               <Text fw={600} size="sm">{t("presetTitle")}</Text>
               <Text size="xs" c="dimmed">{t("presetHint")}</Text>

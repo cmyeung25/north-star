@@ -40,6 +40,7 @@ Last updated: 2026-03-08
 4. Presets 接入主流程
 - [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。
 - [x] v1 已交付：member 入口 preset allowlist 擴至 6 個產品化 seeds（single-renter、dual-income-home、dual-income-rental、new-baby、new-baby-helper、high-asset）。
+- [x] marketing persona CTA 現在可攜帶 `journey + preset` query 導流到 member/cases，並在 create dialog 預選 allowlist preset 與顯示 journey 引導文案（不改登入後先到 member/cases 規則）。
 - [ ] app 內延伸入口與分組資訊架構待後續 beta 回饋收斂。
 5. Beta 回饋閉環
 - 以封閉測試流程建立「收集問題 -> 分類 -> 迭代 -> 驗收」節奏。
