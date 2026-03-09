@@ -1105,6 +1105,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     return computeRiskAssessment({ projection, runway: runwaySimulation });
   }, [projection, runwaySimulation]);
 
+  const resolvedRunwayMonths = runwaySimulation?.months ?? null;
+  const resolvedRiskLevel = riskAssessment?.level ?? null;
+
 
   useEffect(() => {
     if (months.length === 0) {
@@ -1223,12 +1226,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "cashRunway" as const,
       label: sd("kpi.cashRunway", "Cash runway"),
-      value: dashboardMetrics.cashRunwayMonths === null
+      value: resolvedRunwayMonths === null
         ? sd("kpi.runwayUnavailable", "Not available")
-        : sd("kpi.runwayMonths", `${dashboardMetrics.cashRunwayMonths.toFixed(1)} months`, {
-            months: dashboardMetrics.cashRunwayMonths.toFixed(1),
+        : sd("kpi.runwayMonths", `${resolvedRunwayMonths} months`, {
+            months: resolvedRunwayMonths,
           }),
-      helper: sd("kpi.runwayProxyHint", "Proxy based on current trajectory"),
+      helper: sd("kpi.scopeHorizon", "Scope: projection horizon to {endMonth}", {
+        endMonth: projection?.months.at(-1) ?? "--",
+      }),
       detailsLabel: t("runwayDetailCta"),
       onDetails: () => setRunwayDetailOpen(true),
     },
@@ -1316,8 +1321,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "riskLevel" as const,
       label: sd("kpi.riskLevel", "Risk level"),
-      value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
-      helper: sd("kpi.scope12m", "Scope: 12 months"),
+      value:
+        resolvedRiskLevel === null
+          ? emptyValueLabel
+          : common(`risk${resolvedRiskLevel}`),
+      helper: sd("kpi.scopeHorizon", "Scope: projection horizon to {endMonth}", {
+        endMonth: projection?.months.at(-1) ?? "--",
+      }),
       detailsLabel: t("riskDetailCta"),
       onDetails: () => setRiskDetailOpen(true),
     },
