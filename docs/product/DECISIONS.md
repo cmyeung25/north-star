@@ -110,3 +110,11 @@ Last updated: 2026-03-08
 - Context: Plan Lab 住屋決策已拆分為置業 bundle 與租樓流程，但「新增事件 > 住屋」create modal 仍可切換按揭，使用者容易與置業模板路徑混淆。
 - Decision: 在 Plan Lab 的 housing event create modal 僅允許 `rent`；`mortgage` 由 `home_purchase` 決策模板 + buy-home bundle wizard 入口承接。同步調整置業模板教學文案為「先填樓價」，並強化租樓方案為預填租金/按金/代理費。
 - Guardrails: 編輯既有 housing event 保留原類型；僅限制 Plan Lab create 入口，不更動 Money 頁一般模板能力；不修改 engine/domain 介面。
+
+### D-2026-03-09-08
+- Date: 2026-03-09
+- Status: Accepted
+- Context: 使用者回饋置業模板卡片雖有成本範圍，但未明確把「樓價估算」作為統一輸入起點；同時 `rental_plan` 在既有 rent 事件路徑僅開啟 drawer，未帶入模板估算值。
+- Decision: `home_purchase` 模板補上「估算樓價」成本列與對應文案；`rental_plan` 無論 create 或 edit 路徑皆注入成本檔位估算到租屋 drawer（租金/按金/代理費）。
+- Guardrails: 僅變更 Plan Lab/UI-draft 層預填，不修改 engine/domain 介面；所有預填與偏好維持 active scenario scoped。
+
