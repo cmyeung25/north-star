@@ -14,6 +14,7 @@ export type PlanLabKpiMetrics = {
   nonSalaryIncomeRatio: number | null;
   passiveIncomeCoverage: number | null;
   assetLinkedExpenseRatio: number | null;
+  educationExpenseRatio: number | null;
 };
 
 export type PlanLabKpiDiff = {
@@ -24,6 +25,7 @@ export type PlanLabKpiDiff = {
   nonSalaryIncomeRatio: number | null;
   passiveIncomeCoverage: number | null;
   assetLinkedExpenseRatio: number | null;
+  educationExpenseRatio: number | null;
 };
 
 export const computePlanLabKpis = (
@@ -64,6 +66,7 @@ export const computePlanLabKpis = (
     nonSalaryIncomeRatio: incomeCoverageRatios.nonSalaryIncomeRatio,
     passiveIncomeCoverage: incomeCoverageRatios.passiveIncomeCoverage,
     assetLinkedExpenseRatio: incomeCoverageRatios.assetLinkedExpenseRatio,
+    educationExpenseRatio: incomeCoverageRatios.educationExpenseRatio,
   };
 };
 
@@ -97,5 +100,6 @@ export const diffPlanLabKpis = (
     nonSalaryIncomeRatio: numberDelta(kpiA?.nonSalaryIncomeRatio, kpiB?.nonSalaryIncomeRatio),
     passiveIncomeCoverage: numberDelta(kpiA?.passiveIncomeCoverage, kpiB?.passiveIncomeCoverage),
     assetLinkedExpenseRatio: numberDelta(kpiA?.assetLinkedExpenseRatio, kpiB?.assetLinkedExpenseRatio),
+    educationExpenseRatio: numberDelta(kpiA?.educationExpenseRatio, kpiB?.educationExpenseRatio),
   };
 };

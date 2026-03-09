@@ -20,6 +20,7 @@ Last updated: 2026-03-08
 - 物業資料明確區分現價、按揭基準、剩餘期數、每月供款、持續成本、出租狀態與租金。
 - [x] Onboarding v3 收入/支出手動項目新增分類 dropdown（沿用既有 taxonomy），並在卡片顯示分類摘要以降低誤分類。
 - [x] Onboarding v3 收入/支出步驟分類摘要改用與 Money 頁一致的 `MoneyMetaTags` 樣式，並修正家庭成員自動薪資事件預設分類為 salary（避免落入「其他」）。
+- [x] Onboarding v3 新增「人生階段重點（可多選：成家/生育/教育/退休）」；依所選重點即時顯示推薦模板清單，並於提交後寫入 scenario-scoped `scenario.meta.personaFocuses`。
 2. Plan Lab 決策模板化
 - 將常見決策（生育、收入衝擊、利率上升、置業/換樓）變成可直接套用的實驗模板。
 - 支援 baseline vs experiment 比較與保存。

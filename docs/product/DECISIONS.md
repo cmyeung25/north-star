@@ -66,3 +66,10 @@ Last updated: 2026-03-08
 - Context: Plan Lab v1 決策模板已有入口，但缺少本地成本估算說明與預設檔位，使用者難以理解數值來源；同時需維持 scenario 隔離。
 - Decision: 在 Plan Lab 決策模板層新增本地常見成本範圍與三檔估算（保守/中位/進取），並加入「為何這樣估算」短教學提示；使用者檔位偏好存於 `scenario.meta.planLab.decisionTemplateCostProfile`（scenario-scoped）。
 - Guardrails: 不修改 engine 計算介面；僅於 active scenario 寫入 meta；所有新增文案走 i18n key。
+
+### D-2026-03-09-02
+- Date: 2026-03-09
+- Status: Accepted
+- Context: 使用者要求 onboarding 後可依人生階段分流模板建議，且 Compare 頁預設 KPI 需與 persona 相關，同時必須保留 scenario 隔離與可隨時切換。
+- Decision: 新增 scenario-scoped `scenario.meta.personaFocuses`（可多選：family/fertility/education/retirement）。Onboarding v3 負責收集與推薦模板，Plan Lab Compare 允許隨時切換並用於 KPI 卡排序。
+- Guardrails: persona 偏好只允許寫入 active scenario meta；不得新增跨 scenario 共用狀態；KPI 優先序屬 UI 呈現層，不修改 engine 介面。

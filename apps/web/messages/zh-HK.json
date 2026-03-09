@@ -4448,6 +4448,33 @@
           "baseCurrencyHelp": "選擇此情境統一使用的貨幣。",
           "startMonth": "開始月份",
           "startMonthHelp": "預設為當前月份，並可隨時調整。"
+        },
+        "personaFocusLabel": "你目前人生階段重點",
+        "personaFocusDescription": "可多選主要關注，之後亦可在 Plan Lab 隨時切換。",
+        "personaFocus": {
+          "family": "成家",
+          "fertility": "生育",
+          "education": "教育",
+          "retirement": "退休"
+        },
+        "recommendationTitle": "推薦模板",
+        "recommendations": {
+          "graduate": {
+            "marriage": "剛畢業：結婚",
+            "rentToBuy": "剛畢業：租轉買",
+            "incomeGrowth": "剛畢業：收入成長"
+          },
+          "married": {
+            "fertility": "已婚：生育",
+            "helper": "已婚：工人姐姐",
+            "education": "已婚：子女教育",
+            "familySupport": "已婚：家庭支援"
+          },
+          "nearRetirement": {
+            "retirementSpend": "準退休：退休支出",
+            "healthcare": "準退休：醫療",
+            "withdrawal": "準退休：資產提取策略"
+          }
         }
       },
       "household": {
@@ -4645,6 +4672,8 @@
           "baseCurrency": "基準貨幣：{value}",
           "startMonth": "開始月份：{value}",
           "horizonMonths": "推算期（月）：{value}",
+          "personaFocuses": "人生階段重點：{value}",
+          "personaFocusesEmpty": "未設定",
           "assetCount": "資產數量：{value}",
           "assetTotal": "資產總值（估算）：{value}",
           "derivedIncome": "自動產生收入：{value}",
@@ -4750,6 +4779,16 @@
   "planLabTertiaryGroupLabel": "保存",
   "planLabCompareA": "A 方案",
   "planLabCompareB": "B 方案",
+  "planLabPersonaFocusLabel": "人生階段重點",
+  "planLabPersonaFocusPlaceholder": "可多選",
+  "planLabPersonaFocus": {
+    "family": "成家",
+    "fertility": "生育",
+    "education": "教育",
+    "retirement": "退休"
+  },
+  "planLabKpiEducationExpensePressure": "教育成本壓力",
+  "planLabKpiEducationExpensePressureHint": "公式：教育支出 ÷ 核心生活支出（未來12個月）",
   "planLabCreateEditExperimentGroup": "建立 / 編輯實驗",
   "planLabCompareGroup": "比較",
   "planLabSaveGroup": "保存",
