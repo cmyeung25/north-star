@@ -276,7 +276,7 @@ export default function HousingEventDrawer({
     if (!opened) {
       return;
     }
-    setDraft(applyDraftOverrides(buildDraft(event), event ? undefined : initialDraft));
+    setDraft(applyDraftOverrides(buildDraft(event), initialDraft));
     setErrors({});
   }, [event, initialDraft, opened]);
 
