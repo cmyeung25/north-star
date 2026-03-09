@@ -52,7 +52,7 @@ describe("healthScorecard", () => {
     expect(byMetric.get("minCash")).toBe("vulnerable");
     expect(byMetric.get("deficitMonths")).toBe("progressing");
     expect(byMetric.get("avgNetCashflow")).toBe("excellent");
-    expect(byMetric.get("cashRunway")).toBe("progressing");
+    expect(byMetric.get("cashRunway")).toBe("vulnerable");
     expect(byMetric.get("firstMillionMonth")).toBe("informational");
     expect(byMetric.get("avgNonSalaryIncome")).toBe("progressing");
     expect(byMetric.get("nonSalaryIncomeRatio")).toBe("vulnerable");
@@ -88,11 +88,11 @@ describe("healthScorecard", () => {
     );
 
     expect(summarizeHealthScorecard(entries)).toEqual({
-      excellent: 7,
+      excellent: 6,
       progressing: 2,
       vulnerable: 2,
       informational: 0,
-      "no-data": 4,
+      "no-data": 5,
     });
   });
 });

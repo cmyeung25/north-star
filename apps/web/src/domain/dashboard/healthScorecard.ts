@@ -92,10 +92,10 @@ const classifyMetric = (
       if (value === null) {
         return "no-data";
       }
-      if (value >= 12) {
+      if (value >= 36) {
         return "excellent";
       }
-      return value >= 6 ? "progressing" : "vulnerable";
+      return value >= 18 ? "progressing" : "vulnerable";
     }
     case "firstMillionMonth":
       return dashboardMetrics.firstMillionMonth ? "informational" : "no-data";
@@ -189,8 +189,16 @@ const classifyMetric = (
       }
       return value >= 0 ? "progressing" : "vulnerable";
     }
-    case "riskLevel":
-      return dashboardMetrics.riskLevel === "red" ? "vulnerable" : "excellent";
+    case "riskLevel": {
+      const value = dashboardMetrics.cashRunwayMonths;
+      if (value === null) {
+        return "no-data";
+      }
+      if (value >= 36) {
+        return "excellent";
+      }
+      return value >= 18 ? "progressing" : "vulnerable";
+    }
     default:
       return "no-data";
   }
