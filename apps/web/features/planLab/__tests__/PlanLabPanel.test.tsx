@@ -6,6 +6,7 @@ import { MantineProvider } from "@mantine/core";
 import PlanLabPanel, {
   GROUP_LABEL,
   buildScenarioItemMetaParts,
+  resolveDecisionTemplateLaunchPath,
   resolvePlanLabMoneyEditHref,
   resolvePlanLabSettingsMembersHref,
 } from "../PlanLabPanel";
@@ -174,5 +175,26 @@ describe("PlanLabPanel", () => {
     expect(meta).toContain("2026-02 起");
     expect(meta).not.toContain("undefined");
     expect(meta).not.toContain("null");
+  });
+
+  it("routes rental decision template to rent flow instead of buy-home bundle", () => {
+    expect(
+      resolveDecisionTemplateLaunchPath({
+        templateId: "rental_plan",
+        activeRentEventCount: 0,
+      })
+    ).toBe("rent_create");
+    expect(
+      resolveDecisionTemplateLaunchPath({
+        templateId: "rental_plan",
+        activeRentEventCount: 1,
+      })
+    ).toBe("rent_edit");
+    expect(
+      resolveDecisionTemplateLaunchPath({
+        templateId: "home_purchase",
+        activeRentEventCount: 1,
+      })
+    ).toBe("bundle");
   });
 });

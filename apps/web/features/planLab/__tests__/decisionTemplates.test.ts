@@ -87,13 +87,25 @@ describe("decisionTemplates", () => {
   });
 
   it("builds rental plan bundle defaults from selected cost profile", () => {
-    const input = buildBundleWizardInputForDecisionTemplate({
+    const aggressiveInput = buildBundleWizardInputForDecisionTemplate({
       templateId: "rental_plan",
       selectedCostProfile: "aggressive",
       baseMonth: "2026-03",
     });
 
-    expect(input).toEqual({
+    const conservativeInput = buildBundleWizardInputForDecisionTemplate({
+      templateId: "rental_plan",
+      selectedCostProfile: "conservative",
+      baseMonth: "2026-03",
+    });
+
+    const medianInput = buildBundleWizardInputForDecisionTemplate({
+      templateId: "rental_plan",
+      selectedCostProfile: "median",
+      baseMonth: "2026-03",
+    });
+
+    expect(aggressiveInput).toEqual({
       templateId: "life_rental_plan",
       input: {
         startMonth: "2026-03",
@@ -101,6 +113,28 @@ describe("decisionTemplates", () => {
         rentAnnualGrowthPct: 4,
         depositAmount: 100000,
         agentFeeAmount: 25000,
+      },
+    });
+
+    expect(conservativeInput).toEqual({
+      templateId: "life_rental_plan",
+      input: {
+        startMonth: "2026-03",
+        rentMonthly: 16000,
+        rentAnnualGrowthPct: 2.5,
+        depositAmount: 32000,
+        agentFeeAmount: 8000,
+      },
+    });
+
+    expect(medianInput).toEqual({
+      templateId: "life_rental_plan",
+      input: {
+        startMonth: "2026-03",
+        rentMonthly: 28000,
+        rentAnnualGrowthPct: 3,
+        depositAmount: 56000,
+        agentFeeAmount: 14000,
       },
     });
   });

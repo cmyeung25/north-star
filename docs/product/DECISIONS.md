@@ -95,3 +95,10 @@ Last updated: 2026-03-08
 - Context: `rental_plan` already had a decision-template entry and rent-event flow, but bundle compare and fallback re-edit were still weaker than `life_home_purchase` when older scenarios lacked a stored `wizardInput` record.
 - Decision: Treat `life_rental_plan` as a first-class life bundle alongside `life_home_purchase`: the builder emits rent housing + setup one-off cashflows with shared bundle metadata, and Plan Lab / Money may rehydrate the wizard from active-scenario bundle events when no stored bundle wizard input exists.
 - Guardrails: Only read bundle events from the active scenario; do not cross scenario boundaries; do not change engine interfaces, event schema, or cost-profile persistence.
+
+### D-2026-03-09-06
+- Date: 2026-03-09
+- Status: Accepted
+- Context: `rental_plan` has cost-profile cards, but users still reported buy-home bias in compare copy and occasional ambiguity about which launch path (rent flow vs buy-home wizard) would be used.
+- Decision: Keep `decisionTemplateCostProfile` scenario-scoped and extend rental mapping defaults explicitly (rent / deposit / agent fee / start month anchor), enforce a dedicated launch-path resolver where `rental_plan` always goes to rent housing create/edit (never buy-home bundle wizard), and add a housing-readable compare hint for rent-vs-buy framing.
+- Guardrails: No engine/interface changes; only active-scenario state may be read/written; compare hint is UI-only and must not alter projection calculations.

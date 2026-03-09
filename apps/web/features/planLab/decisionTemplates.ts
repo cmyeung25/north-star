@@ -182,10 +182,11 @@ const resolveHomePurchaseDefaults = (
 
 const resolveRentalPlanDefaults = (
   tier: PlanLabCostProfileTier
-): RentalPlanBundleInput => {
+): RentalPlanBundleInput & { startOffsetMonths: number } => {
   if (tier === "conservative") {
     return {
       startMonth: "",
+      startOffsetMonths: 0,
       rentMonthly: 16000,
       rentAnnualGrowthPct: 2.5,
       depositAmount: 32000,
@@ -195,6 +196,7 @@ const resolveRentalPlanDefaults = (
   if (tier === "aggressive") {
     return {
       startMonth: "",
+      startOffsetMonths: 0,
       rentMonthly: 50000,
       rentAnnualGrowthPct: 4,
       depositAmount: 100000,
@@ -203,6 +205,7 @@ const resolveRentalPlanDefaults = (
   }
   return {
     startMonth: "",
+    startOffsetMonths: 0,
     rentMonthly: 28000,
     rentAnnualGrowthPct: 3,
     depositAmount: 56000,
@@ -243,11 +246,15 @@ export const buildBundleWizardInputForDecisionTemplate = (params: {
     };
   }
   if (params.templateId === "rental_plan") {
+    const rentalDefaults = resolveRentalPlanDefaults(params.selectedCostProfile);
+    const { startOffsetMonths, ...bundleInput } = rentalDefaults;
     return {
       templateId: "life_rental_plan",
       input: {
-        ...resolveRentalPlanDefaults(params.selectedCostProfile),
-        startMonth: anchorMonth,
+        ...bundleInput,
+        startMonth: anchorMonth
+          ? addMonths(anchorMonth, startOffsetMonths)
+          : "",
       },
     };
   }
