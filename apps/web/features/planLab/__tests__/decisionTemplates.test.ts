@@ -2,6 +2,7 @@
 import {
   INCOME_SHOCK_DEFAULT_PAYLOAD,
   buildBundleWizardInputForDecisionTemplate,
+  buildHousingEventDraftForDecisionTemplate,
   buildIncomeShockDefaultPayload,
   buildPlanLabDecisionTemplateOptions,
 } from "../decisionTemplates";
@@ -83,6 +84,20 @@ describe("decisionTemplates", () => {
         breakdownItems: [],
         includeTravel: false,
       },
+    });
+  });
+
+  it("builds rental plan draft defaults from selected cost profile", () => {
+    const draft = buildHousingEventDraftForDecisionTemplate({
+      templateId: "rental_plan",
+      selectedCostProfile: "aggressive",
+      baseMonth: "2026-03",
+    });
+
+    expect(draft).toEqual({
+      kind: "rent",
+      startMonth: "2026-03",
+      rentMonthly: "50000",
     });
   });
 });

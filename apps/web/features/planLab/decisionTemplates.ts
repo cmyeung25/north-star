@@ -28,6 +28,12 @@ export type PlanLabCostRangeItem = {
   factorHint: string;
 };
 
+export type PlanLabHousingTemplateDraft = {
+  kind: "rent";
+  startMonth: string;
+  rentMonthly: string;
+};
+
 type PlanLabDecisionTemplateContext = {
   hasEligibleIncomeEvent: boolean;
   translate: TranslateFn;
@@ -140,7 +146,9 @@ const resolveChildbirthDefaults = (tier: PlanLabCostProfileTier): NewBabyPlanInp
   };
 };
 
-const resolveHousingDefaults = (tier: PlanLabCostProfileTier): HomePurchaseBundleInput => {
+const resolveHomePurchaseDefaults = (
+  tier: PlanLabCostProfileTier
+): HomePurchaseBundleInput => {
   if (tier === "conservative") {
     return {
       startMonth: "",
@@ -177,8 +185,23 @@ const resolveHousingDefaults = (tier: PlanLabCostProfileTier): HomePurchaseBundl
   };
 };
 
+const resolveRentalPlanDefaults = (
+  tier: PlanLabCostProfileTier
+): Pick<PlanLabHousingTemplateDraft, "rentMonthly"> => {
+  if (tier === "conservative") {
+    return { rentMonthly: "16000" };
+  }
+  if (tier === "aggressive") {
+    return { rentMonthly: "50000" };
+  }
+  return { rentMonthly: "28000" };
+};
+
 export const buildBundleWizardInputForDecisionTemplate = (params: {
-  templateId: Exclude<PlanLabDecisionTemplateId, "retirement" | "income_shock">;
+  templateId: Exclude<
+    PlanLabDecisionTemplateId,
+    "retirement" | "income_shock" | "rental_plan"
+  >;
   selectedCostProfile: PlanLabCostProfileTier;
   baseMonth?: string | null;
 }): BundleWizardInput => {
@@ -201,7 +224,7 @@ export const buildBundleWizardInputForDecisionTemplate = (params: {
     return {
       templateId: "life_home_purchase",
       input: {
-        ...resolveHousingDefaults(params.selectedCostProfile),
+        ...resolveHomePurchaseDefaults(params.selectedCostProfile),
         startMonth: anchorMonth,
       },
     };
@@ -229,6 +252,16 @@ export const buildBundleWizardInputForDecisionTemplate = (params: {
     },
   };
 };
+
+export const buildHousingEventDraftForDecisionTemplate = (params: {
+  templateId: Extract<PlanLabDecisionTemplateId, "rental_plan">;
+  selectedCostProfile: PlanLabCostProfileTier;
+  baseMonth?: string | null;
+}): PlanLabHousingTemplateDraft => ({
+  kind: "rent",
+  startMonth: resolveAnchorMonth(params.baseMonth),
+  ...resolveRentalPlanDefaults(params.selectedCostProfile),
+});
 
 const buildCostRangeItems = (
   item: PlanLabDecisionTemplateCatalogItem,
@@ -351,7 +384,7 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     titleKey: "planLabDecisionTemplateHomePurchaseTitle",
     titleFallback: "Home purchase",
     descriptionKey: "planLabDecisionTemplateHomePurchaseDesc",
-    descriptionFallback: "Model buying a home with local mortgage and down-payment ranges.",
+    descriptionFallback: "Use the buy-home flow with local mortgage and down-payment ranges.",
     estimateGuideKey: "planLabDecisionTemplateHomePurchaseGuide",
     estimateGuideFallback:
       "Ranges vary by district, floor area, down-payment ratio, and mortgage terms.",
@@ -383,7 +416,7 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     titleKey: "planLabDecisionTemplateRentalPlanTitle",
     titleFallback: "Rental plan",
     descriptionKey: "planLabDecisionTemplateRentalPlanDesc",
-    descriptionFallback: "Create or update a rent housing event with local rent ranges.",
+    descriptionFallback: "Use the rent housing flow with local rent ranges.",
     estimateGuideKey: "planLabDecisionTemplateRentalPlanGuide",
     estimateGuideFallback:
       "Ranges vary by district, floor area, tenancy term, and furnishing level.",

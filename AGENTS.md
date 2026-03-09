@@ -217,7 +217,7 @@ Account hub consolidation – All account management features (profile, security
 Event taxonomy & mapping registry – Structural semantics are now centralized: `type` is reserved for structural event type (`cashflow/housing/loan/insurance/adjustment`), `kind` for structural sub-kind, and legacy business categories stay in `incomeSubtype`/`category`. Shared unions live in `apps/web/src/domain/events/eventTaxonomy.ts`, while legacy↔v2 conversion is consolidated in `apps/web/src/domain/events/eventMappingRegistry.ts` with fail-fast handling for unknown legacy types.
 
 
-Plan Lab decision template v1 & summary layer – Plan Lab now exposes decision templates (`home_purchase`, `new_baby`, `income_shock`) directly from the Add Experiment entry. Bundle-based templates reuse existing life-event wizard paths with experiment packing, while income shock reuses baseline override flow with guard-based availability. Decision summary uses KPI-delta heuristics (risk timing/trend, top drivers, recommended actions) and does not modify engine interfaces.
+Plan Lab decision template v1 & summary layer ? Plan Lab now exposes decision templates (`marriage`, `childbirth`, `parenting`, `home_purchase`, `rental_plan`, `income_shock`) directly from the Add Experiment entry. `home_purchase` stays on the buy-home bundle wizard path, `rental_plan` goes through the rent housing event create/edit flow, and income shock reuses baseline override flow with guard-based availability. Decision summary uses KPI-delta heuristics (risk timing/trend, top drivers, recommended actions) and does not modify engine interfaces.
 
 Overview KPI watchlist v1 – Overview dashboard KPI rendering now uses a `library + watchlist` model. User watchlist preferences are scenario-scoped (`scenario.meta.overviewKpiWatchlist`) and must only be written for the active scenario. Editing supports add/remove/reorder and should persist through existing scenario store hydration without cross-scenario leakage.
 
@@ -438,5 +438,7 @@ When a file contains Chinese, Japanese, or other non-ASCII text, perform an expl
 
 
 - Plan Lab local cost ranges v1（2026-03-09）: 決策模板新增「本地常見成本範圍」+ 三檔估算（保守/中位/進取）+「為何這樣估算」教學提示；使用者檔位偏好儲存在 `scenario.meta.planLab.decisionTemplateCostProfile`，必須保持 scenario-scoped，禁止跨 scenario 共享。
+
+- Plan Lab housing split v1 (2026-03-09): `home_purchase` must stay on the buy-home bundle wizard path; `rental_plan` must stay on the rent housing event create/edit flow. If the active scenario has exactly one rent housing event, reopen it for edit; otherwise seed a rent draft only from the active scenario `decisionTemplateCostProfile`.
 
 - Onboarding persona focus + Compare KPI prioritization v1（2026-03-09）: Onboarding v3 新增「人生階段重點」多選（`family/fertility/education/retirement`），提交後儲存在 `scenario.meta.personaFocuses`（scenario-scoped）；Plan Lab Compare 可隨時切換 persona focus，僅影響 KPI 卡片預設排序，不可鎖死使用路徑或跨 scenario 共用。

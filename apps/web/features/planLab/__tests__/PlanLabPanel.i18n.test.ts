@@ -16,6 +16,8 @@ const requiredOverviewKeys = [
   "planLabKpiDeltaCompareLabel",
   "planLabKpiDeltaLabel",
   "planLabDecisionTemplatesModeTitle",
+  "planLabDecisionTemplateHomePurchaseTitle",
+  "planLabDecisionTemplateRentalPlanTitle",
   "planLabDecisionTemplateIncomeShockTitle",
   "planLabDecisionRiskTimingTitle",
   "planLabDecisionNextStepTitle",

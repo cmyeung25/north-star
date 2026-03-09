@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (planlab housing template split: purchase vs rental path)
+Last updated: 2026-03-09 (planlab housing split: rent flow defaults + active-scenario edit path)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -24,14 +24,14 @@ Last updated: 2026-03-09 (planlab housing template split: purchase vs rental pat
 - Plan Lab 決策模板（結婚/生育/育兒/置業）已把所選成本檔位映射為 bundle wizard 初始輸入，使用者從模板套用進入 wizard 時，預設數值會與模板卡片一致（例如結婚中位檔對應 wedding budget 300k）。
 - Bundle wizard 新增 marriage input hydration：若由模板傳入 `life_marriage_plan` 的 wizardInput，會正確帶入婚禮月份、預算、travel 與 breakdown 相關欄位，避免回退到固定預設。
 - PlanLabPanel decision template handler 增加 retirement guard（沿用既有 unavailable toast），並在可映射模板時傳入 scenario baseMonth 作為 month anchor。
-- Plan Lab housing 決策模板拆分為 `home_purchase`（維持 `life_home_purchase` bundle wizard）與 `rental_plan`（直接開啟 rent housing event 建立/編輯流程），避免模板路徑語意混淆。
+- Plan Lab housing template split: `home_purchase` stays on the `life_home_purchase` bundle wizard path; `rental_plan` now reuses the only active-scenario rent event when present, otherwise it seeds a rent draft from the selected cost profile.
 
 - Architecture Delta Log
   - Date: 2026-03-09
-  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/src/domain/planLab/types.ts`, `apps/web/messages/en.json`, `apps/web/messages/zh-HK.json`
-  - Data-flow impact: Plan Lab decision template selection 針對 `home_purchase` 仍先產生 scenario-scoped wizard input（不寫 baseline）；`rental_plan` 改為開啟 housing drawer 並建立 rent draft，同樣只作用於 active scenario。
+  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/features/planLab/__tests__/decisionTemplates.test.ts`, `apps/web/features/planLab/__tests__/PlanLabPanel.i18n.test.ts`, `apps/web/messages/en.json`, `apps/web/messages/zh-HK.json`, `docs/product/IMPLEMENTATION_STATUS.md`, `AGENTS.md`
+  - Data-flow impact: `home_purchase` still produces scenario-scoped bundle wizard input without writing baseline data; `rental_plan` now stays inside the active scenario rent housing create/edit flow and only seeds defaults from the active scenario cost-profile preference.
   - Backward compatibility: 未改 engine/domain public interfaces；income shock path 與既有 bundle apply path 保持不變。
-  - Risk & rollback: 若預設映射不符預期，可回退 `buildBundleWizardInputForDecisionTemplate` 對應表，不影響已存在 scenario 資料結構。
+  - Risk & rollback: If the new defaults feel off, revert the `buildBundleWizardInputForDecisionTemplate` / `buildHousingEventDraftForDecisionTemplate` mappings without touching stored scenario data.
 
 - Onboarding v3 `Scenario basics` 新增「人生階段重點」多選（成家/生育/教育/退休），並依選擇顯示推薦模板清單（剛畢業/已婚/準退休分流）。
 - 提交 onboarding 後將 persona 偏好寫入 `scenario.meta.personaFocuses`（scenario-scoped），後續可於 Plan Lab 比較區塊隨時切換，不鎖定路徑。

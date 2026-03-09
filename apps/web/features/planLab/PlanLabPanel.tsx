@@ -234,6 +234,7 @@ import { buildTimelineItemsForPreview } from "./timelinePreview";
 import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
 import {
   buildBundleWizardInputForDecisionTemplate,
+  buildHousingEventDraftForDecisionTemplate,
   buildIncomeShockDefaultPayload,
   buildPlanLabDecisionTemplateOptions,
   type PlanLabCostProfileTier,
@@ -4241,15 +4242,33 @@ export default function PlanLabPanel({
 
   const handleSelectDecisionTemplate = useCallback(
     (templateId: PlanLabDecisionTemplateId) => {
+      const selectedCostProfile =
+        decisionTemplateOptions.find((option) => option.id === templateId)
+          ?.selectedCostProfile ?? "median";
+
       if (templateId !== "income_shock" && templateId !== "retirement") {
         if (templateId === "rental_plan") {
+          const editableRentalHousingEvents = (sandboxScenarioV2.events ?? []).filter(
+            (event): event is HousingEvent =>
+              event.type === "housing" && event.kind === "rent"
+          );
+
           setExperimentTemplatesOpen(false);
           closeAllPlanLabDrawers();
-          setTemplateHousingDraft({
-            kind: "rent",
-            startMonth: scenario.assumptions.baseMonth ?? "",
-          });
           setV2EventDefaultKind("expense");
+
+          if (editableRentalHousingEvents.length === 1) {
+            openV2EventDrawer("edit", "housing", editableRentalHousingEvents[0].id);
+            return;
+          }
+
+          setTemplateHousingDraft(
+            buildHousingEventDraftForDecisionTemplate({
+              templateId,
+              selectedCostProfile,
+              baseMonth: scenario.assumptions.baseMonth ?? null,
+            })
+          );
           openV2EventDrawer("create", "housing");
           return;
         }
@@ -4280,9 +4299,6 @@ export default function PlanLabPanel({
           );
           return;
         }
-        const selectedCostProfile =
-          decisionTemplateOptions.find((option) => option.id === templateId)
-            ?.selectedCostProfile ?? "median";
         const initialWizardInput = buildBundleWizardInputForDecisionTemplate({
           templateId,
           selectedCostProfile,
@@ -4377,6 +4393,7 @@ export default function PlanLabPanel({
       handleTemplateSelect,
       decisionTemplateOptions,
       openV2EventDrawer,
+      sandboxScenarioV2.events,
       scenario.assumptions.baseMonth,
       translate,
     ]
