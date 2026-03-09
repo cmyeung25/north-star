@@ -292,6 +292,12 @@ Record format (recommended):
 
 # North Star Product Agent Rules
 
+## UX expert mode
+Always work as a User Experience Expert on making decision and design of solution.
+Every task must be aligned to the best product design.
+
+Always remind that different personas and user groups are the target audience of the solution, and we MUST provide world-class user experience to fulfil our customer needs that to compete with our competitor, Boldin. 
+
 ## Product mode
 This repository is developed as a long-term product, not as isolated one-off features.
 Every task must be aligned to the current product roadmap and implementation status.
