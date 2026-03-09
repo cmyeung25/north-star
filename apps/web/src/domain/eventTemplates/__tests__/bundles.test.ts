@@ -4,6 +4,7 @@ import {
   buildHomePurchaseBundleEvent,
   buildMarriageBundleEvents,
   buildNewBabyBundleEvents,
+  buildRentalPlanBundleEvents,
   computeTravelTotal,
   normalizeWeddingBreakdown,
 } from "../bundles";
@@ -264,6 +265,49 @@ describe("event template bundles", () => {
     expect(honeymoonEvent.occurrenceMonth).toBe("2027-02");
   });
 
+  it("builds rental bundle events with rent housing and one-off setup costs", () => {
+    let counter = 0;
+    const events = buildRentalPlanBundleEvents(
+      {
+        eventId: "evt_rent",
+        bundleId: "bundle_rental",
+        label: "Kowloon rental",
+        startMonth: "2026-05",
+        endMonth: "2028-04",
+        rentMonthly: 28000,
+        rentAnnualGrowthPct: 3,
+        depositAmount: 56000,
+        agentFeeAmount: 14000,
+      },
+      {
+        deposit: "Rental deposit",
+        agentFee: "Agent fee",
+      },
+      {
+        bundleInstanceId: "bundle_rental",
+        templateId: "life_rental_plan",
+        bundleTitle: "Rental plan",
+      },
+      () => `evt_rental_${counter++}`
+    );
+
+    expect(events).toHaveLength(3);
+    const [rentEvent, depositEvent, agentFeeEvent] = events;
+    if (rentEvent.type !== "housing" || rentEvent.kind !== "rent") {
+      throw new Error("Expected rent housing event.");
+    }
+    expect(rentEvent.source?.bundleInstanceId).toBe("bundle_rental");
+    expect(rentEvent.source?.templateId).toBe("life_rental_plan");
+    expect(rentEvent.rentMonthly).toBe(28000);
+    expect(rentEvent.rentAnnualGrowthPct).toBe(3);
+    if (depositEvent.type !== "cashflow" || agentFeeEvent.type !== "cashflow") {
+      throw new Error("Expected one-off cashflow events.");
+    }
+    expect(depositEvent.occurrenceMonth).toBe("2026-05");
+    expect(agentFeeEvent.occurrenceMonth).toBe("2026-05");
+    expect(depositEvent.source?.componentKey).toBe("rentalDeposit");
+    expect(agentFeeEvent.source?.componentKey).toBe("rentalAgentFee");
+  });
   it("computes travel total", () => {
     expect(computeTravelTotal({ mode: "total", total: 30000 })).toBe(30000);
     expect(

@@ -1149,7 +1149,11 @@
     "planLabDecisionTemplateHomePurchaseDesc": "使用本地按揭與首期區間，走置業買樓流程。",
     "planLabDecisionTemplateHomePurchaseGuide": "範圍差異主要來自地區、面積、首期比例與按揭條款。",
     "planLabDecisionTemplateRentalPlanTitle": "租樓方案",
-    "planLabDecisionTemplateRentalPlanDesc": "使用本地租金區間，走租屋事件流程。",
+    "planLabDecisionTemplateRentalPlanDesc": "??????????????????????????????",
+    "planLabBundleRentGrowthLabel": "?????",
+    "planLabBundleRentalDepositLabel": "??",
+    "planLabBundleRentalAgentFeeLabel": "??",
+    "planLabBundleEndMonthLabel": "????",
     "planLabDecisionTemplateRentalPlanGuide": "範圍差異主要來自地區、面積、租期與裝修配置。",
     "planLabDecisionTemplateRetirementTitle": "退休",
     "planLabDecisionTemplateRetirementDesc": "估算退休提款與醫療成本。",
@@ -1938,6 +1942,10 @@
       "life_home_purchase": {
         "name": "置業買樓",
         "desc": "建立組合計劃，生成資產／負債／現金流項目。"
+      },
+      "life_rental_plan": {
+        "name": "????",
+        "desc": "?????????????????????"
       },
       "life_marriage_plan": {
         "name": "結婚計劃",

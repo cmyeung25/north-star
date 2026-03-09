@@ -1550,6 +1550,12 @@ const cloneBundleWizardInput = (input: BundleWizardInput): BundleWizardInput => 
       },
     };
   }
+  if (input.templateId === "life_rental_plan") {
+    return {
+      templateId: input.templateId,
+      input: { ...input.input },
+    };
+  }
   if (input.templateId === "life_marriage_plan") {
     return {
       templateId: input.templateId,

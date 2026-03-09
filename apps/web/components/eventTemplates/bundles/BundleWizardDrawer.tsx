@@ -30,6 +30,7 @@ import {
   buildHomePurchaseBundleEvent,
   buildMarriageBundleEvents,
   buildNewBabyBundleEvents,
+  buildRentalPlanBundleEvents,
   computeTravelTotal,
   deriveStartMonth,
   normalizeWeddingBreakdown,
@@ -38,6 +39,7 @@ import {
   type HomePurchaseBundleInput,
   type MarriagePlanInput,
   type NewBabyPlanInput,
+  type RentalPlanBundleInput,
   type TravelBudgetMode,
   type TravelMonthMode,
   type WeddingStyle,
@@ -132,6 +134,17 @@ type HomePurchaseDraft = {
   eventId: string;
 };
 
+type RentalDraft = {
+  startMonth: string;
+  endMonth: string;
+  title: string;
+  rentMonthly: number;
+  rentAnnualGrowthPct: number;
+  depositAmount: number;
+  agentFeeAmount: number;
+  eventId: string;
+};
+
 type MarriageDraft = {
   title: string;
   weddingMonth: string;
@@ -212,6 +225,17 @@ const createHomeDraft = (defaultMonth: string): HomePurchaseDraft => ({
   rentalEndMonth: "",
   propertyAssetId: `asset_home_${nanoid(6)}`,
   mortgageLiabilityId: `liability_mortgage_${nanoid(6)}`,
+  eventId: `evt_v2_bundle_${nanoid(6)}`,
+});
+
+const createRentalDraft = (defaultMonth: string): RentalDraft => ({
+  startMonth: defaultMonth,
+  endMonth: "",
+  title: "",
+  rentMonthly: 0,
+  rentAnnualGrowthPct: 3,
+  depositAmount: 0,
+  agentFeeAmount: 0,
   eventId: `evt_v2_bundle_${nanoid(6)}`,
 });
 
@@ -385,6 +409,20 @@ const hydrateHomeDraftFromInput = (
   };
 };
 
+const hydrateRentalDraftFromInput = (
+  input: RentalPlanBundleInput,
+  fallbackMonth: string
+): RentalDraft => ({
+  startMonth: input.startMonth ?? fallbackMonth,
+  endMonth: input.endMonth ?? "",
+  title: input.label ?? "",
+  rentMonthly: input.rentMonthly ?? 0,
+  rentAnnualGrowthPct: input.rentAnnualGrowthPct ?? 3,
+  depositAmount: input.depositAmount ?? 0,
+  agentFeeAmount: input.agentFeeAmount ?? 0,
+  eventId: input.eventId ?? `evt_v2_bundle_${nanoid(6)}`,
+});
+
 const hydrateMarriageDraftFromInput = (
   input: MarriagePlanInput,
   fallbackMonth: string,
@@ -551,6 +589,9 @@ export default function BundleWizardDrawer({
   const [homeDraft, setHomeDraft] = useState<HomePurchaseDraft>(() =>
     createHomeDraft(defaultMonth)
   );
+  const [rentalDraft, setRentalDraft] = useState<RentalDraft>(() =>
+    createRentalDraft(defaultMonth)
+  );
   const [marriageDraft, setMarriageDraft] = useState<MarriageDraft>(() => ({
     title: t("bundleMarriageDefaultName"),
     weddingMonth: defaultMonth,
@@ -582,6 +623,7 @@ export default function BundleWizardDrawer({
   const resolvedTemplateId = template?.id ?? initialWizardInput?.templateId ?? null;
   const isNewBabyBundle = resolvedTemplateId === "life_new_baby_plan";
   const isHomeBundle = resolvedTemplateId === "life_home_purchase";
+  const isRentalBundle = resolvedTemplateId === "life_rental_plan";
   const isMarriageBundle = resolvedTemplateId === "life_marriage_plan";
   const editingHomeEvent = useMemo(() => {
     if (!editingEventId) {
@@ -639,6 +681,16 @@ export default function BundleWizardDrawer({
     } else {
       setHomeDraft((current) => ({
         ...createHomeDraft(defaultMonth || current.startMonth),
+        startMonth: defaultMonth || current.startMonth,
+      }));
+    }
+    if (initialWizardInput?.templateId === "life_rental_plan") {
+      setRentalDraft(
+        hydrateRentalDraftFromInput(initialWizardInput.input, defaultMonth)
+      );
+    } else {
+      setRentalDraft((current) => ({
+        ...createRentalDraft(defaultMonth || current.startMonth),
         startMonth: defaultMonth || current.startMonth,
       }));
     }
@@ -748,6 +800,16 @@ export default function BundleWizardDrawer({
       }
       return items;
     }
+    if (isRentalBundle) {
+      const items: string[] = [];
+      if (hasRentEvent) {
+        items.push(t("bundleRentalWarningRent"));
+      }
+      if (hasMortgageEvent) {
+        items.push(t("bundleRentalWarningMortgage"));
+      }
+      return items;
+    }
     return [];
   }, [
     hasBabyTag,
@@ -757,6 +819,7 @@ export default function BundleWizardDrawer({
     hasRentEvent,
     isHomeBundle,
     isNewBabyBundle,
+    isRentalBundle,
     dismissedMortgageWarning,
     t,
   ]);
@@ -772,6 +835,18 @@ export default function BundleWizardDrawer({
     const trimmed = homeDraft.propertyName.trim();
     return trimmed || t("bundleHomeDefaultName", { index: nextHomeIndex });
   }, [homeDraft.propertyName, nextHomeIndex, t]);
+
+  const nextRentalIndex = useMemo(() => {
+    const existingRentals = scenarioEvents.filter(
+      (event) => event.type === "housing" && event.kind === "rent"
+    ).length;
+    return existingRentals + 1;
+  }, [scenarioEvents]);
+
+  const resolvedRentalLabel = useMemo(() => {
+    const trimmed = rentalDraft.title.trim();
+    return trimmed || t("bundleRentalDefaultName", { index: nextRentalIndex });
+  }, [nextRentalIndex, rentalDraft.title, t]);
 
   const feeTemplates = useMemo(
     () => [
@@ -887,6 +962,24 @@ export default function BundleWizardDrawer({
           : undefined,
         propertyAssetId: homeDraft.propertyAssetId,
         mortgageLiabilityId: homeDraft.mortgageLiabilityId,
+      };
+      return {
+        templateId: resolvedTemplateId,
+        input,
+      };
+    }
+    if (isRentalBundle) {
+      const input: RentalPlanBundleInput = {
+        eventId: rentalDraft.eventId,
+        bundleId: bundleInstanceId,
+        label: resolvedRentalLabel,
+        startMonth: rentalDraft.startMonth,
+        endMonth: rentalDraft.endMonth || undefined,
+        rentMonthly: rentalDraft.rentMonthly,
+        rentAnnualGrowthPct: rentalDraft.rentAnnualGrowthPct,
+        rentGrowthMode: "custom",
+        depositAmount: normalizeAmount(rentalDraft.depositAmount),
+        agentFeeAmount: normalizeAmount(rentalDraft.agentFeeAmount),
       };
       return {
         templateId: resolvedTemplateId,
@@ -1093,6 +1186,34 @@ export default function BundleWizardDrawer({
             : nextEvent,
         ]);
       }
+      if (isRentalBundle) {
+        const input: RentalPlanBundleInput = {
+          eventId: rentalDraft.eventId,
+          bundleId: bundleInstanceId,
+          label: resolvedRentalLabel,
+          startMonth: rentalDraft.startMonth,
+          endMonth: rentalDraft.endMonth || undefined,
+          rentMonthly: rentalDraft.rentMonthly,
+          rentAnnualGrowthPct: rentalDraft.rentAnnualGrowthPct,
+          rentGrowthMode: "custom",
+          depositAmount: normalizeAmount(rentalDraft.depositAmount),
+          agentFeeAmount: normalizeAmount(rentalDraft.agentFeeAmount),
+        };
+        setPreviewEvents(
+          buildRentalPlanBundleEvents(
+            input,
+            {
+              deposit: t("bundleRentalDeposit"),
+              agentFee: t("bundleRentalAgentFee"),
+            },
+            {
+              bundleInstanceId,
+              templateId: resolvedTemplateId ?? "life_rental_plan",
+              bundleTitle: resolvedRentalLabel,
+            }
+          )
+        );
+      }
       if (isMarriageBundle) {
         const input: MarriagePlanInput = {
           title: marriageDraft.title,
@@ -1223,11 +1344,39 @@ export default function BundleWizardDrawer({
     return Object.keys(errors).length === 0;
   };
 
+  const canAdvanceRental = () => {
+    const nextErrors: Record<string, string> = {};
+    const startMonthResult = normalizeMonthValue(rentalDraft.startMonth);
+    if (startMonthResult.error) {
+      nextErrors.startMonth =
+        startMonthResult.error === "empty"
+          ? t("bundleMonthRequired")
+          : validation("useYearMonth");
+    }
+    if (rentalDraft.endMonth) {
+      const endMonthResult = normalizeMonthValue(rentalDraft.endMonth);
+      if (endMonthResult.error) {
+        nextErrors.endMonth =
+          endMonthResult.error === "empty"
+            ? t("bundleMonthRequired")
+            : validation("useYearMonth");
+      }
+    }
+    if (rentalDraft.rentMonthly <= 0) {
+      nextErrors.rentMonthly = t("bundleAmountRequired");
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
   const handleNextValidated = () => {
     if (isNewBabyBundle && !canAdvanceNewBaby()) {
       return;
     }
     if (isHomeBundle && !canAdvanceHome()) {
+      return;
+    }
+    if (isRentalBundle && !canAdvanceRental()) {
       return;
     }
     if (isMarriageBundle) {
@@ -1626,6 +1775,85 @@ export default function BundleWizardDrawer({
           </Stack>
         )}
 
+        {isRentalBundle && step === 0 && (
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              {t("bundleRentalIntro")}
+            </Text>
+            <MonthField
+              label={t("bundleRentalStartMonth")}
+              value={rentalDraft.startMonth}
+              error={errors.startMonth}
+              onChange={(value) =>
+                setRentalDraft((current) => ({
+                  ...current,
+                  startMonth: value,
+                }))
+              }
+              onBlur={(event) => {
+                const raw = event.currentTarget.value;
+                const result = normalizeMonthValue(raw);
+                setRentalDraft((current) => ({
+                  ...current,
+                  startMonth: result.value,
+                }));
+              }}
+            />
+            <MonthField
+              label={t("bundleRentalEndMonth")}
+              value={rentalDraft.endMonth}
+              error={errors.endMonth}
+              onChange={(value) =>
+                setRentalDraft((current) => ({
+                  ...current,
+                  endMonth: value,
+                }))
+              }
+              onBlur={(event) => {
+                const raw = event.currentTarget.value;
+                const result = normalizeMonthValue(raw);
+                setRentalDraft((current) => ({
+                  ...current,
+                  endMonth: raw.trim() === "" ? "" : result.value,
+                }));
+              }}
+            />
+            <TextInput
+              label={t("bundleRentalNameLabel")}
+              placeholder={t("bundleRentalNamePlaceholder")}
+              value={rentalDraft.title}
+              onChange={(event) =>
+                setRentalDraft((current) => ({
+                  ...current,
+                  title: event.currentTarget.value,
+                }))
+              }
+            />
+            <NumberInput
+              label={t("bundleRentalMonthly")}
+              min={0}
+              value={rentalDraft.rentMonthly}
+              error={errors.rentMonthly}
+              onChange={(value) =>
+                setRentalDraft((current) => ({
+                  ...current,
+                  rentMonthly: Number(value) || 0,
+                }))
+              }
+            />
+            <NumberInput
+              label={t("bundleRentalAnnualGrowth")}
+              min={0}
+              value={rentalDraft.rentAnnualGrowthPct}
+              onChange={(value) =>
+                setRentalDraft((current) => ({
+                  ...current,
+                  rentAnnualGrowthPct: Number(value) || 0,
+                }))
+              }
+            />
+          </Stack>
+        )}
         {isHomeBundle && step === 0 && (
           <Stack gap="md">
             <Text size="sm" c="dimmed">
@@ -2202,6 +2430,47 @@ export default function BundleWizardDrawer({
           </Stack>
         )}
 
+        {isRentalBundle && step === 1 && (
+          <Stack gap="md">
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm">
+                <Text fw={600}>{t("bundleRentalSetupTitle")}</Text>
+                <NumberInput
+                  label={t("bundleRentalDeposit")}
+                  min={0}
+                  value={rentalDraft.depositAmount}
+                  onChange={(value) =>
+                    setRentalDraft((current) => ({
+                      ...current,
+                      depositAmount: Number(value) || 0,
+                    }))
+                  }
+                />
+                <NumberInput
+                  label={t("bundleRentalAgentFee")}
+                  min={0}
+                  value={rentalDraft.agentFeeAmount}
+                  onChange={(value) =>
+                    setRentalDraft((current) => ({
+                      ...current,
+                      agentFeeAmount: Number(value) || 0,
+                    }))
+                  }
+                />
+                <Text size="sm" fw={500}>
+                  {t("bundleRentalStepSummary", {
+                    rent: formatCurrency(rentalDraft.rentMonthly, baseCurrency, locale),
+                    oneOff: formatCurrency(
+                      rentalDraft.depositAmount + rentalDraft.agentFeeAmount,
+                      baseCurrency,
+                      locale
+                    ),
+                  })}
+                </Text>
+              </Stack>
+            </Card>
+          </Stack>
+        )}
         {isMarriageBundle && step === 0 && (
           <Stack gap="md">
             <Text size="sm" c="dimmed">

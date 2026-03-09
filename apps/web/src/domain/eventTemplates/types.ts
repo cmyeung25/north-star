@@ -20,6 +20,7 @@ export const templateIds = [
   "credit_card_balance",
   "life_new_baby_plan",
   "life_home_purchase",
+  "life_rental_plan",
   "life_marriage_plan",
 ] as const;
 

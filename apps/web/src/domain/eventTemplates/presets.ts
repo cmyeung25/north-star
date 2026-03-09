@@ -269,6 +269,9 @@ const templatePresets: Record<TemplateId, TemplatePreset> = {
   life_home_purchase: {
     drawerType: "bundle",
   },
+  life_rental_plan: {
+    drawerType: "bundle",
+  },
   life_marriage_plan: {
     drawerType: "bundle",
   },

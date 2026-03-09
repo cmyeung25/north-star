@@ -75,6 +75,24 @@ export type HomePurchaseBundleInput = {
   mortgageLiabilityId?: string;
 };
 
+export type RentalPlanBundleInput = {
+  eventId?: string;
+  bundleId?: string;
+  label?: string;
+  startMonth: MonthKey;
+  endMonth?: MonthKey;
+  rentMonthly: number;
+  rentAnnualGrowthPct?: number;
+  rentGrowthMode?: "none" | "assumption" | "custom";
+  depositAmount?: number;
+  agentFeeAmount?: number;
+};
+
+export type RentalPlanLabels = {
+  deposit: string;
+  agentFee: string;
+};
+
 export type StartMonthStrategy = "purchase" | "plus1" | "custom";
 
 export const deriveStartMonth = (
@@ -99,6 +117,10 @@ export type BundleWizardInput =
   | {
       templateId: "life_home_purchase";
       input: HomePurchaseBundleInput;
+    }
+  | {
+      templateId: "life_rental_plan";
+      input: RentalPlanBundleInput;
     }
   | {
       templateId: "life_marriage_plan";
@@ -457,6 +479,84 @@ export const buildNewBabyBundleEvents = (
         })
       );
     }
+  }
+
+  return events;
+};
+
+export const buildRentalPlanBundleEvents = (
+  input: RentalPlanBundleInput,
+  labels: RentalPlanLabels,
+  source: {
+    bundleInstanceId: string;
+    templateId: string;
+    bundleTitle?: string;
+  },
+  createId: () => string = createBundleEventId
+): ScenarioEventDraft[] => {
+  if (!isValidMonthKey(input.startMonth)) {
+    return [];
+  }
+
+  const bundleSource = {
+    ...source,
+    bundleInstanceId: input.bundleId ?? source.bundleInstanceId,
+  };
+  const events: ScenarioEventDraft[] = [
+    {
+      id: input.eventId ?? createId(),
+      type: "housing",
+      kind: "rent",
+      startMonth: input.startMonth,
+      endMonth:
+        input.endMonth && isValidMonthKey(input.endMonth) ? input.endMonth : undefined,
+      rentMonthly: Math.max(0, Math.round(input.rentMonthly)),
+      rentAnnualGrowthPct: input.rentAnnualGrowthPct,
+      rentGrowthMode:
+        input.rentGrowthMode ??
+        (typeof input.rentAnnualGrowthPct === "number" ? "custom" : "assumption"),
+      label: input.label,
+      source: {
+        ...bundleSource,
+        componentKey: "rentalHousing",
+      },
+    },
+  ];
+
+  const depositAmount = Math.max(0, Math.round(input.depositAmount ?? 0));
+  if (depositAmount > 0) {
+    events.push(
+      buildCashflowEvent({
+        id: createId(),
+        label: labels.deposit,
+        cadence: "oneOff",
+        amount: depositAmount,
+        occurrenceMonth: input.startMonth,
+        tags: ["housing", "rent", "deposit"],
+        source: {
+          ...bundleSource,
+          componentKey: "rentalDeposit",
+        },
+      })
+    );
+  }
+
+  const agentFeeAmount = Math.max(0, Math.round(input.agentFeeAmount ?? 0));
+  if (agentFeeAmount > 0) {
+    events.push(
+      buildCashflowEvent({
+        id: createId(),
+        label: labels.agentFee,
+        cadence: "oneOff",
+        amount: agentFeeAmount,
+        occurrenceMonth: input.startMonth,
+        tags: ["housing", "rent", "agent_fee"],
+        source: {
+          ...bundleSource,
+          componentKey: "rentalAgentFee",
+        },
+      })
+    );
   }
 
   return events;

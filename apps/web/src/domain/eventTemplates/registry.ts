@@ -130,6 +130,13 @@ export const templateRegistry: TemplateDef[] = [
     isBundle: true,
   },
   {
+    id: "life_rental_plan",
+    categories: ["life_events", "housing", "expenses"],
+    drawerType: "bundle",
+    chips: ["affectsCashflow"],
+    isBundle: true,
+  },
+  {
     id: "life_marriage_plan",
     categories: ["life_events", "expenses"],
     drawerType: "bundle",

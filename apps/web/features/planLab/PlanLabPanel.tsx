@@ -189,6 +189,7 @@ import type {
   BundleWizardInput,
   HomePurchaseBundleInput,
   NewBabyPlanInput,
+  RentalPlanBundleInput,
 } from "../../src/domain/eventTemplates/bundles";
 import type { LedgerRow } from "../../src/engine/scenarioV2Compiler";
 import { getTemplateDef } from "../../src/domain/eventTemplates/registry";
@@ -234,7 +235,6 @@ import { buildTimelineItemsForPreview } from "./timelinePreview";
 import { buildEventExperimentChanges, normalizeYYYYMM } from "./eventExperimentAdapter";
 import {
   buildBundleWizardInputForDecisionTemplate,
-  buildHousingEventDraftForDecisionTemplate,
   buildIncomeShockDefaultPayload,
   buildPlanLabDecisionTemplateOptions,
   type PlanLabCostProfileTier,
@@ -1228,15 +1228,17 @@ export default function PlanLabPanel({
   const resolveBundleExperimentTitle = useCallback(
     (wizardInput: BundleWizardInput | null | undefined, fallback?: string) => {
       if (!wizardInput) {
-        return fallback ?? translate("planLabBundleExperimentFallback", "人生事件組合");
+        return fallback ?? translate("planLabBundleExperimentFallback", "Life event bundle");
       }
-      if (wizardInput.templateId === "life_home_purchase") {
-        return resolveBundleTitle({
-          templateId: wizardInput.templateId,
-          bundleTitle: wizardInput.input.label,
-        });
-      }
-      return resolveBundleTitle({ templateId: wizardInput.templateId });
+      const bundleTitle =
+        wizardInput.templateId === "life_home_purchase" ||
+        wizardInput.templateId === "life_rental_plan"
+          ? wizardInput.input.label
+          : undefined;
+      return resolveBundleTitle({
+        templateId: wizardInput.templateId,
+        bundleTitle,
+      });
     },
     [resolveBundleTitle, translate]
   );
@@ -4247,37 +4249,12 @@ export default function PlanLabPanel({
           ?.selectedCostProfile ?? "median";
 
       if (templateId !== "income_shock" && templateId !== "retirement") {
-        if (templateId === "rental_plan") {
-          const editableRentalHousingEvents = (sandboxScenarioV2.events ?? []).filter(
-            (event): event is HousingEvent =>
-              event.type === "housing" && event.kind === "rent"
-          );
-
-          setExperimentTemplatesOpen(false);
-          closeAllPlanLabDrawers();
-          setV2EventDefaultKind("expense");
-
-          if (editableRentalHousingEvents.length === 1) {
-            openV2EventDrawer("edit", "housing", editableRentalHousingEvents[0].id);
-            return;
-          }
-
-          setTemplateHousingDraft(
-            buildHousingEventDraftForDecisionTemplate({
-              templateId,
-              selectedCostProfile,
-              baseMonth: scenario.assumptions.baseMonth ?? null,
-            })
-          );
-          openV2EventDrawer("create", "housing");
-          return;
-        }
-
         const templateMap: Partial<Record<PlanLabDecisionTemplateId, TemplateId>> = {
           marriage: "life_marriage_plan",
           childbirth: "life_new_baby_plan",
           parenting: "life_new_baby_plan",
           home_purchase: "life_home_purchase",
+          rental_plan: "life_rental_plan",
         };
         const mappedTemplateId = templateMap[templateId];
         if (!mappedTemplateId) {
@@ -7201,6 +7178,43 @@ export default function PlanLabPanel({
           ),
         ].filter(Boolean) as string[];
         return diffLines.length > 0 ? diffLines : [translate("planLabAppliedUpdated", "已更新")];
+      }
+      if (currentInput.templateId === "life_rental_plan") {
+        const base = baselineInput.input as RentalPlanBundleInput;
+        const next = currentInput.input as RentalPlanBundleInput;
+        const diffLines = [
+          buildDiffLine(
+            translate("planLabBundleRentMonthlyLabel", "Rent monthly"),
+            formatBundleAmount(base.rentMonthly),
+            formatBundleAmount(next.rentMonthly)
+          ),
+          buildDiffLine(
+            translate("planLabBundleRentGrowthLabel", "Annual rent growth"),
+            base.rentAnnualGrowthPct != null ? `${base.rentAnnualGrowthPct}%` : null,
+            next.rentAnnualGrowthPct != null ? `${next.rentAnnualGrowthPct}%` : null
+          ),
+          buildDiffLine(
+            translate("planLabBundleRentalDepositLabel", "Rental deposit"),
+            formatBundleAmount(base.depositAmount),
+            formatBundleAmount(next.depositAmount)
+          ),
+          buildDiffLine(
+            translate("planLabBundleRentalAgentFeeLabel", "Agent fee"),
+            formatBundleAmount(base.agentFeeAmount),
+            formatBundleAmount(next.agentFeeAmount)
+          ),
+          buildDiffLine(
+            translate("planLabBundleStartMonthLabel", "Start month"),
+            base.startMonth,
+            next.startMonth
+          ),
+          buildDiffLine(
+            translate("planLabBundleEndMonthLabel", "End month"),
+            base.endMonth ?? null,
+            next.endMonth ?? null
+          ),
+        ].filter(Boolean) as string[];
+        return diffLines.length > 0 ? diffLines : [translate("planLabAppliedUpdated", "Updated")];
       }
       const base = baselineInput.input as NewBabyPlanInput;
       const next = currentInput.input as NewBabyPlanInput;

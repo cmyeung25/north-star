@@ -2,7 +2,6 @@
 import {
   INCOME_SHOCK_DEFAULT_PAYLOAD,
   buildBundleWizardInputForDecisionTemplate,
-  buildHousingEventDraftForDecisionTemplate,
   buildIncomeShockDefaultPayload,
   buildPlanLabDecisionTemplateOptions,
 } from "../decisionTemplates";
@@ -87,17 +86,22 @@ describe("decisionTemplates", () => {
     });
   });
 
-  it("builds rental plan draft defaults from selected cost profile", () => {
-    const draft = buildHousingEventDraftForDecisionTemplate({
+  it("builds rental plan bundle defaults from selected cost profile", () => {
+    const input = buildBundleWizardInputForDecisionTemplate({
       templateId: "rental_plan",
       selectedCostProfile: "aggressive",
       baseMonth: "2026-03",
     });
 
-    expect(draft).toEqual({
-      kind: "rent",
-      startMonth: "2026-03",
-      rentMonthly: "50000",
+    expect(input).toEqual({
+      templateId: "life_rental_plan",
+      input: {
+        startMonth: "2026-03",
+        rentMonthly: 50000,
+        rentAnnualGrowthPct: 4,
+        depositAmount: 100000,
+        agentFeeAmount: 25000,
+      },
     });
   });
 });

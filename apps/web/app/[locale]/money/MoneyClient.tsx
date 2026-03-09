@@ -214,6 +214,13 @@ const resolveBundleWizardOneOffExpenseTotal = (
         : 0;
     return deliveryCost + agencyFee;
   }
+  if (wizardInput.templateId === "life_rental_plan") {
+    const { input } = wizardInput;
+    return (
+      Math.max(0, Math.round(input.depositAmount ?? 0)) +
+      Math.max(0, Math.round(input.agentFeeAmount ?? 0))
+    );
+  }
   return null;
 };
 

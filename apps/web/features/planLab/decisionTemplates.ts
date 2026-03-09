@@ -3,6 +3,7 @@ import type {
   BundleWizardInput,
   HomePurchaseBundleInput,
   NewBabyPlanInput,
+  RentalPlanBundleInput,
   WeddingStyle,
 } from "../../src/domain/eventTemplates/bundles";
 import type {
@@ -26,12 +27,6 @@ export type PlanLabCostRangeItem = {
   label: string;
   values: Record<PlanLabCostProfileTier, string>;
   factorHint: string;
-};
-
-export type PlanLabHousingTemplateDraft = {
-  kind: "rent";
-  startMonth: string;
-  rentMonthly: string;
 };
 
 type PlanLabDecisionTemplateContext = {
@@ -187,20 +182,38 @@ const resolveHomePurchaseDefaults = (
 
 const resolveRentalPlanDefaults = (
   tier: PlanLabCostProfileTier
-): Pick<PlanLabHousingTemplateDraft, "rentMonthly"> => {
+): RentalPlanBundleInput => {
   if (tier === "conservative") {
-    return { rentMonthly: "16000" };
+    return {
+      startMonth: "",
+      rentMonthly: 16000,
+      rentAnnualGrowthPct: 2.5,
+      depositAmount: 32000,
+      agentFeeAmount: 8000,
+    };
   }
   if (tier === "aggressive") {
-    return { rentMonthly: "50000" };
+    return {
+      startMonth: "",
+      rentMonthly: 50000,
+      rentAnnualGrowthPct: 4,
+      depositAmount: 100000,
+      agentFeeAmount: 25000,
+    };
   }
-  return { rentMonthly: "28000" };
+  return {
+    startMonth: "",
+    rentMonthly: 28000,
+    rentAnnualGrowthPct: 3,
+    depositAmount: 56000,
+    agentFeeAmount: 14000,
+  };
 };
 
 export const buildBundleWizardInputForDecisionTemplate = (params: {
   templateId: Exclude<
     PlanLabDecisionTemplateId,
-    "retirement" | "income_shock" | "rental_plan"
+    "retirement" | "income_shock"
   >;
   selectedCostProfile: PlanLabCostProfileTier;
   baseMonth?: string | null;
@@ -229,6 +242,15 @@ export const buildBundleWizardInputForDecisionTemplate = (params: {
       },
     };
   }
+  if (params.templateId === "rental_plan") {
+    return {
+      templateId: "life_rental_plan",
+      input: {
+        ...resolveRentalPlanDefaults(params.selectedCostProfile),
+        startMonth: anchorMonth,
+      },
+    };
+  }
 
   const childbirthDefaults = resolveChildbirthDefaults(params.selectedCostProfile);
   return {
@@ -252,16 +274,6 @@ export const buildBundleWizardInputForDecisionTemplate = (params: {
     },
   };
 };
-
-export const buildHousingEventDraftForDecisionTemplate = (params: {
-  templateId: Extract<PlanLabDecisionTemplateId, "rental_plan">;
-  selectedCostProfile: PlanLabCostProfileTier;
-  baseMonth?: string | null;
-}): PlanLabHousingTemplateDraft => ({
-  kind: "rent",
-  startMonth: resolveAnchorMonth(params.baseMonth),
-  ...resolveRentalPlanDefaults(params.selectedCostProfile),
-});
 
 const buildCostRangeItems = (
   item: PlanLabDecisionTemplateCatalogItem,
@@ -412,7 +424,7 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
   },
   {
     id: "rental_plan",
-    launcher: "event_rent_housing",
+    launcher: "bundle_housing",
     titleKey: "planLabDecisionTemplateRentalPlanTitle",
     titleFallback: "Rental plan",
     descriptionKey: "planLabDecisionTemplateRentalPlanDesc",
