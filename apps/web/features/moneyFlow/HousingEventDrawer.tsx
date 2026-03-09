@@ -77,6 +77,7 @@ type HousingEventDrawerProps = {
   baseCurrency: string;
   event: HousingEvent | null;
   initialDraft?: Partial<HousingEventDraft>;
+  allowedKinds?: HousingEvent["kind"][];
   rentGrowthPct?: number | null;
   propertyAppreciationPct?: number | null;
   onClose: () => void;
@@ -218,6 +219,7 @@ export default function HousingEventDrawer({
   baseCurrency,
   event,
   initialDraft,
+  allowedKinds,
   rentGrowthPct,
   propertyAppreciationPct,
   onClose,
@@ -300,6 +302,20 @@ export default function HousingEventDrawer({
     : 0;
   const isManualPayment = draft.mortgagePaymentSource === "manual";
   const isEditingExistingKind = mode === "edit" && Boolean(event?.id);
+  const resolvedAllowedKinds =
+    allowedKinds && allowedKinds.length > 0 ? allowedKinds : (["rent", "mortgage"] as const);
+  const isKindRestricted = resolvedAllowedKinds.length === 1;
+  const kindOptions = resolvedAllowedKinds.map((kind) => ({
+    value: kind,
+    label: kind === "rent" ? t("housingKindRent") : t("housingKindMortgage"),
+  }));
+
+  useEffect(() => {
+    if (!opened || resolvedAllowedKinds.includes(draft.kind)) {
+      return;
+    }
+    setDraft((current) => ({ ...current, kind: resolvedAllowedKinds[0] }));
+  }, [draft.kind, opened, resolvedAllowedKinds]);
 
   useEffect(() => {
     if (draft.kind !== "mortgage" || draft.mortgagePaymentSource !== "estimated") {
@@ -466,21 +482,24 @@ export default function HousingEventDrawer({
             setDraft((current) => ({ ...current, label: eventValue.currentTarget.value }))
           }
         />
-        <SegmentedControl
-          data={[
-            { value: "rent", label: t("housingKindRent") },
-            { value: "mortgage", label: t("housingKindMortgage") },
-          ]}
-          value={draft.kind}
-          disabled={isEditingExistingKind}
-          onChange={(value) =>
-            setDraft((current) => ({
-              ...current,
-              kind: value as HousingEvent["kind"],
-            }))
-          }
-        />
-        {isEditingExistingKind && (
+        {isKindRestricted ? (
+          <Text size="sm" fw={500}>
+            {kindOptions[0]?.label}
+          </Text>
+        ) : (
+          <SegmentedControl
+            data={kindOptions}
+            value={draft.kind}
+            disabled={isEditingExistingKind}
+            onChange={(value) =>
+              setDraft((current) => ({
+                ...current,
+                kind: value as HousingEvent["kind"],
+              }))
+            }
+          />
+        )}
+        {(isEditingExistingKind || isKindRestricted) && (
           <Text size="xs" c="dimmed">
             {t("housingKindLockedHint")}
           </Text>
