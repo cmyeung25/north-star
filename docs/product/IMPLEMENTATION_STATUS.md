@@ -24,6 +24,7 @@ Last updated: 2026-03-09 (home/rental template estimate prefill alignment)
 - Plan Lab `home_purchase` 模板卡新增「估算樓價」成本列，並在描述中明確要求先估算樓價，減少卡片資訊與後續輸入斷層。
 - Plan Lab `rental_plan` 套用在 rent_edit 路徑時也會注入成本檔位估算（租金/按金/代理費），不再只打開 drawer。
 - HousingEventDrawer 在 edit 模式可接受 `initialDraft` 覆蓋，確保決策模板估算值能一致帶入租屋 drawer 欄位。
+- 修正 Plan Lab 開啟 housing drawer 的狀態順序：先開 drawer 再寫入 `templateHousingDraft`，避免 `closeAllPlanLabDrawers()` 清空草稿導致套用後欄位仍為空白。
 - `buildBundleWizardInputForDecisionTemplate` now keeps `rental_plan` conservative / median / aggressive mapping explicit for rent monthly, deposit, agent fee, and anchored start month.
 - Plan Lab decision-template selection now resolves a dedicated launch path: `rental_plan` always goes through rent housing create/edit flow (never buy-home wizard), while `home_purchase` remains on bundle wizard.
 - Compare decision summary adds a housing-readable hint for rent-vs-buy framing (monthly housing cashflow pressure and upfront cash hit), reducing buy-home-only bias.

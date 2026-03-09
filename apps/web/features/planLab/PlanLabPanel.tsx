@@ -2558,8 +2558,8 @@ export default function PlanLabPanel({
       return;
     }
     if (draftOverrides.drawerType === "housing") {
-      setTemplateHousingDraft(draftOverrides.housing ?? null);
       openV2EventDrawer("create", "housing");
+      setTemplateHousingDraft(draftOverrides.housing ?? null);
       return;
     }
     if (draftOverrides.drawerType === "loan") {
@@ -4325,13 +4325,13 @@ export default function PlanLabPanel({
 
       if (launchPath === "rent_create") {
         setExperimentTemplatesOpen(false);
+        openV2EventDrawer("create", "housing");
         setTemplateHousingDraft(
           buildRentalHousingDraftForDecisionTemplate({
             tier: selectedCostProfile,
             baseMonth: scenario.assumptions.baseMonth ?? null,
           })
         );
-        openV2EventDrawer("create", "housing");
         return;
       }
 
@@ -4350,6 +4350,12 @@ export default function PlanLabPanel({
           })
         );
         openV2EventDrawer("edit", "housing", rentEvent.id);
+        setTemplateHousingDraft(
+          buildRentalHousingDraftForDecisionTemplate({
+            tier: selectedCostProfile,
+            baseMonth: scenario.assumptions.baseMonth ?? null,
+          })
+        );
         return;
       }
 
