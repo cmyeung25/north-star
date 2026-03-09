@@ -4343,6 +4343,12 @@ export default function PlanLabPanel({
           return;
         }
         setExperimentTemplatesOpen(false);
+        setTemplateHousingDraft(
+          buildRentalHousingDraftForDecisionTemplate({
+            tier: selectedCostProfile,
+            baseMonth: scenario.assumptions.baseMonth ?? null,
+          })
+        );
         openV2EventDrawer("edit", "housing", rentEvent.id);
         return;
       }

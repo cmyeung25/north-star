@@ -33,6 +33,7 @@ Last updated: 2026-03-08
 - [x] `life_rental_plan` now uses the same life-bundle compare/edit model as home purchase, including rent housing + setup one-off outputs and wizard re-edit hydration.
 - [x] `rental_plan` 成本檔位映射已補齊（租金/按金/代理費/起租月份），且 Compare 摘要新增租 vs 買可讀提示（cashflow pressure + upfront cash hit），避免偏向置業語境。
 - [x] Plan Lab「新增事件 > 住屋」create modal 已限制為租屋事件，置業按揭入口統一走 `home_purchase` bundle wizard。
+- [x] Housing decision templates now keep estimate-to-drawer alignment: `home_purchase` includes estimated purchase price guidance, and `rental_plan` pre-fills rent/deposit/agent fee in both rent create and rent edit drawer paths.
 
 3. Guardrails / Completeness 層
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。

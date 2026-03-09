@@ -403,11 +403,29 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     titleKey: "planLabDecisionTemplateHomePurchaseTitle",
     titleFallback: "Home purchase",
     descriptionKey: "planLabDecisionTemplateHomePurchaseDesc",
-    descriptionFallback: "Use the buy-home flow with local mortgage and down-payment ranges.",
+    descriptionFallback: "Use the buy-home flow and start by estimating purchase price to keep template and drawer inputs aligned.",
     estimateGuideKey: "planLabDecisionTemplateHomePurchaseGuide",
     estimateGuideFallback:
       "Ranges vary by district, floor area, down-payment ratio, and mortgage terms.",
     costRangeItems: [
+      {
+        id: "homePurchasePrice",
+        labelKey: "planLabCostHomePurchasePrice",
+        labelFallback: "Estimated purchase price",
+        valueKeys: {
+          conservative: "planLabCostHomePurchasePriceConservative",
+          median: "planLabCostHomePurchasePriceMedian",
+          aggressive: "planLabCostHomePurchasePriceAggressive",
+        },
+        valueFallbacks: {
+          conservative: "HKD 6M",
+          median: "HKD 9M",
+          aggressive: "HKD 15M",
+        },
+        factorHintKey: "planLabCostHomePurchasePriceFactor",
+        factorHintFallback:
+          "This estimate is prefilled into purchase price to keep template card and wizard inputs aligned.",
+      },
       {
         id: "homePurchaseMonthly",
         labelKey: "planLabCostHomePurchaseMonthly",
@@ -435,7 +453,7 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     titleKey: "planLabDecisionTemplateRentalPlanTitle",
     titleFallback: "Rental plan",
     descriptionKey: "planLabDecisionTemplateRentalPlanDesc",
-    descriptionFallback: "Use the rent housing flow with local rent ranges.",
+    descriptionFallback: "Use the rent housing flow with estimated amounts prefilled into the rent drawer.",
     estimateGuideKey: "planLabDecisionTemplateRentalPlanGuide",
     estimateGuideFallback:
       "Ranges vary by district, floor area, tenancy term, and furnishing level.",

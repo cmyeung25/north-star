@@ -30,6 +30,11 @@ describe("decisionTemplates", () => {
     const rentalTemplate = templates.find((template) => template.id === "rental_plan");
     expect((homePurchaseTemplate?.costRangeItems.length ?? 0) > 0).toBe(true);
     expect((rentalTemplate?.costRangeItems.length ?? 0) > 0).toBe(true);
+
+    expect(homePurchaseTemplate?.description).toContain("purchase price");
+    expect(homePurchaseTemplate?.costRangeItems.map((item) => item.id)).toContain(
+      "homePurchasePrice"
+    );
   });
 
   it("disables income shock template when no editable income event exists", () => {
