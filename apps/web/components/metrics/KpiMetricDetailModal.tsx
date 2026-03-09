@@ -11,11 +11,12 @@ type KpiMetricDetailModalProps = {
   statusColor?: string;
   summary: string;
   actionItems: string[];
-  ratingScale: string;
-  learnMore: string;
+  ratingScaleItems: Array<{
+    label: string;
+    description: string;
+  }>;
   sectionActionItemsLabel: string;
   sectionRatingScaleLabel: string;
-  sectionLearnMoreLabel: string;
 };
 
 export default function KpiMetricDetailModal({
@@ -27,11 +28,9 @@ export default function KpiMetricDetailModal({
   statusColor,
   summary,
   actionItems,
-  ratingScale,
-  learnMore,
+  ratingScaleItems,
   sectionActionItemsLabel,
   sectionRatingScaleLabel,
-  sectionLearnMoreLabel,
 }: KpiMetricDetailModalProps) {
   return (
     <Modal opened={opened} onClose={onClose} title={title} centered size="lg">
@@ -66,17 +65,18 @@ export default function KpiMetricDetailModal({
           <Accordion.Item value="rating-scale">
             <Accordion.Control>{sectionRatingScaleLabel}</Accordion.Control>
             <Accordion.Panel>
-              <Text size="sm" c="dimmed">
-                {ratingScale}
-              </Text>
-            </Accordion.Panel>
-          </Accordion.Item>
-          <Accordion.Item value="learn-more">
-            <Accordion.Control>{sectionLearnMoreLabel}</Accordion.Control>
-            <Accordion.Panel>
-              <Text size="sm" c="dimmed">
-                {learnMore}
-              </Text>
+              <Stack gap={6}>
+                {ratingScaleItems.map((item) => (
+                  <Stack key={item.label} gap={2}>
+                    <Text size="sm" fw={600}>
+                      {item.label}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      {item.description}
+                    </Text>
+                  </Stack>
+                ))}
+              </Stack>
             </Accordion.Panel>
           </Accordion.Item>
         </Accordion>

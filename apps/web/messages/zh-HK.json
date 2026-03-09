@@ -1008,11 +1008,12 @@
         "metricDetailCta": "查看指標說明",
         "metricDetailFallbackTitle": "指標總覽",
         "metricDetailSummaryFallback": "請結合此情境假設與時間線一併解讀此指標。",
-        "metricDetailSectionActionItems": "Action Items",
-        "metricDetailSectionRatingScale": "Rating Scale",
-        "metricDetailSectionLearnMore": "Learn More",
-        "metricDetailRatingScale": "Excellent：緩衝充足；Progressing：方向正確但需持續跟進；Vulnerable：需優先處理；Informational/No data：先補齊資料並觀察趨勢。",
-        "metricDetailLearnMoreFallback": "建議配合 Plan Lab 比較不同方案，再決定是否套用變更。",
+        "metricDetailSectionActionItems": "行動建議",
+        "metricDetailSectionRatingScale": "評級說明",
+        "metricDetailRatingExcellent": "此指標表現穩健，請保持現有節奏並持續守住緩衝。",
+        "metricDetailRatingProgressing": "此指標正在改善中，建議配合後續行動持續推進。",
+        "metricDetailRatingVulnerable": "此指標需優先關注，建議短期內先降低下行風險。",
+        "metricDetailRatingInfoOrNoData": "此類指標可先作方向參考，或先補齊資料後再觀察趨勢。",
         "metricDetail": {
           "action": {
             "excellent": {

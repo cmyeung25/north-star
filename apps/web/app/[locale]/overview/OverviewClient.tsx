@@ -2306,18 +2306,38 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
                 ? metricDetailActionsByStatus[metricDetail.status]
                 : metricDetailActionsByStatus.informational
             }
-            ratingScale={sd(
-              "kpi.metricDetailRatingScale",
-              "Excellent: strong buffer; Progressing: improving but needs follow-up; Vulnerable: needs immediate attention; Informational/No data: complete inputs and monitor trend."
-            )}
-            learnMore={
-              metricDetail?.tooltip ??
-              metricDetail?.helper ??
-              sd("kpi.metricDetailLearnMoreFallback", "Use this KPI together with Plan Lab comparisons to evaluate trade-offs before applying changes.")
-            }
+            ratingScaleItems={[
+              {
+                label: statusLabel("excellent"),
+                description: sd(
+                  "kpi.metricDetailRatingExcellent",
+                  "Your metric is in a strong range. Keep consistency and protect buffers."
+                ),
+              },
+              {
+                label: statusLabel("progressing"),
+                description: sd(
+                  "kpi.metricDetailRatingProgressing",
+                  "You are moving in the right direction, with room to improve through follow-up actions."
+                ),
+              },
+              {
+                label: statusLabel("vulnerable"),
+                description: sd(
+                  "kpi.metricDetailRatingVulnerable",
+                  "This metric needs near-term attention to reduce downside risk."
+                ),
+              },
+              {
+                label: `${statusLabel("informational")} / ${statusLabel("no-data")}`,
+                description: sd(
+                  "kpi.metricDetailRatingInfoOrNoData",
+                  "Treat this as context or complete missing inputs, then monitor trend over time."
+                ),
+              },
+            ]}
             sectionActionItemsLabel={sd("kpi.metricDetailSectionActionItems", "Action Items")}
             sectionRatingScaleLabel={sd("kpi.metricDetailSectionRatingScale", "Rating Scale")}
-            sectionLearnMoreLabel={sd("kpi.metricDetailSectionLearnMore", "Learn More")}
           />
           <FullScreenChartModal
             opened={Boolean(fullscreenChart)}
