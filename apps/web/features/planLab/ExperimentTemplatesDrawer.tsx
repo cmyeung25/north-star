@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Button, Card, Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Badge, Button, Card, Drawer, Group, SegmentedControl, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import type { PlanLabDecisionTemplateOption } from "./decisionTemplates";
 
@@ -30,6 +30,11 @@ export type ExperimentTemplatesDrawerLabels = {
   applyLabel: string;
   backLabel: string;
   emptyDecisionTemplatesLabel: string;
+  costRangeTitle: string;
+  estimateGuideLabel: string;
+  conservativeTierLabel: string;
+  medianTierLabel: string;
+  aggressiveTierLabel: string;
 };
 
 type TemplateMode =
@@ -49,6 +54,10 @@ type ExperimentTemplatesDrawerProps = {
   onClose: () => void;
   onSelect: (templateId: string) => void;
   onSelectDecisionTemplate?: (templateId: PlanLabDecisionTemplateOption["id"]) => void;
+  onSelectDecisionTemplateCostProfile?: (
+    templateId: PlanLabDecisionTemplateOption["id"],
+    tier: PlanLabDecisionTemplateOption["selectedCostProfile"]
+  ) => void;
   onSelectAddEvent?: () => void;
   onSelectBaselineEvent?: (eventId: string) => void;
   onSelectEnvKey?: (envKey: string) => void;
@@ -66,6 +75,7 @@ export default function ExperimentTemplatesDrawer({
   onClose,
   onSelect,
   onSelectDecisionTemplate,
+  onSelectDecisionTemplateCostProfile,
   onSelectAddEvent,
   onSelectBaselineEvent,
   onSelectEnvKey,
@@ -175,6 +185,43 @@ export default function ExperimentTemplatesDrawer({
                       <Text size="xs" c="dimmed">
                         {template.description}
                       </Text>
+                      {template.costRangeItems.length > 0 ? (
+                        <Stack gap={6}>
+                          <Group justify="space-between" align="center" wrap="nowrap">
+                            <Text size="xs" fw={600}>
+                              {labels.costRangeTitle}
+                            </Text>
+                            <Tooltip label={template.estimateGuide} multiline w={220}>
+                              <Badge variant="light">{labels.estimateGuideLabel}</Badge>
+                            </Tooltip>
+                          </Group>
+                          <SegmentedControl
+                            size="xs"
+                            value={template.selectedCostProfile}
+                            data={[
+                              { label: labels.conservativeTierLabel, value: "conservative" },
+                              { label: labels.medianTierLabel, value: "median" },
+                              { label: labels.aggressiveTierLabel, value: "aggressive" },
+                            ]}
+                            onChange={(value) =>
+                              onSelectDecisionTemplateCostProfile?.(
+                                template.id,
+                                value as PlanLabDecisionTemplateOption["selectedCostProfile"]
+                              )
+                            }
+                          />
+                          {template.costRangeItems.map((item) => (
+                            <Stack key={item.id} gap={2}>
+                              <Text size="xs" fw={500}>
+                                {item.label}: {item.values[template.selectedCostProfile]}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {item.factorHint}
+                              </Text>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      ) : null}
                       {template.availability.enabled === false && template.availability.reasonFallback ? (
                         <Text size="xs" c="orange">
                           {template.availability.reasonFallback}

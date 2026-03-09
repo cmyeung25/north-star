@@ -59,3 +59,10 @@ Last updated: 2026-03-08
 - Context: Overview KPI 數量持續增加，需要讓使用者自訂重點卡片，同時必須維持 scenario 隔離、避免偏好跨 case/scenario 洩漏。
 - Decision: KPI watchlist 偏好採 scenario-scoped 儲存（`scenario.meta.overviewKpiWatchlist`），Overview UI 採 library（全部可用）+ watchlist（已選）雙層；預設保留核心 KPI，編輯能力提供增刪與排序。
 - Guardrails: 只允許寫入 active scenario 的 meta；不得引入全域設定寫入路徑；重載後需由既有 scenario store persistence/hydration 還原且不影響其他 scenario。
+
+### D-2026-03-09-01
+- Date: 2026-03-09
+- Status: Accepted
+- Context: Plan Lab v1 決策模板已有入口，但缺少本地成本估算說明與預設檔位，使用者難以理解數值來源；同時需維持 scenario 隔離。
+- Decision: 在 Plan Lab 決策模板層新增本地常見成本範圍與三檔估算（保守/中位/進取），並加入「為何這樣估算」短教學提示；使用者檔位偏好存於 `scenario.meta.planLab.decisionTemplateCostProfile`（scenario-scoped）。
+- Guardrails: 不修改 engine 計算介面；僅於 active scenario 寫入 meta；所有新增文案走 i18n key。

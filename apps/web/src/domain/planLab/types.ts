@@ -142,13 +142,19 @@ export type PlanLabExperiment =
   | PlanLabTravelAnnualExperiment
   | PlanLabSmartInvestAdjustExperiment;
 export type PlanLabDecisionTemplateId =
-  | "home_purchase"
-  | "new_baby"
+  | "marriage"
+  | "childbirth"
+  | "parenting"
+  | "housing"
+  | "retirement"
   | "income_shock";
 
 export type PlanLabDecisionTemplateLauncher =
-  | "bundle_home_purchase"
-  | "bundle_new_baby"
+  | "bundle_marriage"
+  | "bundle_childbirth"
+  | "bundle_parenting"
+  | "bundle_housing"
+  | "bundle_retirement"
   | "income_shock_override";
 
 export type PlanLabDecisionTemplateDefaultPayload = {
@@ -313,6 +319,7 @@ export type Plan = PlanSnapshot;
 export type PlanLabMeta = {
   planLibrary?: PlanSnapshot[];
   lastSelectedPlanId?: string;
+  decisionTemplateCostProfile?: Partial<Record<PlanLabDecisionTemplateId, "conservative" | "median" | "aggressive">>;
 };
 
 export type OnboardingDraftBaseline = {
@@ -327,4 +334,3 @@ export type OnboardingDraft = {
     planLabDraft?: PlanLabDraft;
   };
 };
-

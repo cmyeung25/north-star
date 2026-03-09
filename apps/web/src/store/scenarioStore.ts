@@ -1594,6 +1594,17 @@ const cloneScenarioMeta = (meta?: ScenarioMeta): ScenarioMeta | undefined =>
         overviewKpiWatchlist: meta.overviewKpiWatchlist
           ? [...meta.overviewKpiWatchlist]
           : undefined,
+        planLab: meta.planLab
+          ? {
+              ...meta.planLab,
+              planLibrary: meta.planLab.planLibrary
+                ? JSON.parse(JSON.stringify(meta.planLab.planLibrary))
+                : undefined,
+              decisionTemplateCostProfile: meta.planLab.decisionTemplateCostProfile
+                ? { ...meta.planLab.decisionTemplateCostProfile }
+                : undefined,
+            }
+          : undefined,
       }
     : undefined;
 

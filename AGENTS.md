@@ -429,3 +429,6 @@ Do not rewrite the whole file unless necessary.
 5. Avoid raw shell overwrite commands
 
 When a file contains Chinese, Japanese, or other non-ASCII text, perform an explicit post-edit encoding sanity check before finishing.
+
+
+- Plan Lab local cost ranges v1（2026-03-09）: 決策模板新增「本地常見成本範圍」+ 三檔估算（保守/中位/進取）+「為何這樣估算」教學提示；使用者檔位偏好儲存在 `scenario.meta.planLab.decisionTemplateCostProfile`，必須保持 scenario-scoped，禁止跨 scenario 共享。

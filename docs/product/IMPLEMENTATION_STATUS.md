@@ -56,6 +56,8 @@ Last updated: 2026-03-08 (zh-HK overview/plan-lab locale lint)
 | `pnpm -w --filter web build` | PASS (WARN) | build 成功；有 webpack cache big strings 非阻斷警告 |
 
 ## Latest Delta (2026-03-08)
+- Plan Lab 決策模板擴展為 5 類家庭決策（結婚、生育、育兒、買屋/租樓、退休）+ income shock；每個模板新增「本地常見成本範圍」區塊、三檔預設（保守/中位/進取）與差異來源說明，並提供「為何這樣估算」tooltip 教學。
+- 使用者所選成本檔位已寫入 `scenario.meta.planLab.decisionTemplateCostProfile`，僅作用於當前 active scenario 並跟隨既有 scenario meta 持久化/hydrate。
 - Onboarding v3（收入/支出步驟）已加入每筆手動項目的分類 dropdown，並顯示分類摘要；沿用既有 `money` category i18n keys 與 taxonomy，不改 engine/interface。
 - Event mapping 保留使用者在 onboarding 所選分類（若有），僅在未指定時套用原 onboarding tag 預設。
 - 修正 onboarding v3 draft storage 測試基線：`dual-income-rental` 種子情境在遷移後 `mortgageRatePct` 應為 `3.25`（與 seed housing payload 一致），避免 quality gate 被過期預期值阻塞。

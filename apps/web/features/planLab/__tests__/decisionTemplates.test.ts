@@ -8,24 +8,31 @@ import {
 const translate = (_key: string, fallback: string) => fallback;
 
 describe("decisionTemplates", () => {
-  it("returns three decision templates", () => {
+  it("returns decision templates with local cost ranges", () => {
     const templates = buildPlanLabDecisionTemplateOptions({
       hasEligibleIncomeEvent: true,
       translate,
+      selectedCostProfile: {},
     });
 
-    expect(templates).toHaveLength(3);
+    expect(templates).toHaveLength(6);
     expect(templates.map((template) => template.id)).toEqual([
-      "home_purchase",
-      "new_baby",
+      "marriage",
+      "childbirth",
+      "parenting",
+      "housing",
+      "retirement",
       "income_shock",
     ]);
+    const housingTemplate = templates.find((template) => template.id === "housing");
+    expect((housingTemplate?.costRangeItems.length ?? 0) > 0).toBe(true);
   });
 
   it("disables income shock template when no editable income event exists", () => {
     const templates = buildPlanLabDecisionTemplateOptions({
       hasEligibleIncomeEvent: false,
       translate,
+      selectedCostProfile: {},
     });
 
     const incomeShock = templates.find((template) => template.id === "income_shock");
