@@ -34,16 +34,16 @@ describe("ExperimentTemplatesDrawer", () => {
           groups={[]}
           decisionTemplates={[
             {
-              id: "housing",
+              id: "home_purchase",
               launcher: "bundle_housing",
-              title: "Buy home / rent",
+              title: "Home purchase",
               description: "Bundle launcher",
               selectedCostProfile: "median",
               estimateGuide: "Guide",
               costRangeItems: [
                 {
-                  id: "housing",
-                  label: "Monthly housing outflow",
+                  id: "homePurchase",
+                  label: "Monthly owner housing outflow",
                   values: {
                     conservative: "A",
                     median: "B",

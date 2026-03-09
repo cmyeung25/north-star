@@ -16,17 +16,20 @@ describe("decisionTemplates", () => {
       selectedCostProfile: {},
     });
 
-    expect(templates).toHaveLength(6);
+    expect(templates).toHaveLength(7);
     expect(templates.map((template) => template.id)).toEqual([
       "marriage",
       "childbirth",
       "parenting",
-      "housing",
+      "home_purchase",
+      "rental_plan",
       "retirement",
       "income_shock",
     ]);
-    const housingTemplate = templates.find((template) => template.id === "housing");
-    expect((housingTemplate?.costRangeItems.length ?? 0) > 0).toBe(true);
+    const homePurchaseTemplate = templates.find((template) => template.id === "home_purchase");
+    const rentalTemplate = templates.find((template) => template.id === "rental_plan");
+    expect((homePurchaseTemplate?.costRangeItems.length ?? 0) > 0).toBe(true);
+    expect((rentalTemplate?.costRangeItems.length ?? 0) > 0).toBe(true);
   });
 
   it("disables income shock template when no editable income event exists", () => {

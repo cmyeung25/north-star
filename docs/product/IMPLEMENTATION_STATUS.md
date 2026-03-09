@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (planlab decision template ↔ life-event wizard integration)
+Last updated: 2026-03-09 (planlab housing template split: purchase vs rental path)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -24,11 +24,12 @@ Last updated: 2026-03-09 (planlab decision template ↔ life-event wizard integr
 - Plan Lab 決策模板（結婚/生育/育兒/置業）已把所選成本檔位映射為 bundle wizard 初始輸入，使用者從模板套用進入 wizard 時，預設數值會與模板卡片一致（例如結婚中位檔對應 wedding budget 300k）。
 - Bundle wizard 新增 marriage input hydration：若由模板傳入 `life_marriage_plan` 的 wizardInput，會正確帶入婚禮月份、預算、travel 與 breakdown 相關欄位，避免回退到固定預設。
 - PlanLabPanel decision template handler 增加 retirement guard（沿用既有 unavailable toast），並在可映射模板時傳入 scenario baseMonth 作為 month anchor。
+- Plan Lab housing 決策模板拆分為 `home_purchase`（維持 `life_home_purchase` bundle wizard）與 `rental_plan`（直接開啟 rent housing event 建立/編輯流程），避免模板路徑語意混淆。
 
 - Architecture Delta Log
   - Date: 2026-03-09
-  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/components/eventTemplates/bundles/BundleWizardDrawer.tsx`
-  - Data-flow impact: Plan Lab decision template selection 現在會先產生 scenario-scoped wizard input（不寫 baseline），再交由既有 bundle wizard/experiment path 建立草稿事件。
+  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/src/domain/planLab/types.ts`, `apps/web/messages/en.json`, `apps/web/messages/zh-HK.json`
+  - Data-flow impact: Plan Lab decision template selection 針對 `home_purchase` 仍先產生 scenario-scoped wizard input（不寫 baseline）；`rental_plan` 改為開啟 housing drawer 並建立 rent draft，同樣只作用於 active scenario。
   - Backward compatibility: 未改 engine/domain public interfaces；income shock path 與既有 bundle apply path 保持不變。
   - Risk & rollback: 若預設映射不符預期，可回退 `buildBundleWizardInputForDecisionTemplate` 對應表，不影響已存在 scenario 資料結構。
 

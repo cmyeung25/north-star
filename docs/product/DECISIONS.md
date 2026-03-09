@@ -80,3 +80,11 @@ Last updated: 2026-03-08
 - Context: 使用者回饋 Plan Lab 決策模板選擇的成本檔位（保守/中位/進取）與後續人生事件 wizard 預設值存在落差，導致心理模型斷裂（例如模板顯示婚禮中位範圍，但 wizard 未對應該預算）。
 - Decision: Plan Lab decision template 在開啟 bundle wizard 前，先依模板 id + 成本檔位產生 `BundleWizardInput`（以 scenario baseMonth 作為月份 anchor）並注入 wizard 初始狀態；marriage/new_baby/home_purchase 皆走同一入口映射。
 - Guardrails: 僅作 UI/draft 層預填，不直接寫 baseline；所有偏好與草稿仍維持 scenario-scoped；不修改 engine 公式或 domain event schema。
+
+
+### D-2026-03-09-04
+- Date: 2026-03-09
+- Status: Accepted
+- Context: Plan Lab 原本單一 housing 模板同時承載「置業 bundle」與「租樓事件」兩條路徑，導致模板語意與操作預期不一致。
+- Decision: 將 housing 模板拆為 `home_purchase`（映射 `life_home_purchase` bundle wizard）與 `rental_plan`（直接走 rent housing event 建立/編輯流程）；兩者文案與成本區間分離。
+- Guardrails: template cost profile 仍寫入 `scenario.meta.planLab.decisionTemplateCostProfile` 且僅限 active scenario；不得新增跨 scenario 共用狀態；不修改 engine 介面。

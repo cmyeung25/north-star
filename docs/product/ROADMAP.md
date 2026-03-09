@@ -29,6 +29,7 @@ Last updated: 2026-03-08
 - [ ] 下一批模板：利率上升與換樓模板，待 beta 回饋後定義預設 payload 與入口優先序。
 - [x] Plan Lab 決策模板加入本地常見成本範圍（結婚、生育、育兒、買屋/租樓、退休）與三檔預設（保守/中位/進取），並提供「為何這樣估算」教學提示。
 - [x] Plan Lab 決策模板與人生事件 wizard 預設值已打通：按所選成本檔位（保守/中位/進取）帶入對應 bundle 初始輸入，避免模板卡片估算與 wizard 建立值脫節。
+- [x] Plan Lab housing 模板已拆分為 `home_purchase`（bundle wizard）與 `rental_plan`（rent housing event），避免單一模板同時代表兩條操作路徑。
 
 3. Guardrails / Completeness 層
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。
