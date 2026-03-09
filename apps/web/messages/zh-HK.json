@@ -1004,7 +1004,39 @@
         "riskLevel": "風險等級",
         "riskLow": "低",
         "riskMedium": "中",
-        "riskHigh": "高"
+        "riskHigh": "高",
+        "metricDetailCta": "查看指標說明",
+        "metricDetailFallbackTitle": "指標總覽",
+        "metricDetailSummaryFallback": "請結合此情境假設與時間線一併解讀此指標。",
+        "metricDetailSectionActionItems": "Action Items",
+        "metricDetailSectionRatingScale": "Rating Scale",
+        "metricDetailSectionLearnMore": "Learn More",
+        "metricDetailRatingScale": "Excellent：緩衝充足；Progressing：方向正確但需持續跟進；Vulnerable：需優先處理；Informational/No data：先補齊資料並觀察趨勢。",
+        "metricDetailLearnMoreFallback": "建議配合 Plan Lab 比較不同方案，再決定是否套用變更。",
+        "metricDetail": {
+          "action": {
+            "excellent": {
+              "keep": "保持每月追蹤，確保優勢可持續。",
+              "buffer": "可把餘裕用於強化緊急預備金與長期緩衝。"
+            },
+            "progressing": {
+              "improve": "為未來 3 個月設定一個可量化目標並定期檢視。",
+              "monitor": "到 Money 頁追蹤相關收入/支出驅動項目。"
+            },
+            "vulnerable": {
+              "prioritize": "下一輪規劃請優先處理此指標，先降低下行風險。",
+              "planlab": "先在 Plan Lab 測試至少一個緩解方案，再決定是否套用。"
+            },
+            "informational": {
+              "observe": "此指標偏向方向訊號，請搭配其他 KPI 一起判讀。",
+              "context": "若人生里程碑或假設有變更，請同步更新情境設定。"
+            },
+            "noData": {
+              "complete": "請先補齊相關輸入資料，系統才能正確評估此指標。",
+              "recheck": "完成儲存/同步後，重新打開此指標確認最新狀態。"
+            }
+          }
+        }
       },
       "common": {
         "emptyValue": "--",
@@ -1156,10 +1188,10 @@
     "planLabCostHomePurchasePriceFactor": "此估算會預填到樓價欄位，令模板卡片與輸入資料保持一致。",
     "planLabDecisionTemplateRentalPlanTitle": "租樓方案",
     "planLabDecisionTemplateRentalPlanDesc": "使用租樓流程，並把估算租金／按金／代理費直接預填到租金 drawer。",
-    "planLabBundleRentGrowthLabel": "\u79df\u91d1\u5e74\u589e\u9577",
-    "planLabBundleRentalDepositLabel": "\u79df\u6a13\u6309\u91d1",
-    "planLabBundleRentalAgentFeeLabel": "\u5730\u7522\u4f63\u91d1",
-    "planLabBundleEndMonthLabel": "\u7d50\u675f\u6708\u4efd",
+    "planLabBundleRentGrowthLabel": "租金年增長",
+    "planLabBundleRentalDepositLabel": "租樓按金",
+    "planLabBundleRentalAgentFeeLabel": "地產佣金",
+    "planLabBundleEndMonthLabel": "結束月份",
     "planLabDecisionTemplateRentalPlanGuide": "範圍差異主要來自地區、面積、租期與裝修配置。",
     "planLabDecisionTemplateRetirementTitle": "退休",
     "planLabDecisionTemplateRetirementDesc": "估算退休提款與醫療成本。",
@@ -1950,8 +1982,8 @@
         "desc": "建立組合計劃，生成資產／負債／現金流項目。"
       },
       "life_rental_plan": {
-        "name": "\u79df\u6a13\u65b9\u6848",
-        "desc": "\u5c07\u79df\u6a13\u4f4f\u623f\u4e8b\u4ef6\u8207\u6309\u91d1\u3001\u4f63\u91d1\u73fe\u91d1\u6d41\u6253\u5305\u6210\u540c\u4e00\u4eba\u751f\u7d44\u5408\u3002"
+        "name": "租樓方案",
+        "desc": "將租樓住房事件與按金、佣金現金流打包成同一人生組合。"
       },
       "life_marriage_plan": {
         "name": "結婚計劃",

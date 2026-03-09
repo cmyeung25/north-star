@@ -37,8 +37,7 @@ import FullScreenChartModal, {
 } from "../../../components/FullScreenChartModal";
 import MonthField from "../../../components/MonthField";
 import MonthlyBreakdownModalHost from "../../../components/MonthlyBreakdownModalHost";
-import RunwayDetailModal from "../../../components/metrics/RunwayDetailModal";
-import RiskDetailModal from "../../../components/metrics/RiskDetailModal";
+import KpiMetricDetailModal from "../../../components/metrics/KpiMetricDetailModal";
 import CashBalanceChart from "../../../features/overview/components/CashBalanceChart";
 import KpiCard from "../../../features/overview/components/KpiCard";
 import KpiCarousel from "../../../features/overview/components/KpiCarousel";
@@ -111,6 +110,17 @@ type MilestoneSource = "manual" | "system";
 type MilestoneSourceFilter = "all" | MilestoneSource;
 type MilestoneStatus = "upcoming" | "expired" | "completed";
 type MilestoneStatusFilter = "all" | MilestoneStatus;
+
+type KpiDetailState = {
+  metric: DashboardMetricKey;
+  status: HealthScorecardStatus;
+  label: string;
+  value: string;
+  helper?: string;
+  tooltip?: string;
+  badgeLabel?: string;
+  badgeColor?: string;
+};
 
 type MilestoneToastState = {
   color: "teal" | "red" | "orange";
@@ -251,8 +261,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const hasCompareQuery = compareScenarioIdsFromQuery.length > 0;
   const [viewMode, setViewMode] = useState<"single" | "compare">("single");
   const [compareScenarioIds, setCompareScenarioIds] = useState<string[]>([]);
-  const [runwayDetailOpen, setRunwayDetailOpen] = useState(false);
-  const [riskDetailOpen, setRiskDetailOpen] = useState(false);
+  const [metricDetail, setMetricDetail] = useState<KpiDetailState | null>(null);
   const [watchlistEditorOpened, setWatchlistEditorOpened] = useState(false);
   const [watchlistDraft, setWatchlistDraft] = useState<DashboardMetricKey[]>(
     DEFAULT_KPI_WATCHLIST
@@ -1105,6 +1114,9 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     return computeRiskAssessment({ projection, runway: runwaySimulation });
   }, [projection, runwaySimulation]);
 
+  const resolvedRunwayMonths = runwaySimulation?.months ?? null;
+  const resolvedRiskLevel = riskAssessment?.level ?? null;
+
 
   useEffect(() => {
     if (months.length === 0) {
@@ -1184,7 +1196,34 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     }
   };
 
-  const healthScoreEntries = buildHealthScorecard(dashboardMetrics);
+  const healthScoreEntries = buildHealthScorecard({
+    ...dashboardMetrics,
+    cashRunwayMonths: resolvedRunwayMonths,
+  });
+
+  const metricDetailActionsByStatus: Record<HealthScorecardStatus, string[]> = {
+    excellent: [
+      sd("kpi.metricDetail.action.excellent.keep", "Keep tracking this metric monthly to maintain momentum."),
+      sd("kpi.metricDetail.action.excellent.buffer", "Use this headroom to strengthen emergency and long-term buffers."),
+    ],
+    progressing: [
+      sd("kpi.metricDetail.action.progressing.improve", "Set one concrete target for the next 3 months and review progress."),
+      sd("kpi.metricDetail.action.progressing.monitor", "Monitor related income/expense drivers in the Money page."),
+    ],
+    vulnerable: [
+      sd("kpi.metricDetail.action.vulnerable.prioritize", "Prioritize this metric in your next planning cycle and reduce downside exposure."),
+      sd("kpi.metricDetail.action.vulnerable.planlab", "Use Plan Lab to test at least one mitigation scenario before applying changes."),
+    ],
+    informational: [
+      sd("kpi.metricDetail.action.informational.observe", "Treat this metric as a directional signal and review with adjacent KPIs."),
+      sd("kpi.metricDetail.action.informational.context", "Add milestones or assumptions updates if context has changed."),
+    ],
+    "no-data": [
+      sd("kpi.metricDetail.action.noData.complete", "Complete the relevant data inputs so this metric can be evaluated."),
+      sd("kpi.metricDetail.action.noData.recheck", "Re-open this metric after data sync/save to confirm the latest status."),
+    ],
+  };
+
   const healthScoreByMetric = new Map<DashboardMetricKey, HealthScorecardStatus>(
     healthScoreEntries.map((entry) => [entry.metric, entry.status])
   );
@@ -1223,14 +1262,14 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "cashRunway" as const,
       label: sd("kpi.cashRunway", "Cash runway"),
-      value: dashboardMetrics.cashRunwayMonths === null
+      value: resolvedRunwayMonths === null
         ? sd("kpi.runwayUnavailable", "Not available")
-        : sd("kpi.runwayMonths", `${dashboardMetrics.cashRunwayMonths.toFixed(1)} months`, {
-            months: dashboardMetrics.cashRunwayMonths.toFixed(1),
+        : sd("kpi.runwayMonths", `${resolvedRunwayMonths} months`, {
+            months: resolvedRunwayMonths,
           }),
-      helper: sd("kpi.runwayProxyHint", "Proxy based on current trajectory"),
-      detailsLabel: t("runwayDetailCta"),
-      onDetails: () => setRunwayDetailOpen(true),
+      helper: sd("kpi.scopeHorizon", "Scope: projection horizon to {endMonth}", {
+        endMonth: projection?.months.at(-1) ?? "--",
+      }),
     },
     {
       metric: "firstMillionMonth" as const,
@@ -1316,21 +1355,68 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     {
       metric: "riskLevel" as const,
       label: sd("kpi.riskLevel", "Risk level"),
-      value: dashboardMetrics.riskLevel === "red" ? sd("kpi.riskHigh", "High") : sd("kpi.riskLow", "Low"),
-      helper: sd("kpi.scope12m", "Scope: 12 months"),
-      detailsLabel: t("riskDetailCta"),
-      onDetails: () => setRiskDetailOpen(true),
+      value:
+        resolvedRiskLevel === null
+          ? emptyValueLabel
+          : common(`risk${resolvedRiskLevel}`),
+      helper: sd("kpi.scopeHorizon", "Scope: projection horizon to {endMonth}", {
+        endMonth: projection?.months.at(-1) ?? "--",
+      }),
     },
   ].map((item) => {
-    const status = resolveNullableMetricScoreStatus(
+    const fallbackStatus = resolveNullableMetricScoreStatus(
       item.metric,
       healthScoreByMetric.get(item.metric) ?? "no-data",
       nullableMetricValues
     );
+
+    const status: HealthScorecardStatus = (() => {
+      if (item.metric === "riskLevel") {
+        if (resolvedRiskLevel === null) {
+          return "no-data";
+        }
+        if (resolvedRiskLevel === "Low") {
+          return "excellent";
+        }
+        return resolvedRiskLevel === "Medium" ? "progressing" : "vulnerable";
+      }
+      if (item.metric === "cashRunway") {
+        if (resolvedRunwayMonths === null) {
+          return "no-data";
+        }
+        if (resolvedRunwayMonths >= 36) {
+          return "excellent";
+        }
+        return resolvedRunwayMonths >= 18 ? "progressing" : "vulnerable";
+      }
+      return fallbackStatus;
+    })();
+
+    const metricDetailTitle =
+      item.metric === "cashRunway"
+        ? t("runwayDetailCta")
+        : item.metric === "riskLevel"
+          ? t("riskDetailCta")
+          : sd("kpi.metricDetailCta", "View metric details");
+
     return {
       ...item,
       badgeLabel: statusLabel(status),
       badgeColor: statusColor(status),
+      detailsLabel: metricDetailTitle,
+      onDetails: () => {
+        setMetricDetail({
+          metric: item.metric,
+          status,
+          label: item.label,
+          value: item.value,
+          helper: item.helper,
+          tooltip: item.tooltip,
+          badgeLabel: statusLabel(status),
+          badgeColor: statusColor(status),
+        });
+      },
+      metricDetailStatus: status,
     };
   });
 
@@ -2207,20 +2293,31 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
             eventViews={scenarioEventViews}
             milestoneMarkers={milestoneMarkers}
           />
-          <RunwayDetailModal
-            opened={runwayDetailOpen}
-            onClose={() => setRunwayDetailOpen(false)}
-            simulation={runwaySimulation}
-            currency={selectedScenario.baseCurrency}
-          />
-          <RiskDetailModal
-            opened={riskDetailOpen}
-            onClose={() => setRiskDetailOpen(false)}
-            assessment={riskAssessment}
-            onOpenRunwayDetails={() => {
-              setRiskDetailOpen(false);
-              setRunwayDetailOpen(true);
-            }}
+          <KpiMetricDetailModal
+            opened={metricDetail !== null}
+            onClose={() => setMetricDetail(null)}
+            title={metricDetail?.label ?? sd("kpi.metricDetailFallbackTitle", "Metric overview")}
+            value={metricDetail?.value ?? emptyValueLabel}
+            statusLabel={metricDetail?.badgeLabel}
+            statusColor={metricDetail?.badgeColor}
+            summary={metricDetail?.helper ?? sd("kpi.metricDetailSummaryFallback", "Review this metric together with your scenario assumptions and timeline.")}
+            actionItems={
+              metricDetail
+                ? metricDetailActionsByStatus[metricDetail.status]
+                : metricDetailActionsByStatus.informational
+            }
+            ratingScale={sd(
+              "kpi.metricDetailRatingScale",
+              "Excellent: strong buffer; Progressing: improving but needs follow-up; Vulnerable: needs immediate attention; Informational/No data: complete inputs and monitor trend."
+            )}
+            learnMore={
+              metricDetail?.tooltip ??
+              metricDetail?.helper ??
+              sd("kpi.metricDetailLearnMoreFallback", "Use this KPI together with Plan Lab comparisons to evaluate trade-offs before applying changes.")
+            }
+            sectionActionItemsLabel={sd("kpi.metricDetailSectionActionItems", "Action Items")}
+            sectionRatingScaleLabel={sd("kpi.metricDetailSectionRatingScale", "Rating Scale")}
+            sectionLearnMoreLabel={sd("kpi.metricDetailSectionLearnMore", "Learn More")}
           />
           <FullScreenChartModal
             opened={Boolean(fullscreenChart)}

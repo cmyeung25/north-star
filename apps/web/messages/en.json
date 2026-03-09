@@ -982,7 +982,39 @@
         "riskLevel": "Risk level",
         "riskLow": "Low",
         "riskMedium": "Medium",
-        "riskHigh": "High"
+        "riskHigh": "High",
+        "metricDetailCta": "View metric details",
+        "metricDetailFallbackTitle": "Metric overview",
+        "metricDetailSummaryFallback": "Review this metric together with your scenario assumptions and timeline.",
+        "metricDetailSectionActionItems": "Action Items",
+        "metricDetailSectionRatingScale": "Rating Scale",
+        "metricDetailSectionLearnMore": "Learn More",
+        "metricDetailRatingScale": "Excellent: strong buffer; Progressing: improving but needs follow-up; Vulnerable: needs immediate attention; Informational/No data: complete inputs and monitor trend.",
+        "metricDetailLearnMoreFallback": "Use this KPI together with Plan Lab comparisons to evaluate trade-offs before applying changes.",
+        "metricDetail": {
+          "action": {
+            "excellent": {
+              "keep": "Keep tracking this metric monthly to maintain momentum.",
+              "buffer": "Use this headroom to strengthen emergency and long-term buffers."
+            },
+            "progressing": {
+              "improve": "Set one concrete target for the next 3 months and review progress.",
+              "monitor": "Monitor related income/expense drivers in the Money page."
+            },
+            "vulnerable": {
+              "prioritize": "Prioritize this metric in your next planning cycle and reduce downside exposure.",
+              "planlab": "Use Plan Lab to test at least one mitigation scenario before applying changes."
+            },
+            "informational": {
+              "observe": "Treat this metric as a directional signal and review with adjacent KPIs.",
+              "context": "Add milestones or assumptions updates if context has changed."
+            },
+            "noData": {
+              "complete": "Complete the relevant data inputs so this metric can be evaluated.",
+              "recheck": "Re-open this metric after data sync/save to confirm the latest status."
+            }
+          }
+        }
       },
       "common": {
         "emptyValue": "--",

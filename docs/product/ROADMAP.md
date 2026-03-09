@@ -67,6 +67,8 @@ Last updated: 2026-03-08
 - [x] Overview 已新增 scenario-scoped KPI watchlist（library + watchlist）：使用者可在總覽編輯 KPI 增刪與排序，且偏好只儲存在 active scenario，重載後保留。
 - [x] Overview KPI watchlist drawer 的 KPI library 卡片已新增「現時狀態」badge，與 health scorecard 分級一致（excellent/progressing/vulnerable/informational/no-data）。
 - [x] Overview `cashRunway` / `riskLevel` KPI 卡加入詳情 CTA，並可於 mobile carousel 觸發對應詳情互動（runway/risk）。
+- [x] Overview `cashRunway` / `riskLevel` KPI 卡與 detail modal 已統一計算來源（runway simulation + risk assessment），避免主卡與 modal 等級不一致。
+- [x] Overview KPI watchlist 每張卡都可開啟統一指標說明 modal（Action Items / Rating Scale / Learn More），並修正低風險狀態不再落入「需關注」分級。
 - [x] Overview KPI `avgNetCashflow` / `avgNonSalaryIncome` / `avgFunBudget` 已改為 null-safe 顯示：`null` 顯示 emptyValue，並與 scorecard 的 `no-data` 對齊。
 - [x] Overview DashboardMetrics 新增靜態推導 KPI（`savingsRate12m`、`expenseToIncomeRatio12m`、`debtToAssetRatio`、`netWorthGrowth12m`），並補齊 KPI 卡 tooltip 公式與 i18n（en/zh-HK）。
 - [x] Overview KPI formatter 已統一處理 no-data：數值為 `null/NaN` 顯示 `dashboard.common.emptyValue`；比率型 KPI 在分母為 `0` 時回傳 `null`，避免顯示誤導性的 `0.0%`。

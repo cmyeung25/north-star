@@ -94,6 +94,8 @@ Last updated: 2026-03-09 (home/rental template estimate prefill alignment)
 - Overview KPI i18n 對齊：`overview.dashboard.kpi.scopeHorizon`、`overview.dashboard.kpi.notReachedWithinHorizon` 的 `en` 文案已改為英文，同時確認與 `zh-HK` placeholder token（`{endMonth}`、`{years}`）一致且無 drift。
 - Overview KPI 健康分層統計改為以完整 KPI library 計算（不再只統計 watchlist 已選項），`healthScorecard.total` 亦同步顯示全量 KPI 數；`zh-HK` 補齊 `nonSalaryIncomeRatio`、`passiveIncomeCoverage`、`assetLinkedExpenseRatio` 及公式文案，避免非品牌英文 fallback 混入。
 - Overview KPI 卡片「查看可支撐月數 / 查看風險說明」CTA 改為使用 `overview.*` 命名空間翻譯（`t(...)`），修正先前誤用 `overview.dashboard.*` 導致 zh-HK 顯示英文 fallback（`View runway details` / `View risk details`）。
+- Overview `cashRunway` 與 `riskLevel` KPI 已改為與 detail modal 共用同一來源（`computeRunwaySimulation` + `computeRiskAssessment`）：卡片顯示值與 modal 計算一致，避免卡片/說明出現高低矛盾。
+- Overview KPI watchlist 全卡片已支援統一 `Metric overview` modal（Action Items / Rating Scale / Learn More）；同時 `riskLevel` 與 `cashRunway` badge 分級與 runway 36/18 月門檻對齊，修正「低風險但顯示需關注」認知落差。
 
 ## Next Recommended Priority
 1. 以「可完成一次重大家庭決策」為目標，收斂 Onboarding + Property Bundle 旅程。
