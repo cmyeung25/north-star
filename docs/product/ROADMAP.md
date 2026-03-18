@@ -78,6 +78,7 @@ Last updated: 2026-03-08
 2. Market Entry + Sample Journey
 - 上線市場入口頁（價值主張、適用族群、示例旅程）。
 - 提供可直接體驗的家庭場景範本與引導。
+- [x] v1 已交付：建立 market-entry tracking abstraction（vendor-agnostic），並接入 landing/persona/member preset 關鍵漏斗事件（landing view、journey CTA、auth modal、preset create、onboarding start）。
 3. 穩定性與支援流程
 - 建立錯誤分級、支援回報、發布檢核與回滾指引。
 

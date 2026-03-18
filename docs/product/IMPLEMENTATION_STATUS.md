@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (marketing sample journey cards + deep-link CTA validation)
+Last updated: 2026-03-09 (market-entry observability baseline)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -21,6 +21,10 @@ Last updated: 2026-03-09 (marketing sample journey cards + deep-link CTA validat
 
 
 ## Latest Update (2026-03-09)
+- Added a lightweight vendor-agnostic market-entry analytics abstraction at `apps/web/src/lib/analytics/marketEntry.ts` with a console fallback adapter and optional runtime tracker injection.
+- Instrumented marketing flow events: `market_landing_view` (landing render), `journey_cta_click` (persona CTA), and `auth_modal_open` (marketing CTA/auth entry points).
+- Instrumented member preset funnel events in create-case flow: `preset_create_started` (entry intent/preset selection), `preset_create_submitted` (preset create submit), and `onboarding_started` (routing into onboarding after preset draft write).
+- Event payload baseline now standardizes `locale`, `journeyId`, `presetId`, `isSignedIn` across market-entry funnel points without writing any cross-scenario business state.
 - Marketing landing page now includes `SampleJourneySection` cards (start condition + 3-step actions + visible outputs), and every card CTA uses the same `journey + preset` deep-link scheme to `/[locale]/member/cases`.
 - Added a focused UI test for `SampleJourneySection` rendering and CTA href query assertions (`journey` + allowlisted `preset`) to prevent regression in marketing-to-member handoff.
 - Persona banner CTA now appends `journey` and allowlisted `preset` query when routing to `/[locale]/member/cases`; signed-in users keep the same destination and signed-out users still go through auth before landing member/cases.
@@ -98,6 +102,47 @@ Last updated: 2026-03-09 (marketing sample journey cards + deep-link CTA validat
 | `pnpm -w typecheck` | PASS | 全 workspace typecheck 通過 |
 | `pnpm -w test` | PASS (WARN) | 測試全綠；有非阻斷 stderr/console 訊息與 turbo outputs 警告 |
 | `pnpm -w --filter web build` | PASS (WARN) | build 成功；有 webpack cache big strings 非阻斷警告 |
+
+## 可觀測性基線（Market Entry Funnel v1）
+
+### 事件層（client-side）
+- `market_landing_view`
+  - 定義：進入 marketing landing page 時記錄一次曝光。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+- `journey_cta_click`
+  - 定義：點擊 persona banner CTA（含 journey + preset deep-link 意圖）。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+- `auth_modal_open`
+  - 定義：由 marketing CTA 開啟登入/註冊 modal。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+- `preset_create_started`
+  - 定義：member/cases create dialog 進入 preset flow（含 journey entry intent 或手動選 preset）。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+- `preset_create_submitted`
+  - 定義：create-case 送出且採用 preset。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+- `onboarding_started`
+  - 定義：preset 建立後導向 onboarding 前記錄起點。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+
+### 目前可量測漏斗定義
+1. `market_landing_view`
+2. `journey_cta_click`
+3. `auth_modal_open`（僅未登入分支）
+4. `preset_create_started`
+5. `preset_create_submitted`
+6. `onboarding_started`
+
+### 指標口徑（v1）
+- Landing → Journey CTA CTR = `journey_cta_click` / `market_landing_view`
+- Journey CTA → Preset Start = `preset_create_started` / `journey_cta_click`
+- Preset Start → Submit CVR = `preset_create_submitted` / `preset_create_started`
+- Preset Submit → Onboarding Start CVR = `onboarding_started` / `preset_create_submitted`
+
+### Guardrails
+- 只記錄 funnel observability metadata，不持久化 scenario/case 業務狀態。
+- `journeyId` / `presetId` 允許 `null`，避免強制推斷與誤寫流程狀態。
+- tracking abstraction 不耦合特定供應商，後續可用 runtime adapter 接既有 telemetry pipeline。
 
 ## Latest Delta (2026-03-08)
 - Plan Lab 決策模板擴展為 5 類家庭決策（結婚、生育、育兒、買屋/租樓、退休）+ income shock；每個模板新增「本地常見成本範圍」區塊、三檔預設（保守/中位/進取）與差異來源說明，並提供「為何這樣估算」tooltip 教學。

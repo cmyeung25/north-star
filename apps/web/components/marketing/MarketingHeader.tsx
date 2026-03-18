@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "../../src/i18n/navigation";
+import { trackMarketEntryEvent } from "../../src/lib/analytics/marketEntry";
 import { createSupabaseBrowserClient } from "../../src/lib/supabase/browser";
 import LanguageSwitcher from "../LanguageSwitcher";
 import { useAuthModal } from "../../app/(marketing)/_components/AuthModalController";
@@ -17,6 +18,15 @@ export default function MarketingHeader() {
   const { openAuthModal } = useAuthModal();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [isSignedIn, setIsSignedIn] = useState(false);
+
+  const trackAuthModalOpen = (journeyId: string | null, presetId: string | null) => {
+    trackMarketEntryEvent("auth_modal_open", {
+      locale,
+      journeyId,
+      presetId,
+      isSignedIn,
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -64,7 +74,15 @@ export default function MarketingHeader() {
 
         <Group gap="xs">
           <LanguageSwitcher />
-          <Button variant="subtle" color="gray" size="xs" onClick={() => openAuthModal("login")}>
+          <Button
+            variant="subtle"
+            color="gray"
+            size="xs"
+            onClick={() => {
+              trackAuthModalOpen(null, null);
+              openAuthModal("login");
+            }}
+          >
             {t("cta.login")}
           </Button>
           <Button
@@ -75,6 +93,7 @@ export default function MarketingHeader() {
                 router.push(`/${locale}/member/cases`);
                 return;
               }
+              trackAuthModalOpen(null, null);
               openAuthModal("register");
             }}
           >
