@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Badge,
   Button,
@@ -14,6 +15,13 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useTranslations } from "next-intl";
+
+type JourneySummary = {
+  audience: string;
+  goal: string;
+  eta: string;
+  outcome: string;
+};
 
 type CreateCasePresetOption = {
   id: string;
@@ -40,6 +48,26 @@ type CreateCaseDialogProps = {
   onSubmit: () => void;
 };
 
+export function JourneySummaryCard({
+  title,
+  summary,
+}: {
+  title: string;
+  summary: JourneySummary;
+}) {
+  return (
+    <Card withBorder radius="md" padding="sm" bg="gray.0">
+      <Stack gap={4}>
+        <Text fw={600} size="sm">{title}</Text>
+        <Text size="sm" c="dimmed">{summary.audience}</Text>
+        <Text size="sm" c="dimmed">{summary.goal}</Text>
+        <Text size="sm" c="dimmed">{summary.eta}</Text>
+        <Text size="sm" c="dimmed">{summary.outcome}</Text>
+      </Stack>
+    </Card>
+  );
+}
+
 export function CreateCaseDialog(props: CreateCaseDialogProps) {
   const t = useTranslations("member.caseDialogs");
 
@@ -49,6 +77,7 @@ export function CreateCaseDialog(props: CreateCaseDialogProps) {
           audience: t(`journey.${props.journeyId}.audience`),
           goal: t(`journey.${props.journeyId}.goal`),
           eta: t(`journey.${props.journeyId}.eta`),
+          outcome: t(`journey.${props.journeyId}.outcome`),
         }
       : null;
 
@@ -85,14 +114,7 @@ export function CreateCaseDialog(props: CreateCaseDialogProps) {
         {props.startMode === "preset" ? (
           <Stack gap="xs">
             {journeySummary ? (
-              <Card withBorder radius="md" padding="sm" bg="gray.0">
-                <Stack gap={4}>
-                  <Text fw={600} size="sm">{t("journey.title")}</Text>
-                  <Text size="sm" c="dimmed">{journeySummary.audience}</Text>
-                  <Text size="sm" c="dimmed">{journeySummary.goal}</Text>
-                  <Text size="sm" c="dimmed">{journeySummary.eta}</Text>
-                </Stack>
-              </Card>
+              <JourneySummaryCard title={t("journey.title")} summary={journeySummary} />
             ) : null}
             <Group justify="space-between" align="center">
               <Text fw={600} size="sm">{t("presetTitle")}</Text>

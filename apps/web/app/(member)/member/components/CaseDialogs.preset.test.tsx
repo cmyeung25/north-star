@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import React from "react";
 import { describe, expect, it } from "vitest";
+import { renderToString } from "react-dom/server";
+import { MantineProvider } from "@mantine/core";
+import { NextIntlClientProvider } from "next-intl";
+import type { AbstractIntlMessages } from "next-intl";
 import enMessages from "../../../../messages/en.json";
 import zhHkMessages from "../../../../messages/zh-HK.json";
 import { writePresetDraftToStorage } from "./presetDraftStorage";
@@ -12,6 +17,8 @@ import {
 } from "../../../../src/features/onboarding/v3/draftStorage";
 import { createInitialScenarioDraftV3State } from "../../../../src/features/onboarding/v3/types";
 import { createScenarioSeedTranslatorFromMessages, getScenarioSeeds } from "../../../../src/scenarios/scenarioSeeds";
+import { JourneySummaryCard } from "./CaseDialogs";
+import { MEMBER_JOURNEY_PRESET_MAP } from "../../../../src/features/member/createCaseEntry";
 
 const dialogSourcePath = path.resolve(
   process.cwd(),
@@ -29,19 +36,14 @@ const requiredCaseDialogKeys = [
   "presetApply",
   "presetSelected",
   "journey.title",
-  "journey.officeSaver.audience",
-  "journey.officeSaver.goal",
-  "journey.officeSaver.eta",
-  "journey.coupleHome.audience",
-  "journey.coupleHome.goal",
-  "journey.coupleHome.eta",
-  "journey.newParents.audience",
-  "journey.newParents.goal",
-  "journey.newParents.eta",
-  "journey.mortgageOwner.audience",
-  "journey.mortgageOwner.goal",
-  "journey.mortgageOwner.eta",
 ] as const;
+
+const allowlistedJourneyIds = Object.keys(MEMBER_JOURNEY_PRESET_MAP) as Array<keyof typeof MEMBER_JOURNEY_PRESET_MAP>;
+const requiredJourneySummaryFields = ["audience", "goal", "eta", "outcome"] as const;
+
+const requiredJourneyDialogKeys = allowlistedJourneyIds.flatMap((journeyId) =>
+  requiredJourneySummaryFields.map((field) => `journey.${journeyId}.${field}`)
+);
 
 type MemberMessages = {
   member: {
@@ -126,7 +128,7 @@ describe("member create-case preset flow", () => {
     const en = enMessages as MemberMessages;
     const zh = zhHkMessages as MemberMessages;
 
-    for (const key of requiredCaseDialogKeys) {
+    for (const key of [...requiredCaseDialogKeys, ...requiredJourneyDialogKeys]) {
       if (!key.startsWith("journey.") || key === "journey.title") {
         expect(source.includes(`t("${key}")`)).toBe(true);
       } else {
@@ -139,6 +141,36 @@ describe("member create-case preset flow", () => {
       expect(enValue === key).toBe(false);
       expect(zhValue === key).toBe(false);
     }
+  });
+
+  it("renders the journey outcome line in the create dialog summary", () => {
+    const html = renderToString(
+      <MantineProvider>
+        <NextIntlClientProvider
+          locale="en"
+          messages={enMessages as unknown as AbstractIntlMessages}
+          timeZone="UTC"
+        >
+          <JourneySummaryCard
+            title={enMessages.member.caseDialogs.journey.title}
+            summary={{
+              audience: enMessages.member.caseDialogs.journey.officeSaver.audience,
+              goal: enMessages.member.caseDialogs.journey.officeSaver.goal,
+              eta: enMessages.member.caseDialogs.journey.officeSaver.eta,
+              outcome: enMessages.member.caseDialogs.journey.officeSaver.outcome,
+            }}
+          />
+        </NextIntlClientProvider>
+      </MantineProvider>
+    );
+
+    expect(html).toContain("Recommended journey");
+    expect(html).toContain("Suitable for: solo professionals building savings while renting.");
+    expect(html).toContain("Decision goal: decide when to move from renting into a first-home plan.");
+    expect(html).toContain("Expected setup time: around 5–8 minutes.");
+    expect(html).toContain(
+      "First-session outcome: leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
+    );
   });
 
   it("localizes preset cards for en and zh-HK", () => {

@@ -85,7 +85,7 @@ Last updated: 2026-03-18
 - [ ] v1.1 funnel tracking completion：補齊 sample journey impressions、journey CTA → create dialog open、case created、onboarding completed 等事件定義與儀表板需求。
 - [ ] v1.1 A/B 文案實驗位：預留 hero value prop、persona CTA、sample journey summary 的實驗欄位與命名規則，先不綁定特定供應商。
 - [x] v1.1 sample journey content kit：為至少 3 個 target personas（單身租屋、雙職家庭置業、新手爸媽）定義起始條件、3-step 操作、可見輸出與預期決策問題。
-- [ ] v1.1 member handoff guidance：create dialog / onboarding entry 明確承接 journey promise（適用族群、預計完成時間、會得到什麼結論），降低落差。
+- [x] v1.1 member handoff guidance：create dialog / onboarding entry 明確承接 journey promise（適用族群、預計完成時間、會得到什麼結論），降低落差。
 - [ ] v1.1 KPI baseline & review cadence：建立 market-entry 每週檢視板與最低 KPI 門檻，未達門檻前不得宣稱 sample journey 已可上市。
 3. 穩定性與支援流程
 - 建立錯誤分級、支援回報、發布檢核與回滾指引。
