@@ -4759,22 +4759,26 @@
         "officeSaver": {
           "audience": "Suitable for: solo professionals building savings while renting.",
           "goal": "Decision goal: decide when to move from renting into a first-home plan.",
-          "eta": "Expected setup time: around 5–8 minutes."
+          "eta": "Expected setup time: around 5–8 minutes.",
+          "outcome": "First-session outcome: leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
         },
         "coupleHome": {
           "audience": "Suitable for: dual-income couples preparing down payment and mortgage timing.",
           "goal": "Decision goal: compare buy-now vs wait-one-year housing paths.",
-          "eta": "Expected setup time: around 8–12 minutes."
+          "eta": "Expected setup time: around 8–12 minutes.",
+          "outcome": "First-session outcome: leave with a baseline case, a visible upfront-cash vs monthly-pressure view, and one buy-now vs wait compare."
         },
         "newParents": {
           "audience": "Suitable for: families planning childbirth, childcare, and schooling budgets.",
           "goal": "Decision goal: compare baseline, conservative, and growth-family cost plans.",
-          "eta": "Expected setup time: around 10–15 minutes."
+          "eta": "Expected setup time: around 10–15 minutes.",
+          "outcome": "First-session outcome: leave with a baseline case, a visible family-cost pressure view, and one childcare/education compare path."
         },
         "mortgageOwner": {
           "audience": "Suitable for: homeowners with active mortgage and asset-liability balancing needs.",
           "goal": "Decision goal: evaluate repayment pressure and liquidity trade-offs.",
-          "eta": "Expected setup time: around 8–12 minutes."
+          "eta": "Expected setup time: around 8–12 minutes.",
+          "outcome": "First-session outcome: leave with a baseline case, a visible repayment-pressure and net-worth view, and one liquidity vs prepayment compare path."
         }
       }
     },

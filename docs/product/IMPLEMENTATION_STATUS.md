@@ -16,7 +16,7 @@ Last updated: 2026-03-18 (marketing landing IA refresh)
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 主流程整合 | 66% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset + 顯示對應 journey 引導文案；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
+| Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
 
 ## Market Entry + Sample Journey Progress
@@ -24,7 +24,7 @@ Last updated: 2026-03-18 (marketing landing IA refresh)
 |---|---:|---|---|---|
 | 入口頁訊息架構 | 78% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff | 仍未建立 A/B slot metadata 與 sample journey impression tracking，無法持續優化訊息效果 | 補 experiment slots 與 sample journey impression event，讓訊息迭代可量測 |
 | Persona ↔ Preset Mapping | 60% | 已有 6 個 allowlisted presets，且 marketing CTA 可帶 `journey/preset` 到 member create flow | 仍缺 persona coverage matrix 與 fallback policy 文件化，容易出現「persona promise > preset 能力」落差 | 固化 persona-to-preset allowlist mapping 與 blank fallback 條件 |
-| Journey Deep-link / Handoff | 62% | 已建立 `journey + preset` query handoff 到 `/member/cases`，member 端會預選 preset 並顯示 guidance copy | contract 尚未正式文件化，缺少 query schema、invalid handling、signed-in/out 分支說明 | 發布統一 query contract，作為 marketing/member/onboarding 共用規格 |
+| Journey Deep-link / Handoff | 70% | 已建立 `journey + preset` query handoff 到 `/member/cases`，member 端會預選 preset，並用 guidance copy 承接適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出 | contract 已在產品文件中收斂，但仍缺 signed-in/out 漏斗驗證與 onboarding entry 後續承接細節 | 補 signed-in / signed-out handoff 驗證與 onboarding entry guidance 對齊 |
 | Funnel Tracking | 52% | 已量測 landing / CTA / auth / preset create / onboarding start 等事件 | 缺 `sample journey impression`、`case created`、`onboarding completed` 與 dashboard/review cadence 定義 | 補齊漏斗事件字典與每週轉化檢視板 |
 | A/B 文案實驗位 | 15% | 目前僅有 vendor-agnostic tracking 抽象，可承接未來實驗 metadata | 尚未定義可實驗欄位、命名規則、最小 sample size 與停止條件 | 建立 experiment slot 命名與文案版本標記策略 |
 | KPI 基線 / 驗收門檻 | 30% | 已有 v1 funnel event 與基礎轉化公式 | 尚未把 MVP 最低 KPI 與 weekly review threshold 寫入產品規格 | 將最低 KPI 納入 roadmap 驗收條件與 market-entry review ritual |
@@ -40,6 +40,8 @@ Last updated: 2026-03-18 (marketing landing IA refresh)
 
 
 ## Latest Update (2026-03-18)
+- Member create-case dialog journey summary now renders a fourth `outcome` line, so the handoff promise explicitly matches landing-page framing: first-session outcome + visible outputs rather than only audience / goal / ETA.
+- Added locale coverage + render assertions for all allowlisted member journeys, ensuring every `journey.*.outcome` key exists in `en` / `zh-HK` and the dialog actually renders the promised conclusion line.
 - Documented Phase B `Market Entry + Sample Journey` v1.1 planning scope, including message architecture, persona↔preset mapping, journey query contract, funnel tracking completion, and A/B copy experiment slots.
 - Added an explicit progress table for market-entry work so product/UX can review `% / blockers / next milestone` without reading code-level notes.
 - Promoted minimum KPI gates for first-run completion, journey-to-case conversion, onboarding start rate, and CTA CTR into the product status baseline, so market-entry readiness is measured against publishable thresholds rather than qualitative intent only.
