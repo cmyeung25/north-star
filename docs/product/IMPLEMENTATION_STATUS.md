@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-09 (market-entry observability baseline)
+Last updated: 2026-03-18 (market-entry journey planning baseline)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -18,6 +18,31 @@ Last updated: 2026-03-09 (market-entry observability baseline)
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 66% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset + 顯示對應 journey 引導文案；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 28% | 已有 marketing pages 與 sample journey -> member/cases 導流入口 | 仍缺 beta feedback loop、支援流程 |
+
+## Market Entry + Sample Journey Progress
+| 子項 | 進度 | 現況 | 阻塞項 | 下一里程碑 |
+|---|---:|---|---|---|
+| 入口頁訊息架構 | 45% | 已有 landing、persona banner、sample journey cards 與基礎 CTA 導流 | Hero/problem framing/proof points 尚未形成一致 IA，對不同 persona 的 promise 仍偏分散 | 完成 hero → persona → sample journey → CTA handoff 的單一路徑文案框架 |
+| Persona ↔ Preset Mapping | 60% | 已有 6 個 allowlisted presets，且 marketing CTA 可帶 `journey/preset` 到 member create flow | 仍缺 persona coverage matrix 與 fallback policy 文件化，容易出現「persona promise > preset 能力」落差 | 固化 persona-to-preset allowlist mapping 與 blank fallback 條件 |
+| Journey Deep-link / Handoff | 62% | 已建立 `journey + preset` query handoff 到 `/member/cases`，member 端會預選 preset 並顯示 guidance copy | contract 尚未正式文件化，缺少 query schema、invalid handling、signed-in/out 分支說明 | 發布統一 query contract，作為 marketing/member/onboarding 共用規格 |
+| Funnel Tracking | 52% | 已量測 landing / CTA / auth / preset create / onboarding start 等事件 | 缺 `sample journey impression`、`case created`、`onboarding completed` 與 dashboard/review cadence 定義 | 補齊漏斗事件字典與每週轉化檢視板 |
+| A/B 文案實驗位 | 15% | 目前僅有 vendor-agnostic tracking 抽象，可承接未來實驗 metadata | 尚未定義可實驗欄位、命名規則、最小 sample size 與停止條件 | 建立 experiment slot 命名與文案版本標記策略 |
+| KPI 基線 / 驗收門檻 | 30% | 已有 v1 funnel event 與基礎轉化公式 | 尚未把 MVP 最低 KPI 與 weekly review threshold 寫入產品規格 | 將最低 KPI 納入 roadmap 驗收條件與 market-entry review ritual |
+
+## Market Entry KPI Minimum Baseline (MVP gate)
+| KPI | 最低門檻 | 現況 | 阻塞項 | 下一里程碑 |
+|---|---:|---|---|---|
+| 首次體驗完成率（landing → onboarding completed） | ≥ 20% | 僅能量測到 onboarding start，尚未形成 completed 口徑 | 缺 onboarding completed event 與跨 auth/session attribution | 補上 completion event 與 cohort dashboard |
+| Journey 點擊 → 建立案例轉化率 | ≥ 35% | 已可量測 `journey_cta_click` → `preset_create_submitted` | 缺 persona 分群 benchmark，未知哪些 journey 文案最弱 | 建立 persona/journey cohort breakdown |
+| Onboarding 啟動率 | ≥ 85% | 已可量測 `preset_create_submitted` → `onboarding_started` | 尚未確認 signed-out auth return path 對啟動率的影響 | 比較 signed-in / signed-out 兩條 handoff 漏斗 |
+| Landing → Journey CTA CTR | ≥ 12% | 已有基礎 CTR 公式，但尚未建立儀表板與 sample size 準則 | 缺 CTA placement / copy 實驗位與 review cadence | 建立週報與 CTA copy experiment plan |
+| Case created → Onboarding completed 流失差 | < 25 個百分點 | 目前只能量測到 create submit / onboarding start | 缺 onboarding completed 與 create success 後續品質標記 | 補齊 case created success / onboarding completed 事件並建立 drop-off report |
+
+
+## Latest Update (2026-03-18)
+- Documented Phase B `Market Entry + Sample Journey` v1.1 planning scope, including message architecture, persona↔preset mapping, journey query contract, funnel tracking completion, and A/B copy experiment slots.
+- Added an explicit progress table for market-entry work so product/UX can review `% / blockers / next milestone` without reading code-level notes.
+- Promoted minimum KPI gates for first-run completion, journey-to-case conversion, onboarding start rate, and CTA CTR into the product status baseline, so market-entry readiness is measured against publishable thresholds rather than qualitative intent only.
 
 
 ## Latest Update (2026-03-09)
