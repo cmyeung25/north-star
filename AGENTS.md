@@ -225,6 +225,8 @@ Member create-case preset v1 - The member `/member/cases` create dialog now trea
 
 Market-entry journey contract v1.1 - Public persona/sample-journey CTAs must use `/{locale}/member/cases?journey={journeyId}&preset={presetId}` as the only supported handoff contract. `journey` expresses entry narrative only; `preset` must stay within the member preset allowlist and may only initialize the member create dialog. Invalid or unsupported mappings must fall back to blank create flow rather than exposing hidden seeds, bypassing `/member/cases`, or auto-marking onboarding complete.
 
+Marketing landing IA v1.1 (2026-03-18) - The public landing page should be text-led rather than decorative-image-led: hero must state the first-session outcome, proof points should emphasize cashflow / net worth / guardrails, persona cards should avoid meaningless stock-style imagery, and sample journeys should explicitly show starting condition + decision question + 3-step actions + visible outputs. Keep all CTAs on the existing `journey + preset` handoff contract.
+
 9 Checklist for PR authors
 
 Before submitting changes, check:
