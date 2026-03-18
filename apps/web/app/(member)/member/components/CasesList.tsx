@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useLocale, useMessages, useTranslations } from "next-intl";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type { CaseSummary } from "@north-star/adapters";
 import {
   ActionIcon,
@@ -34,6 +34,7 @@ import {
 import { MEMBER_CASE_PRESET_SEED_IDS } from "../../../../src/features/onboarding/seedPrefill";
 import { writePresetDraftToStorage } from "./presetDraftStorage";
 import type { MemberCasesEntryIntent } from "../../../../src/features/member/createCaseEntry";
+import { trackMarketEntryEvent } from "../../../../src/lib/analytics/marketEntry";
 
 const formatDate = (value: string) => formatIsoYmdHms(value);
 
@@ -127,6 +128,20 @@ export function CasesList({
   const [deleteTarget, setDeleteTarget] = useState<CaseSummary | null>(null);
   const [openingCase, setOpeningCase] = useState<CaseSummary | null>(null);
 
+  const isSignedIn = true;
+
+  const trackPresetEvent = useCallback((
+    name: "preset_create_started" | "preset_create_submitted" | "onboarding_started",
+    presetId: string | null,
+  ) => {
+    trackMarketEntryEvent(name, {
+      locale,
+      journeyId: entryIntent.journey,
+      presetId,
+      isSignedIn,
+    });
+  }, [entryIntent.journey, isSignedIn, locale]);
+
   useEffect(() => {
     if (!entryIntent.presetId) {
       return;
@@ -134,7 +149,8 @@ export function CasesList({
     setCreateOpen(true);
     setCreateStartMode("preset");
     setSelectedPresetId(entryIntent.presetId);
-  }, [entryIntent.presetId]);
+    trackPresetEvent("preset_create_started", entryIntent.presetId);
+  }, [entryIntent.presetId, trackPresetEvent]);
 
   const seedTranslator = useMemo(
     () => createScenarioSeedTranslatorFromMessages(messages as Record<string, unknown>),
@@ -176,6 +192,7 @@ export function CasesList({
 
   const handleSelectPreset = (presetId: string) => {
     setSelectedPresetId(presetId);
+    trackPresetEvent("preset_create_started", presetId);
     const preset = presetSeeds.find((seed) => seed.id === presetId);
     if (preset && newTitle.trim().length === 0) {
       setNewTitle(preset.title);
@@ -304,7 +321,9 @@ export function CasesList({
           setCreateStartMode(value);
           if (value === "blank") {
             setSelectedPresetId(null);
+            return;
           }
+          trackPresetEvent("preset_create_started", selectedPresetId);
         }}
         onPresetChange={handleSelectPreset}
         onSubmit={() =>
@@ -312,7 +331,9 @@ export function CasesList({
             () => createCaseAction({ title: newTitle, currency }),
             ({ caseId, scenarioId }) => {
               if (createStartMode === "preset" && selectedPreset) {
+                trackPresetEvent("preset_create_submitted", selectedPreset.id);
                 writePresetDraftToStorage(scenarioId, selectedPreset.payload);
+                trackPresetEvent("onboarding_started", selectedPreset.id);
               }
               resetCreateDialog();
               router.push(scenarioOnboardingPath(caseId, scenarioId, locale as Locale));

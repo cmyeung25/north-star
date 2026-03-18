@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuthModal } from "./AuthModalController";
 import { MEMBER_JOURNEY_PRESET_MAP } from "../../../src/features/member/createCaseEntry";
+import { trackMarketEntryEvent } from "../../../src/lib/analytics/marketEntry";
 
 type PersonaKey = "officeSaver" | "coupleHome" | "newParents" | "mortgageOwner";
 
@@ -89,15 +90,28 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                     variant="light"
                     color="gray"
                     onClick={() => {
+                      const presetId = MEMBER_JOURNEY_PRESET_MAP[key];
+                      trackMarketEntryEvent("journey_cta_click", {
+                        locale,
+                        journeyId: key,
+                        presetId,
+                        isSignedIn,
+                      });
                       const params = new URLSearchParams({
                         journey: key,
-                        preset: MEMBER_JOURNEY_PRESET_MAP[key],
+                        preset: presetId,
                       });
                       const targetPath = `/${locale}/member/cases?${params.toString()}`;
                       if (isSignedIn) {
                         router.push(targetPath);
                         return;
                       }
+                      trackMarketEntryEvent("auth_modal_open", {
+                        locale,
+                        journeyId: key,
+                        presetId,
+                        isSignedIn,
+                      });
                       openAuthModal("register");
                     }}
                   >
