@@ -223,6 +223,8 @@ Overview KPI watchlist v1 – Overview dashboard KPI rendering now uses a `libra
 
 Member create-case preset v1 - The member `/member/cases` create dialog now treats `preset` as an onboarding-prefill path only. It creates the case/scenario first, stores a scenario-scoped onboarding draft derived from an allowlisted seed, and then routes into onboarding. Do not reinterpret this member entry as direct scenario creation or skip onboarding; the current allowlist is six presets (`single-renter`, `dual-income-home`, `dual-income-rental`, `new-baby`, `new-baby-helper`, `high-asset`).
 
+Market-entry journey contract v1.1 - Public persona/sample-journey CTAs must use `/{locale}/member/cases?journey={journeyId}&preset={presetId}` as the only supported handoff contract. `journey` expresses entry narrative only; `preset` must stay within the member preset allowlist and may only initialize the member create dialog. Invalid or unsupported mappings must fall back to blank create flow rather than exposing hidden seeds, bypassing `/member/cases`, or auto-marking onboarding complete.
+
 9 Checklist for PR authors
 
 Before submitting changes, check:
