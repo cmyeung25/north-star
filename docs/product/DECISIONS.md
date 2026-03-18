@@ -1,6 +1,6 @@
 ﻿# North Star Product Decisions
 
-Last updated: 2026-03-08
+Last updated: 2026-03-18
 
 ## Decision Log
 
@@ -131,3 +131,17 @@ Last updated: 2026-03-08
 - Context: Marketing persona 卡片需要把「樣本旅程」導流到 member 建案例流程，但必須維持登入後固定落地 `/member/cases`，並避免任意 preset query 注入。
 - Decision: Persona CTA 導向 `/{locale}/member/cases?journey=...&preset=...`；member/cases 以 allowlist resolver 解析 query（只允許 6 個 member presets），在 create dialog 預選 preset 並顯示 journey 引導文案（適用族群/目標決策/預期完成時間）。
 - Guardrails: Auth 成功後路徑仍維持 `/{locale}/member/cases`；query 只影響 member UI 初始化，不直接建立 scenario 或寫入跨 scenario 狀態；未知 journey/preset 一律忽略並回退 blank flow。
+
+### D-2026-03-18-01
+- Date: 2026-03-18
+- Status: Accepted
+- Context: Phase B 需要把 market-entry sample journey 從「已有導流能力」提升為「可持續優化的產品入口」，但目前 `journey/preset` 的 query contract、signed-in/out handoff、invalid fallback 與 funnel ownership 仍分散在實作細節中，不利於 UX/產品/工程共同維護。
+- Decision: 將 market-entry handoff contract 文件化為單一路徑：所有 persona/sample journey CTA 只可導向 `/{locale}/member/cases?journey={journeyId}&preset={presetId}`；其中 `journeyId` 代表入口敘事意圖，`presetId` 代表 allowlisted onboarding-prefill seed。query 只可用於初始化 member create dialog，不可跳過 `/member/cases`、不可直接建立已完成 scenario、不可改寫 auth 成功後落地規則。
+- Guardrails: `journeyId` / `presetId` 必須允許無效值安全回退 blank flow；signed-out 使用者仍需先經 auth，再回到 `/member/cases` 承接相同 entry intent；任何後續 onboarding/app route 若要承接 journey context，只能透過既有 create-flow state 或 analytics metadata，不可引入跨 scenario 持久化捷徑。
+
+### D-2026-03-18-02
+- Date: 2026-03-18
+- Status: Accepted
+- Context: Market-entry persona promise 若直接綁到任意 preset，容易出現敘事誤導（例如 persona 文案承諾的決策問題超出 preset 能力），也會增加未經驗證 seed 被直接曝露到公開入口的風險。
+- Decision: Persona ↔ preset 採 allowlist mapping policy：公開 market-entry 只能映射到已產品化且通過 member create flow 驗證的 preset allowlist；每個 persona 至少定義一個 primary preset，必要時可加 secondary preset 或直接回退 blank flow，但不得新增 direct scenario creation 或隱藏型 seed query。
+- Guardrails: mapping policy 必須與 member create flow 的 preset allowlist 同步維護；若 persona 無安全對應 preset，寧可導向 blank create + guidance，也不可暴露未驗證 seed；所有 funnel/KPI 檢視需能以 persona、journey、preset 三層拆分，避免只看總轉化而掩蓋 persona mismatch。

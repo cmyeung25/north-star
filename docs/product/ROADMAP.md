@@ -1,5 +1,5 @@
 ﻿# North Star Product Roadmap
-Last updated: 2026-03-08
+Last updated: 2026-03-18
 
 ## Product Focus
 - 產品定位: 香港/亞洲家庭人生現金流決策平台。
@@ -79,6 +79,14 @@ Last updated: 2026-03-08
 - 上線市場入口頁（價值主張、適用族群、示例旅程）。
 - 提供可直接體驗的家庭場景範本與引導。
 - [x] v1 已交付：建立 market-entry tracking abstraction（vendor-agnostic），並接入 landing/persona/member preset 關鍵漏斗事件（landing view、journey CTA、auth modal、preset create、onboarding start）。
+- [ ] v1.1 訊息架構收斂：定義入口頁 hero / problem framing / sample journey / CTA proof points 的區塊順序與必備訊息。
+- [ ] v1.1 persona ↔ preset mapping policy：每個 market-entry persona 只可映射至 allowlisted member preset；若無安全對應則回退 blank flow，不新增 direct scenario creation。
+- [ ] v1.1 journey deep-link contract：統一使用 `/{locale}/member/cases?journey={journeyId}&preset={presetId}` 作為入口意圖傳遞；query 只允許初始化 member create dialog，不可繞過 `/member/cases` 或直接標記 scenario 已完成 onboarding。
+- [ ] v1.1 funnel tracking completion：補齊 sample journey impressions、journey CTA → create dialog open、case created、onboarding completed 等事件定義與儀表板需求。
+- [ ] v1.1 A/B 文案實驗位：預留 hero value prop、persona CTA、sample journey summary 的實驗欄位與命名規則，先不綁定特定供應商。
+- [ ] v1.1 sample journey content kit：為至少 3 個 target personas（單身租屋、雙職家庭置業、新手爸媽）定義起始條件、3-step 操作、可見輸出與預期決策問題。
+- [ ] v1.1 member handoff guidance：create dialog / onboarding entry 明確承接 journey promise（適用族群、預計完成時間、會得到什麼結論），降低落差。
+- [ ] v1.1 KPI baseline & review cadence：建立 market-entry 每週檢視板與最低 KPI 門檻，未達門檻前不得宣稱 sample journey 已可上市。
 3. 穩定性與支援流程
 - 建立錯誤分級、支援回報、發布檢核與回滾指引。
 
@@ -93,6 +101,12 @@ Last updated: 2026-03-08
 ### 驗收條件
 - 公測用戶能完成首次體驗且能說明「哪一個方案較穩陣、原因是什麼」。
 - 支援流程可處理常見資料與模型疑問。
+- Market Entry 最低 KPI（first-run baseline）：
+  - 首次體驗完成率（landing 進站 → 完成 onboarding）≥ 20%。
+  - Journey 點擊 → 建立案例轉化率（`journey_cta_click` → `preset_create_submitted`）≥ 35%。
+  - Onboarding 啟動率（`preset_create_submitted` → `onboarding_started`）≥ 85%。
+  - Landing → Journey CTA CTR ≥ 12%。
+  - Sample journey 導流之 case created → onboarding completed completion gap < 25 個百分點（避免 create 後大量流失）。
 
 ## Phase C: Post-MVP Deferred
 ### 延後項目
