@@ -1,12 +1,12 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-18 (market-entry journey planning baseline)
+Last updated: 2026-03-18 (marketing landing IA refresh)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
 | Closed Beta readiness | 58% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，但 onboarding/guardrails 仍待整合 |
-| Public MVP readiness | 38% | 可行動摘要層已有最小可用品質，但 market entry 與營運支援仍有明顯缺口 |
+| Public MVP readiness | 40% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，但營運支援與漏斗補齊仍有缺口 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
@@ -17,12 +17,12 @@ Last updated: 2026-03-18 (market-entry journey planning baseline)
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 66% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset + 顯示對應 journey 引導文案；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
-| GTM / 營運就緒 | 28% | 已有 marketing pages 與 sample journey -> member/cases 導流入口 | 仍缺 beta feedback loop、支援流程 |
+| GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
 
 ## Market Entry + Sample Journey Progress
 | 子項 | 進度 | 現況 | 阻塞項 | 下一里程碑 |
 |---|---:|---|---|---|
-| 入口頁訊息架構 | 45% | 已有 landing、persona banner、sample journey cards 與基礎 CTA 導流 | Hero/problem framing/proof points 尚未形成一致 IA，對不同 persona 的 promise 仍偏分散 | 完成 hero → persona → sample journey → CTA handoff 的單一路徑文案框架 |
+| 入口頁訊息架構 | 78% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff | 仍未建立 A/B slot metadata 與 sample journey impression tracking，無法持續優化訊息效果 | 補 experiment slots 與 sample journey impression event，讓訊息迭代可量測 |
 | Persona ↔ Preset Mapping | 60% | 已有 6 個 allowlisted presets，且 marketing CTA 可帶 `journey/preset` 到 member create flow | 仍缺 persona coverage matrix 與 fallback policy 文件化，容易出現「persona promise > preset 能力」落差 | 固化 persona-to-preset allowlist mapping 與 blank fallback 條件 |
 | Journey Deep-link / Handoff | 62% | 已建立 `journey + preset` query handoff 到 `/member/cases`，member 端會預選 preset 並顯示 guidance copy | contract 尚未正式文件化，缺少 query schema、invalid handling、signed-in/out 分支說明 | 發布統一 query contract，作為 marketing/member/onboarding 共用規格 |
 | Funnel Tracking | 52% | 已量測 landing / CTA / auth / preset create / onboarding start 等事件 | 缺 `sample journey impression`、`case created`、`onboarding completed` 與 dashboard/review cadence 定義 | 補齊漏斗事件字典與每週轉化檢視板 |
@@ -43,6 +43,8 @@ Last updated: 2026-03-18 (market-entry journey planning baseline)
 - Documented Phase B `Market Entry + Sample Journey` v1.1 planning scope, including message architecture, persona↔preset mapping, journey query contract, funnel tracking completion, and A/B copy experiment slots.
 - Added an explicit progress table for market-entry work so product/UX can review `% / blockers / next milestone` without reading code-level notes.
 - Promoted minimum KPI gates for first-run completion, journey-to-case conversion, onboarding start rate, and CTA CTR into the product status baseline, so market-entry readiness is measured against publishable thresholds rather than qualitative intent only.
+- Marketing landing page IA refreshed to a text-led structure: hero proof cards, persona decision cards without decorative photos, sample journeys with explicit decision questions, and a clearer first-session CTA promise.
+- Sample journey content kit now makes the decision question explicit for the three target personas (steady saver, dual-income home buyer, new parents), so marketing promise and in-product action path are easier to align.
 
 
 ## Latest Update (2026-03-09)

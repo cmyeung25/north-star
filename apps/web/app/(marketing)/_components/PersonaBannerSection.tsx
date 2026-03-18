@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, Box, Button, Group, List, Overlay, Paper, Stack, Text, ThemeIcon, Title } from "@mantine/core";
+import { Badge, Button, Card, Group, List, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuthModal } from "./AuthModalController";
@@ -11,13 +11,6 @@ type PersonaKey = "officeSaver" | "coupleHome" | "newParents" | "mortgageOwner";
 
 const personaKeys: PersonaKey[] = ["officeSaver", "coupleHome", "newParents", "mortgageOwner"];
 
-const personaImages: Record<PersonaKey, string> = {
-  officeSaver: "/marketing/personas/aurin_persona_banner_01.webp",
-  coupleHome: "/marketing/personas/aurin_persona_banner_02.webp",
-  newParents: "/marketing/personas/aurin_persona_banner_03.webp",
-  mortgageOwner: "/marketing/personas/aurin_persona_banner_04.webp",
-};
-
 export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boolean }) {
   const t = useTranslations("marketing.web");
   const locale = useLocale();
@@ -26,52 +19,35 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
 
   return (
     <Stack gap="md">
-      <Title order={2} c="white">
-        {t("section.persona")}
-      </Title>
+      <Stack gap={6}>
+        <Title order={2} c="white">
+          {t("section.persona")}
+        </Title>
+        <Text c="var(--mantine-color-polar-1)" maw={720}>
+          {t("section.personaSubtitle")}
+        </Text>
+      </Stack>
 
-      <Stack gap="xl">
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
         {personaKeys.map((key) => (
-          <Paper
+          <Card
             key={key}
-            radius="lg"
-            withBorder
-            p={0}
-            bg="rgba(11, 27, 58, 0.55)"
-            style={{ borderColor: "rgba(221, 231, 255, 0.2)", overflow: "hidden" }}
+            radius="xl"
+            p="xl"
+            bg="rgba(11, 27, 58, 0.6)"
+            style={{ border: "1px solid rgba(221, 231, 255, 0.16)" }}
           >
-            <Box
-              pos="relative"
-              mih={{ base: 360, md: 420 }}
-              p={{ base: "md", md: "xl" }}
-              style={{
-                backgroundImage: `url(${personaImages[key]})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
-              <Overlay
-                gradient="linear-gradient(110deg, rgba(8, 15, 35, 0.92) 0%, rgba(8, 15, 35, 0.6) 45%, rgba(8, 15, 35, 0.2) 100%)"
-                opacity={1}
-                zIndex={0}
-              />
-
-              <Stack
-                gap="sm"
-                maw={560}
-                pos="relative"
-                style={{ zIndex: 1 }}
-                p={{ base: "sm", md: "md" }}
-                bg="rgba(8, 15, 35, 0.48)"
-                bdrs="md"
-              >
+            <Stack gap="lg" h="100%" justify="space-between">
+              <Stack gap="sm">
                 <Badge variant="light" color="aurora" w="fit-content">
                   {t(`personas.${key}.tag`)}
                 </Badge>
                 <Title order={3} c="white">
                   {t(`personas.${key}.title`)}
                 </Title>
-                <Text c="gray.2">{t(`personas.${key}.tagline`)}</Text>
+                <Text c="gray.2" maw={520}>
+                  {t(`personas.${key}.tagline`)}
+                </Text>
                 <List
                   spacing="xs"
                   size="sm"
@@ -85,6 +61,21 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                   <List.Item c="gray.1">{t(`personas.${key}.bullets.1`)}</List.Item>
                   <List.Item c="gray.1">{t(`personas.${key}.bullets.2`)}</List.Item>
                 </List>
+              </Stack>
+              <Stack gap="sm">
+                <Card bg="rgba(255,255,255,0.04)" radius="lg" p="md">
+                  <Stack gap={4}>
+                    <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
+                      {t("personaCard.outcomeLabel")}
+                    </Text>
+                    <Text c="white" fw={600}>
+                      {t(`personas.${key}.outcome`)}
+                    </Text>
+                    <Text size="sm" c="gray.3">
+                      {t(`personas.${key}.decision`)}
+                    </Text>
+                  </Stack>
+                </Card>
                 <Group mt="xs">
                   <Button
                     variant="light"
@@ -119,10 +110,10 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                   </Button>
                 </Group>
               </Stack>
-            </Box>
-          </Paper>
+            </Stack>
+          </Card>
         ))}
-      </Stack>
+      </SimpleGrid>
     </Stack>
   );
 }

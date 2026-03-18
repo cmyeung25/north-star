@@ -145,3 +145,10 @@ Last updated: 2026-03-18
 - Context: Market-entry persona promise 若直接綁到任意 preset，容易出現敘事誤導（例如 persona 文案承諾的決策問題超出 preset 能力），也會增加未經驗證 seed 被直接曝露到公開入口的風險。
 - Decision: Persona ↔ preset 採 allowlist mapping policy：公開 market-entry 只能映射到已產品化且通過 member create flow 驗證的 preset allowlist；每個 persona 至少定義一個 primary preset，必要時可加 secondary preset 或直接回退 blank flow，但不得新增 direct scenario creation 或隱藏型 seed query。
 - Guardrails: mapping policy 必須與 member create flow 的 preset allowlist 同步維護；若 persona 無安全對應 preset，寧可導向 blank create + guidance，也不可暴露未驗證 seed；所有 funnel/KPI 檢視需能以 persona、journey、preset 三層拆分，避免只看總轉化而掩蓋 persona mismatch。
+
+### D-2026-03-18-03
+- Date: 2026-03-18
+- Status: Accepted
+- Context: 現有 marketing landing page 雖已有 hero / persona / sample journey 基礎內容，但依賴大幅裝飾圖片，且 hero → proof → journey 的訊息路徑不夠集中，難以把公開入口 promise 對齊到實際產品可交付的第一步。
+- Decision: Market landing page v1.1 採文字主導 IA：hero 直接承諾 first-session outcome，proof points 聚焦 cashflow / net worth / guardrails，persona 區改為無裝飾圖片的 decision cards，sample journey 卡需明確寫出「起始條件 + 決策問題 + 3-step 操作 + 可見輸出」。
+- Guardrails: 不新增 direct scenario creation 或改變 `journey + preset` handoff contract；所有新文案繼續走 i18n key；market-entry promise 只可描述目前產品已能交付的 baseline / compare / Plan Lab 能力，避免超賣未上線功能。

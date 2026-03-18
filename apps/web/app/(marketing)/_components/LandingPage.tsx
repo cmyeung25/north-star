@@ -70,73 +70,140 @@ export default function LandingPage() {
 
   return (
     <Stack gap={56}>
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing={{ base: "xl", md: 48 }}>
-        <Stack gap="lg" justify="center">
-          <Badge variant="light" color="aurora" size="lg" w="fit-content">
-            {t("hero.badge")}
-          </Badge>
-          <Stack gap="sm">
-            <Title order={1} c="white" maw={560}>
-              {t("hero.title")}
-            </Title>
-            <Text c="var(--mantine-color-polar-1)" maw={560}>
-              {t("hero.subtitle")}
-            </Text>
-          </Stack>
-          <Stack gap="xs">
-            <Group gap="sm" wrap="wrap">
-              <Button size="md" color="aurora" onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))}>
-                {t("cta.start")}
-              </Button>
-              <Button size="md" variant="outline" c="white" onClick={() => openAuthFromLanding(null, null, "login")}>
-                {t("cta.login")}
-              </Button>
-              {isSignedIn ? (
-                <Anchor c="aurora.2" fw={600} onClick={() => router.push(`/${locale}/member/cases`)} style={{ cursor: "pointer" }}>
-                  {t("cta.goCases")}
-                </Anchor>
-              ) : null}
-            </Group>
-            <Group gap="lg">
-              <Text size="sm" c="var(--mantine-color-polar-2)">
-                {t("cta.startHint")}
+      <Paper
+        radius="xl"
+        p={{ base: "lg", md: 32 }}
+        bg="rgba(11, 27, 58, 0.4)"
+        style={{ border: "1px solid rgba(221, 231, 255, 0.16)", backdropFilter: "blur(10px)" }}
+      >
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing={{ base: "xl", md: 32 }}>
+          <Stack gap="lg" justify="center">
+            <Badge variant="light" color="aurora" size="lg" w="fit-content">
+              {t("hero.badge")}
+            </Badge>
+            <Stack gap="sm">
+              <Title order={1} c="white" maw={560}>
+                {t("hero.title")}
+              </Title>
+              <Text c="var(--mantine-color-polar-1)" maw={560}>
+                {t("hero.subtitle")}
               </Text>
-              <Text size="sm" c="var(--mantine-color-polar-2)">
-                {t("cta.loginHint")}
-              </Text>
-            </Group>
-          </Stack>
-        </Stack>
-        <Card
-          bg="rgba(11, 27, 58, 0.45)"
-          style={{ backdropFilter: "blur(8px)", borderColor: "rgba(184, 203, 255, 0.4)" }}
-          p="xl"
-        >
-          <Stack gap="md">
-            <Text fw={700} c="white">
-              {t("snapshot.title")}
-            </Text>
-            <Paper p="md" radius="md" bg="rgba(35, 213, 171, 0.15)">
-              <Text fw={600} c="white">
-                {t("snapshot.case")}
-              </Text>
-              <Text size="sm" c="var(--mantine-color-polar-1)">
-                {t("snapshot.detail")}
-              </Text>
-            </Paper>
-            <Stack gap={6} c="var(--mantine-color-polar-1)">
-              <Text size="sm">• {t("snapshot.points.cashflow")}</Text>
-              <Text size="sm">• {t("snapshot.points.netWorth")}</Text>
-              <Text size="sm">• {t("snapshot.points.guardrails")}</Text>
+            </Stack>
+            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+              {(["cashflow", "netWorth", "guardrails"] as const).map((key) => (
+                <Paper
+                  key={key}
+                  p="md"
+                  radius="lg"
+                  bg="rgba(255,255,255,0.04)"
+                  style={{ border: "1px solid rgba(221, 231, 255, 0.12)" }}
+                >
+                  <Stack gap={6}>
+                    <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
+                      {t(`hero.proof.${key}.label`)}
+                    </Text>
+                    <Text c="white" fw={600}>
+                      {t(`hero.proof.${key}.title`)}
+                    </Text>
+                    <Text size="sm" c="var(--mantine-color-polar-2)">
+                      {t(`hero.proof.${key}.description`)}
+                    </Text>
+                  </Stack>
+                </Paper>
+              ))}
+            </SimpleGrid>
+            <Stack gap="xs">
+              <Group gap="sm" wrap="wrap">
+                <Button size="md" color="aurora" onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))}>
+                  {t("cta.start")}
+                </Button>
+                <Button size="md" variant="outline" c="white" onClick={() => openAuthFromLanding(null, null, "login")}>
+                  {t("cta.login")}
+                </Button>
+                {isSignedIn ? (
+                  <Anchor c="aurora.2" fw={600} onClick={() => router.push(`/${locale}/member/cases`)} style={{ cursor: "pointer" }}>
+                    {t("cta.goCases")}
+                  </Anchor>
+                ) : null}
+              </Group>
+              <Group gap="lg">
+                <Text size="sm" c="var(--mantine-color-polar-2)">
+                  {t("cta.startHint")}
+                </Text>
+                <Text size="sm" c="var(--mantine-color-polar-2)">
+                  {t("cta.loginHint")}
+                </Text>
+              </Group>
             </Stack>
           </Stack>
-        </Card>
-      </SimpleGrid>
-
-
-      <PersonaBannerSection isSignedIn={isSignedIn} />
-
-      <SampleJourneySection />
+          <Stack gap="md">
+            <Card
+              bg="rgba(8, 15, 35, 0.72)"
+              style={{ borderColor: "rgba(184, 203, 255, 0.28)" }}
+              p="xl"
+            >
+              <Stack gap="md">
+                <Text fw={700} c="white">
+                  {t("snapshot.title")}
+                </Text>
+                <Paper p="md" radius="md" bg="rgba(35, 213, 171, 0.12)">
+                  <Text fw={600} c="white">
+                    {t("snapshot.case")}
+                  </Text>
+                  <Text size="sm" c="var(--mantine-color-polar-1)">
+                    {t("snapshot.detail")}
+                  </Text>
+                </Paper>
+                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                  <Paper p="sm" radius="md" bg="rgba(255,255,255,0.04)">
+                    <Stack gap={4}>
+                      <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
+                        {t("snapshot.points.cashflow")}
+                      </Text>
+                      <Text size="sm" c="gray.1">
+                        {t("snapshot.summary.cashflow")}
+                      </Text>
+                    </Stack>
+                  </Paper>
+                  <Paper p="sm" radius="md" bg="rgba(255,255,255,0.04)">
+                    <Stack gap={4}>
+                      <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
+                        {t("snapshot.points.netWorth")}
+                      </Text>
+                      <Text size="sm" c="gray.1">
+                        {t("snapshot.summary.netWorth")}
+                      </Text>
+                    </Stack>
+                  </Paper>
+                  <Paper p="sm" radius="md" bg="rgba(255,255,255,0.04)">
+                    <Stack gap={4}>
+                      <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
+                        {t("snapshot.points.guardrails")}
+                      </Text>
+                      <Text size="sm" c="gray.1">
+                        {t("snapshot.summary.guardrails")}
+                      </Text>
+                    </Stack>
+                  </Paper>
+                </SimpleGrid>
+              </Stack>
+            </Card>
+            <Card bg="rgba(255,255,255,0.04)" p="lg" radius="xl" style={{ border: "1px solid rgba(221, 231, 255, 0.1)" }}>
+              <Stack gap="xs">
+                <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
+                  {t("hero.firstSession.label")}
+                </Text>
+                <Title order={4} c="white">
+                  {t("hero.firstSession.title")}
+                </Title>
+                <Text c="var(--mantine-color-polar-1)">
+                  {t("hero.firstSession.description")}
+                </Text>
+              </Stack>
+            </Card>
+          </Stack>
+        </SimpleGrid>
+      </Paper>
 
       <Stack gap="md">
         <Title order={2} c="white">
@@ -160,6 +227,10 @@ export default function LandingPage() {
           ))}
         </SimpleGrid>
       </Stack>
+
+      <PersonaBannerSection isSignedIn={isSignedIn} />
+
+      <SampleJourneySection />
 
       <Stack gap="md">
         <Title order={2} c="white">

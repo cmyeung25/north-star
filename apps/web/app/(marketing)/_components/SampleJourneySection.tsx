@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, Button, Card, Group, List, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
+import { Badge, Button, Card, Divider, Group, List, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
 import { MEMBER_JOURNEY_PRESET_MAP } from "../../../src/features/member/createCaseEntry";
 
@@ -21,7 +21,9 @@ export default function SampleJourneySection() {
         <Title order={2} c="white">
           {t("sampleJourney.title")}
         </Title>
-        <Text c="var(--mantine-color-polar-1)">{t("sampleJourney.subtitle")}</Text>
+        <Text c="var(--mantine-color-polar-1)" maw={760}>
+          {t("sampleJourney.subtitle")}
+        </Text>
       </Stack>
       <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
         {sampleJourneyKeys.map((journeyKey) => {
@@ -32,9 +34,9 @@ export default function SampleJourneySection() {
           const href = `/${locale}/member/cases?${params.toString()}`;
 
           return (
-            <Card key={journeyKey} bg="rgba(255,255,255,0.96)">
-              <Stack gap="sm">
-                <Badge color="aurora" variant="light" w="fit-content">
+            <Card key={journeyKey} bg="rgba(255,255,255,0.97)" radius="xl" p="xl">
+              <Stack gap="md" h="100%">
+                <Badge color="aurora" variant="light" w="fit-content" size="lg">
                   {t(`sampleJourney.journeys.${journeyKey}.title`)}
                 </Badge>
 
@@ -44,6 +46,17 @@ export default function SampleJourneySection() {
                     {t(`sampleJourney.journeys.${journeyKey}.startCondition`)}
                   </Text>
                 </Stack>
+
+                <Paper p="md" radius="lg" bg="rgba(11, 27, 58, 0.04)">
+                  <Stack gap={4}>
+                    <Text size="xs" tt="uppercase" fw={700} c="aurora.8">
+                      {t("sampleJourney.decisionTitle")}
+                    </Text>
+                    <Text fw={600}>{t(`sampleJourney.journeys.${journeyKey}.decisionQuestion`)}</Text>
+                  </Stack>
+                </Paper>
+
+                <Divider />
 
                 <Stack gap={4}>
                   <Text fw={700}>{t("sampleJourney.stepsTitle")}</Text>
@@ -60,14 +73,14 @@ export default function SampleJourneySection() {
                   <Text fw={700}>{t("sampleJourney.outputTitle")}</Text>
                   <Group gap="xs">
                     {sampleJourneyOutputs.map((outputKey) => (
-                      <ThemeIcon key={outputKey} radius="xl" size="sm" color="aurora" variant="light">
-                        <Text size="xs">{t(`sampleJourney.journeys.${journeyKey}.outputs.${outputKey}`)}</Text>
-                      </ThemeIcon>
+                      <Badge key={outputKey} color="aurora" variant="light">
+                        {t(`sampleJourney.journeys.${journeyKey}.outputs.${outputKey}`)}
+                      </Badge>
                     ))}
                   </Group>
                 </Stack>
 
-                <Button component={Link} href={href} color="aurora" variant="light">
+                <Button component={Link} href={href} color="aurora" variant="light" mt="auto">
                   {t("sampleJourney.cta")}
                 </Button>
               </Stack>
