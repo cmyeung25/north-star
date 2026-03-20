@@ -227,7 +227,7 @@ const selfUseRentalConflictMeta = {
   blocksSubmission: true,
   messageKey: "guardrails.rules.selfUseRentalConflict.message",
   actionHintKey: "guardrails.rules.selfUseRentalConflict.action",
-  target: { stepId: "assets", section: "housing" },
+  target: { stepId: "assets", section: "property" },
 } as const satisfies Omit<OnboardingGuardrailDefinition, "evaluate">;
 
 const selfUseRentalConflictRule = defineRule(
@@ -277,7 +277,7 @@ const mortgagePropertyBasicsMissingMeta = {
   blocksSubmission: false,
   messageKey: "guardrails.rules.mortgagePropertyBasicsMissing.message",
   actionHintKey: "guardrails.rules.mortgagePropertyBasicsMissing.action",
-  target: { stepId: "assets", section: "mortgage" },
+  target: { stepId: "assets", section: "property" },
 } as const satisfies Omit<OnboardingGuardrailDefinition, "evaluate">;
 
 const mortgagePropertyBasicsMissingRule = defineRule(
@@ -304,7 +304,7 @@ const duplicateCurrentHomeHousingCostsMeta = {
   blocksSubmission: false,
   messageKey: "guardrails.rules.duplicateCurrentHomeHousingCosts.message",
   actionHintKey: "guardrails.rules.duplicateCurrentHomeHousingCosts.action",
-  target: { stepId: "expense", section: "fixedExpenses" },
+  target: { stepId: "expense", section: "housing" },
 } as const satisfies Omit<OnboardingGuardrailDefinition, "evaluate">;
 
 const duplicateCurrentHomeHousingCostsRule = defineRule(

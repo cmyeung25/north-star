@@ -57,6 +57,36 @@ const GUARDRAIL_SEVERITY_COLORS: Record<OnboardingGuardrailSummary["items"][numb
   info: "blue",
 };
 
+const GUARDRAIL_SEVERITY_BUTTON_VARIANTS: Record<
+  OnboardingGuardrailSummary["items"][number]["severity"],
+  "filled" | "light" | "subtle"
+> = {
+  critical: "filled",
+  warning: "light",
+  info: "subtle",
+};
+
+const GUARDRAIL_SECTION_STYLES: Record<
+  OnboardingGuardrailSummary["items"][number]["severity"],
+  { background: string; borderColor: string; badgeVariant: "filled" | "light" | "outline" }
+> = {
+  critical: {
+    background: "var(--mantine-color-red-0)",
+    borderColor: "var(--mantine-color-red-3)",
+    badgeVariant: "filled",
+  },
+  warning: {
+    background: "var(--mantine-color-yellow-0)",
+    borderColor: "var(--mantine-color-yellow-3)",
+    badgeVariant: "light",
+  },
+  info: {
+    background: "var(--mantine-color-blue-0)",
+    borderColor: "var(--mantine-color-blue-2)",
+    badgeVariant: "outline",
+  },
+};
+
 const GUARDRAIL_SEVERITY_ORDER = ["critical", "warning", "info"] as const satisfies ReadonlyArray<
   OnboardingGuardrailSummary["items"][number]["severity"]
 >;
@@ -329,7 +359,16 @@ export default function ReviewStep({
       </Card>
 
       {guardrailGroups.map((group) => (
-        <Card key={group.severity} withBorder radius="md" padding="lg">
+        <Card
+          key={group.severity}
+          withBorder
+          radius="md"
+          padding="lg"
+          style={{
+            background: GUARDRAIL_SECTION_STYLES[group.severity].background,
+            borderColor: GUARDRAIL_SECTION_STYLES[group.severity].borderColor,
+          }}
+        >
           <Stack gap="md">
             <Group justify="space-between" align="flex-start">
               <Stack gap={2}>
@@ -338,7 +377,10 @@ export default function ReviewStep({
                   {t(`review.guardrailSections.${group.severity}.description`)}
                 </Text>
               </Stack>
-              <Badge color={GUARDRAIL_SEVERITY_COLORS[group.severity]} variant="light">
+              <Badge
+                color={GUARDRAIL_SEVERITY_COLORS[group.severity]}
+                variant={GUARDRAIL_SECTION_STYLES[group.severity].badgeVariant}
+              >
                 {t("review.guardrailSectionCount", { count: group.items.length })}
               </Badge>
             </Group>
@@ -350,7 +392,19 @@ export default function ReviewStep({
             ) : (
               <Stack gap="sm">
                 {group.items.map((item) => (
-                  <Card key={item.id} withBorder radius="md" padding="sm">
+                  <Card
+                    key={item.id}
+                    withBorder
+                    radius="md"
+                    padding="sm"
+                    style={{
+                      background:
+                        item.severity === "critical"
+                          ? "var(--mantine-color-white)"
+                          : "rgba(255, 255, 255, 0.82)",
+                      borderColor: GUARDRAIL_SECTION_STYLES[item.severity].borderColor,
+                    }}
+                  >
                     <Group justify="space-between" align="flex-start" gap="sm">
                       <Group align="flex-start" gap="sm" wrap="nowrap" style={{ flex: 1 }}>
                         <ThemeIcon
@@ -388,7 +442,8 @@ export default function ReviewStep({
                         </Stack>
                       </Group>
                       <Button
-                        variant="subtle"
+                        variant={GUARDRAIL_SEVERITY_BUTTON_VARIANTS[item.severity]}
+                        color={GUARDRAIL_SEVERITY_COLORS[item.severity]}
                         size="xs"
                         rightSection="→"
                         onClick={() => onFixGuardrail(item.id)}

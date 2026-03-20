@@ -3453,17 +3453,17 @@
       "guardrailSections": {
         "critical": {
           "title": "Critical / must fix",
-          "description": "These items can materially distort the baseline and should be fixed before you submit.",
+          "description": "These items can change the meaning of your baseline. Fix them before you submit.",
           "empty": "No critical issues at the moment."
         },
         "warning": {
           "title": "Warning / review recommended",
-          "description": "These items are worth another look, but they do not automatically block submission.",
+          "description": "These items usually do not block submission, but they are worth checking now so your first baseline stays believable.",
           "empty": "No warning items need another review right now."
         },
         "info": {
           "title": "Info / heads-up",
-          "description": "These notes are informational only and should not feel like a stop sign for submission.",
+          "description": "These are heads-up reminders only. You can still submit, but a quick scan may save you confusion later.",
           "empty": "No informational heads-up items right now."
         }
       },
@@ -3598,32 +3598,32 @@
     },
     "rules": {
       "propertyUsageMissing": {
-        "message": "This property already looks active in your plan, but we still cannot tell whether it is your own home or a rental property. It is worth checking now because that choice changes how the baseline reads your housing cashflow.",
-        "action": "Return to Assets → Property details, choose Self-use or Rental, and confirm the fields that match this property."
+        "message": "We can see an owned property, but we still do not know whether it is the home you live in or a property you rent out. That choice changes whether the baseline treats it as housing cost or rental income.",
+        "action": "Go back to Assets → Property details, choose Self-use or Rental for this property, and review the matching fields."
       },
       "mortgageCoreFieldsMissing": {
-        "message": "We found an outstanding mortgage balance, but not enough detail to estimate the monthly loan cost yet. Checking it now helps keep your baseline housing cost realistic.",
-        "action": "Return to Assets → Mortgage details and add the mortgage rate plus remaining term for this property."
+        "message": "This property has an outstanding mortgage balance, but the interest rate or remaining term is still missing. Without those basics, the baseline cannot estimate the monthly mortgage cost reliably.",
+        "action": "Go back to Assets → Mortgage details and fill in the mortgage rate plus remaining term."
       },
       "selfUseRentalConflict": {
-        "message": "This property currently looks like both your own home and a rent-generating property. It is worth checking now because the baseline may treat the same home in two different ways.",
-        "action": "Return to Assets → Housing costs / property cashflow, decide which situation matches reality, and keep either Self-use or rental income for this property."
+        "message": "This property is marked as your own home, but it also has rental income. Those two states usually describe different situations, so the baseline may double-read the same property.",
+        "action": "Go back to Assets → Property details, decide whether this property is Self-use or Rental, and remove the fields that do not belong."
       },
       "rentalPropertyIncomeMissing": {
-        "message": "This property is marked as a rental, but the expected monthly rent is still missing. Checking it now helps the baseline reflect the cashflow you expect from this property.",
-        "action": "Return to Assets → Property details and add the expected monthly rent, or switch the property back to Self-use if it is not rented out."
+        "message": "This property is marked as a rental property, but the expected monthly rent is blank. The baseline can miss that incoming cashflow if you leave it empty.",
+        "action": "Go back to Assets → Property details and enter the expected monthly rent, or switch the property to Self-use if it is not rented out."
       },
       "mortgagePropertyBasicsMissing": {
-        "message": "We have mortgage details, but not enough property basics to attach them to the right home. It is worth checking now because the baseline may not know what this loan belongs to.",
-        "action": "Return to Assets → Property details and complete the property value plus start month before keeping this mortgage."
+        "message": "We found mortgage details, but the property value or start month is still missing. That makes it harder to attach this loan to the right property in your baseline.",
+        "action": "Go back to Assets → Property details and complete the property value plus start month for the mortgaged home."
       },
       "duplicateCurrentHomeHousingCosts": {
-        "message": "Your current-home cost may have been entered in two places. Checking it now helps avoid making the baseline look more expensive than your real monthly housing cost.",
-        "action": "Review both Expenses → Housing costs and Assets → Property details, then keep only the path that matches how you live now."
+        "message": "Your current home cost may be recorded both as an expense and as an owned-home property setup. That can make the baseline overstate what you spend on housing each month.",
+        "action": "Go back to Expenses → Housing costs first, then confirm whether your current home should be tracked as rent or as an owned property path."
       },
       "duplicateRentExpenseInputs": {
-        "message": "We found more than one rent-like expense that may describe the same home payment. Checking now helps avoid overstating your monthly baseline costs.",
-        "action": "Return to Expenses → Housing costs and keep the single rent entry that matches your current home."
+        "message": "We found more than one rent-like expense for what may be the same current home. That can make the baseline count rent twice.",
+        "action": "Go back to Expenses → Housing costs and keep the one rent entry that best matches your current home."
       }
     }
   },

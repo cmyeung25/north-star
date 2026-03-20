@@ -11,12 +11,19 @@ Last updated: 2026-03-20
 - Decision: 新增 analytics-only review-pack builder / formatter：以既有 `onboarding_review_viewed`、`guardrail_shown`、`guardrail_fixed`、`onboarding_completed` 事件陣列直接輸出 weekly summary sections（review→completed conversion、top shown guardrails、lowest fix-success guardrails、review-without-completion candidates）與 table/JSON export shape，供 PM/UX / operator 每週檢視，不新增任何資料寫入路徑。
 - Guardrails: 聚合必須只依賴 metadata allowlist 欄位與事件 timestamp/window，不可要求 scenarioId、caseId、金額、資產值或其他 business payload；formatter 只做 report/export 形狀整理，不可變成 analytics-driven product state machine 或 dashboard persistence contract。
 
-### D-2026-03-20-09
+### D-2026-03-20-11
 - Date: 2026-03-20
 - Status: Accepted
 - Context: PR 4 要把 onboarding guardrail analytics 從「有事件」提升為可供 PM/UX 每週 calibration review 的工具，但不可把 analytics 變成產品 state machine、不可為追蹤 fix progress 新增跨 scenario persistence，也不可讓事件 payload 滑向財務內容。
 - Decision: Onboarding funnel contract v1.1 只維持 metadata allowlist，並新增兩個安全欄位：`reviewSessionId`（單次 review pass 的暫時關聯鍵）與 `reviewSourceContext`（`initial_review` / `returned_from_fix`）。`guardrail_fixed` 只可在使用者由 review 按 fix CTA 離開、再回到下一個 review pass 且該 guardrail 已消失時觸發；事件需帶回原 guardrail 的 `id / severity / category / target step / section`，以支援 weekly calibration 的 top blockers、low-fix-success 與 review→completed 分析。
 - Guardrails: payload 必須經 allowlist sanitize，嚴禁輸出 scenarioId、金額、資產值、收入/支出內容或其他 business payload；`reviewSessionId` 只屬前端暫時事件關聯鍵，不可持久化到 scenario/case；review pack 解讀必須提醒 PM/UX：高出現率不必然等於產品問題，需先排除特定 persona/sample size/既有輸入習慣造成的偏差。
+
+### D-2026-03-20-12
+- Date: 2026-03-20
+- Status: Accepted
+- Context: A focused calibration pass was requested for the highest-friction onboarding housing/property guardrails, but the team needed to preserve the existing guardrail contract, avoid moving business severity logic into `ReviewStep`, and keep the fix loop inside the active scenario onboarding flow only.
+- Decision: Keep the existing severity policy unchanged (`critical` only for blocking baseline-distortion conflicts; `warning` / `info` for review-needed or heads-up cases), but recalibrate the user-facing layer in two narrower ways: (1) rewrite the targeted rule copy into plain language that explains the problem, why it affects the baseline, and the next step; (2) tighten the rule target section when the current fix destination is too vague (for example, property-state conflicts point to `Assets → Property details`, and duplicate current-home housing-cost checks point to `Expenses → Housing costs`).
+- Guardrails: Do not add new persistence, analytics fields, engine/compiler behavior, or deep-link navigation state. `ReviewStep` may only increase visual emphasis between `critical` / `warning` / `info` using the existing severity value and existing `onFixGuardrail` contract; it must not infer new business severity rules in the component.
 
 ### D-2026-03-20-08
 - Date: 2026-03-20

@@ -46,6 +46,7 @@ Last updated: 2026-03-20
 - [x] review step hierarchy 已按 severity 分層：guardrails 改為 `critical / must fix`、`warning / review recommended`、`info / heads-up` 三段顯示，並在無 guardrail 時提供 clear state，避免 info / warning 被誤解為阻止提交。
 - [x] fix-loop CTA clarity 已補強：每條 guardrail 現在會先顯示將返回的 step + section，CTA 文案亦明確標示會回到哪一步，保留既有 `onFixGuardrail -> stepIndexById` 導航契約不變。
 - [x] guardrail copy rewrite & locale parity pass 已完成：housing/property guardrails 改寫為「人話 + 原因 + 下一步」語氣，並補上 onboarding guardrail placeholder parity / mojibake lint，降低警示疲勞與語系 drift。
+- [x] highest-friction housing/property guardrails 已完成 focused calibration：保留既有 baseline-distortion severity 邏輯，只微調 rule target section（例如 property vs housing）與 review 層視覺層級，讓 critical / warning / info 更易分辨且減少回修猶豫。
 - [x] analytics review pack v1 已補齊：onboarding funnel payload 現在加入安全的 `reviewSessionId` / `reviewSourceContext`、guardrail metadata allowlist 與 `guardrail_fixed` 消失判準，並補上每週 calibration review 方法文件，讓 PM/UX 可穩定檢視 top blockers、低 fix 成功率規則與 review → completed conversion。
 - [x] analytics review pack v1 現已 operator-ready：新增 weekly builder / export helper，可直接把 metadata-only funnel event arrays 匯總成 review→completed conversion、top shown guardrails、lowest fix-success guardrails、review-without-completion candidates 四個週報 section，無需新增 persistence。
 - [ ] 下一步：依 beta feedback 與每週 calibration review 結果，繼續調整 guardrail 文案、誤報率與 severity/copy 策略，並定義 sample-size / persona-bias 檢查節奏，避免警示疲勞或誤判高 show rate。

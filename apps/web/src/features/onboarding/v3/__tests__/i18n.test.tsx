@@ -43,6 +43,26 @@ type OnboardingGuardrailRuleMessages = {
   };
 };
 
+type OnboardingReviewMessages = {
+  onboardingV3: {
+    steps: {
+      review: {
+        guardrailSections: Record<
+          "critical" | "warning" | "info",
+          {
+            title: string;
+            description: string;
+            empty: string;
+          }
+        >;
+      };
+    };
+  };
+};
+
+const extractPlaceholders = (value: string) =>
+  Array.from(value.matchAll(/\{([a-zA-Z0-9_]+)\}/g)).map((match) => match[1]).sort();
+
 const resolveCompletenessMessage = (
   messages: OnboardingCompletenessMessages,
   key: string,
@@ -257,6 +277,8 @@ describe("onboarding v3 i18n", () => {
   it("keeps the rewritten guardrail copy aligned across en and zh-HK", () => {
     const enRules = (enMessages as unknown as OnboardingGuardrailRuleMessages).onboardingV3.guardrails.rules;
     const zhRules = (zhHkMessages as unknown as OnboardingGuardrailRuleMessages).onboardingV3.guardrails.rules;
+    const enReviewSections = (enMessages as unknown as OnboardingReviewMessages).onboardingV3.steps.review.guardrailSections;
+    const zhReviewSections = (zhHkMessages as unknown as OnboardingReviewMessages).onboardingV3.steps.review.guardrailSections;
 
     for (const key of targetGuardrailKeys) {
       const enRule = enRules[key];
@@ -271,13 +293,27 @@ describe("onboarding v3 i18n", () => {
       expect(/Assets|Expenses/.test(enRule.action)).toBe(true);
       expect(/baseline|現金流|供款|成本|租金|按揭/.test(zhRule.message)).toBe(true);
       expect(/資產|支出/.test(zhRule.action)).toBe(true);
+      expect(extractPlaceholders(zhRule.message)).toEqual(extractPlaceholders(enRule.message));
+      expect(extractPlaceholders(zhRule.action)).toEqual(extractPlaceholders(enRule.action));
       expect(/�|\?{3,}|資料錯誤/.test(zhRule.message)).toBe(false);
       expect(/�|\?{3,}|資料錯誤/.test(zhRule.action)).toBe(false);
     }
 
-    expect(enRules.duplicateCurrentHomeHousingCosts.message).toContain("two places");
-    expect(enRules.duplicateRentExpenseInputs.action).toContain("single rent entry");
-    expect(zhRules.duplicateCurrentHomeHousingCosts.message).toContain("兩個地方");
+    for (const severity of ["critical", "warning", "info"] as const) {
+      expect(enReviewSections[severity].title).toBeTruthy();
+      expect(enReviewSections[severity].description).toBeTruthy();
+      expect(enReviewSections[severity].empty).toBeTruthy();
+      expect(zhReviewSections[severity].title).toBeTruthy();
+      expect(zhReviewSections[severity].description).toBeTruthy();
+      expect(zhReviewSections[severity].empty).toBeTruthy();
+      expect(extractPlaceholders(zhReviewSections[severity].description)).toEqual(
+        extractPlaceholders(enReviewSections[severity].description)
+      );
+    }
+
+    expect(enRules.duplicateCurrentHomeHousingCosts.message).toContain("owned-home property setup");
+    expect(enRules.duplicateRentExpenseInputs.action).toContain("best matches your current home");
+    expect(zhRules.duplicateCurrentHomeHousingCosts.message).toContain("自住房產設定");
     expect(zhRules.duplicateRentExpenseInputs.action).toContain("只保留嗰一筆");
   });
 });
