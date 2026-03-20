@@ -88,6 +88,10 @@ export default function ReviewStep({
     severity,
     items: guardrailSummary.items.filter((item) => item.severity === severity),
   }));
+  const getTargetStepLabel = (stepId: OnboardingGuardrailSummary["items"][number]["target"]["stepId"]) =>
+    t(`review.stepNames.${stepId}`);
+  const getTargetSectionLabel = (section: OnboardingGuardrailSummary["items"][number]["target"]["section"]) =>
+    t(`review.sectionNames.${section}`);
 
   return (
     <Stack gap="lg">
@@ -363,11 +367,20 @@ export default function ReviewStep({
                               {guardrailsT(`guardrails.severity.${item.severity}`)}
                             </Badge>
                             <Badge variant="outline">
-                              {t(`review.stepNames.${item.target.stepId}`)}
+                              {getTargetStepLabel(item.target.stepId)}
+                            </Badge>
+                            <Badge variant="outline">
+                              {getTargetSectionLabel(item.target.section)}
                             </Badge>
                           </Group>
                           <Text fw={600} size="sm">
                             {guardrailsT(item.messageKey)}
+                          </Text>
+                          <Text size="xs" fw={600}>
+                            {t("review.fixDestination", {
+                              step: getTargetStepLabel(item.target.stepId),
+                              section: getTargetSectionLabel(item.target.section),
+                            })}
                           </Text>
                           <Text size="sm" c="dimmed">
                             {guardrailsT(item.actionHintKey)}
@@ -380,7 +393,9 @@ export default function ReviewStep({
                         rightSection="→"
                         onClick={() => onFixGuardrail(item.id)}
                       >
-                        {t("review.fixNow")}
+                        {t("review.fixNowTarget", {
+                          step: getTargetStepLabel(item.target.stepId),
+                        })}
                       </Button>
                     </Group>
                   </Card>

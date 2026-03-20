@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-08
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR 2B 只聚焦 onboarding review 的「返回修正」清晰度，目標是讓使用者在按 fix CTA 前已知會回到哪個 step/section、應修正哪類欄位，但不可改動既有 wizard navigation contract、analytics 語意或引入 deep-link state。
+- Decision: Review step 每條 guardrail 必須同時顯示 target step、target section 與更具體的 action hint；fix CTA label 亦要改為 step-aware wording（例如返回資產／Go to Assets），但 `onFixGuardrail` 仍只接收 guardrail id，並由 `OnboardingV3Wizard` 透過 `stepIndexById` 回到既有 step。
+- Guardrails: 不可新增 route/deep-link state、不可新增 persistent fix-state、不可改 analytics payload 或 scenario-scoped data flow；section/field copy 必須走 i18n key，避免把回修文案硬編進 component。
+
 ### D-2026-03-20-07
 - Date: 2026-03-20
 - Status: Accepted

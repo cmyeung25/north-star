@@ -3444,6 +3444,8 @@
       "guardrailSectionCount": "{count} items",
       "returnToStep": "Review this step",
       "fixNow": "Fix now",
+      "fixNowTarget": "Go to {step}",
+      "fixDestination": "Returns you to {step} → {section}.",
       "guardrailsClearTitle": "No blocking guardrails right now",
       "guardrailsClearBody": "You can still refine details later, but nothing currently stands out as a major onboarding mismatch.",
       "guardrailsSummaryBody": "Use the grouped sections below to distinguish what must be fixed now, what deserves another review, and what is only a heads-up before you submit.",
@@ -3470,6 +3472,12 @@
         "income": "Income",
         "expense": "Expenses",
         "assets": "Assets"
+      },
+      "sectionNames": {
+        "housing": "Housing costs",
+        "property": "Property details",
+        "mortgage": "Mortgage details",
+        "fixedExpenses": "Fixed expenses"
       },
       "sections": {
         "scenarioSetup": "Scenario setup",
@@ -3591,31 +3599,31 @@
     "rules": {
       "propertyUsageMissing": {
         "message": "At least one property has value signals, but its usage is still not marked as self-use or rental.",
-        "action": "Open Assets and confirm whether the property is self-use or rental so housing cashflow can be interpreted correctly."
+        "action": "Return to Assets → Property details and mark the property as self-use or rental so the housing cashflow is interpreted correctly."
       },
       "mortgageCoreFieldsMissing": {
         "message": "A property has an outstanding mortgage balance, but rate or remaining term is still missing.",
-        "action": "Go back to mortgage details and complete the core mortgage inputs before submit."
+        "action": "Return to Assets → Mortgage details and fill in the mortgage rate plus remaining term before you submit."
       },
       "selfUseRentalConflict": {
         "message": "A property is marked as self-use while also carrying rental income, which creates an obvious conflict.",
-        "action": "Review the property path and choose either self-use or rental semantics for this asset."
+        "action": "Return to Assets → Housing costs / property cashflow and keep either self-use or rental income for this property, not both."
       },
       "rentalPropertyIncomeMissing": {
         "message": "A rental property is enabled, but expected monthly rent is still missing.",
-        "action": "Add the rental income amount in Assets so the baseline reflects the owned-property cashflow."
+        "action": "Return to Assets → Property details and add the expected monthly rent so the baseline reflects this owned-property cashflow."
       },
       "mortgagePropertyBasicsMissing": {
         "message": "Mortgage details are present, but core property basics such as value or start month are incomplete.",
-        "action": "Complete the property basics card so mortgage assumptions attach to a valid owned-property record."
+        "action": "Return to Assets → Property details and complete the property value plus start month so the mortgage attaches to a valid owned-property record."
       },
       "duplicateCurrentHomeHousingCosts": {
         "message": "You may be counting current-home housing costs twice across owned-property and rent expense inputs.",
-        "action": "Review Expense and Assets to keep only the path that matches your current living situation."
+        "action": "Return to Expenses → Housing costs and Assets → Property details, then keep only the path that matches your current living situation."
       },
       "duplicateRentExpenseInputs": {
         "message": "Multiple rent-like expense rows were found and may represent the same current-home payment twice.",
-        "action": "Review rent expenses and remove duplicates so the baseline monthly outflow stays credible."
+        "action": "Return to Expenses → Housing costs and remove any duplicate rent-like rows so the baseline monthly outflow stays credible."
       }
     }
   },
