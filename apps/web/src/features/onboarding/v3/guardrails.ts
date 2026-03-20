@@ -299,7 +299,7 @@ const mortgagePropertyBasicsMissingRule = defineRule(
 
 const duplicateCurrentHomeHousingCostsMeta = {
   id: "duplicate_current_home_housing_costs",
-  severity: "warning",
+  severity: "info",
   category: "potential_double_counting",
   blocksSubmission: false,
   messageKey: "guardrails.rules.duplicateCurrentHomeHousingCosts.message",

@@ -4881,7 +4881,7 @@
         "incomplete": "未完成"
       },
       "completenessHint": "讓不同家庭角色都一眼看懂哪些資料已可用、哪些仍要再確認。",
-      "guardrailsHint": "在扭曲基線前先指出問題，並直接帶你返回對應步驟修正。",
+      "guardrailsHint": "提交前先講清楚原因、可能影響同下一步，避免 baseline 被扭曲。",
       "completenessScore": "關鍵輸入群組覆蓋度",
       "snapshotTitle": "基線快照",
       "guardrailSectionCount": "{count} 項",
@@ -4889,9 +4889,9 @@
       "fixNow": "立即修正",
       "fixNowTarget": "返回 {step}",
       "fixDestination": "按下後會帶你返回 {step} → {section}。",
-      "guardrailsClearTitle": "目前沒有阻擋提交的 guardrails",
-      "guardrailsClearBody": "之後仍可再微調細節，但現時沒有明顯的 onboarding 不一致問題。",
-      "guardrailsSummaryBody": "以下分組會清楚區分哪些必須先修正、哪些建議再檢查一次，以及哪些只是提交前的提醒。",
+      "guardrailsClearTitle": "目前沒有必須先修正的 guardrails",
+      "guardrailsClearBody": "之後仍可再微調細節，但現時未見會明顯扭曲 baseline 意思的 onboarding 問題。",
+      "guardrailsSummaryBody": "以下分組會清楚區分哪些會改變 baseline 的理解、哪些值得再核對一次，以及哪些只是低壓力提醒。",
       "edit": "編輯",
       "guardrailSections": {
         "critical": {
@@ -4901,12 +4901,12 @@
         },
         "warning": {
           "title": "Warning / 建議再檢查",
-          "description": "這些項目通常唔會阻擋提交，但宜家再核對一次，可以令首次 baseline 更可信。",
+          "description": "這些項目通常唔會阻擋提交，但宜家再核對一次，會令首次 baseline 更可信、之後更少誤會。",
           "empty": "目前沒有需要再檢查的 warning 項目。"
         },
         "info": {
           "title": "Info / 提交前提醒",
-          "description": "呢啲只係 heads-up 提醒，你仍然可以提交，但快速望一次通常會更安心。",
+          "description": "呢啲只係 heads-up 提醒，唔應該阻止你提交，但快速望一次通常可避免之後再估自己填咗咩。",
           "empty": "目前沒有額外 info 提醒。"
         }
       },
@@ -5041,8 +5041,8 @@
     },
     "rules": {
       "propertyUsageMissing": {
-        "message": "系統見到你有一個已持有物業，但仲未知道佢係你自住，定係用嚟收租。呢個選擇會影響 baseline 將佢理解成住屋成本，定係租金收入。",
-        "action": "請返回資產 → 物業資料，為呢個物業揀返「自住」或「出租」，再檢查相應欄位。"
+        "message": "系統見到你有一個已持有物業，但仲未知道佢係你自住，定係用嚟收租。未揀清楚之前，baseline 就未能判斷應該將佢當成住屋成本，定係租金收入。",
+        "action": "請返回資產 → 物業資料，為呢個物業揀返「自住」或「出租」，再只保留符合嗰個選擇嘅欄位。"
       },
       "mortgageCoreFieldsMissing": {
         "message": "呢個物業已經有未還按揭餘額，但利率或者剩餘年期仲未填。少咗呢兩項，baseline 就未能可靠估算每月按揭供款。",
@@ -5057,16 +5057,16 @@
         "action": "請返回資產 → 物業資料，填返預期每月租金；如果其實唔係出租，請改返做「自住」。"
       },
       "mortgagePropertyBasicsMissing": {
-        "message": "你已經填咗按揭資料，但物業市值或者開始月份仍然未齊。少咗呢啲基本資料，baseline 就較難將呢筆貸款掛返去正確物業。",
-        "action": "請返回資產 → 物業資料，補回物業市值同開始月份，確認呢筆按揭對應呢個物業。"
+        "message": "你已經填咗按揭資料，但物業市值或者開始月份仍然未齊。少咗呢啲定位資料，baseline 可能會較難判斷呢筆貸款應該由邊個物業、邊個時間點開始承接。",
+        "action": "請返回資產 → 物業資料，為承載呢筆按揭嘅物業補回市值同開始月份。"
       },
       "duplicateCurrentHomeHousingCosts": {
-        "message": "你現時住緊呢個家的成本，可能同時喺支出同自住房產設定兩邊都入咗。咁樣會令 baseline 將每月住屋成本計得比實際更高。",
-        "action": "請先返回支出 → 住屋支出，再確認你現居應該用「租屋」定「自住房產」其中一條路徑。"
+        "message": "你現時住緊呢個家，可能同時喺支出同自住房產設定兩邊都入咗。兩條路徑如果一齊保留，baseline 可能會將同一個住屋壓力重複計算。",
+        "action": "請先返回支出 → 住屋支出，保留最符合現況嗰條路徑：如果你而家已經自住，就刪走租屋支出；如果你而家仲係租住，就移除自住房產設定。"
       },
       "duplicateRentExpenseInputs": {
-        "message": "系統見到多筆似乎都係同一個現居租金嘅支出。咁樣可能會令 baseline 將租金重複計算。",
-        "action": "請返回支出 → 住屋支出，確認邊一筆最符合你現居租金，並只保留嗰一筆。"
+        "message": "系統見到多筆似乎都係同一個現居租金嘅支出。咁樣可能會令 baseline 將同一筆租金重複計算，令每月住屋成本睇落高過實際。",
+        "action": "請返回支出 → 住屋支出，比對重疊租金項目，保留主要租金一筆；如果另一筆其實係附加費用，請改做獨立嘅非租金支出。"
       }
     }
   },

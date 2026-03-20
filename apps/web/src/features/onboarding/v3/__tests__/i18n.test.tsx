@@ -311,9 +311,11 @@ describe("onboarding v3 i18n", () => {
       );
     }
 
-    expect(enRules.duplicateCurrentHomeHousingCosts.message).toContain("owned-home property setup");
-    expect(enRules.duplicateRentExpenseInputs.action).toContain("best matches your current home");
-    expect(zhRules.duplicateCurrentHomeHousingCosts.message).toContain("自住房產設定");
-    expect(zhRules.duplicateRentExpenseInputs.action).toContain("只保留嗰一筆");
+    expect(enRules.duplicateCurrentHomeHousingCosts.message).toContain("housing expense");
+    expect(enRules.duplicateCurrentHomeHousingCosts.action).toContain("remove the rent-like expense");
+    expect(enRules.duplicateRentExpenseInputs.action).toContain("separate non-rent line");
+    expect(zhRules.duplicateCurrentHomeHousingCosts.message).toContain("支出同自住房產設定");
+    expect(zhRules.duplicateCurrentHomeHousingCosts.action).toContain("刪走租屋支出");
+    expect(zhRules.duplicateRentExpenseInputs.action).toContain("非租金支出");
   });
 });

@@ -3438,7 +3438,7 @@
         "incomplete": "Incomplete"
       },
       "completenessHint": "Make it easy for different household types to see what is already usable and what still needs confirmation.",
-      "guardrailsHint": "Highlight issues before they distort the baseline, then send the user back to the right step.",
+      "guardrailsHint": "Show the reason, likely impact, and next step before anything distorts the baseline.",
       "completenessScore": "Coverage across key input groups",
       "snapshotTitle": "Baseline snapshot",
       "guardrailSectionCount": "{count} items",
@@ -3446,9 +3446,9 @@
       "fixNow": "Fix now",
       "fixNowTarget": "Go to {step}",
       "fixDestination": "Returns you to {step} → {section}.",
-      "guardrailsClearTitle": "No blocking guardrails right now",
-      "guardrailsClearBody": "You can still refine details later, but nothing currently stands out as a major onboarding mismatch.",
-      "guardrailsSummaryBody": "Use the grouped sections below to distinguish what must be fixed now, what deserves another review, and what is only a heads-up before you submit.",
+      "guardrailsClearTitle": "No must-fix guardrails right now",
+      "guardrailsClearBody": "You can still refine details later, but nothing currently stands out as a baseline-level mismatch before submit.",
+      "guardrailsSummaryBody": "Use the grouped sections below to see what can change the baseline meaning, what is worth another look, and what is only a low-pressure reminder before you submit.",
       "edit": "Edit",
       "guardrailSections": {
         "critical": {
@@ -3458,12 +3458,12 @@
         },
         "warning": {
           "title": "Warning / review recommended",
-          "description": "These items usually do not block submission, but they are worth checking now so your first baseline stays believable.",
+          "description": "These items usually do not block submission. Review them now if you want a cleaner first baseline and fewer surprises later.",
           "empty": "No warning items need another review right now."
         },
         "info": {
           "title": "Info / heads-up",
-          "description": "These are heads-up reminders only. You can still submit, but a quick scan may save you confusion later.",
+          "description": "These are heads-up reminders only. They should not stop submission, but a quick scan may prevent avoidable confusion later.",
           "empty": "No informational heads-up items right now."
         }
       },
@@ -3598,8 +3598,8 @@
     },
     "rules": {
       "propertyUsageMissing": {
-        "message": "We can see an owned property, but we still do not know whether it is the home you live in or a property you rent out. That choice changes whether the baseline treats it as housing cost or rental income.",
-        "action": "Go back to Assets → Property details, choose Self-use or Rental for this property, and review the matching fields."
+        "message": "We can see an owned property, but we still do not know whether it is the home you live in or a property you rent out. Until you choose one, the baseline cannot tell whether to expect housing cost or rental income.",
+        "action": "Go back to Assets → Property details, choose Self-use or Rental for this property, then review only the fields that match that choice."
       },
       "mortgageCoreFieldsMissing": {
         "message": "This property has an outstanding mortgage balance, but the interest rate or remaining term is still missing. Without those basics, the baseline cannot estimate the monthly mortgage cost reliably.",
@@ -3614,16 +3614,16 @@
         "action": "Go back to Assets → Property details and enter the expected monthly rent, or switch the property to Self-use if it is not rented out."
       },
       "mortgagePropertyBasicsMissing": {
-        "message": "We found mortgage details, but the property value or start month is still missing. That makes it harder to attach this loan to the right property in your baseline.",
-        "action": "Go back to Assets → Property details and complete the property value plus start month for the mortgaged home."
+        "message": "We found mortgage details, but the property value or start month is still missing. Without those anchors, the baseline can attach the loan to the wrong home timing or treat the setup as incomplete.",
+        "action": "Go back to Assets → Property details and add the property value plus start month for the home that carries this mortgage."
       },
       "duplicateCurrentHomeHousingCosts": {
-        "message": "Your current home cost may be recorded both as an expense and as an owned-home property setup. That can make the baseline overstate what you spend on housing each month.",
-        "action": "Go back to Expenses → Housing costs first, then confirm whether your current home should be tracked as rent or as an owned property path."
+        "message": "Your current home may be recorded in two places: once as a housing expense and again as an owned-home setup. If both stay, the baseline can overstate your monthly housing pressure even when only one path is correct.",
+        "action": "Start at Expenses → Housing costs and keep the path that matches today. If you already own and live there, remove the rent-like expense; if you still rent, remove the owned-home setup instead."
       },
       "duplicateRentExpenseInputs": {
-        "message": "We found more than one rent-like expense for what may be the same current home. That can make the baseline count rent twice.",
-        "action": "Go back to Expenses → Housing costs and keep the one rent entry that best matches your current home."
+        "message": "We found more than one rent-like expense for what may be the same current home. That can make the baseline count the same rent twice and overstate your ongoing housing cost.",
+        "action": "Go back to Expenses → Housing costs, compare the overlapping rent rows, keep the main rent entry, and move any add-on fee to a separate non-rent line if needed."
       }
     }
   },

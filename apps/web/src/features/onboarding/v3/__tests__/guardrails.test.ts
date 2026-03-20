@@ -74,7 +74,7 @@ describe("buildOnboardingGuardrailSummary", () => {
       },
       {
         id: "duplicate_current_home_housing_costs",
-        severity: "warning",
+        severity: "info",
         blocksSubmission: false,
         category: "potential_double_counting",
         target: { stepId: "expense", section: "housing" },
@@ -222,8 +222,8 @@ describe("buildOnboardingGuardrailSummary", () => {
     expect(ruleIds.includes("duplicate_current_home_housing_costs")).toBe(true);
     expect(ruleIds.includes("duplicate_rent_expense_inputs")).toBe(true);
     expect(summary.categories.potential_double_counting).toBe(2);
-    expect(summary.counts.warning >= 1).toBe(true);
-    expect(summary.counts.info).toBe(1);
+    expect(summary.counts.warning).toBe(0);
+    expect(summary.counts.info).toBe(2);
   });
 
   it("keeps info-only duplicate reminders out of the blocking summary level", () => {
@@ -307,7 +307,7 @@ describe("buildOnboardingGuardrailSummary", () => {
       self_use_rental_conflict: "critical",
       rental_property_income_missing: "warning",
       mortgage_property_basics_missing: "warning",
-      duplicate_current_home_housing_costs: "warning",
+      duplicate_current_home_housing_costs: "info",
       duplicate_rent_expense_inputs: "info",
     });
   });
