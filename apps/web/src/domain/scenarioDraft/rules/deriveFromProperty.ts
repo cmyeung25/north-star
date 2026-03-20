@@ -67,13 +67,19 @@ export const deriveFromProperty = (draft: ScenarioDraftV3) => {
       return;
     }
 
-    if (asset.usage === "rent") {
+    const rentalIncomeAmount = toFiniteNumber(asset.rentMonthly);
+    const resolvedUsage =
+      asset.usage === "rent" || (asset.usage === undefined && (rentalIncomeAmount ?? 0) > 0)
+        ? "rent"
+        : "self";
+
+    if (resolvedUsage === "rent" && (rentalIncomeAmount ?? 0) > 0) {
       events.push({
         id: `auto:${asset.id}:rent-income`,
         type: "cashflow",
         kind: "income",
         cadence: "monthly",
-        amount: toFiniteNumber(asset.rentMonthly) ?? 0,
+        amount: rentalIncomeAmount ?? 0,
         startMonth,
         metadata: buildMetadata(asset.id, "property.rent.income.v1"),
       });
@@ -85,7 +91,7 @@ export const deriveFromProperty = (draft: ScenarioDraftV3) => {
     const termMonths = toFiniteNumber(asset.mortgageTermMonths);
     const totalMonths = termMonths !== undefined ? termMonths + (termYears ?? 0) * 12 : termYears !== undefined ? termYears * 12 : undefined;
 
-    if (principal !== undefined) {
+    if ((principal ?? 0) > 0) {
       liabilities.push({
         id: `auto:${asset.id}:mortgage-liability`,
         kind: "mortgage",
@@ -97,9 +103,11 @@ export const deriveFromProperty = (draft: ScenarioDraftV3) => {
       });
     }
 
-    if (principal !== undefined && annualRate !== undefined && totalMonths !== undefined) {
+    if ((principal ?? 0) > 0 && annualRate !== undefined && totalMonths !== undefined) {
+      const principalOutstanding = principal ?? 0;
       const amortizationAmount =
-        toFiniteNumber(asset.mortgagePaymentMonthly) ?? buildMonthlyPayment(principal, annualRate, totalMonths);
+        toFiniteNumber(asset.mortgagePaymentMonthly) ??
+        buildMonthlyPayment(principalOutstanding, annualRate, totalMonths);
       events.push({
         id: `auto:${asset.id}:mortgage-payment`,
         type: "cashflow",
@@ -111,15 +119,18 @@ export const deriveFromProperty = (draft: ScenarioDraftV3) => {
       });
     }
 
-    events.push({
-      id: `auto:${asset.id}:holding-cost`,
-      type: "cashflow",
-      kind: "expense",
-      cadence: "monthly",
-      amount: toFiniteNumber(asset.holdingCostMonthly) ?? 0,
-      startMonth,
-      metadata: buildMetadata(asset.id, "property.holding-cost.v1"),
-    });
+    const holdingCostMonthly = toFiniteNumber(asset.holdingCostMonthly);
+    if ((holdingCostMonthly ?? 0) > 0) {
+      events.push({
+        id: `auto:${asset.id}:holding-cost`,
+        type: "cashflow",
+        kind: "expense",
+        cadence: "monthly",
+        amount: holdingCostMonthly ?? 0,
+        startMonth,
+        metadata: buildMetadata(asset.id, "property.holding-cost.v1"),
+      });
+    }
   });
 
   return { events, liabilities };

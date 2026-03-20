@@ -197,7 +197,7 @@ const resolveDownPaymentAmount = (
   }
 
   const downPaymentPercent = resolveMoneyAmount(ownHousing.downPaymentPercent);
-  const percentBase = mortgageBaseValue > 0 ? mortgageBaseValue : propertyMarketValue;
+  const percentBase = propertyMarketValue > 0 ? propertyMarketValue : mortgageBaseValue;
   return (percentBase * downPaymentPercent) / 100;
 };
 
