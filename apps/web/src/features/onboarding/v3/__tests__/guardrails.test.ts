@@ -56,7 +56,7 @@ describe("buildOnboardingGuardrailSummary", () => {
         severity: "critical",
         blocksSubmission: true,
         category: "obvious_conflict",
-        target: { stepId: "assets", section: "housing" },
+        target: { stepId: "assets", section: "property" },
       },
       {
         id: "rental_property_income_missing",
@@ -70,14 +70,14 @@ describe("buildOnboardingGuardrailSummary", () => {
         severity: "warning",
         blocksSubmission: false,
         category: "basic_inconsistency",
-        target: { stepId: "assets", section: "mortgage" },
+        target: { stepId: "assets", section: "property" },
       },
       {
         id: "duplicate_current_home_housing_costs",
         severity: "warning",
         blocksSubmission: false,
         category: "potential_double_counting",
-        target: { stepId: "expense", section: "fixedExpenses" },
+        target: { stepId: "expense", section: "housing" },
       },
       {
         id: "duplicate_rent_expense_inputs",
@@ -174,6 +174,9 @@ describe("buildOnboardingGuardrailSummary", () => {
     const ruleIds = summary.items.map((item) => item.id);
     expect(ruleIds.includes("rental_property_income_missing")).toBe(true);
     expect(ruleIds.includes("mortgage_property_basics_missing")).toBe(true);
+    expect(
+      summary.items.find((item) => item.id === "mortgage_property_basics_missing")?.target
+    ).toEqual({ stepId: "assets", section: "property" });
   });
 
   it("detects potential duplicate housing spend without reading the engine", () => {
@@ -291,5 +294,21 @@ describe("buildOnboardingGuardrailSummary", () => {
     expect(summary.items.map((item) => item.id)).toContain(
       "duplicate_current_home_housing_costs"
     );
+  });
+
+  it("keeps the focused housing/property calibration on the intended targeted rule ids", () => {
+    const targetedSeverities = Object.fromEntries(
+      ONBOARDING_GUARDRAIL_RULES.map((rule) => [rule.id, rule.severity])
+    );
+
+    expect(targetedSeverities).toMatchObject({
+      property_usage_missing: "warning",
+      mortgage_core_fields_missing: "critical",
+      self_use_rental_conflict: "critical",
+      rental_property_income_missing: "warning",
+      mortgage_property_basics_missing: "warning",
+      duplicate_current_home_housing_costs: "warning",
+      duplicate_rent_expense_inputs: "info",
+    });
   });
 });
