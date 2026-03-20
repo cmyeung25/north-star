@@ -62,6 +62,16 @@ Last updated: 2026-03-20 (market-entry measurement layer completed for review ri
 - Product docs now include a concise persona coverage matrix and a durable blank-fallback rule so future market-entry work cannot silently bypass `/member/cases` or expose hidden seeds.
 
 ## Latest Update (2026-03-20)
+- 本輪以 `ONBOARDING_GUARDRAIL_ANALYTICS_REVIEW_PACK.md` 的解讀 rubric + 現行 rules/severity policy 為基準，先整理出三類 weekly calibration 優先名單，方便 PM/UX 後續對真實 cohort 數據比對：
+  - `top shown guardrails` 候選：`property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`。這三條都屬於首次建模常見的 path-selection / duplicate-input 類訊號，最容易佔據 review 版面。
+  - `lowest fix-success guardrails` 候選：`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing`。前兩條屬「看似錯、但未必真錯」的 current-home path ambiguity，後一條則常卡在使用者未意識到需要把按揭綁回物業基本資料。
+  - `review-without-completion candidates` 候選：`duplicate_current_home_housing_costs`、`mortgage_core_fields_missing`、`property_usage_missing`。前者易造成「要返邊度修」猶豫，後兩者則直接影響 baseline 關鍵語意，若文案/target 不夠清楚就容易拖慢完成。
+- calibration 結果：保留真正 baseline-distortion 的 blocking policy 不變（`mortgage_core_fields_missing`、`self_use_rental_conflict` 仍屬 `critical`）；`duplicate_current_home_housing_costs` 經本輪檢視後降為 `info`，因為它更接近「current home path 需重新確認」而非必然錯誤。其餘高摩擦規則則優先透過 copy / next-step clarity 調整，而非再增加規則數量。
+- review / locale 文案本輪再聚焦三條高摩擦規則與一條低 fix-success 候選（`mortgage_property_basics_missing`）：統一改成「原因 + 影響 + 下一步」，並把 `warning` / `info` 區塊說明強化為「不阻止提交，只係幫你減少 baseline 誤讀」，減低責備感與誤判壓力。
+- 仍未解決 blocker：目前尚未有真實 cohort 匯出結果可驗證上述候選排序，故這輪仍屬 rules+UX heuristic calibration；是否真的降低 review drop-off，仍要待下一個完整週窗的 review pack 驗證。
+- 下一輪觀察重點：先看 `duplicate_current_home_housing_costs` 降為 `info` 後，是否只把 volume 由 `warning` 轉移到 `info`，定係真係改善 review→completed conversion；同時要留意 `property_usage_missing` 是否仍長期佔據 top shown 但 fix-success 未升，避免 member preset / persona mix 令訊號失真。
+
+## Latest Update (2026-03-20)
 - Highest-friction housing/property guardrails (`property usage`, `mortgage core`, `self-use vs rental`, `rental income missing`, `mortgage property basics`, duplicate housing-cost inputs) 已做 focused calibration pass：severity 邏輯維持「只把 baseline-distortion blocking 問題列為 critical」，避免把 review UI 再次變成過度示警。
 - Review step 視覺層級再補強：critical / warning / info section 現在有更明顯的卡片底色、badge 與 CTA variant 差異，讓使用者更容易感知「必須先修正」vs「建議再看」vs「只是提醒」。
 - 部分 guardrail target section 已改為更貼近實際修正位置（例如 `self_use_rental_conflict`、`mortgage_property_basics_missing` 導向 `Assets → Property details`；`duplicate_current_home_housing_costs` 導向 `Expenses → Housing costs`），降低 fix-loop 猶豫。

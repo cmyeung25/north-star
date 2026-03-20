@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-13
+- Date: 2026-03-20
+- Status: Accepted
+- Context: The onboarding review pack is now operator-ready, so the next calibration step is no longer “add more rules” but “reduce friction on the rules that show up often and resolve poorly.” The current-home duplicate path warning was still likely to appear frequently while being ambiguous to fix in one hop.
+- Decision: Apply weekly calibration policy v1.2 for high-friction onboarding guardrails. Keep blocking `critical` reserved for true baseline-distortion conflicts only, downgrade `duplicate_current_home_housing_costs` from `warning` to `info`, and prioritize copy/target-step clarity for high-show or low-fix-success rules (`property_usage_missing`, `duplicate_current_home_housing_costs`, `duplicate_rent_expense_inputs`, `mortgage_property_basics_missing`) before adding any new rule coverage.
+- Guardrails: Do not add new analytics fields, persistence, engine/compiler dependencies, or cross-scenario state. Calibration changes must stay inside the existing scenario-scoped rules layer + locale/review UX copy, and all analytics must remain metadata-only so weekly review interpretation still depends on the documented review-pack rubric rather than product-side state machines.
+
 ### D-2026-03-20-10
 - Date: 2026-03-20
 - Status: Accepted
