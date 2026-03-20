@@ -3598,32 +3598,32 @@
     },
     "rules": {
       "propertyUsageMissing": {
-        "message": "At least one property has value signals, but its usage is still not marked as self-use or rental.",
-        "action": "Return to Assets → Property details and mark the property as self-use or rental so the housing cashflow is interpreted correctly."
+        "message": "This property already looks active in your plan, but we still cannot tell whether it is your own home or a rental property. It is worth checking now because that choice changes how the baseline reads your housing cashflow.",
+        "action": "Return to Assets → Property details, choose Self-use or Rental, and confirm the fields that match this property."
       },
       "mortgageCoreFieldsMissing": {
-        "message": "A property has an outstanding mortgage balance, but rate or remaining term is still missing.",
-        "action": "Return to Assets → Mortgage details and fill in the mortgage rate plus remaining term before you submit."
+        "message": "We found an outstanding mortgage balance, but not enough detail to estimate the monthly loan cost yet. Checking it now helps keep your baseline housing cost realistic.",
+        "action": "Return to Assets → Mortgage details and add the mortgage rate plus remaining term for this property."
       },
       "selfUseRentalConflict": {
-        "message": "A property is marked as self-use while also carrying rental income, which creates an obvious conflict.",
-        "action": "Return to Assets → Housing costs / property cashflow and keep either self-use or rental income for this property, not both."
+        "message": "This property currently looks like both your own home and a rent-generating property. It is worth checking now because the baseline may treat the same home in two different ways.",
+        "action": "Return to Assets → Housing costs / property cashflow, decide which situation matches reality, and keep either Self-use or rental income for this property."
       },
       "rentalPropertyIncomeMissing": {
-        "message": "A rental property is enabled, but expected monthly rent is still missing.",
-        "action": "Return to Assets → Property details and add the expected monthly rent so the baseline reflects this owned-property cashflow."
+        "message": "This property is marked as a rental, but the expected monthly rent is still missing. Checking it now helps the baseline reflect the cashflow you expect from this property.",
+        "action": "Return to Assets → Property details and add the expected monthly rent, or switch the property back to Self-use if it is not rented out."
       },
       "mortgagePropertyBasicsMissing": {
-        "message": "Mortgage details are present, but core property basics such as value or start month are incomplete.",
-        "action": "Return to Assets → Property details and complete the property value plus start month so the mortgage attaches to a valid owned-property record."
+        "message": "We have mortgage details, but not enough property basics to attach them to the right home. It is worth checking now because the baseline may not know what this loan belongs to.",
+        "action": "Return to Assets → Property details and complete the property value plus start month before keeping this mortgage."
       },
       "duplicateCurrentHomeHousingCosts": {
-        "message": "You may be counting current-home housing costs twice across owned-property and rent expense inputs.",
-        "action": "Return to Expenses → Housing costs and Assets → Property details, then keep only the path that matches your current living situation."
+        "message": "Your current-home cost may have been entered in two places. Checking it now helps avoid making the baseline look more expensive than your real monthly housing cost.",
+        "action": "Review both Expenses → Housing costs and Assets → Property details, then keep only the path that matches how you live now."
       },
       "duplicateRentExpenseInputs": {
-        "message": "Multiple rent-like expense rows were found and may represent the same current-home payment twice.",
-        "action": "Return to Expenses → Housing costs and remove any duplicate rent-like rows so the baseline monthly outflow stays credible."
+        "message": "We found more than one rent-like expense that may describe the same home payment. Checking now helps avoid overstating your monthly baseline costs.",
+        "action": "Return to Expenses → Housing costs and keep the single rent entry that matches your current home."
       }
     }
   },

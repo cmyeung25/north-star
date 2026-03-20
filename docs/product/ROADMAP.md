@@ -45,6 +45,7 @@ Last updated: 2026-03-20
 - [x] v1.1 severity calibration 已完成：只有真正會扭曲 baseline 核心語意的規則保留 `critical`，疑似重複輸入與資料不一致降為 `warning` / `info`，避免 onboarding review 過度示警。
 - [x] review step hierarchy 已按 severity 分層：guardrails 改為 `critical / must fix`、`warning / review recommended`、`info / heads-up` 三段顯示，並在無 guardrail 時提供 clear state，避免 info / warning 被誤解為阻止提交。
 - [x] fix-loop CTA clarity 已補強：每條 guardrail 現在會先顯示將返回的 step + section，CTA 文案亦明確標示會回到哪一步，保留既有 `onFixGuardrail -> stepIndexById` 導航契約不變。
+- [x] guardrail copy rewrite & locale parity pass 已完成：housing/property guardrails 改寫為「人話 + 原因 + 下一步」語氣，並補上 onboarding guardrail placeholder parity / mojibake lint，降低警示疲勞與語系 drift。
 - [ ] 下一步：依 beta feedback 繼續調整 guardrail 文案、誤報率與 review/dashboard 解讀方式，避免警示疲勞。
 4. Presets 接入主流程
 - [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。

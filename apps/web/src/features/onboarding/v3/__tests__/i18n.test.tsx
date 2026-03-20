@@ -29,6 +29,20 @@ type OnboardingCompletenessMessages = {
   };
 };
 
+type OnboardingGuardrailRuleMessages = {
+  onboardingV3: {
+    guardrails: {
+      rules: Record<
+        (typeof targetGuardrailKeys)[number],
+        {
+          message: string;
+          action: string;
+        }
+      >;
+    };
+  };
+};
+
 const resolveCompletenessMessage = (
   messages: OnboardingCompletenessMessages,
   key: string,
@@ -37,6 +51,16 @@ const resolveCompletenessMessage = (
   title: messages.onboardingV3.completeness.groups[key]?.title,
   summary: messages.onboardingV3.completeness.groups[key]?.summary[status],
 });
+
+const targetGuardrailKeys = [
+  "propertyUsageMissing",
+  "mortgageCoreFieldsMissing",
+  "selfUseRentalConflict",
+  "rentalPropertyIncomeMissing",
+  "mortgagePropertyBasicsMissing",
+  "duplicateCurrentHomeHousingCosts",
+  "duplicateRentExpenseInputs",
+] as const;
 
 describe("onboarding v3 i18n", () => {
   it("injects locale-specific default member name during initial draft creation", () => {
@@ -228,5 +252,32 @@ describe("onboarding v3 i18n", () => {
     expect(enHtml).toContain("Self-use property");
     expect(zhHtml).toContain("先分清：你現在是填租屋，還是填已持有物業？");
     expect(zhHtml).toContain("自住物業");
+  });
+
+  it("keeps the rewritten guardrail copy aligned across en and zh-HK", () => {
+    const enRules = (enMessages as unknown as OnboardingGuardrailRuleMessages).onboardingV3.guardrails.rules;
+    const zhRules = (zhHkMessages as unknown as OnboardingGuardrailRuleMessages).onboardingV3.guardrails.rules;
+
+    for (const key of targetGuardrailKeys) {
+      const enRule = enRules[key];
+      const zhRule = zhRules[key];
+
+      expect(enRule.message, `missing en message for ${key}`).toBeTruthy();
+      expect(enRule.action, `missing en action for ${key}`).toBeTruthy();
+      expect(zhRule.message, `missing zh-HK message for ${key}`).toBeTruthy();
+      expect(zhRule.action, `missing zh-HK action for ${key}`).toBeTruthy();
+
+      expect(/baseline|loan|mortgage|cashflow|cost/i.test(enRule.message)).toBe(true);
+      expect(/Assets|Expenses/.test(enRule.action)).toBe(true);
+      expect(/baseline|現金流|供款|成本|租金|按揭/.test(zhRule.message)).toBe(true);
+      expect(/資產|支出/.test(zhRule.action)).toBe(true);
+      expect(/�|\?{3,}|資料錯誤/.test(zhRule.message)).toBe(false);
+      expect(/�|\?{3,}|資料錯誤/.test(zhRule.action)).toBe(false);
+    }
+
+    expect(enRules.duplicateCurrentHomeHousingCosts.message).toContain("two places");
+    expect(enRules.duplicateRentExpenseInputs.action).toContain("single rent entry");
+    expect(zhRules.duplicateCurrentHomeHousingCosts.message).toContain("兩個地方");
+    expect(zhRules.duplicateRentExpenseInputs.action).toContain("只保留嗰一筆");
   });
 });

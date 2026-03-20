@@ -1,12 +1,12 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (onboarding review fix CTA clarity)
+Last updated: 2026-03-20 (guardrail copy rewrite & locale parity pass)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 70% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口與提交回饋 |
-| Public MVP readiness | 43% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，且 onboarding funnel 已補上 review / guardrail / completion 事件，但營運支援與漏斗補齊仍有缺口 |
+| Closed Beta readiness | 71% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口、較低壓力的 guardrail 文案與提交回饋 |
+| Public MVP readiness | 44% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，且 onboarding funnel 已補上 review / guardrail / completion 事件與 guardrail locale parity lint，但營運支援與漏斗補齊仍有缺口 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
@@ -14,7 +14,7 @@ Last updated: 2026-03-20 (onboarding review fix CTA clarity)
 | Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
-| Guardrails / Completeness | 84% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。每條 fix CTA 亦會先說明將返回的 step / section 與預期修正內容，降低按下前的不確定感。analytics 亦已量測 review / guardrail / completion 漏斗 metadata | 仍需依 beta feedback 校準 guardrail 文案、誤報率與儀表板解讀方式 |
+| Guardrails / Completeness | 86% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪亦已把重複輸入／自住出租衝突／按揭缺漏等 guardrail copy 重寫成「人話 + 原因 + 下一步」，並補上 onboarding guardrail locale parity / mojibake lint，降低誤報疲勞與語系 drift 風險。analytics 亦已量測 review / guardrail / completion 漏斗 metadata | 仍需依 beta feedback 校準 guardrail 誤報率與 review/dashboard 解讀方式 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
@@ -47,6 +47,11 @@ Last updated: 2026-03-20 (onboarding review fix CTA clarity)
 - Promoted minimum KPI gates for first-run completion, journey-to-case conversion, onboarding start rate, and CTA CTR into the product status baseline, so market-entry readiness is measured against publishable thresholds rather than qualitative intent only.
 - Marketing landing page IA refreshed to a text-led structure: hero proof cards, persona decision cards without decorative photos, sample journeys with explicit decision questions, and a clearer first-session CTA promise.
 - Sample journey content kit now makes the decision question explicit for the three target personas (steady saver, dual-income home buyer, new parents), so marketing promise and in-product action path are easier to align.
+
+## Latest Update (2026-03-20)
+- Onboarding housing/property guardrail copy（en / zh-HK）已逐條重寫為較低壓力的產品文案：先指出系統點解提醒、再解釋可能點樣影響 baseline，最後清楚講返去邊個 step / section 修改。
+- duplicate 類、property vs rent semantic conflict 類、mortgage missing 類文案已優先改寫，避免使用責備式語氣或內部術語，並令 `warning` / `info` 提示更容易被理解為「值得檢查」而非「你做錯咗」。
+- locale lint 已新增 onboarding guardrail subtree 的 placeholder parity 與 mojibake 掃描，降低 `en` / `zh-HK` 語意漂移與編碼風險。
 
 ## Latest Update (2026-03-20)
 - Onboarding v3 review step 現在會在每條 guardrail 卡上先顯示「按下後會返回哪個 step / section」，並把 CTA 文案改成 step-aware label，令使用者按之前已知會回到哪裡修正。
