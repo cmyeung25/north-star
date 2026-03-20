@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-09
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR 4 要把 onboarding guardrail analytics 從「有事件」提升為可供 PM/UX 每週 calibration review 的工具，但不可把 analytics 變成產品 state machine、不可為追蹤 fix progress 新增跨 scenario persistence，也不可讓事件 payload 滑向財務內容。
+- Decision: Onboarding funnel contract v1.1 只維持 metadata allowlist，並新增兩個安全欄位：`reviewSessionId`（單次 review pass 的暫時關聯鍵）與 `reviewSourceContext`（`initial_review` / `returned_from_fix`）。`guardrail_fixed` 只可在使用者由 review 按 fix CTA 離開、再回到下一個 review pass 且該 guardrail 已消失時觸發；事件需帶回原 guardrail 的 `id / severity / category / target step / section`，以支援 weekly calibration 的 top blockers、low-fix-success 與 review→completed 分析。
+- Guardrails: payload 必須經 allowlist sanitize，嚴禁輸出 scenarioId、金額、資產值、收入/支出內容或其他 business payload；`reviewSessionId` 只屬前端暫時事件關聯鍵，不可持久化到 scenario/case；review pack 解讀必須提醒 PM/UX：高出現率不必然等於產品問題，需先排除特定 persona/sample size/既有輸入習慣造成的偏差。
+
 ### D-2026-03-20-08
 - Date: 2026-03-20
 - Status: Accepted
