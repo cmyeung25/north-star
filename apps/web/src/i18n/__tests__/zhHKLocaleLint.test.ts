@@ -29,6 +29,33 @@ function collectTokens(message: string): string[] {
 }
 
 describe("zh-HK locale lint", () => {
+  it("keeps placeholder tokens aligned with en for onboarding guardrail copy", () => {
+    const enMap = flattenMessages(enMessages as JsonRecord);
+    const zhMap = flattenMessages(zhHkMessages as JsonRecord);
+    const guardrailPrefix = "onboardingV3.guardrails.rules.";
+    const mismatches: string[] = [];
+
+    for (const [key, enValue] of enMap.entries()) {
+      if (!key.startsWith(guardrailPrefix)) {
+        continue;
+      }
+
+      const zhValue = zhMap.get(key);
+      if (!zhValue) {
+        mismatches.push(`${key}: missing zh-HK value`);
+        continue;
+      }
+
+      const enTokens = collectTokens(enValue).join("|");
+      const zhTokens = collectTokens(zhValue).join("|");
+      if (enTokens !== zhTokens) {
+        mismatches.push(`${key}: en={${enTokens}} zh={${zhTokens}}`);
+      }
+    }
+
+    expect(mismatches).toEqual([]);
+  });
+
   it("keeps placeholder tokens aligned with en for overview keys", () => {
     const enMap = flattenMessages(enMessages as JsonRecord);
     const zhMap = flattenMessages(zhHkMessages as JsonRecord);
@@ -74,6 +101,23 @@ describe("zh-HK locale lint", () => {
       }
 
       if (suspiciousTerms.some((pattern) => pattern.test(value))) {
+        violations.push(`${key}: ${value}`);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps onboarding guardrail copy free from mojibake markers", () => {
+    const zhMap = flattenMessages(zhHkMessages as JsonRecord);
+    const violations: string[] = [];
+
+    for (const [key, value] of zhMap.entries()) {
+      if (!key.startsWith("onboardingV3.guardrails.rules.")) {
+        continue;
+      }
+
+      if (/�|\?{3,}/.test(value)) {
         violations.push(`${key}: ${value}`);
       }
     }
