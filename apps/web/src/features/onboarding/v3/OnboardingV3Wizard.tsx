@@ -31,7 +31,14 @@ import { useScenarioCloudStore } from "../../../store/scenarioCloudStore";
 import { exportScenarioState } from "../../../store/scenarioState";
 import { buildOnboardingCompletenessSummary } from "./completeness";
 import { buildOnboardingGuardrailSummary } from "./guardrails";
-import { trackOnboardingFunnelEvent } from "../../../lib/analytics/onboardingFunnel";
+import {
+  buildPendingGuardrailFix,
+  createOnboardingReviewSessionId,
+  resolveCompletedGuardrailFixes,
+  trackOnboardingFunnelEvent,
+  type OnboardingReviewSourceContext,
+  type PendingGuardrailFix,
+} from "../../../lib/analytics/onboardingFunnel";
 import { RouteLoadingOverlay } from "../../../components/loading/route-loading-overlay";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
@@ -180,10 +187,11 @@ export default function OnboardingV3Wizard() {
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
   const [dismissedAutoSalaryMemberIds, setDismissedAutoSalaryMemberIds] = useState<string[]>([]);
   const reviewAnalyticsStateRef = useRef({
-    viewed: false,
+    activeReviewSessionId: null as string | null,
+    activeReviewSourceContext: "initial_review" as OnboardingReviewSourceContext,
+    hasTrackedActiveReviewView: false,
     shownGuardrailIds: new Set<string>(),
-    pendingFixIds: new Set<string>(),
-    fixedGuardrailIds: new Set<string>(),
+    pendingFixes: new Map<string, PendingGuardrailFix>(),
   });
   const defaultSalaryGrowthRate =
     draft.assumptions.salaryGrowthRate ?? scenario?.assumptions?.salaryGrowthRate ?? 3;
@@ -349,7 +357,13 @@ export default function OnboardingV3Wizard() {
         return;
       }
 
-      reviewAnalyticsStateRef.current.pendingFixIds.add(guardrailId);
+      const reviewSessionId = reviewAnalyticsStateRef.current.activeReviewSessionId;
+      if (reviewSessionId) {
+        reviewAnalyticsStateRef.current.pendingFixes.set(
+          guardrailId,
+          buildPendingGuardrailFix(guardrail, reviewSessionId)
+        );
+      }
       const targetIndex = stepIndexById[guardrail.target.stepId];
       if (typeof targetIndex === "number") {
         setStep(targetIndex);
@@ -360,15 +374,30 @@ export default function OnboardingV3Wizard() {
 
   useEffect(() => {
     if (step !== stepDefs.length - 1) {
-      reviewAnalyticsStateRef.current.viewed = false;
+      reviewAnalyticsStateRef.current.activeReviewSessionId = null;
+      reviewAnalyticsStateRef.current.hasTrackedActiveReviewView = false;
+      reviewAnalyticsStateRef.current.shownGuardrailIds.clear();
       return;
     }
 
-    if (!reviewAnalyticsStateRef.current.viewed) {
+    if (!reviewAnalyticsStateRef.current.activeReviewSessionId) {
+      reviewAnalyticsStateRef.current.activeReviewSessionId = createOnboardingReviewSessionId();
+      reviewAnalyticsStateRef.current.activeReviewSourceContext =
+        reviewAnalyticsStateRef.current.pendingFixes.size > 0 ? "returned_from_fix" : "initial_review";
+      reviewAnalyticsStateRef.current.hasTrackedActiveReviewView = false;
+      reviewAnalyticsStateRef.current.shownGuardrailIds.clear();
+    }
+
+    const reviewSessionId = reviewAnalyticsStateRef.current.activeReviewSessionId;
+    const reviewSourceContext = reviewAnalyticsStateRef.current.activeReviewSourceContext;
+
+    if (reviewSessionId && !reviewAnalyticsStateRef.current.hasTrackedActiveReviewView) {
       trackOnboardingFunnelEvent("onboarding_review_viewed", {
         locale,
         flowVersion: "onboarding_v3",
         reviewStepId: "review",
+        reviewSessionId,
+        reviewSourceContext,
         completenessLevel: completenessSummary.level,
         completenessScorePct: completenessSummary.scorePct,
         guardrailLevel: guardrailSummary.level,
@@ -377,7 +406,7 @@ export default function OnboardingV3Wizard() {
         warningGuardrailCount: guardrailSummary.counts.warning,
         infoGuardrailCount: guardrailSummary.counts.info,
       });
-      reviewAnalyticsStateRef.current.viewed = true;
+      reviewAnalyticsStateRef.current.hasTrackedActiveReviewView = true;
     }
 
     for (const item of guardrailSummary.items) {
@@ -389,6 +418,8 @@ export default function OnboardingV3Wizard() {
         locale,
         flowVersion: "onboarding_v3",
         reviewStepId: "review",
+        reviewSessionId,
+        reviewSourceContext,
         guardrailId: item.id,
         guardrailSeverity: item.severity,
         guardrailCategory: item.category,
@@ -398,21 +429,27 @@ export default function OnboardingV3Wizard() {
       reviewAnalyticsStateRef.current.shownGuardrailIds.add(item.id);
     }
 
-    for (const guardrailId of [...reviewAnalyticsStateRef.current.pendingFixIds]) {
-      const stillExists = guardrailSummary.items.some((item) => item.id === guardrailId);
-      if (stillExists || reviewAnalyticsStateRef.current.fixedGuardrailIds.has(guardrailId)) {
-        continue;
-      }
+    const resolvedFixes = resolveCompletedGuardrailFixes({
+      pendingFixes: reviewAnalyticsStateRef.current.pendingFixes,
+      currentGuardrails: guardrailSummary.items,
+      currentReviewSessionId: reviewSessionId,
+    });
 
+    for (const fixedGuardrail of resolvedFixes.fixedGuardrails) {
       trackOnboardingFunnelEvent("guardrail_fixed", {
         locale,
         flowVersion: "onboarding_v3",
         reviewStepId: "review",
-        guardrailId,
+        reviewSessionId,
+        reviewSourceContext: "returned_from_fix",
+        guardrailId: fixedGuardrail.guardrailId,
+        guardrailSeverity: fixedGuardrail.guardrailSeverity,
+        guardrailCategory: fixedGuardrail.guardrailCategory,
+        targetStepId: fixedGuardrail.targetStepId,
+        targetSection: fixedGuardrail.targetSection,
       });
-      reviewAnalyticsStateRef.current.pendingFixIds.delete(guardrailId);
-      reviewAnalyticsStateRef.current.fixedGuardrailIds.add(guardrailId);
     }
+    reviewAnalyticsStateRef.current.pendingFixes = resolvedFixes.remainingPendingFixes;
   }, [completenessSummary.level, completenessSummary.scorePct, guardrailSummary, locale, step]);
 
   const addManual = (kind: "income" | "expense", item: ManualCashflowDraftInput) => {
@@ -734,6 +771,13 @@ export default function OnboardingV3Wizard() {
     trackOnboardingFunnelEvent("onboarding_completed", {
       locale,
       flowVersion: "onboarding_v3",
+      reviewStepId: "review",
+      reviewSessionId:
+        reviewAnalyticsStateRef.current.activeReviewSessionId ?? createOnboardingReviewSessionId(),
+      reviewSourceContext:
+        reviewAnalyticsStateRef.current.activeReviewSessionId
+          ? reviewAnalyticsStateRef.current.activeReviewSourceContext
+          : "initial_review",
       completenessLevel: completenessSummary.level,
       completenessScorePct: completenessSummary.scorePct,
       guardrailLevel: guardrailSummary.level,
