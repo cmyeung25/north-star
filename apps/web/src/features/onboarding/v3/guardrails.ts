@@ -78,6 +78,7 @@ type OnboardingGuardrailDefinition = {
   id: string;
   severity: OnboardingGuardrailSeverity;
   category: OnboardingGuardrailCategory;
+  blocksSubmission: boolean;
   messageKey: string;
   actionHintKey: string;
   target: OnboardingGuardrailTarget;
@@ -165,6 +166,7 @@ const propertyUsageMissingMeta = {
   id: "property_usage_missing",
   severity: "warning",
   category: "key_missing",
+  blocksSubmission: false,
   messageKey: "guardrails.rules.propertyUsageMissing.message",
   actionHintKey: "guardrails.rules.propertyUsageMissing.action",
   target: { stepId: "assets", section: "property" },
@@ -189,6 +191,7 @@ const mortgageCoreFieldsMissingMeta = {
   id: "mortgage_core_fields_missing",
   severity: "critical",
   category: "key_missing",
+  blocksSubmission: true,
   messageKey: "guardrails.rules.mortgageCoreFieldsMissing.message",
   actionHintKey: "guardrails.rules.mortgageCoreFieldsMissing.action",
   target: { stepId: "assets", section: "mortgage" },
@@ -221,6 +224,7 @@ const selfUseRentalConflictMeta = {
   id: "self_use_rental_conflict",
   severity: "critical",
   category: "obvious_conflict",
+  blocksSubmission: true,
   messageKey: "guardrails.rules.selfUseRentalConflict.message",
   actionHintKey: "guardrails.rules.selfUseRentalConflict.action",
   target: { stepId: "assets", section: "housing" },
@@ -245,6 +249,7 @@ const rentalPropertyIncomeMissingMeta = {
   id: "rental_property_income_missing",
   severity: "warning",
   category: "basic_inconsistency",
+  blocksSubmission: false,
   messageKey: "guardrails.rules.rentalPropertyIncomeMissing.message",
   actionHintKey: "guardrails.rules.rentalPropertyIncomeMissing.action",
   target: { stepId: "assets", section: "property" },
@@ -269,6 +274,7 @@ const mortgagePropertyBasicsMissingMeta = {
   id: "mortgage_property_basics_missing",
   severity: "warning",
   category: "basic_inconsistency",
+  blocksSubmission: false,
   messageKey: "guardrails.rules.mortgagePropertyBasicsMissing.message",
   actionHintKey: "guardrails.rules.mortgagePropertyBasicsMissing.action",
   target: { stepId: "assets", section: "mortgage" },
@@ -295,6 +301,7 @@ const duplicateCurrentHomeHousingCostsMeta = {
   id: "duplicate_current_home_housing_costs",
   severity: "warning",
   category: "potential_double_counting",
+  blocksSubmission: false,
   messageKey: "guardrails.rules.duplicateCurrentHomeHousingCosts.message",
   actionHintKey: "guardrails.rules.duplicateCurrentHomeHousingCosts.action",
   target: { stepId: "expense", section: "fixedExpenses" },
@@ -322,6 +329,7 @@ const duplicateRentExpenseInputsMeta = {
   id: "duplicate_rent_expense_inputs",
   severity: "info",
   category: "potential_double_counting",
+  blocksSubmission: false,
   messageKey: "guardrails.rules.duplicateRentExpenseInputs.message",
   actionHintKey: "guardrails.rules.duplicateRentExpenseInputs.action",
   target: { stepId: "expense", section: "housing" },
@@ -398,8 +406,14 @@ export function buildOnboardingGuardrailSummary({
     } satisfies Record<OnboardingGuardrailCategory, number>
   );
 
+  const hasBlockingGuardrail = items.some((item) =>
+    RULE_DEFINITIONS.some(
+      (definition) => definition.id === item.id && definition.blocksSubmission
+    )
+  );
+
   const level: OnboardingGuardrailSummaryLevel =
-    counts.critical > 0 ? "critical" : counts.warning > 0 ? "warning" : "clear";
+    hasBlockingGuardrail ? "critical" : counts.warning > 0 ? "warning" : "clear";
 
   return {
     titleKey: TITLE_KEY,

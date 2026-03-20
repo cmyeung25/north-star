@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-06
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR-1 需要先在 onboarding v3 guardrails 的 rules layer 內重新校準 housing/property 警示強度，令 review UI 與 analytics 能分清「真正阻礙提交」vs「應提醒但不應過度施壓」的問題，同時不可把規則判斷散落到 UI component 或引入 engine 依賴。
+- Decision: Onboarding v3 housing/property guardrails 採 severity calibration v1：只有會扭曲 baseline 核心語意、足以阻礙提交的規則保留 blocking `critical`（`mortgage_core_fields_missing`、`self_use_rental_conflict`）；`property_usage_missing`、`rental_property_income_missing`、`mortgage_property_basics_missing` 校準為 `warning`；duplicate 類 guardrails 採較輕量策略，其中 `duplicate_current_home_housing_costs` 維持 `warning`，`duplicate_rent_expense_inputs` 維持 `info`。guardrail summary level 亦以 blocking rule presence 決定是否為 `critical`，只有 info 類提醒時維持 `clear`。
+- Guardrails: 校準只可發生在 onboarding v3 rules/summary layer；不可新增 persistence schema、不可寫入 scenario 外狀態、不可新增 engine/compiler 依賴、不可把 severity 判斷搬進 UI component。所有規則仍需維持 `id`、`severity`、`messageKey`、`actionHintKey`、`target step/section` 契約，供 review UI 與 analytics 共用。
+
 ### D-2026-03-20-05
 - Date: 2026-03-20
 - Status: Accepted

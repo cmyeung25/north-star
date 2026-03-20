@@ -14,7 +14,7 @@ Last updated: 2026-03-20 (onboarding review / submit UX + funnel analytics)
 | Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
-| Guardrails / Completeness | 79% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、guardrail 清單、逐項返回修正入口與清晰 submit/save feedback；analytics 亦已量測 review / guardrail / completion 漏斗 metadata | 仍需依 beta feedback 校準 guardrail 規則數量、文案強度與儀表板解讀方式 |
+| Guardrails / Completeness | 81% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、guardrail 清單、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。analytics 亦已量測 review / guardrail / completion 漏斗 metadata | 仍需依 beta feedback 校準 guardrail 文案、誤報率與儀表板解讀方式 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
@@ -196,6 +196,9 @@ Last updated: 2026-03-20 (onboarding review / submit UX + funnel analytics)
 2. 讓 Plan Lab 以模板化決策入口驅動，並補齊比較摘要的可行動建議。
 3. 將 member preset onboarding-prefill 延伸到 app 內延伸入口，並建立封閉 beta 回饋閉環與量化追蹤。
 ## Latest Update (2026-03-20)
+- Onboarding v3 housing/property guardrails severity 已完成首輪 calibration：`mortgage_core_fields_missing`、`self_use_rental_conflict` 保留為 blocking `critical`；`property_usage_missing`、`rental_property_income_missing`、`mortgage_property_basics_missing` 維持 `warning`；duplicate 類則維持 `warning` / `info`，避免把高誤報風險提醒包裝成阻礙提交。
+- Guardrail summary level 現以 blocking 規則為 `critical` 判準；只有 info 類 duplicate reminder 時維持 `clear`，讓 review UI / analytics 更貼近真實提交風險。
+- Focused tests 已補強 severity matrix 與 summary aggregation，確保規則仍保有 `id / severity / message key / action hint / target step/section` 契約且不引入 engine 依賴。
 - Onboarding guardrails v1 已建立獨立 rules layer：每條規則都定義 `id / severity / message key / action hint / target step/section`，並輸出 UI 可直接消費的 guardrail summary model。
 - 首批規則聚焦 housing/property 常見錯誤，覆蓋 `key_missing / obvious_conflict / basic_inconsistency / potential_double_counting` 四類：物業用途缺漏、按揭核心欄位缺漏、自住/出租衝突、出租物業租金缺漏、按揭與物業基本值不一致、以及可能重複輸入住屋支出。
 - Guardrail 規則層只讀 active onboarding draft + active scenario context，不依賴 engine，也不做任何跨 scenario 讀寫或持久化捷徑。
