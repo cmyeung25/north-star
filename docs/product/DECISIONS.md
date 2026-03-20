@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-04
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR-3B 需要在不引入 engine 依賴、也不把修正文案硬編進 UI component 的前提下，為 onboarding review/資產步驟建立可持續演進的 guardrails 規則層；同時要先聚焦最常見的 housing/property 錯誤，避免一次塞入過多規則打擊完成率。
+- Decision: Onboarding guardrails v1 採獨立 rules layer，輸入僅限 active onboarding draft + active scenario context，輸出 UI-consumable summary model；每條規則必須定義 `id`、`severity`、`messageKey`、`actionHintKey`、`target step/section`，並先覆蓋四類問題：`key_missing`、`obvious_conflict`、`basic_inconsistency`、`potential_double_counting`。首批 housing/property 規則包括：物業用途缺漏、按揭核心欄位缺漏、自住/出租衝突、出租物業租金缺漏、按揭與物業基本值不一致、以及住屋支出可能重複輸入。
+- Guardrails: 規則層不可依賴 projection engine、不可跨 scenario 讀寫、不可直接持久化修正結果；UI 只消費 summary model。後續若擴充更多 guardrails，需以 beta 完成率與誤報率控制規則數量，避免過度警示。
+
 ### D-2026-03-20-03
 - Date: 2026-03-20
 - Status: Accepted

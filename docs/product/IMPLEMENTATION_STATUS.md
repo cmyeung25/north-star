@@ -1,20 +1,20 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (onboarding completeness score v1 rules layer)
+Last updated: 2026-03-20 (onboarding guardrails v1 rules layer)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 62% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 completeness score v1 已可輸出整體訊號，但 guardrails 細則仍待整合 |
+| Closed Beta readiness | 64% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 completeness score + housing/property guardrails v1 已可輸出整體訊號與修正方向 |
 | Public MVP readiness | 40% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，但營運支援與漏斗補齊仍有缺口 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
-| Onboarding + Property Bundle | 76% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料。 | 需補齊既有物業 household 的一致輸入、completeness guardrails 與更完整的 review 修正引導 |
+| Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
-| Guardrails / Completeness | 55% | 已有 assumptions / Plan Lab 局部 warning，且 onboarding completeness score v1 已可用 5 個輸入群組輸出 `ready / needs_attention / incomplete` summary model（不依賴 engine、僅讀 active onboarding draft + scenario context） | 仍需補關鍵警示清單、修正引導與後續 UI 呈現整合 |
+| Guardrails / Completeness | 68% | 已有 assumptions / Plan Lab 局部 warning，且 onboarding completeness score + guardrails v1 已可用 scenario-scoped rules layer 輸出 `ready / needs_attention / incomplete` summary 與 guardrail summary model（含 severity / message key / action hint / target step；不依賴 engine、僅讀 active onboarding draft + scenario context） | 仍需把 guardrail summary 接入 onboarding review / assets UX，並依 beta feedback 校準規則數量與文案 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
@@ -196,6 +196,10 @@ Last updated: 2026-03-20 (onboarding completeness score v1 rules layer)
 2. 讓 Plan Lab 以模板化決策入口驅動，並補齊比較摘要的可行動建議。
 3. 將 member preset onboarding-prefill 延伸到 app 內延伸入口，並建立封閉 beta 回饋閉環與量化追蹤。
 ## Latest Update (2026-03-20)
+- Onboarding guardrails v1 已建立獨立 rules layer：每條規則都定義 `id / severity / message key / action hint / target step/section`，並輸出 UI 可直接消費的 guardrail summary model。
+- 首批規則聚焦 housing/property 常見錯誤，覆蓋 `key_missing / obvious_conflict / basic_inconsistency / potential_double_counting` 四類：物業用途缺漏、按揭核心欄位缺漏、自住/出租衝突、出租物業租金缺漏、按揭與物業基本值不一致、以及可能重複輸入住屋支出。
+- Guardrail 規則層只讀 active onboarding draft + active scenario context，不依賴 engine，也不做任何跨 scenario 讀寫或持久化捷徑。
+- 新增 focused unit tests，覆蓋關鍵缺漏、明顯衝突、基本不一致、潛在重複計算，以及 scenario fallback 路徑，確保每條 guardrail 都附帶可行動修正方向。
 - Onboarding completeness score v1 已拆成獨立 rules layer：以家庭結構、收入、固定支出、住屋資訊、資產 / 負債基本值 5 組輸入，輸出 `ready / needs_attention / incomplete` summary model，供 review / 後續 UI 直接消費。
 - Score 規則只讀 active onboarding draft 與 active scenario context，並透過 property-derived cashflow/liability 規則補齊住屋訊號；不讀 engine、不改 projection 介面。
 - 收入完整度會刻意把自動建議薪資（auto salary suggestion）視為 `needs_attention` 而非 `ready`，避免預設建議值讓首次建模看似已完成。
