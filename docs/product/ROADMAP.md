@@ -41,7 +41,8 @@ Last updated: 2026-03-20
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。
 - [x] v1 已交付：onboarding completeness score 規則層已拆出，使用 5 個輸入群組（家庭結構、收入、固定支出、住屋資訊、資產 / 負債基本值）輸出 `ready / needs_attention / incomplete` summary model，且只讀 active onboarding draft + active scenario context、不依賴 engine。
 - [x] v1 已交付：onboarding guardrails 規則層已建立，覆蓋 `key_missing / obvious_conflict / basic_inconsistency / potential_double_counting` 四類；目前先聚焦 housing/property 常見錯誤（物業用途缺漏、按揭核心欄位缺漏、自住/出租衝突、housing state 與 cost mismatch、可能重複輸入住屋支出），並輸出 UI 可直接消費的 summary model（含 severity / message key / action hint / target step）。
-- [ ] 下一步：把 guardrail summary 接到 onboarding review / assets 修正入口，並依 beta feedback 控制規則數量，避免 guardrails 過多拉低完成率。
+- [x] onboarding review / submit summary 已接入 completeness + guardrail summary，並提供逐項返回修正入口、submit/save feedback、以及 `onboarding_review_viewed` / `guardrail_shown` / `guardrail_fixed` / `onboarding_completed` funnel analytics（只含 funnel metadata）。
+- [ ] 下一步：依 beta feedback 控制 guardrail 規則數量與文案強度，避免警示過多拉低完成率或造成誤報疲勞。
 4. Presets 接入主流程
 - [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。
 - [x] v1 已交付：member 入口 preset allowlist 擴至 6 個產品化 seeds（single-renter、dual-income-home、dual-income-rental、new-baby、new-baby-helper、high-asset）。

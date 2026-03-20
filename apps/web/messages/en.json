@@ -3425,24 +3425,35 @@
         "settingTitle": "Expense Settings",
         "systemGeneratedSection": "System generated (read-only)"
       },
-      "review": {
-        "title": "Summary before submit",
-        "badge": {
-          "ok": "OK",
-          "todo": "TODO"
-        },
-        "items": {
-          "startMonth": "Start month is set",
-          "baseCurrency": "Base currency is set",
-          "members": "Household members are filled",
-          "assets": "Assets are added",
-          "generatedCashflow": "Generated cashflow is available"
-        },
-        "checklistTitle": "Validation checklist",
-        "edit": "Edit",
-        "sections": {
-          "scenarioSetup": "Scenario setup",
-          "members": "Household members",
+    "review": {
+      "title": "Summary before submit",
+      "description": "Review completeness, resolve important issues, and then save your baseline with confidence.",
+      "badge": {
+        "ok": "OK",
+        "todo": "TODO"
+      },
+      "groupStatus": {
+        "complete": "Ready",
+        "needs_attention": "Needs attention",
+        "incomplete": "Incomplete"
+      },
+      "completenessHint": "Make it easy for different household types to see what is already usable and what still needs confirmation.",
+      "guardrailsHint": "Highlight issues before they distort the baseline, then send the user back to the right step.",
+      "completenessScore": "Coverage across key input groups",
+      "returnToStep": "Review this step",
+      "fixNow": "Fix now",
+      "guardrailsClearTitle": "No blocking guardrails right now",
+      "guardrailsClearBody": "You can still refine details later, but nothing currently stands out as a major onboarding mismatch.",
+      "edit": "Edit",
+      "stepNames": {
+        "household": "Household",
+        "income": "Income",
+        "expense": "Expenses",
+        "assets": "Assets"
+      },
+      "sections": {
+        "scenarioSetup": "Scenario setup",
+        "members": "Household members",
           "assets": "Assets",
           "cashflows": "Cashflow summary"
         },
@@ -3490,8 +3501,8 @@
       "propertyMissing": "No property added yet",
       "derivedCashflowMissing": "No derived cashflow available"
     },
-    "completeness": {
-      "title": "Onboarding completeness",
+  "completeness": {
+    "title": "Onboarding completeness",
       "level": {
         "ready": "Ready",
         "needs_attention": "Needs attention",
@@ -3537,15 +3548,78 @@
             "needs_attention": "An asset section is enabled, but basic values are not complete yet.",
             "incomplete": "Add core asset or debt balances to anchor the baseline."
           }
-        }
       }
+    }
+  },
+  "guardrails": {
+    "title": "Guardrails to review",
+    "level": {
+      "clear": "Clear",
+      "warning": "Review recommended",
+      "critical": "Fix before submit"
     },
-    "navigation": {
-      "back": "Back",
-      "next": "Next",
-      "completeAndWriteToCore": "Complete and write to Core"
+    "severity": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "info": "Check"
     },
-    "footer": {
+    "summary": {
+      "critical": "{count} critical",
+      "warning": "{count} warning",
+      "info": "{count} check"
+    },
+    "rules": {
+      "propertyUsageMissing": {
+        "message": "At least one property has value signals, but its usage is still not marked as self-use or rental.",
+        "action": "Open Assets and confirm whether the property is self-use or rental so housing cashflow can be interpreted correctly."
+      },
+      "mortgageCoreFieldsMissing": {
+        "message": "A property has an outstanding mortgage balance, but rate or remaining term is still missing.",
+        "action": "Go back to mortgage details and complete the core mortgage inputs before submit."
+      },
+      "selfUseRentalConflict": {
+        "message": "A property is marked as self-use while also carrying rental income, which creates an obvious conflict.",
+        "action": "Review the property path and choose either self-use or rental semantics for this asset."
+      },
+      "rentalPropertyIncomeMissing": {
+        "message": "A rental property is enabled, but expected monthly rent is still missing.",
+        "action": "Add the rental income amount in Assets so the baseline reflects the owned-property cashflow."
+      },
+      "mortgagePropertyBasicsMissing": {
+        "message": "Mortgage details are present, but core property basics such as value or start month are incomplete.",
+        "action": "Complete the property basics card so mortgage assumptions attach to a valid owned-property record."
+      },
+      "duplicateCurrentHomeHousingCosts": {
+        "message": "You may be counting current-home housing costs twice across owned-property and rent expense inputs.",
+        "action": "Review Expense and Assets to keep only the path that matches your current living situation."
+      },
+      "duplicateRentExpenseInputs": {
+        "message": "Multiple rent-like expense rows were found and may represent the same current-home payment twice.",
+        "action": "Review rent expenses and remove duplicates so the baseline monthly outflow stays credible."
+      }
+    }
+  },
+  "navigation": {
+    "back": "Back",
+    "next": "Next",
+    "completeAndWriteToCore": "Complete and write to Core"
+  },
+  "submitFeedback": {
+    "validating": {
+      "title": "Checking your onboarding summary",
+      "description": "We are validating the final onboarding payload before it is written to your scenario."
+    },
+    "saving": {
+      "title": "Saving your onboarding baseline",
+      "description": "We are writing your confirmed inputs to this scenario so your dashboard opens with the latest baseline."
+    },
+    "redirecting": {
+      "title": "Opening your scenario",
+      "description": "Your onboarding baseline is saved. Redirecting you to the next view now."
+    },
+    "readyToast": "Baseline saved. Opening your scenario…"
+  },
+  "footer": {
       "localDraftHint": "V3 flow only updates local ScenarioDraftV3 staged state and submits once at the final step."
     },
     "defaults": {

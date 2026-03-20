@@ -12,6 +12,7 @@ import {
   buildOnboardingCompletenessSummary,
   type OnboardingCompletenessGroupStatus,
 } from "../completeness";
+import { buildOnboardingGuardrailSummary } from "../guardrails";
 import { createInitialScenarioDraftV3State } from "../types";
 
 type OnboardingCompletenessMessages = {
@@ -49,11 +50,22 @@ describe("onboarding v3 i18n", () => {
   });
 
   it("renders review labels based on locale messages", () => {
-    const items = [{ label: "Checklist item", completed: true }];
+    const draft = createInitialScenarioDraftV3State({ defaultMemberName: "Me" });
+    draft.profile.startMonth = "2026-01";
+    draft.profile.baseCurrency = "HKD";
+    draft.assets.push({
+      id: "property-1",
+      assetType: "property",
+      kind: "home",
+      label: "Home",
+      currentValue: 7_500_000,
+      startMonth: "2026-01",
+      mortgagePrincipalOutstanding: 3_000_000,
+    });
     const summary = {
       scenarioSetup: { baseCurrency: "HKD", startMonth: "2026-01", horizonMonths: 120 },
       members: [{ id: "self", name: "Me" }],
-      assets: [],
+      assets: draft.assets,
       derivedIncomeCount: 1,
       derivedExpenseCount: 1,
       manualIncomeCount: 0,
@@ -62,11 +74,20 @@ describe("onboarding v3 i18n", () => {
       monthlyIncomeAmount: 0,
       monthlyExpenseAmount: 0,
     };
+    const completenessSummary = buildOnboardingCompletenessSummary({ draft });
+    const guardrailSummary = buildOnboardingGuardrailSummary({ draft });
 
     const enHtml = renderToString(
       <MantineProvider>
         <NextIntlClientProvider locale="en" messages={enMessages as unknown as AbstractIntlMessages} timeZone="UTC">
-          <ReviewStep items={items} summary={summary} onEditStep={() => {}} />
+          <ReviewStep
+            summary={summary}
+            completenessSummary={completenessSummary}
+            guardrailSummary={guardrailSummary}
+            onEditStep={() => {}}
+            onEditCompletenessGroup={() => {}}
+            onFixGuardrail={() => {}}
+          />
         </NextIntlClientProvider>
       </MantineProvider>
     );
@@ -74,13 +95,22 @@ describe("onboarding v3 i18n", () => {
     const zhHtml = renderToString(
       <MantineProvider>
         <NextIntlClientProvider locale="zh-HK" messages={zhHkMessages as unknown as AbstractIntlMessages} timeZone="UTC">
-          <ReviewStep items={items} summary={summary} onEditStep={() => {}} />
+          <ReviewStep
+            summary={summary}
+            completenessSummary={completenessSummary}
+            guardrailSummary={guardrailSummary}
+            onEditStep={() => {}}
+            onEditCompletenessGroup={() => {}}
+            onFixGuardrail={() => {}}
+          />
         </NextIntlClientProvider>
       </MantineProvider>
     );
 
     expect(enHtml).toContain("Summary before submit");
+    expect(enHtml).toContain("Guardrails to review");
     expect(zhHtml).toContain("提交前摘要");
+    expect(zhHtml).toContain("提交前風險提示");
   });
 
   it("provides localized completeness labels for review consumers", () => {

@@ -1,9 +1,9 @@
 "use client";
 
-import { Alert, AspectRatio, Box, Button, Group, Image, SimpleGrid, Stack } from "@mantine/core";
-import { useEffect, useMemo, useState } from "react";
+import { Alert, AspectRatio, Box, Button, Group, Image, Notification, SimpleGrid, Stack } from "@mantine/core";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
 import OnboardingV2WizardShell from "../v2/OnboardingV2WizardShell";
 import { deriveFromProperty } from "../../../domain/scenarioDraft/rules/deriveFromProperty";
@@ -30,6 +30,9 @@ import { useScenarioContext } from "../../../hooks/useScenarioContext";
 import { useScenarioCloudStore } from "../../../store/scenarioCloudStore";
 import { exportScenarioState } from "../../../store/scenarioState";
 import { buildOnboardingCompletenessSummary } from "./completeness";
+import { buildOnboardingGuardrailSummary } from "./guardrails";
+import { trackOnboardingFunnelEvent } from "../../../lib/analytics/onboardingFunnel";
+import { RouteLoadingOverlay } from "../../../components/loading/route-loading-overlay";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -142,6 +145,7 @@ export default function OnboardingV3Wizard() {
   const t = useTranslations("onboardingV3");
   const seedEventLabelT = useTranslations("scenarios.seeds.eventLabels");
   const appShellT = useTranslations("app.shell");
+  const locale = useLocale();
   const params = useParams<{ caseId?: string | string[]; scenarioId?: string | string[] }>();
   const router = useRouter();
   const caseId = Array.isArray(params?.caseId) ? params?.caseId[0] : params?.caseId;
@@ -162,6 +166,8 @@ export default function OnboardingV3Wizard() {
   );
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitPhase, setSubmitPhase] = useState<"idle" | "validating" | "saving" | "redirecting">("idle");
+  const [saveFeedback, setSaveFeedback] = useState<"ready" | null>(null);
   const [draft, setDraft] = useState(() =>
     loadOnboardingV3DraftState({
       fallbackState: createInitialScenarioDraftV3State({
@@ -173,6 +179,12 @@ export default function OnboardingV3Wizard() {
   );
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
   const [dismissedAutoSalaryMemberIds, setDismissedAutoSalaryMemberIds] = useState<string[]>([]);
+  const reviewAnalyticsStateRef = useRef({
+    viewed: false,
+    shownGuardrailIds: new Set<string>(),
+    pendingFixIds: new Set<string>(),
+    fixedGuardrailIds: new Set<string>(),
+  });
   const defaultSalaryGrowthRate =
     draft.assumptions.salaryGrowthRate ?? scenario?.assumptions?.salaryGrowthRate ?? 3;
 
@@ -295,12 +307,14 @@ export default function OnboardingV3Wizard() {
       }),
     [draft, scenario]
   );
-
-  const reviewItems = completenessSummary.groups.map((group) => ({
-    label: t(group.titleKey),
-    completed: group.status === "complete",
-    warning: group.status === "complete" ? undefined : t(group.summaryKey),
-  }));
+  const guardrailSummary = useMemo(
+    () =>
+      buildOnboardingGuardrailSummary({
+        draft,
+        scenario,
+      }),
+    [draft, scenario]
+  );
 
   const reviewSummary = {
     scenarioSetup: {
@@ -319,6 +333,72 @@ export default function OnboardingV3Wizard() {
     monthlyIncomeAmount: mergedEvents.reduce((sum, event) => sum + isMonthlyCashflowAmount(event, "income"), 0),
     monthlyExpenseAmount: mergedEvents.reduce((sum, event) => sum + isMonthlyCashflowAmount(event, "expense"), 0),
   };
+
+  const stepIndexById = useMemo(
+    () =>
+      stepDefs.reduce<Record<string, number>>((accumulator, currentStep, index) => {
+        accumulator[currentStep.id] = index;
+        return accumulator;
+      }, {}),
+    []
+  );
+
+  useEffect(() => {
+    if (step !== stepDefs.length - 1) {
+      reviewAnalyticsStateRef.current.viewed = false;
+      return;
+    }
+
+    if (!reviewAnalyticsStateRef.current.viewed) {
+      trackOnboardingFunnelEvent("onboarding_review_viewed", {
+        locale,
+        flowVersion: "onboarding_v3",
+        reviewStepId: "review",
+        completenessLevel: completenessSummary.level,
+        completenessScorePct: completenessSummary.scorePct,
+        guardrailLevel: guardrailSummary.level,
+        guardrailCount: guardrailSummary.counts.total,
+        criticalGuardrailCount: guardrailSummary.counts.critical,
+        warningGuardrailCount: guardrailSummary.counts.warning,
+        infoGuardrailCount: guardrailSummary.counts.info,
+      });
+      reviewAnalyticsStateRef.current.viewed = true;
+    }
+
+    for (const item of guardrailSummary.items) {
+      if (reviewAnalyticsStateRef.current.shownGuardrailIds.has(item.id)) {
+        continue;
+      }
+
+      trackOnboardingFunnelEvent("guardrail_shown", {
+        locale,
+        flowVersion: "onboarding_v3",
+        reviewStepId: "review",
+        guardrailId: item.id,
+        guardrailSeverity: item.severity,
+        guardrailCategory: item.category,
+        targetStepId: item.target.stepId,
+        targetSection: item.target.section,
+      });
+      reviewAnalyticsStateRef.current.shownGuardrailIds.add(item.id);
+    }
+
+    for (const guardrailId of [...reviewAnalyticsStateRef.current.pendingFixIds]) {
+      const stillExists = guardrailSummary.items.some((item) => item.id === guardrailId);
+      if (stillExists || reviewAnalyticsStateRef.current.fixedGuardrailIds.has(guardrailId)) {
+        continue;
+      }
+
+      trackOnboardingFunnelEvent("guardrail_fixed", {
+        locale,
+        flowVersion: "onboarding_v3",
+        reviewStepId: "review",
+        guardrailId,
+      });
+      reviewAnalyticsStateRef.current.pendingFixIds.delete(guardrailId);
+      reviewAnalyticsStateRef.current.fixedGuardrailIds.add(guardrailId);
+    }
+  }, [completenessSummary.level, completenessSummary.scorePct, guardrailSummary, locale, step]);
 
   const addManual = (kind: "income" | "expense", item: ManualCashflowDraftInput) => {
     if (kind === "income" && item.memberId) {
@@ -496,7 +576,36 @@ export default function OnboardingV3Wizard() {
         />
       ),
     },
-    { ...stepDefs[5], title: t(stepDefs[5].titleKey), content: <ReviewStep items={reviewItems} summary={reviewSummary} onEditStep={(index) => setStep(index)} /> },
+    {
+      ...stepDefs[5],
+      title: t(stepDefs[5].titleKey),
+      content: (
+        <ReviewStep
+          summary={reviewSummary}
+          completenessSummary={completenessSummary}
+          guardrailSummary={guardrailSummary}
+          onEditStep={(index) => setStep(index)}
+          onEditCompletenessGroup={(stepId) => {
+            const targetIndex = stepIndexById[stepId];
+            if (typeof targetIndex === "number") {
+              setStep(targetIndex);
+            }
+          }}
+          onFixGuardrail={(guardrailId) => {
+            const guardrail = guardrailSummary.items.find((item) => item.id === guardrailId);
+            if (!guardrail) {
+              return;
+            }
+
+            reviewAnalyticsStateRef.current.pendingFixIds.add(guardrailId);
+            const targetIndex = stepIndexById[guardrail.target.stepId];
+            if (typeof targetIndex === "number") {
+              setStep(targetIndex);
+            }
+          }}
+        />
+      ),
+    },
   ];
 
   const handleSubmit = async () => {
@@ -505,6 +614,8 @@ export default function OnboardingV3Wizard() {
     }
 
     setIsSubmitting(true);
+    setSubmitPhase("validating");
+    setSaveFeedback(null);
 
     const submissionAssets = draft.assets.map((asset) => {
       if (asset.assetType === "cash") {
@@ -551,10 +662,12 @@ export default function OnboardingV3Wizard() {
 
     if (!submitResult.ok) {
       setValidationMessages(submitResult.errors.map((issue) => issue.message));
+      setSubmitPhase("idle");
       setIsSubmitting(false);
       return;
     }
 
+    setSubmitPhase("saving");
     submitOnboardingV3Payload(scenarioId, submitResult.payload, {
       updateScenarioBaseCurrency: useScenarioStore.getState().updateScenarioBaseCurrency,
       updateScenarioAssumptions: useScenarioStore.getState().updateScenarioAssumptions,
@@ -576,6 +689,7 @@ export default function OnboardingV3Wizard() {
     });
 
     setValidationMessages([]);
+    setSaveFeedback("ready");
 
     if (scenarioContext && scenarioContext.scenarioId === scenarioId) {
       const payload = exportScenarioState() as Record<string, unknown>;
@@ -606,12 +720,27 @@ export default function OnboardingV3Wizard() {
       } catch (error) {
         console.error("Failed to persist onboarding v3 payload", error);
         setValidationMessages([t("errors.saveFailed")]);
+        setSubmitPhase("idle");
+        setSaveFeedback(null);
         setIsSubmitting(false);
         return;
       }
     }
 
+    trackOnboardingFunnelEvent("onboarding_completed", {
+      locale,
+      flowVersion: "onboarding_v3",
+      completenessLevel: completenessSummary.level,
+      completenessScorePct: completenessSummary.scorePct,
+      guardrailLevel: guardrailSummary.level,
+      guardrailCount: guardrailSummary.counts.total,
+      criticalGuardrailCount: guardrailSummary.counts.critical,
+      warningGuardrailCount: guardrailSummary.counts.warning,
+      infoGuardrailCount: guardrailSummary.counts.info,
+    });
+
     clearOnboardingDraftState(scenarioId);
+    setSubmitPhase("redirecting");
 
     if (caseId) {
       router.replace(scenarioDashboardPath(caseId, scenarioId));
@@ -623,7 +752,17 @@ export default function OnboardingV3Wizard() {
 
   return (
     <Stack gap="md">
+      <RouteLoadingOverlay
+        opened={isSubmitting}
+        title={t(`submitFeedback.${submitPhase === "idle" ? "saving" : submitPhase}.title`)}
+        description={t(
+          `submitFeedback.${submitPhase === "idle" ? "saving" : submitPhase}.description`
+        )}
+      />
       {validationMessages.length > 0 ? <Alert color="red">{validationMessages.join("\n")}</Alert> : null}
+      {saveFeedback === "ready" && isSubmitting ? (
+        <Notification color="teal">{t("submitFeedback.readyToast")}</Notification>
+      ) : null}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
           <Group align="center" gap="md" wrap="nowrap" 
                     visibleFrom="md"
