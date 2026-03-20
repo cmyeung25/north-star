@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-07
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR 2A 只處理 onboarding v3 review step 的資訊架構 / 視覺分組，目標是讓使用者在提交前更容易分辨「必須先修正」與「只是提醒」，但不可改動 fix-loop、analytics 或把 severity 商業判斷散落到 component。
+- Decision: Review step guardrails 採 summary + grouped hierarchy 呈現：先顯示 completeness summary，再顯示 overall guardrail summary，之後依 `guardrailSummary.items[].severity` 原值分成 `critical / must fix`、`warning / review recommended`、`info / heads-up` 三段，無 guardrail 時顯示明確 clear state。component 只可依既有 severity 做分組與視覺層級，不可新增 rule-level business inference。
+- Guardrails: 不可改 `onFixGuardrail` 流程、不可新增 analytics payload、不可新增導航契約或修正成功狀態；warning / info 的視覺語氣必須清楚低於 blocking critical，避免被誤解為阻止提交。
+
 ### D-2026-03-20-06
 - Date: 2026-03-20
 - Status: Accepted

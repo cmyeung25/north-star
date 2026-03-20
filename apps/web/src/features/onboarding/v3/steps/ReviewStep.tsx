@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Card,
+  Divider,
   Group,
   Progress,
   SimpleGrid,
@@ -56,6 +57,10 @@ const GUARDRAIL_SEVERITY_COLORS: Record<OnboardingGuardrailSummary["items"][numb
   info: "blue",
 };
 
+const GUARDRAIL_SEVERITY_ORDER = ["critical", "warning", "info"] as const satisfies ReadonlyArray<
+  OnboardingGuardrailSummary["items"][number]["severity"]
+>;
+
 export default function ReviewStep({
   summary,
   completenessSummary,
@@ -79,6 +84,10 @@ export default function ReviewStep({
       ? t("review.mortgageStatus.withMortgage")
       : t("review.mortgageStatus.noMortgage")
     : t("review.mortgageStatus.notApplicable");
+  const guardrailGroups = GUARDRAIL_SEVERITY_ORDER.map((severity) => ({
+    severity,
+    items: guardrailSummary.items.filter((item) => item.severity === severity),
+  }));
 
   return (
     <Stack gap="lg">
@@ -91,124 +100,252 @@ export default function ReviewStep({
         </Text>
       </Stack>
 
-      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
-        <Card withBorder radius="md" padding="lg">
-          <Stack gap="md">
-            <Group justify="space-between" align="flex-start">
-              <Stack gap={2}>
-                <Text fw={600}>{completenessT("completeness.title")}</Text>
-                <Text size="sm" c="dimmed">
-                  {t("review.completenessHint")}
-                </Text>
-              </Stack>
-              <Badge color={COMPLETENESS_COLORS[completenessSummary.level]} variant="light">
-                {completenessT(completenessSummary.levelKey)}
-              </Badge>
+      <Card withBorder radius="md" padding="lg">
+        <Stack gap="md">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={600}>{completenessT("completeness.title")}</Text>
+              <Text size="sm" c="dimmed">
+                {t("review.completenessHint")}
+              </Text>
+            </Stack>
+            <Badge color={COMPLETENESS_COLORS[completenessSummary.level]} variant="light">
+              {completenessT(completenessSummary.levelKey)}
+            </Badge>
+          </Group>
+
+          <div>
+            <Group justify="space-between" mb={6}>
+              <Text size="sm" fw={600}>
+                {t("review.completenessScore")}
+              </Text>
+              <Text size="sm" fw={700}>
+                {completenessSummary.scorePct}%
+              </Text>
             </Group>
+            <Progress
+              value={completenessSummary.scorePct}
+              color={COMPLETENESS_COLORS[completenessSummary.level]}
+              radius="xl"
+              size="lg"
+            />
+          </div>
 
-            <div>
-              <Group justify="space-between" mb={6}>
-                <Text size="sm" fw={600}>
-                  {t("review.completenessScore")}
-                </Text>
-                <Text size="sm" fw={700}>
-                  {completenessSummary.scorePct}%
-                </Text>
-              </Group>
-              <Progress
-                value={completenessSummary.scorePct}
-                color={COMPLETENESS_COLORS[completenessSummary.level]}
-                radius="xl"
-                size="lg"
-              />
-            </div>
-
-            <Stack gap="sm">
-              {completenessSummary.groups.map((group) => (
-                <Card key={group.key} withBorder radius="md" padding="sm">
-                  <Group justify="space-between" align="flex-start" gap="sm">
-                    <Stack gap={4} style={{ flex: 1 }}>
-                      <Group gap="xs" wrap="wrap">
-                        <Text fw={600} size="sm">
-                          {completenessT(group.titleKey)}
-                        </Text>
-                        <Badge
-                          size="sm"
-                          color={
-                            group.status === "complete"
-                              ? "teal"
-                              : group.status === "needs_attention"
-                                ? "yellow"
-                                : "red"
-                          }
-                          variant="light"
-                        >
-                          {t(`review.groupStatus.${group.status}`)}
-                        </Badge>
-                      </Group>
-                      <Text size="sm" c="dimmed">
-                        {completenessT(group.summaryKey)}
+          <Stack gap="sm">
+            {completenessSummary.groups.map((group) => (
+              <Card key={group.key} withBorder radius="md" padding="sm">
+                <Group justify="space-between" align="flex-start" gap="sm">
+                  <Stack gap={4} style={{ flex: 1 }}>
+                    <Group gap="xs" wrap="wrap">
+                      <Text fw={600} size="sm">
+                        {completenessT(group.titleKey)}
                       </Text>
-                    </Stack>
-                    <Button
-                      variant="subtle"
-                      size="xs"
-                      rightSection="→"
-                      onClick={() => onEditCompletenessGroup(group.stepId)}
-                    >
-                      {t("review.returnToStep")}
+                      <Badge
+                        size="sm"
+                        color={
+                          group.status === "complete"
+                            ? "teal"
+                            : group.status === "needs_attention"
+                              ? "yellow"
+                              : "red"
+                        }
+                        variant="light"
+                      >
+                        {t(`review.groupStatus.${group.status}`)}
+                      </Badge>
+                    </Group>
+                    <Text size="sm" c="dimmed">
+                      {completenessT(group.summaryKey)}
+                    </Text>
+                  </Stack>
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    rightSection="→"
+                    onClick={() => onEditCompletenessGroup(group.stepId)}
+                  >
+                    {t("review.returnToStep")}
+                  </Button>
+                </Group>
+              </Card>
+            ))}
+          </Stack>
+
+          <Divider />
+
+          <Stack gap="sm">
+            <Text fw={600}>{t("review.snapshotTitle")}</Text>
+            <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+              <Card withBorder>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={600}>{t("review.sections.scenarioSetup")}</Text>
+                    <Button variant="subtle" size="xs" onClick={() => onEditStep(0)}>
+                      {t("review.edit")}
                     </Button>
                   </Group>
-                </Card>
-              ))}
-            </Stack>
-          </Stack>
-        </Card>
+                  <Text size="sm">{t("review.summary.baseCurrency", { value: summary.scenarioSetup.baseCurrency ?? "-" })}</Text>
+                  <Text size="sm">{t("review.summary.startMonth", { value: summary.scenarioSetup.startMonth ?? "-" })}</Text>
+                  <Text size="sm">{t("review.summary.horizonMonths", { value: summary.scenarioSetup.horizonMonths ?? 120 })}</Text>
+                  <Text size="sm">
+                    {t("review.summary.personaFocuses", {
+                      value:
+                        (summary.scenarioSetup.personaFocuses ?? []).length > 0
+                          ? (summary.scenarioSetup.personaFocuses ?? [])
+                              .map((focus) => t(`scenarioSetup.personaFocus.${focus}`))
+                              .join("、")
+                          : t("review.summary.personaFocusesEmpty"),
+                    })}
+                  </Text>
+                </Stack>
+              </Card>
 
-        <Card withBorder radius="md" padding="lg">
+              <Card withBorder>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={600}>{t("review.sections.members")}</Text>
+                    <Button variant="subtle" size="xs" onClick={() => onEditStep(1)}>
+                      {t("review.edit")}
+                    </Button>
+                  </Group>
+                  {summary.members.map((member) => (
+                    <Text key={member.id} size="sm">
+                      {member.name?.trim() || member.id}
+                    </Text>
+                  ))}
+                </Stack>
+              </Card>
+
+              <Card withBorder>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={600}>{t("review.sections.assets")}</Text>
+                    <Button variant="subtle" size="xs" onClick={() => onEditStep(2)}>
+                      {t("review.edit")}
+                    </Button>
+                  </Group>
+                  <Text size="sm">{t("review.summary.assetCount", { value: summary.assets.length })}</Text>
+                  <Text size="sm">{summary.assets.map((asset) => asset.assetType).join(", ") || "-"}</Text>
+                  <Text size="sm">{t("review.summary.assetTotal", { value: summary.totalAssetsAmount.toLocaleString() })}</Text>
+                  <Text size="sm">{t("review.summary.propertyStatus", { value: propertyStatusLabel })}</Text>
+                  <Text size="sm">{t("review.summary.mortgageStatus", { value: mortgageStatusLabel })}</Text>
+                  {propertyUsage ? (
+                    <Text size="sm">
+                      {t("review.summary.propertyValue", {
+                        value: (propertyAsset?.currentValue ?? 0).toLocaleString(),
+                      })}
+                    </Text>
+                  ) : null}
+                  {propertyUsage ? (
+                    <Text size="sm">
+                      {t("review.summary.holdingCost", {
+                        value: (propertyAsset?.holdingCostMonthly ?? 0).toLocaleString(),
+                      })}
+                    </Text>
+                  ) : null}
+                  {hasRentalIncome ? (
+                    <Text size="sm">
+                      {t("review.summary.rentMonthly", {
+                        value: (propertyAsset?.rentMonthly ?? 0).toLocaleString(),
+                      })}
+                    </Text>
+                  ) : null}
+                </Stack>
+              </Card>
+
+              <Card withBorder>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={600}>{t("review.sections.cashflows")}</Text>
+                    <Button variant="subtle" size="xs" onClick={() => onEditStep(3)}>
+                      {t("review.edit")}
+                    </Button>
+                  </Group>
+                  <Text size="sm">{t("review.summary.derivedIncome", { value: summary.derivedIncomeCount })}</Text>
+                  <Text size="sm">{t("review.summary.derivedExpense", { value: summary.derivedExpenseCount })}</Text>
+                  <Text size="sm">{t("review.summary.manualIncome", { value: summary.manualIncomeCount })}</Text>
+                  <Text size="sm">{t("review.summary.manualExpense", { value: summary.manualExpenseCount })}</Text>
+                  <Text size="sm">{t("review.summary.monthlyIncomeTotal", { value: summary.monthlyIncomeAmount.toLocaleString() })}</Text>
+                  <Text size="sm">{t("review.summary.monthlyExpenseTotal", { value: summary.monthlyExpenseAmount.toLocaleString() })}</Text>
+                  <Text size="sm">{t("review.summary.monthlyNetTotal", { value: (summary.monthlyIncomeAmount - summary.monthlyExpenseAmount).toLocaleString() })}</Text>
+                </Stack>
+              </Card>
+            </SimpleGrid>
+          </Stack>
+        </Stack>
+      </Card>
+
+      <Card withBorder radius="md" padding="lg">
+        <Stack gap="md">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={600}>{guardrailsT("guardrails.title")}</Text>
+              <Text size="sm" c="dimmed">
+                {t("review.guardrailsHint")}
+              </Text>
+            </Stack>
+            <Badge color={GUARDRAIL_COLORS[guardrailSummary.level]} variant="light">
+              {guardrailsT(guardrailSummary.levelKey)}
+            </Badge>
+          </Group>
+
+          <Group gap="xs" wrap="wrap">
+            <Badge color="red" variant="light">
+              {guardrailsT("guardrails.summary.critical", { count: guardrailSummary.counts.critical })}
+            </Badge>
+            <Badge color="yellow" variant="light">
+              {guardrailsT("guardrails.summary.warning", { count: guardrailSummary.counts.warning })}
+            </Badge>
+            <Badge color="blue" variant="light">
+              {guardrailsT("guardrails.summary.info", { count: guardrailSummary.counts.info })}
+            </Badge>
+          </Group>
+
+          {guardrailSummary.items.length === 0 ? (
+            <Alert
+              color="teal"
+              variant="light"
+              icon={
+                <ThemeIcon color="teal" variant="light" radius="xl" size="lg">
+                  ✓
+                </ThemeIcon>
+              }
+            >
+              <Stack gap={4}>
+                <Text fw={600}>{t("review.guardrailsClearTitle")}</Text>
+                <Text size="sm">{t("review.guardrailsClearBody")}</Text>
+              </Stack>
+            </Alert>
+          ) : (
+            <Text size="sm" c="dimmed">
+              {t("review.guardrailsSummaryBody")}
+            </Text>
+          )}
+        </Stack>
+      </Card>
+
+      {guardrailGroups.map((group) => (
+        <Card key={group.severity} withBorder radius="md" padding="lg">
           <Stack gap="md">
             <Group justify="space-between" align="flex-start">
               <Stack gap={2}>
-                <Text fw={600}>{guardrailsT("guardrails.title")}</Text>
+                <Text fw={600}>{t(`review.guardrailSections.${group.severity}.title`)}</Text>
                 <Text size="sm" c="dimmed">
-                  {t("review.guardrailsHint")}
+                  {t(`review.guardrailSections.${group.severity}.description`)}
                 </Text>
               </Stack>
-              <Badge color={GUARDRAIL_COLORS[guardrailSummary.level]} variant="light">
-                {guardrailsT(guardrailSummary.levelKey)}
+              <Badge color={GUARDRAIL_SEVERITY_COLORS[group.severity]} variant="light">
+                {t("review.guardrailSectionCount", { count: group.items.length })}
               </Badge>
             </Group>
 
-            {guardrailSummary.items.length === 0 ? (
-              <Alert
-                color="teal"
-                variant="light"
-                icon={
-                    <ThemeIcon color="teal" variant="light" radius="xl" size="lg">
-                    ✓
-                  </ThemeIcon>
-                }
-              >
-                <Stack gap={4}>
-                  <Text fw={600}>{t("review.guardrailsClearTitle")}</Text>
-                  <Text size="sm">{t("review.guardrailsClearBody")}</Text>
-                </Stack>
+            {group.items.length === 0 ? (
+              <Alert color={GUARDRAIL_SEVERITY_COLORS[group.severity]} variant="light">
+                <Text size="sm">{t(`review.guardrailSections.${group.severity}.empty`)}</Text>
               </Alert>
             ) : (
               <Stack gap="sm">
-                <Group gap="xs" wrap="wrap">
-                  <Badge color="red" variant="light">
-                    {guardrailsT("guardrails.summary.critical", { count: guardrailSummary.counts.critical })}
-                  </Badge>
-                  <Badge color="yellow" variant="light">
-                    {guardrailsT("guardrails.summary.warning", { count: guardrailSummary.counts.warning })}
-                  </Badge>
-                  <Badge color="blue" variant="light">
-                    {guardrailsT("guardrails.summary.info", { count: guardrailSummary.counts.info })}
-                  </Badge>
-                </Group>
-
-                {guardrailSummary.items.map((item) => (
+                {group.items.map((item) => (
                   <Card key={item.id} withBorder radius="md" padding="sm">
                     <Group justify="space-between" align="flex-start" gap="sm">
                       <Group align="flex-start" gap="sm" wrap="nowrap" style={{ flex: 1 }}>
@@ -252,104 +389,7 @@ export default function ReviewStep({
             )}
           </Stack>
         </Card>
-      </SimpleGrid>
-
-      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
-        <Card withBorder>
-          <Stack gap={4}>
-            <Group justify="space-between">
-              <Text fw={600}>{t("review.sections.scenarioSetup")}</Text>
-              <Button variant="subtle" size="xs" onClick={() => onEditStep(0)}>
-                {t("review.edit")}
-              </Button>
-            </Group>
-            <Text size="sm">{t("review.summary.baseCurrency", { value: summary.scenarioSetup.baseCurrency ?? "-" })}</Text>
-            <Text size="sm">{t("review.summary.startMonth", { value: summary.scenarioSetup.startMonth ?? "-" })}</Text>
-            <Text size="sm">{t("review.summary.horizonMonths", { value: summary.scenarioSetup.horizonMonths ?? 120 })}</Text>
-            <Text size="sm">
-              {t("review.summary.personaFocuses", {
-                value:
-                  (summary.scenarioSetup.personaFocuses ?? []).length > 0
-                    ? (summary.scenarioSetup.personaFocuses ?? [])
-                        .map((focus) => t(`scenarioSetup.personaFocus.${focus}`))
-                        .join("、")
-                    : t("review.summary.personaFocusesEmpty"),
-              })}
-            </Text>
-          </Stack>
-        </Card>
-
-        <Card withBorder>
-          <Stack gap={4}>
-            <Group justify="space-between">
-              <Text fw={600}>{t("review.sections.members")}</Text>
-              <Button variant="subtle" size="xs" onClick={() => onEditStep(1)}>
-                {t("review.edit")}
-              </Button>
-            </Group>
-            {summary.members.map((member) => (
-              <Text key={member.id} size="sm">
-                {member.name?.trim() || member.id}
-              </Text>
-            ))}
-          </Stack>
-        </Card>
-
-        <Card withBorder>
-          <Stack gap={4}>
-            <Group justify="space-between">
-              <Text fw={600}>{t("review.sections.assets")}</Text>
-              <Button variant="subtle" size="xs" onClick={() => onEditStep(2)}>
-                {t("review.edit")}
-              </Button>
-            </Group>
-            <Text size="sm">{t("review.summary.assetCount", { value: summary.assets.length })}</Text>
-            <Text size="sm">{summary.assets.map((asset) => asset.assetType).join(", ") || "-"}</Text>
-            <Text size="sm">{t("review.summary.assetTotal", { value: summary.totalAssetsAmount.toLocaleString() })}</Text>
-            <Text size="sm">{t("review.summary.propertyStatus", { value: propertyStatusLabel })}</Text>
-            <Text size="sm">{t("review.summary.mortgageStatus", { value: mortgageStatusLabel })}</Text>
-            {propertyUsage ? (
-              <Text size="sm">
-                {t("review.summary.propertyValue", {
-                  value: (propertyAsset?.currentValue ?? 0).toLocaleString(),
-                })}
-              </Text>
-            ) : null}
-            {propertyUsage ? (
-              <Text size="sm">
-                {t("review.summary.holdingCost", {
-                  value: (propertyAsset?.holdingCostMonthly ?? 0).toLocaleString(),
-                })}
-              </Text>
-            ) : null}
-            {hasRentalIncome ? (
-              <Text size="sm">
-                {t("review.summary.rentMonthly", {
-                  value: (propertyAsset?.rentMonthly ?? 0).toLocaleString(),
-                })}
-              </Text>
-            ) : null}
-          </Stack>
-        </Card>
-
-        <Card withBorder>
-          <Stack gap={4}>
-            <Group justify="space-between">
-              <Text fw={600}>{t("review.sections.cashflows")}</Text>
-              <Button variant="subtle" size="xs" onClick={() => onEditStep(3)}>
-                {t("review.edit")}
-              </Button>
-            </Group>
-            <Text size="sm">{t("review.summary.derivedIncome", { value: summary.derivedIncomeCount })}</Text>
-            <Text size="sm">{t("review.summary.derivedExpense", { value: summary.derivedExpenseCount })}</Text>
-            <Text size="sm">{t("review.summary.manualIncome", { value: summary.manualIncomeCount })}</Text>
-            <Text size="sm">{t("review.summary.manualExpense", { value: summary.manualExpenseCount })}</Text>
-            <Text size="sm">{t("review.summary.monthlyIncomeTotal", { value: summary.monthlyIncomeAmount.toLocaleString() })}</Text>
-            <Text size="sm">{t("review.summary.monthlyExpenseTotal", { value: summary.monthlyExpenseAmount.toLocaleString() })}</Text>
-            <Text size="sm">{t("review.summary.monthlyNetTotal", { value: (summary.monthlyIncomeAmount - summary.monthlyExpenseAmount).toLocaleString() })}</Text>
-          </Stack>
-        </Card>
-      </SimpleGrid>
+      ))}
     </Stack>
   );
 }
