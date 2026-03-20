@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, AspectRatio, Box, Button, Group, Image, Notification, SimpleGrid, Stack } from "@mantine/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
@@ -342,6 +342,21 @@ export default function OnboardingV3Wizard() {
       }, {}),
     []
   );
+  const handleFixGuardrail = useCallback(
+    (guardrailId: string) => {
+      const guardrail = guardrailSummary.items.find((item) => item.id === guardrailId);
+      if (!guardrail) {
+        return;
+      }
+
+      reviewAnalyticsStateRef.current.pendingFixIds.add(guardrailId);
+      const targetIndex = stepIndexById[guardrail.target.stepId];
+      if (typeof targetIndex === "number") {
+        setStep(targetIndex);
+      }
+    },
+    [guardrailSummary.items, stepIndexById]
+  );
 
   useEffect(() => {
     if (step !== stepDefs.length - 1) {
@@ -591,18 +606,7 @@ export default function OnboardingV3Wizard() {
               setStep(targetIndex);
             }
           }}
-          onFixGuardrail={(guardrailId) => {
-            const guardrail = guardrailSummary.items.find((item) => item.id === guardrailId);
-            if (!guardrail) {
-              return;
-            }
-
-            reviewAnalyticsStateRef.current.pendingFixIds.add(guardrailId);
-            const targetIndex = stepIndexById[guardrail.target.stepId];
-            if (typeof targetIndex === "number") {
-              setStep(targetIndex);
-            }
-          }}
+          onFixGuardrail={handleFixGuardrail}
         />
       ),
     },
