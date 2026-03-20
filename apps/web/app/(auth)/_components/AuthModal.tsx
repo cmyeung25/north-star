@@ -5,6 +5,10 @@ import { Alert, Divider, Modal, SegmentedControl, Stack, Text } from "@mantine/c
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { defaultLocale, locales, type Locale } from "../../../src/i18n/routing";
+import {
+  buildMemberCasesEntryHref,
+  consumeMemberCasesAuthReturnIntent,
+} from "../../../src/features/member/createCaseEntry";
 import type { AuthModalTab } from "../../(marketing)/_components/AuthModalController";
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
@@ -69,7 +73,10 @@ export default function AuthModal({ opened, initialTab, onClose }: { opened: boo
   };
 
   const handleLoginSuccess = () => {
-    router.replace(`/${resolvedLocale}/member/cases`);
+    const pendingEntryIntent = consumeMemberCasesAuthReturnIntent(window.sessionStorage);
+    router.replace(
+      buildMemberCasesEntryHref(resolvedLocale, pendingEntryIntent ?? { journey: null, presetId: null })
+    );
     router.refresh();
   };
 

@@ -1,11 +1,12 @@
 "use client";
 
+import type { MemberCasesEntryIntent } from "../../../src/features/member/createCaseEntry";
 import { createContext, useContext, type ReactNode } from "react";
 
 export type AuthModalTab = "login" | "register";
 
 type AuthModalContextValue = {
-  openAuthModal: (tab: AuthModalTab) => void;
+  openAuthModal: (tab: AuthModalTab, entryIntent?: MemberCasesEntryIntent) => void;
 };
 
 const AuthModalContext = createContext<AuthModalContextValue | null>(null);

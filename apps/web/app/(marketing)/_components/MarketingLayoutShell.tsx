@@ -6,6 +6,10 @@ import { useSearchParams } from "next/navigation";
 import AuthModal from "../../(auth)/_components/AuthModal";
 import MarketingFooter from "../../../components/marketing/MarketingFooter";
 import MarketingHeader from "../../../components/marketing/MarketingHeader";
+import {
+  persistMemberCasesAuthReturnIntent,
+  type MemberCasesEntryIntent,
+} from "../../../src/features/member/createCaseEntry";
 import { AuthModalProvider, type AuthModalTab } from "./AuthModalController";
 
 export default function MarketingLayoutShell({ children }: { children: ReactNode }) {
@@ -21,7 +25,10 @@ export default function MarketingLayoutShell({ children }: { children: ReactNode
     }
   }, [searchParams]);
 
-  const openAuthModal = (tab: AuthModalTab) => {
+  const openAuthModal = (tab: AuthModalTab, entryIntent?: MemberCasesEntryIntent) => {
+    if (entryIntent) {
+      persistMemberCasesAuthReturnIntent(entryIntent, window.sessionStorage);
+    }
     setInitialTab(tab);
     setOpened(true);
   };

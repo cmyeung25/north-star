@@ -4,6 +4,10 @@ import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 import { defaultLocale, locales, type Locale } from "../../../../src/i18n/routing";
+import {
+  buildMemberCasesEntryHref,
+  consumeMemberCasesAuthReturnIntent,
+} from "../../../../src/features/member/createCaseEntry";
 
 const LOCALE_COOKIE_NAME = "aurin_locale";
 
@@ -43,7 +47,10 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const locale = resolveLocaleFromPathname(pathname) ?? resolveLocaleFromCookie() ?? defaultLocale;
-    router.replace(`/${locale}/member/cases`);
+    const pendingEntryIntent = consumeMemberCasesAuthReturnIntent(window.sessionStorage);
+    router.replace(
+      buildMemberCasesEntryHref(locale, pendingEntryIntent ?? { journey: null, presetId: null })
+    );
   }, [pathname, router]);
 
   return <p>{t("redirecting")}</p>;

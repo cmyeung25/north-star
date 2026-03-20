@@ -229,3 +229,10 @@ Last updated: 2026-03-20
 - Context: 現有 marketing landing page 雖已有 hero / persona / sample journey 基礎內容，但依賴大幅裝飾圖片，且 hero → proof → journey 的訊息路徑不夠集中，難以把公開入口 promise 對齊到實際產品可交付的第一步。
 - Decision: Market landing page v1.1 採文字主導 IA：hero 直接承諾 first-session outcome，proof points 聚焦 cashflow / net worth / guardrails，persona 區改為無裝飾圖片的 decision cards，sample journey 卡需明確寫出「起始條件 + 決策問題 + 3-step 操作 + 可見輸出」。
 - Guardrails: 不新增 direct scenario creation 或改變 `journey + preset` handoff contract；所有新文案繼續走 i18n key；market-entry promise 只可描述目前產品已能交付的 baseline / compare / Plan Lab 能力，避免超賣未上線功能。
+
+### D-2026-03-20-09
+- Date: 2026-03-20
+- Status: Accepted
+- Context: Public entry → member create flow already had `journey + preset` deep links, but the policy was still partially implicit across maps, CTA code, and auth handoff behavior. This made it too easy for future changes to drift away from the documented `/member/cases` landing rule or expose non-productized presets.
+- Decision: Canonicalize the member create entry contract in one source of truth: define allowlisted journey ids, each journey’s primary preset mapping, and the explicit `fallbackToBlank` rule together; derive member query resolution and marketing CTA href construction from that policy. Signed-out auth handoff may preserve entry intent only by returning to `/{locale}/member/cases` with the same sanitized `journey/preset` intent rehydrated after auth.
+- Guardrails: `/member/cases` remains the only allowed landing path after auth; query parsing may read only `journey` and `preset`; unknown journeys or non-allowlisted presets must sanitize to blank flow; journey-to-preset inference may occur only through the canonical allowlist policy; no direct scenario creation, onboarding-complete shortcut, or cross-scenario persistence may be introduced.
