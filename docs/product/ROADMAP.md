@@ -96,11 +96,11 @@ Last updated: 2026-03-20
 - [x] v1.1 訊息架構收斂：定義入口頁 hero / problem framing / sample journey / CTA proof points 的區塊順序與必備訊息。
 - [x] v1.1 persona ↔ preset mapping policy：每個 market-entry persona 只可映射至 allowlisted member preset；若無安全對應則回退 blank flow，不新增 direct scenario creation。
 - [x] v1.1 journey deep-link contract：統一使用 `/{locale}/member/cases?journey={journeyId}&preset={presetId}` 作為入口意圖傳遞；query 只允許初始化 member create dialog，不可繞過 `/member/cases` 或直接標記 scenario 已完成 onboarding。
-- [ ] v1.1 funnel tracking completion：補齊 sample journey impressions、journey CTA → create dialog open、case created、onboarding completed 等事件定義與儀表板需求。
+- [x] v1.1 funnel tracking completion：market-entry event dictionary 已補齊 `sample_journey_impression`、`case_created`，sample journey CTA 現與 persona CTA 共用 vendor-agnostic `journey_cta_click`，member create 成功會在真正成功後發送 `case_created`；payload 維持 metadata-only（`locale` / `journeyId` / `presetId` / `isSignedIn`），不含任何 case/scenario/financial business payload。
 - [ ] v1.1 A/B 文案實驗位：預留 hero value prop、persona CTA、sample journey summary 的實驗欄位與命名規則，先不綁定特定供應商。
 - [x] v1.1 sample journey content kit：為至少 3 個 target personas（單身租屋、雙職家庭置業、新手爸媽）定義起始條件、3-step 操作、可見輸出與預期決策問題。
 - [x] v1.1 member handoff guidance：create dialog / onboarding entry 明確承接 journey promise（適用族群、預計完成時間、會得到什麼結論），降低落差。
-- [ ] v1.1 KPI baseline & review cadence：建立 market-entry 每週檢視板與最低 KPI 門檻，未達門檻前不得宣稱 sample journey 已可上市。
+- [x] v1.1 KPI baseline & review cadence：已新增 `docs/product/MARKET_ENTRY_REVIEW_RITUAL.md`，定義 weekly review cadence、KPI formulas、persona/journey/preset cohort breakdown、minimum sample-size warnings，以及「ready to scale traffic」判準；未達門檻前仍不得宣稱 sample journey 已可上市。
 
 ### Persona coverage matrix（public entry → member preset）
 | Journey / Persona | Primary preset | Fallback | Notes |

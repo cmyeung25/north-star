@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Accordion, Anchor, Badge, Button, Card, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title, useMantineTheme } from "@mantine/core";
 import { useRouter } from "next/navigation";
@@ -17,9 +17,15 @@ export default function LandingPage() {
   const { openAuthModal } = useAuthModal();
   const theme = useMantineTheme();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  const didTrackLandingViewRef = useRef(false);
+  const resolvedIsSignedIn = isSignedIn ?? false;
 
   useEffect(() => {
+    if (isSignedIn === null || didTrackLandingViewRef.current) {
+      return;
+    }
+    didTrackLandingViewRef.current = true;
     trackMarketEntryEvent("market_landing_view", {
       locale,
       journeyId: null,
@@ -33,7 +39,7 @@ export default function LandingPage() {
       locale,
       journeyId,
       presetId,
-      isSignedIn,
+      isSignedIn: resolvedIsSignedIn,
     });
     openAuthModal(tab);
   };
@@ -114,13 +120,13 @@ export default function LandingPage() {
             </SimpleGrid>
             <Stack gap="xs">
               <Group gap="sm" wrap="wrap">
-                <Button size="md" color="aurora" onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))}>
+                <Button size="md" color="aurora" onClick={() => (resolvedIsSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))}>
                   {t("cta.start")}
                 </Button>
                 <Button size="md" variant="outline" c="white" onClick={() => openAuthFromLanding(null, null, "login")}>
                   {t("cta.login")}
                 </Button>
-                {isSignedIn ? (
+                {resolvedIsSignedIn ? (
                   <Anchor c="aurora.2" fw={600} onClick={() => router.push(`/${locale}/member/cases`)} style={{ cursor: "pointer" }}>
                     {t("cta.goCases")}
                   </Anchor>
@@ -228,9 +234,9 @@ export default function LandingPage() {
         </SimpleGrid>
       </Stack>
 
-      <PersonaBannerSection isSignedIn={isSignedIn} />
+      <PersonaBannerSection isSignedIn={resolvedIsSignedIn} />
 
-      <SampleJourneySection />
+      <SampleJourneySection isSignedIn={resolvedIsSignedIn} />
 
       <Stack gap="md">
         <Title order={2} c="white">
@@ -304,10 +310,10 @@ export default function LandingPage() {
           </Title>
           <Text c="var(--mantine-color-polar-1)">{t("finalCta.subtitle")}</Text>
           <Group gap="sm" wrap="wrap">
-            <Button color="aurora" onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))}>
+            <Button color="aurora" onClick={() => (resolvedIsSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))}>
               {t("cta.start")}
             </Button>
-            <Button onClick={() => (isSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))} variant="outline" c="white">
+            <Button onClick={() => (resolvedIsSignedIn ? router.push(`/${locale}/member/cases`) : openAuthFromLanding(null, null, "register"))} variant="outline" c="white">
               {t("cta.createCase")}
             </Button>
           </Group>

@@ -131,7 +131,7 @@ export function CasesList({
   const isSignedIn = true;
 
   const trackPresetEvent = useCallback((
-    name: "preset_create_started" | "preset_create_submitted" | "onboarding_started",
+    name: "case_created" | "preset_create_started" | "preset_create_submitted" | "onboarding_started",
     presetId: string | null,
   ) => {
     trackMarketEntryEvent(name, {
@@ -323,13 +323,16 @@ export function CasesList({
             setSelectedPresetId(null);
             return;
           }
-          trackPresetEvent("preset_create_started", selectedPresetId);
+          if (selectedPresetId) {
+            trackPresetEvent("preset_create_started", selectedPresetId);
+          }
         }}
         onPresetChange={handleSelectPreset}
         onSubmit={() =>
           submit(
             () => createCaseAction({ title: newTitle, currency }),
             ({ caseId, scenarioId }) => {
+              trackPresetEvent("case_created", createStartMode === "preset" ? selectedPreset?.id ?? null : null);
               if (createStartMode === "preset" && selectedPreset) {
                 trackPresetEvent("preset_create_submitted", selectedPreset.id);
                 writePresetDraftToStorage(scenarioId, selectedPreset.payload);

@@ -1,12 +1,12 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (market-entry member handoff contract productized)
+Last updated: 2026-03-20 (market-entry measurement layer completed for review ritual)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
 | Closed Beta readiness | 73% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口、較低壓力的 guardrail 文案與提交回饋；本輪再完成 highest-friction housing/property 規則校準（target section 更準確、critical/warning/info 視覺層級更清楚）；weekly onboarding review pack 已可直接由 metadata-only 事件生成 |
-| Public MVP readiness | 45% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，且 onboarding funnel 已補上 review / guardrail / completion 事件、operator-ready weekly review pack 與 guardrail locale parity lint，但營運支援與漏斗補齊仍有缺口 |
+| Public MVP readiness | 49% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，sample journey impression / case created 事件與 market-entry weekly review ritual 已補齊，且 onboarding funnel 已有 review / guardrail / completion 事件、operator-ready weekly review pack 與 guardrail locale parity lint，但營運支援與流量擴大前的實際 cohort 數據仍待累積 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
@@ -17,26 +17,26 @@ Last updated: 2026-03-20 (market-entry member handoff contract productized)
 | Guardrails / Completeness | 93% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 focused calibration 再把最高摩擦規則的文案改成「問題 + 為何影響 baseline + 下一步」、修正部分 target section（property / housing），並加強 review step 視覺層級，減少 warning / info 被誤解為阻擋提交。analytics contract 亦維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 76% | member create modal 已支援 blank/preset；marketing persona / sample journey CTA 現統一走 canonical `journey/preset` policy 與 `/member/cases` handoff，signed-in / signed-out 皆可重建同一 create intent；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
-| GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
+| GTM / 營運就緒 | 39% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA；本輪再補齊 sample journey impression、case created 成功事件與固定 weekly review ritual | 仍缺 beta feedback loop、支援流程與真實 cohort 基線 |
 
 ## Market Entry + Sample Journey Progress
 | 子項 | 進度 | 現況 | 阻塞項 | 下一里程碑 |
 |---|---:|---|---|---|
-| 入口頁訊息架構 | 78% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff | 仍未建立 A/B slot metadata 與 sample journey impression tracking，無法持續優化訊息效果 | 補 experiment slots 與 sample journey impression event，讓訊息迭代可量測 |
+| 入口頁訊息架構 | 84% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff；sample journey card impression 現已在 section/card exposure path 量測 | 仍未建立 A/B slot metadata，難以系統化比較文案版本 | 補 experiment slots 與 copy version 命名規則 |
 | Persona ↔ Preset Mapping | 85% | allowlisted journey ids、primary preset mapping、blank fallback 規則現已收斂到單一 canonical source，並同步供 member resolver、marketing CTA 與測試使用；文件亦補上 persona coverage matrix | 仍缺 secondary preset / unsupported persona 的產品評估流程與 KPI 校驗 | 建立未來 persona 擴充 review checklist（mapping / copy / funnel） |
-| Journey Deep-link / Handoff | 88% | `journey + preset` query handoff 已統一由 helper/builders 管理；member 端嚴格只讀 `journey` / `preset`，未知值安全回退 blank flow，signed-out auth return 亦會回到 `/member/cases` 重建相同 intent | 仍缺完整 case-created / onboarding-completed dashboard 與 signed-in/out cohort 儀表板 | 補 funnel completion events 與 cohort review cadence |
-| Funnel Tracking | 65% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；onboarding weekly review pack 可直接從 metadata-only 事件產出 | 仍缺 `sample journey impression`、`case created` 與更完整的 dashboard/review cadence 定義 | 補齊剩餘漏斗事件字典並把 operator weekly review pack 接到固定檢視節奏 |
+| Journey Deep-link / Handoff | 90% | `journey + preset` query handoff 已統一由 helper/builders 管理；member 端嚴格只讀 `journey` / `preset`，未知值安全回退 blank flow，signed-out auth return 亦會回到 `/member/cases` 重建相同 intent；sample journey CTA 仍維持同一 contract，未引入 direct scenario shortcut | 仍缺完整 onboarding-completed dashboard 與 signed-in/out cohort 儀表板 | 把 market-entry weekly review ritual 接到固定 dashboard/export 流程 |
+| Funnel Tracking | 86% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；本輪再補齊 `sample_journey_impression`、`case_created`，並把 payload allowlist 鎖定為 `locale / journeyId / presetId / isSignedIn` | 尚未把 experiment slot metadata 與 dashboard 實作接上固定看板 | 先以固定 weekly review ritual 驗證 publishability，再補 dashboard / experiment slots |
 | A/B 文案實驗位 | 15% | 目前僅有 vendor-agnostic tracking 抽象，可承接未來實驗 metadata | 尚未定義可實驗欄位、命名規則、最小 sample size 與停止條件 | 建立 experiment slot 命名與文案版本標記策略 |
-| KPI 基線 / 驗收門檻 | 30% | 已有 v1 funnel event 與基礎轉化公式 | 尚未把 MVP 最低 KPI 與 weekly review threshold 寫入產品規格 | 將最低 KPI 納入 roadmap 驗收條件與 market-entry review ritual |
+| KPI 基線 / 驗收門檻 | 68% | 已有 v1 funnel event 與基礎轉化公式；本輪再新增 review ritual 文件，明確定義 weekly cadence、cohort breakdown、minimum sample-size warnings 與 ready-to-scale 規則 | 尚缺真實 traffic baseline 與 dashboard automation | 以兩個連續週期累積 publishability baseline，之後再決定是否放大 traffic |
 
 ## Market Entry KPI Minimum Baseline (MVP gate)
 | KPI | 最低門檻 | 現況 | 阻塞項 | 下一里程碑 |
 |---|---:|---|---|---|
 | 首次體驗完成率（landing → onboarding completed） | ≥ 20% | onboarding completed event 已可發送，但尚未形成 cohort dashboard 與 signed-in/out attribution 對照 | 缺跨 auth/session attribution 與週期檢視板 | 補上 completion cohort dashboard 與 attribution 規格 |
-| Journey 點擊 → 建立案例轉化率 | ≥ 35% | 已可量測 `journey_cta_click` → `preset_create_submitted` | 缺 persona 分群 benchmark，未知哪些 journey 文案最弱 | 建立 persona/journey cohort breakdown |
+| Journey 點擊 → 建立案例轉化率 | ≥ 35% | 已可量測 `journey_cta_click` → `preset_create_submitted`，且 sample journey CTA 與 persona CTA 現使用同一事件語意 | 缺 persona 分群 benchmark，未知哪些 journey 文案最弱 | 依 review ritual 建立 persona/journey cohort breakdown |
 | Onboarding 啟動率 | ≥ 85% | 已可量測 `preset_create_submitted` → `onboarding_started` | 尚未確認 signed-out auth return path 對啟動率的影響 | 比較 signed-in / signed-out 兩條 handoff 漏斗 |
-| Landing → Journey CTA CTR | ≥ 12% | 已有基礎 CTR 公式，但尚未建立儀表板與 sample size 準則 | 缺 CTA placement / copy 實驗位與 review cadence | 建立週報與 CTA copy experiment plan |
-| Case created → Onboarding completed 流失差 | < 25 個百分點 | 目前只能量測到 create submit / onboarding start | 缺 onboarding completed 與 create success 後續品質標記 | 補齊 case created success / onboarding completed 事件並建立 drop-off report |
+| Landing → Journey CTA CTR | ≥ 12% | 已有基礎 CTR 公式，且 review ritual 已定義 sample-size warning 與 signed-in/out cohort 比較 | 缺 CTA placement / copy 實驗位與 dashboard automation | 建立週報 export / CTA copy experiment plan |
+| Case created → Onboarding completed 流失差 | < 25 個百分點 | `case_created` 成功事件現已可量測，並可和既有 `onboarding_completed` 共同做 drop-off review | 缺真實 cohort 基線與固定 dashboard/export | 以 review ritual 先跑兩週 drop-off report，再決定是否可 scale traffic |
 
 
 ## Latest Update (2026-03-18)
@@ -47,6 +47,13 @@ Last updated: 2026-03-20 (market-entry member handoff contract productized)
 - Promoted minimum KPI gates for first-run completion, journey-to-case conversion, onboarding start rate, and CTA CTR into the product status baseline, so market-entry readiness is measured against publishable thresholds rather than qualitative intent only.
 - Marketing landing page IA refreshed to a text-led structure: hero proof cards, persona decision cards without decorative photos, sample journeys with explicit decision questions, and a clearer first-session CTA promise.
 - Sample journey content kit now makes the decision question explicit for the three target personas (steady saver, dual-income home buyer, new parents), so marketing promise and in-product action path are easier to align.
+
+## Latest Update (2026-03-20)
+- Market-entry analytics contract is now locked to a metadata-only allowlist (`locale`, `journeyId`, `presetId`, `isSignedIn`) and tested, so PM/UX can review publishability without leaking case/scenario ids or financial payloads.
+- `sample_journey_impression` now fires once per sample-journey card exposure path, preventing noisy re-render inflation while keeping journey-level cohort visibility.
+- Sample journey CTA buttons now emit the same vendor-agnostic `journey_cta_click` event as persona cards, so public-entry click totals are comparable across entry modules.
+- Member create-case success now emits `case_created` only after `createCaseAction` actually succeeds and right before the existing onboarding transition, preserving the `/member/cases` handoff contract and avoiding any onboarding-complete shortcut.
+- Added `docs/product/MARKET_ENTRY_REVIEW_RITUAL.md` to define KPI formulas, weekly cadence, cohort cuts, minimum sample-size warnings, and the explicit `ready to scale traffic` publishability gate.
 
 ## Latest Update (2026-03-20)
 - Market-entry public entry → member create contract is now productized behind one canonical source: allowlisted journey ids, primary preset mapping, and explicit blank-fallback policy all live together and are reused by member query parsing plus marketing CTA href construction.
@@ -180,11 +187,17 @@ Last updated: 2026-03-20 (market-entry member handoff contract productized)
 - `market_landing_view`
   - 定義：進入 marketing landing page 時記錄一次曝光。
   - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+- `sample_journey_impression`
+  - 定義：sample journey section 內每張卡片首次進入目前 render exposure path 時記錄一次曝光；同一掛載內 re-render 不重複送出。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
 - `journey_cta_click`
-  - 定義：點擊 persona banner CTA（含 journey + preset deep-link 意圖）。
+  - 定義：點擊 persona banner 或 sample journey CTA（含 journey + preset deep-link 意圖）。
   - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
 - `auth_modal_open`
   - 定義：由 marketing CTA 開啟登入/註冊 modal。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+- `case_created`
+  - 定義：member/cases create-case server action 真正成功後、流程轉入下一步前記錄一次成功建立案例。
   - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
 - `preset_create_started`
   - 定義：member/cases create dialog 進入 preset flow（含 journey entry intent 或手動選 preset）。
@@ -198,15 +211,19 @@ Last updated: 2026-03-20 (market-entry member handoff contract productized)
 
 ### 目前可量測漏斗定義
 1. `market_landing_view`
-2. `journey_cta_click`
-3. `auth_modal_open`（僅未登入分支）
-4. `preset_create_started`
-5. `preset_create_submitted`
-6. `onboarding_started`
+2. `sample_journey_impression`
+3. `journey_cta_click`
+4. `auth_modal_open`（僅未登入分支）
+5. `preset_create_started`
+6. `case_created`
+7. `preset_create_submitted`
+8. `onboarding_started`
 
 ### 指標口徑（v1）
 - Landing → Journey CTA CTR = `journey_cta_click` / `market_landing_view`
+- Sample journey card CTR = `journey_cta_click` / `sample_journey_impression`
 - Journey CTA → Preset Start = `preset_create_started` / `journey_cta_click`
+- Preset Start → Case Created CVR = `case_created` / `preset_create_started`
 - Preset Start → Submit CVR = `preset_create_submitted` / `preset_create_started`
 - Preset Submit → Onboarding Start CVR = `onboarding_started` / `preset_create_submitted`
 

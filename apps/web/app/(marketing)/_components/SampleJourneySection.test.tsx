@@ -18,7 +18,7 @@ describe("SampleJourneySection", () => {
         timeZone="UTC"
       >
         <MantineProvider>
-          <SampleJourneySection />
+          <SampleJourneySection isSignedIn={false} />
         </MantineProvider>
       </NextIntlClientProvider>
     );

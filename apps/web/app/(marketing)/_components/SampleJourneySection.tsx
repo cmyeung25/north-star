@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, Divider, Group, List, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
@@ -8,6 +9,7 @@ import {
   MEMBER_JOURNEY_PRESET_MAP,
   type MemberJourneyId,
 } from "../../../src/features/member/createCaseEntry";
+import { trackMarketEntryEvent, trackMarketEntryExposureOnce } from "../../../src/lib/analytics/marketEntry";
 
 type SampleJourneyKey = Extract<MemberJourneyId, "officeSaver" | "coupleHome" | "newParents">;
 
@@ -15,9 +17,79 @@ const sampleJourneyKeys: SampleJourneyKey[] = ["officeSaver", "coupleHome", "new
 const sampleJourneySteps = ["one", "two", "three"] as const;
 const sampleJourneyOutputs = ["runway", "risk", "compare"] as const;
 
-export default function SampleJourneySection() {
+export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boolean }) {
   const t = useTranslations("marketing.web");
   const locale = useLocale();
+  const cardRefs = useRef(new Map<SampleJourneyKey, HTMLDivElement | null>());
+  const trackedJourneyImpressionsRef = useRef(new Set<SampleJourneyKey>());
+
+  const journeyEntries = useMemo(
+    () =>
+      sampleJourneyKeys.map((journeyKey) => ({
+        journeyKey,
+        presetId: MEMBER_JOURNEY_PRESET_MAP[journeyKey],
+        href: buildMemberCasesEntryHref(locale, {
+          journey: journeyKey,
+          presetId: MEMBER_JOURNEY_PRESET_MAP[journeyKey],
+        }),
+      })),
+    [locale],
+  );
+
+  useEffect(() => {
+    const trackJourneyImpression = (journeyKey: SampleJourneyKey, presetId: string) => {
+      trackMarketEntryExposureOnce({
+        seenExposureKeys: trackedJourneyImpressionsRef.current,
+        exposureKey: journeyKey,
+        name: "sample_journey_impression",
+        payload: {
+          locale,
+          journeyId: journeyKey,
+          presetId,
+          isSignedIn,
+        },
+      });
+    };
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!("IntersectionObserver" in window)) {
+      for (const entry of journeyEntries) {
+        trackJourneyImpression(entry.journeyKey, entry.presetId);
+      }
+      return;
+    }
+
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return;
+          }
+          const journeyKey = entry.target.getAttribute("data-journey-id") as SampleJourneyKey | null;
+          if (!journeyKey) {
+            return;
+          }
+          trackJourneyImpression(journeyKey, MEMBER_JOURNEY_PRESET_MAP[journeyKey]);
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.35 },
+    );
+
+    for (const entry of journeyEntries) {
+      const node = cardRefs.current.get(entry.journeyKey);
+      if (node) {
+        observer.observe(node);
+      }
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isSignedIn, journeyEntries, locale]);
 
   return (
     <Stack gap="md">
@@ -30,14 +102,18 @@ export default function SampleJourneySection() {
         </Text>
       </Stack>
       <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
-        {sampleJourneyKeys.map((journeyKey) => {
-          const href = buildMemberCasesEntryHref(locale, {
-            journey: journeyKey,
-            presetId: MEMBER_JOURNEY_PRESET_MAP[journeyKey],
-          });
-
+        {journeyEntries.map(({ journeyKey, presetId, href }) => {
           return (
-            <Card key={journeyKey} bg="rgba(255,255,255,0.97)" radius="xl" p="xl">
+            <Card
+              key={journeyKey}
+              bg="rgba(255,255,255,0.97)"
+              radius="xl"
+              p="xl"
+              ref={(node) => {
+                cardRefs.current.set(journeyKey, node);
+              }}
+              data-journey-id={journeyKey}
+            >
               <Stack gap="md" h="100%">
                 <Badge color="aurora" variant="light" w="fit-content" size="lg">
                   {t(`sampleJourney.journeys.${journeyKey}.title`)}
@@ -83,7 +159,21 @@ export default function SampleJourneySection() {
                   </Group>
                 </Stack>
 
-                <Button component={Link} href={href} color="aurora" variant="light" mt="auto">
+                <Button
+                  component={Link}
+                  href={href}
+                  color="aurora"
+                  variant="light"
+                  mt="auto"
+                  onClick={() => {
+                    trackMarketEntryEvent("journey_cta_click", {
+                      locale,
+                      journeyId: journeyKey,
+                      presetId,
+                      isSignedIn,
+                    });
+                  }}
+                >
                   {t("sampleJourney.cta")}
                 </Button>
               </Stack>
