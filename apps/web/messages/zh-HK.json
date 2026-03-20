@@ -4868,24 +4868,35 @@
         "settingTitle": "支出設定",
         "systemGeneratedSection": "由系統產生（唯讀）"
       },
-      "review": {
-        "title": "提交前摘要",
-        "badge": {
-          "ok": "完成",
-          "todo": "待處理"
-        },
-        "items": {
-          "startMonth": "已設定開始月份",
-          "baseCurrency": "已設定基準貨幣",
-          "members": "成員資料已填寫",
-          "assets": "已新增資產資料",
-          "generatedCashflow": "已有衍生現金流"
-        },
-        "checklistTitle": "檢查清單",
-        "edit": "編輯",
-        "sections": {
-          "scenarioSetup": "情境設定",
-          "members": "家庭成員",
+    "review": {
+      "title": "提交前摘要",
+      "description": "先確認完整度、處理重要問題，再安心把基線寫入情境。",
+      "badge": {
+        "ok": "完成",
+        "todo": "待處理"
+      },
+      "groupStatus": {
+        "complete": "可開始",
+        "needs_attention": "仍需留意",
+        "incomplete": "未完成"
+      },
+      "completenessHint": "讓不同家庭角色都一眼看懂哪些資料已可用、哪些仍要再確認。",
+      "guardrailsHint": "在扭曲基線前先指出問題，並直接帶你返回對應步驟修正。",
+      "completenessScore": "關鍵輸入群組覆蓋度",
+      "returnToStep": "返回此步驟",
+      "fixNow": "立即修正",
+      "guardrailsClearTitle": "目前沒有阻擋提交的 guardrails",
+      "guardrailsClearBody": "之後仍可再微調細節，但現時沒有明顯的 onboarding 不一致問題。",
+      "edit": "編輯",
+      "stepNames": {
+        "household": "家庭成員",
+        "income": "收入",
+        "expense": "支出",
+        "assets": "資產"
+      },
+      "sections": {
+        "scenarioSetup": "情境設定",
+        "members": "家庭成員",
           "assets": "資產",
           "cashflows": "現金流摘要"
         },
@@ -4933,8 +4944,8 @@
       "propertyMissing": "尚未新增房產",
       "derivedCashflowMissing": "沒有可衍生現金流"
     },
-    "completeness": {
-      "title": "Onboarding 完整度",
+  "completeness": {
+    "title": "Onboarding 完整度",
       "level": {
         "ready": "可開始",
         "needs_attention": "仍需留意",
@@ -4980,15 +4991,78 @@
             "needs_attention": "已開啟資產區塊，但基本金額仍未填完整。",
             "incomplete": "請加入核心資產或債務結餘，讓基線更貼近現況。"
           }
-        }
       }
+    }
+  },
+  "guardrails": {
+    "title": "提交前風險提示",
+    "level": {
+      "clear": "可提交",
+      "warning": "建議先檢查",
+      "critical": "提交前請修正"
     },
-    "navigation": {
-      "back": "返回",
-      "next": "下一步",
-      "completeAndWriteToCore": "完成並寫入 Core"
+    "severity": {
+      "critical": "高風險",
+      "warning": "提示",
+      "info": "檢查"
     },
-    "footer": {
+    "summary": {
+      "critical": "{count} 項高風險",
+      "warning": "{count} 項提示",
+      "info": "{count} 項檢查"
+    },
+    "rules": {
+      "propertyUsageMissing": {
+        "message": "至少有一個物業已填市值／按揭／租金訊號，但仍未標示是自住還是出租。",
+        "action": "請回到資產步驟確認物業用途，讓系統正確理解住屋現金流。"
+      },
+      "mortgageCoreFieldsMissing": {
+        "message": "物業已有未償還按揭餘額，但仍缺利率或剩餘年期等核心資料。",
+        "action": "請返回按揭資料，補齊核心按揭欄位後再提交。"
+      },
+      "selfUseRentalConflict": {
+        "message": "同一物業同時被標示為自住，卻又填了租金收入，語意明顯衝突。",
+        "action": "請重新確認物業情境，這個資產應只屬於自住或出租其中一種。"
+      },
+      "rentalPropertyIncomeMissing": {
+        "message": "已啟用出租物業，但尚未填預期每月租金。",
+        "action": "請在資產步驟補上租金收入，讓基線反映這個出租物業現金流。"
+      },
+      "mortgagePropertyBasicsMissing": {
+        "message": "已填按揭資料，但物業基本資料如市值或開始月份仍未完整。",
+        "action": "請先完成物業基本資料，讓按揭假設能對應到有效的持有物業。"
+      },
+      "duplicateCurrentHomeHousingCosts": {
+        "message": "你可能同時在已持有物業與租金支出路徑重複計入目前住屋成本。",
+        "action": "請回到支出與資產步驟，保留與你現況相符的其中一條住屋路徑。"
+      },
+      "duplicateRentExpenseInputs": {
+        "message": "偵測到多筆類似租金支出，可能把同一筆現居租金重複輸入。",
+        "action": "請檢查租金相關支出並移除重複項目，避免基線支出被高估。"
+      }
+    }
+  },
+  "navigation": {
+    "back": "返回",
+    "next": "下一步",
+    "completeAndWriteToCore": "完成並寫入 Core"
+  },
+  "submitFeedback": {
+    "validating": {
+      "title": "正在檢查 onboarding 摘要",
+      "description": "系統正驗證最後提交內容，確認可安全寫入此情境。"
+    },
+    "saving": {
+      "title": "正在儲存 onboarding 基線",
+      "description": "系統正把你確認的輸入寫入此情境，確保 dashboard 以最新基線開啟。"
+    },
+    "redirecting": {
+      "title": "正在打開你的情境",
+      "description": "onboarding 基線已儲存，現正帶你前往下一個畫面。"
+    },
+    "readyToast": "基線已儲存，正在打開情境…"
+  },
+  "footer": {
       "localDraftHint": "V3 流程只會更新本地 ScenarioDraftV3 分段 state，最後一步才一次提交。"
     },
     "defaults": {

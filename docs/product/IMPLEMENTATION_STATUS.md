@@ -1,12 +1,12 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (onboarding guardrails v1 rules layer)
+Last updated: 2026-03-20 (onboarding review / submit UX + funnel analytics)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 64% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 completeness score + housing/property guardrails v1 已可輸出整體訊號與修正方向 |
-| Public MVP readiness | 40% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，但營運支援與漏斗補齊仍有缺口 |
+| Closed Beta readiness | 68% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、返回修正入口與提交回饋 |
+| Public MVP readiness | 43% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，且 onboarding funnel 已補上 review / guardrail / completion 事件，但營運支援與漏斗補齊仍有缺口 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
@@ -14,7 +14,7 @@ Last updated: 2026-03-20 (onboarding guardrails v1 rules layer)
 | Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
-| Guardrails / Completeness | 68% | 已有 assumptions / Plan Lab 局部 warning，且 onboarding completeness score + guardrails v1 已可用 scenario-scoped rules layer 輸出 `ready / needs_attention / incomplete` summary 與 guardrail summary model（含 severity / message key / action hint / target step；不依賴 engine、僅讀 active onboarding draft + scenario context） | 仍需把 guardrail summary 接入 onboarding review / assets UX，並依 beta feedback 校準規則數量與文案 |
+| Guardrails / Completeness | 79% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、guardrail 清單、逐項返回修正入口與清晰 submit/save feedback；analytics 亦已量測 review / guardrail / completion 漏斗 metadata | 仍需依 beta feedback 校準 guardrail 規則數量、文案強度與儀表板解讀方式 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
@@ -25,14 +25,14 @@ Last updated: 2026-03-20 (onboarding guardrails v1 rules layer)
 | 入口頁訊息架構 | 78% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff | 仍未建立 A/B slot metadata 與 sample journey impression tracking，無法持續優化訊息效果 | 補 experiment slots 與 sample journey impression event，讓訊息迭代可量測 |
 | Persona ↔ Preset Mapping | 60% | 已有 6 個 allowlisted presets，且 marketing CTA 可帶 `journey/preset` 到 member create flow | 仍缺 persona coverage matrix 與 fallback policy 文件化，容易出現「persona promise > preset 能力」落差 | 固化 persona-to-preset allowlist mapping 與 blank fallback 條件 |
 | Journey Deep-link / Handoff | 70% | 已建立 `journey + preset` query handoff 到 `/member/cases`，member 端會預選 preset，並用 guidance copy 承接適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出 | contract 已在產品文件中收斂，但仍缺 signed-in/out 漏斗驗證與 onboarding entry 後續承接細節 | 補 signed-in / signed-out handoff 驗證與 onboarding entry guidance 對齊 |
-| Funnel Tracking | 52% | 已量測 landing / CTA / auth / preset create / onboarding start 等事件 | 缺 `sample journey impression`、`case created`、`onboarding completed` 與 dashboard/review cadence 定義 | 補齊漏斗事件字典與每週轉化檢視板 |
+| Funnel Tracking | 61% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events | 仍缺 `sample journey impression`、`case created` 與 dashboard/review cadence 定義 | 補齊剩餘漏斗事件字典與每週轉化檢視板 |
 | A/B 文案實驗位 | 15% | 目前僅有 vendor-agnostic tracking 抽象，可承接未來實驗 metadata | 尚未定義可實驗欄位、命名規則、最小 sample size 與停止條件 | 建立 experiment slot 命名與文案版本標記策略 |
 | KPI 基線 / 驗收門檻 | 30% | 已有 v1 funnel event 與基礎轉化公式 | 尚未把 MVP 最低 KPI 與 weekly review threshold 寫入產品規格 | 將最低 KPI 納入 roadmap 驗收條件與 market-entry review ritual |
 
 ## Market Entry KPI Minimum Baseline (MVP gate)
 | KPI | 最低門檻 | 現況 | 阻塞項 | 下一里程碑 |
 |---|---:|---|---|---|
-| 首次體驗完成率（landing → onboarding completed） | ≥ 20% | 僅能量測到 onboarding start，尚未形成 completed 口徑 | 缺 onboarding completed event 與跨 auth/session attribution | 補上 completion event 與 cohort dashboard |
+| 首次體驗完成率（landing → onboarding completed） | ≥ 20% | onboarding completed event 已可發送，但尚未形成 cohort dashboard 與 signed-in/out attribution 對照 | 缺跨 auth/session attribution 與週期檢視板 | 補上 completion cohort dashboard 與 attribution 規格 |
 | Journey 點擊 → 建立案例轉化率 | ≥ 35% | 已可量測 `journey_cta_click` → `preset_create_submitted` | 缺 persona 分群 benchmark，未知哪些 journey 文案最弱 | 建立 persona/journey cohort breakdown |
 | Onboarding 啟動率 | ≥ 85% | 已可量測 `preset_create_submitted` → `onboarding_started` | 尚未確認 signed-out auth return path 對啟動率的影響 | 比較 signed-in / signed-out 兩條 handoff 漏斗 |
 | Landing → Journey CTA CTR | ≥ 12% | 已有基礎 CTR 公式，但尚未建立儀表板與 sample size 準則 | 缺 CTA placement / copy 實驗位與 review cadence | 建立週報與 CTA copy experiment plan |
@@ -208,3 +208,9 @@ Last updated: 2026-03-20 (onboarding guardrails v1 rules layer)
 - 自住物業／出租物業／有按揭／無按揭文案已收斂為明確 label + helper text；按揭利率與投資回報等百分比欄位補上 direction 說明，並以 `recommended` / `optional` badge 提示填寫優先序。
 - Review step 已加入 property / mortgage 摘要鋪位，讓使用者在提交前可快速確認自己填的是哪一種 housing scenario 與是否已填按揭資料。
 - 本次變更聚焦 onboarding review/completeness 規則層與 i18n，不改 compiler、engine、post-login routing 或 persistence schema。
+
+## Latest Update (2026-03-20)
+- Onboarding v3 review / submit step 現已把 completeness score、群組狀態與 guardrail summary 整合為同一個提交前摘要，使用者可在送出前看懂 readiness 並逐項返回對應 step 修正。
+- Review guardrails 現已提供 per-item fix CTA，並補上 `onboarding_review_viewed`、`guardrail_shown`、`guardrail_fixed`、`onboarding_completed` funnel analytics；payload 僅含 locale、層級、數量、rule/step metadata，不含任何金額或 scenario business payload。
+- Submit / cloud-save 流程現已提供 `validating` / `saving` / `redirecting` 明確回饋與 loading overlay，降低最後一步「有沒有儲存到」的不確定感。
+- Canonical scenario onboarding route 新增 dedicated loading skeleton，避免從 member/app 進入 onboarding 時出現白屏。

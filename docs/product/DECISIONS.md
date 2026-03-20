@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-05
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR-4 需要把 onboarding v3 的 completeness / guardrails 從純規則輸出提升為真正可提交前理解、可回修、可量測的 review / submit 體驗，但不可把 analytics 變成收集財務內容的捷徑，也不可引入新的跨 scenario 狀態。
+- Decision: Onboarding v3 review step 採「summary-first」結構：先顯示 completeness score + group summaries，再顯示 guardrail list 與 per-item fix CTA，所有返回修正都只跳回既有 wizard step。Analytics 採 vendor-agnostic `onboardingFunnel` client abstraction，僅記錄 funnel metadata（locale、completeness/guardrail level、counts、guardrail id/category/severity、target step/section），並補上 `onboarding_review_viewed`、`guardrail_shown`、`guardrail_fixed`、`onboarding_completed`。
+- Guardrails: 不可發送任何金額、資產值、收入/支出內容或 scenario business payload；guardrail fix tracking 只代表「由 review 進入修正並在下一次 review 消失」，不可藉此寫入額外持久化狀態；submit feedback 僅屬 UI / transition 層，不改 compiler、engine、routing contract 或 scenario isolation。
+
 ### D-2026-03-20-04
 - Date: 2026-03-20
 - Status: Accepted
