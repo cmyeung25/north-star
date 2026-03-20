@@ -118,6 +118,54 @@ describe("compileScenarioCreatePayload", () => {
     }
   });
 
+  it("generates holding-cost expense for owner-occupied property without rental income", () => {
+    const draft = buildDraft();
+    draft.assets = [
+      {
+        id: "asset-owner-home",
+        kind: "home",
+        currency: "HKD",
+        startMonth: "2025-01",
+        source: "manual",
+        usage: "self",
+        holdingCostMonthly: 1800,
+      } as ScenarioAsset & { usage: string; holdingCostMonthly: number },
+    ];
+
+    const payload = compileScenarioCreatePayload(draft);
+    const holdingCost = payload.events.find((event) => event.id === "auto:asset-owner-home:holding-cost");
+
+    expect(holdingCost?.type).toBe("cashflow");
+    if (holdingCost?.type === "cashflow") {
+      expect(holdingCost.kind).toBe("expense");
+      expect(holdingCost.amount).toBe(1800);
+    }
+    expect(payload.events.some((event) => event.id === "auto:asset-owner-home:rent-income")).toBe(false);
+  });
+
+  it("treats positive rent on property as rental fallback when usage is omitted", () => {
+    const draft = buildDraft();
+    draft.assets = [
+      {
+        id: "asset-rental-fallback",
+        kind: "home",
+        currency: "HKD",
+        startMonth: "2025-01",
+        source: "manual",
+        rentMonthly: 18500,
+      } as ScenarioAsset & { rentMonthly: number },
+    ];
+
+    const payload = compileScenarioCreatePayload(draft);
+    const rentalIncome = payload.events.find((event) => event.id === "auto:asset-rental-fallback:rent-income");
+
+    expect(rentalIncome?.type).toBe("cashflow");
+    if (rentalIncome?.type === "cashflow") {
+      expect(rentalIncome.kind).toBe("income");
+      expect(rentalIncome.amount).toBe(18500);
+    }
+  });
+
   it("generates mortgage liability and payment for property mortgage", () => {
     const draft = buildDraft();
     draft.assets = [
@@ -146,6 +194,37 @@ describe("compileScenarioCreatePayload", () => {
       expect(paymentEvent.kind).toBe("expense");
       expect(paymentEvent.amount > 0).toBe(true);
     }
+  });
+
+  it("does not derive mortgage artifacts when principal outstanding is zero", () => {
+    const draft = buildDraft();
+    draft.assets = [
+      {
+        id: "asset-home-no-mortgage",
+        kind: "home",
+        currency: "HKD",
+        startMonth: "2025-01",
+        source: "manual",
+        usage: "self",
+        mortgagePrincipalOutstanding: 0,
+        mortgageAnnualInterestRatePct: 3.5,
+        mortgageTermYears: 30,
+      } as ScenarioAsset & {
+        usage: string;
+        mortgagePrincipalOutstanding: number;
+        mortgageAnnualInterestRatePct: number;
+        mortgageTermYears: number;
+      },
+    ];
+
+    const payload = compileScenarioCreatePayload(draft);
+
+    expect(
+      payload.liabilities.some((liability) => liability.id === "auto:asset-home-no-mortgage:mortgage-liability")
+    ).toBe(false);
+    expect(
+      payload.events.some((event) => event.id === "auto:asset-home-no-mortgage:mortgage-payment")
+    ).toBe(false);
   });
 
   it("applies manual override without duplicate synonymous expense", () => {

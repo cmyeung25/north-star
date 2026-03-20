@@ -86,6 +86,44 @@ const isFiniteNumber = (value: unknown): value is number =>
 
 const toNumber = (value: unknown) => (isFiniteNumber(value) ? value : 0);
 
+const resolveHousingDownPaymentAmount = ({
+  propertyMarketValue,
+  downPaymentMode,
+  downPaymentPercent,
+  downPaymentAmount,
+}: {
+  propertyMarketValue: number;
+  downPaymentMode?: "percent" | "amount";
+  downPaymentPercent?: number;
+  downPaymentAmount?: number;
+}) => {
+  if (downPaymentMode === "amount") {
+    return toNumber(downPaymentAmount);
+  }
+
+  return propertyMarketValue > 0
+    ? (propertyMarketValue * toNumber(downPaymentPercent)) / 100
+    : 0;
+};
+
+const resolveHousingMortgageEnabled = (event: HousingMortgageEventDraft) => {
+  const propertyMarketValue = toNumber(
+    event.propertyMarketValue ?? event.purchasePrice
+  );
+  const mortgageBaseValue = toNumber(
+    event.mortgageBaseValue ?? event.propertyMarketValue ?? event.purchasePrice
+  );
+  const downPaymentAmount = resolveHousingDownPaymentAmount({
+    propertyMarketValue,
+    downPaymentMode: event.downPaymentMode,
+    downPaymentPercent: event.downPaymentPercent,
+    downPaymentAmount: event.downPaymentAmount,
+  });
+  const principalOutstanding = Math.max(mortgageBaseValue - downPaymentAmount, 0);
+
+  return principalOutstanding > 0;
+};
+
 const mapSeedMemberRole = (id: string): OnboardingV2MemberRole | null => {
   if (id === "self") {
     return "self";
@@ -296,6 +334,8 @@ const buildLivingSpendDraft = (payload: ScenarioSeedPayload): OnboardingV2DraftL
 const buildHousingDraft = (payload: ScenarioSeedPayload): OnboardingV2DraftHousing => {
   const housingEvent = payload.events.find(isHousingMortgageEvent);
   if (housingEvent) {
+    const mortgageEnabled = resolveHousingMortgageEnabled(housingEvent);
+
     return {
       mode: "own",
       rent: {
@@ -319,11 +359,12 @@ const buildHousingDraft = (payload: ScenarioSeedPayload): OnboardingV2DraftHousi
         downPaymentMode: housingEvent.downPaymentMode ?? "percent",
         downPaymentPercent: toNumber(housingEvent.downPaymentPercent),
         downPaymentAmount: toNumber(housingEvent.downPaymentAmount),
-        mortgageEnabled: true,
+        mortgageEnabled,
         mortgageRatePct: toNumber(housingEvent.mortgageRatePct),
         mortgageTermYears: toNumber(housingEvent.mortgageTermYears ?? 30),
         mortgagePayment: toNumber(housingEvent.mortgagePayment),
-        mortgagePaymentSource: housingEvent.mortgagePayment ? "manual" : "estimated",
+        mortgagePaymentSource:
+          mortgageEnabled && housingEvent.mortgagePayment ? "manual" : "estimated",
         fees: (housingEvent.feesOneOff ?? []).map((fee, index) => ({
           id: fee.id || `fee-${index + 1}`,
           label: fee.label ?? "",

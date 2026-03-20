@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (onboarding housing/property IA refinement)
+Last updated: 2026-03-20 (housing semantics alignment for onboarding draft/compiler)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -11,7 +11,7 @@ Last updated: 2026-03-20 (onboarding housing/property IA refinement)
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
-| Onboarding + Property Bundle | 72% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架，且 v3 收入/支出手動列可直接確認分類並顯示分類摘要；housing/property IA 現在先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要 | 需補齊既有物業 household 的一致輸入、completeness guardrails 與更完整的 review 修正引導 |
+| Onboarding + Property Bundle | 76% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料。 | 需補齊既有物業 household 的一致輸入、completeness guardrails 與更完整的 review 修正引導 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
@@ -47,6 +47,12 @@ Last updated: 2026-03-20 (onboarding housing/property IA refinement)
 - Promoted minimum KPI gates for first-run completion, journey-to-case conversion, onboarding start rate, and CTA CTR into the product status baseline, so market-entry readiness is measured against publishable thresholds rather than qualitative intent only.
 - Marketing landing page IA refreshed to a text-led structure: hero proof cards, persona decision cards without decorative photos, sample journeys with explicit decision questions, and a clearer first-session CTA promise.
 - Sample journey content kit now makes the decision question explicit for the three target personas (steady saver, dual-income home buyer, new parents), so marketing promise and in-product action path are easier to align.
+
+## Latest Update (2026-03-20)
+- Housing semantics alignment now keeps onboarding draft → v3 asset migration consistent with compiler expectations: `downPaymentPercent` is always anchored to `propertyMarketValue`, so custom `mortgageBaseValue` no longer shrinks/expands the implied outstanding principal during migration.
+- Seed/onboarding draft fallback for mortgage presence is now conservative: only positive outstanding principal is treated as `mortgageEnabled`, preventing fully paid homes from reappearing as fake mortgage cases in onboarding.
+- Scenario-draft property derivation now uses explicit fallbacks: positive `rentMonthly` without `usage` infers rental property for backward compatibility, while `mortgagePrincipalOutstanding <= 0` and `holdingCostMonthly <= 0` no longer generate derived mortgage/holding-cost artifacts.
+- Added focused unit coverage for renter, owner-occupied, rental-property, and mortgage/no-mortgage paths so mapper/compiler changes remain scenario-scoped and regression-resistant.
 
 
 ## Latest Update (2026-03-09)

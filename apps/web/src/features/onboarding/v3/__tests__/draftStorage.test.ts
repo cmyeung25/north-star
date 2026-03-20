@@ -9,6 +9,7 @@ import {
 } from "../draftStorage";
 import { createInitialScenarioDraftV3State } from "../types";
 import { getScenarioSeeds } from "../../../../scenarios/scenarioSeeds";
+import type { DraftStorageState as OnboardingV2DraftStorageState } from "../../draftStorage";
 
 const t = Object.assign((key: string) => key, {
   raw: () => [],
@@ -25,6 +26,113 @@ const labels = {
 
 const createFallbackState = () =>
   createInitialScenarioDraftV3State({ defaultMemberName: "Me" });
+
+const createLegacyDraft = (
+  overrides: Partial<OnboardingV2DraftStorageState> = {}
+): OnboardingV2DraftStorageState => ({
+  step: 0,
+  profile: {
+    baseCurrency: "HKD",
+    startMonth: "2026-01",
+    horizonYears: 10,
+    ...overrides.profile,
+  },
+  household: {
+    hasPartner: false,
+    childCount: 0,
+    petCount: 0,
+    members: [{ id: "self", role: "self", name: "Me", birthMonth: "" }],
+    ...overrides.household,
+  },
+  assumptions: {
+    inflationPct: 2,
+    incomeGrowthPct: 3,
+    investmentReturnPct: 4,
+    rentGrowthPct: 2,
+    propertyAppreciationPct: 3,
+    carDepreciationPct: 12,
+    cashYieldPct: 1,
+    taxInputMode: "gross",
+    ...overrides.assumptions,
+  },
+  incomes: overrides.incomes ?? [],
+  livingSpend: overrides.livingSpend ?? {
+    fixed: { amount: 0, startMonth: "2026-01", endMonth: "" },
+    variable: { amount: 0 },
+    categoryBreakdown: {
+      enabled: false,
+      categories: {
+        food: 0,
+        transport: 0,
+        entertainment: 0,
+        medical: 0,
+        education: 0,
+        misc: 0,
+      },
+    },
+    travel: {
+      mode: "monthly",
+      monthlyAmount: 0,
+      annualAmount: 0,
+      months: [],
+      growthMode: "follow_env",
+      growthRate: null,
+    },
+    tax: {
+      mode: "monthly",
+      monthlyAmount: 0,
+      annualAmount: 0,
+      months: [],
+      growthMode: "follow_env",
+      growthRate: null,
+    },
+    otherFixed: [],
+  },
+  housing: overrides.housing ?? {
+    mode: "rent",
+    rent: { amount: 0, noPayment: true, startMonth: "2026-01", endMonth: "", rentGrowthPct: null },
+    own: {
+      propertyMarketValue: 0,
+      mortgageBaseValue: 0,
+      mortgageBaseMode: "SYNC",
+      startMonth: "2026-01",
+      downPaymentMode: "percent",
+      downPaymentPercent: 0,
+      downPaymentAmount: 0,
+      mortgageEnabled: false,
+      mortgageRatePct: 0,
+      mortgageTermYears: 0,
+      mortgagePayment: 0,
+      mortgagePaymentSource: "estimated",
+      fees: [],
+      ongoingCosts: [],
+      rental: { enabled: false, amount: 0, startMonth: "2026-01", endMonth: "", discountAmount: 0 },
+    },
+  },
+  assets: overrides.assets ?? {
+    cash: { amount: 0, startMonth: "2026-01" },
+    investment: {
+      totalAmount: 0,
+      startMonth: "2026-01",
+      breakdownEnabled: false,
+      breakdown: [],
+    },
+    car: {
+      enabled: false,
+      value: 0,
+      startMonth: "2026-01",
+      depreciationPct: null,
+    },
+    contributions: [],
+    insurances: [],
+  },
+  debts: overrides.debts ?? [],
+  insurance: overrides.insurance ?? {
+    mode: "quick",
+    quick: { amount: 0, startMonth: "2026-01", endMonth: "" },
+    policies: [],
+  },
+});
 
 const createStorage = () => {
   const store = new Map<string, string>();
@@ -108,6 +216,43 @@ describe("onboarding v3 draft storage", () => {
     expect(v3Draft.assumptions.rentAnnualGrowthPct).toBe(2);
     expect(v3Draft.assumptions.propertyAppreciationPct).toBe(2);
     expect(v3Draft.assumptions.mortgageRatePct).toBe(3.25);
+  });
+
+  it("keeps down-payment percentage anchored to property value when migrating custom mortgage base", () => {
+    const legacyDraft = createLegacyDraft({
+      housing: {
+        mode: "own",
+        rent: { amount: 0, noPayment: true, startMonth: "2026-01", endMonth: "", rentGrowthPct: null },
+        own: {
+          propertyMarketValue: 1_000_000,
+          mortgageBaseValue: 1_200_000,
+          mortgageBaseMode: "CUSTOM",
+          startMonth: "2026-01",
+          downPaymentMode: "percent",
+          downPaymentPercent: 20,
+          downPaymentAmount: 0,
+          mortgageEnabled: true,
+          mortgageRatePct: 3.5,
+          mortgageTermYears: 30,
+          mortgagePayment: 0,
+          mortgagePaymentSource: "estimated",
+          fees: [],
+          ongoingCosts: [],
+          rental: { enabled: false, amount: 0, startMonth: "2026-01", endMonth: "", discountAmount: 0 },
+        },
+      },
+    });
+
+    const v3Draft = convertOnboardingV2DraftToV3State({
+      draftState: legacyDraft,
+      fallbackState: createFallbackState(),
+      labels,
+    });
+
+    const propertyAsset = v3Draft.assets.find((asset) => asset.assetType === "property");
+
+    expect(propertyAsset?.assetType).toBe("property");
+    expect(propertyAsset?.mortgagePrincipalOutstanding).toBe(1_000_000);
   });
 
   it("prefers an existing v3 draft over v2 migration", () => {

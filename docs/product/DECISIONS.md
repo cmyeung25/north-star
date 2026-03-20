@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-02
+- Date: 2026-03-20
+- Status: Accepted
+- Context: Onboarding housing/property UI copy had been clarified, but the migration path from onboarding draft / preset seed into v3 assets and scenario-draft compiler still had hidden semantic drift. In particular, custom `mortgageBaseValue` could change the effective down-payment basis, and zero-principal properties could still derive fake mortgage artifacts.
+- Decision: Align housing semantic fallbacks across onboarding draft migration and scenario-draft compilation: `downPaymentPercent` always anchors to `propertyMarketValue`; `mortgagePrincipalOutstanding <= 0` is treated as no mortgage; positive `rentMonthly` may infer rental-property usage only as a backward-compatible fallback when `usage` is missing.
+- Guardrails: This is an adapter/compiler mapping fix only. Do not change engine formulas, persistence schema, routing, or scenario scoping. Current-home rent remains an expense-path concept, while property rent remains owned-property income semantics.
+
 ### D-2026-03-20-01
 - Date: 2026-03-20
 - Status: Accepted
