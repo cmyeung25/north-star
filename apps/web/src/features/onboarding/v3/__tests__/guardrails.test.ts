@@ -19,11 +19,74 @@ describe("buildOnboardingGuardrailSummary", () => {
     for (const rule of ONBOARDING_GUARDRAIL_RULES) {
       expect(rule.id).toBeTruthy();
       expect(rule.severity).toBeTruthy();
+      expect(typeof rule.blocksSubmission).toBe("boolean");
       expect(rule.messageKey).toBeTruthy();
       expect(rule.actionHintKey).toBeTruthy();
       expect(rule.target.stepId).toBeTruthy();
       expect(rule.target.section).toBeTruthy();
     }
+  });
+
+  it("keeps only baseline-distorting housing/property conflicts as blocking criticals", () => {
+    expect(
+      ONBOARDING_GUARDRAIL_RULES.map((rule) => ({
+        id: rule.id,
+        severity: rule.severity,
+        blocksSubmission: rule.blocksSubmission,
+        category: rule.category,
+        target: rule.target,
+      }))
+    ).toEqual([
+      {
+        id: "property_usage_missing",
+        severity: "warning",
+        blocksSubmission: false,
+        category: "key_missing",
+        target: { stepId: "assets", section: "property" },
+      },
+      {
+        id: "mortgage_core_fields_missing",
+        severity: "critical",
+        blocksSubmission: true,
+        category: "key_missing",
+        target: { stepId: "assets", section: "mortgage" },
+      },
+      {
+        id: "self_use_rental_conflict",
+        severity: "critical",
+        blocksSubmission: true,
+        category: "obvious_conflict",
+        target: { stepId: "assets", section: "housing" },
+      },
+      {
+        id: "rental_property_income_missing",
+        severity: "warning",
+        blocksSubmission: false,
+        category: "basic_inconsistency",
+        target: { stepId: "assets", section: "property" },
+      },
+      {
+        id: "mortgage_property_basics_missing",
+        severity: "warning",
+        blocksSubmission: false,
+        category: "basic_inconsistency",
+        target: { stepId: "assets", section: "mortgage" },
+      },
+      {
+        id: "duplicate_current_home_housing_costs",
+        severity: "warning",
+        blocksSubmission: false,
+        category: "potential_double_counting",
+        target: { stepId: "expense", section: "fixedExpenses" },
+      },
+      {
+        id: "duplicate_rent_expense_inputs",
+        severity: "info",
+        blocksSubmission: false,
+        category: "potential_double_counting",
+        target: { stepId: "expense", section: "housing" },
+      },
+    ]);
   });
 
   it("flags missing property usage as a key-missing warning", () => {
@@ -158,6 +221,40 @@ describe("buildOnboardingGuardrailSummary", () => {
     expect(summary.categories.potential_double_counting).toBe(2);
     expect(summary.counts.warning >= 1).toBe(true);
     expect(summary.counts.info).toBe(1);
+  });
+
+  it("keeps info-only duplicate reminders out of the blocking summary level", () => {
+    const draft = buildDraft();
+    draft.events.push(
+      {
+        id: "rent-1",
+        type: "cashflow",
+        kind: "expense",
+        label: "Current rent",
+        amount: 18_000,
+        cadence: "monthly",
+        startMonth: "2026-03",
+        growthSource: "rentGrowth",
+      },
+      {
+        id: "rent-2",
+        type: "cashflow",
+        kind: "expense",
+        label: "Second rent row",
+        amount: 5_000,
+        cadence: "monthly",
+        startMonth: "2026-03",
+        tags: ["onboarding:v3:expense:rent"],
+      }
+    );
+
+    const summary = buildOnboardingGuardrailSummary({ draft });
+
+    expect(summary.level).toBe("clear");
+    expect(summary.counts.critical).toBe(0);
+    expect(summary.counts.warning).toBe(0);
+    expect(summary.counts.info).toBe(1);
+    expect(summary.items[0]?.id).toBe("duplicate_rent_expense_inputs");
   });
 
   it("can evaluate active-scenario fallback signals without cross-scenario writes", () => {
