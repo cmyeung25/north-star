@@ -14,7 +14,7 @@ export type OnboardingFunnelEventName =
   | "guardrail_fixed"
   | "onboarding_completed";
 
-export type OnboardingReviewSourceContext = "initial_review" | "returned_from_fix" | "submit_ready";
+export type OnboardingReviewSourceContext = "initial_review" | "returned_from_fix";
 
 export type OnboardingFunnelEventPayload = {
   locale: string;
@@ -53,7 +53,7 @@ declare global {
   }
 }
 
-const ALLOWED_PAYLOAD_KEYS = new Set<keyof OnboardingFunnelEventPayload>([
+export const ONBOARDING_FUNNEL_ALLOWED_PAYLOAD_KEYS = [
   "locale",
   "flowVersion",
   "reviewStepId",
@@ -71,7 +71,11 @@ const ALLOWED_PAYLOAD_KEYS = new Set<keyof OnboardingFunnelEventPayload>([
   "guardrailCategory",
   "targetStepId",
   "targetSection",
-]);
+] as const satisfies ReadonlyArray<keyof OnboardingFunnelEventPayload>;
+
+const ALLOWED_PAYLOAD_KEYS = new Set<keyof OnboardingFunnelEventPayload>(
+  ONBOARDING_FUNNEL_ALLOWED_PAYLOAD_KEYS
+);
 
 export type PendingGuardrailFix = {
   guardrailId: string;

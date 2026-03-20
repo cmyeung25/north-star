@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ONBOARDING_FUNNEL_ALLOWED_PAYLOAD_KEYS,
   buildPendingGuardrailFix,
   resolveCompletedGuardrailFixes,
   sanitizeOnboardingFunnelPayload,
@@ -84,6 +85,28 @@ describe("trackOnboardingFunnelEvent", () => {
 });
 
 describe("onboarding funnel payload contract", () => {
+  it("matches the documented metadata-only payload allowlist", () => {
+    expect(ONBOARDING_FUNNEL_ALLOWED_PAYLOAD_KEYS).toEqual([
+      "locale",
+      "flowVersion",
+      "reviewStepId",
+      "reviewSessionId",
+      "reviewSourceContext",
+      "completenessLevel",
+      "completenessScorePct",
+      "guardrailLevel",
+      "guardrailCount",
+      "criticalGuardrailCount",
+      "warningGuardrailCount",
+      "infoGuardrailCount",
+      "guardrailId",
+      "guardrailSeverity",
+      "guardrailCategory",
+      "targetStepId",
+      "targetSection",
+    ]);
+  });
+
   it("drops non-contract fields from the payload", () => {
     expect(
       sanitizeOnboardingFunnelPayload({
@@ -91,7 +114,7 @@ describe("onboarding funnel payload contract", () => {
         flowVersion: "onboarding_v3",
         reviewStepId: "review",
         reviewSessionId: "review_789",
-        reviewSourceContext: "submit_ready",
+        reviewSourceContext: "returned_from_fix",
         guardrailCount: 1,
         guardrailId: "property_usage_missing",
         targetStepId: "assets",
@@ -104,9 +127,70 @@ describe("onboarding funnel payload contract", () => {
       flowVersion: "onboarding_v3",
       reviewStepId: "review",
       reviewSessionId: "review_789",
-      reviewSourceContext: "submit_ready",
+      reviewSourceContext: "returned_from_fix",
       guardrailCount: 1,
       guardrailId: "property_usage_missing",
+      targetStepId: "assets",
+      targetSection: "property",
+    });
+  });
+
+  it("keeps only metadata-safe fields for each onboarding funnel event contract", () => {
+    expect(
+      sanitizeOnboardingFunnelPayload({
+        locale: "en",
+        flowVersion: "onboarding_v3",
+        reviewStepId: "review",
+        reviewSessionId: "review_contract_1",
+        reviewSourceContext: "initial_review",
+        completenessLevel: "needs_attention",
+        completenessScorePct: 80,
+        guardrailLevel: "warning",
+        guardrailCount: 2,
+        criticalGuardrailCount: 0,
+        warningGuardrailCount: 1,
+        infoGuardrailCount: 1,
+        scenarioId: "scenario-secret",
+        totalAssetsAmount: 1200000,
+      }),
+    ).toEqual({
+      locale: "en",
+      flowVersion: "onboarding_v3",
+      reviewStepId: "review",
+      reviewSessionId: "review_contract_1",
+      reviewSourceContext: "initial_review",
+      completenessLevel: "needs_attention",
+      completenessScorePct: 80,
+      guardrailLevel: "warning",
+      guardrailCount: 2,
+      criticalGuardrailCount: 0,
+      warningGuardrailCount: 1,
+      infoGuardrailCount: 1,
+    });
+
+    expect(
+      sanitizeOnboardingFunnelPayload({
+        locale: "en",
+        flowVersion: "onboarding_v3",
+        reviewStepId: "review",
+        reviewSessionId: "review_contract_1",
+        reviewSourceContext: "returned_from_fix",
+        guardrailId: "property_usage_missing",
+        guardrailSeverity: "warning",
+        guardrailCategory: "key_missing",
+        targetStepId: "assets",
+        targetSection: "property",
+        propertyMarketValue: 999999,
+      }),
+    ).toEqual({
+      locale: "en",
+      flowVersion: "onboarding_v3",
+      reviewStepId: "review",
+      reviewSessionId: "review_contract_1",
+      reviewSourceContext: "returned_from_fix",
+      guardrailId: "property_usage_missing",
+      guardrailSeverity: "warning",
+      guardrailCategory: "key_missing",
       targetStepId: "assets",
       targetSection: "property",
     });

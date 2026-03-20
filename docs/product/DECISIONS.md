@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-10
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR 4A 需要把 onboarding guardrail analytics review pack 從「只有事件 + 描述文件」提升到營運可直接拿來做 weekly calibration 的 execution-ready 工具，但仍不可引入 persistence、engine 依賴或跨 scenario/case 狀態。
+- Decision: 新增 analytics-only review-pack builder / formatter：以既有 `onboarding_review_viewed`、`guardrail_shown`、`guardrail_fixed`、`onboarding_completed` 事件陣列直接輸出 weekly summary sections（review→completed conversion、top shown guardrails、lowest fix-success guardrails、review-without-completion candidates）與 table/JSON export shape，供 PM/UX / operator 每週檢視，不新增任何資料寫入路徑。
+- Guardrails: 聚合必須只依賴 metadata allowlist 欄位與事件 timestamp/window，不可要求 scenarioId、caseId、金額、資產值或其他 business payload；formatter 只做 report/export 形狀整理，不可變成 analytics-driven product state machine 或 dashboard persistence contract。
+
 ### D-2026-03-20-09
 - Date: 2026-03-20
 - Status: Accepted
