@@ -3243,7 +3243,7 @@
       },
       "assets": {
         "title": "Assets setup",
-        "description": "Add assets you currently hold at onboarding time (cash/property/investments).",
+        "description": "Add assets you already hold today so the baseline starts from the right cash, property, and investment position.",
         "actions": {
           "addProperty": "Add property",
           "addCash": "Add cash",
@@ -3260,17 +3260,21 @@
           "kindLabel": "Kind: {kind}"
         },
         "usage": {
-          "self": "Self-use",
-          "rent": "Rent out"
+          "self": "Self-use property",
+          "rent": "Rental property"
+        },
+        "usageHint": {
+          "self": "Choose this when you already own the home you live in. Rental-income fields stay hidden.",
+          "rent": "Choose this when the property is leased to tenants. Current-home rent belongs in Expense assumptions instead."
         },
         "fields": {
           "assetLabel": "Asset label",
           "currentValue": "Current value",
-          "rentMonthly": "Rent monthly",
-          "holdingCostMonthly": "Holding cost monthly",
-          "mortgagePrincipal": "Mortgage principal",
-          "mortgageRate": "Rate %",
-          "mortgageTermYears": "Term years",
+          "rentMonthly": "Expected monthly rent",
+          "holdingCostMonthly": "Monthly holding cost",
+          "mortgagePrincipal": "Outstanding mortgage balance",
+          "mortgageRate": "Annual mortgage rate (%)",
+          "mortgageTermYears": "Remaining mortgage term (years)",
           "cashAmount": "Cash amount",
           "cashCurrency": "Cash currency",
           "investmentPrincipal": "Investment principal",
@@ -3280,7 +3284,7 @@
             "assumption": "Follow assumptions",
             "custom": "Custom return"
           },
-          "mortgageTermMonths": "Mortgage term (months)",
+          "mortgageTermMonths": "Remaining mortgage term (months)",
           "mortgageTermMode": {
             "years": "By years",
             "months": "By months"
@@ -3289,7 +3293,7 @@
         "switches": {
           "enableRentIncome": "Enable rental income",
           "enableHoldingCost": "Enable monthly holding cost",
-          "enableMortgage": "Enable mortgage details",
+          "enableMortgage": "This property has mortgage",
           "enableProperty": "Include property asset",
           "enableInvestment": "Include investment asset"
         },
@@ -3297,13 +3301,52 @@
           "investment": "Start with investment name and current market value; you can fill in details later.",
           "cash": "Consider adding cash purpose (for example: emergency fund / savings account).",
           "cashCurrentBalance": "Enter your current cash balance.",
+          "assetLabel": "Recommended when you want the review summary to clearly show which property or account this is.",
+          "currentValue": {
+            "self": "Use the latest market value or a realistic estimate for the home you live in.",
+            "rent": "Use the latest market value or a realistic estimate for this rental property."
+          },
+          "holdingCostMonthly": {
+            "self": "Examples: management fee, rates, insurance, and recurring upkeep for your own home.",
+            "rent": "Examples: management fee, rates, insurance, and landlord-paid upkeep for this rental property."
+          },
+          "rentMonthly": "Fill in the gross monthly rent you expect to receive before vacancy or agent adjustments.",
+          "mortgageEnabled": "Only turn this on when the property still has an outstanding mortgage.",
+          "noMortgage": "Leave mortgage details off for fully paid properties.",
+          "mortgagePrincipal": "Enter the remaining loan balance, not the original loan amount.",
+          "mortgageRate": "Direction: annual interest rate charged on the remaining mortgage balance.",
+          "mortgageTermYears": "Use the remaining years if you know them; switch to months only when you need more precision.",
+          "mortgageTermMonths": "Use remaining months when the payoff date is near or not a whole number of years.",
           "mortgageAutoProjection": "Mortgage payment expenses will be projected automatically from these inputs.",
-          "mortgageMonthlyPayment": "Estimated monthly payment: {amount}"
+          "mortgageMonthlyPayment": "Estimated monthly payment: {amount}",
+          "investmentReturnPct": "Direction: expected annual growth rate before fees.",
+          "investmentStartMonth": "Optional if this investment already exists today; useful when the holding starts later."
         },
         "badges": {
-          "optional": "Optional"
+          "optional": "Optional",
+          "recommended": "Recommended"
         },
-        "currentHoldingsHint": "This step captures current holdings only; future transactions can be added later."
+        "currentHoldingsHint": "This step captures current holdings only; future transactions can be added later.",
+        "sections": {
+          "currentHousing": {
+            "title": "First decide: are you filling current rent or owned property?",
+            "description": "This step is only for assets you already own.",
+            "rentingHint": "If you are currently renting your home, fill the rent in Expense assumptions. Only add a property here when you already own it."
+          },
+          "property": {
+            "title": "Property you already own",
+            "description": "Pick the property scenario first so unrelated fields stay hidden."
+          },
+          "propertyBasics": {
+            "title": "Property basics"
+          },
+          "propertyCashflow": {
+            "title": "Property cashflow details"
+          },
+          "mortgage": {
+            "title": "Mortgage details"
+          }
+        }
       },
       "income": {
         "title": "Income assumptions",
@@ -3411,6 +3454,11 @@
           "personaFocusesEmpty": "Not selected",
           "assetCount": "Asset count: {value}",
           "assetTotal": "Estimated total assets: {value}",
+          "propertyStatus": "Property setup: {value}",
+          "mortgageStatus": "Mortgage setup: {value}",
+          "propertyValue": "Property value used in onboarding: {value}",
+          "holdingCost": "Monthly holding cost: {value}",
+          "rentMonthly": "Expected monthly rent: {value}",
           "derivedIncome": "Auto-generated income rows: {value}",
           "derivedExpense": "Auto-generated expense rows: {value}",
           "manualIncome": "Manual income rows: {value}",
@@ -3418,6 +3466,16 @@
           "monthlyIncomeTotal": "Monthly income total: {value}",
           "monthlyExpenseTotal": "Monthly expense total: {value}",
           "monthlyNetTotal": "Monthly net cashflow: {value}"
+        },
+        "propertyStatus": {
+          "none": "No owned property added yet",
+          "self": "Self-use property",
+          "rent": "Rental property"
+        },
+        "mortgageStatus": {
+          "withMortgage": "Has mortgage details",
+          "noMortgage": "No mortgage",
+          "notApplicable": "Not applicable"
         }
       },
       "common": {

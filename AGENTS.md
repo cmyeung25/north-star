@@ -448,6 +448,8 @@ When a file contains Chinese, Japanese, or other non-ASCII text, perform an expl
 
 - Onboarding persona focus + Compare KPI prioritization v1（2026-03-09）: Onboarding v3 新增「人生階段重點」多選（`family/fertility/education/retirement`），提交後儲存在 `scenario.meta.personaFocuses`（scenario-scoped）；Plan Lab Compare 可隨時切換 persona focus，僅影響 KPI 卡片預設排序，不可鎖死使用路徑或跨 scenario 共用。
 
+- Onboarding housing/property IA v1（2026-03-20）: Onboarding v3 資產步驟必須先明示「現時租屋請到 Expense step 填租金、此步驟只填已持有資產」，再於 property card 內分流 `self-use property` / `rental property`，並只在 mortgage toggle 開啟時顯示按揭欄位。Review step 應回顯 property status / mortgage status，讓使用者在提交前確認自己填的是自住／出租／有按揭／無按揭哪一種情境。
+
 - Plan Lab rental profile + compare hint v1（2026-03-09）: `buildBundleWizardInputForDecisionTemplate` 的 `rental_plan` 需明確維持 conservative/median/aggressive 對應（rent/deposit/agent fee/start month anchor）；模板啟動路徑必須經 resolver，`rental_plan` 永遠走 rent housing create/edit、`home_purchase` 永遠走 buy-home bundle wizard。Compare 摘要需提供至少一條租 vs 買可讀提示（housing cashflow pressure / upfront cash hit），且僅屬 UI 層提示，不可改 engine 計算。
 
 - Plan Lab housing create guardrail v1（2026-03-09）: 在 Plan Lab「新增事件 > 住屋」create modal 僅允許 `rent`；`mortgage` 僅透過 `home_purchase` 人生計劃 wizard 入口，避免路徑語意重疊。

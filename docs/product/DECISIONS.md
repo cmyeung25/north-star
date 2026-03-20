@@ -1,8 +1,15 @@
 ﻿# North Star Product Decisions
 
-Last updated: 2026-03-18
+Last updated: 2026-03-20
 
 ## Decision Log
+
+### D-2026-03-20-01
+- Date: 2026-03-20
+- Status: Accepted
+- Context: Onboarding v3 already had property/mortgage fields, but users still had to infer whether a field belonged to current-home rent, self-use property, rental property, or mortgage details. This created avoidable cognitive load in the very first baseline-building flow.
+- Decision: In onboarding v3 assets step, first clarify that current-home rent belongs to Expense assumptions and that the assets step only captures owned property. Within owned property, UI should explicitly branch between self-use property vs rental property, then show mortgage fields only when mortgage is enabled. Review step should surface the chosen property/mortgage state so users can confirm the scenario before submit.
+- Guardrails: This is a UI / i18n / review-summary IA change only; do not change engine/compiler behavior, persistence schema, scenario isolation, or post-login/member-to-app routing. Percentage fields that remain visible must include directionally clear helper copy.
 
 ### D-2026-03-07-01
 - Date: 2026-03-07

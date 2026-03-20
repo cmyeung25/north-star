@@ -1,17 +1,17 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-18 (marketing landing IA refresh)
+Last updated: 2026-03-20 (onboarding housing/property IA refinement)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 58% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，但 onboarding/guardrails 仍待整合 |
+| Closed Beta readiness | 60% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，但 guardrails 仍待整合 |
 | Public MVP readiness | 40% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，但營運支援與漏斗補齊仍有缺口 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
-| Onboarding + Property Bundle | 68% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架，且 v3 收入/支出手動列可直接確認分類並顯示分類摘要 | 需補齊既有物業 household 的一致輸入與審核體驗與 completeness guardrails |
+| Onboarding + Property Bundle | 72% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架，且 v3 收入/支出手動列可直接確認分類並顯示分類摘要；housing/property IA 現在先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要 | 需補齊既有物業 household 的一致輸入、completeness guardrails 與更完整的 review 修正引導 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
@@ -189,3 +189,8 @@ Last updated: 2026-03-18 (marketing landing IA refresh)
 1. 以「可完成一次重大家庭決策」為目標，收斂 Onboarding + Property Bundle 旅程。
 2. 讓 Plan Lab 以模板化決策入口驅動，並補齊比較摘要的可行動建議。
 3. 將 member preset onboarding-prefill 延伸到 app 內延伸入口，並建立封閉 beta 回饋閉環與量化追蹤。
+## Latest Update (2026-03-20)
+- Onboarding v3 資產步驟已加入 housing/property IA 引導：先提示「現時租屋請到支出填寫、此步驟只填已持有物業」，再以 section grouping 分開物業基本資料、物業現金流、按揭資料，降低無關欄位同時出現的認知負擔。
+- 自住物業／出租物業／有按揭／無按揭文案已收斂為明確 label + helper text；按揭利率與投資回報等百分比欄位補上 direction 說明，並以 `recommended` / `optional` badge 提示填寫優先序。
+- Review step 已加入 property / mortgage 摘要鋪位，讓使用者在提交前可快速確認自己填的是哪一種 housing scenario 與是否已填按揭資料。
+- 本次變更僅調整 onboarding v3 UI / i18n / review summary，不改 compiler、engine、post-login routing 或 persistence schema。
