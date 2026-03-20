@@ -47,7 +47,8 @@ Last updated: 2026-03-20
 - [x] fix-loop CTA clarity 已補強：每條 guardrail 現在會先顯示將返回的 step + section，CTA 文案亦明確標示會回到哪一步，保留既有 `onFixGuardrail -> stepIndexById` 導航契約不變。
 - [x] guardrail copy rewrite & locale parity pass 已完成：housing/property guardrails 改寫為「人話 + 原因 + 下一步」語氣，並補上 onboarding guardrail placeholder parity / mojibake lint，降低警示疲勞與語系 drift。
 - [x] analytics review pack v1 已補齊：onboarding funnel payload 現在加入安全的 `reviewSessionId` / `reviewSourceContext`、guardrail metadata allowlist 與 `guardrail_fixed` 消失判準，並補上每週 calibration review 方法文件，讓 PM/UX 可穩定檢視 top blockers、低 fix 成功率規則與 review → completed conversion。
-- [ ] 下一步：依 beta feedback 與每週 calibration review 結果，繼續調整 guardrail 文案、誤報率與 severity/copy 策略，避免警示疲勞。
+- [x] analytics review pack v1 現已 operator-ready：新增 weekly builder / export helper，可直接把 metadata-only funnel event arrays 匯總成 review→completed conversion、top shown guardrails、lowest fix-success guardrails、review-without-completion candidates 四個週報 section，無需新增 persistence。
+- [ ] 下一步：依 beta feedback 與每週 calibration review 結果，繼續調整 guardrail 文案、誤報率與 severity/copy 策略，並定義 sample-size / persona-bias 檢查節奏，避免警示疲勞或誤判高 show rate。
 4. Presets 接入主流程
 - [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。
 - [x] v1 已交付：member 入口 preset allowlist 擴至 6 個產品化 seeds（single-renter、dual-income-home、dual-income-rental、new-baby、new-baby-helper、high-asset）。

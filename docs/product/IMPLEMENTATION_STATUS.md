@@ -1,12 +1,12 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (onboarding guardrail analytics review pack v1)
+Last updated: 2026-03-20 (onboarding guardrail analytics review pack v1 operator-ready)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 71% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口、較低壓力的 guardrail 文案與提交回饋 |
-| Public MVP readiness | 44% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，且 onboarding funnel 已補上 review / guardrail / completion 事件與 guardrail locale parity lint，但營運支援與漏斗補齊仍有缺口 |
+| Closed Beta readiness | 72% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口、較低壓力的 guardrail 文案與提交回饋；weekly onboarding review pack 已可直接由 metadata-only 事件生成 |
+| Public MVP readiness | 45% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，且 onboarding funnel 已補上 review / guardrail / completion 事件、operator-ready weekly review pack 與 guardrail locale parity lint，但營運支援與漏斗補齊仍有缺口 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
@@ -14,7 +14,7 @@ Last updated: 2026-03-20 (onboarding guardrail analytics review pack v1)
 | Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
-| Guardrails / Completeness | 89% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 analytics contract 已升級為 review-pack 可用版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext` 與穩定的 `guardrail_fixed` 消失判準，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並把 weekly ritual 真的運行起來 |
+| Guardrails / Completeness | 92% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 analytics contract 已升級為 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
@@ -25,7 +25,7 @@ Last updated: 2026-03-20 (onboarding guardrail analytics review pack v1)
 | 入口頁訊息架構 | 78% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff | 仍未建立 A/B slot metadata 與 sample journey impression tracking，無法持續優化訊息效果 | 補 experiment slots 與 sample journey impression event，讓訊息迭代可量測 |
 | Persona ↔ Preset Mapping | 60% | 已有 6 個 allowlisted presets，且 marketing CTA 可帶 `journey/preset` 到 member create flow | 仍缺 persona coverage matrix 與 fallback policy 文件化，容易出現「persona promise > preset 能力」落差 | 固化 persona-to-preset allowlist mapping 與 blank fallback 條件 |
 | Journey Deep-link / Handoff | 70% | 已建立 `journey + preset` query handoff 到 `/member/cases`，member 端會預選 preset，並用 guidance copy 承接適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出 | contract 已在產品文件中收斂，但仍缺 signed-in/out 漏斗驗證與 onboarding entry 後續承接細節 | 補 signed-in / signed-out handoff 驗證與 onboarding entry guidance 對齊 |
-| Funnel Tracking | 61% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events | 仍缺 `sample journey impression`、`case created` 與 dashboard/review cadence 定義 | 補齊剩餘漏斗事件字典與每週轉化檢視板 |
+| Funnel Tracking | 65% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；onboarding weekly review pack 可直接從 metadata-only 事件產出 | 仍缺 `sample journey impression`、`case created` 與更完整的 dashboard/review cadence 定義 | 補齊剩餘漏斗事件字典並把 operator weekly review pack 接到固定檢視節奏 |
 | A/B 文案實驗位 | 15% | 目前僅有 vendor-agnostic tracking 抽象，可承接未來實驗 metadata | 尚未定義可實驗欄位、命名規則、最小 sample size 與停止條件 | 建立 experiment slot 命名與文案版本標記策略 |
 | KPI 基線 / 驗收門檻 | 30% | 已有 v1 funnel event 與基礎轉化公式 | 尚未把 MVP 最低 KPI 與 weekly review threshold 寫入產品規格 | 將最低 KPI 納入 roadmap 驗收條件與 market-entry review ritual |
 
@@ -49,6 +49,9 @@ Last updated: 2026-03-20 (onboarding guardrail analytics review pack v1)
 - Sample journey content kit now makes the decision question explicit for the three target personas (steady saver, dual-income home buyer, new parents), so marketing promise and in-product action path are easier to align.
 
 ## Latest Update (2026-03-20)
+- 新增 `apps/web/src/lib/analytics/onboardingReviewPack.ts`，可直接把 weekly window 內的 metadata-only onboarding funnel events 聚合成四個 operator/PM 可用 section：review→completed conversion、top shown guardrails、lowest fix-success guardrails、review-without-completion candidates。
+- review pack formatter/export helper 已就緒，可把聚合結果轉成簡單 summary + table/JSON shape，方便後續接到內部週報、notebook 或手動匯出流程，而不引入新的 persistence。
+- `onboardingFunnel` allowlist 現已由測試明確鎖定，並把 `reviewSourceContext` 收斂到文件化的 `initial_review / returned_from_fix`，確保 review pack builder 只消費已批准的 metadata-safe contract。
 - Onboarding funnel contract 已升級為 weekly calibration 可用版本：`onboarding_review_viewed`、`guardrail_shown`、`guardrail_fixed`、`onboarding_completed` 全部維持 metadata-only，且 payload 會先經 allowlist sanitize，避免任何 `scenarioId`、金額或其他 business payload 混入。
 - Review pass 現在會帶安全的 `reviewSessionId` 與 `reviewSourceContext`（initial review / returned from fix），讓 PM/UX 可以在不新增跨 scenario persistence 的前提下，拆出 review → completed conversion、top shown guardrails、low-fix-success guardrails 與 review 後未完成 guardrails。
 - `guardrail_fixed` 語意已收斂為「使用者由 review 按 fix CTA 離開，並在下一個 review pass 該 rule 真正消失」才算 fixed；不再把單純導航或同一 review pass 內的暫時 state 波動視為修正成功。
