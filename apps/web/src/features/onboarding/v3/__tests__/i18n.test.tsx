@@ -109,8 +109,14 @@ describe("onboarding v3 i18n", () => {
 
     expect(enHtml).toContain("Summary before submit");
     expect(enHtml).toContain("Guardrails to review");
+    expect(enHtml).toContain("Critical / must fix");
+    expect(enHtml).toContain("Warning / review recommended");
+    expect(enHtml).toContain("Info / heads-up");
     expect(zhHtml).toContain("提交前摘要");
     expect(zhHtml).toContain("提交前風險提示");
+    expect(zhHtml).toContain("Critical / 必須修正");
+    expect(zhHtml).toContain("Warning / 建議再檢查");
+    expect(zhHtml).toContain("Info / 提交前提醒");
   });
 
   it("provides localized completeness labels for review consumers", () => {

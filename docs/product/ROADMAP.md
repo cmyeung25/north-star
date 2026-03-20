@@ -43,6 +43,7 @@ Last updated: 2026-03-20
 - [x] v1 已交付：onboarding guardrails 規則層已建立，覆蓋 `key_missing / obvious_conflict / basic_inconsistency / potential_double_counting` 四類；目前先聚焦 housing/property 常見錯誤（物業用途缺漏、按揭核心欄位缺漏、自住/出租衝突、housing state 與 cost mismatch、可能重複輸入住屋支出），並輸出 UI 可直接消費的 summary model（含 severity / message key / action hint / target step）。
 - [x] onboarding review / submit summary 已接入 completeness + guardrail summary，並提供逐項返回修正入口、submit/save feedback、以及 `onboarding_review_viewed` / `guardrail_shown` / `guardrail_fixed` / `onboarding_completed` funnel analytics（只含 funnel metadata）。
 - [x] v1.1 severity calibration 已完成：只有真正會扭曲 baseline 核心語意的規則保留 `critical`，疑似重複輸入與資料不一致降為 `warning` / `info`，避免 onboarding review 過度示警。
+- [x] review step hierarchy 已按 severity 分層：guardrails 改為 `critical / must fix`、`warning / review recommended`、`info / heads-up` 三段顯示，並在無 guardrail 時提供 clear state，避免 info / warning 被誤解為阻止提交。
 - [ ] 下一步：依 beta feedback 繼續調整 guardrail 文案、誤報率與 review/dashboard 解讀方式，避免警示疲勞。
 4. Presets 接入主流程
 - [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。

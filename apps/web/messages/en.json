@@ -3440,11 +3440,31 @@
       "completenessHint": "Make it easy for different household types to see what is already usable and what still needs confirmation.",
       "guardrailsHint": "Highlight issues before they distort the baseline, then send the user back to the right step.",
       "completenessScore": "Coverage across key input groups",
+      "snapshotTitle": "Baseline snapshot",
+      "guardrailSectionCount": "{count} items",
       "returnToStep": "Review this step",
       "fixNow": "Fix now",
       "guardrailsClearTitle": "No blocking guardrails right now",
       "guardrailsClearBody": "You can still refine details later, but nothing currently stands out as a major onboarding mismatch.",
+      "guardrailsSummaryBody": "Use the grouped sections below to distinguish what must be fixed now, what deserves another review, and what is only a heads-up before you submit.",
       "edit": "Edit",
+      "guardrailSections": {
+        "critical": {
+          "title": "Critical / must fix",
+          "description": "These items can materially distort the baseline and should be fixed before you submit.",
+          "empty": "No critical issues at the moment."
+        },
+        "warning": {
+          "title": "Warning / review recommended",
+          "description": "These items are worth another look, but they do not automatically block submission.",
+          "empty": "No warning items need another review right now."
+        },
+        "info": {
+          "title": "Info / heads-up",
+          "description": "These notes are informational only and should not feel like a stop sign for submission.",
+          "empty": "No informational heads-up items right now."
+        }
+      },
       "stepNames": {
         "household": "Household",
         "income": "Income",

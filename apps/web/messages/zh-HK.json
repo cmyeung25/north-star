@@ -4883,11 +4883,31 @@
       "completenessHint": "讓不同家庭角色都一眼看懂哪些資料已可用、哪些仍要再確認。",
       "guardrailsHint": "在扭曲基線前先指出問題，並直接帶你返回對應步驟修正。",
       "completenessScore": "關鍵輸入群組覆蓋度",
+      "snapshotTitle": "基線快照",
+      "guardrailSectionCount": "{count} 項",
       "returnToStep": "返回此步驟",
       "fixNow": "立即修正",
       "guardrailsClearTitle": "目前沒有阻擋提交的 guardrails",
       "guardrailsClearBody": "之後仍可再微調細節，但現時沒有明顯的 onboarding 不一致問題。",
+      "guardrailsSummaryBody": "以下分組會清楚區分哪些必須先修正、哪些建議再檢查一次，以及哪些只是提交前的提醒。",
       "edit": "編輯",
+      "guardrailSections": {
+        "critical": {
+          "title": "Critical / 必須修正",
+          "description": "這些問題可能明顯扭曲基線，提交前應先修正。",
+          "empty": "目前沒有 critical 問題。"
+        },
+        "warning": {
+          "title": "Warning / 建議再檢查",
+          "description": "這些項目值得再核對一次，但不代表一定會阻擋提交。",
+          "empty": "目前沒有需要再檢查的 warning 項目。"
+        },
+        "info": {
+          "title": "Info / 提交前提醒",
+          "description": "這些只是提醒資訊，不應被理解成阻止提交的警示。",
+          "empty": "目前沒有額外 info 提醒。"
+        }
+      },
       "stepNames": {
         "household": "家庭成員",
         "income": "收入",
