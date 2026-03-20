@@ -29,6 +29,7 @@ import { saveScenarioPayloadAction } from "../../../../app/(app)/app/actions/sce
 import { useScenarioContext } from "../../../hooks/useScenarioContext";
 import { useScenarioCloudStore } from "../../../store/scenarioCloudStore";
 import { exportScenarioState } from "../../../store/scenarioState";
+import { buildOnboardingCompletenessSummary } from "./completeness";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -286,13 +287,20 @@ export default function OnboardingV3Wizard() {
     [autoRows, manualCashflowEvents]
   );
 
-  const reviewItems = [
-    { label: t("steps.review.items.startMonth"), completed: Boolean(draft.profile.startMonth), warning: t("reviewWarnings.startMonthMissing") },
-    { label: t("steps.review.items.baseCurrency"), completed: Boolean(draft.profile.baseCurrency), warning: t("reviewWarnings.baseCurrencyDefault") },
-    { label: t("steps.review.items.members"), completed: draft.members.length > 0 && draft.members.every((m) => Boolean(m.name)), warning: t("reviewWarnings.memberUnnamed") },
-    { label: t("steps.review.items.assets"), completed: draft.assets.length > 0, warning: t("reviewWarnings.propertyMissing") },
-    { label: t("steps.review.items.generatedCashflow"), completed: mergedEvents.length > 0, warning: t("reviewWarnings.derivedCashflowMissing") },
-  ];
+  const completenessSummary = useMemo(
+    () =>
+      buildOnboardingCompletenessSummary({
+        draft,
+        scenario,
+      }),
+    [draft, scenario]
+  );
+
+  const reviewItems = completenessSummary.groups.map((group) => ({
+    label: t(group.titleKey),
+    completed: group.status === "complete",
+    warning: group.status === "complete" ? undefined : t(group.summaryKey),
+  }));
 
   const reviewSummary = {
     scenarioSetup: {

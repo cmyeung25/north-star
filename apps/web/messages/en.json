@@ -3490,6 +3490,56 @@
       "propertyMissing": "No property added yet",
       "derivedCashflowMissing": "No derived cashflow available"
     },
+    "completeness": {
+      "title": "Onboarding completeness",
+      "level": {
+        "ready": "Ready",
+        "needs_attention": "Needs attention",
+        "incomplete": "Incomplete"
+      },
+      "groups": {
+        "household": {
+          "title": "Household structure",
+          "summary": {
+            "complete": "Household members are named and usable for planning.",
+            "needs_attention": "Some household details still need confirmation.",
+            "incomplete": "Add the household members included in this scenario."
+          }
+        },
+        "income": {
+          "title": "Income",
+          "summary": {
+            "complete": "Confirmed income signals are in place.",
+            "needs_attention": "Only suggested or non-recurring income is available so far.",
+            "incomplete": "Add at least one income source for this scenario."
+          }
+        },
+        "fixedExpenses": {
+          "title": "Fixed expenses",
+          "summary": {
+            "complete": "Recurring expense inputs are already captured.",
+            "needs_attention": "Only one-off expenses are present so far.",
+            "incomplete": "Add recurring spending such as living costs, rent, or travel."
+          }
+        },
+        "housing": {
+          "title": "Housing information",
+          "summary": {
+            "complete": "Housing details are sufficient for the current path.",
+            "needs_attention": "Housing exists, but some key details still need confirmation.",
+            "incomplete": "Add either rent details or owned-property information."
+          }
+        },
+        "assetsLiabilities": {
+          "title": "Assets and liabilities",
+          "summary": {
+            "complete": "Basic balance-sheet values are already available.",
+            "needs_attention": "An asset section is enabled, but basic values are not complete yet.",
+            "incomplete": "Add core asset or debt balances to anchor the baseline."
+          }
+        }
+      }
+    },
     "navigation": {
       "back": "Back",
       "next": "Next",

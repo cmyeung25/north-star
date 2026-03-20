@@ -39,6 +39,8 @@ Last updated: 2026-03-20
 
 3. Guardrails / Completeness 層
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。
+- [x] v1 已交付：onboarding completeness score 規則層已拆出，使用 5 個輸入群組（家庭結構、收入、固定支出、住屋資訊、資產 / 負債基本值）輸出 `ready / needs_attention / incomplete` summary model，且只讀 active onboarding draft + active scenario context、不依賴 engine。
+- [ ] 下一步：補 completeness 對應的關鍵警示清單與修正引導，但保持與 score 規則層解耦。
 4. Presets 接入主流程
 - [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。
 - [x] v1 已交付：member 入口 preset allowlist 擴至 6 個產品化 seeds（single-renter、dual-income-home、dual-income-rental、new-baby、new-baby-helper、high-asset）。
