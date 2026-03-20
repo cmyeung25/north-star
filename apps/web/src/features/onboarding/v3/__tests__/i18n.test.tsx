@@ -6,6 +6,7 @@ import type { AbstractIntlMessages } from "next-intl";
 import { MantineProvider } from "@mantine/core";
 import enMessages from "../../../../../messages/en.json";
 import zhHkMessages from "../../../../../messages/zh-HK.json";
+import AssetsStep from "../steps/AssetsStep";
 import ReviewStep from "../steps/ReviewStep";
 import { createInitialScenarioDraftV3State } from "../types";
 
@@ -53,5 +54,44 @@ describe("onboarding v3 i18n", () => {
 
     expect(enHtml).toContain("Summary before submit");
     expect(zhHtml).toContain("提交前摘要");
+  });
+
+  it("renders localized housing/property IA copy in the assets step", () => {
+    const noop = () => {};
+
+    const enHtml = renderToString(
+      <MantineProvider>
+        <NextIntlClientProvider locale="en" messages={enMessages as unknown as AbstractIntlMessages} timeZone="UTC">
+          <AssetsStep
+            assets={[]}
+            startMonth="2026-03"
+            baseCurrency="HKD"
+            assetToggles={{ propertyEnabled: true, investmentEnabled: false }}
+            onAssetsChange={noop}
+            onAssetTogglesChange={noop}
+          />
+        </NextIntlClientProvider>
+      </MantineProvider>
+    );
+
+    const zhHtml = renderToString(
+      <MantineProvider>
+        <NextIntlClientProvider locale="zh-HK" messages={zhHkMessages as unknown as AbstractIntlMessages} timeZone="UTC">
+          <AssetsStep
+            assets={[]}
+            startMonth="2026-03"
+            baseCurrency="HKD"
+            assetToggles={{ propertyEnabled: true, investmentEnabled: false }}
+            onAssetsChange={noop}
+            onAssetTogglesChange={noop}
+          />
+        </NextIntlClientProvider>
+      </MantineProvider>
+    );
+
+    expect(enHtml).toContain("First decide: are you filling current rent or owned property?");
+    expect(enHtml).toContain("Self-use property");
+    expect(zhHtml).toContain("先分清：你現在是填租屋，還是填已持有物業？");
+    expect(zhHtml).toContain("自住物業");
   });
 });

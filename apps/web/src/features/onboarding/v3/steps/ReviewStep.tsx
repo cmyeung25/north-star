@@ -30,6 +30,18 @@ type Props = {
 
 export default function ReviewStep({ items, summary, onEditStep }: Props) {
   const t = useTranslations("onboardingV3.steps");
+  const propertyAsset = summary.assets.find((asset): asset is Extract<OnboardingAsset, { assetType: "property" }> => asset.assetType === "property");
+  const propertyUsage = propertyAsset?.usage ?? null;
+  const hasMortgage = propertyAsset?.mortgagePrincipalOutstanding !== undefined;
+  const hasRentalIncome = propertyUsage === "rent" && (propertyAsset?.rentMonthly ?? 0) > 0;
+  const propertyStatusLabel = propertyUsage
+    ? t(`review.propertyStatus.${propertyUsage}`)
+    : t("review.propertyStatus.none");
+  const mortgageStatusLabel = propertyUsage
+    ? hasMortgage
+      ? t("review.mortgageStatus.withMortgage")
+      : t("review.mortgageStatus.noMortgage")
+    : t("review.mortgageStatus.notApplicable");
 
   return (
     <Stack>
@@ -62,6 +74,29 @@ export default function ReviewStep({ items, summary, onEditStep }: Props) {
             <Text size="sm">{t("review.summary.assetCount", { value: summary.assets.length })}</Text>
             <Text size="sm">{summary.assets.map((asset) => asset.assetType).join(", ") || "-"}</Text>
             <Text size="sm">{t("review.summary.assetTotal", { value: summary.totalAssetsAmount.toLocaleString() })}</Text>
+            <Text size="sm">{t("review.summary.propertyStatus", { value: propertyStatusLabel })}</Text>
+            <Text size="sm">{t("review.summary.mortgageStatus", { value: mortgageStatusLabel })}</Text>
+            {propertyUsage ? (
+              <Text size="sm">
+                {t("review.summary.propertyValue", {
+                  value: (propertyAsset?.currentValue ?? 0).toLocaleString(),
+                })}
+              </Text>
+            ) : null}
+            {propertyUsage ? (
+              <Text size="sm">
+                {t("review.summary.holdingCost", {
+                  value: (propertyAsset?.holdingCostMonthly ?? 0).toLocaleString(),
+                })}
+              </Text>
+            ) : null}
+            {hasRentalIncome ? (
+              <Text size="sm">
+                {t("review.summary.rentMonthly", {
+                  value: (propertyAsset?.rentMonthly ?? 0).toLocaleString(),
+                })}
+              </Text>
+            ) : null}
           </Stack>
         </Card>
         <Card withBorder>

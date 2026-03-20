@@ -4686,7 +4686,7 @@
       },
       "assets": {
         "title": "資產設定",
-        "description": "新增你在開始規劃當下已持有的資產（現金／房產／投資）。",
+        "description": "先填你目前已持有的資產，讓基線情境從正確的現金、房產與投資狀態開始。",
         "actions": {
           "addProperty": "新增房產",
           "addCash": "新增現金",
@@ -4703,17 +4703,21 @@
           "kindLabel": "類型：{kind}"
         },
         "usage": {
-          "self": "自住",
-          "rent": "出租"
+          "self": "自住物業",
+          "rent": "出租物業"
+        },
+        "usageHint": {
+          "self": "當你已持有並正在居住這個單位時選這項；不會同時顯示出租租金欄位。",
+          "rent": "當這個物業是租給租客時選這項；你自己目前租屋的租金應在「支出假設」填寫。"
         },
         "fields": {
           "assetLabel": "資產名稱",
-          "currentValue": "目前價值",
-          "rentMonthly": "每月租金",
+          "currentValue": "目前市值",
+          "rentMonthly": "預期每月租金",
           "holdingCostMonthly": "每月持有成本",
-          "mortgagePrincipal": "按揭本金餘額",
-          "mortgageRate": "利率 %",
-          "mortgageTermYears": "按揭年期",
+          "mortgagePrincipal": "按揭未償還餘額",
+          "mortgageRate": "按揭年利率（%）",
+          "mortgageTermYears": "剩餘按揭年期（年）",
           "cashAmount": "現金金額",
           "cashCurrency": "貨幣",
           "investmentPrincipal": "投資本金",
@@ -4723,7 +4727,7 @@
             "assumption": "跟隨假設",
             "custom": "自訂報酬"
           },
-          "mortgageTermMonths": "按揭月期",
+          "mortgageTermMonths": "剩餘按揭期數（月）",
           "mortgageTermMode": {
             "years": "按年",
             "months": "按月"
@@ -4732,7 +4736,7 @@
         "switches": {
           "enableRentIncome": "啟用租金收入",
           "enableHoldingCost": "啟用每月持有成本",
-          "enableMortgage": "啟用按揭資訊",
+          "enableMortgage": "此物業仍有按揭",
           "enableProperty": "加入房產資產",
           "enableInvestment": "加入投資資產"
         },
@@ -4740,13 +4744,52 @@
           "investment": "可先填寫投資名稱與目前市值；其餘明細可後續補充。",
           "cash": "建議填寫現金用途（例如：緊急備用金 / 活存）。",
           "cashCurrentBalance": "請輸入目前現金結餘。",
+          "assetLabel": "建議填寫，方便在 review 摘要中清楚辨認是什麼物業或帳戶。",
+          "currentValue": {
+            "self": "請填你現時自住房產的估計市值或最近參考市值。",
+            "rent": "請填這個出租物業的估計市值或最近參考市值。"
+          },
+          "holdingCostMonthly": {
+            "self": "例如：管理費、差餉、保險、日常保養等自住房持續成本。",
+            "rent": "例如：管理費、差餉、保險、由業主承擔的維修保養等出租持續成本。"
+          },
+          "rentMonthly": "請填未扣空置或代理分成前的每月租金收入。",
+          "mortgageEnabled": "只有當這個物業仍有未清按揭時才需要開啟。",
+          "noMortgage": "已供完或無按揭的物業可保持關閉。",
+          "mortgagePrincipal": "請填目前尚未償還的貸款餘額，不是最初借款額。",
+          "mortgageRate": "方向說明：這裡填的是現時按揭未償還餘額所適用的年利率。",
+          "mortgageTermYears": "如你知道剩餘幾多年，用年期填寫即可；只有需要更精細時才改用月份。",
+          "mortgageTermMonths": "當實際還款期接近結束，或不是整數年時，可改以剩餘月份填寫。",
           "mortgageAutoProjection": "系統會按按揭資料自動推算供款支出。",
-          "mortgageMonthlyPayment": "預計每月供款：約 {amount}"
+          "mortgageMonthlyPayment": "預計每月供款：約 {amount}",
+          "investmentReturnPct": "方向說明：這裡填的是未扣費前的預期年增長率。",
+          "investmentStartMonth": "如投資是今天已持有可留空概念；若持倉稍後才開始，建議填開始月份。"
         },
         "badges": {
-          "optional": "選填"
+          "optional": "選填",
+          "recommended": "建議填"
         },
-        "currentHoldingsHint": "此步驟只填寫「目前持有」資產，之後可再新增未來交易。"
+        "currentHoldingsHint": "此步驟只填寫「目前持有」資產，之後可再新增未來交易。",
+        "sections": {
+          "currentHousing": {
+            "title": "先分清：你現在是填租屋，還是填已持有物業？",
+            "description": "這一步只處理你已經持有的資產。",
+            "rentingHint": "如果你目前是租屋住，請在「支出假設」填租金；只有你已經持有物業時才在這裡新增房產。"
+          },
+          "property": {
+            "title": "你已持有的物業",
+            "description": "先選擇情境，系統就會隱藏與你無關的欄位。"
+          },
+          "propertyBasics": {
+            "title": "物業基本資料"
+          },
+          "propertyCashflow": {
+            "title": "物業現金流資料"
+          },
+          "mortgage": {
+            "title": "按揭資料"
+          }
+        }
       },
       "income": {
         "title": "收入假設",
@@ -4854,6 +4897,11 @@
           "personaFocusesEmpty": "未設定",
           "assetCount": "資產數量：{value}",
           "assetTotal": "資產總值（估算）：{value}",
+          "propertyStatus": "物業情境：{value}",
+          "mortgageStatus": "按揭情境：{value}",
+          "propertyValue": "onboarding 使用的物業市值：{value}",
+          "holdingCost": "每月持有成本：{value}",
+          "rentMonthly": "預期每月租金：{value}",
           "derivedIncome": "自動產生收入：{value}",
           "derivedExpense": "自動產生支出：{value}",
           "manualIncome": "手動收入項目：{value}",
@@ -4861,6 +4909,16 @@
           "monthlyIncomeTotal": "每月收入合計：{value}",
           "monthlyExpenseTotal": "每月支出合計：{value}",
           "monthlyNetTotal": "每月淨現金流：{value}"
+        },
+        "propertyStatus": {
+          "none": "尚未新增已持有物業",
+          "self": "自住物業",
+          "rent": "出租物業"
+        },
+        "mortgageStatus": {
+          "withMortgage": "已填按揭資料",
+          "noMortgage": "無按揭",
+          "notApplicable": "不適用"
         }
       },
       "common": {

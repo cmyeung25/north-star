@@ -1,5 +1,5 @@
 ﻿# North Star Product Roadmap
-Last updated: 2026-03-18
+Last updated: 2026-03-20
 
 ## Product Focus
 - 產品定位: 香港/亞洲家庭人生現金流決策平台。
@@ -18,6 +18,7 @@ Last updated: 2026-03-18
 1. Onboarding + Property Bundle 完整化
 - 家庭成員/收入/支出/物業/按揭/租務輸入流程整合為單一路徑。
 - 物業資料明確區分現價、按揭基準、剩餘期數、每月供款、持續成本、出租狀態與租金。
+- [x] Onboarding housing/property IA 已收斂：在資產步驟先提示「現時租屋 vs 已持有物業」分流，並把自住物業／出租物業／有按揭／無按揭欄位分段呈現與補齊 helper 文案、百分比方向說明、review 摘要鋪位。
 - [x] Onboarding v3 收入/支出手動項目新增分類 dropdown（沿用既有 taxonomy），並在卡片顯示分類摘要以降低誤分類。
 - [x] Onboarding v3 收入/支出步驟分類摘要改用與 Money 頁一致的 `MoneyMetaTags` 樣式，並修正家庭成員自動薪資事件預設分類為 salary（避免落入「其他」）。
 - [x] Onboarding v3 新增「人生階段重點（可多選：成家/生育/教育/退休）」；依所選重點即時顯示推薦模板清單，並於提交後寫入 scenario-scoped `scenario.meta.personaFocuses`。
