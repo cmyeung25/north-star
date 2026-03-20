@@ -1,11 +1,11 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (housing semantics alignment for onboarding draft/compiler)
+Last updated: 2026-03-20 (onboarding completeness score v1 rules layer)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 60% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，但 guardrails 仍待整合 |
+| Closed Beta readiness | 62% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 completeness score v1 已可輸出整體訊號，但 guardrails 細則仍待整合 |
 | Public MVP readiness | 40% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，但營運支援與漏斗補齊仍有缺口 |
 
 ## Capability Matrix
@@ -14,7 +14,7 @@ Last updated: 2026-03-20 (housing semantics alignment for onboarding draft/compi
 | Onboarding + Property Bundle | 76% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料。 | 需補齊既有物業 household 的一致輸入、completeness guardrails 與更完整的 review 修正引導 |
 | Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
-| Guardrails / Completeness | 40% | 已有部分 warning 與檢查邏輯 | 需產品化 completeness score、關鍵警示與修正引導 |
+| Guardrails / Completeness | 55% | 已有 assumptions / Plan Lab 局部 warning，且 onboarding completeness score v1 已可用 5 個輸入群組輸出 `ready / needs_attention / incomplete` summary model（不依賴 engine、僅讀 active onboarding draft + scenario context） | 仍需補關鍵警示清單、修正引導與後續 UI 呈現整合 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
 | Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
@@ -196,7 +196,11 @@ Last updated: 2026-03-20 (housing semantics alignment for onboarding draft/compi
 2. 讓 Plan Lab 以模板化決策入口驅動，並補齊比較摘要的可行動建議。
 3. 將 member preset onboarding-prefill 延伸到 app 內延伸入口，並建立封閉 beta 回饋閉環與量化追蹤。
 ## Latest Update (2026-03-20)
+- Onboarding completeness score v1 已拆成獨立 rules layer：以家庭結構、收入、固定支出、住屋資訊、資產 / 負債基本值 5 組輸入，輸出 `ready / needs_attention / incomplete` summary model，供 review / 後續 UI 直接消費。
+- Score 規則只讀 active onboarding draft 與 active scenario context，並透過 property-derived cashflow/liability 規則補齊住屋訊號；不讀 engine、不改 projection 介面。
+- 收入完整度會刻意把自動建議薪資（auto salary suggestion）視為 `needs_attention` 而非 `ready`，避免預設建議值讓首次建模看似已完成。
+- 新增 focused unit tests，覆蓋空白草稿、租屋 ready、按揭資料未齊的 owned-home、以及 scenario context fallback 等規則路徑。
 - Onboarding v3 資產步驟已加入 housing/property IA 引導：先提示「現時租屋請到支出填寫、此步驟只填已持有物業」，再以 section grouping 分開物業基本資料、物業現金流、按揭資料，降低無關欄位同時出現的認知負擔。
 - 自住物業／出租物業／有按揭／無按揭文案已收斂為明確 label + helper text；按揭利率與投資回報等百分比欄位補上 direction 說明，並以 `recommended` / `optional` badge 提示填寫優先序。
 - Review step 已加入 property / mortgage 摘要鋪位，讓使用者在提交前可快速確認自己填的是哪一種 housing scenario 與是否已填按揭資料。
-- 本次變更僅調整 onboarding v3 UI / i18n / review summary，不改 compiler、engine、post-login routing 或 persistence schema。
+- 本次變更聚焦 onboarding review/completeness 規則層與 i18n，不改 compiler、engine、post-login routing 或 persistence schema。

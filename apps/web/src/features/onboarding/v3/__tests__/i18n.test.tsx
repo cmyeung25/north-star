@@ -8,7 +8,34 @@ import enMessages from "../../../../../messages/en.json";
 import zhHkMessages from "../../../../../messages/zh-HK.json";
 import AssetsStep from "../steps/AssetsStep";
 import ReviewStep from "../steps/ReviewStep";
+import {
+  buildOnboardingCompletenessSummary,
+  type OnboardingCompletenessGroupStatus,
+} from "../completeness";
 import { createInitialScenarioDraftV3State } from "../types";
+
+type OnboardingCompletenessMessages = {
+  onboardingV3: {
+    completeness: {
+      groups: Record<
+        string,
+        {
+          title: string;
+          summary: Record<OnboardingCompletenessGroupStatus, string>;
+        }
+      >;
+    };
+  };
+};
+
+const resolveCompletenessMessage = (
+  messages: OnboardingCompletenessMessages,
+  key: string,
+  status: OnboardingCompletenessGroupStatus
+) => ({
+  title: messages.onboardingV3.completeness.groups[key]?.title,
+  summary: messages.onboardingV3.completeness.groups[key]?.summary[status],
+});
 
 describe("onboarding v3 i18n", () => {
   it("injects locale-specific default member name during initial draft creation", () => {
@@ -54,6 +81,74 @@ describe("onboarding v3 i18n", () => {
 
     expect(enHtml).toContain("Summary before submit");
     expect(zhHtml).toContain("提交前摘要");
+  });
+
+  it("provides localized completeness labels for review consumers", () => {
+    const draft = createInitialScenarioDraftV3State({ defaultMemberName: "Me" });
+    draft.profile.startMonth = "2026-03";
+    draft.events.push({
+      id: "auto-salary",
+      type: "cashflow",
+      kind: "income",
+      label: "Salary",
+      amount: 20000,
+      cadence: "monthly",
+      startMonth: "2026-03",
+      tags: ["onboarding:v3:income:salary:auto"],
+    });
+
+    const summary = buildOnboardingCompletenessSummary({ draft });
+
+    const enHtml = renderToString(
+      <MantineProvider>
+        <NextIntlClientProvider locale="en" messages={enMessages as unknown as AbstractIntlMessages} timeZone="UTC">
+          <span>
+            {summary.groups.map((group) => (
+              <span key={group.key}>
+                {resolveCompletenessMessage(
+                  enMessages as unknown as OnboardingCompletenessMessages,
+                  group.key,
+                  group.status
+                ).title}
+                {resolveCompletenessMessage(
+                  enMessages as unknown as OnboardingCompletenessMessages,
+                  group.key,
+                  group.status
+                ).summary}
+              </span>
+            ))}
+          </span>
+        </NextIntlClientProvider>
+      </MantineProvider>
+    );
+
+    const zhHtml = renderToString(
+      <MantineProvider>
+        <NextIntlClientProvider locale="zh-HK" messages={zhHkMessages as unknown as AbstractIntlMessages} timeZone="UTC">
+          <span>
+            {summary.groups.map((group) => (
+              <span key={group.key}>
+                {resolveCompletenessMessage(
+                  zhHkMessages as unknown as OnboardingCompletenessMessages,
+                  group.key,
+                  group.status
+                ).title}
+                {resolveCompletenessMessage(
+                  zhHkMessages as unknown as OnboardingCompletenessMessages,
+                  group.key,
+                  group.status
+                ).summary}
+              </span>
+            ))}
+          </span>
+        </NextIntlClientProvider>
+      </MantineProvider>
+    );
+
+    expect(enHtml).toContain("Household structure");
+    expect(enHtml).toContain("Only suggested or non-recurring income is available so far.");
+    expect(zhHtml).toContain("家庭結構");
+    expect(zhHtml).toContain("目前只有建議值或非固定收入，仍需確認。");
   });
 
   it("renders localized housing/property IA copy in the assets step", () => {

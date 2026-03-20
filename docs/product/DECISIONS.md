@@ -4,6 +4,13 @@ Last updated: 2026-03-20
 
 ## Decision Log
 
+### D-2026-03-20-03
+- Date: 2026-03-20
+- Status: Accepted
+- Context: PR-3A 需要先把 onboarding completeness 從未來 guardrail 細則中拆成可獨立演進的總覽訊號，但不能讓這個分數依賴 projection engine，也不能因為 onboarding 預設建議值而誤判使用者已完成首次建模。
+- Decision: Onboarding completeness score v1 採 5 個輸入群組（家庭結構、收入、固定支出、住屋資訊、資產 / 負債基本值）輸出 `ready / needs_attention / incomplete` summary model；資料來源僅限 active onboarding draft 與 active scenario context，並可重用 property-derived rules 補足 housing signal。自動建議薪資（auto salary suggestion）只計為 `needs_attention`，不可直接把整體狀態推到 `ready`。
+- Guardrails: 此階段只做 score 規則層與 UI-consumable summary model，不加入 guardrail error list、analytics 或 engine 依賴；後續警示/修正引導須建立在同一份 scenario-scoped 規則輸出上。
+
 ### D-2026-03-20-02
 - Date: 2026-03-20
 - Status: Accepted

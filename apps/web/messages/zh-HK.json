@@ -4933,6 +4933,56 @@
       "propertyMissing": "尚未新增房產",
       "derivedCashflowMissing": "沒有可衍生現金流"
     },
+    "completeness": {
+      "title": "Onboarding 完整度",
+      "level": {
+        "ready": "可開始",
+        "needs_attention": "仍需留意",
+        "incomplete": "未完成"
+      },
+      "groups": {
+        "household": {
+          "title": "家庭結構",
+          "summary": {
+            "complete": "家庭成員資料已可用於規劃。",
+            "needs_attention": "仍有部分家庭資料需要再確認。",
+            "incomplete": "請先加入這個情境包含的家庭成員。"
+          }
+        },
+        "income": {
+          "title": "收入",
+          "summary": {
+            "complete": "已具備可用的收入訊號。",
+            "needs_attention": "目前只有建議值或非固定收入，仍需確認。",
+            "incomplete": "請至少加入一項收入來源。"
+          }
+        },
+        "fixedExpenses": {
+          "title": "固定支出",
+          "summary": {
+            "complete": "已加入可用的固定支出資料。",
+            "needs_attention": "目前只有一次性支出，仍未形成固定支出基線。",
+            "incomplete": "請加入日常支出、租金或其他固定開支。"
+          }
+        },
+        "housing": {
+          "title": "住屋資訊",
+          "summary": {
+            "complete": "目前住屋資料已足夠支持這條路徑。",
+            "needs_attention": "已開始填住屋資料，但仍有關鍵欄位需要確認。",
+            "incomplete": "請加入租屋資料或已持有物業資料。"
+          }
+        },
+        "assetsLiabilities": {
+          "title": "資產 / 負債基本值",
+          "summary": {
+            "complete": "已具備基本資產或負債金額。",
+            "needs_attention": "已開啟資產區塊，但基本金額仍未填完整。",
+            "incomplete": "請加入核心資產或債務結餘，讓基線更貼近現況。"
+          }
+        }
+      }
+    },
     "navigation": {
       "back": "返回",
       "next": "下一步",
