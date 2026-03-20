@@ -1,10 +1,21 @@
 export type MarketEntryEventName =
   | "market_landing_view"
+  | "sample_journey_impression"
   | "journey_cta_click"
   | "auth_modal_open"
+  | "case_created"
   | "preset_create_started"
   | "preset_create_submitted"
   | "onboarding_started";
+
+export const MARKET_ENTRY_ALLOWED_PAYLOAD_KEYS = [
+  "locale",
+  "journeyId",
+  "presetId",
+  "isSignedIn",
+] as const;
+
+type MarketEntryAllowedPayloadKey = (typeof MARKET_ENTRY_ALLOWED_PAYLOAD_KEYS)[number];
 
 export type MarketEntryEventPayload = {
   locale: string;
@@ -30,13 +41,22 @@ declare global {
   }
 }
 
+export const sanitizeMarketEntryPayload = (
+  payload: MarketEntryEventPayload,
+): Pick<MarketEntryEventPayload, MarketEntryAllowedPayloadKey> => ({
+  locale: payload.locale,
+  journeyId: payload.journeyId,
+  presetId: payload.presetId,
+  isSignedIn: payload.isSignedIn,
+});
+
 export const trackMarketEntryEvent = (
   name: MarketEntryEventName,
   payload: MarketEntryEventPayload,
 ) => {
   const event: MarketEntryEvent = {
     name,
-    payload,
+    payload: sanitizeMarketEntryPayload(payload),
     ts: new Date().toISOString(),
   };
 
@@ -53,3 +73,22 @@ export const trackMarketEntryEvent = (
   emitConsoleTelemetry(event);
 };
 
+export const trackMarketEntryExposureOnce = ({
+  seenExposureKeys,
+  exposureKey,
+  name,
+  payload,
+}: {
+  seenExposureKeys: Set<string>;
+  exposureKey: string;
+  name: MarketEntryEventName;
+  payload: MarketEntryEventPayload;
+}) => {
+  if (seenExposureKeys.has(exposureKey)) {
+    return false;
+  }
+
+  seenExposureKeys.add(exposureKey);
+  trackMarketEntryEvent(name, payload);
+  return true;
+};
