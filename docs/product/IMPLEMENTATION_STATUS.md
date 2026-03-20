@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (focused housing/property guardrail calibration pass)
+Last updated: 2026-03-20 (market-entry member handoff contract productized)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -16,15 +16,15 @@ Last updated: 2026-03-20 (focused housing/property guardrail calibration pass)
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 93% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 focused calibration 再把最高摩擦規則的文案改成「問題 + 為何影響 baseline + 下一步」、修正部分 target section（property / housing），並加強 review step 視覺層級，減少 warning / info 被誤解為阻擋提交。analytics contract 亦維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 主流程整合 | 68% | member create modal 已支援 blank/preset；marketing persona CTA 可攜帶 allowlisted `journey/preset` 導流並在 member 預選 preset，create dialog 亦會顯示 journey 承諾（適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出）；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
+| Preset 主流程整合 | 76% | member create modal 已支援 blank/preset；marketing persona / sample journey CTA 現統一走 canonical `journey/preset` policy 與 `/member/cases` handoff，signed-in / signed-out 皆可重建同一 create intent；preset 仍走 onboarding-prefill 且限 6 個 allowlist seeds | app 內延伸入口與分組資訊架構仍待 beta 回饋收斂 |
 | GTM / 營運就緒 | 31% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA | 仍缺 beta feedback loop、支援流程 |
 
 ## Market Entry + Sample Journey Progress
 | 子項 | 進度 | 現況 | 阻塞項 | 下一里程碑 |
 |---|---:|---|---|---|
 | 入口頁訊息架構 | 78% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff | 仍未建立 A/B slot metadata 與 sample journey impression tracking，無法持續優化訊息效果 | 補 experiment slots 與 sample journey impression event，讓訊息迭代可量測 |
-| Persona ↔ Preset Mapping | 60% | 已有 6 個 allowlisted presets，且 marketing CTA 可帶 `journey/preset` 到 member create flow | 仍缺 persona coverage matrix 與 fallback policy 文件化，容易出現「persona promise > preset 能力」落差 | 固化 persona-to-preset allowlist mapping 與 blank fallback 條件 |
-| Journey Deep-link / Handoff | 70% | 已建立 `journey + preset` query handoff 到 `/member/cases`，member 端會預選 preset，並用 guidance copy 承接適用族群 / 目標決策 / 預計完成時間 / 首次可見輸出 | contract 已在產品文件中收斂，但仍缺 signed-in/out 漏斗驗證與 onboarding entry 後續承接細節 | 補 signed-in / signed-out handoff 驗證與 onboarding entry guidance 對齊 |
+| Persona ↔ Preset Mapping | 85% | allowlisted journey ids、primary preset mapping、blank fallback 規則現已收斂到單一 canonical source，並同步供 member resolver、marketing CTA 與測試使用；文件亦補上 persona coverage matrix | 仍缺 secondary preset / unsupported persona 的產品評估流程與 KPI 校驗 | 建立未來 persona 擴充 review checklist（mapping / copy / funnel） |
+| Journey Deep-link / Handoff | 88% | `journey + preset` query handoff 已統一由 helper/builders 管理；member 端嚴格只讀 `journey` / `preset`，未知值安全回退 blank flow，signed-out auth return 亦會回到 `/member/cases` 重建相同 intent | 仍缺完整 case-created / onboarding-completed dashboard 與 signed-in/out cohort 儀表板 | 補 funnel completion events 與 cohort review cadence |
 | Funnel Tracking | 65% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；onboarding weekly review pack 可直接從 metadata-only 事件產出 | 仍缺 `sample journey impression`、`case created` 與更完整的 dashboard/review cadence 定義 | 補齊剩餘漏斗事件字典並把 operator weekly review pack 接到固定檢視節奏 |
 | A/B 文案實驗位 | 15% | 目前僅有 vendor-agnostic tracking 抽象，可承接未來實驗 metadata | 尚未定義可實驗欄位、命名規則、最小 sample size 與停止條件 | 建立 experiment slot 命名與文案版本標記策略 |
 | KPI 基線 / 驗收門檻 | 30% | 已有 v1 funnel event 與基礎轉化公式 | 尚未把 MVP 最低 KPI 與 weekly review threshold 寫入產品規格 | 將最低 KPI 納入 roadmap 驗收條件與 market-entry review ritual |
@@ -47,6 +47,12 @@ Last updated: 2026-03-20 (focused housing/property guardrail calibration pass)
 - Promoted minimum KPI gates for first-run completion, journey-to-case conversion, onboarding start rate, and CTA CTR into the product status baseline, so market-entry readiness is measured against publishable thresholds rather than qualitative intent only.
 - Marketing landing page IA refreshed to a text-led structure: hero proof cards, persona decision cards without decorative photos, sample journeys with explicit decision questions, and a clearer first-session CTA promise.
 - Sample journey content kit now makes the decision question explicit for the three target personas (steady saver, dual-income home buyer, new parents), so marketing promise and in-product action path are easier to align.
+
+## Latest Update (2026-03-20)
+- Market-entry public entry → member create contract is now productized behind one canonical source: allowlisted journey ids, primary preset mapping, and explicit blank-fallback policy all live together and are reused by member query parsing plus marketing CTA href construction.
+- Query parsing is now strict: member `/member/cases` only reads `journey` and `preset`, unknown journey ids fall back safely, non-allowlisted presets fall back safely, and journey → preset mapping only happens through the canonical allowlist policy.
+- Signed-out auth return now preserves the same create intent through auth without changing the mandatory landing rule: users still land on `/{locale}/member/cases`, and the create dialog rehydrates the same preset/journey intent after login.
+- Product docs now include a concise persona coverage matrix and a durable blank-fallback rule so future market-entry work cannot silently bypass `/member/cases` or expose hidden seeds.
 
 ## Latest Update (2026-03-20)
 - Highest-friction housing/property guardrails (`property usage`, `mortgage core`, `self-use vs rental`, `rental income missing`, `mortgage property basics`, duplicate housing-cost inputs) 已做 focused calibration pass：severity 邏輯維持「只把 baseline-distortion blocking 問題列為 critical」，避免把 review UI 再次變成過度示警。

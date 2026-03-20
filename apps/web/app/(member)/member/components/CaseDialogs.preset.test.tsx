@@ -18,7 +18,10 @@ import {
 import { createInitialScenarioDraftV3State } from "../../../../src/features/onboarding/v3/types";
 import { createScenarioSeedTranslatorFromMessages, getScenarioSeeds } from "../../../../src/scenarios/scenarioSeeds";
 import { JourneySummaryCard } from "./CaseDialogs";
-import { MEMBER_JOURNEY_PRESET_MAP } from "../../../../src/features/member/createCaseEntry";
+import {
+  MEMBER_JOURNEY_POLICY,
+  MEMBER_JOURNEY_PRESET_MAP,
+} from "../../../../src/features/member/createCaseEntry";
 
 const dialogSourcePath = path.resolve(
   process.cwd(),
@@ -230,6 +233,19 @@ describe("member create-case preset flow", () => {
 
     expect(productizedSeedIds).toContain("new-baby");
     expect(productizedSeedIds).toContain("new-baby-helper");
+  });
+
+  it("keeps every public journey mapped only through allowlisted member presets with blank fallback policy", () => {
+    for (const [journeyId, policy] of Object.entries(MEMBER_JOURNEY_POLICY)) {
+      expect(policy.fallbackToBlank).toBe(true);
+
+      if (policy.primaryPresetId) {
+        expect(MEMBER_CASE_PRESET_SEED_IDS).toContain(policy.primaryPresetId);
+        expect(MEMBER_JOURNEY_PRESET_MAP[journeyId as keyof typeof MEMBER_JOURNEY_PRESET_MAP]).toBe(
+          policy.primaryPresetId
+        );
+      }
+    }
   });
 
   it("writes preset onboarding drafts into scenario-scoped storage", () => {

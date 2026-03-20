@@ -4,10 +4,14 @@ import { Badge, Button, Card, Group, List, SimpleGrid, Stack, Text, ThemeIcon, T
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useAuthModal } from "./AuthModalController";
-import { MEMBER_JOURNEY_PRESET_MAP } from "../../../src/features/member/createCaseEntry";
+import {
+  buildMemberCasesEntryHref,
+  MEMBER_JOURNEY_PRESET_MAP,
+  type MemberJourneyId,
+} from "../../../src/features/member/createCaseEntry";
 import { trackMarketEntryEvent } from "../../../src/lib/analytics/marketEntry";
 
-type PersonaKey = "officeSaver" | "coupleHome" | "newParents" | "mortgageOwner";
+type PersonaKey = MemberJourneyId;
 
 const personaKeys: PersonaKey[] = ["officeSaver", "coupleHome", "newParents", "mortgageOwner"];
 
@@ -82,17 +86,17 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                     color="gray"
                     onClick={() => {
                       const presetId = MEMBER_JOURNEY_PRESET_MAP[key];
+                      const entryIntent = {
+                        journey: key,
+                        presetId,
+                      } as const;
                       trackMarketEntryEvent("journey_cta_click", {
                         locale,
                         journeyId: key,
                         presetId,
                         isSignedIn,
                       });
-                      const params = new URLSearchParams({
-                        journey: key,
-                        preset: presetId,
-                      });
-                      const targetPath = `/${locale}/member/cases?${params.toString()}`;
+                      const targetPath = buildMemberCasesEntryHref(locale, entryIntent);
                       if (isSignedIn) {
                         router.push(targetPath);
                         return;
@@ -103,7 +107,7 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                         presetId,
                         isSignedIn,
                       });
-                      openAuthModal("register");
+                      openAuthModal("register", entryIntent);
                     }}
                   >
                     {t(`personas.${key}.cta`)}

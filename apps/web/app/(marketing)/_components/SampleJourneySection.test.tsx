@@ -7,6 +7,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { AbstractIntlMessages } from "next-intl";
 import enMessages from "../../../messages/en.json";
 import SampleJourneySection from "./SampleJourneySection";
+import { buildMemberCasesEntryHref } from "../../../src/features/member/createCaseEntry";
 
 describe("SampleJourneySection", () => {
   it("renders sample journey cards and keeps CTA deep links with journey+preset query", () => {
@@ -23,8 +24,24 @@ describe("SampleJourneySection", () => {
     );
 
     expect(html).toContain("Three sample journeys you can try now");
-    expect(html).toContain("/en/member/cases?journey=officeSaver&amp;preset=single-renter");
-    expect(html).toContain("/en/member/cases?journey=coupleHome&amp;preset=dual-income-home");
-    expect(html).toContain("/en/member/cases?journey=newParents&amp;preset=new-baby");
+    expect(html).toContain(
+      buildMemberCasesEntryHref("en", {
+        journey: "officeSaver",
+        presetId: "single-renter",
+      }).replaceAll("&", "&amp;")
+    );
+    expect(html).toContain(
+      buildMemberCasesEntryHref("en", {
+        journey: "coupleHome",
+        presetId: "dual-income-home",
+      }).replaceAll("&", "&amp;")
+    );
+    expect(html).toContain(
+      buildMemberCasesEntryHref("en", {
+        journey: "newParents",
+        presetId: "new-baby",
+      }).replaceAll("&", "&amp;")
+    );
+    expect(html).not.toContain("/en/app/");
   });
 });

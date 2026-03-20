@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { Badge, Button, Card, Divider, Group, List, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { useLocale, useTranslations } from "next-intl";
-import { MEMBER_JOURNEY_PRESET_MAP } from "../../../src/features/member/createCaseEntry";
+import {
+  buildMemberCasesEntryHref,
+  MEMBER_JOURNEY_PRESET_MAP,
+  type MemberJourneyId,
+} from "../../../src/features/member/createCaseEntry";
 
-type SampleJourneyKey = "officeSaver" | "coupleHome" | "newParents";
+type SampleJourneyKey = Extract<MemberJourneyId, "officeSaver" | "coupleHome" | "newParents">;
 
 const sampleJourneyKeys: SampleJourneyKey[] = ["officeSaver", "coupleHome", "newParents"];
 const sampleJourneySteps = ["one", "two", "three"] as const;
@@ -27,11 +31,10 @@ export default function SampleJourneySection() {
       </Stack>
       <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
         {sampleJourneyKeys.map((journeyKey) => {
-          const params = new URLSearchParams({
+          const href = buildMemberCasesEntryHref(locale, {
             journey: journeyKey,
-            preset: MEMBER_JOURNEY_PRESET_MAP[journeyKey],
+            presetId: MEMBER_JOURNEY_PRESET_MAP[journeyKey],
           });
-          const href = `/${locale}/member/cases?${params.toString()}`;
 
           return (
             <Card key={journeyKey} bg="rgba(255,255,255,0.97)" radius="xl" p="xl">
