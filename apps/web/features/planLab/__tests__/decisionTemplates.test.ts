@@ -11,7 +11,10 @@ const translate = (_key: string, fallback: string) => fallback;
 describe("decisionTemplates", () => {
   it("returns decision templates with local cost ranges", () => {
     const templates = buildPlanLabDecisionTemplateOptions({
+      enableDeferredTemplates: false,
       hasEligibleIncomeEvent: true,
+      hasEditableMortgageEvent: false,
+      hasEditableHousingEvent: false,
       translate,
       selectedCostProfile: {},
     });
@@ -39,7 +42,10 @@ describe("decisionTemplates", () => {
 
   it("disables income shock template when no editable income event exists", () => {
     const templates = buildPlanLabDecisionTemplateOptions({
+      enableDeferredTemplates: false,
       hasEligibleIncomeEvent: false,
+      hasEditableMortgageEvent: false,
+      hasEditableHousingEvent: false,
       translate,
       selectedCostProfile: {},
     });
@@ -142,5 +148,29 @@ describe("decisionTemplates", () => {
         agentFeeAmount: 14000,
       },
     });
+  });
+
+  it("adds deferred templates only after the beta launch gate is enabled", () => {
+    const templates = buildPlanLabDecisionTemplateOptions({
+      enableDeferredTemplates: true,
+      hasEligibleIncomeEvent: true,
+      hasEditableMortgageEvent: false,
+      hasEditableHousingEvent: false,
+      translate,
+      selectedCostProfile: {},
+    });
+
+    expect(templates.map((template) => template.id)).toContain("mortgage_rate_hike");
+    expect(templates.map((template) => template.id)).toContain("move_home");
+
+    const mortgageRateHike = templates.find(
+      (template) => template.id === "mortgage_rate_hike"
+    );
+    const moveHome = templates.find((template) => template.id === "move_home");
+
+    expect(mortgageRateHike?.availability.enabled).toBe(false);
+    expect(mortgageRateHike?.availability.reasonFallback).toContain("mortgage event");
+    expect(moveHome?.availability.enabled).toBe(false);
+    expect(moveHome?.availability.reasonFallback).toContain("housing event");
   });
 });
