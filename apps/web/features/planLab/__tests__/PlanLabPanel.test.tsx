@@ -196,5 +196,17 @@ describe("PlanLabPanel", () => {
         activeRentEventCount: 1,
       })
     ).toBe("bundle");
+    expect(
+      resolveDecisionTemplateLaunchPath({
+        templateId: "mortgage_rate_hike",
+        activeRentEventCount: 0,
+      })
+    ).toBe("mortgage_edit");
+    expect(
+      resolveDecisionTemplateLaunchPath({
+        templateId: "move_home",
+        activeRentEventCount: 0,
+      })
+    ).toBe("housing_edit");
   });
 });
