@@ -169,6 +169,32 @@ describe("ActiveScenarioSettingsDataManagementPresetRecoverySection", () => {
     }
   });
 
+  it("keeps settings recovery copy distinct from Money edit shortcuts or Plan Lab experiments", () => {
+    const html = renderToString(
+      <MantineProvider>
+        <NextIntlClientProvider
+          locale="en"
+          messages={enMessages as unknown as AbstractIntlMessages}
+          timeZone="UTC"
+        >
+          <ActiveScenarioSettingsDataManagementPresetRecoverySection
+            presets={presets}
+            hasExistingDraft={true}
+            isApplyingPreset={false}
+            onApplyPreset={() => undefined}
+          />
+        </NextIntlClientProvider>
+      </MantineProvider>
+    );
+
+    expect(html).toContain(
+      "It does not write baseline events, mark onboarding complete, or act like a Money edit shortcut / Plan Lab experiment."
+    );
+    expect(html).toContain(
+      "It does not write baseline events, mark onboarding complete, or create anything in Money / Plan Lab."
+    );
+  });
+
   it("keeps the settings recovery entry scoped away from Plan Lab, Money, and baseline event drawers", () => {
     const dataManagementSource = fs.readFileSync(
       path.resolve(process.cwd(), "components/DataManagementSection.tsx"),

@@ -88,7 +88,7 @@ describe("ActiveScenarioOnboardingDraftPresetSection", () => {
     expect(html).toContain(
       "Outcome after onboarding: you will leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
     );
-    expect(html).toContain("Use as new starting point");
+    expect(html).toContain("Use as onboarding starting point");
   });
 
   it("shows the replace warning only when an onboarding draft already exists", () => {
@@ -130,11 +130,11 @@ describe("ActiveScenarioOnboardingDraftPresetSection", () => {
     expect(withDraftHtml).toContain(
       "This only replaces the active scenario’s current onboarding draft starting point."
     );
-    expect(withDraftHtml).toContain("Replace current starting point");
+    expect(withDraftHtml).toContain("Replace draft starting point");
     expect(withoutDraftHtml.includes("Replace current onboarding draft starting point?")).toBe(
       false
     );
-    expect(withoutDraftHtml.includes("Replace current starting point")).toBe(false);
+    expect(withoutDraftHtml.includes("Replace draft starting point")).toBe(false);
   });
 
   it("keeps onboarding preset copy backed by i18n keys for both locales", () => {
@@ -189,8 +189,9 @@ describe("ActiveScenarioOnboardingDraftPresetSection", () => {
     );
 
     expect(html).toContain(
-      "They only create or replace the active scenario’s onboarding draft starting point—they do not write baseline events or mark onboarding complete."
+      "They only create or replace the active scenario’s onboarding draft starting point—they do not write baseline events, mark onboarding complete, or act like a Plan Lab experiment / Money event template."
     );
+    expect(html).toContain("Plan Lab experiment / Money event template");
     expect(html.toLowerCase()).not.toContain("complete scenario");
     expect(html.toLowerCase()).not.toContain("directly modify baseline");
   });

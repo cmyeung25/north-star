@@ -4,6 +4,13 @@ Last updated: 2026-03-21
 
 ## Decision Log
 
+### D-2026-03-21-06
+- Date: 2026-03-21
+- Status: Accepted
+- Context: Two full weekly review windows were now available for the onboarding guardrail calibration pack, and the follow-up ask was no longer “add more rules” but “reduce friction on the specific rule copy and preset recovery surfaces that users keep hesitating on.” The highest-friction rule cluster remained `property_usage_missing`, `duplicate_current_home_housing_costs`, `duplicate_rent_expense_inputs`, and `mortgage_property_basics_missing`, while app-internal preset recovery still needed stronger separation from Plan Lab / Money creation mental models.
+- Decision: Run a focused UX calibration pass that stays inside copy / hint / target-clarity boundaries. For the four priority guardrails, rewrite the message/action copy so it more explicitly explains the current-home/property-path ambiguity, why that ambiguity can distort the baseline, and the next fix step. For app preset recovery, keep the same active-scenario onboarding-draft write path and allowlist, but make all three surfaces explicitly state that they are **not** Plan Lab experiments or Money event create/edit flows; dashboard additionally gets recovery-specific heading / CTA wording, while settings keeps the shorter reset tone.
+- Guardrails: Do not add new rules, analytics fields, persistence, engine/compiler dependencies, or cross-scenario state. Severity policy remains unchanged unless a later weekly window still shows baseline-correctness risk after copy / target-step tuning. Recovery surfaces must still route back through onboarding and must never imply direct baseline writes, onboarding-complete shortcuts, or app-specific preset systems.
+
 ### D-2026-03-21-05
 - Date: 2026-03-21
 - Status: Accepted

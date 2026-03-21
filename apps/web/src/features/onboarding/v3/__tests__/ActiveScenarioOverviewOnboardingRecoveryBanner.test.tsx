@@ -66,8 +66,11 @@ describe("ActiveScenarioOverviewOnboardingRecoveryBanner", () => {
       "These recovery presets only replace this active scenario’s onboarding draft starting point."
     );
     expect(html).toContain(
-      "and we will take you back to onboarding so you can review each step and confirm the baseline there."
+      "and we will take you back to onboarding so you can review each step and confirm the baseline there before returning to dashboard."
     );
+    expect(html).toContain("Choose a recovery starting point");
+    expect(html).toContain("These are onboarding recovery presets—not Plan Lab experiments or Money event templates.");
+    expect(html).toContain("Replace draft and return to onboarding");
     expect(html.toLowerCase()).not.toContain("complete scenario");
     expect(html.toLowerCase()).not.toContain("directly modify baseline");
   });
