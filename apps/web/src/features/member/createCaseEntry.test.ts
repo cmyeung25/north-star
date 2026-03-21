@@ -99,6 +99,8 @@ describe("resolveMemberCasesEntryIntent", () => {
         auth: "login",
         journey: "coupleHome",
         preset: "evil-preset",
+        experimentSlotKey: "landing.persona.cta_summary",
+        experimentVariant: "decision_first_v1",
         redirectTo: "/en/app/case-123",
       }),
     );
@@ -106,6 +108,22 @@ describe("resolveMemberCasesEntryIntent", () => {
     expect(intent).toEqual({
       journey: "coupleHome",
       presetId: "dual-income-home",
+    });
+  });
+
+  it("ignores experiment metadata when resolving the canonical member handoff", () => {
+    const intent = resolveMemberCasesEntryIntent(
+      new URLSearchParams({
+        journey: "newParents",
+        preset: "new-baby",
+        experimentSlotKey: "landing.sample_journey.summary",
+        experimentVariant: "decision_first_v1",
+      }),
+    );
+
+    expect(intent).toEqual({
+      journey: "newParents",
+      presetId: "new-baby",
     });
   });
 

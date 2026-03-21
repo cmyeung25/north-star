@@ -22,11 +22,11 @@ Last updated: 2026-03-21 (onboarding guardrail weekly review workflow is now fix
 ## Market Entry + Sample Journey Progress
 | 子項 | 進度 | 現況 | 阻塞項 | 下一里程碑 |
 |---|---:|---|---|---|
-| 入口頁訊息架構 | 84% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff；sample journey card impression 現已在 section/card exposure path 量測 | 仍未建立 A/B slot metadata，難以系統化比較文案版本 | 補 experiment slots 與 copy version 命名規則 |
+| 入口頁訊息架構 | 92% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff；sample journey card impression 現已在 section/card exposure path 量測。本輪再把 hero / persona CTA / sample journey summary 收斂到同一個 content-assembly experiment slot contract，可穩定切換 copy 與排序但不動 handoff contract。 | 仍缺 dashboard / review exports 與 sample-size-based rollout SOP | 把 experiment slot cohort 檢視接到固定週報 |
 | Persona ↔ Preset Mapping | 85% | allowlisted journey ids、primary preset mapping、blank fallback 規則現已收斂到單一 canonical source，並同步供 member resolver、marketing CTA 與測試使用；文件亦補上 persona coverage matrix | 仍缺 secondary preset / unsupported persona 的產品評估流程與 KPI 校驗 | 建立未來 persona 擴充 review checklist（mapping / copy / funnel） |
 | Journey Deep-link / Handoff | 90% | `journey + preset` query handoff 已統一由 helper/builders 管理；member 端嚴格只讀 `journey` / `preset`，未知值安全回退 blank flow，signed-out auth return 亦會回到 `/member/cases` 重建相同 intent；sample journey CTA 仍維持同一 contract，未引入 direct scenario shortcut | 仍缺完整 onboarding-completed dashboard 與 signed-in/out cohort 儀表板 | 把 market-entry weekly review ritual 接到固定 dashboard/export 流程 |
-| Funnel Tracking | 86% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；本輪再補齊 `sample_journey_impression`、`case_created`，並把 payload allowlist 鎖定為 `locale / journeyId / presetId / isSignedIn` | 尚未把 experiment slot metadata 與 dashboard 實作接上固定看板 | 先以固定 weekly review ritual 驗證 publishability，再補 dashboard / experiment slots |
-| A/B 文案實驗位 | 15% | 目前僅有 vendor-agnostic tracking 抽象，可承接未來實驗 metadata | 尚未定義可實驗欄位、命名規則、最小 sample size 與停止條件 | 建立 experiment slot 命名與文案版本標記策略 |
+| Funnel Tracking | 90% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；`sample_journey_impression`、`case_created` 已上線，payload allowlist 亦已擴充為 metadata-only `locale / journeyId / presetId / isSignedIn / experimentSlotKey / experimentVariant`，方便按 slot/variant 做 cohort review。 | 尚未把 experiment slot metadata 與 dashboard 實作接上固定看板 | 先以固定 weekly review ritual 驗證 publishability，再補 dashboard / experiment slots |
+| A/B 文案實驗位 | 72% | hero value prop、persona CTA/summary、sample journey summary 已有穩定 slot key、variant naming rule（snake_case + `_v{n}`）與 default fallback；content assembly 只會改文案與排序，member handoff / preset allowlist / blank fallback 仍維持 canonical contract。 | 尚未建立 sample-size guard、stop rule 與營運切換 SOP | 建立 experiment review checklist（sample size / fallback / winner promotion） |
 | KPI 基線 / 驗收門檻 | 68% | 已有 v1 funnel event 與基礎轉化公式；本輪再新增 review ritual 文件，明確定義 weekly cadence、cohort breakdown、minimum sample-size warnings 與 ready-to-scale 規則 | 尚缺真實 traffic baseline 與 dashboard automation | 以兩個連續週期累積 publishability baseline，之後再決定是否放大 traffic |
 
 ## Market Entry KPI Minimum Baseline (MVP gate)
@@ -78,10 +78,11 @@ Last updated: 2026-03-21 (onboarding guardrail weekly review workflow is now fix
 - Sample journey content kit now makes the decision question explicit for the three target personas (steady saver, dual-income home buyer, new parents), so marketing promise and in-product action path are easier to align.
 
 ## Latest Update (2026-03-20)
-- Market-entry analytics contract is now locked to a metadata-only allowlist (`locale`, `journeyId`, `presetId`, `isSignedIn`) and tested, so PM/UX can review publishability without leaking case/scenario ids or financial payloads.
+- Market-entry analytics contract is now locked to a metadata-only allowlist (`locale`, `journeyId`, `presetId`, `isSignedIn`, optional `experimentSlotKey`, optional `experimentVariant`) and tested, so PM/UX can review publishability without leaking case/scenario ids or financial payloads.
 - `sample_journey_impression` now fires once per sample-journey card exposure path, preventing noisy re-render inflation while keeping journey-level cohort visibility.
 - Sample journey CTA buttons now emit the same vendor-agnostic `journey_cta_click` event as persona cards, so public-entry click totals are comparable across entry modules.
 - Member create-case success now emits `case_created` only after `createCaseAction` actually succeeds and right before the existing onboarding transition, preserving the `/member/cases` handoff contract and avoiding any onboarding-complete shortcut.
+- Market-entry content assembly now defines three experiment slots — `landing.hero.value_prop`, `landing.persona.cta_summary`, `landing.sample_journey.summary` — with strict default fallback and stable variant naming (`control_v1`, `clarity_first_v1`, `decision_first_v1`). Slot switching is UI-only: it may change copy and ordering, but it may not alter `journey + preset` hrefs, signed-in/out auth return rules, invalid mapping fallback, or preset allowlists.
 - Added `docs/product/MARKET_ENTRY_REVIEW_RITUAL.md` to define KPI formulas, weekly cadence, cohort cuts, minimum sample-size warnings, and the explicit `ready to scale traffic` publishability gate.
 
 ## Latest Update (2026-03-20)
@@ -237,28 +238,28 @@ Last updated: 2026-03-21 (onboarding guardrail weekly review workflow is now fix
 ### 事件層（client-side）
 - `market_landing_view`
   - 定義：進入 marketing landing page 時記錄一次曝光。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 - `sample_journey_impression`
   - 定義：sample journey section 內每張卡片首次進入目前 render exposure path 時記錄一次曝光；同一掛載內 re-render 不重複送出。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 - `journey_cta_click`
   - 定義：點擊 persona banner 或 sample journey CTA（含 journey + preset deep-link 意圖）。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 - `auth_modal_open`
   - 定義：由 marketing CTA 開啟登入/註冊 modal。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 - `case_created`
   - 定義：member/cases create-case server action 真正成功後、流程轉入下一步前記錄一次成功建立案例。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 - `preset_create_started`
   - 定義：member/cases create dialog 進入 preset flow（含 journey entry intent 或手動選 preset）。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 - `preset_create_submitted`
   - 定義：create-case 送出且採用 preset。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 - `onboarding_started`
   - 定義：preset 建立後導向 onboarding 前記錄起點。
-  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`。
+  - 最小 payload：`locale`, `journeyId`, `presetId`, `isSignedIn`；如需切 experiment cohort，可額外帶 allowlisted metadata `experimentSlotKey`, `experimentVariant`。
 
 ### 目前可量測漏斗定義
 1. `market_landing_view`

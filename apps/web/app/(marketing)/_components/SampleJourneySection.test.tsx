@@ -8,6 +8,7 @@ import type { AbstractIntlMessages } from "next-intl";
 import enMessages from "../../../messages/en.json";
 import SampleJourneySection from "./SampleJourneySection";
 import { buildMemberCasesEntryHref } from "../../../src/features/member/createCaseEntry";
+import { MARKET_ENTRY_EXPERIMENT_SLOTS } from "../../../src/features/marketing/marketEntryExperiments";
 
 describe("SampleJourneySection", () => {
   it("renders sample journey cards and keeps CTA deep links with journey+preset query", () => {
@@ -43,5 +44,34 @@ describe("SampleJourneySection", () => {
       }).replaceAll("&", "&amp;")
     );
     expect(html).not.toContain("/en/app/");
+  });
+
+  it("keeps sample-journey CTA handoff unchanged when summary ordering variant changes", () => {
+    const html = renderToString(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages as unknown as AbstractIntlMessages}
+        timeZone="UTC"
+      >
+        <MantineProvider>
+          <SampleJourneySection
+            isSignedIn={false}
+            experimentSelection={{
+              [MARKET_ENTRY_EXPERIMENT_SLOTS.sampleJourneySummary.key]: "decision_first_v1",
+            }}
+          />
+        </MantineProvider>
+      </NextIntlClientProvider>
+    );
+
+    expect(html).toContain("Each journey starts with the decision question first");
+    expect(html).toContain(
+      buildMemberCasesEntryHref("en", {
+        journey: "officeSaver",
+        presetId: "single-renter",
+      }).replaceAll("&", "&amp;")
+    );
+    expect(html).not.toContain("/en/app/");
+    expect(html).not.toContain("hidden-preset");
   });
 });

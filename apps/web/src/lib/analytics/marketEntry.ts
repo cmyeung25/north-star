@@ -13,6 +13,8 @@ export const MARKET_ENTRY_ALLOWED_PAYLOAD_KEYS = [
   "journeyId",
   "presetId",
   "isSignedIn",
+  "experimentSlotKey",
+  "experimentVariant",
 ] as const;
 
 type MarketEntryAllowedPayloadKey = (typeof MARKET_ENTRY_ALLOWED_PAYLOAD_KEYS)[number];
@@ -22,6 +24,8 @@ export type MarketEntryEventPayload = {
   journeyId: string | null;
   presetId: string | null;
   isSignedIn: boolean;
+  experimentSlotKey?: string;
+  experimentVariant?: string;
   [key: string]: unknown;
 };
 
@@ -48,6 +52,8 @@ export const sanitizeMarketEntryPayload = (
   journeyId: payload.journeyId,
   presetId: payload.presetId,
   isSignedIn: payload.isSignedIn,
+  experimentSlotKey: payload.experimentSlotKey,
+  experimentVariant: payload.experimentVariant,
 });
 
 export const trackMarketEntryEvent = (

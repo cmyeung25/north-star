@@ -9,17 +9,30 @@ import {
   MEMBER_JOURNEY_PRESET_MAP,
   type MemberJourneyId,
 } from "../../../src/features/member/createCaseEntry";
+import {
+  getPersonaCtaExperimentContent,
+  resolveMarketEntryExperimentSelection,
+  type MarketEntryExperimentSelection,
+} from "../../../src/features/marketing/marketEntryExperiments";
 import { trackMarketEntryEvent } from "../../../src/lib/analytics/marketEntry";
 
 type PersonaKey = MemberJourneyId;
 
 const personaKeys: PersonaKey[] = ["officeSaver", "coupleHome", "newParents", "mortgageOwner"];
 
-export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boolean }) {
+export default function PersonaBannerSection({
+  isSignedIn,
+  experimentSelection,
+}: {
+  isSignedIn: boolean;
+  experimentSelection?: Partial<MarketEntryExperimentSelection>;
+}) {
   const t = useTranslations("marketing.web");
   const locale = useLocale();
   const router = useRouter();
   const { openAuthModal } = useAuthModal();
+  const resolvedExperimentSelection = resolveMarketEntryExperimentSelection(experimentSelection);
+  const personaExperiment = getPersonaCtaExperimentContent(resolvedExperimentSelection);
 
   return (
     <Stack gap="md">
@@ -69,15 +82,20 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
               <Stack gap="sm">
                 <Card bg="rgba(255,255,255,0.04)" radius="lg" p="md">
                   <Stack gap={4}>
-                    <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
-                      {t("personaCard.outcomeLabel")}
-                    </Text>
-                    <Text c="white" fw={600}>
-                      {t(`personas.${key}.outcome`)}
-                    </Text>
-                    <Text size="sm" c="gray.3">
-                      {t(`personas.${key}.decision`)}
-                    </Text>
+                    {personaExperiment.summaryOrder.map((summaryKey) => (
+                      <Stack key={summaryKey} gap={2}>
+                        <Text size="xs" tt="uppercase" fw={700} c="aurora.2">
+                          {t(`personaCard.${summaryKey}Label`)}
+                        </Text>
+                        <Text
+                          c={summaryKey === "outcome" ? "white" : "gray.3"}
+                          fw={summaryKey === "outcome" ? 600 : 500}
+                          size={summaryKey === "outcome" ? undefined : "sm"}
+                        >
+                          {t(`personas.${key}.${summaryKey}`)}
+                        </Text>
+                      </Stack>
+                    ))}
                   </Stack>
                 </Card>
                 <Group mt="xs">
@@ -95,6 +113,8 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                         journeyId: key,
                         presetId,
                         isSignedIn,
+                        experimentSlotKey: personaExperiment.slotKey,
+                        experimentVariant: personaExperiment.variant,
                       });
                       const targetPath = buildMemberCasesEntryHref(locale, entryIntent);
                       if (isSignedIn) {
@@ -106,11 +126,13 @@ export default function PersonaBannerSection({ isSignedIn }: { isSignedIn: boole
                         journeyId: key,
                         presetId,
                         isSignedIn,
+                        experimentSlotKey: personaExperiment.slotKey,
+                        experimentVariant: personaExperiment.variant,
                       });
                       openAuthModal("register", entryIntent);
                     }}
                   >
-                    {t(`personas.${key}.cta`)}
+                    {t(`personas.${key}.${personaExperiment.ctaKey}`)}
                   </Button>
                 </Group>
               </Stack>

@@ -286,6 +286,13 @@ Last updated: 2026-03-21
 - Decision: Complete the market-entry funnel as a metadata-only, vendor-agnostic contract. The allowed payload remains strictly `locale`, `journeyId`, `presetId`, and `isSignedIn`; new events are `sample_journey_impression` (once per sample-journey card exposure path per mount) and `case_created` (only after `createCaseAction` genuinely succeeds and before the existing onboarding transition). `journey_cta_click` is shared across persona CTA and sample-journey CTA so click cohorts stay comparable. Product review ownership is formalized in `MARKET_ENTRY_REVIEW_RITUAL.md`, which defines weekly KPI formulas, cohort cuts, minimum sample-size warnings, and the “ready to scale traffic” gate.
 - Guardrails: Do not add case ids, scenario ids, financial values, or other business payload to market-entry analytics; do not bypass `/{locale}/member/cases`; do not reinterpret create success as onboarding completion; do not introduce direct scenario creation or onboarding-complete shortcuts; impression dedupe must stay render-exposure-scoped so re-renders do not inflate counts.
 
+### D-2026-03-21-01
+- Date: 2026-03-21
+- Status: Accepted
+- Context: Market-entry copy optimization now needs a durable experiment contract, but the team must avoid coupling public-entry UX to a specific experimentation vendor, changing routing/auth guarantees, or leaking hidden presets via copy-test variants.
+- Decision: Add a vendor-agnostic market-entry experiment-slot layer in content assembly only. The stable slot keys are `landing.hero.value_prop`, `landing.persona.cta_summary`, and `landing.sample_journey.summary`; variant names must use lowercase snake_case with a version suffix (for example `control_v1`, `clarity_first_v1`, `decision_first_v1`). Slot selection may change only copy keys and block ordering. If experiment metadata is needed in analytics, the only newly allowlisted fields are `experimentSlotKey` and `experimentVariant`, and they remain optional metadata-only payload fields.
+- Guardrails: Experiment slots must not alter the canonical handoff `/{locale}/member/cases?journey={journeyId}&preset={presetId}`, signed-in/out auth return behavior, preset allowlists, invalid mapping → blank flow fallback, or scenario lifecycle. Member query parsing must continue to read only `journey` and `preset`; experiment metadata must never appear as routing state, case/scenario ids, or financial payload.
+
 ### D-2026-03-20-11
 - Date: 2026-03-20
 - Status: Accepted
