@@ -1076,6 +1076,15 @@
         "goMoney": "進入金錢專區",
         "goPeople": "進入成員專區"
       },
+      "onboardingRecovery": {
+        "title": "先返回 onboarding，才把這個 scenario 當作已完成",
+        "description": "這些 recovery preset 只會取代此 active scenario 的 onboarding draft 起點，不會直接完成 scenario，也不會直接改寫 baseline event。",
+        "helper": "選擇較接近你情況的起點後，系統會帶你返回 onboarding，逐步補完與確認 baseline。",
+        "redirecting": {
+          "title": "正在準備 onboarding recovery 路徑",
+          "description": "系統正取代此 active scenario 的 onboarding draft 起點，並帶你返回 onboarding 完成確認。"
+        }
+      },
       "healthScorecard": {
         "title": "KPI 健康分層",
         "subtitle": "按健康狀態統計各項 KPI 指標",

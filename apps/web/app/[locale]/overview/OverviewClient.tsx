@@ -22,7 +22,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale, useMessages, useTranslations } from "next-intl";
 import { type Locale } from "../../../src/i18n/routing";
 import {
   Line,
@@ -92,6 +92,22 @@ import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
 import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/buildOverviewTimelineMarkers";
 import type { MilestoneEvent, MilestoneEventTemplateType } from "../../../src/domain/milestoneEvents/types";
 import { normalizeMonthStrict } from "../../../src/utils/month";
+import { resolveScenarioLifecycle } from "../../../lib/scenario/lifecycle";
+import { scenarioOnboardingPath } from "../../../lib/routes/appRoutes";
+import {
+  createScenarioSeedTranslatorFromMessages,
+  getScenarioSeeds,
+} from "../../../src/scenarios/scenarioSeeds";
+import { MEMBER_CASE_PRESET_SEED_IDS } from "../../../src/features/onboarding/seedPrefill";
+import {
+  hasPersistedOnboardingDraftState,
+  replaceActiveScenarioOnboardingDraftPresetState,
+} from "../../../src/features/onboarding/v3/draftStorage";
+import { createInitialScenarioDraftV3State } from "../../../src/features/onboarding/v3/types";
+import ActiveScenarioOverviewOnboardingRecoveryBanner, {
+  shouldShowActiveScenarioOverviewOnboardingRecoveryBanner,
+} from "../../../src/features/onboarding/v3/ActiveScenarioOverviewOnboardingRecoveryBanner";
+import { RouteLoadingOverlay } from "../../../src/components/loading/route-loading-overlay";
 
 type OverviewClientProps = {
   scenarioId?: string;
@@ -221,10 +237,13 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const router = useRouter();
   const locale = useLocale();
+  const messages = useMessages();
   const params = useParams<{ caseId?: string }>();
   const caseId = params.caseId ?? "";
   const t = useTranslations("overview");
   const tDashboard = useTranslations("overview.dashboard");
+  const onboardingT = useTranslations("onboardingV3");
+  const seedEventLabelT = useTranslations("scenarios.seeds.eventLabels");
   const moneyT = useTranslations("money");
   const common = useTranslations("common");
   const exportT = useTranslations("export");
@@ -290,6 +309,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const [milestoneToast, setMilestoneToast] = useState<MilestoneToastState | null>(null);
   const [pendingDeletedMilestone, setPendingDeletedMilestone] = useState<PendingDeletedMilestone | null>(null);
   const [milestoneQueryConsumed, setMilestoneQueryConsumed] = useState(false);
+  const [applyingRecoveryPresetId, setApplyingRecoveryPresetId] = useState<string | null>(null);
+  const [hasExistingOnboardingDraft, setHasExistingOnboardingDraft] = useState(false);
   const milestoneToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const milestoneUndoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -310,6 +331,23 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
 
   const selectedScenario = getScenarioById(scenarios, resolvedScenarioId);
   const selectedScenarioId = selectedScenario?.id ?? "";
+  const prefillLabels = useMemo(
+    () => ({
+      dailyExpenseLabel: onboardingT("steps.expense.dailyMonthlyLabel"),
+      incomeBonusLabel: onboardingT("steps.income.templates.bonus"),
+      incomeSalaryLabel: onboardingT("steps.income.templates.salary"),
+      rentExpenseLabel: seedEventLabelT("rent"),
+      taxExpenseLabel: onboardingT("steps.expense.taxTitle"),
+      travelExpenseLabel: onboardingT("steps.expense.travelTitle"),
+    }),
+    [onboardingT, seedEventLabelT]
+  );
+  const recoveryPresetSeeds = useMemo(() => {
+    const translator = createScenarioSeedTranslatorFromMessages(messages as Record<string, unknown>);
+    const presetAllowlist = new Set<string>(MEMBER_CASE_PRESET_SEED_IDS);
+
+    return getScenarioSeeds(translator).filter((seed) => presetAllowlist.has(seed.id));
+  }, [messages]);
   const scenarioEventViews = useMemo(
     () => (selectedScenario ? buildScenarioEventViews(selectedScenario, eventLibrary) : []),
     [eventLibrary, selectedScenario]
@@ -848,6 +886,10 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     selectedScenarioId,
   ]);
 
+  useEffect(() => {
+    setHasExistingOnboardingDraft(hasPersistedOnboardingDraftState(selectedScenarioId));
+  }, [selectedScenarioId]);
+
   const normalizedMilestoneDraftMonth = normalizeMonthStrict(milestoneDraft.effectiveMonth);
   const milestoneMonthError =
     milestoneDraft.effectiveMonth && !normalizedMilestoneDraftMonth.ok
@@ -1150,6 +1192,27 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         baseMonth: projection?.baseMonth ?? months[0] ?? null,
       }),
     [milestoneMarkers, months, overviewTimelineMarkers.highlightedEvents, projection?.baseMonth]
+  );
+
+  const handleApplyRecoveryPreset = useCallback(
+    (preset: (typeof recoveryPresetSeeds)[number]) => {
+      if (!selectedScenarioId || !params.caseId) {
+        return;
+      }
+
+      setApplyingRecoveryPresetId(preset.id);
+      replaceActiveScenarioOnboardingDraftPresetState({
+        scenarioId: selectedScenarioId,
+        presetPayload: preset.payload,
+        fallbackState: createInitialScenarioDraftV3State({
+          defaultMemberName: onboardingT("defaults.memberName"),
+        }),
+        labels: prefillLabels,
+      });
+      setHasExistingOnboardingDraft(true);
+      router.push(scenarioOnboardingPath(params.caseId, selectedScenarioId));
+    },
+    [onboardingT, params.caseId, prefillLabels, router, selectedScenarioId]
   );
 
   if (!selectedScenario) {
@@ -1526,8 +1589,24 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
     { key: "members", label: sd("completeness.members", "Members"), done: scenarioMembers.length > 0, href: peopleHubHref },
     { key: "rules", label: sd("completeness.rules", "Rules"), done: budgetRules.length > 0, href: `${moneyHubHref}&tab=inputs` },
   ];
+  const onboardingRecoveryItems = completenessItems.filter((item) => item.key !== "rules");
+  const hasOnboardingRecoveryGaps = onboardingRecoveryItems.some((item) => !item.done);
+  const showOnboardingRecoveryBanner =
+    selectedScenario &&
+    shouldShowActiveScenarioOverviewOnboardingRecoveryBanner({
+      isScenarioActive: resolveScenarioLifecycle(selectedScenario) === "active",
+      hasOnboardingRecoveryGaps,
+    });
+
   return (
     <Stack gap="sm" pb={isDesktop ? undefined : 120}>
+      {applyingRecoveryPresetId ? (
+        <RouteLoadingOverlay
+          opened
+          title={t("onboardingRecovery.redirecting.title")}
+          description={t("onboardingRecovery.redirecting.description")}
+        />
+      ) : null}
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <div>
@@ -1562,6 +1641,15 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
         </Group>
 
         <Stack gap="sm">
+          {showOnboardingRecoveryBanner ? (
+            <ActiveScenarioOverviewOnboardingRecoveryBanner
+              presets={recoveryPresetSeeds}
+              hasExistingDraft={hasExistingOnboardingDraft}
+              isApplyingPreset={applyingRecoveryPresetId !== null}
+              applyingPresetId={applyingRecoveryPresetId}
+              onApplyPreset={handleApplyRecoveryPreset}
+            />
+          ) : null}
           <Group gap="sm" wrap="wrap">
             <SegmentedControl
               display={"none"}

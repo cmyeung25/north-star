@@ -1054,6 +1054,15 @@
         "goMoney": "Go to Money",
         "goPeople": "Go to People"
       },
+      "onboardingRecovery": {
+        "title": "Return to onboarding before you treat this scenario as finished",
+        "description": "These recovery presets only replace this active scenario’s onboarding draft starting point. They do not complete the scenario or directly change baseline events.",
+        "helper": "Choose a closer starting point and we will take you back to onboarding so you can review each step and confirm the baseline there.",
+        "redirecting": {
+          "title": "Preparing your onboarding recovery path",
+          "description": "We are replacing this active scenario’s onboarding draft starting point and sending you back to onboarding for confirmation."
+        }
+      },
       "healthScorecard": {
         "title": "KPI health scorecard",
         "subtitle": "Distribution of KPI metrics by health status",

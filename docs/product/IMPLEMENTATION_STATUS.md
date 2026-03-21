@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-21 (onboarding preset suggestion copy now explicitly framed as re-choosing the onboarding draft starting point)
+Last updated: 2026-03-21 (dashboard recovery banner now reuses onboarding preset suggestions without introducing app-specific preset rules)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -16,7 +16,7 @@ Last updated: 2026-03-21 (onboarding preset suggestion copy now explicitly frame
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 93% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 focused calibration 再把最高摩擦規則的文案改成「問題 + 為何影響 baseline + 下一步」、修正部分 target section（property / housing），並加強 review step 視覺層級，減少 warning / info 被誤解為阻擋提交。analytics contract 亦維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 主流程整合 | 87% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線第一個 beta surface：scenario onboarding start / resume shell 只在 onboarding-incomplete 的 active scenario 顯示 preset suggestions，且本輪已補齊與 member create 對齊的 audience/start-context → ETA → outcome copy、共享 summary presenter、以及只在已有 onboarding draft 時出現的 replace warning。文案現亦明確鎖定為「重新選擇 active scenario 的 onboarding draft 起點」，不再留下快速完成 scenario / 直接新增 baseline 的閱讀空間。CTA 仍只會取代 scenario-scoped onboarding draft 起點並留在原 onboarding wizard。 | 尚需把 dashboard recovery 與 settings data-management reset 兩個入口補上，並驗證同一套 setup/recovery copy rule 是否足以避免與 Plan Lab template 或 Money event create flow 混淆 |
+| Preset 主流程整合 | 91% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線兩個 beta surfaces：scenario onboarding start / resume shell，以及 overview/dashboard onboarding-recovery banner。兩者都重用同一套 allowlist、journey guidance、共享 summary presenter 與 onboarding draft write path；dashboard recovery 另外補上明確 banner 文案，重申這只會取代 active scenario 的 onboarding draft 起點，然後返回 onboarding 完成確認，不會直接完成 scenario 或改 baseline。 | 尚需補上 settings data-management reset 入口，並持續驗證 setup/recovery copy rule 是否足以避免與 Plan Lab template 或 Money event create flow 混淆 |
 | GTM / 營運就緒 | 39% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA；本輪再補齊 sample journey impression、case created 成功事件與固定 weekly review ritual | 仍缺 beta feedback loop、支援流程與真實 cohort 基線 |
 
 ## Market Entry + Sample Journey Progress
@@ -40,6 +40,9 @@ Last updated: 2026-03-21 (onboarding preset suggestion copy now explicitly frame
 
 
 ## Latest Update (2026-03-21)
+- overview/dashboard onboarding recovery beta entry 2 已上線：當 active scenario 在 dashboard 仍顯示 onboarding recovery gaps 時，overview 會顯示 recovery banner + preset suggestions；CTA 沿用既有 onboarding draft write path，建立 / 取代 scenario-scoped onboarding draft 起點後立即返回 onboarding 繼續補完。
+- dashboard recovery banner 直接沿用入口 1 已驗證的 preset allowlist、journey guidance summary、replace warning 與 CTA 語意，沒有再建立 app-specific preset 規則或額外 analytics payload。
+- 本輪補上第二層 source-guard 測試：除 onboarding helper 外，dashboard recovery banner 也被鎖定不得出現在 Plan Lab Add Experiment、Money add-event / template picker、或 baseline event drawers。
 - 完成 preset 入口現況盤點：目前唯一產品化 preset entry 仍是 `/{locale}/member/cases` create dialog；其 journey guidance（audience / goal / ETA / outcome）與 canonical `journey + preset` handoff contract 保持不變，app 內尚未有正式上線入口。
 - 補完 app 內延伸入口 IA contract，並把三個最合理承接同一 onboarding-prefill 心智模型的 surface 文件化為 beta 候選：`scenario onboarding start / resume`、`overview/dashboard onboarding-incomplete recovery`、`scenario settings → data management reset`。
 - 三個 beta 候選入口的共同結論已收斂為同一句產品心智模型：**只為 active scenario 建立 / 取代 scenario-scoped onboarding draft 起點，然後回到 onboarding 完成確認；不直接寫 baseline、不標記 onboarding 完成、不改登入後先到 `/member/cases` 的規則。**
