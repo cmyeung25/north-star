@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-21 (onboarding preset suggestion beta entry 1 now aligned with member journey guidance + replace warning copy)
+Last updated: 2026-03-21 (onboarding preset suggestion copy now explicitly framed as re-choosing the onboarding draft starting point)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -16,7 +16,7 @@ Last updated: 2026-03-21 (onboarding preset suggestion beta entry 1 now aligned 
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 93% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 focused calibration 再把最高摩擦規則的文案改成「問題 + 為何影響 baseline + 下一步」、修正部分 target section（property / housing），並加強 review step 視覺層級，減少 warning / info 被誤解為阻擋提交。analytics contract 亦維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 主流程整合 | 86% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線第一個 beta surface：scenario onboarding start / resume shell 只在 onboarding-incomplete 的 active scenario 顯示 preset suggestions，且本輪已補齊與 member create 對齊的 audience/start-context → ETA → outcome copy、共享 summary presenter、以及只在已有 onboarding draft 時出現的 replace warning。CTA 仍只會取代 scenario-scoped onboarding draft 起點並留在原 onboarding wizard。 | 尚需把 dashboard recovery 與 settings data-management reset 兩個入口補上，並驗證同一套 setup/recovery copy rule 是否足以避免與 Plan Lab template 或 Money event create flow 混淆 |
+| Preset 主流程整合 | 87% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線第一個 beta surface：scenario onboarding start / resume shell 只在 onboarding-incomplete 的 active scenario 顯示 preset suggestions，且本輪已補齊與 member create 對齊的 audience/start-context → ETA → outcome copy、共享 summary presenter、以及只在已有 onboarding draft 時出現的 replace warning。文案現亦明確鎖定為「重新選擇 active scenario 的 onboarding draft 起點」，不再留下快速完成 scenario / 直接新增 baseline 的閱讀空間。CTA 仍只會取代 scenario-scoped onboarding draft 起點並留在原 onboarding wizard。 | 尚需把 dashboard recovery 與 settings data-management reset 兩個入口補上，並驗證同一套 setup/recovery copy rule 是否足以避免與 Plan Lab template 或 Money event create flow 混淆 |
 | GTM / 營運就緒 | 39% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA；本輪再補齊 sample journey impression、case created 成功事件與固定 weekly review ritual | 仍缺 beta feedback loop、支援流程與真實 cohort 基線 |
 
 ## Market Entry + Sample Journey Progress
@@ -50,6 +50,7 @@ Last updated: 2026-03-21 (onboarding preset suggestion beta entry 1 now aligned 
 - 已補最小 guardrail 測試與 source guard：確認 onboarding preset helper 只留在 onboarding surface，未被 Plan Lab Add Experiment、Money template picker、或通用 event template drawer 誤用。
 - onboarding beta entry 1 文案現已與 member create dialog 對齊：preset 卡片改用同一個 audience / starting-context / ETA / outcome summary 結構，並把共享 presenter 抽到共用 view-model；對於 `dual-income-rental` / `new-baby-helper` 這兩個沒有 public journey 對應的 preset，則補上同語氣的 setup/recovery summary，避免 copy drift。
 - 已補 replace / restart guardrail：只有在 active scenario 已存在 onboarding draft 時，才會顯示 replace warning 與較明確的 replace CTA；文案再次明示「只取代 onboarding 起點、不直接寫 baseline、也不代表 onboarding 已完成」。
+- 本輪再把 shared summary model 的第二行語意正式收斂為 `starting context`，並同步調整 `en` / `zh-HK` onboarding preset copy，讓 onboarding start / resume shell 更明確表達這是重新選擇 onboarding draft 起點，而不是快速完成 scenario 或直接新增 baseline 資料。
 
 
 ## Latest Update (2026-03-18)

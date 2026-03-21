@@ -5102,13 +5102,13 @@
   "presetSuggestions": {
     "title": "選擇更貼近現況的 onboarding 起點",
     "badge": "草稿預設",
-    "description": "用 member preset 將這個 active scenario 拉回較貼近現況的 onboarding 起點，再繼續完成資料。",
-    "helper": "這些 preset 只屬 setup / recovery，用完後仍留在同一個 onboarding wizard；不會直接寫入 baseline event，也不會把 onboarding 標記為完成。",
-    "apply": "使用這個起點",
-    "replace": "以這個起點取代",
+    "description": "用 member preset 重新選擇這個 active scenario 的 onboarding draft 起點，再繼續完成資料。",
+    "helper": "這些 preset 只屬 setup / recovery，用完後仍留在同一個 onboarding wizard；它們只會建立或取代 active scenario 的 onboarding draft 起點，不會直接寫入 baseline event，也不會把 onboarding 標記為完成。",
+    "apply": "用作新的起點",
+    "replace": "取代目前起點",
     "feedback": "已用「{title}」更新這份 onboarding draft 起點。請檢查以下步驟後繼續完成 onboarding。",
     "replaceWarning": {
-      "title": "要取代目前 onboarding 起點嗎？",
+      "title": "要取代目前 onboarding draft 起點嗎？",
       "body": "這只會取代 active scenario 目前的 onboarding draft 起點；不會直接寫入 baseline event，也不代表 onboarding 已完成。"
     },
     "presetSummaries": {
