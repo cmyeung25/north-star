@@ -60,7 +60,7 @@ Last updated: 2026-03-21
 - [x] marketing landing page 已新增 sample journey cards（起始條件 + 3-step 操作 + 可見輸出），每張卡 CTA 均沿用 `journey + preset` deep-link 到 member/cases。
 - [x] market-entry handoff contract 現已產品化：`journey/preset` policy 收斂為單一 canonical source（allowlisted journey ids、primary preset mapping、blank fallback），signed-in / signed-out 都只可回到 `/{locale}/member/cases` 承接同一 create intent。
 - [x] UX / IA contract 已補完：app 內承接同一 onboarding-prefill 心智模型的候選入口，只限 scenario-scoped setup / recovery surfaces，不可落入 Plan Lab template 或 Money event create 流程。
-- [ ] Beta 實作入口 1：scenario onboarding start / resume shell 顯示 preset suggestions，讓未完成 onboarding 的 active scenario 可直接改用更貼近現況的起點，再回到同一 onboarding wizard 補完。
+- [x] Beta 實作入口 1：scenario onboarding start / resume shell 現已顯示最小版 preset suggestions，且只在未完成 onboarding 的 active scenario 顯示；CTA 只會建立 / 取代 scenario-scoped onboarding draft 起點，然後留在同一 onboarding wizard 繼續補完。
 - [ ] Beta 實作入口 2：Overview / Dashboard 的 onboarding-incomplete recovery banner 顯示 preset suggestions，結論明確為「替 active scenario 建立新的 onboarding draft 起點」，不是直接完成 scenario，也不是直接改 baseline。
 - [ ] Beta 實作入口 3：Scenario Settings → Data Management 提供 guarded 的「replace onboarding draft from preset」入口，只在使用者明確要重整 active scenario 起點時出現，並需附覆蓋警告與重新進入 onboarding 的後續動作。
 - [ ] Beta 文案與 IA：onboarding / dashboard recovery 入口需帶 journey guidance + ETA + outcome copy；settings recovery 入口則採較簡潔的 reset/restart copy，避免與一般資料維護操作混淆。

@@ -3,7 +3,7 @@
 import { Alert, AspectRatio, Box, Button, Group, Image, Notification, SimpleGrid, Stack } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale, useMessages, useTranslations } from "next-intl";
 import type { ScenarioEvent, ScenarioEventDraft } from "../../../domain/scenarioV2/events";
 import OnboardingV2WizardShell from "../v2/OnboardingV2WizardShell";
 import { deriveFromProperty } from "../../../domain/scenarioDraft/rules/deriveFromProperty";
@@ -19,12 +19,14 @@ import {
   clearOnboardingDraftState,
   loadOnboardingV3DraftState,
   persistOnboardingV3DraftState,
+  replaceActiveScenarioOnboardingDraftPresetState,
 } from "./draftStorage";
 import { submitOnboardingV3Payload } from "./submissionFacade";
 import { submitScenarioDraft } from "../../../domain/scenarioDraft/submitScenarioDraft";
 import { recordScenarioMigrationEvent } from "../../../lib/telemetry/scenarioMigrationTelemetry";
 import { mapOnboardingV3EventTypes } from "./eventTypeMapper";
 import { memberCasesPath, scenarioDashboardPath } from "../../../../lib/routes/appRoutes";
+import { resolveScenarioLifecycle } from "../../../../lib/scenario/lifecycle";
 import { saveScenarioPayloadAction } from "../../../../app/(app)/app/actions/scenarioSave.actions";
 import { useScenarioContext } from "../../../hooks/useScenarioContext";
 import { useScenarioCloudStore } from "../../../store/scenarioCloudStore";
@@ -40,6 +42,14 @@ import {
   type PendingGuardrailFix,
 } from "../../../lib/analytics/onboardingFunnel";
 import { RouteLoadingOverlay } from "../../../components/loading/route-loading-overlay";
+import ActiveScenarioOnboardingDraftPresetSection, {
+  shouldShowActiveScenarioOnboardingDraftPresetSection,
+} from "./ActiveScenarioOnboardingDraftPresetSection";
+import {
+  createScenarioSeedTranslatorFromMessages,
+  getScenarioSeeds,
+} from "../../../scenarios/scenarioSeeds";
+import { MEMBER_CASE_PRESET_SEED_IDS } from "../seedPrefill";
 
 type CashflowDraft = Extract<ScenarioEventDraft, { type: "cashflow" }>;
 type CashflowDraftWithId = CashflowDraft & { id: string };
@@ -152,6 +162,7 @@ export default function OnboardingV3Wizard() {
   const t = useTranslations("onboardingV3");
   const seedEventLabelT = useTranslations("scenarios.seeds.eventLabels");
   const appShellT = useTranslations("app.shell");
+  const messages = useMessages();
   const locale = useLocale();
   const params = useParams<{ caseId?: string | string[]; scenarioId?: string | string[] }>();
   const router = useRouter();
@@ -173,6 +184,8 @@ export default function OnboardingV3Wizard() {
   );
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [applyingPresetId, setApplyingPresetId] = useState<string | null>(null);
+  const [presetFeedbackTitle, setPresetFeedbackTitle] = useState<string | null>(null);
   const [submitPhase, setSubmitPhase] = useState<"idle" | "validating" | "saving" | "redirecting">("idle");
   const [saveFeedback, setSaveFeedback] = useState<"ready" | null>(null);
   const [draft, setDraft] = useState(() =>
@@ -195,6 +208,43 @@ export default function OnboardingV3Wizard() {
   });
   const defaultSalaryGrowthRate =
     draft.assumptions.salaryGrowthRate ?? scenario?.assumptions?.salaryGrowthRate ?? 3;
+  const presetSeeds = useMemo(() => {
+    const translator = createScenarioSeedTranslatorFromMessages(messages as Record<string, unknown>);
+    const presetAllowlist = new Set<string>(MEMBER_CASE_PRESET_SEED_IDS);
+
+    return getScenarioSeeds(translator).filter((seed) => presetAllowlist.has(seed.id));
+  }, [messages]);
+  const showPresetSuggestions = shouldShowActiveScenarioOnboardingDraftPresetSection({
+    isScenarioOnboardingIncomplete: Boolean(
+      scenarioId && scenario && resolveScenarioLifecycle(scenario) === "draft"
+    ),
+  });
+
+  const handleApplyPreset = useCallback(
+    (preset: (typeof presetSeeds)[number]) => {
+      if (!scenarioId) {
+        return;
+      }
+
+      setApplyingPresetId(preset.id);
+      setDraft(
+        replaceActiveScenarioOnboardingDraftPresetState({
+          scenarioId,
+          presetPayload: preset.payload,
+          fallbackState: createInitialScenarioDraftV3State({
+            defaultMemberName: t("defaults.memberName"),
+          }),
+          labels: prefillLabels,
+        })
+      );
+      setStep(0);
+      setValidationMessages([]);
+      setSaveFeedback(null);
+      setPresetFeedbackTitle(preset.title);
+      setApplyingPresetId(null);
+    },
+    [prefillLabels, scenarioId, t]
+  );
 
   useEffect(() => {
     setDraft((current) => {
@@ -808,8 +858,21 @@ export default function OnboardingV3Wizard() {
         )}
       />
       {validationMessages.length > 0 ? <Alert color="red">{validationMessages.join("\n")}</Alert> : null}
+      {presetFeedbackTitle ? (
+        <Notification color="teal" onClose={() => setPresetFeedbackTitle(null)}>
+          {t("presetSuggestions.feedback", { title: presetFeedbackTitle })}
+        </Notification>
+      ) : null}
       {saveFeedback === "ready" && isSubmitting ? (
         <Notification color="teal">{t("submitFeedback.readyToast")}</Notification>
+      ) : null}
+      {showPresetSuggestions ? (
+        <ActiveScenarioOnboardingDraftPresetSection
+          presets={presetSeeds}
+          isApplyingPreset={applyingPresetId !== null}
+          applyingPresetId={applyingPresetId}
+          onApplyPreset={handleApplyPreset}
+        />
       ) : null}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
           <Group align="center" gap="md" wrap="nowrap" 

@@ -3656,6 +3656,14 @@
     },
     "readyToast": "Baseline saved. Opening your scenario…"
   },
+  "presetSuggestions": {
+    "title": "Pick a closer onboarding starting point",
+    "badge": "Draft presets",
+    "description": "Use one of the existing member presets to create or replace this active scenario’s onboarding draft starting point.",
+    "helper": "This only updates the scenario-scoped onboarding draft and keeps you inside the same onboarding wizard. It does not write baseline events or mark onboarding complete.",
+    "apply": "Use this preset",
+    "feedback": "Updated this onboarding draft from {title}. Review the steps below and continue onboarding."
+  },
   "footer": {
       "localDraftHint": "V3 flow only updates local ScenarioDraftV3 staged state and submits once at the final step."
     },

@@ -1,7 +1,9 @@
 import { resolvePlanningHorizonMonths } from "../../../domain/assumptions/planningHorizon";
 import { buildAssumptionsPatch } from "../../../domain/onboarding/v2/assumptions";
 import type { ScenarioEventDraft } from "../../../domain/scenarioV2/events";
+import type { ScenarioSeedPayload } from "../../../scenarios/scenarioSeeds";
 import type { ScenarioAssumptions, ScenarioMember } from "../../../store/scenarioStore";
+import { buildOnboardingDraftStateFromSeed } from "../seedPrefill";
 import {
   getDraftStorageKey as getOnboardingV2DraftStorageKey,
   type DraftStorageState as OnboardingV2DraftStorageState,
@@ -629,6 +631,38 @@ export const clearOnboardingDraftState = (
 
   draftStorage.removeItem(getOnboardingV3DraftStorageKey(scenarioId));
   draftStorage.removeItem(getOnboardingV2DraftStorageKey(scenarioId));
+};
+
+type ReplaceActiveScenarioOnboardingDraftPresetStateOptions = {
+  scenarioId?: string;
+  presetPayload: ScenarioSeedPayload;
+  fallbackState: ScenarioDraftV3State;
+  labels: OnboardingV3PrefillLabels;
+  storage?: DraftStorageLike;
+};
+
+export const replaceActiveScenarioOnboardingDraftPresetState = ({
+  scenarioId,
+  presetPayload,
+  fallbackState,
+  labels,
+  storage,
+}: ReplaceActiveScenarioOnboardingDraftPresetStateOptions): ScenarioDraftV3State => {
+  const draftStorage = getStorage(storage);
+  if (!draftStorage || !scenarioId) {
+    return fallbackState;
+  }
+
+  const legacyDraft = buildOnboardingDraftStateFromSeed(presetPayload);
+  draftStorage.removeItem(getOnboardingV3DraftStorageKey(scenarioId));
+  draftStorage.setItem(getOnboardingV2DraftStorageKey(scenarioId), JSON.stringify(legacyDraft));
+
+  return loadOnboardingV3DraftState({
+    scenarioId,
+    fallbackState,
+    labels,
+    storage: draftStorage,
+  });
 };
 
 export type { OnboardingV3PrefillLabels };

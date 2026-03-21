@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-21 (preset app-extension UX/IA contract documented; productized vs beta flows clarified)
+Last updated: 2026-03-21 (onboarding preset suggestion beta entry 1 shipped for onboarding-incomplete active scenarios)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -16,7 +16,7 @@ Last updated: 2026-03-21 (preset app-extension UX/IA contract documented; produc
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 93% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 focused calibration 再把最高摩擦規則的文案改成「問題 + 為何影響 baseline + 下一步」、修正部分 target section（property / housing），並加強 review step 視覺層級，減少 warning / info 被誤解為阻擋提交。analytics contract 亦維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 主流程整合 | 80% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；本輪再補完 app 內延伸入口 IA contract：只准在 active-scenario 的 onboarding start / resume、overview/dashboard recovery、settings data-management reset 三類 setup / recovery surface 顯示 preset suggestions | 尚未進入 beta 實作；需把 onboarding / dashboard / settings 三個 app 入口逐一上線、驗證文案理解度，並確認不與 Plan Lab template 或 Money event create flow 混淆 |
+| Preset 主流程整合 | 84% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線第一個 beta surface：scenario onboarding start / resume shell 只在 onboarding-incomplete 的 active scenario 顯示最小版 preset suggestion，CTA 只會取代 scenario-scoped onboarding draft 起點並留在原 onboarding wizard。 | 尚需把 dashboard recovery 與 settings data-management reset 兩個入口補上，並驗證文案理解度，確認不與 Plan Lab template 或 Money event create flow 混淆 |
 | GTM / 營運就緒 | 39% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA；本輪再補齊 sample journey impression、case created 成功事件與固定 weekly review ritual | 仍缺 beta feedback loop、支援流程與真實 cohort 基線 |
 
 ## Market Entry + Sample Journey Progress
@@ -45,6 +45,9 @@ Last updated: 2026-03-21 (preset app-extension UX/IA contract documented; produc
 - 三個 beta 候選入口的共同結論已收斂為同一句產品心智模型：**只為 active scenario 建立 / 取代 scenario-scoped onboarding draft 起點，然後回到 onboarding 完成確認；不直接寫 baseline、不標記 onboarding 完成、不改登入後先到 `/member/cases` 的規則。**
 - 文案 / IA 分層也已定義：onboarding start / dashboard recovery 入口需要 journey guidance、ETA、outcome copy；settings reset 入口只保留較節制的 restart / replace draft copy 與覆蓋警告，避免被誤解為一般 quick action。
 - 反混淆 guardrail 已文件化：preset suggestions 不得嵌入 Plan Lab Add Experiment、Money add-event / template picker、或其他 baseline 事件 create/edit flow；Plan Lab template 仍代表 sandbox what-if，Money flow 仍代表新增 / 編輯單一事件。
+- onboarding beta entry 1 已上線：`/app/case/[caseId]/scenario/[scenarioId]/onboarding` 的 start / resume shell 現在會顯示最小版 preset suggestion 卡片，但只限 `meta.onboarded` 未完成的 active scenario；已完成 onboarding 的 scenario 仍會被 lifecycle route guard 導回 dashboard。
+- 新 CTA 共用既有 onboarding draft write path：點擊 preset 只會建立 / 取代該 active scenario 的 scenario-scoped onboarding draft 起點，立即留在原 onboarding wizard 第一步繼續補完，不會寫 baseline event、也不會標記 onboarding complete。
+- 已補最小 guardrail 測試與 source guard：確認 onboarding preset helper 只留在 onboarding surface，未被 Plan Lab Add Experiment、Money template picker、或通用 event template drawer 誤用。
 
 
 ## Latest Update (2026-03-18)
