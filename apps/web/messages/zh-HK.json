@@ -5099,6 +5099,14 @@
     },
     "readyToast": "基線已儲存，正在打開情境…"
   },
+  "presetSuggestions": {
+    "title": "選擇更貼近現況的 onboarding 起點",
+    "badge": "草稿預設",
+    "description": "可直接使用既有 member preset，為這個 active scenario 建立或取代 onboarding draft 起點。",
+    "helper": "這個動作只會更新 scenario-scoped onboarding draft，並留在同一個 onboarding wizard；不會直接寫入 baseline event，也不會把 onboarding 標記為完成。",
+    "apply": "使用此 preset",
+    "feedback": "已用「{title}」更新這份 onboarding draft。請檢查以下步驟後繼續完成 onboarding。"
+  },
   "footer": {
       "localDraftHint": "V3 流程只會更新本地 ScenarioDraftV3 分段 state，最後一步才一次提交。"
     },

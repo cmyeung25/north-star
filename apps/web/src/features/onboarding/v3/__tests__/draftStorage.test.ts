@@ -6,6 +6,7 @@ import {
   convertOnboardingV2DraftToV3State,
   getOnboardingV3DraftStorageKey,
   loadOnboardingV3DraftState,
+  replaceActiveScenarioOnboardingDraftPresetState,
 } from "../draftStorage";
 import { createInitialScenarioDraftV3State } from "../types";
 import { getScenarioSeeds } from "../../../../scenarios/scenarioSeeds";
@@ -314,5 +315,43 @@ describe("onboarding v3 draft storage", () => {
 
     expect(storage.dump().has(getOnboardingV2DraftStorageKey(scenarioId))).toBe(false);
     expect(storage.dump().has(getOnboardingV3DraftStorageKey(scenarioId))).toBe(false);
+  });
+
+  it("replaces only the active scenario onboarding draft preset state without touching baseline data", () => {
+    const storage = createStorage();
+    const scenarioId = "scenario-preset-replace";
+    const seed = getScenarioSeeds(t).find((entry) => entry.id === "dual-income-home");
+    const fallbackState = createFallbackState();
+    const baselineSnapshot = {
+      scenarioMeta: { onboarded: false },
+      baselineEventIds: ["baseline-income", "baseline-expense"],
+    };
+
+    expect(Boolean(seed)).toBe(true);
+
+    storage.setItem(
+      getOnboardingV3DraftStorageKey(scenarioId),
+      JSON.stringify({
+        ...fallbackState,
+        profile: { ...fallbackState.profile, startMonth: "2031-01" },
+      })
+    );
+
+    const replaced = replaceActiveScenarioOnboardingDraftPresetState({
+      scenarioId,
+      presetPayload: seed!.payload,
+      fallbackState,
+      labels,
+      storage,
+    });
+
+    expect(replaced.profile.startMonth).toBe("2026-02");
+    expect(replaced.assets.some((asset) => asset.assetType === "property")).toBe(true);
+    expect(storage.dump().has(getOnboardingV2DraftStorageKey(scenarioId))).toBe(true);
+    expect(storage.dump().has(getOnboardingV3DraftStorageKey(scenarioId))).toBe(true);
+    expect(baselineSnapshot).toEqual({
+      scenarioMeta: { onboarded: false },
+      baselineEventIds: ["baseline-income", "baseline-expense"],
+    });
   });
 });
