@@ -19,7 +19,7 @@ type OnboardingReviewPackOptions = {
   topN?: number;
 };
 
-type ReviewPackGuardrailRow = {
+export type ReviewPackGuardrailRow = {
   guardrailId: string;
   severity: OnboardingGuardrailSeverity | "unknown";
   category: OnboardingGuardrailCategory | "unknown";
@@ -85,6 +85,57 @@ export type OnboardingReviewPackTableExport = {
     lowestFixSuccessGuardrails: Array<Record<string, number | string>>;
     reviewWithoutCompletionCandidates: Array<Record<string, number | string>>;
   };
+};
+
+export const ONBOARDING_WEEKLY_REVIEW_PRIORITY_GUARDRAILS = [
+  "property_usage_missing",
+  "duplicate_current_home_housing_costs",
+  "duplicate_rent_expense_inputs",
+  "mortgage_property_basics_missing",
+] as const;
+
+export type OnboardingWeeklyReviewPriorityGuardrailId =
+  (typeof ONBOARDING_WEEKLY_REVIEW_PRIORITY_GUARDRAILS)[number];
+
+export type OnboardingWeeklyReviewAction =
+  | "monitor"
+  | "rewrite_copy_and_action_hint"
+  | "clarify_target_step_and_section"
+  | "consider_severity_review_if_baseline_risk_persists"
+  | "observation_only_sample_too_small";
+
+export type OnboardingWeeklyReviewStatus = "ok" | "observe" | "needs_attention";
+
+export type OnboardingWeeklyReviewFocusRow = ReviewPackGuardrailRow & {
+  reviewSampleStatus: "enough_support" | "observation_only";
+  recommendedAction: OnboardingWeeklyReviewAction;
+};
+
+export type OnboardingWeeklyReviewWorkflow = {
+  window: {
+    weekStart: string;
+    weekEnd: string;
+  };
+  aggregatePack: OnboardingReviewPack;
+  localePacks: OnboardingReviewPack[];
+  checks: {
+    reviewSampleSize: {
+      reviewSessionCount: number;
+      status: OnboardingWeeklyReviewStatus;
+      note: string;
+    };
+    localeBias: {
+      dominantLocale: string | null;
+      dominantSharePct: number;
+      status: OnboardingWeeklyReviewStatus;
+      note: string;
+    };
+    personaPresetJourneyBias: {
+      status: "requires_external_review";
+      note: string;
+    };
+  };
+  focusGuardrails: OnboardingWeeklyReviewFocusRow[];
 };
 
 type ReviewMeta = {
@@ -174,6 +225,199 @@ const sortByReviewWithoutCompletion = (left: ReviewPackGuardrailRow, right: Revi
   right.incompleteReviewCount - left.incompleteReviewCount ||
   right.incompleteShareOfShown - left.incompleteShareOfShown ||
   left.guardrailId.localeCompare(right.guardrailId);
+
+const buildGuardrailRows = (
+  guardrailAggregates: Map<string, GuardrailAggregate>,
+  completedReviewSessionIds: Set<string>,
+  reviewSessionCount: number
+): ReviewPackGuardrailRow[] =>
+  [...guardrailAggregates.values()].map<ReviewPackGuardrailRow>((aggregate) => {
+    const shownReviewCount = aggregate.shownReviewSessions.size;
+    const fixedReviewCount = aggregate.fixedReviewSessions.size;
+    let incompleteReviewCount = 0;
+
+    for (const reviewSessionId of aggregate.shownReviewSessions) {
+      if (!completedReviewSessionIds.has(reviewSessionId)) {
+        incompleteReviewCount += 1;
+      }
+    }
+
+    return {
+      guardrailId: aggregate.guardrailId,
+      severity: aggregate.severity,
+      category: aggregate.category,
+      targetStepId: aggregate.targetStepId,
+      targetSection: aggregate.targetSection,
+      shownEventCount: aggregate.shownEventCount,
+      shownReviewCount,
+      shownRate: toPct(shownReviewCount, reviewSessionCount),
+      fixedReviewCount,
+      fixSuccessRate: toPct(fixedReviewCount, shownReviewCount),
+      incompleteReviewCount,
+      incompleteShareOfShown: toPct(incompleteReviewCount, shownReviewCount),
+    };
+  });
+
+const getPriorityGuardrailAction = (row: ReviewPackGuardrailRow): OnboardingWeeklyReviewAction => {
+  if (row.shownReviewCount < 5) {
+    return "observation_only_sample_too_small";
+  }
+
+  if (row.shownRate >= 30 && row.fixSuccessRate < 40 && row.incompleteShareOfShown >= 50) {
+    return "rewrite_copy_and_action_hint";
+  }
+
+  if (row.shownRate >= 20 && row.fixSuccessRate < 60) {
+    return "clarify_target_step_and_section";
+  }
+
+  if (row.fixSuccessRate < 40 && row.incompleteShareOfShown >= 60) {
+    return "consider_severity_review_if_baseline_risk_persists";
+  }
+
+  return "monitor";
+};
+
+export const getPreviousFullWeekWindow = (
+  now: ReviewPackWindowInput,
+  weekStartsOn: "monday" | "sunday" = "monday"
+) => {
+  const date = new Date(normalizeWindowInput(now));
+  const utcDay = date.getUTCDay();
+  const offsetToCurrentWeekStart =
+    weekStartsOn === "monday" ? (utcDay + 6) % 7 : utcDay;
+
+  const currentWeekStart = new Date(date);
+  currentWeekStart.setUTCHours(0, 0, 0, 0);
+  currentWeekStart.setUTCDate(currentWeekStart.getUTCDate() - offsetToCurrentWeekStart);
+
+  const previousWeekStart = new Date(currentWeekStart);
+  previousWeekStart.setUTCDate(previousWeekStart.getUTCDate() - 7);
+
+  return {
+    weekStart: previousWeekStart.toISOString(),
+    weekEnd: currentWeekStart.toISOString(),
+  };
+};
+
+export const buildOnboardingWeeklyReviewWorkflow = (
+  events: OnboardingFunnelEvent[],
+  {
+    weekStart,
+    weekEnd,
+    locales = [],
+    focusGuardrailIds = [...ONBOARDING_WEEKLY_REVIEW_PRIORITY_GUARDRAILS],
+    topN = 10,
+  }: {
+    weekStart: ReviewPackWindowInput;
+    weekEnd: ReviewPackWindowInput;
+    locales?: string[];
+    focusGuardrailIds?: readonly string[];
+    topN?: number;
+  }
+): OnboardingWeeklyReviewWorkflow => {
+  const packTopN = Math.max(topN, events.length, focusGuardrailIds.length);
+  const aggregatePack = buildOnboardingReviewPack(events, {
+    weekStart,
+    weekEnd,
+    topN: packTopN,
+  });
+  const localePacks = locales.map((locale) =>
+    buildOnboardingReviewPack(events, {
+      weekStart,
+      weekEnd,
+      locale,
+      topN: packTopN,
+    })
+  );
+
+  const localeShareRows = localePacks
+    .filter((pack) => pack.totals.reviewSessionCount > 0)
+    .map((pack) => ({
+      locale: pack.locale,
+      reviewSessionCount: pack.totals.reviewSessionCount,
+      sharePct: toPct(pack.totals.reviewSessionCount, aggregatePack.totals.reviewSessionCount),
+    }))
+    .sort((left, right) => right.reviewSessionCount - left.reviewSessionCount);
+
+  const dominantLocale = localeShareRows[0] ?? null;
+  const focusGuardrailRows = new Map(
+    [
+      ...aggregatePack.sections.topShownGuardrails,
+      ...aggregatePack.sections.lowestFixSuccessGuardrails,
+      ...aggregatePack.sections.reviewWithoutCompletionCandidates,
+    ].map((row) => [row.guardrailId, row] as const)
+  );
+
+  const focusGuardrails = focusGuardrailIds.map<OnboardingWeeklyReviewFocusRow>((guardrailId) => {
+    const existingRow: ReviewPackGuardrailRow = focusGuardrailRows.get(guardrailId) ?? {
+      guardrailId,
+      severity: "unknown",
+      category: "unknown",
+      targetStepId: "unknown",
+      targetSection: "unknown",
+      shownEventCount: 0,
+      shownReviewCount: 0,
+      shownRate: 0,
+      fixedReviewCount: 0,
+      fixSuccessRate: 0,
+      incompleteReviewCount: 0,
+      incompleteShareOfShown: 0,
+    };
+
+    return {
+      ...existingRow,
+      reviewSampleStatus:
+        existingRow.shownReviewCount >= 5 ? "enough_support" : "observation_only",
+      recommendedAction: getPriorityGuardrailAction(existingRow),
+    };
+  });
+
+  return {
+    window: aggregatePack.window,
+    aggregatePack,
+    localePacks,
+    checks: {
+      reviewSampleSize: {
+        reviewSessionCount: aggregatePack.totals.reviewSessionCount,
+        status:
+          aggregatePack.totals.reviewSessionCount >= 20
+            ? "ok"
+            : aggregatePack.totals.reviewSessionCount > 0
+              ? "observe"
+              : "needs_attention",
+        note:
+          aggregatePack.totals.reviewSessionCount >= 20
+            ? "Enough review sessions to compare week-over-week, but still validate focused guardrails against shown-review support."
+            : aggregatePack.totals.reviewSessionCount > 0
+              ? "Directional only: fewer than 20 review sessions in the weekly window. Do not turn this into product policy yet."
+              : "No onboarding review sessions were recorded in the weekly window. Treat this as an instrumentation or traffic-readiness blocker."
+      },
+      localeBias: {
+        dominantLocale: dominantLocale?.locale === "all" ? null : (dominantLocale?.locale ?? null),
+        dominantSharePct: dominantLocale?.sharePct ?? 0,
+        status:
+          dominantLocale && dominantLocale.sharePct > 70
+            ? "observe"
+            : aggregatePack.totals.reviewSessionCount === 0
+              ? "needs_attention"
+              : "ok",
+        note:
+          dominantLocale && dominantLocale.sharePct > 70
+            ? `Locale skew warning: ${dominantLocale.locale} accounts for ${dominantLocale.sharePct}% of review sessions. Read aggregate guardrail rankings as cohort-specific until another locale catches up.`
+            : aggregatePack.totals.reviewSessionCount === 0
+              ? "Locale bias cannot be reviewed because there are no onboarding review sessions in the window."
+              : "No locale exceeds the 70% skew warning threshold for this weekly window."
+      },
+      personaPresetJourneyBias: {
+        status: "requires_external_review",
+        note:
+          "Persona / preset / journey distortion cannot be inferred from onboarding review-pack events because the metadata-only allowlist excludes those fields. Cross-check the same week against the market-entry review ritual before treating a high-show or low-fix rule as a product decision."
+      },
+    },
+    focusGuardrails,
+  };
+};
 
 export const buildOnboardingReviewPack = (
   events: OnboardingFunnelEvent[],
@@ -265,32 +509,7 @@ export const buildOnboardingReviewPack = (
   const reviewToCompletedConversionRate = toPct(completedReviewSessionCount, reviewSessionCount);
   const reviewWithoutCompletionRate = toPct(reviewWithoutCompletionSessionCount, reviewSessionCount);
 
-  const guardrailRows = [...guardrailAggregates.values()].map<ReviewPackGuardrailRow>((aggregate) => {
-    const shownReviewCount = aggregate.shownReviewSessions.size;
-    const fixedReviewCount = aggregate.fixedReviewSessions.size;
-    let incompleteReviewCount = 0;
-
-    for (const reviewSessionId of aggregate.shownReviewSessions) {
-      if (!completedReviewSessionIds.has(reviewSessionId)) {
-        incompleteReviewCount += 1;
-      }
-    }
-
-    return {
-      guardrailId: aggregate.guardrailId,
-      severity: aggregate.severity,
-      category: aggregate.category,
-      targetStepId: aggregate.targetStepId,
-      targetSection: aggregate.targetSection,
-      shownEventCount: aggregate.shownEventCount,
-      shownReviewCount,
-      shownRate: toPct(shownReviewCount, reviewSessionCount),
-      fixedReviewCount,
-      fixSuccessRate: toPct(fixedReviewCount, shownReviewCount),
-      incompleteReviewCount,
-      incompleteShareOfShown: toPct(incompleteReviewCount, shownReviewCount),
-    };
-  });
+  const guardrailRows = buildGuardrailRows(guardrailAggregates, completedReviewSessionIds, reviewSessionCount);
 
   return {
     window: {
