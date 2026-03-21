@@ -1,5 +1,5 @@
 ﻿# North Star Product Roadmap
-Last updated: 2026-03-20
+Last updated: 2026-03-21
 
 ## Product Focus
 - 產品定位: 香港/亞洲家庭人生現金流決策平台。
@@ -59,7 +59,12 @@ Last updated: 2026-03-20
 - [x] marketing persona CTA 現在可攜帶 `journey + preset` query 導流到 member/cases，並在 create dialog 預選 allowlist preset 與顯示 journey 引導文案（不改登入後先到 member/cases 規則）。
 - [x] marketing landing page 已新增 sample journey cards（起始條件 + 3-step 操作 + 可見輸出），每張卡 CTA 均沿用 `journey + preset` deep-link 到 member/cases。
 - [x] market-entry handoff contract 現已產品化：`journey/preset` policy 收斂為單一 canonical source（allowlisted journey ids、primary preset mapping、blank fallback），signed-in / signed-out 都只可回到 `/{locale}/member/cases` 承接同一 create intent。
-- [ ] app 內延伸入口與分組資訊架構待後續 beta 回饋收斂。
+- [x] UX / IA contract 已補完：app 內承接同一 onboarding-prefill 心智模型的候選入口，只限 scenario-scoped setup / recovery surfaces，不可落入 Plan Lab template 或 Money event create 流程。
+- [ ] Beta 實作入口 1：scenario onboarding start / resume shell 顯示 preset suggestions，讓未完成 onboarding 的 active scenario 可直接改用更貼近現況的起點，再回到同一 onboarding wizard 補完。
+- [ ] Beta 實作入口 2：Overview / Dashboard 的 onboarding-incomplete recovery banner 顯示 preset suggestions，結論明確為「替 active scenario 建立新的 onboarding draft 起點」，不是直接完成 scenario，也不是直接改 baseline。
+- [ ] Beta 實作入口 3：Scenario Settings → Data Management 提供 guarded 的「replace onboarding draft from preset」入口，只在使用者明確要重整 active scenario 起點時出現，並需附覆蓋警告與重新進入 onboarding 的後續動作。
+- [ ] Beta 文案與 IA：onboarding / dashboard recovery 入口需帶 journey guidance + ETA + outcome copy；settings recovery 入口則採較簡潔的 reset/restart copy，避免與一般資料維護操作混淆。
+- [ ] Guardrail：app 內 preset suggestions 一律不得出現在 Plan Lab Add Experiment、Money add-event / template picker、或任何 baseline 事件 create/edit drawer，避免把「建立 baseline 起點」誤解成「新增事件」或「新增實驗」。
 5. Beta 回饋閉環
 - 以封閉測試流程建立「收集問題 -> 分類 -> 迭代 -> 驗收」節奏。
 - [x] Local dev now has a dev-only E2E auth bootstrap (dedicated Supabase test account + reset) so Playwright can validate member/app flows without weakening normal auth boundaries.
