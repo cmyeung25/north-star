@@ -4591,6 +4591,16 @@
           "label": "First session outcome",
           "title": "Leave your first session with one clear next move.",
           "description": "A baseline case, a pressure view, and one comparison you can act on immediately."
+        },
+        "variants": {
+          "control_v1": {
+            "title": "See the roadmap before you decide.",
+            "subtitle": "In Hong Kong, mortgages, rate changes, education costs, moving plans—everything is connected. Aurin helps you turn income, expenses, assets and liabilities into comparable scenarios, so you can decide with clarity, not guesses."
+          },
+          "clarity_first_v1": {
+            "title": "See cashflow pressure, risk timing, and trade-offs before you commit.",
+            "subtitle": "Aurin turns Hong Kong income, housing, debt, and family choices into comparable scenarios, so your first decision starts with pressure visibility instead of spreadsheet guesswork."
+          }
         }
       },
       "cta": {
@@ -4624,7 +4634,8 @@
         "faq": "Questions you may have"
       },
       "personaCard": {
-        "outcomeLabel": "What you will clarify"
+        "outcomeLabel": "What you will clarify",
+        "decisionLabel": "Decision to clarify"
       },
       "personas": {
         "officeSaver": {
@@ -4638,7 +4649,8 @@
             "Spot tight or deficit months before they happen",
             "Compare renting longer vs buying earlier side-by-side"
           ],
-          "cta": "Start with this scenario"
+          "cta": "Start with this scenario",
+          "ctaDecisionFirst": "Start with this decision"
         },
         "coupleHome": {
           "tag": "Down payment, mortgage, renovation, moving costs all at once",
@@ -4651,7 +4663,8 @@
             "Identify the tightest months in advance",
             "Compare buy this year vs next year in one view"
           ],
-          "cta": "Try buy vs rent"
+          "cta": "Try buy vs rent",
+          "ctaDecisionFirst": "Compare this buy timing"
         },
         "newParents": {
           "tag": "Education, childcare, helper, insurance: total cost is hard to estimate",
@@ -4664,7 +4677,8 @@
             "Prepare early instead of reacting late",
             "Compare conservative vs aggressive plans clearly"
           ],
-          "cta": "Try the new family scenario"
+          "cta": "Try the new family scenario",
+          "ctaDecisionFirst": "Stress-test this family plan"
         },
         "mortgageOwner": {
           "tag": "Property value is up, mortgage is still ongoing",
@@ -4677,7 +4691,8 @@
             "See risk points early (rate hikes / deficit months)",
             "Test early repayment vs keeping liquidity"
           ],
-          "cta": "Review mortgage pressure points"
+          "cta": "Review mortgage pressure points",
+          "ctaDecisionFirst": "Review this mortgage choice"
         },
         "freelancer": {
           "title": "Freelancer with variable income",
@@ -4776,6 +4791,14 @@
               "risk": "Risk",
               "compare": "Compare"
             }
+          }
+        },
+        "variants": {
+          "control_v1": {
+            "subtitle": "Each journey is framed like a real decision: who it is for, what you will test, and what visible output you get before making the next move."
+          },
+          "decision_first_v1": {
+            "subtitle": "Each journey starts with the decision question first, then shows the starting context and visible outputs you will use before taking the next step."
           }
         }
       },

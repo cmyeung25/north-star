@@ -106,10 +106,11 @@ Last updated: 2026-03-21
 - [x] v1.1 persona ↔ preset mapping policy：每個 market-entry persona 只可映射至 allowlisted member preset；若無安全對應則回退 blank flow，不新增 direct scenario creation。
 - [x] v1.1 journey deep-link contract：統一使用 `/{locale}/member/cases?journey={journeyId}&preset={presetId}` 作為入口意圖傳遞；query 只允許初始化 member create dialog，不可繞過 `/member/cases` 或直接標記 scenario 已完成 onboarding。
 - [x] v1.1 funnel tracking completion：market-entry event dictionary 已補齊 `sample_journey_impression`、`case_created`，sample journey CTA 現與 persona CTA 共用 vendor-agnostic `journey_cta_click`，member create 成功會在真正成功後發送 `case_created`；payload 維持 metadata-only（`locale` / `journeyId` / `presetId` / `isSignedIn`），不含任何 case/scenario/financial business payload。
-- [ ] v1.1 A/B 文案實驗位：預留 hero value prop、persona CTA、sample journey summary 的實驗欄位與命名規則，先不綁定特定供應商。
+- [x] v1.1 A/B 文案實驗位：hero value prop、persona CTA/summary、sample journey summary 已補齊 vendor-agnostic experiment slot contract；slot key 固定為 `landing.hero.value_prop`、`landing.persona.cta_summary`、`landing.sample_journey.summary`，variant naming 規則統一為 lowercase snake_case + `_v{n}`（例如 `control_v1`、`decision_first_v1`）。實驗只可改文案與排序，不可改 `/{locale}/member/cases?journey={journeyId}&preset={presetId}` handoff contract，也不可直接暴露 hidden preset。
 - [x] v1.1 sample journey content kit：為至少 3 個 target personas（單身租屋、雙職家庭置業、新手爸媽）定義起始條件、3-step 操作、可見輸出與預期決策問題。
 - [x] v1.1 member handoff guidance：create dialog / onboarding entry 明確承接 journey promise（適用族群、預計完成時間、會得到什麼結論），降低落差。
 - [x] v1.1 KPI baseline & review cadence：已新增 `docs/product/MARKET_ENTRY_REVIEW_RITUAL.md`，定義 weekly review cadence、KPI formulas、persona/journey/preset cohort breakdown、minimum sample-size warnings，以及「ready to scale traffic」判準；未達門檻前仍不得宣稱 sample journey 已可上市。
+- [x] v1.1 experiment governance：market-entry analytics allowlist 現可選擇帶 `experimentSlotKey` / `experimentVariant` 兩個 metadata-only 欄位，以對齊 slot cohort review；嚴禁加入 case/scenario id、財務金額或其他 business payload，member resolver 亦必須忽略 experiment query/metadata 並維持 invalid mapping → blank flow。
 
 ### Persona coverage matrix（public entry → member preset）
 | Journey / Persona | Primary preset | Fallback | Notes |

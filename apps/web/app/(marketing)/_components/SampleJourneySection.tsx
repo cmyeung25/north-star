@@ -9,6 +9,11 @@ import {
   MEMBER_JOURNEY_PRESET_MAP,
   type MemberJourneyId,
 } from "../../../src/features/member/createCaseEntry";
+import {
+  getSampleJourneySummaryExperimentContent,
+  resolveMarketEntryExperimentSelection,
+  type MarketEntryExperimentSelection,
+} from "../../../src/features/marketing/marketEntryExperiments";
 import { trackMarketEntryEvent, trackMarketEntryExposureOnce } from "../../../src/lib/analytics/marketEntry";
 
 type SampleJourneyKey = Extract<MemberJourneyId, "officeSaver" | "coupleHome" | "newParents">;
@@ -17,11 +22,19 @@ const sampleJourneyKeys: SampleJourneyKey[] = ["officeSaver", "coupleHome", "new
 const sampleJourneySteps = ["one", "two", "three"] as const;
 const sampleJourneyOutputs = ["runway", "risk", "compare"] as const;
 
-export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boolean }) {
+export default function SampleJourneySection({
+  isSignedIn,
+  experimentSelection,
+}: {
+  isSignedIn: boolean;
+  experimentSelection?: Partial<MarketEntryExperimentSelection>;
+}) {
   const t = useTranslations("marketing.web");
   const locale = useLocale();
   const cardRefs = useRef(new Map<SampleJourneyKey, HTMLDivElement | null>());
   const trackedJourneyImpressionsRef = useRef(new Set<SampleJourneyKey>());
+  const resolvedExperimentSelection = resolveMarketEntryExperimentSelection(experimentSelection);
+  const summaryExperiment = getSampleJourneySummaryExperimentContent(resolvedExperimentSelection);
 
   const journeyEntries = useMemo(
     () =>
@@ -47,6 +60,8 @@ export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boole
           journeyId: journeyKey,
           presetId,
           isSignedIn,
+          experimentSlotKey: summaryExperiment.slotKey,
+          experimentVariant: summaryExperiment.variant,
         },
       });
     };
@@ -89,7 +104,7 @@ export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boole
     return () => {
       observer.disconnect();
     };
-  }, [isSignedIn, journeyEntries, locale]);
+  }, [isSignedIn, journeyEntries, locale, summaryExperiment.slotKey, summaryExperiment.variant]);
 
   return (
     <Stack gap="md">
@@ -98,7 +113,7 @@ export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boole
           {t("sampleJourney.title")}
         </Title>
         <Text c="var(--mantine-color-polar-1)" maw={760}>
-          {t("sampleJourney.subtitle")}
+          {t(summaryExperiment.subtitleKey)}
         </Text>
       </Stack>
       <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
@@ -119,23 +134,46 @@ export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boole
                   {t(`sampleJourney.journeys.${journeyKey}.title`)}
                 </Badge>
 
-                <Stack gap={4}>
-                  <Text fw={700}>{t("sampleJourney.startTitle")}</Text>
-                  <Text size="sm" c="dimmed">
-                    {t(`sampleJourney.journeys.${journeyKey}.startCondition`)}
-                  </Text>
-                </Stack>
-
-                <Paper p="md" radius="lg" bg="rgba(11, 27, 58, 0.04)">
-                  <Stack gap={4}>
-                    <Text size="xs" tt="uppercase" fw={700} c="aurora.8">
-                      {t("sampleJourney.decisionTitle")}
-                    </Text>
-                    <Text fw={600}>{t(`sampleJourney.journeys.${journeyKey}.decisionQuestion`)}</Text>
-                  </Stack>
-                </Paper>
-
                 <Divider />
+
+                {summaryExperiment.summaryOrder.map((summaryKey) => {
+                  if (summaryKey === "start") {
+                    return (
+                      <Stack key={summaryKey} gap={4}>
+                        <Text fw={700}>{t("sampleJourney.startTitle")}</Text>
+                        <Text size="sm" c="dimmed">
+                          {t(`sampleJourney.journeys.${journeyKey}.startCondition`)}
+                        </Text>
+                      </Stack>
+                    );
+                  }
+
+                  if (summaryKey === "decision") {
+                    return (
+                      <Paper key={summaryKey} p="md" radius="lg" bg="rgba(11, 27, 58, 0.04)">
+                        <Stack gap={4}>
+                          <Text size="xs" tt="uppercase" fw={700} c="aurora.8">
+                            {t("sampleJourney.decisionTitle")}
+                          </Text>
+                          <Text fw={600}>{t(`sampleJourney.journeys.${journeyKey}.decisionQuestion`)}</Text>
+                        </Stack>
+                      </Paper>
+                    );
+                  }
+
+                  return (
+                    <Stack key={summaryKey} gap={4}>
+                      <Text fw={700}>{t("sampleJourney.outputTitle")}</Text>
+                      <Group gap="xs">
+                        {sampleJourneyOutputs.map((outputKey) => (
+                          <Badge key={outputKey} color="aurora" variant="light">
+                            {t(`sampleJourney.journeys.${journeyKey}.outputs.${outputKey}`)}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Stack>
+                  );
+                })}
 
                 <Stack gap={4}>
                   <Text fw={700}>{t("sampleJourney.stepsTitle")}</Text>
@@ -146,17 +184,6 @@ export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boole
                       </List.Item>
                     ))}
                   </List>
-                </Stack>
-
-                <Stack gap={4}>
-                  <Text fw={700}>{t("sampleJourney.outputTitle")}</Text>
-                  <Group gap="xs">
-                    {sampleJourneyOutputs.map((outputKey) => (
-                      <Badge key={outputKey} color="aurora" variant="light">
-                        {t(`sampleJourney.journeys.${journeyKey}.outputs.${outputKey}`)}
-                      </Badge>
-                    ))}
-                  </Group>
                 </Stack>
 
                 <Button
@@ -171,6 +198,8 @@ export default function SampleJourneySection({ isSignedIn }: { isSignedIn: boole
                       journeyId: journeyKey,
                       presetId,
                       isSignedIn,
+                      experimentSlotKey: summaryExperiment.slotKey,
+                      experimentVariant: summaryExperiment.variant,
                     });
                   }}
                 >

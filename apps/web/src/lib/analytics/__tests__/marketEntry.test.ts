@@ -14,6 +14,8 @@ describe("market entry payload contract", () => {
       "journeyId",
       "presetId",
       "isSignedIn",
+      "experimentSlotKey",
+      "experimentVariant",
     ]);
   });
 
@@ -24,6 +26,8 @@ describe("market entry payload contract", () => {
         journeyId: "officeSaver",
         presetId: "single-renter",
         isSignedIn: false,
+        experimentSlotKey: "landing.hero.value_prop",
+        experimentVariant: "control_v1",
         scenarioId: "scenario-secret",
         monthlyIncomeAmount: 50000,
       }),
@@ -32,6 +36,8 @@ describe("market entry payload contract", () => {
       journeyId: "officeSaver",
       presetId: "single-renter",
       isSignedIn: false,
+      experimentSlotKey: "landing.hero.value_prop",
+      experimentVariant: "control_v1",
     });
   });
 });
@@ -63,6 +69,8 @@ describe("trackMarketEntryEvent", () => {
         journeyId: "coupleHome",
         presetId: "dual-income-home",
         isSignedIn: true,
+        experimentSlotKey: "landing.persona.cta_summary",
+        experimentVariant: "decision_first_v1",
         hiddenAmount: 123456,
       });
     });
@@ -84,6 +92,8 @@ describe("trackMarketEntryEvent", () => {
       journeyId: "newParents",
       presetId: "new-baby",
       isSignedIn: true,
+      experimentSlotKey: "landing.sample_journey.summary",
+      experimentVariant: "decision_first_v1",
       caseId: "case-secret",
       scenarioId: "scenario-secret",
     });
@@ -96,6 +106,8 @@ describe("trackMarketEntryEvent", () => {
         journeyId: "newParents",
         presetId: "new-baby",
         isSignedIn: true,
+        experimentSlotKey: "landing.sample_journey.summary",
+        experimentVariant: "decision_first_v1",
       },
     });
     expect(calls[0]).not.toMatchObject({
@@ -122,6 +134,8 @@ describe("trackMarketEntryEvent", () => {
       journeyId: "officeSaver",
       presetId: "single-renter",
       isSignedIn: false,
+      experimentSlotKey: "landing.sample_journey.summary",
+      experimentVariant: "control_v1",
     } as const;
 
     expect(

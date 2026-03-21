@@ -7,16 +7,33 @@ import { useRouter } from "next/navigation";
 import { useAuthModal } from "./AuthModalController";
 import { createSupabaseBrowserClient } from "../../../src/lib/supabase/browser";
 import { trackMarketEntryEvent } from "../../../src/lib/analytics/marketEntry";
+import {
+  getHeroValuePropExperimentContent,
+  resolveMarketEntryExperimentSelection,
+  type MarketEntryExperimentSelection,
+} from "../../../src/features/marketing/marketEntryExperiments";
 import PersonaBannerSection from "./PersonaBannerSection";
 import SampleJourneySection from "./SampleJourneySection";
 
-export default function LandingPage() {
+export default function LandingPage({
+  experimentSelection,
+}: {
+  experimentSelection?: Partial<MarketEntryExperimentSelection>;
+}) {
   const t = useTranslations("marketing.web");
   const locale = useLocale();
   const router = useRouter();
   const { openAuthModal } = useAuthModal();
   const theme = useMantineTheme();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const resolvedExperimentSelection = useMemo(
+    () => resolveMarketEntryExperimentSelection(experimentSelection),
+    [experimentSelection],
+  );
+  const heroExperiment = useMemo(
+    () => getHeroValuePropExperimentContent(resolvedExperimentSelection),
+    [resolvedExperimentSelection],
+  );
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
   const didTrackLandingViewRef = useRef(false);
   const resolvedIsSignedIn = isSignedIn ?? false;
@@ -31,8 +48,10 @@ export default function LandingPage() {
       journeyId: null,
       presetId: null,
       isSignedIn,
+      experimentSlotKey: heroExperiment.slotKey,
+      experimentVariant: heroExperiment.variant,
     });
-  }, [isSignedIn, locale]);
+  }, [heroExperiment.slotKey, heroExperiment.variant, isSignedIn, locale]);
 
   const openAuthFromLanding = (journeyId: string | null, presetId: string | null, tab: "login" | "register") => {
     trackMarketEntryEvent("auth_modal_open", {
@@ -89,14 +108,14 @@ export default function LandingPage() {
             </Badge>
             <Stack gap="sm">
               <Title order={1} c="white" maw={560}>
-                {t("hero.title")}
+                {t(heroExperiment.titleKey)}
               </Title>
               <Text c="var(--mantine-color-polar-1)" maw={560}>
-                {t("hero.subtitle")}
+                {t(heroExperiment.subtitleKey)}
               </Text>
             </Stack>
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-              {(["cashflow", "netWorth", "guardrails"] as const).map((key) => (
+              {heroExperiment.proofOrder.map((key) => (
                 <Paper
                   key={key}
                   p="md"
@@ -234,9 +253,15 @@ export default function LandingPage() {
         </SimpleGrid>
       </Stack>
 
-      <PersonaBannerSection isSignedIn={resolvedIsSignedIn} />
+      <PersonaBannerSection
+        isSignedIn={resolvedIsSignedIn}
+        experimentSelection={resolvedExperimentSelection}
+      />
 
-      <SampleJourneySection isSignedIn={resolvedIsSignedIn} />
+      <SampleJourneySection
+        isSignedIn={resolvedIsSignedIn}
+        experimentSelection={resolvedExperimentSelection}
+      />
 
       <Stack gap="md">
         <Title order={2} c="white">
