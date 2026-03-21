@@ -4,6 +4,13 @@ Last updated: 2026-03-21
 
 ## Decision Log
 
+### D-2026-03-21-03
+- Date: 2026-03-21
+- Status: Accepted
+- Context: Dashboard / overview can only serve active scenarios, so the second app-internal preset surface needed a recovery-specific trigger and copy model that still reuses entry 1’s allowlist, journey guidance, and onboarding-draft write path without inventing a separate app-only preset system.
+- Decision: Ship overview/dashboard recovery as a banner + preset-suggestion surface that appears only when the active scenario is already routable to dashboard **and** still shows onboarding recovery gaps in baseline setup signals. The banner copy must explicitly state that the action only replaces the active scenario’s scenario-scoped onboarding draft starting point, does not complete the scenario, does not write baseline events directly, and immediately returns the user to onboarding for confirmation. Preset cards continue to reuse the same allowlisted seeds, shared journey-summary presenter, and existing onboarding draft replacement path from entry 1.
+- Guardrails: Do not add dashboard-specific preset allowlists, analytics payloads, or direct baseline writes. Keep Plan Lab / Money / baseline event drawers free of both onboarding and dashboard recovery preset helpers via source-guard tests, and leave the future settings reset surface on the shorter reset/restart copy path already documented.
+
 ### D-2026-03-21-02
 - Date: 2026-03-21
 - Status: Accepted
