@@ -1,8 +1,15 @@
 ﻿# North Star Product Decisions
 
-Last updated: 2026-03-20
+Last updated: 2026-03-21
 
 ## Decision Log
+
+### D-2026-03-21-01
+- Date: 2026-03-21
+- Status: Accepted
+- Context: PM requested an inventory of the current preset entry contract and a UX / IA definition for which app-internal pages may later reuse the same onboarding-prefill mental model, without weakening the existing `/member/cases` landing rule or blurring the boundary with Plan Lab / Money creation flows.
+- Decision: Keep `/{locale}/member/cases` create dialog as the only productized preset entry. Define app-internal preset suggestions as a beta-only extension contract limited to three active-scenario setup / recovery surfaces: (1) scenario onboarding start / resume shell for not-yet-onboarded scenarios, (2) overview/dashboard onboarding-incomplete recovery banner, and (3) scenario settings data-management reset action. In every case, preset means “create or replace the active scenario’s scenario-scoped onboarding draft starting point, then continue through onboarding”; it never means direct baseline write, onboarding-complete shortcut, or post-auth landing change.
+- Guardrails: Do not surface preset suggestions inside Plan Lab Add Experiment, Money add-event/template pickers, or baseline event create/edit drawers. Onboarding start / dashboard recovery may include journey guidance + ETA + outcome copy because the user is choosing a starting path; settings reset must use shorter replace/restart copy plus overwrite warning so it is not mistaken for a normal edit shortcut. Future beta implementations must stay active-scenario-scoped and preserve the same analytics / routing / persistence boundaries already documented for member create flow.
 
 ### D-2026-03-20-13
 - Date: 2026-03-20
