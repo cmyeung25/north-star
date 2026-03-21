@@ -8,6 +8,8 @@ This review pack turns onboarding guardrail funnel events into a weekly calibrat
 
 It is intentionally limited to metadata-only analytics so the team can review blocker quality without collecting financial payloads or writing cross-scenario fix state.
 
+The fixed operating cadence and decision ladder now live in `docs/product/ONBOARDING_GUARDRAIL_WEEKLY_REVIEW_WORKFLOW.md`; use this document for metric definitions and the workflow document for the recurring Tuesday review ritual.
+
 The implementation path is now:
 
 1. Pull a weekly slice of onboarding funnel events.

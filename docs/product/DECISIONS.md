@@ -4,6 +4,13 @@ Last updated: 2026-03-21
 
 ## Decision Log
 
+### D-2026-03-21-05
+- Date: 2026-03-21
+- Status: Accepted
+- Context: The onboarding guardrail analytics review pack was operator-ready, but PM/UX still lacked one fixed weekly workflow for choosing the window, checking confidence, and deciding whether a high-friction rule should trigger copy work, target-step clarification, or only observation.
+- Decision: Formalize a fixed weekly onboarding guardrail review workflow on top of `onboardingReviewPack`. The workflow now uses the previous full Monday→Monday UTC week by default, always exports aggregate + locale packs, keeps a fixed four-rule priority list (`property_usage_missing`, `duplicate_current_home_housing_costs`, `duplicate_rent_expense_inputs`, `mortgage_property_basics_missing`), and applies confidence checks before any product action: under 20 weekly review sessions => directional only, under 5 shown review sessions per rule => observation only, locale skew above 70% => annotate as cohort-specific. Persona / preset / journey bias must be reviewed through the separate market-entry board because onboarding analytics intentionally exclude those fields.
+- Guardrails: Keep the payload metadata-only and do not add persona / preset / journey ids into onboarding review events. Default remediation order is copy → action hint / target section clarity → severity review only if baseline-correctness risk persists after another full window; do not move business severity logic into review components.
+
 ### D-2026-03-21-04
 - Date: 2026-03-21
 - Status: Accepted
