@@ -30,6 +30,10 @@ export const submissionFlags = {
     process.env.NEXT_PUBLIC_FF_PLANLAB_SUBMISSION_V2_ENABLED,
     false
   ),
+  planLabDeferredDecisionTemplatesEnabled: readFlag(
+    process.env.NEXT_PUBLIC_FF_PLANLAB_DEFERRED_DECISION_TEMPLATES,
+    false
+  ),
 };
 
 export const isMigrationProtectionEnabled = (source: ScenarioDraftSource) => {

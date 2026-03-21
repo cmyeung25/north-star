@@ -18,6 +18,8 @@ const requiredOverviewKeys = [
   "planLabDecisionTemplatesModeTitle",
   "planLabDecisionTemplateHomePurchaseTitle",
   "planLabDecisionTemplateRentalPlanTitle",
+  "planLabDecisionTemplateMortgageRateHikeTitle",
+  "planLabDecisionTemplateMoveHomeTitle",
   "planLabDecisionTemplateIncomeShockTitle",
   "planLabDecisionRiskTimingTitle",
   "planLabDecisionNextStepTitle",

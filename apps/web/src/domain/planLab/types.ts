@@ -147,6 +147,8 @@ export type PlanLabDecisionTemplateId =
   | "parenting"
   | "home_purchase"
   | "rental_plan"
+  | "mortgage_rate_hike"
+  | "move_home"
   | "retirement"
   | "income_shock";
 
@@ -156,6 +158,8 @@ export type PlanLabDecisionTemplateLauncher =
   | "bundle_parenting"
   | "bundle_housing"
   | "event_rent_housing"
+  | "event_edit_mortgage"
+  | "event_edit_housing"
   | "bundle_retirement"
   | "income_shock_override";
 

@@ -45,7 +45,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { type Locale } from "../../src/i18n/routing";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
-import { monthIndex, type EventGroup, type EventType } from "@north-star/engine";
+import { addMonths, monthIndex, type EventGroup, type EventType } from "@north-star/engine";
 import {
   Legend as RechartsLegend,
   Line,
@@ -118,6 +118,7 @@ import {
 import { useScenarioContext } from "../../src/hooks/useScenarioContext";
 import { useUiStore } from "../../src/store/uiStore";
 import type { TimeSeriesPoint } from "../overview/types";
+import { submissionFlags } from "../../src/lib/featureFlags";
 import WarningsPanel from "../../components/WarningsPanel";
 import MonthField from "../../components/MonthField";
 import MonthlyBreakdownModalHost from "../../components/MonthlyBreakdownModalHost";
@@ -289,9 +290,22 @@ const isMortgageHousingEvent = (event: ScenarioEvent): event is HousingEvent =>
 export const resolveDecisionTemplateLaunchPath = (params: {
   templateId: PlanLabDecisionTemplateId;
   activeRentEventCount: number;
-}): "bundle" | "rent_create" | "rent_edit" | "income_shock" | "retirement" => {
+}):
+  | "bundle"
+  | "rent_create"
+  | "rent_edit"
+  | "mortgage_edit"
+  | "housing_edit"
+  | "income_shock"
+  | "retirement" => {
   if (params.templateId === "rental_plan") {
     return params.activeRentEventCount === 1 ? "rent_edit" : "rent_create";
+  }
+  if (params.templateId === "mortgage_rate_hike") {
+    return "mortgage_edit";
+  }
+  if (params.templateId === "move_home") {
+    return "housing_edit";
   }
   if (params.templateId === "income_shock") {
     return "income_shock";
@@ -354,6 +368,41 @@ const buildRentalHousingDraftForDecisionTemplate = (params: {
     ],
   };
 };
+
+const buildMortgageRateHikeDraftForDecisionTemplate = (
+  event: HousingEvent
+): Partial<HousingEventDraft> => ({
+  mortgageRatePct: String(
+    Math.round(((event.mortgageRatePct ?? 0) + 2) * 100) / 100
+  ),
+  mortgagePayment: "",
+  mortgagePaymentSource: "estimated",
+});
+
+const buildMoveHomeDraftForDecisionTemplate = (
+  event: HousingEvent
+): Partial<HousingEventDraft> => ({
+  startMonth: event.startMonth ? addMonths(event.startMonth, 12) : "",
+  endMonth: event.endMonth ? addMonths(event.endMonth, 12) : "",
+  rental:
+    event.kind === "mortgage" && event.rental?.enabled
+      ? {
+          enabled: true,
+          rentMonthly: Number.isFinite(event.rental.rentMonthly)
+            ? String(event.rental.rentMonthly)
+            : "",
+          startMonth: event.rental.startMonth ? addMonths(event.rental.startMonth, 12) : "",
+          endMonth: event.rental.endMonth ? addMonths(event.rental.endMonth, 12) : "",
+          vacancyRatePct: Number.isFinite(event.rental.vacancyRatePct)
+            ? String(event.rental.vacancyRatePct)
+            : "",
+          rentGrowthMode: event.rental.rentGrowthMode ?? "assumption",
+          rentAnnualGrowthPct: Number.isFinite(event.rental.rentAnnualGrowthPct)
+            ? String(event.rental.rentAnnualGrowthPct)
+            : "",
+        }
+      : undefined,
+});
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
@@ -4284,10 +4333,36 @@ export default function PlanLabPanel({
     [baselineScenarioV2.events]
   );
 
+  const baselineEditableMortgageEvents = useMemo<HousingEvent[]>(
+    () =>
+      (baselineScenarioV2.events ?? []).filter(
+        (event): event is HousingEvent =>
+          event.type === "housing" &&
+          event.kind === "mortgage" &&
+          !event.source?.bundleInstanceId
+      ),
+    [baselineScenarioV2.events]
+  );
+
+  const baselineEditableHousingEvents = useMemo<HousingEvent[]>(
+    () =>
+      (baselineScenarioV2.events ?? []).filter(
+        (event): event is HousingEvent =>
+          event.type === "housing" &&
+          (event.kind === "mortgage" || event.kind === "rent") &&
+          !event.source?.bundleInstanceId
+      ),
+    [baselineScenarioV2.events]
+  );
+
   const decisionTemplateOptions = useMemo(
     () =>
       buildPlanLabDecisionTemplateOptions({
+        enableDeferredTemplates:
+          submissionFlags.planLabDeferredDecisionTemplatesEnabled,
         hasEligibleIncomeEvent: baselineEditableIncomeEvents.length > 0,
+        hasEditableMortgageEvent: baselineEditableMortgageEvents.length > 0,
+        hasEditableHousingEvent: baselineEditableHousingEvents.length > 0,
         translate,
         selectedCostProfile: scenario.meta?.planLab?.decisionTemplateCostProfile ?? {},
       }).map((option) => ({
@@ -4304,6 +4379,8 @@ export default function PlanLabPanel({
       })),
     [
       baselineEditableIncomeEvents.length,
+      baselineEditableMortgageEvents.length,
+      baselineEditableHousingEvents.length,
       scenario.meta?.planLab?.decisionTemplateCostProfile,
       translate,
     ]
@@ -4389,13 +4466,63 @@ export default function PlanLabPanel({
         const initialWizardInput = buildBundleWizardInputForDecisionTemplate({
           templateId: templateId as Exclude<
             PlanLabDecisionTemplateId,
-            "retirement" | "income_shock"
+            "mortgage_rate_hike" | "move_home" | "retirement" | "income_shock"
           >,
           selectedCostProfile,
           baseMonth: scenario.assumptions.baseMonth ?? null,
         });
         setExperimentTemplatesOpen(false);
         handleTemplateSelect(template, { initialWizardInput });
+        return;
+      }
+
+      if (launchPath === "mortgage_edit") {
+        const mortgageEvent = [...baselineEditableMortgageEvents].sort(
+          (left, right) =>
+            (right.mortgagePayment ?? right.purchasePrice ?? 0) -
+            (left.mortgagePayment ?? left.purchasePrice ?? 0)
+        )[0];
+        if (!mortgageEvent) {
+          setPlanToast(
+            translate(
+              "planLabDecisionTemplateMortgageRateHikeDisabled",
+              "No editable mortgage event available. Add or unlock a mortgage housing event first."
+            )
+          );
+          return;
+        }
+        setExperimentTemplatesOpen(false);
+        setTemplateHousingDraft(
+          buildMortgageRateHikeDraftForDecisionTemplate(mortgageEvent)
+        );
+        openV2EventDrawer("edit", "housing", mortgageEvent.id);
+        return;
+      }
+
+      if (launchPath === "housing_edit") {
+        const housingEvent = [...baselineEditableHousingEvents].sort((left, right) => {
+          const leftWeight =
+            left.kind === "mortgage"
+              ? left.mortgagePayment ?? left.purchasePrice ?? 0
+              : left.rentMonthly ?? 0;
+          const rightWeight =
+            right.kind === "mortgage"
+              ? right.mortgagePayment ?? right.purchasePrice ?? 0
+              : right.rentMonthly ?? 0;
+          return rightWeight - leftWeight;
+        })[0];
+        if (!housingEvent) {
+          setPlanToast(
+            translate(
+              "planLabDecisionTemplateMoveHomeDisabled",
+              "No editable housing event available. Add rent/home housing first or use the housing create templates."
+            )
+          );
+          return;
+        }
+        setExperimentTemplatesOpen(false);
+        setTemplateHousingDraft(buildMoveHomeDraftForDecisionTemplate(housingEvent));
+        openV2EventDrawer("edit", "housing", housingEvent.id);
         return;
       }
 
@@ -4482,6 +4609,8 @@ export default function PlanLabPanel({
       closeAllPlanLabDrawers,
       handleTemplateSelect,
       decisionTemplateOptions,
+      baselineEditableHousingEvents,
+      baselineEditableMortgageEvents,
       openV2EventDrawer,
       sandboxScenarioV2.events,
       scenario.assumptions.baseMonth,
