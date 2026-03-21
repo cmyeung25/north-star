@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-20 (market-entry measurement layer completed for review ritual)
+Last updated: 2026-03-20 (Plan Lab deferred template contracts documented and beta-gated)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -12,7 +12,7 @@ Last updated: 2026-03-20 (market-entry measurement layer completed for review ri
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
 | Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
-| Plan Lab 決策化 | 78% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致 | 尚缺利率上升/換樓等後續模板與模板成效校準 |
+| Plan Lab 決策化 | 80% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致。本輪再補上 `mortgage_rate_hike` / `move_home` 的最小產品契約、beta launch gate、availability guard 與 UI/template mapping scaffold（仍預設關閉） | 尚缺利率上升/換樓模板的 beta 啟動判準達標、預設 payload 校準與成效回顧節奏 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 93% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 focused calibration 再把最高摩擦規則的文案改成「問題 + 為何影響 baseline + 下一步」、修正部分 target section（property / housing），並加強 review step 視覺層級，減少 warning / info 被誤解為阻擋提交。analytics contract 亦維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
@@ -134,6 +134,8 @@ Last updated: 2026-03-20 (market-entry measurement layer completed for review ri
 - PlanLabPanel decision template handler 增加 retirement guard（沿用既有 unavailable toast），並在可映射模板時傳入 scenario baseMonth 作為 month anchor。
 - Plan Lab housing template split: `home_purchase` stays on the `life_home_purchase` bundle wizard path; `rental_plan` now reuses the only active-scenario rent event when present, otherwise it seeds a rent draft from the selected cost profile.
 - Plan Lab「新增事件 > 住屋」在 create 模式僅保留租屋事件，避免與置業人生計劃路徑重疊；`rental_plan` 保持租金/按金/代理費預填，並更新置業成本提示文案為「先填樓價」。
+- Plan Lab deferred templates (`mortgage_rate_hike`, `move_home`) 現已補齊 roadmap / decision contract，並以 feature-flag + availability guard 收斂 launch policy：未達 onboarding beta 指標穩定前不出現在 user-facing picker。
+- 若日後開啟 launch gate，`mortgage_rate_hike` 會只在有可編輯按揭事件時顯示並預填較高利率草稿；`move_home` 會只在有可編輯住屋事件時顯示並預填較後住屋時點草稿；兩者都沿用既有 Plan Lab UI/template mapping，不改 engine interface。
 - Overview KPI metric detail modal 參考 Boldin 資訊層次，補齊評級說明內容，並調整為 Action Items + Rating Scale。
 - 移除 Read More/Learn More 區塊（目前未有文章內容），避免顯示空資訊入口。
 - `zh-HK` KPI detail 區塊標題與評級文案統一為中文，避免中英混雜。
@@ -149,6 +151,11 @@ Last updated: 2026-03-20 (market-entry measurement layer completed for review ri
   - Data-flow impact: `home_purchase` keeps scenario-scoped bundle wizard input; `rental_plan` launch is explicitly routed to active-scenario rent housing create/edit with scenario-scoped cost profile; compare summary only adds UI hint text and does not alter engine/domain calculations.
   - Backward compatibility: 未改 engine/domain public interfaces；income shock path 與既有 bundle apply path 保持不變。
   - Risk & rollback: If the new defaults feel off, revert the `buildBundleWizardInputForDecisionTemplate` / `buildHousingEventDraftForDecisionTemplate` mappings without touching stored scenario data.
+  - Date: 2026-03-20
+  - Changed modules: `apps/web/features/planLab/decisionTemplates.ts`, `apps/web/features/planLab/PlanLabPanel.tsx`, `apps/web/src/domain/planLab/types.ts`, `apps/web/src/lib/featureFlags.ts`, `apps/web/messages/en.json`, `apps/web/messages/zh-HK.json`, Plan Lab tests, `docs/product/ROADMAP.md`, `docs/product/IMPLEMENTATION_STATUS.md`, `docs/product/DECISIONS.md`
+  - Data-flow impact: only Plan Lab decision-template catalog / gating / UI mapping changed; deferred templates continue to read active-scenario baseline events only and stay behind a launch flag until beta metrics stabilize.
+  - Backward compatibility: existing templates, patch flow, experiment groups, and engine interfaces remain unchanged; when the flag is off, no new user-facing template appears.
+  - Risk & rollback: low risk while gated off; rollback by removing the new catalog entries / handlers or leaving `NEXT_PUBLIC_FF_PLANLAB_DEFERRED_DECISION_TEMPLATES` disabled.
 
 - Onboarding v3 `Scenario basics` 新增「人生階段重點」多選（成家/生育/教育/退休），並依選擇顯示推薦模板清單（剛畢業/已婚/準退休分流）。
 - 提交 onboarding 後將 persona 偏好寫入 `scenario.meta.personaFocuses`（scenario-scoped），後續可於 Plan Lab 比較區塊隨時切換，不鎖定路徑。

@@ -28,7 +28,9 @@ Last updated: 2026-03-20
 - 支援 baseline vs experiment 比較與保存。
 - [x] v1 已交付：`home_purchase`、`new_baby`、`income_shock` 三類模板已接入「新增實驗」入口，並沿用既有 patch/group 流程（不污染 baseline）。
 - [x] v1 已交付：新增最小可用決策摘要層（risk timing/trend、top drivers、recommended actions），以 KPI 差值 heuristic 產生（不改 engine）。
-- [ ] 下一批模板：利率上升與換樓模板，待 beta 回饋後定義預設 payload 與入口優先序。
+- [ ] 下一批模板：利率上升與換樓模板，只在 onboarding start 與 onboarding review → completion 的 beta 指標穩定後啟動；本輪先收斂最小產品契約、availability guard 與 fallback policy。
+  - [ ] `mortgage_rate_hike` 使用者決策問題：如果未來按揭重訂 / 加息，現金流安全邊際會否明顯惡化？完成定義：由 Plan Lab Add Experiment 進入；只讀 active scenario baseline / existing editable mortgage event；以既有 patch / experiment-group 管線預填較高按揭利率草稿；沿用既有 KPI delta summary，不改 engine interface。
+  - [ ] `move_home` 使用者決策問題：如果把搬屋 / 換樓時點延後或重排，短中期現金流壓力會否改善？完成定義：由 Plan Lab Add Experiment 進入；只讀 active scenario baseline / existing editable housing event；以既有 patch / experiment-group 管線預填較後住屋時點草稿；沿用既有 KPI delta summary，不改 engine interface。
 - [x] Plan Lab 決策模板加入本地常見成本範圍（結婚、生育、育兒、買屋/租樓、退休）與三檔預設（保守/中位/進取），並提供「為何這樣估算」教學提示。
 - [x] Plan Lab 決策模板與人生事件 wizard 預設值已打通：按所選成本檔位（保守/中位/進取）帶入對應 bundle 初始輸入，避免模板卡片估算與 wizard 建立值脫節。
 - [x] Plan Lab housing 模板已拆分為 `home_purchase`（bundle wizard）與 `rental_plan`（rent housing event），避免單一模板同時代表兩條操作路徑。

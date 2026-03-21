@@ -30,7 +30,10 @@ export type PlanLabCostRangeItem = {
 };
 
 type PlanLabDecisionTemplateContext = {
+  enableDeferredTemplates: boolean;
   hasEligibleIncomeEvent: boolean;
+  hasEditableMortgageEvent: boolean;
+  hasEditableHousingEvent: boolean;
   translate: TranslateFn;
   selectedCostProfile: Partial<Record<PlanLabDecisionTemplateId, PlanLabCostProfileTier>>;
 };
@@ -216,7 +219,7 @@ const resolveRentalPlanDefaults = (
 export const buildBundleWizardInputForDecisionTemplate = (params: {
   templateId: Exclude<
     PlanLabDecisionTemplateId,
-    "retirement" | "income_shock"
+    "mortgage_rate_hike" | "move_home" | "retirement" | "income_shock"
   >;
   selectedCostProfile: PlanLabCostProfileTier;
   baseMonth?: string | null;
@@ -480,6 +483,68 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     availabilityGuard: () => ({ enabled: true }),
   },
   {
+    id: "mortgage_rate_hike",
+    launcher: "event_edit_mortgage",
+    titleKey: "planLabDecisionTemplateMortgageRateHikeTitle",
+    titleFallback: "Mortgage rate hike",
+    descriptionKey: "planLabDecisionTemplateMortgageRateHikeDesc",
+    descriptionFallback:
+      "Stress-test an editable mortgage event by pre-filling a higher reset rate in the housing drawer.",
+    estimateGuideKey: "planLabDecisionTemplateMortgageRateHikeGuide",
+    estimateGuideFallback:
+      "Use this only when you already have an editable baseline mortgage event to tune inside Plan Lab.",
+    costRangeItems: [],
+    availabilityGuard: ({ enableDeferredTemplates, hasEditableMortgageEvent }) => {
+      if (!enableDeferredTemplates) {
+        return {
+          enabled: false,
+          reasonKey: "planLabDecisionTemplateDeferredLaunchGate",
+          reasonFallback:
+            "This beta-gated template will unlock after onboarding start and review-to-completion metrics stabilize.",
+        };
+      }
+      return hasEditableMortgageEvent
+        ? { enabled: true }
+        : {
+            enabled: false,
+            reasonKey: "planLabDecisionTemplateMortgageRateHikeDisabled",
+            reasonFallback:
+              "No editable mortgage event available. Add or unlock a mortgage housing event first.",
+          };
+    },
+  },
+  {
+    id: "move_home",
+    launcher: "event_edit_housing",
+    titleKey: "planLabDecisionTemplateMoveHomeTitle",
+    titleFallback: "Move home",
+    descriptionKey: "planLabDecisionTemplateMoveHomeDesc",
+    descriptionFallback:
+      "Start from an editable housing event and prefill a later housing timing draft for move-home what-if testing.",
+    estimateGuideKey: "planLabDecisionTemplateMoveHomeGuide",
+    estimateGuideFallback:
+      "Use this when the active scenario already has an editable rent or mortgage housing event to anchor the move timing.",
+    costRangeItems: [],
+    availabilityGuard: ({ enableDeferredTemplates, hasEditableHousingEvent }) => {
+      if (!enableDeferredTemplates) {
+        return {
+          enabled: false,
+          reasonKey: "planLabDecisionTemplateDeferredLaunchGate",
+          reasonFallback:
+            "This beta-gated template will unlock after onboarding start and review-to-completion metrics stabilize.",
+        };
+      }
+      return hasEditableHousingEvent
+        ? { enabled: true }
+        : {
+            enabled: false,
+            reasonKey: "planLabDecisionTemplateMoveHomeDisabled",
+            reasonFallback:
+              "No editable housing event available. Add rent/home housing first or use the housing create templates.",
+          };
+    },
+  },
+  {
     id: "retirement",
     launcher: "bundle_retirement",
     titleKey: "planLabDecisionTemplateRetirementTitle",
@@ -576,7 +641,11 @@ export const buildIncomeShockDefaultPayload = (params: {
 export const buildPlanLabDecisionTemplateOptions = (
   context: PlanLabDecisionTemplateContext
 ): PlanLabDecisionTemplateOption[] =>
-  PLAN_LAB_DECISION_TEMPLATE_CATALOG.map((item) => {
+  PLAN_LAB_DECISION_TEMPLATE_CATALOG.filter(
+    (item) =>
+      context.enableDeferredTemplates ||
+      (item.id !== "mortgage_rate_hike" && item.id !== "move_home")
+  ).map((item) => {
     const availability = item.availabilityGuard(context);
     const selectedCostProfile = context.selectedCostProfile[item.id] ?? "median";
     return {
