@@ -4,6 +4,13 @@ Last updated: 2026-03-21
 
 ## Decision Log
 
+### D-2026-03-21-04
+- Date: 2026-03-21
+- Status: Accepted
+- Context: The app-internal preset extension contract already reserved scenario settings → data management reset as the third recovery surface, but without an implementation the recovery mental model still looked incomplete and future agents could easily drift toward putting preset entry points into Money / Plan Lab or baseline drawers instead.
+- Decision: Ship the third app preset recovery entry only inside scenario settings → Data Management, using the existing six-seed allowlist, shared onboarding journey-summary presenter, and the same `replaceActiveScenarioOnboardingDraftPresetState` write path that only creates or replaces the active scenario’s onboarding draft starting point before routing back to onboarding. Keep settings copy intentionally shorter than onboarding/dashboard recovery: use restart / replace draft wording, show overwrite warning only when a draft already exists, and never frame it like a marketing CTA or experiment template.
+- Guardrails: Extend source-guard coverage so the settings recovery helper also stays out of Plan Lab Add Experiment, Money add-event / template pickers, and baseline event create/edit drawers. Do not add settings-specific preset ids, direct baseline writes, onboarding-complete shortcuts, or cross-scenario state.
+
 ### D-2026-03-21-03
 - Date: 2026-03-21
 - Status: Accepted

@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-21 (dashboard recovery banner now reuses onboarding preset suggestions without introducing app-specific preset rules)
+Last updated: 2026-03-21 (settings data-management reset now ships the third app preset recovery entry)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -16,7 +16,7 @@ Last updated: 2026-03-21 (dashboard recovery banner now reuses onboarding preset
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 93% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪 focused calibration 再把最高摩擦規則的文案改成「問題 + 為何影響 baseline + 下一步」、修正部分 target section（property / housing），並加強 review step 視覺層級，減少 warning / info 被誤解為阻擋提交。analytics contract 亦維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter，方便每週 review top blockers / low-fix-success / review→completed conversion。 | 仍需依 beta feedback 校準 guardrail 誤報率與 review dashboard 門檻，並持續驗證 sample-size / persona bias 解讀規則 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 主流程整合 | 91% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線兩個 beta surfaces：scenario onboarding start / resume shell，以及 overview/dashboard onboarding-recovery banner。兩者都重用同一套 allowlist、journey guidance、共享 summary presenter 與 onboarding draft write path；dashboard recovery 另外補上明確 banner 文案，重申這只會取代 active scenario 的 onboarding draft 起點，然後返回 onboarding 完成確認，不會直接完成 scenario 或改 baseline。 | 尚需補上 settings data-management reset 入口，並持續驗證 setup/recovery copy rule 是否足以避免與 Plan Lab template 或 Money event create flow 混淆 |
+| Preset 主流程整合 | 96% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線三個 beta surfaces：scenario onboarding start / resume shell、overview/dashboard onboarding-recovery banner、以及 scenario settings → data-management reset。三者都重用同一套 allowlist、journey guidance / summary presenter 與 onboarding draft write path；settings surface 另外把 copy 收斂為較克制的 restart / replace draft 語意與覆蓋警告。 | 尚需持續驗證三個 setup/recovery surfaces 的 copy rule 是否足以避免與 Plan Lab template 或 Money event create flow 混淆，並確認 routed onboarding recovery 在已完成 scenario 上的回流體驗 |
 | GTM / 營運就緒 | 39% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA；本輪再補齊 sample journey impression、case created 成功事件與固定 weekly review ritual | 仍缺 beta feedback loop、支援流程與真實 cohort 基線 |
 
 ## Market Entry + Sample Journey Progress
@@ -38,6 +38,12 @@ Last updated: 2026-03-21 (dashboard recovery banner now reuses onboarding preset
 | Landing → Journey CTA CTR | ≥ 12% | 已有基礎 CTR 公式，且 review ritual 已定義 sample-size warning 與 signed-in/out cohort 比較 | 缺 CTA placement / copy 實驗位與 dashboard automation | 建立週報 export / CTA copy experiment plan |
 | Case created → Onboarding completed 流失差 | < 25 個百分點 | `case_created` 成功事件現已可量測，並可和既有 `onboarding_completed` 共同做 drop-off review | 缺真實 cohort 基線與固定 dashboard/export | 以 review ritual 先跑兩週 drop-off report，再決定是否可 scale traffic |
 
+
+## Latest Update (2026-03-21)
+- scenario settings → data-management reset beta entry 3 已上線：在 Data Management 內新增 guarded preset recovery 區塊，沿用既有 member/onboarding/dashboard 驗證過的 six-seed allowlist、shared journey summary presenter 與 onboarding draft write path。
+- settings surface 文案刻意保持較克制：只有進入 Data Management / reset surface 才會看到入口；無既有 draft 時採較輕量的「start from preset」語意，有既有 draft 時才顯示 replace warning 與 replace CTA，並再次明示這只會取代 active scenario 的 onboarding draft 起點、然後返回 onboarding 確認，不會直接寫 baseline event 或標記 onboarding complete。
+- Data Management i18n（en / zh-HK）已同步更新：tab microcopy、section subtitle、settings-specific preset recovery copy 與 redirecting feedback 全數改走翻譯 key，避免沿用 dashboard 或 marketing CTA 語氣。
+- source-guard 測試現已擴充到第三個 settings helper：除 onboarding / dashboard recovery 外，settings data-management recovery 也被鎖定不得出現在 Plan Lab Add Experiment、Money add-event/template picker、或多個 baseline event create/edit drawers。
 
 ## Latest Update (2026-03-21)
 - overview/dashboard onboarding recovery beta entry 2 已上線：當 active scenario 在 dashboard 仍顯示 onboarding recovery gaps 時，overview 會顯示 recovery banner + preset suggestions；CTA 沿用既有 onboarding draft write path，建立 / 取代 scenario-scoped onboarding draft 起點後立即返回 onboarding 繼續補完。

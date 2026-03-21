@@ -113,10 +113,10 @@
     "settingsSectionMilestonesMicrocopy": "Maintain milestone events for this scenario only.",
     "settingsSectionDataMicrocopy": "[Deprecated] Changes sync/account behavior and data utilities.",
     "settingsSectionOtherMicrocopy": "[Deprecated] Changes supplementary options for this scenario.",
-    "settingsSectionDataManagementMicrocopy": "This tab is now streamlined to Data Management and only keeps scenario JSON export.",
+    "settingsSectionDataManagementMicrocopy": "Use this tab for scenario-scoped data export and guarded onboarding-draft reset actions.",
     "settingsPersistenceDeprecatedNotice": "The \"Sync & Account\" and \"Budget Rules\" interfaces are retired. Legacy data remains read-compatible, but interactive controls are no longer available here.",
     "dataManagementTitle": "Data Management",
-    "dataManagementSubtitle": "Use the tools below to export current scenario data as JSON.",
+    "dataManagementSubtitle": "Use the tools below to export current scenario data or restart this scenario’s onboarding draft from a preset.",
     "advancedSettingsLabel": "Advanced: assumption details",
     "advancedSmartInvestLabel": "Advanced: smart invest details",
     "advancedDataManagementLabel": "Advanced: data management tools",
@@ -3443,63 +3443,63 @@
         "settingTitle": "Expense Settings",
         "systemGeneratedSection": "System generated (read-only)"
       },
-    "review": {
-      "title": "Summary before submit",
-      "description": "Review completeness, resolve important issues, and then save your baseline with confidence.",
-      "badge": {
-        "ok": "OK",
-        "todo": "TODO"
-      },
-      "groupStatus": {
-        "complete": "Ready",
-        "needs_attention": "Needs attention",
-        "incomplete": "Incomplete"
-      },
-      "completenessHint": "Make it easy for different household types to see what is already usable and what still needs confirmation.",
-      "guardrailsHint": "Show the reason, likely impact, and next step before anything distorts the baseline.",
-      "completenessScore": "Coverage across key input groups",
-      "snapshotTitle": "Baseline snapshot",
-      "guardrailSectionCount": "{count} items",
-      "returnToStep": "Review this step",
-      "fixNow": "Fix now",
-      "fixNowTarget": "Go to {step}",
-      "fixDestination": "Returns you to {step} → {section}.",
-      "guardrailsClearTitle": "No must-fix guardrails right now",
-      "guardrailsClearBody": "You can still refine details later, but nothing currently stands out as a baseline-level mismatch before submit.",
-      "guardrailsSummaryBody": "Use the grouped sections below to see what can change the baseline meaning, what is worth another look, and what is only a low-pressure reminder before you submit.",
-      "edit": "Edit",
-      "guardrailSections": {
-        "critical": {
-          "title": "Critical / must fix",
-          "description": "These items can change the meaning of your baseline. Fix them before you submit.",
-          "empty": "No critical issues at the moment."
+      "review": {
+        "title": "Summary before submit",
+        "description": "Review completeness, resolve important issues, and then save your baseline with confidence.",
+        "badge": {
+          "ok": "OK",
+          "todo": "TODO"
         },
-        "warning": {
-          "title": "Warning / review recommended",
-          "description": "These items usually do not block submission. Review them now if you want a cleaner first baseline and fewer surprises later.",
-          "empty": "No warning items need another review right now."
+        "groupStatus": {
+          "complete": "Ready",
+          "needs_attention": "Needs attention",
+          "incomplete": "Incomplete"
         },
-        "info": {
-          "title": "Info / heads-up",
-          "description": "These are heads-up reminders only. They should not stop submission, but a quick scan may prevent avoidable confusion later.",
-          "empty": "No informational heads-up items right now."
-        }
-      },
-      "stepNames": {
-        "household": "Household",
-        "income": "Income",
-        "expense": "Expenses",
-        "assets": "Assets"
-      },
-      "sectionNames": {
-        "housing": "Housing costs",
-        "property": "Property details",
-        "mortgage": "Mortgage details",
-        "fixedExpenses": "Fixed expenses"
-      },
-      "sections": {
-        "scenarioSetup": "Scenario setup",
-        "members": "Household members",
+        "completenessHint": "Make it easy for different household types to see what is already usable and what still needs confirmation.",
+        "guardrailsHint": "Show the reason, likely impact, and next step before anything distorts the baseline.",
+        "completenessScore": "Coverage across key input groups",
+        "snapshotTitle": "Baseline snapshot",
+        "guardrailSectionCount": "{count} items",
+        "returnToStep": "Review this step",
+        "fixNow": "Fix now",
+        "fixNowTarget": "Go to {step}",
+        "fixDestination": "Returns you to {step} → {section}.",
+        "guardrailsClearTitle": "No must-fix guardrails right now",
+        "guardrailsClearBody": "You can still refine details later, but nothing currently stands out as a baseline-level mismatch before submit.",
+        "guardrailsSummaryBody": "Use the grouped sections below to see what can change the baseline meaning, what is worth another look, and what is only a low-pressure reminder before you submit.",
+        "edit": "Edit",
+        "guardrailSections": {
+          "critical": {
+            "title": "Critical / must fix",
+            "description": "These items can change the meaning of your baseline. Fix them before you submit.",
+            "empty": "No critical issues at the moment."
+          },
+          "warning": {
+            "title": "Warning / review recommended",
+            "description": "These items usually do not block submission. Review them now if you want a cleaner first baseline and fewer surprises later.",
+            "empty": "No warning items need another review right now."
+          },
+          "info": {
+            "title": "Info / heads-up",
+            "description": "These are heads-up reminders only. They should not stop submission, but a quick scan may prevent avoidable confusion later.",
+            "empty": "No informational heads-up items right now."
+          }
+        },
+        "stepNames": {
+          "household": "Household",
+          "income": "Income",
+          "expense": "Expenses",
+          "assets": "Assets"
+        },
+        "sectionNames": {
+          "housing": "Housing costs",
+          "property": "Property details",
+          "mortgage": "Mortgage details",
+          "fixedExpenses": "Fixed expenses"
+        },
+        "sections": {
+          "scenarioSetup": "Scenario setup",
+          "members": "Household members",
           "assets": "Assets",
           "cashflows": "Cashflow summary"
         },
@@ -3547,8 +3547,8 @@
       "propertyMissing": "No property added yet",
       "derivedCashflowMissing": "No derived cashflow available"
     },
-  "completeness": {
-    "title": "Onboarding completeness",
+    "completeness": {
+      "title": "Onboarding completeness",
       "level": {
         "ready": "Ready",
         "needs_attention": "Needs attention",
@@ -3594,105 +3594,105 @@
             "needs_attention": "An asset section is enabled, but basic values are not complete yet.",
             "incomplete": "Add core asset or debt balances to anchor the baseline."
           }
+        }
       }
-    }
-  },
-  "guardrails": {
-    "title": "Guardrails to review",
-    "level": {
-      "clear": "Clear",
-      "warning": "Review recommended",
-      "critical": "Fix before submit"
     },
-    "severity": {
-      "critical": "Critical",
-      "warning": "Warning",
-      "info": "Check"
-    },
-    "summary": {
-      "critical": "{count} critical",
-      "warning": "{count} warning",
-      "info": "{count} check"
-    },
-    "rules": {
-      "propertyUsageMissing": {
-        "message": "We can see an owned property, but we still do not know whether it is the home you live in or a property you rent out. Until you choose one, the baseline cannot tell whether to expect housing cost or rental income.",
-        "action": "Go back to Assets → Property details, choose Self-use or Rental for this property, then review only the fields that match that choice."
+    "guardrails": {
+      "title": "Guardrails to review",
+      "level": {
+        "clear": "Clear",
+        "warning": "Review recommended",
+        "critical": "Fix before submit"
       },
-      "mortgageCoreFieldsMissing": {
-        "message": "This property has an outstanding mortgage balance, but the interest rate or remaining term is still missing. Without those basics, the baseline cannot estimate the monthly mortgage cost reliably.",
-        "action": "Go back to Assets → Mortgage details and fill in the mortgage rate plus remaining term."
+      "severity": {
+        "critical": "Critical",
+        "warning": "Warning",
+        "info": "Check"
       },
-      "selfUseRentalConflict": {
-        "message": "This property is marked as your own home, but it also has rental income. Those two states usually describe different situations, so the baseline may double-read the same property.",
-        "action": "Go back to Assets → Property details, decide whether this property is Self-use or Rental, and remove the fields that do not belong."
+      "summary": {
+        "critical": "{count} critical",
+        "warning": "{count} warning",
+        "info": "{count} check"
       },
-      "rentalPropertyIncomeMissing": {
-        "message": "This property is marked as a rental property, but the expected monthly rent is blank. The baseline can miss that incoming cashflow if you leave it empty.",
-        "action": "Go back to Assets → Property details and enter the expected monthly rent, or switch the property to Self-use if it is not rented out."
-      },
-      "mortgagePropertyBasicsMissing": {
-        "message": "We found mortgage details, but the property value or start month is still missing. Without those anchors, the baseline can attach the loan to the wrong home timing or treat the setup as incomplete.",
-        "action": "Go back to Assets → Property details and add the property value plus start month for the home that carries this mortgage."
-      },
-      "duplicateCurrentHomeHousingCosts": {
-        "message": "Your current home may be recorded in two places: once as a housing expense and again as an owned-home setup. If both stay, the baseline can overstate your monthly housing pressure even when only one path is correct.",
-        "action": "Start at Expenses → Housing costs and keep the path that matches today. If you already own and live there, remove the rent-like expense; if you still rent, remove the owned-home setup instead."
-      },
-      "duplicateRentExpenseInputs": {
-        "message": "We found more than one rent-like expense for what may be the same current home. That can make the baseline count the same rent twice and overstate your ongoing housing cost.",
-        "action": "Go back to Expenses → Housing costs, compare the overlapping rent rows, keep the main rent entry, and move any add-on fee to a separate non-rent line if needed."
+      "rules": {
+        "propertyUsageMissing": {
+          "message": "We can see an owned property, but we still do not know whether it is the home you live in or a property you rent out. Until you choose one, the baseline cannot tell whether to expect housing cost or rental income.",
+          "action": "Go back to Assets → Property details, choose Self-use or Rental for this property, then review only the fields that match that choice."
+        },
+        "mortgageCoreFieldsMissing": {
+          "message": "This property has an outstanding mortgage balance, but the interest rate or remaining term is still missing. Without those basics, the baseline cannot estimate the monthly mortgage cost reliably.",
+          "action": "Go back to Assets → Mortgage details and fill in the mortgage rate plus remaining term."
+        },
+        "selfUseRentalConflict": {
+          "message": "This property is marked as your own home, but it also has rental income. Those two states usually describe different situations, so the baseline may double-read the same property.",
+          "action": "Go back to Assets → Property details, decide whether this property is Self-use or Rental, and remove the fields that do not belong."
+        },
+        "rentalPropertyIncomeMissing": {
+          "message": "This property is marked as a rental property, but the expected monthly rent is blank. The baseline can miss that incoming cashflow if you leave it empty.",
+          "action": "Go back to Assets → Property details and enter the expected monthly rent, or switch the property to Self-use if it is not rented out."
+        },
+        "mortgagePropertyBasicsMissing": {
+          "message": "We found mortgage details, but the property value or start month is still missing. Without those anchors, the baseline can attach the loan to the wrong home timing or treat the setup as incomplete.",
+          "action": "Go back to Assets → Property details and add the property value plus start month for the home that carries this mortgage."
+        },
+        "duplicateCurrentHomeHousingCosts": {
+          "message": "Your current home may be recorded in two places: once as a housing expense and again as an owned-home setup. If both stay, the baseline can overstate your monthly housing pressure even when only one path is correct.",
+          "action": "Start at Expenses → Housing costs and keep the path that matches today. If you already own and live there, remove the rent-like expense; if you still rent, remove the owned-home setup instead."
+        },
+        "duplicateRentExpenseInputs": {
+          "message": "We found more than one rent-like expense for what may be the same current home. That can make the baseline count the same rent twice and overstate your ongoing housing cost.",
+          "action": "Go back to Expenses → Housing costs, compare the overlapping rent rows, keep the main rent entry, and move any add-on fee to a separate non-rent line if needed."
+        }
       }
-    }
-  },
-  "navigation": {
-    "back": "Back",
-    "next": "Next",
-    "completeAndWriteToCore": "Complete and write to Core"
-  },
-  "submitFeedback": {
-    "validating": {
-      "title": "Checking your onboarding summary",
-      "description": "We are validating the final onboarding payload before it is written to your scenario."
     },
-    "saving": {
-      "title": "Saving your onboarding baseline",
-      "description": "We are writing your confirmed inputs to this scenario so your dashboard opens with the latest baseline."
+    "navigation": {
+      "back": "Back",
+      "next": "Next",
+      "completeAndWriteToCore": "Complete and write to Core"
     },
-    "redirecting": {
-      "title": "Opening your scenario",
-      "description": "Your onboarding baseline is saved. Redirecting you to the next view now."
-    },
-    "readyToast": "Baseline saved. Opening your scenario…"
-  },
-  "presetSuggestions": {
-    "title": "Pick a closer onboarding starting point",
-    "badge": "Draft presets",
-    "description": "Use a member preset to re-choose this active scenario’s onboarding draft starting point before you continue.",
-    "helper": "These setup/recovery presets keep you inside the same onboarding wizard. They only create or replace the active scenario’s onboarding draft starting point—they do not write baseline events or mark onboarding complete.",
-    "apply": "Use as new starting point",
-    "replace": "Replace current starting point",
-    "feedback": "Updated this onboarding draft starting point from {title}. Review the steps below and continue onboarding.",
-    "replaceWarning": {
-      "title": "Replace current onboarding draft starting point?",
-      "body": "This only replaces the active scenario’s current onboarding draft starting point. It does not write baseline events or mark onboarding complete."
-    },
-    "presetSummaries": {
-      "dualIncomeRental": {
-        "audience": "Suitable for: dual-income couples who already have a home plus rental income to account for.",
-        "goal": "Starting context: you want owner-home costs and rental-income checks in the same active scenario before continuing.",
-        "eta": "Expected setup time: around 8–12 minutes.",
-        "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible owner-cost plus rental-income pressure view, and one housing cashflow compare path."
+    "submitFeedback": {
+      "validating": {
+        "title": "Checking your onboarding summary",
+        "description": "We are validating the final onboarding payload before it is written to your scenario."
       },
-      "newBabyHelper": {
-        "audience": "Suitable for: families planning a new baby together with helper support.",
-        "goal": "Starting context: you want childcare, helper salary, and one-off hiring costs added into the same family baseline.",
-        "eta": "Expected setup time: around 10–15 minutes.",
-        "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible family-support cost pressure view, and one childcare plus helper compare path."
+      "saving": {
+        "title": "Saving your onboarding baseline",
+        "description": "We are writing your confirmed inputs to this scenario so your dashboard opens with the latest baseline."
+      },
+      "redirecting": {
+        "title": "Opening your scenario",
+        "description": "Your onboarding baseline is saved. Redirecting you to the next view now."
+      },
+      "readyToast": "Baseline saved. Opening your scenario…"
+    },
+    "presetSuggestions": {
+      "title": "Pick a closer onboarding starting point",
+      "badge": "Draft presets",
+      "description": "Use a member preset to re-choose this active scenario’s onboarding draft starting point before you continue.",
+      "helper": "These setup/recovery presets keep you inside the same onboarding wizard. They only create or replace the active scenario’s onboarding draft starting point—they do not write baseline events or mark onboarding complete.",
+      "apply": "Use as new starting point",
+      "replace": "Replace current starting point",
+      "feedback": "Updated this onboarding draft starting point from {title}. Review the steps below and continue onboarding.",
+      "replaceWarning": {
+        "title": "Replace current onboarding draft starting point?",
+        "body": "This only replaces the active scenario’s current onboarding draft starting point. It does not write baseline events or mark onboarding complete."
+      },
+      "presetSummaries": {
+        "dualIncomeRental": {
+          "audience": "Suitable for: dual-income couples who already have a home plus rental income to account for.",
+          "goal": "Starting context: you want owner-home costs and rental-income checks in the same active scenario before continuing.",
+          "eta": "Expected setup time: around 8–12 minutes.",
+          "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible owner-cost plus rental-income pressure view, and one housing cashflow compare path."
+        },
+        "newBabyHelper": {
+          "audience": "Suitable for: families planning a new baby together with helper support.",
+          "goal": "Starting context: you want childcare, helper salary, and one-off hiring costs added into the same family baseline.",
+          "eta": "Expected setup time: around 10–15 minutes.",
+          "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible family-support cost pressure view, and one childcare plus helper compare path."
+        }
       }
-    }
-  },
-  "footer": {
+    },
+    "footer": {
       "localDraftHint": "V3 flow only updates local ScenarioDraftV3 staged state and submits once at the final step."
     },
     "defaults": {
@@ -4325,12 +4325,28 @@
   },
   "dataManagement": {
     "title": "Download data copy",
-    "subtitle": "Download a JSON copy of the current scenario data for backup.",
+    "subtitle": "Export a JSON backup or restart the active scenario’s onboarding draft from a preset.",
     "exportTitle": "Export JSON",
     "exportDescription": "Download the current scenario data as a JSON file.",
     "exportButton": "Export JSON",
     "exportSuccess": "Data copy downloaded.",
-    "exportFailed": "Failed to download data copy. Please try again."
+    "exportFailed": "Failed to download data copy. Please try again.",
+    "presetRecovery": {
+      "title": "Restart this scenario from a preset draft",
+      "badge": "Reset path",
+      "description": "Use this only when you want to replace the active scenario’s onboarding draft starting point and walk back through onboarding.",
+      "helper": "This reset path only creates or replaces the active scenario’s onboarding draft starting point. It does not write baseline events or mark onboarding complete.",
+      "apply": "Start from this preset",
+      "replace": "Replace current draft",
+      "replaceWarning": {
+        "title": "Replace this scenario’s current onboarding draft?",
+        "body": "This only replaces the active scenario’s current onboarding draft starting point and sends you back through onboarding to confirm it there. It does not write baseline events or mark onboarding complete."
+      },
+      "redirecting": {
+        "title": "Preparing your reset path",
+        "description": "We are replacing this active scenario’s onboarding draft starting point and returning you to onboarding so you can confirm each step there."
+      }
+    }
   },
   "scenarios": {
     "title": "Scenarios",
