@@ -151,3 +151,5 @@ Blank fallback rule：任何未知 `journey`、非 allowlisted `preset`、或未
 ### 延後原則
 - 以上項目僅在 MVP 留存與決策完成率達標後才排入實作。
 - 不得以延後項目作為阻擋 Closed Beta 或 Public MVP 的前置條件。
+
+- [x] weekly dashboard / export productization：新增 `marketEntryReviewBoard` + `weeklyProductAnalyticsDashboard`，把 onboarding weekly review workflow 與 market-entry review ritual 接成固定 internal dashboard / JSON / CSV export；market-entry contract 同步補上 metadata-only `onboarding_completed` 與 experiment-slot attribution carry-over，讓 signed-in/out handoff 與 experiment cohort 可直接看板化。

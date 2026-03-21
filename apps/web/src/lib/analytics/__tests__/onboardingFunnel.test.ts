@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   ONBOARDING_FUNNEL_ALLOWED_PAYLOAD_KEYS,
   buildPendingGuardrailFix,
@@ -7,13 +7,37 @@ import {
   trackOnboardingFunnelEvent,
 } from "../onboardingFunnel";
 
+const createStorage = () => {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+  };
+};
+
 describe("trackOnboardingFunnelEvent", () => {
+  beforeEach(() => {
+    const storage = createStorage();
+    Object.defineProperty(globalThis, "localStorage", {
+      value: storage,
+      configurable: true,
+    });
+  });
   it("uses the injected tracker when available", () => {
     const calls: unknown[] = [];
     const windowStub = {
       __NS_ONBOARDING_FUNNEL_TRACKER__: (event: unknown) => {
         calls.push(event);
       },
+      localStorage,
     };
 
     (globalThis as { window?: unknown }).window = windowStub;
@@ -53,7 +77,7 @@ describe("trackOnboardingFunnelEvent", () => {
     console.info = (...args: unknown[]) => {
       consoleCalls.push(args);
     };
-    (globalThis as { window?: unknown }).window = {};
+    (globalThis as { window?: unknown }).window = { localStorage };
 
     trackOnboardingFunnelEvent("guardrail_shown", {
       locale: "zh-HK",

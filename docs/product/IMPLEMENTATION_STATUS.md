@@ -1,5 +1,5 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-21 (onboarding guardrail weekly review workflow is now fixed and documented)
+Last updated: 2026-03-21 (weekly dashboard / export productization landed for onboarding + market-entry review)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
@@ -24,8 +24,8 @@ Last updated: 2026-03-21 (onboarding guardrail weekly review workflow is now fix
 |---|---:|---|---|---|
 | 入口頁訊息架構 | 92% | landing 已重整為 hero proof、文字主導 persona cards、sample journey 決策問題與明確 final CTA handoff；sample journey card impression 現已在 section/card exposure path 量測。本輪再把 hero / persona CTA / sample journey summary 收斂到同一個 content-assembly experiment slot contract，可穩定切換 copy 與排序但不動 handoff contract。 | 仍缺 dashboard / review exports 與 sample-size-based rollout SOP | 把 experiment slot cohort 檢視接到固定週報 |
 | Persona ↔ Preset Mapping | 85% | allowlisted journey ids、primary preset mapping、blank fallback 規則現已收斂到單一 canonical source，並同步供 member resolver、marketing CTA 與測試使用；文件亦補上 persona coverage matrix | 仍缺 secondary preset / unsupported persona 的產品評估流程與 KPI 校驗 | 建立未來 persona 擴充 review checklist（mapping / copy / funnel） |
-| Journey Deep-link / Handoff | 90% | `journey + preset` query handoff 已統一由 helper/builders 管理；member 端嚴格只讀 `journey` / `preset`，未知值安全回退 blank flow，signed-out auth return 亦會回到 `/member/cases` 重建相同 intent；sample journey CTA 仍維持同一 contract，未引入 direct scenario shortcut | 仍缺完整 onboarding-completed dashboard 與 signed-in/out cohort 儀表板 | 把 market-entry weekly review ritual 接到固定 dashboard/export 流程 |
-| Funnel Tracking | 90% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；`sample_journey_impression`、`case_created` 已上線，payload allowlist 亦已擴充為 metadata-only `locale / journeyId / presetId / isSignedIn / experimentSlotKey / experimentVariant`，方便按 slot/variant 做 cohort review。 | 尚未把 experiment slot metadata 與 dashboard 實作接上固定看板 | 先以固定 weekly review ritual 驗證 publishability，再補 dashboard / experiment slots |
+| Journey Deep-link / Handoff | 96% | `journey + preset` query handoff 已統一由 helper/builders 管理；member 端嚴格只讀 `journey` / `preset`，未知值安全回退 blank flow，signed-out auth return 亦會回到 `/member/cases` 重建相同 intent；sample journey CTA 仍維持同一 contract，未引入 direct scenario shortcut。`onboarding_completed` 也已補進 metadata-only market-entry contract，讓 signed-in/out completion cohort 可固定輸出。 | 尚需用真實 cohort 驗證 completion attribution 與 export 是否足以支撐每週決策節奏 | 以兩個完整週窗驗證 board / export 的營運可用性 |
+| Funnel Tracking | 96% | 已量測 landing / CTA / auth / preset create / onboarding start，且 onboarding review / guardrail / completed 已補上 vendor-agnostic funnel events；`sample_journey_impression`、`case_created` 已上線，payload allowlist 亦已擴充為 metadata-only `locale / journeyId / presetId / isSignedIn / experimentSlotKey / experimentVariant`，方便按 slot/variant 做 cohort review。此輪再補上 metadata-only `onboarding_completed` market-entry 事件與固定 weekly board/export。 | 尚待真實 traffic 驗證 attribution context 在 signed-out auth return 與多週期 cohort 下的穩定性 | 以兩個連續週窗驗證 market-entry board 的 publishability 決策品質 |
 | A/B 文案實驗位 | 72% | hero value prop、persona CTA/summary、sample journey summary 已有穩定 slot key、variant naming rule（snake_case + `_v{n}`）與 default fallback；content assembly 只會改文案與排序，member handoff / preset allowlist / blank fallback 仍維持 canonical contract。 | 尚未建立 sample-size guard、stop rule 與營運切換 SOP | 建立 experiment review checklist（sample size / fallback / winner promotion） |
 | KPI 基線 / 驗收門檻 | 68% | 已有 v1 funnel event 與基礎轉化公式；本輪再新增 review ritual 文件，明確定義 weekly cadence、cohort breakdown、minimum sample-size warnings 與 ready-to-scale 規則 | 尚缺真實 traffic baseline 與 dashboard automation | 以兩個連續週期累積 publishability baseline，之後再決定是否放大 traffic |
 
@@ -36,11 +36,13 @@ Last updated: 2026-03-21 (onboarding guardrail weekly review workflow is now fix
 | Journey 點擊 → 建立案例轉化率 | ≥ 35% | 已可量測 `journey_cta_click` → `preset_create_submitted`，且 sample journey CTA 與 persona CTA 現使用同一事件語意 | 缺 persona 分群 benchmark，未知哪些 journey 文案最弱 | 依 review ritual 建立 persona/journey cohort breakdown |
 | Onboarding 啟動率 | ≥ 85% | 已可量測 `preset_create_submitted` → `onboarding_started` | 尚未確認 signed-out auth return path 對啟動率的影響 | 比較 signed-in / signed-out 兩條 handoff 漏斗 |
 | Landing → Journey CTA CTR | ≥ 12% | 已有基礎 CTR 公式，且 review ritual 已定義 sample-size warning 與 signed-in/out cohort 比較 | 缺 CTA placement / copy 實驗位與 dashboard automation | 建立週報 export / CTA copy experiment plan |
-| Case created → Onboarding completed 流失差 | < 25 個百分點 | `case_created` 成功事件現已可量測，並可和既有 `onboarding_completed` 共同做 drop-off review | 缺真實 cohort 基線與固定 dashboard/export | 以 review ritual 先跑兩週 drop-off report，再決定是否可 scale traffic |
+| Case created → Onboarding completed 流失差 | < 25 個百分點 | `case_created` 與 market-entry `onboarding_completed` 現已可在固定 weekly board / export 共同檢視，並拆開 signed-in / signed-out delta 與 journey↔preset pair drop-off。 | 缺真實 cohort 基線與兩個連續週窗的穩定比較 | 先跑兩週 drop-off report，再決定是否可 scale traffic |
 
 
 ## Latest Update (2026-03-21)
 - onboarding guardrail weekly review workflow 現已固定：`apps/web/src/lib/analytics/onboardingReviewPack.ts` 新增上一個完整週窗 helper 與 workflow builder，可同時輸出 aggregate + locale packs、四條 priority guardrail focus rows，以及 sample-size / locale-bias / external persona-bias 檢查結果。
+- weekly dashboard / export productization 已上線最小產品版：新增 `apps/web/src/lib/analytics/marketEntryReviewBoard.ts`、`weeklyProductAnalyticsDashboard.ts` 與 `/{locale}/debug/weekly-review` internal board，固定輸出 onboarding 與 market-entry 兩塊 weekly dashboard，並提供 JSON / CSV export。
+- market-entry funnel 現已把 `onboarding_completed` 補進 metadata-only contract，且透過 `marketEntry.ts` 的 local attribution context 把 experiment slot metadata 從 marketing CTA 持續帶到 member create / onboarding completion，讓 signed-in / signed-out handoff 與 experiment slot cohort 可在同一固定 board 檢視。
 - 固定 priority guardrails 為 `property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing`；預設 remediation order 亦正式化為 copy → action hint / target section clarity → severity review only if baseline risk persists。
 - 由於 onboarding review analytics 仍維持 metadata-only allowlist，workflow 會明確把 persona / preset / journey distortion 標記為「必須回看 market-entry board」而非直接從 onboarding pack 推論，避免單一 acquisition mix 扭曲產品判斷。
 - blocker / readiness 判讀已更新：若週窗 review sessions < 20 或單條 rule shown support < 5，只能記錄 observation，不可直接升級為產品決策；因此現階段 blocker 信心較前清晰，但仍需至少兩個完整週窗的真實 cohort 佐證。

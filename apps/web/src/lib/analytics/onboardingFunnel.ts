@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  appendStoredAnalyticsEvent,
+  clearStoredAnalyticsEvents,
+  readStoredAnalyticsEvents,
+} from "./eventStorage";
 import type {
   OnboardingGuardrailCategory,
   OnboardingGuardrailItem,
@@ -42,6 +47,9 @@ export type OnboardingFunnelEvent = {
   payload: OnboardingFunnelEventPayload;
   ts: string;
 };
+
+const STORAGE_KEY = "north-star.analytics.onboarding-funnel.v1";
+const EVENT_LIMIT = 500;
 
 const emitConsoleTelemetry = (event: OnboardingFunnelEvent) => {
   console.info("[onboarding-funnel]", event);
@@ -171,6 +179,8 @@ export const trackOnboardingFunnelEvent = (
     ts: new Date().toISOString(),
   };
 
+  appendStoredAnalyticsEvent(STORAGE_KEY, event, EVENT_LIMIT);
+
   const tracker = window.__NS_ONBOARDING_FUNNEL_TRACKER__;
   if (typeof tracker === "function") {
     tracker(event);
@@ -179,3 +189,9 @@ export const trackOnboardingFunnelEvent = (
 
   emitConsoleTelemetry(event);
 };
+
+
+export const readOnboardingFunnelEvents = () =>
+  readStoredAnalyticsEvents<OnboardingFunnelEvent>(STORAGE_KEY);
+export const clearOnboardingFunnelEvents = () => clearStoredAnalyticsEvents(STORAGE_KEY);
+export const onboardingFunnelStorageKey = STORAGE_KEY;
