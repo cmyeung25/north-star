@@ -17,11 +17,11 @@ import {
 } from "../../../../src/features/onboarding/v3/draftStorage";
 import { createInitialScenarioDraftV3State } from "../../../../src/features/onboarding/v3/types";
 import { createScenarioSeedTranslatorFromMessages, getScenarioSeeds } from "../../../../src/scenarios/scenarioSeeds";
-import { JourneySummaryCard } from "./CaseDialogs";
 import {
   MEMBER_JOURNEY_POLICY,
   MEMBER_JOURNEY_PRESET_MAP,
 } from "../../../../src/features/member/createCaseEntry";
+import { JourneySummaryCard } from "../../../../src/features/member/presetJourneySummary";
 
 const dialogSourcePath = path.resolve(
   process.cwd(),
@@ -169,10 +169,12 @@ describe("member create-case preset flow", () => {
 
     expect(html).toContain("Recommended journey");
     expect(html).toContain("Suitable for: solo professionals building savings while renting.");
-    expect(html).toContain("Decision goal: decide when to move from renting into a first-home plan.");
+    expect(html).toContain(
+      "Best starting point: you are still renting today and want a first-home path without skipping your active scenario baseline setup."
+    );
     expect(html).toContain("Expected setup time: around 5–8 minutes.");
     expect(html).toContain(
-      "First-session outcome: leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
+      "Outcome after onboarding: you will leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
     );
   });
 

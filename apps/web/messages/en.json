@@ -3659,10 +3659,29 @@
   "presetSuggestions": {
     "title": "Pick a closer onboarding starting point",
     "badge": "Draft presets",
-    "description": "Use one of the existing member presets to create or replace this active scenario’s onboarding draft starting point.",
-    "helper": "This only updates the scenario-scoped onboarding draft and keeps you inside the same onboarding wizard. It does not write baseline events or mark onboarding complete.",
-    "apply": "Use this preset",
-    "feedback": "Updated this onboarding draft from {title}. Review the steps below and continue onboarding."
+    "description": "Use a member preset to reset this active scenario to a closer onboarding starting point before you continue.",
+    "helper": "These setup/recovery presets keep you inside the same onboarding wizard. They do not write baseline events or mark onboarding complete.",
+    "apply": "Use this starting point",
+    "replace": "Replace with this starting point",
+    "feedback": "Updated this onboarding draft starting point from {title}. Review the steps below and continue onboarding.",
+    "replaceWarning": {
+      "title": "Replace current onboarding starting point?",
+      "body": "This replaces only the active scenario’s current onboarding draft starting point. It does not write baseline events or mark onboarding complete."
+    },
+    "presetSummaries": {
+      "dualIncomeRental": {
+        "audience": "Suitable for: dual-income couples who already have a home plus rental income to account for.",
+        "goal": "Best starting point: you want owner-home costs and rental-income checks in the same active scenario before continuing.",
+        "eta": "Expected setup time: around 8–12 minutes.",
+        "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible owner-cost plus rental-income pressure view, and one housing cashflow compare path."
+      },
+      "newBabyHelper": {
+        "audience": "Suitable for: families planning a new baby together with helper support.",
+        "goal": "Best starting point: you want childcare, helper salary, and one-off hiring costs added into the same family baseline.",
+        "eta": "Expected setup time: around 10–15 minutes.",
+        "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible family-support cost pressure view, and one childcare plus helper compare path."
+      }
+    }
   },
   "footer": {
       "localDraftHint": "V3 flow only updates local ScenarioDraftV3 staged state and submits once at the final step."
@@ -4985,27 +5004,27 @@
         "title": "Recommended journey",
         "officeSaver": {
           "audience": "Suitable for: solo professionals building savings while renting.",
-          "goal": "Decision goal: decide when to move from renting into a first-home plan.",
+          "goal": "Best starting point: you are still renting today and want a first-home path without skipping your active scenario baseline setup.",
           "eta": "Expected setup time: around 5–8 minutes.",
-          "outcome": "First-session outcome: leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
+          "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
         },
         "coupleHome": {
           "audience": "Suitable for: dual-income couples preparing down payment and mortgage timing.",
-          "goal": "Decision goal: compare buy-now vs wait-one-year housing paths.",
+          "goal": "Best starting point: you already have a home-purchase plan in mind and want down payment, mortgage timing, and monthly pressure in one baseline.",
           "eta": "Expected setup time: around 8–12 minutes.",
-          "outcome": "First-session outcome: leave with a baseline case, a visible upfront-cash vs monthly-pressure view, and one buy-now vs wait compare."
+          "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible upfront-cash vs monthly-pressure view, and one buy-now vs wait compare."
         },
         "newParents": {
           "audience": "Suitable for: families planning childbirth, childcare, and schooling budgets.",
-          "goal": "Decision goal: compare baseline, conservative, and growth-family cost plans.",
+          "goal": "Best starting point: you are preparing for a baby and want childcare plus education pressure added into the same family baseline.",
           "eta": "Expected setup time: around 10–15 minutes.",
-          "outcome": "First-session outcome: leave with a baseline case, a visible family-cost pressure view, and one childcare/education compare path."
+          "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible family-cost pressure view, and one childcare/education compare path."
         },
         "mortgageOwner": {
           "audience": "Suitable for: homeowners with active mortgage and asset-liability balancing needs.",
-          "goal": "Decision goal: evaluate repayment pressure and liquidity trade-offs.",
+          "goal": "Best starting point: you already own property with a mortgage and need repayment pressure, liquidity, and net worth in the same active scenario.",
           "eta": "Expected setup time: around 8–12 minutes.",
-          "outcome": "First-session outcome: leave with a baseline case, a visible repayment-pressure and net-worth view, and one liquidity vs prepayment compare path."
+          "outcome": "Outcome after onboarding: you will leave with a baseline case, a visible repayment-pressure and net-worth view, and one liquidity vs prepayment compare path."
         }
       }
     },

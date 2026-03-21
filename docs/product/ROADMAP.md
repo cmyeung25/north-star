@@ -63,7 +63,7 @@ Last updated: 2026-03-21
 - [x] Beta 實作入口 1：scenario onboarding start / resume shell 現已顯示最小版 preset suggestions，且只在未完成 onboarding 的 active scenario 顯示；CTA 只會建立 / 取代 scenario-scoped onboarding draft 起點，然後留在同一 onboarding wizard 繼續補完。
 - [ ] Beta 實作入口 2：Overview / Dashboard 的 onboarding-incomplete recovery banner 顯示 preset suggestions，結論明確為「替 active scenario 建立新的 onboarding draft 起點」，不是直接完成 scenario，也不是直接改 baseline。
 - [ ] Beta 實作入口 3：Scenario Settings → Data Management 提供 guarded 的「replace onboarding draft from preset」入口，只在使用者明確要重整 active scenario 起點時出現，並需附覆蓋警告與重新進入 onboarding 的後續動作。
-- [ ] Beta 文案與 IA：onboarding / dashboard recovery 入口需帶 journey guidance + ETA + outcome copy；settings recovery 入口則採較簡潔的 reset/restart copy，避免與一般資料維護操作混淆。
+- [ ] Beta 文案與 IA：onboarding start / resume 入口已補齊與 member create dialog 對齊的 journey guidance + ETA + outcome copy 與 replace warning；仍需把同一套 setup/recovery copy rule 延伸到 dashboard recovery，並讓 settings recovery 維持較簡潔的 reset/restart copy，避免與一般資料維護操作混淆。
 - [ ] Guardrail：app 內 preset suggestions 一律不得出現在 Plan Lab Add Experiment、Money add-event / template picker、或任何 baseline 事件 create/edit drawer，避免把「建立 baseline 起點」誤解成「新增事件」或「新增實驗」。
 5. Beta 回饋閉環
 - 以封閉測試流程建立「收集問題 -> 分類 -> 迭代 -> 驗收」節奏。

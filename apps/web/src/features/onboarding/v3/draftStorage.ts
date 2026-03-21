@@ -633,6 +633,25 @@ export const clearOnboardingDraftState = (
   draftStorage.removeItem(getOnboardingV2DraftStorageKey(scenarioId));
 };
 
+export const hasPersistedOnboardingDraftState = (
+  scenarioId: string | undefined,
+  storage?: DraftStorageLike
+) => {
+  if (!scenarioId) {
+    return false;
+  }
+
+  const draftStorage = getStorage(storage);
+  if (!draftStorage) {
+    return false;
+  }
+
+  return Boolean(
+    draftStorage.getItem(getOnboardingV3DraftStorageKey(scenarioId)) ??
+      draftStorage.getItem(getOnboardingV2DraftStorageKey(scenarioId))
+  );
+};
+
 type ReplaceActiveScenarioOnboardingDraftPresetStateOptions = {
   scenarioId?: string;
   presetPayload: ScenarioSeedPayload;

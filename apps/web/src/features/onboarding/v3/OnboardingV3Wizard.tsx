@@ -17,6 +17,7 @@ import ReviewStep from "./steps/ReviewStep";
 import { createInitialScenarioDraftV3State, type OnboardingAsset } from "./types";
 import {
   clearOnboardingDraftState,
+  hasPersistedOnboardingDraftState,
   loadOnboardingV3DraftState,
   persistOnboardingV3DraftState,
   replaceActiveScenarioOnboardingDraftPresetState,
@@ -185,6 +186,9 @@ export default function OnboardingV3Wizard() {
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [applyingPresetId, setApplyingPresetId] = useState<string | null>(null);
+  const [hasExistingOnboardingDraft, setHasExistingOnboardingDraft] = useState(() =>
+    hasPersistedOnboardingDraftState(scenarioId)
+  );
   const [presetFeedbackTitle, setPresetFeedbackTitle] = useState<string | null>(null);
   const [submitPhase, setSubmitPhase] = useState<"idle" | "validating" | "saving" | "redirecting">("idle");
   const [saveFeedback, setSaveFeedback] = useState<"ready" | null>(null);
@@ -241,10 +245,15 @@ export default function OnboardingV3Wizard() {
       setValidationMessages([]);
       setSaveFeedback(null);
       setPresetFeedbackTitle(preset.title);
+      setHasExistingOnboardingDraft(true);
       setApplyingPresetId(null);
     },
     [prefillLabels, scenarioId, t]
   );
+
+  useEffect(() => {
+    setHasExistingOnboardingDraft(hasPersistedOnboardingDraftState(scenarioId));
+  }, [scenarioId]);
 
   useEffect(() => {
     setDraft((current) => {
@@ -869,6 +878,7 @@ export default function OnboardingV3Wizard() {
       {showPresetSuggestions ? (
         <ActiveScenarioOnboardingDraftPresetSection
           presets={presetSeeds}
+          hasExistingDraft={hasExistingOnboardingDraft}
           isApplyingPreset={applyingPresetId !== null}
           applyingPresetId={applyingPresetId}
           onApplyPreset={handleApplyPreset}
