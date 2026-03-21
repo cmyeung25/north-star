@@ -311,11 +311,15 @@ describe("onboarding v3 i18n", () => {
       );
     }
 
-    expect(enRules.duplicateCurrentHomeHousingCosts.message).toContain("housing expense");
-    expect(enRules.duplicateCurrentHomeHousingCosts.action).toContain("remove the rent-like expense");
-    expect(enRules.duplicateRentExpenseInputs.action).toContain("separate non-rent line");
-    expect(zhRules.duplicateCurrentHomeHousingCosts.message).toContain("支出同自住房產設定");
-    expect(zhRules.duplicateCurrentHomeHousingCosts.action).toContain("刪走租屋支出");
-    expect(zhRules.duplicateRentExpenseInputs.action).toContain("非租金支出");
+    expect(enRules.propertyUsageMissing.message).toContain("current-home path");
+    expect(enRules.mortgagePropertyBasicsMissing.action).toContain("open the home that carries this mortgage");
+    expect(enRules.duplicateCurrentHomeHousingCosts.message).toContain("current-home costs");
+    expect(enRules.duplicateCurrentHomeHousingCosts.action).toContain("remove the self-use owner-home setup");
+    expect(enRules.duplicateRentExpenseInputs.action).toContain("overlapping rent rows for your current home");
+    expect(zhRules.propertyUsageMissing.message).toContain("現居路徑");
+    expect(zhRules.mortgagePropertyBasicsMissing.action).toContain("承載呢筆按揭嘅物業");
+    expect(zhRules.duplicateCurrentHomeHousingCosts.message).toContain("兩個地方出現");
+    expect(zhRules.duplicateCurrentHomeHousingCosts.action).toContain("移除自住房設定");
+    expect(zhRules.duplicateRentExpenseInputs.action).toContain("屬於現居嘅重疊租金項目");
   });
 });

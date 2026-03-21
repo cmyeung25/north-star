@@ -27,6 +27,7 @@ export default function ActiveScenarioOverviewOnboardingRecoveryBanner({
   onApplyPreset,
 }: Props) {
   const t = useTranslations("overview.dashboard.onboardingRecovery");
+  const presetT = useTranslations("overview.dashboard.onboardingRecovery.presetSuggestions");
 
   if (presets.length === 0) {
     return null;
@@ -47,6 +48,16 @@ export default function ActiveScenarioOverviewOnboardingRecoveryBanner({
         isApplyingPreset={isApplyingPreset}
         applyingPresetId={applyingPresetId}
         onApplyPreset={onApplyPreset}
+        copy={{
+          title: presetT("title"),
+          badge: presetT("badge"),
+          description: presetT("description"),
+          helper: presetT("helper"),
+          apply: presetT("apply"),
+          replace: presetT("replace"),
+          replaceWarningTitle: presetT("replaceWarning.title"),
+          replaceWarningBody: presetT("replaceWarning.body"),
+        }}
       />
     </Stack>
   );

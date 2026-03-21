@@ -16,6 +16,16 @@ type Props = {
   isApplyingPreset: boolean;
   applyingPresetId?: string | null;
   onApplyPreset: (preset: ScenarioSeedCard) => void;
+  copy?: {
+    title: string;
+    badge: string;
+    description: string;
+    helper: string;
+    apply: string;
+    replace: string;
+    replaceWarningTitle: string;
+    replaceWarningBody: string;
+  };
 };
 
 export const shouldShowActiveScenarioOnboardingDraftPresetSection = (options: {
@@ -28,9 +38,20 @@ export default function ActiveScenarioOnboardingDraftPresetSection({
   isApplyingPreset,
   applyingPresetId,
   onApplyPreset,
+  copy,
 }: Props) {
   const t = useTranslations("onboardingV3.presetSuggestions");
   const memberJourneyT = useTranslations("member.caseDialogs");
+  const resolvedCopy = copy ?? {
+    title: t("title"),
+    badge: t("badge"),
+    description: t("description"),
+    helper: t("helper"),
+    apply: t("apply"),
+    replace: t("replace"),
+    replaceWarningTitle: t("replaceWarning.title"),
+    replaceWarningBody: t("replaceWarning.body"),
+  };
 
   if (presets.length === 0) {
     return null;
@@ -41,21 +62,21 @@ export default function ActiveScenarioOnboardingDraftPresetSection({
       <Stack gap="md">
         <Stack gap={4}>
           <Group gap="xs" wrap="wrap">
-            <Text fw={700}>{t("title")}</Text>
+            <Text fw={700}>{resolvedCopy.title}</Text>
             <Badge color="aurora" variant="light">
-              {t("badge")}
+              {resolvedCopy.badge}
             </Badge>
           </Group>
           <Text size="sm" c="dimmed">
-            {t("description")}
+            {resolvedCopy.description}
           </Text>
           <Text size="xs" c="dimmed">
-            {t("helper")}
+            {resolvedCopy.helper}
           </Text>
         </Stack>
         {hasExistingDraft ? (
-          <Alert color="yellow" radius="md" title={t("replaceWarning.title")}>
-            <Text size="sm">{t("replaceWarning.body")}</Text>
+          <Alert color="yellow" radius="md" title={resolvedCopy.replaceWarningTitle}>
+            <Text size="sm">{resolvedCopy.replaceWarningBody}</Text>
           </Alert>
         ) : null}
 
@@ -108,7 +129,7 @@ export default function ActiveScenarioOnboardingDraftPresetSection({
                     loading={isApplyingThisPreset}
                     disabled={isApplyingPreset && !isApplyingThisPreset}
                   >
-                    {hasExistingDraft ? t("replace") : t("apply")}
+                    {hasExistingDraft ? resolvedCopy.replace : resolvedCopy.apply}
                   </Button>
                 </Stack>
               </Card>

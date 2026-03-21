@@ -1056,8 +1056,20 @@
       },
       "onboardingRecovery": {
         "title": "Return to onboarding before you treat this scenario as finished",
-        "description": "These recovery presets only replace this active scenario’s onboarding draft starting point. They do not complete the scenario or directly change baseline events.",
-        "helper": "Choose a closer starting point and we will take you back to onboarding so you can review each step and confirm the baseline there.",
+        "description": "These recovery presets only replace this active scenario’s onboarding draft starting point. They do not complete the scenario, directly change baseline events, or create a Plan Lab / Money item for you.",
+        "helper": "Choose a closer starting point and we will take you back to onboarding so you can review each step and confirm the baseline there before returning to dashboard.",
+        "presetSuggestions": {
+          "title": "Choose a recovery starting point",
+          "badge": "Recovery presets",
+          "description": "Use one of the same member presets to re-choose this active scenario’s onboarding draft starting point from dashboard.",
+          "helper": "These are onboarding recovery presets—not Plan Lab experiments or Money event templates. They only replace the active scenario’s draft starting point, then send you back to onboarding for confirmation.",
+          "apply": "Return to onboarding from this starting point",
+          "replace": "Replace draft and return to onboarding",
+          "replaceWarning": {
+            "title": "Replace this scenario’s current recovery draft?",
+            "body": "This only replaces the active scenario’s current onboarding draft starting point and returns you to onboarding. It does not directly change baseline events or create a new experiment / event."
+          }
+        },
         "redirecting": {
           "title": "Preparing your onboarding recovery path",
           "description": "We are replacing this active scenario’s onboarding draft starting point and sending you back to onboarding for confirmation."
@@ -3476,12 +3488,12 @@
           },
           "warning": {
             "title": "Warning / review recommended",
-            "description": "These items usually do not block submission. Review them now if you want a cleaner first baseline and fewer surprises later.",
+            "description": "These items usually do not block submission. Review them now if you want a cleaner first baseline and fewer current-home or property-path surprises later.",
             "empty": "No warning items need another review right now."
           },
           "info": {
             "title": "Info / heads-up",
-            "description": "These are heads-up reminders only. They should not stop submission, but a quick scan may prevent avoidable confusion later.",
+            "description": "These are heads-up reminders only. They should not stop submission, but a quick scan may prevent avoidable path confusion before you continue.",
             "empty": "No informational heads-up items right now."
           }
         },
@@ -3616,8 +3628,8 @@
       },
       "rules": {
         "propertyUsageMissing": {
-          "message": "We can see an owned property, but we still do not know whether it is the home you live in or a property you rent out. Until you choose one, the baseline cannot tell whether to expect housing cost or rental income.",
-          "action": "Go back to Assets → Property details, choose Self-use or Rental for this property, then review only the fields that match that choice."
+          "message": "We can see an owned property, but we still do not know whether it is your current home or a rental property. Until that current-home path is clear, the baseline cannot tell whether to expect housing cost or rental income from this property.",
+          "action": "Go back to Assets → Property details, choose Self-use or Rental for this property first, then keep only the fields that match that path before you continue."
         },
         "mortgageCoreFieldsMissing": {
           "message": "This property has an outstanding mortgage balance, but the interest rate or remaining term is still missing. Without those basics, the baseline cannot estimate the monthly mortgage cost reliably.",
@@ -3632,16 +3644,16 @@
           "action": "Go back to Assets → Property details and enter the expected monthly rent, or switch the property to Self-use if it is not rented out."
         },
         "mortgagePropertyBasicsMissing": {
-          "message": "We found mortgage details, but the property value or start month is still missing. Without those anchors, the baseline can attach the loan to the wrong home timing or treat the setup as incomplete.",
-          "action": "Go back to Assets → Property details and add the property value plus start month for the home that carries this mortgage."
+          "message": "We found mortgage details, but the linked property still has no value or start month. Without those anchors, the baseline can place the loan on the wrong home timing or leave the owner-home setup looking incomplete.",
+          "action": "Go back to Assets → Property details, open the home that carries this mortgage, and add both the property value and start month before you continue."
         },
         "duplicateCurrentHomeHousingCosts": {
-          "message": "Your current home may be recorded in two places: once as a housing expense and again as an owned-home setup. If both stay, the baseline can overstate your monthly housing pressure even when only one path is correct.",
-          "action": "Start at Expenses → Housing costs and keep the path that matches today. If you already own and live there, remove the rent-like expense; if you still rent, remove the owned-home setup instead."
+          "message": "Your current-home costs may be recorded in two places at once: a rent-like housing expense and an owner-home setup. When both stay active, the baseline can double-read today’s housing pressure even though only one current-home path should remain.",
+          "action": "Start at Expenses → Housing costs and decide which path matches today. If you already own and live there, remove the rent-like expense; if you still rent, go back to Assets → Property details and remove the self-use owner-home setup instead."
         },
         "duplicateRentExpenseInputs": {
-          "message": "We found more than one rent-like expense for what may be the same current home. That can make the baseline count the same rent twice and overstate your ongoing housing cost.",
-          "action": "Go back to Expenses → Housing costs, compare the overlapping rent rows, keep the main rent entry, and move any add-on fee to a separate non-rent line if needed."
+          "message": "We found more than one rent-like expense that may describe the same current home. If they are duplicates, the baseline can count one month of rent twice and overstate your ongoing housing cost.",
+          "action": "Go back to Expenses → Housing costs, compare the overlapping rent rows for your current home, keep the main rent entry, and move any add-on fee to a separate non-rent line if needed."
         }
       }
     },
@@ -3669,13 +3681,13 @@
       "title": "Pick a closer onboarding starting point",
       "badge": "Draft presets",
       "description": "Use a member preset to re-choose this active scenario’s onboarding draft starting point before you continue.",
-      "helper": "These setup/recovery presets keep you inside the same onboarding wizard. They only create or replace the active scenario’s onboarding draft starting point—they do not write baseline events or mark onboarding complete.",
-      "apply": "Use as new starting point",
-      "replace": "Replace current starting point",
+      "helper": "These setup/recovery presets keep you inside the same onboarding wizard. They only create or replace the active scenario’s onboarding draft starting point—they do not write baseline events, mark onboarding complete, or act like a Plan Lab experiment / Money event template.",
+      "apply": "Use as onboarding starting point",
+      "replace": "Replace draft starting point",
       "feedback": "Updated this onboarding draft starting point from {title}. Review the steps below and continue onboarding.",
       "replaceWarning": {
         "title": "Replace current onboarding draft starting point?",
-        "body": "This only replaces the active scenario’s current onboarding draft starting point. It does not write baseline events or mark onboarding complete."
+        "body": "This only replaces the active scenario’s current onboarding draft starting point. It does not write baseline events, mark onboarding complete, or create anything in Plan Lab / Money."
       },
       "presetSummaries": {
         "dualIncomeRental": {
@@ -4335,12 +4347,12 @@
       "title": "Restart this scenario from a preset draft",
       "badge": "Reset path",
       "description": "Use this only when you want to replace the active scenario’s onboarding draft starting point and walk back through onboarding.",
-      "helper": "This reset path only creates or replaces the active scenario’s onboarding draft starting point. It does not write baseline events or mark onboarding complete.",
+      "helper": "This reset path only creates or replaces the active scenario’s onboarding draft starting point. It does not write baseline events, mark onboarding complete, or act like a Money edit shortcut / Plan Lab experiment.",
       "apply": "Start from this preset",
       "replace": "Replace current draft",
       "replaceWarning": {
         "title": "Replace this scenario’s current onboarding draft?",
-        "body": "This only replaces the active scenario’s current onboarding draft starting point and sends you back through onboarding to confirm it there. It does not write baseline events or mark onboarding complete."
+        "body": "This only replaces the active scenario’s current onboarding draft starting point and sends you back through onboarding to confirm it there. It does not write baseline events, mark onboarding complete, or create anything in Money / Plan Lab."
       },
       "redirecting": {
         "title": "Preparing your reset path",

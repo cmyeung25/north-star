@@ -1078,8 +1078,20 @@
       },
       "onboardingRecovery": {
         "title": "先返回 onboarding，才把這個 scenario 當作已完成",
-        "description": "這些 recovery preset 只會取代此 active scenario 的 onboarding draft 起點，不會直接完成 scenario，也不會直接改寫 baseline event。",
-        "helper": "選擇較接近你情況的起點後，系統會帶你返回 onboarding，逐步補完與確認 baseline。",
+        "description": "這些 recovery preset 只會取代此 active scenario 的 onboarding draft 起點，不會直接完成 scenario、唔會直接改寫 baseline event，亦唔會幫你建立 Plan Lab / Money 項目。",
+        "helper": "選擇較接近你情況的起點後，系統會帶你返回 onboarding，逐步補完與確認 baseline，再返回 dashboard。",
+        "presetSuggestions": {
+          "title": "選擇一個 recovery 起點",
+          "badge": "Recovery 預設",
+          "description": "由 dashboard 重新選擇同一批 member preset，為這個 active scenario 換一個 onboarding draft 起點。",
+          "helper": "呢啲屬 onboarding recovery preset，唔係 Plan Lab 實驗或 Money 事件模板；它們只會取代 active scenario 的草稿起點，之後帶你返回 onboarding 確認。",
+          "apply": "由此起點返回 onboarding",
+          "replace": "取代草稿並返回 onboarding",
+          "replaceWarning": {
+            "title": "要取代此情境目前的 recovery 草稿嗎？",
+            "body": "這只會取代 active scenario 目前的 onboarding draft 起點，並帶你返回 onboarding；不會直接改寫 baseline event，亦唔會建立新實驗／事件。"
+          }
+        },
         "redirecting": {
           "title": "正在準備 onboarding recovery 路徑",
           "description": "系統正取代此 active scenario 的 onboarding draft 起點，並帶你返回 onboarding 完成確認。"
@@ -3851,12 +3863,12 @@
       "title": "以 preset 重新開始此情境的草稿起點",
       "badge": "重設路徑",
       "description": "只在你想取代 active scenario 的 onboarding draft 起點、並重新走一次 onboarding 確認時使用。",
-      "helper": "這個重設路徑只會建立或取代 active scenario 的 onboarding draft 起點，不會直接寫入 baseline event，也不會把 onboarding 標記為完成。",
+      "helper": "這個重設路徑只會建立或取代 active scenario 的 onboarding draft 起點，不會直接寫入 baseline event、唔會把 onboarding 標記為完成，亦唔係 Money 編輯捷徑／Plan Lab 實驗。",
       "apply": "由此 preset 開始",
       "replace": "取代目前草稿",
       "replaceWarning": {
         "title": "要取代此情境目前的 onboarding draft 嗎？",
-        "body": "這只會取代 active scenario 目前的 onboarding draft 起點，並帶你返回 onboarding 再逐步確認；不會直接寫入 baseline event，也不代表 onboarding 已完成。"
+        "body": "這只會取代 active scenario 目前的 onboarding draft 起點，並帶你返回 onboarding 再逐步確認；不會直接寫入 baseline event、唔代表 onboarding 已完成，亦唔會喺 Money / Plan Lab 建立任何內容。"
       },
       "redirecting": {
         "title": "正在準備重設路徑",
@@ -4958,12 +4970,12 @@
           },
           "warning": {
             "title": "Warning / 建議再檢查",
-            "description": "這些項目通常唔會阻擋提交，但宜家再核對一次，會令首次 baseline 更可信、之後更少誤會。",
+            "description": "這些項目通常唔會阻擋提交，但宜家再核對一次，會令首次 baseline 更可信，亦減少現居路徑或物業設定被誤讀。",
             "empty": "目前沒有需要再檢查的 warning 項目。"
           },
           "info": {
             "title": "Info / 提交前提醒",
-            "description": "呢啲只係 heads-up 提醒，唔應該阻止你提交，但快速望一次通常可避免之後再估自己填咗咩。",
+            "description": "呢啲只係 heads-up 提醒，唔應該阻止你提交，但快速望一次通常可避免之後喺住屋路徑上再估自己填咗咩。",
             "empty": "目前沒有額外 info 提醒。"
           }
         },
@@ -5098,8 +5110,8 @@
       },
       "rules": {
         "propertyUsageMissing": {
-          "message": "系統見到你有一個已持有物業，但仲未知道佢係你自住，定係用嚟收租。未揀清楚之前，baseline 就未能判斷應該將佢當成住屋成本，定係租金收入。",
-          "action": "請返回資產 → 物業資料，為呢個物業揀返「自住」或「出租」，再只保留符合嗰個選擇嘅欄位。"
+          "message": "系統見到你有一個已持有物業，但仲未知道佢係你而家自住嘅屋，定係用嚟收租嘅物業。未釐清現居路徑之前，baseline 就未能判斷應該將佢當成住屋成本，定係租金收入。",
+          "action": "請返回資產 → 物業資料，先為呢個物業揀返「自住」或「出租」，再只保留符合嗰條路徑嘅欄位先繼續。"
         },
         "mortgageCoreFieldsMissing": {
           "message": "呢個物業已經有未還按揭餘額，但利率或者剩餘年期仲未填。少咗呢兩項，baseline 就未能可靠估算每月按揭供款。",
@@ -5114,16 +5126,16 @@
           "action": "請返回資產 → 物業資料，填返預期每月租金；如果其實唔係出租，請改返做「自住」。"
         },
         "mortgagePropertyBasicsMissing": {
-          "message": "你已經填咗按揭資料，但物業市值或者開始月份仍然未齊。少咗呢啲定位資料，baseline 可能會較難判斷呢筆貸款應該由邊個物業、邊個時間點開始承接。",
-          "action": "請返回資產 → 物業資料，為承載呢筆按揭嘅物業補回市值同開始月份。"
+          "message": "你已經填咗按揭資料，但所屬物業仍然未有市值或者開始月份。少咗呢啲定位資料，baseline 可能會將貸款放錯時間點，或者令自住房設定睇落未完成。",
+          "action": "請返回資產 → 物業資料，打開承載呢筆按揭嘅物業，補回市值同開始月份後再繼續。"
         },
         "duplicateCurrentHomeHousingCosts": {
-          "message": "你現時住緊呢個家，可能同時喺支出同自住房產設定兩邊都入咗。兩條路徑如果一齊保留，baseline 可能會將同一個住屋壓力重複計算。",
-          "action": "請先返回支出 → 住屋支出，保留最符合現況嗰條路徑：如果你而家已經自住，就刪走租屋支出；如果你而家仲係租住，就移除自住房產設定。"
+          "message": "你而家住緊呢個家的成本，可能同時喺兩個地方出現：一邊係類似租金嘅住屋支出，另一邊係自住房設定。兩條現居路徑如果同時保留，baseline 可能會將今日住屋壓力重複計算。",
+          "action": "請先返回支出 → 住屋支出，決定邊條路徑先最符合現況：如果你而家已經自住，就刪走租屋支出；如果你而家仲係租住，就再去資產 → 物業資料移除自住房設定。"
         },
         "duplicateRentExpenseInputs": {
-          "message": "系統見到多筆似乎都係同一個現居租金嘅支出。咁樣可能會令 baseline 將同一筆租金重複計算，令每月住屋成本睇落高過實際。",
-          "action": "請返回支出 → 住屋支出，比對重疊租金項目，保留主要租金一筆；如果另一筆其實係附加費用，請改做獨立嘅非租金支出。"
+          "message": "系統見到多筆似乎都係描述同一個現居租金嘅支出。如果佢哋其實係重複輸入，baseline 就可能將同一個月租計兩次，令持續住屋成本睇落高過實際。",
+          "action": "請返回支出 → 住屋支出，比對屬於現居嘅重疊租金項目，保留主要租金一筆；如果另一筆其實係附加費用，請改做獨立嘅非租金支出。"
         }
       }
     },
@@ -5151,13 +5163,13 @@
       "title": "選擇更貼近現況的 onboarding 起點",
       "badge": "草稿預設",
       "description": "用 member preset 重新選擇這個 active scenario 的 onboarding draft 起點，再繼續完成資料。",
-      "helper": "這些 preset 只屬 setup / recovery，用完後仍留在同一個 onboarding wizard；它們只會建立或取代 active scenario 的 onboarding draft 起點，不會直接寫入 baseline event，也不會把 onboarding 標記為完成。",
-      "apply": "用作新的起點",
-      "replace": "取代目前起點",
+      "helper": "這些 preset 只屬 setup / recovery，用完後仍留在同一個 onboarding wizard；它們只會建立或取代 active scenario 的 onboarding draft 起點，不會直接寫入 baseline event、唔會把 onboarding 標記為完成，亦唔係 Plan Lab 實驗／Money 事件模板。",
+      "apply": "用作 onboarding 起點",
+      "replace": "取代草稿起點",
       "feedback": "已用「{title}」更新這份 onboarding draft 起點。請檢查以下步驟後繼續完成 onboarding。",
       "replaceWarning": {
         "title": "要取代目前 onboarding draft 起點嗎？",
-        "body": "這只會取代 active scenario 目前的 onboarding draft 起點；不會直接寫入 baseline event，也不代表 onboarding 已完成。"
+        "body": "這只會取代 active scenario 目前的 onboarding draft 起點；不會直接寫入 baseline event、唔代表 onboarding 已完成，亦唔會喺 Plan Lab / Money 建立任何內容。"
       },
       "presetSummaries": {
         "dualIncomeRental": {
