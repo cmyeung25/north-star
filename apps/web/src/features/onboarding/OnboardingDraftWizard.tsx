@@ -17,7 +17,7 @@ import {
   Title,
 } from "@mantine/core";
 import { nanoid } from "nanoid";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { defaultCurrency } from "../../../lib/i18n";
@@ -71,6 +71,7 @@ import { saveScenarioPayloadAction } from "../../../app/(app)/app/actions/scenar
 import { useScenarioContext } from "../../hooks/useScenarioContext";
 import { useScenarioCloudStore } from "../../store/scenarioCloudStore";
 import { exportScenarioState } from "../../store/scenarioState";
+import { trackMarketEntryOnboardingCompletedFromContext } from "../../lib/analytics/marketEntry";
 import {
   memberCasesPath,
   scenarioDashboardPath,
@@ -778,6 +779,7 @@ const normalizeHouseholdCounts = (
 
 export default function OnboardingDraftWizard() {
   const t = useTranslations("onboardingDraft");
+  const locale = useLocale();
   const validation = useTranslations("validation");
   const router = useRouter();
   const params = useParams<{ caseId?: string; scenarioId?: string }>();
@@ -2028,6 +2030,7 @@ export default function OnboardingDraftWizard() {
         routeCaseId,
         scenarioContextCaseId: scenarioContext.caseId,
       });
+      trackMarketEntryOnboardingCompletedFromContext(locale);
       router.replace(completionPath);
       return;
     }
@@ -2038,6 +2041,7 @@ export default function OnboardingDraftWizard() {
       scenarioId,
       routeCaseId,
     });
+    trackMarketEntryOnboardingCompletedFromContext(locale);
     router.replace(completionPath);
   };
 

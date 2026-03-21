@@ -5232,5 +5232,80 @@
   "planLabCompareGroup": "Compare",
   "planLabSaveGroup": "Save",
   "planLabModeToggleCompareToast": "Entered compare mode.",
-  "planLabModeToggleEditToast": "Returned to edit mode."
+  "planLabModeToggleEditToast": "Returned to edit mode.",
+  "debug": {
+    "weeklyReview": {
+      "title": "Weekly product analytics dashboard",
+      "subtitle": "Fixed weekly board for onboarding friction, guardrail calibration, and market-entry publishability review.",
+      "window": "Review window: {weekStart} → {weekEnd}",
+      "refresh": "Refresh",
+      "status": {
+        "ok": "OK",
+        "observe": "Observe",
+        "needs_attention": "Needs attention"
+      },
+      "decision": {
+        "hold": "Hold",
+        "fix_before_scale": "Fix before scale",
+        "ready_to_scale_traffic": "Ready to scale"
+      },
+      "onboarding": {
+        "title": "Onboarding weekly review",
+        "subtitle": "Review → completion conversion, top shown guardrails, low fix-success rules, and review-without-completion candidates.",
+        "cards": {
+          "reviewSessions": "Review sessions",
+          "reviewToCompletion": "Review → completion",
+          "reviewWithoutCompletion": "Review without completion",
+          "guardrailsShown": "Guardrails shown"
+        },
+        "table": {
+          "guardrail": "Guardrail",
+          "shownReviews": "Shown reviews",
+          "fixSuccess": "Fix success",
+          "incompleteShare": "Incomplete share",
+          "action": "Recommended action"
+        },
+        "action": {
+          "monitor": "Monitor",
+          "rewrite_copy_and_action_hint": "Rewrite copy and action hint",
+          "clarify_target_step_and_section": "Clarify target step / section",
+          "consider_severity_review_if_baseline_risk_persists": "Review severity if baseline risk persists",
+          "observation_only_sample_too_small": "Observation only (sample too small)"
+        }
+      },
+      "marketEntry": {
+        "title": "Market-entry weekly board",
+        "subtitle": "Landing → create → onboarding board with signed-in/out attribution and experiment-slot coverage.",
+        "cards": {
+          "landingViews": "Landing views",
+          "journeyClicks": "Journey CTA clicks",
+          "caseCreated": "Case created",
+          "onboardingCompleted": "Onboarding completed"
+        },
+        "kpiTable": {
+          "kpi": "KPI",
+          "current": "Current",
+          "previous": "Previous",
+          "delta": "Delta",
+          "threshold": "Threshold",
+          "status": "Status"
+        },
+        "cohortTable": {
+          "cohort": "Journey ↔ preset pair",
+          "caseCreated": "Case created",
+          "onboardingCompleted": "Onboarding completed",
+          "drop": "Completion drop",
+          "experiment": "Experiment variant"
+        },
+        "kpi": {
+          "landing_to_journey_ctr": "Landing → journey CTA CTR",
+          "sample_journey_ctr": "Sample journey card CTR",
+          "journey_to_preset_start_rate": "Journey CTA → preset start rate",
+          "preset_start_to_case_created_rate": "Preset start → case created",
+          "preset_submit_to_onboarding_start_rate": "Preset submit → onboarding start",
+          "case_created_to_onboarding_completed_drop": "Case created → onboarding completed drop"
+        }
+      }
+    }
+  }
 }

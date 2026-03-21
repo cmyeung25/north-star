@@ -42,6 +42,7 @@ import {
   type OnboardingReviewSourceContext,
   type PendingGuardrailFix,
 } from "../../../lib/analytics/onboardingFunnel";
+import { trackMarketEntryOnboardingCompletedFromContext } from "../../../lib/analytics/marketEntry";
 import { RouteLoadingOverlay } from "../../../components/loading/route-loading-overlay";
 import ActiveScenarioOnboardingDraftPresetSection, {
   shouldShowActiveScenarioOnboardingDraftPresetSection,
@@ -845,6 +846,7 @@ export default function OnboardingV3Wizard() {
       warningGuardrailCount: guardrailSummary.counts.warning,
       infoGuardrailCount: guardrailSummary.counts.info,
     });
+    trackMarketEntryOnboardingCompletedFromContext(locale);
 
     clearOnboardingDraftState(scenarioId);
     setSubmitPhase("redirecting");

@@ -5265,5 +5265,80 @@
   "planLabCompareGroup": "比較",
   "planLabSaveGroup": "保存",
   "planLabModeToggleCompareToast": "已進入比較模式。",
-  "planLabModeToggleEditToast": "已返回編輯模式。"
+  "planLabModeToggleEditToast": "已返回編輯模式。",
+  "debug": {
+    "weeklyReview": {
+      "title": "每週產品分析儀表板",
+      "subtitle": "固定檢視 onboarding friction、guardrail calibration 與 market-entry publishability 的每週看板。",
+      "window": "檢視區間：{weekStart} → {weekEnd}",
+      "refresh": "重新整理",
+      "status": {
+        "ok": "正常",
+        "observe": "觀察中",
+        "needs_attention": "需注意"
+      },
+      "decision": {
+        "hold": "先觀察",
+        "fix_before_scale": "先修正再放量",
+        "ready_to_scale_traffic": "可準備放量"
+      },
+      "onboarding": {
+        "title": "Onboarding 每週檢視",
+        "subtitle": "固定看 review → completion 轉化、最高 show guardrails、最低 fix-success 規則與 review-without-completion 候選。",
+        "cards": {
+          "reviewSessions": "Review 次數",
+          "reviewToCompletion": "Review → completion",
+          "reviewWithoutCompletion": "Review 未完成",
+          "guardrailsShown": "Guardrails 顯示次數"
+        },
+        "table": {
+          "guardrail": "Guardrail",
+          "shownReviews": "出現 review 數",
+          "fixSuccess": "修正成功率",
+          "incompleteShare": "未完成占比",
+          "action": "建議動作"
+        },
+        "action": {
+          "monitor": "持續觀察",
+          "rewrite_copy_and_action_hint": "重寫文案與 action hint",
+          "clarify_target_step_and_section": "釐清 target step / section",
+          "consider_severity_review_if_baseline_risk_persists": "若 baseline 風險仍在則檢討 severity",
+          "observation_only_sample_too_small": "僅觀察（樣本不足）"
+        }
+      },
+      "marketEntry": {
+        "title": "Market-entry 每週看板",
+        "subtitle": "固定檢視 landing → create → onboarding 漏斗，包含 signed-in/out attribution 與 experiment slot coverage。",
+        "cards": {
+          "landingViews": "Landing 瀏覽數",
+          "journeyClicks": "Journey CTA 點擊",
+          "caseCreated": "Case created",
+          "onboardingCompleted": "Onboarding completed"
+        },
+        "kpiTable": {
+          "kpi": "KPI",
+          "current": "本週",
+          "previous": "前週",
+          "delta": "差值",
+          "threshold": "門檻",
+          "status": "狀態"
+        },
+        "cohortTable": {
+          "cohort": "Journey ↔ preset pair",
+          "caseCreated": "Case created",
+          "onboardingCompleted": "Onboarding completed",
+          "drop": "完成流失",
+          "experiment": "Experiment variant"
+        },
+        "kpi": {
+          "landing_to_journey_ctr": "Landing → journey CTA CTR",
+          "sample_journey_ctr": "Sample journey card CTR",
+          "journey_to_preset_start_rate": "Journey CTA → preset start rate",
+          "preset_start_to_case_created_rate": "Preset start → case created",
+          "preset_submit_to_onboarding_start_rate": "Preset submit → onboarding start",
+          "case_created_to_onboarding_completed_drop": "Case created → onboarding completed drop"
+        }
+      }
+    }
+  }
 }
