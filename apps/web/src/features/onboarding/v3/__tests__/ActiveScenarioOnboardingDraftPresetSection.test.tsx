@@ -83,12 +83,12 @@ describe("ActiveScenarioOnboardingDraftPresetSection", () => {
     expect(html).toContain("Single professional | Rent &amp; save");
     expect(html).toContain("Dual-income couple | Home purchase");
     expect(html).toContain(
-      "Best starting point: you are still renting today and want a first-home path without skipping your active scenario baseline setup."
+      "Starting context: you are still renting today and want a first-home path without skipping your active scenario baseline setup."
     );
     expect(html).toContain(
       "Outcome after onboarding: you will leave with a baseline case, a visible runway/risk pressure view, and one first-home compare path."
     );
-    expect(html).toContain("Use this starting point");
+    expect(html).toContain("Use as new starting point");
   });
 
   it("shows the replace warning only when an onboarding draft already exists", () => {
@@ -126,11 +126,15 @@ describe("ActiveScenarioOnboardingDraftPresetSection", () => {
       </MantineProvider>
     );
 
-    expect(withDraftHtml).toContain("Replace current onboarding starting point?");
-    expect(withDraftHtml).toContain("This replaces only the active scenario’s current onboarding draft starting point.");
-    expect(withDraftHtml).toContain("Replace with this starting point");
-    expect(withoutDraftHtml.includes("Replace current onboarding starting point?")).toBe(false);
-    expect(withoutDraftHtml.includes("Replace with this starting point")).toBe(false);
+    expect(withDraftHtml).toContain("Replace current onboarding draft starting point?");
+    expect(withDraftHtml).toContain(
+      "This only replaces the active scenario’s current onboarding draft starting point."
+    );
+    expect(withDraftHtml).toContain("Replace current starting point");
+    expect(withoutDraftHtml.includes("Replace current onboarding draft starting point?")).toBe(
+      false
+    );
+    expect(withoutDraftHtml.includes("Replace current starting point")).toBe(false);
   });
 
   it("keeps onboarding preset copy backed by i18n keys for both locales", () => {
@@ -184,7 +188,9 @@ describe("ActiveScenarioOnboardingDraftPresetSection", () => {
       </MantineProvider>
     );
 
-    expect(html).toContain("They do not write baseline events or mark onboarding complete.");
+    expect(html).toContain(
+      "They only create or replace the active scenario’s onboarding draft starting point—they do not write baseline events or mark onboarding complete."
+    );
     expect(html.toLowerCase()).not.toContain("complete scenario");
     expect(html.toLowerCase()).not.toContain("directly modify baseline");
   });

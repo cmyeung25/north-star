@@ -158,7 +158,7 @@ describe("member create-case preset flow", () => {
             title={enMessages.member.caseDialogs.journey.title}
             summary={{
               audience: enMessages.member.caseDialogs.journey.officeSaver.audience,
-              goal: enMessages.member.caseDialogs.journey.officeSaver.goal,
+              startingContext: enMessages.member.caseDialogs.journey.officeSaver.goal,
               eta: enMessages.member.caseDialogs.journey.officeSaver.eta,
               outcome: enMessages.member.caseDialogs.journey.officeSaver.outcome,
             }}
@@ -170,7 +170,7 @@ describe("member create-case preset flow", () => {
     expect(html).toContain("Recommended journey");
     expect(html).toContain("Suitable for: solo professionals building savings while renting.");
     expect(html).toContain(
-      "Best starting point: you are still renting today and want a first-home path without skipping your active scenario baseline setup."
+      "Starting context: you are still renting today and want a first-home path without skipping your active scenario baseline setup."
     );
     expect(html).toContain("Expected setup time: around 5–8 minutes.");
     expect(html).toContain(

@@ -7,7 +7,7 @@ import type { MemberJourneyId } from "./createCaseEntry";
 
 export type JourneySummary = {
   audience: string;
-  goal: string;
+  startingContext: string;
   eta: string;
   outcome: string;
 };
@@ -62,7 +62,7 @@ export function buildMemberJourneySummary(
 ): JourneySummary {
   return {
     audience: t(`journey.${journeyId}.audience`),
-    goal: t(`journey.${journeyId}.goal`),
+    startingContext: t(`journey.${journeyId}.goal`),
     eta: t(`journey.${journeyId}.eta`),
     outcome: t(`journey.${journeyId}.outcome`),
   };
@@ -81,7 +81,7 @@ export function buildOnboardingPresetJourneySummary(options: {
 
   return {
     audience: options.presetSuggestionT(`presetSummaries.${source.presetSummaryKey}.audience`),
-    goal: options.presetSuggestionT(`presetSummaries.${source.presetSummaryKey}.goal`),
+    startingContext: options.presetSuggestionT(`presetSummaries.${source.presetSummaryKey}.goal`),
     eta: options.presetSuggestionT(`presetSummaries.${source.presetSummaryKey}.eta`),
     outcome: options.presetSuggestionT(`presetSummaries.${source.presetSummaryKey}.outcome`),
   };
@@ -100,7 +100,7 @@ export function JourneySummaryTextStack({
         {summary.audience}
       </Text>
       <Text size="sm" c="dimmed">
-        {summary.goal}
+        {summary.startingContext}
       </Text>
       <Text size="sm" c="dimmed">
         {summary.eta}
