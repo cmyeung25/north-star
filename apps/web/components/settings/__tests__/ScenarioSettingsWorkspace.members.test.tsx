@@ -110,8 +110,13 @@ const mockState = {
 
 vi.mock("next-intl", () => ({
   useLocale: () => "zh-HK",
+  useMessages: () => ({}),
   useTranslations: () => (key: string, values?: Record<string, unknown>) =>
     values?.count ? `${key}:${String(values.count)}` : key,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => undefined, replace: () => undefined, prefetch: () => undefined }),
 }));
 
 vi.mock("../../../src/i18n/navigation", () => ({

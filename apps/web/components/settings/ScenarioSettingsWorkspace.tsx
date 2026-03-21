@@ -1356,7 +1356,7 @@ export default function ScenarioSettingsWorkspace({
               <Text size="sm" c="dimmed">
                 {common("dataManagementSubtitle")}
               </Text>
-              <DataManagementSection onNotify={showToast} />
+              <DataManagementSection caseId={caseId} scenarioId={scenario.id} onNotify={showToast} />
             </Stack>
           </Card>
         </Tabs.Panel>
