@@ -5,6 +5,7 @@ import {
   clearOnboardingDraftState,
   convertOnboardingV2DraftToV3State,
   getOnboardingV3DraftStorageKey,
+  hasPersistedOnboardingDraftState,
   loadOnboardingV3DraftState,
   replaceActiveScenarioOnboardingDraftPresetState,
 } from "../draftStorage";
@@ -315,6 +316,23 @@ describe("onboarding v3 draft storage", () => {
 
     expect(storage.dump().has(getOnboardingV2DraftStorageKey(scenarioId))).toBe(false);
     expect(storage.dump().has(getOnboardingV3DraftStorageKey(scenarioId))).toBe(false);
+  });
+
+  it("detects whether a scenario already has a persisted onboarding draft", () => {
+    const storage = createStorage();
+    const scenarioId = "scenario-has-draft";
+
+    expect(hasPersistedOnboardingDraftState(scenarioId, storage)).toBe(false);
+
+    storage.setItem(getOnboardingV2DraftStorageKey(scenarioId), JSON.stringify(createLegacyDraft()));
+    expect(hasPersistedOnboardingDraftState(scenarioId, storage)).toBe(true);
+
+    storage.removeItem(getOnboardingV2DraftStorageKey(scenarioId));
+    storage.setItem(
+      getOnboardingV3DraftStorageKey(scenarioId),
+      JSON.stringify(createInitialScenarioDraftV3State({ defaultMemberName: "Me" }))
+    );
+    expect(hasPersistedOnboardingDraftState(scenarioId, storage)).toBe(true);
   });
 
   it("replaces only the active scenario onboarding draft preset state without touching baseline data", () => {

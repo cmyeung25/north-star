@@ -4520,27 +4520,27 @@
         "title": "推薦起步路徑",
         "officeSaver": {
           "audience": "適用族群：租樓中的單人上班族，正持續儲蓄。",
-          "goal": "目標決策：判斷何時由租轉買、是否需要先延後置業。",
+          "goal": "起點情境：你現時仍在租樓，想先用同一個 active scenario 整理首置 baseline，再比較入市時機。",
           "eta": "預期完成時間：約 5–8 分鐘。",
-          "outcome": "第一次使用會得到：一個 baseline case、一個睇得到 runway / risk 壓力嘅視角，同埋一個首置時機比較方案。"
+          "outcome": "完成 onboarding 後你會得到：一個 baseline case、一個睇得到 runway / risk 壓力嘅視角，同埋一個首置時機比較方案。"
         },
         "coupleHome": {
           "audience": "適用族群：雙收入伴侶，正在規劃首期與按揭節奏。",
-          "goal": "目標決策：比較今年入市與延後一年入市的壓力差異。",
+          "goal": "起點情境：你已有置業想法，想先把首期、按揭時機同每月壓力放入同一個 baseline。",
           "eta": "預期完成時間：約 8–12 分鐘。",
-          "outcome": "第一次使用會得到：一個 baseline case、一個睇得到前期現金衝擊 vs 每月供樓壓力嘅視角，同埋一個今年買 vs 遲一年買嘅比較方案。"
+          "outcome": "完成 onboarding 後你會得到：一個 baseline case、一個睇得到前期現金衝擊 vs 每月供樓壓力嘅視角，同埋一個今年買 vs 遲一年買嘅比較方案。"
         },
         "newParents": {
           "audience": "適用族群：準備迎接新生兒、托育與教育開支的家庭。",
-          "goal": "目標決策：比較基準、保守與進取育兒成本方案。",
+          "goal": "起點情境：你正準備迎接新生兒，想先把育兒同教育壓力放入同一個家庭 baseline。",
           "eta": "預期完成時間：約 10–15 分鐘。",
-          "outcome": "第一次使用會得到：一個 baseline case、一個睇得到家庭開支壓力節奏嘅視角，同埋一個育兒／教育路徑比較方案。"
+          "outcome": "完成 onboarding 後你會得到：一個 baseline case、一個睇得到家庭開支壓力節奏嘅視角，同埋一個育兒／教育路徑比較方案。"
         },
         "mortgageOwner": {
           "audience": "適用族群：已有物業與按揭在身、需要平衡資產負債的家庭。",
-          "goal": "目標決策：評估供樓壓力與保留流動資金的取捨。",
+          "goal": "起點情境：你已持有物業兼有按揭，想先在同一個 active scenario 睇清供款壓力、流動性同淨值。",
           "eta": "預期完成時間：約 8–12 分鐘。",
-          "outcome": "第一次使用會得到：一個 baseline case、一個睇得到供款壓力同淨值走勢嘅視角，同埋一個提早還款 vs 保留流動性嘅比較方案。"
+          "outcome": "完成 onboarding 後你會得到：一個 baseline case、一個睇得到供款壓力同淨值走勢嘅視角，同埋一個提早還款 vs 保留流動性嘅比較方案。"
         }
       }
     },
@@ -5102,10 +5102,29 @@
   "presetSuggestions": {
     "title": "選擇更貼近現況的 onboarding 起點",
     "badge": "草稿預設",
-    "description": "可直接使用既有 member preset，為這個 active scenario 建立或取代 onboarding draft 起點。",
-    "helper": "這個動作只會更新 scenario-scoped onboarding draft，並留在同一個 onboarding wizard；不會直接寫入 baseline event，也不會把 onboarding 標記為完成。",
-    "apply": "使用此 preset",
-    "feedback": "已用「{title}」更新這份 onboarding draft。請檢查以下步驟後繼續完成 onboarding。"
+    "description": "用 member preset 將這個 active scenario 拉回較貼近現況的 onboarding 起點，再繼續完成資料。",
+    "helper": "這些 preset 只屬 setup / recovery，用完後仍留在同一個 onboarding wizard；不會直接寫入 baseline event，也不會把 onboarding 標記為完成。",
+    "apply": "使用這個起點",
+    "replace": "以這個起點取代",
+    "feedback": "已用「{title}」更新這份 onboarding draft 起點。請檢查以下步驟後繼續完成 onboarding。",
+    "replaceWarning": {
+      "title": "要取代目前 onboarding 起點嗎？",
+      "body": "這只會取代 active scenario 目前的 onboarding draft 起點；不會直接寫入 baseline event，也不代表 onboarding 已完成。"
+    },
+    "presetSummaries": {
+      "dualIncomeRental": {
+        "audience": "適用族群：雙收入伴侶，已持有物業，亦想把租金收入一併計入。",
+        "goal": "起點情境：你想先把自住房成本同租金收入放入同一個 active scenario，再繼續補完 onboarding。",
+        "eta": "預期完成時間：約 8–12 分鐘。",
+        "outcome": "完成 onboarding 後你會得到：一個 baseline case、一個睇得到自住房成本加租金收入壓力嘅視角，同埋一個住屋現金流比較方案。"
+      },
+      "newBabyHelper": {
+        "audience": "適用族群：準備迎接新生兒，同時打算聘請家傭支援的家庭。",
+        "goal": "起點情境：你想先把育兒支出、家傭薪金同聘請一次性成本放入同一個家庭 baseline。",
+        "eta": "預期完成時間：約 10–15 分鐘。",
+        "outcome": "完成 onboarding 後你會得到：一個 baseline case、一個睇得到家庭支援成本壓力嘅視角，同埋一個育兒加家傭方案比較。"
+      }
+    }
   },
   "footer": {
       "localDraftHint": "V3 流程只會更新本地 ScenarioDraftV3 分段 state，最後一步才一次提交。"

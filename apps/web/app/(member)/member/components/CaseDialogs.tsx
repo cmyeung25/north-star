@@ -15,13 +15,11 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useTranslations } from "next-intl";
-
-type JourneySummary = {
-  audience: string;
-  goal: string;
-  eta: string;
-  outcome: string;
-};
+import {
+  JourneySummaryCard,
+  buildMemberJourneySummary,
+} from "../../../../src/features/member/presetJourneySummary";
+import type { MemberJourneyId } from "../../../../src/features/member/createCaseEntry";
 
 type CreateCasePresetOption = {
   id: string;
@@ -38,7 +36,7 @@ type CreateCaseDialogProps = {
   loading?: boolean;
   startMode: "blank" | "preset";
   selectedPresetId: string | null;
-  journeyId?: string | null;
+  journeyId?: MemberJourneyId | null;
   presets: CreateCasePresetOption[];
   onClose: () => void;
   onTitleChange: (value: string) => void;
@@ -48,37 +46,12 @@ type CreateCaseDialogProps = {
   onSubmit: () => void;
 };
 
-export function JourneySummaryCard({
-  title,
-  summary,
-}: {
-  title: string;
-  summary: JourneySummary;
-}) {
-  return (
-    <Card withBorder radius="md" padding="sm" bg="gray.0">
-      <Stack gap={4}>
-        <Text fw={600} size="sm">{title}</Text>
-        <Text size="sm" c="dimmed">{summary.audience}</Text>
-        <Text size="sm" c="dimmed">{summary.goal}</Text>
-        <Text size="sm" c="dimmed">{summary.eta}</Text>
-        <Text size="sm" c="dimmed">{summary.outcome}</Text>
-      </Stack>
-    </Card>
-  );
-}
-
 export function CreateCaseDialog(props: CreateCaseDialogProps) {
   const t = useTranslations("member.caseDialogs");
 
   const journeySummary =
     props.journeyId && props.startMode === "preset"
-      ? {
-          audience: t(`journey.${props.journeyId}.audience`),
-          goal: t(`journey.${props.journeyId}.goal`),
-          eta: t(`journey.${props.journeyId}.eta`),
-          outcome: t(`journey.${props.journeyId}.outcome`),
-        }
+      ? buildMemberJourneySummary(t, props.journeyId)
       : null;
 
   return (

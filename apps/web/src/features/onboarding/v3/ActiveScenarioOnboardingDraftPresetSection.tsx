@@ -1,12 +1,18 @@
 "use client";
 
 import React from "react";
-import { Badge, Button, Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useTranslations } from "next-intl";
 import type { ScenarioSeedCard } from "../../../scenarios/scenarioSeeds";
+import {
+  JourneySummaryTextStack,
+  buildOnboardingPresetJourneySummary,
+} from "../../member/presetJourneySummary";
+import type { MemberCasePresetSeedId } from "../seedPrefill";
 
 type Props = {
   presets: ScenarioSeedCard[];
+  hasExistingDraft: boolean;
   isApplyingPreset: boolean;
   applyingPresetId?: string | null;
   onApplyPreset: (preset: ScenarioSeedCard) => void;
@@ -18,11 +24,13 @@ export const shouldShowActiveScenarioOnboardingDraftPresetSection = (options: {
 
 export default function ActiveScenarioOnboardingDraftPresetSection({
   presets,
+  hasExistingDraft,
   isApplyingPreset,
   applyingPresetId,
   onApplyPreset,
 }: Props) {
   const t = useTranslations("onboardingV3.presetSuggestions");
+  const memberJourneyT = useTranslations("member.caseDialogs");
 
   if (presets.length === 0) {
     return null;
@@ -45,10 +53,20 @@ export default function ActiveScenarioOnboardingDraftPresetSection({
             {t("helper")}
           </Text>
         </Stack>
+        {hasExistingDraft ? (
+          <Alert color="yellow" radius="md" title={t("replaceWarning.title")}>
+            <Text size="sm">{t("replaceWarning.body")}</Text>
+          </Alert>
+        ) : null}
 
         <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">
           {presets.map((preset) => {
             const isApplyingThisPreset = isApplyingPreset && applyingPresetId === preset.id;
+            const summary = buildOnboardingPresetJourneySummary({
+              presetId: preset.id as MemberCasePresetSeedId,
+              memberJourneyT,
+              presetSuggestionT: t,
+            });
 
             return (
               <Card key={preset.id} withBorder radius="md" padding="md">
@@ -58,6 +76,7 @@ export default function ActiveScenarioOnboardingDraftPresetSection({
                     <Text size="sm" c="dimmed">
                       {preset.description}
                     </Text>
+                    <JourneySummaryTextStack summary={summary} />
                   </Stack>
 
                   {preset.tags.length > 0 ? (
@@ -89,7 +108,7 @@ export default function ActiveScenarioOnboardingDraftPresetSection({
                     loading={isApplyingThisPreset}
                     disabled={isApplyingPreset && !isApplyingThisPreset}
                   >
-                    {t("apply")}
+                    {hasExistingDraft ? t("replace") : t("apply")}
                   </Button>
                 </Stack>
               </Card>
