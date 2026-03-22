@@ -68,6 +68,7 @@ import type {
   PlanLabSnapshot,
   PlanSnapshot,
 } from "../../src/domain/planLab/types";
+import type { parsePlanLabRouteEntry } from "../../src/domain/planLab/routeEntry";
 import type {
   EventDefinition,
   EventRule,
@@ -526,6 +527,7 @@ type PlanLabPanelProps = {
     netCashflow: TimeSeriesPoint[];
   };
   initialMode?: "edit" | "compare";
+  initialEntry?: ReturnType<typeof parsePlanLabRouteEntry>;
 };
 
 type PlanLabToast = {
@@ -1274,6 +1276,7 @@ export default function PlanLabPanel({
   deflateSeries,
   baselineSeries,
   initialMode,
+  initialEntry,
 }: PlanLabPanelProps) {
   const t = useTranslations("overview");
   const moneyT = useTranslations("money");
@@ -1389,6 +1392,7 @@ export default function PlanLabPanel({
   const [experimentTemplatesOpen, setExperimentTemplatesOpen] = useState(false);
   const [activeDecisionTemplateId, setActiveDecisionTemplateId] =
     useState<PlanLabDecisionTemplateId | null>(null);
+  const initialEntryConsumedRef = useRef(false);
   const [envAssumptionsDrawerOpen, setEnvAssumptionsDrawerOpen] = useState(false);
   const [envAssumptionsViewGroupId, setEnvAssumptionsViewGroupId] = useState<string | null>(null);
   const [envAssumptionOverridesDraft, setEnvAssumptionOverridesDraft] = useState<ScenarioAssumptionsOverride>({});
@@ -2383,6 +2387,19 @@ export default function PlanLabPanel({
     closeAllPlanLabDrawers();
     setExperimentTemplatesOpen(true);
   };
+
+  useEffect(() => {
+    if (initialEntryConsumedRef.current) {
+      return;
+    }
+    if (!scenarioIsV2 || !initialEntry?.openDecisionTemplates) {
+      return;
+    }
+    initialEntryConsumedRef.current = true;
+    setActiveDecisionTemplateId(initialEntry.decisionTemplateId ?? null);
+    closeAllPlanLabDrawers();
+    setExperimentTemplatesOpen(true);
+  }, [closeAllPlanLabDrawers, initialEntry, scenarioIsV2]);
 
   const openPlanLabAddFlowDrawer = useCallback(
     (options?: {
@@ -11043,6 +11060,10 @@ export default function PlanLabPanel({
           conservativeTierLabel: translate("planLabCostTierConservative", "Conservative"),
           medianTierLabel: translate("planLabCostTierMedian", "Median"),
           aggressiveTierLabel: translate("planLabCostTierAggressive", "Aggressive"),
+          recommendedBadgeLabel: translate(
+            "planLabDecisionTemplateRecommendedBadge",
+            "Recommended next step"
+          ),
         }}
         groups={[]}
         decisionTemplates={decisionTemplateOptions}
@@ -11068,6 +11089,8 @@ export default function PlanLabPanel({
           });
         }}
         onSelectEnvKey={handleSelectEnvironmentTemplate}
+        initialMode={initialEntry?.openDecisionTemplates ? "decision_template" : null}
+        highlightedDecisionTemplateId={initialEntry?.decisionTemplateId ?? null}
       />
 
 

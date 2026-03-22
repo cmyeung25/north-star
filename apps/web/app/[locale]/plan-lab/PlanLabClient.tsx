@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useLocale } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useScenarioStore, getScenarioById } from "../../../src/store/scenarioStore";
 import { useProjectionWithLedger } from "../../../src/engine/useProjectionWithLedger";
 import { projectionToOverviewViewModel } from "../../../src/engine/adapter";
@@ -10,10 +10,12 @@ import type { TimeSeriesPoint } from "../../../features/overview/types";
 import PlanLabPanel from "../../../features/planLab/PlanLabPanel";
 import { migrationFlags } from "../../../src/lib/featureFlags";
 import { recordScenarioMigrationEvent } from "../../../src/lib/telemetry/scenarioMigrationTelemetry";
+import { parsePlanLabRouteEntry } from "../../../src/domain/planLab/routeEntry";
 
 export default function PlanLabClient() {
   const router = useRouter();
   const locale = useLocale();
+  const searchParams = useSearchParams();
   const planLabMigrationEnabled = migrationFlags.planLab;
 
   useEffect(() => {
@@ -86,6 +88,14 @@ export default function PlanLabClient() {
     }));
     return displayMode === "real" ? deflateSeries(base) : base;
   }, [deflateSeries, displayMode, projectionState.months, projectionState.projectionNetCashflowByMonth]);
+  const initialEntry = useMemo(
+    () =>
+      parsePlanLabRouteEntry({
+        openDecisionTemplates: searchParams.get("openDecisionTemplates"),
+        decisionTemplate: searchParams.get("decisionTemplate"),
+      }),
+    [searchParams]
+  );
 
   if (!scenario) {
     return null;
@@ -108,6 +118,7 @@ export default function PlanLabClient() {
         netWorth: netWorthSeries,
         netCashflow: netCashflowSeries,
       }}
+      initialEntry={initialEntry}
     />
   );
 }

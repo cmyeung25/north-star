@@ -4,6 +4,13 @@ Last updated: 2026-03-21
 
 ## Decision Log
 
+### D-2026-03-21-07
+- Date: 2026-03-21
+- Status: Accepted
+- Context: The product already had onboarding completion, overview baseline visibility, and Plan Lab decision templates, but the user still had to infer the next move manually. That left the critical Phase A journey — first model → first major decision comparison — too fragmented across screens.
+- Decision: When the active scenario is baseline-ready and no overview onboarding-recovery banner is showing, Overview now surfaces a dedicated “first major decision comparison” card. Its CTA routes into Plan Lab with an allowlisted route-entry intent (`openDecisionTemplates=1`, optional `decisionTemplate=<allowlisted-id>`) so the decision-template drawer opens immediately and can badge one recommended template. The recommendation itself stays lightweight and scenario-scoped, using only the active scenario’s persona focus plus current housing baseline signal.
+- Guardrails: Do not auto-apply any template, do not write baseline data, and do not persist cross-scenario recommendation state. Unknown `decisionTemplate` ids must fail closed. Route intent may only open the decision-template drawer / badge a recommendation; it must not bypass existing Plan Lab confirmation flows or change routing/auth boundaries.
+
 ### D-2026-03-21-06
 - Date: 2026-03-21
 - Status: Accepted

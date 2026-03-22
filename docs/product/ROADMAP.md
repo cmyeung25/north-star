@@ -38,6 +38,7 @@ Last updated: 2026-03-21
 - [x] `rental_plan` 成本檔位映射已補齊（租金/按金/代理費/起租月份），且 Compare 摘要新增租 vs 買可讀提示（cashflow pressure + upfront cash hit），避免偏向置業語境。
 - [x] Plan Lab「新增事件 > 住屋」create modal 已限制為租屋事件，置業按揭入口統一走 `home_purchase` bundle wizard。
 - [x] Housing decision templates now keep estimate-to-drawer alignment: `home_purchase` includes estimated purchase price guidance, and `rental_plan` pre-fills rent/deposit/agent fee in both rent create and rent edit drawer paths.
+- [x] Overview → Plan Lab 第一次比較入口已接通：當 active scenario baseline ready 且無 onboarding recovery banner 時，Overview 會顯示「第一次重大決策比較」卡片，並直接把使用者帶進 Plan Lab decision-template mode；推薦模板只根據 active scenario persona focus + housing baseline heuristic 決定，不會自動套用實驗。
 
 3. Guardrails / Completeness 層
 - 建立 completeness score 與關鍵警示（缺漏、重複計算、物業自住/出租衝突、按揭欄位不一致）。

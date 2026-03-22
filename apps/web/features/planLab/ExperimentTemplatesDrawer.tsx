@@ -35,6 +35,7 @@ export type ExperimentTemplatesDrawerLabels = {
   conservativeTierLabel: string;
   medianTierLabel: string;
   aggressiveTierLabel: string;
+  recommendedBadgeLabel?: string;
 };
 
 type TemplateMode =
@@ -62,6 +63,8 @@ type ExperimentTemplatesDrawerProps = {
   onSelectBaselineEvent?: (eventId: string) => void;
   onSelectEnvKey?: (envKey: string) => void;
   withinPortal?: boolean;
+  initialMode?: TemplateMode | null;
+  highlightedDecisionTemplateId?: PlanLabDecisionTemplateOption["id"] | null;
 };
 
 export default function ExperimentTemplatesDrawer({
@@ -80,14 +83,20 @@ export default function ExperimentTemplatesDrawer({
   onSelectBaselineEvent,
   onSelectEnvKey,
   withinPortal = true,
+  initialMode = null,
+  highlightedDecisionTemplateId = null,
 }: ExperimentTemplatesDrawerProps) {
-  const [mode, setMode] = useState<TemplateMode | null>(null);
+  const [mode, setMode] = useState<TemplateMode | null>(() =>
+    opened ? initialMode : null
+  );
 
   useEffect(() => {
     if (!opened) {
       setMode(null);
+      return;
     }
-  }, [opened]);
+    setMode(initialMode);
+  }, [initialMode, opened]);
 
   const modeCards: Array<{ id: TemplateMode; title: string; description: string }> = useMemo(
     () => [
@@ -179,9 +188,17 @@ export default function ExperimentTemplatesDrawer({
                 {(decisionTemplates ?? []).map((template) => (
                   <Card key={template.id} withBorder radius="md" p="sm">
                     <Stack gap={6}>
-                      <Text fw={600} size="sm">
-                        {template.title}
-                      </Text>
+                      <Group justify="space-between" align="flex-start" gap="xs" wrap="nowrap">
+                        <Text fw={600} size="sm">
+                          {template.title}
+                        </Text>
+                        {highlightedDecisionTemplateId === template.id &&
+                        labels.recommendedBadgeLabel ? (
+                          <Badge variant="light" color="aurora">
+                            {labels.recommendedBadgeLabel}
+                          </Badge>
+                        ) : null}
+                      </Group>
                       <Text size="xs" c="dimmed">
                         {template.description}
                       </Text>

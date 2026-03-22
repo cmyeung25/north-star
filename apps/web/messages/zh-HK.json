@@ -1118,6 +1118,42 @@
         "selectedTitle": "已選排序",
         "reset": "重設",
         "currentStatus": "現時狀態"
+      },
+      "mainPath": {
+        "baselineReady": "Baseline 已就緒",
+        "recommendedBadge": "下一步建議",
+        "title": "去 Plan Lab 做第一次重大決策比較",
+        "description": "你而家已經有清楚 baseline，可以直接由 Overview 進入 Plan Lab，用一個決策模板開始第一次比較，唔使由零建立 compare。",
+        "openPlanLab": "打開 Plan Lab",
+        "helper": "呢一步只會打開 Plan Lab。除非你之後明確儲存或套用結果，否則唔會改寫 baseline。",
+        "signals": {
+          "retirement": "先用退休模板，對比長期退休開支壓力同而家 baseline 嘅差距。",
+          "childbirth": "先用生育模板，對比進入下一個人生階段前後嘅短中期家庭現金流壓力。",
+          "parenting": "先用育兒模板，對比長期育兒／教育開支同而家 baseline 嘅差距。",
+          "rent_to_buy": "先用置業模板，對比供樓現金流壓力、首期現金衝擊，同你而家租屋 baseline 嘅差距。",
+          "income_resilience": "先用收入衝擊模板，先測試抗壓能力，再決定下一個更大承諾。",
+          "rental_setup": "先用租屋模板，對比另一條住屋安排對 baseline 嘅影響。"
+        },
+        "templates": {
+          "retirement": {
+            "label": "建議第一個比較：退休"
+          },
+          "childbirth": {
+            "label": "建議第一個比較：生育"
+          },
+          "parenting": {
+            "label": "建議第一個比較：育兒"
+          },
+          "home_purchase": {
+            "label": "建議第一個比較：置業"
+          },
+          "income_shock": {
+            "label": "建議第一個比較：收入衝擊"
+          },
+          "rental_plan": {
+            "label": "建議第一個比較：租屋安排"
+          }
+        }
       }
     },
     "breakdownSummaryDelta": "按月對比：淨資產 {netWorth}、現金 {cash}",
@@ -5352,5 +5388,6 @@
         }
       }
     }
-  }
+  },
+  "planLabDecisionTemplateRecommendedBadge": "建議下一步"
 }

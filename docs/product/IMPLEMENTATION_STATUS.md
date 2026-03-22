@@ -1,18 +1,18 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-21 (weekly dashboard / export productization landed for onboarding + market-entry review)
+Last updated: 2026-03-21 (overview → Plan Lab first-decision path landed)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
-| Closed Beta readiness | 75% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口、較低壓力的 guardrail 文案與提交回饋；本輪再把 onboarding weekly review workflow 固定化：上一個完整週窗匯出、priority guardrail 檢視、sample-size / locale-bias 檢查，以及 persona/preset/journey distortion 需回看 market-entry board 的規則都已文件化並由 helper 支援 |
+| Closed Beta readiness | 78% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口、較低壓力的 guardrail 文案與提交回饋；本輪再把「onboarding complete → overview baseline → Plan Lab 第一次重大決策比較」補成同一條主路徑：Overview 會在 baseline ready 且無 recovery banner 時顯示第一次比較 CTA，並直接把使用者帶入 Plan Lab decision-template mode 與推薦模板 |
 | Public MVP readiness | 50% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，sample journey impression / case created 事件與 market-entry weekly review ritual 已補齊，且 onboarding funnel 已有 review / guardrail / completion 事件、operator-ready weekly review pack、固定 weekly workflow 與 guardrail locale parity lint，但營運支援與流量擴大前的實際 cohort 數據仍待累積 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
 |---|---:|---|---|
 | Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
-| Plan Lab 決策化 | 80% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致。本輪再補上 `mortgage_rate_hike` / `move_home` 的最小產品契約、beta launch gate、availability guard 與 UI/template mapping scaffold（仍預設關閉） | 尚缺利率上升/換樓模板的 beta 啟動判準達標、預設 payload 校準與成效回顧節奏 |
+| Plan Lab 決策化 | 84% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致。本輪再把 Overview → Plan Lab 入口接上：active scenario 一旦完成 baseline 且無 recovery banner，Overview 會顯示第一次重大決策比較卡片，CTA 直接把使用者帶入 Plan Lab decision-template mode，並用 allowlisted route intent 標示推薦模板 | 尚缺利率上升/換樓模板的 beta 啟動判準達標、預設 payload 校準與成效回顧節奏 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
 | Guardrails / Completeness | 96% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪再按兩週 weekly review evidence 對四條 priority rules（`property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing`）做第二輪 focused UX calibration：文案更直接點出現居路徑/物業定位、fix path 更具體，warning / info 區塊亦更清楚表明「唔阻擋提交」。analytics contract 仍維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter。現在再加上固定 weekly workflow：helper 會產生上一個完整週窗、priority focus rows、sample-size / locale-bias 檢查，並明確把 persona/preset/journey bias 標為需到 market-entry board 交叉驗證，避免把低信心週報誤升級成產品決策。 | 仍需依下一個完整週窗驗證本輪 copy/fix-path 校準是否真係降低 review drop-off，並持續觀察誤報率與 review dashboard 門檻，先可以把目前 evidence 升級為更強 readiness 結論 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
@@ -40,6 +40,9 @@ Last updated: 2026-03-21 (weekly dashboard / export productization landed for on
 
 
 ## Latest Update (2026-03-21)
+- Overview baseline-ready surface 現已新增「第一次重大決策比較」卡片：只有當 active scenario 已完成 baseline 且沒有 onboarding recovery banner 時顯示，避免與 recovery / preset flow 混淆。
+- CTA 會以 allowlisted route intent（`openDecisionTemplates=1` + optional `decisionTemplate=<allowlisted-id>`）帶使用者進入 Plan Lab decision-template mode，未知 template id fail closed，不會暴露 hidden template 或直接套用實驗。
+- 推薦模板目前只根據 active scenario 的 persona focus + housing baseline heuristic 決定（retirement / childbirth / parenting / home_purchase / income_shock / rental_plan），屬 UI 導航層，不新增 persistence、analytics payload 或 baseline write path。
 - 已按兩個完整週窗的 onboarding review evidence，對四條 fixed priority guardrails（`property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing`）再做一輪 focused UX calibration：文案更直接講清「現居路徑 / 物業定位 → 為何會影響 baseline → 下一步返邊度修」，避免高出現率被誤會成 blocking 錯誤。
 - onboarding review 的 `warning / info` 區塊說明再收斂：明確保留「通常唔阻擋提交」語氣，同時更聚焦 current-home / property-path ambiguity，與 weekly review workflow 的 remediation order（copy → action hint → target clarity → severity review）對齊。
 - 三個 preset recovery surfaces（onboarding start/resume、overview/dashboard recovery、scenario settings/data management reset）本輪已再拉開 copy：全部會直接聲明自己不是 Plan Lab experiment 或 Money event create/edit flow；dashboard 另加 recovery 專用 heading / CTA，settings 保持較克制的 reset 語氣。
