@@ -317,6 +317,19 @@ export const resolveDecisionTemplateLaunchPath = (params: {
   return "bundle";
 };
 
+export const resolveDecisionTemplateBundleTemplateId = (
+  templateId: PlanLabDecisionTemplateId
+): TemplateId | null => {
+  const templateMap: Partial<Record<PlanLabDecisionTemplateId, TemplateId>> = {
+    marriage: "life_marriage_plan",
+    childbirth: "life_new_baby_plan",
+    parenting: "life_new_baby_plan",
+    home_purchase: "life_home_purchase",
+  };
+
+  return templateMap[templateId] ?? null;
+};
+
 const PERSONA_FOCUS_KEYS: PersonaFocus[] = ["family", "fertility", "education", "retirement"];
 
 const PERSONA_KPI_PRIORITY: Record<PersonaFocus, string[]> = {
@@ -370,40 +383,74 @@ const buildRentalHousingDraftForDecisionTemplate = (params: {
   };
 };
 
-const buildMortgageRateHikeDraftForDecisionTemplate = (
-  event: HousingEvent
-): Partial<HousingEventDraft> => ({
-  mortgageRatePct: String(
-    Math.round(((event.mortgageRatePct ?? 0) + 2) * 100) / 100
-  ),
-  mortgagePayment: "",
-  mortgagePaymentSource: "estimated",
-});
+const resolveMortgageRateHikeDeltaPct = (tier: PlanLabCostProfileTier): number => {
+  if (tier === "conservative") {
+    return 0.75;
+  }
+  if (tier === "aggressive") {
+    return 2.5;
+  }
+  return 1.5;
+};
 
-const buildMoveHomeDraftForDecisionTemplate = (
-  event: HousingEvent
-): Partial<HousingEventDraft> => ({
-  startMonth: event.startMonth ? addMonths(event.startMonth, 12) : "",
-  endMonth: event.endMonth ? addMonths(event.endMonth, 12) : "",
-  rental:
-    event.kind === "mortgage" && event.rental?.enabled
-      ? {
-          enabled: true,
-          rentMonthly: Number.isFinite(event.rental.rentMonthly)
-            ? String(event.rental.rentMonthly)
-            : "",
-          startMonth: event.rental.startMonth ? addMonths(event.rental.startMonth, 12) : "",
-          endMonth: event.rental.endMonth ? addMonths(event.rental.endMonth, 12) : "",
-          vacancyRatePct: Number.isFinite(event.rental.vacancyRatePct)
-            ? String(event.rental.vacancyRatePct)
-            : "",
-          rentGrowthMode: event.rental.rentGrowthMode ?? "assumption",
-          rentAnnualGrowthPct: Number.isFinite(event.rental.rentAnnualGrowthPct)
-            ? String(event.rental.rentAnnualGrowthPct)
-            : "",
-        }
-      : undefined,
-});
+const resolveMoveHomeShiftMonths = (tier: PlanLabCostProfileTier): number => {
+  if (tier === "conservative") {
+    return 6;
+  }
+  if (tier === "aggressive") {
+    return 18;
+  }
+  return 12;
+};
+
+export const buildMortgageRateHikeDraftForDecisionTemplate = (
+  event: HousingEvent,
+  tier: PlanLabCostProfileTier
+): Partial<HousingEventDraft> => {
+  const nextRate = Number.isFinite(event.mortgageRatePct)
+    ? Math.round(((event.mortgageRatePct ?? 0) + resolveMortgageRateHikeDeltaPct(tier)) * 100) /
+      100
+    : null;
+
+  return {
+    mortgageRatePct: nextRate === null ? "" : String(nextRate),
+    mortgagePayment: "",
+    mortgagePaymentSource: "estimated",
+  };
+};
+
+export const buildMoveHomeDraftForDecisionTemplate = (
+  event: HousingEvent,
+  tier: PlanLabCostProfileTier
+): Partial<HousingEventDraft> => {
+  const shiftMonths = resolveMoveHomeShiftMonths(tier);
+  return {
+    startMonth: event.startMonth ? addMonths(event.startMonth, shiftMonths) : "",
+    endMonth: event.endMonth ? addMonths(event.endMonth, shiftMonths) : "",
+    rental:
+      event.kind === "mortgage" && event.rental?.enabled
+        ? {
+            enabled: true,
+            rentMonthly: Number.isFinite(event.rental.rentMonthly)
+              ? String(event.rental.rentMonthly)
+              : "",
+            startMonth: event.rental.startMonth
+              ? addMonths(event.rental.startMonth, shiftMonths)
+              : "",
+            endMonth: event.rental.endMonth
+              ? addMonths(event.rental.endMonth, shiftMonths)
+              : "",
+            vacancyRatePct: Number.isFinite(event.rental.vacancyRatePct)
+              ? String(event.rental.vacancyRatePct)
+              : "",
+            rentGrowthMode: event.rental.rentGrowthMode ?? "assumption",
+            rentAnnualGrowthPct: Number.isFinite(event.rental.rentAnnualGrowthPct)
+              ? String(event.rental.rentAnnualGrowthPct)
+              : "",
+          }
+        : undefined,
+  };
+};
 
 type ChartType = "netWorth" | "cash" | "netCashflow";
 
@@ -4454,13 +4501,7 @@ export default function PlanLabPanel({
       }
 
       if (launchPath === "bundle") {
-        const templateMap: Partial<Record<PlanLabDecisionTemplateId, TemplateId>> = {
-          marriage: "life_marriage_plan",
-          childbirth: "life_new_baby_plan",
-          parenting: "life_new_baby_plan",
-          home_purchase: "life_home_purchase",
-        };
-        const mappedTemplateId = templateMap[templateId];
+        const mappedTemplateId = resolveDecisionTemplateBundleTemplateId(templateId);
         if (!mappedTemplateId) {
           setPlanToast(
             translate(
@@ -4503,14 +4544,14 @@ export default function PlanLabPanel({
           setPlanToast(
             translate(
               "planLabDecisionTemplateMortgageRateHikeDisabled",
-              "No editable mortgage event available. Add or unlock a mortgage housing event first."
+              "No editable baseline mortgage event is available in this scenario. Add or unlock one first."
             )
           );
           return;
         }
         setExperimentTemplatesOpen(false);
         setTemplateHousingDraft(
-          buildMortgageRateHikeDraftForDecisionTemplate(mortgageEvent)
+          buildMortgageRateHikeDraftForDecisionTemplate(mortgageEvent, selectedCostProfile)
         );
         openV2EventDrawer("edit", "housing", mortgageEvent.id);
         return;
@@ -4532,13 +4573,15 @@ export default function PlanLabPanel({
           setPlanToast(
             translate(
               "planLabDecisionTemplateMoveHomeDisabled",
-              "No editable housing event available. Add rent/home housing first or use the housing create templates."
+              "No editable baseline housing event is available in this scenario. Add rent/home housing first or use the housing create templates."
             )
           );
           return;
         }
         setExperimentTemplatesOpen(false);
-        setTemplateHousingDraft(buildMoveHomeDraftForDecisionTemplate(housingEvent));
+        setTemplateHousingDraft(
+          buildMoveHomeDraftForDecisionTemplate(housingEvent, selectedCostProfile)
+        );
         openV2EventDrawer("edit", "housing", housingEvent.id);
         return;
       }

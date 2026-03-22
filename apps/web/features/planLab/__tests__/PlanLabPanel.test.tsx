@@ -5,7 +5,10 @@ import { renderToString } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
 import PlanLabPanel, {
   GROUP_LABEL,
+  buildMortgageRateHikeDraftForDecisionTemplate,
+  buildMoveHomeDraftForDecisionTemplate,
   buildScenarioItemMetaParts,
+  resolveDecisionTemplateBundleTemplateId,
   resolveDecisionTemplateLaunchPath,
   resolvePlanLabMoneyEditHref,
   resolvePlanLabSettingsMembersHref,
@@ -177,7 +180,7 @@ describe("PlanLabPanel", () => {
     expect(meta).not.toContain("null");
   });
 
-  it("routes rental decision template to rent flow instead of buy-home bundle", () => {
+  it("routes decision templates to the expected editor path", () => {
     expect(
       resolveDecisionTemplateLaunchPath({
         templateId: "rental_plan",
@@ -209,4 +212,79 @@ describe("PlanLabPanel", () => {
       })
     ).toBe("housing_edit");
   });
+
+  it("prefills mortgage rate hike drafts from the editable baseline mortgage event", () => {
+    const draft = buildMortgageRateHikeDraftForDecisionTemplate(
+      {
+        id: "housing-1",
+        type: "housing",
+        kind: "mortgage",
+        startMonth: "2026-01",
+        propertyAssetId: "asset-1",
+        mortgageLiabilityId: "loan-1",
+        purchasePrice: 8000000,
+        mortgageRatePct: 3.2,
+        mortgageTermYears: 30,
+        mortgagePayment: 25000,
+      },
+      "aggressive"
+    );
+
+    expect(draft).toMatchObject({
+      mortgageRatePct: "5.7",
+      mortgagePayment: "",
+      mortgagePaymentSource: "estimated",
+    });
+  });
+
+  it("prefills move-home drafts by delaying the existing housing timing only", () => {
+    const draft = buildMoveHomeDraftForDecisionTemplate(
+      {
+        id: "housing-2",
+        type: "housing",
+        kind: "mortgage",
+        startMonth: "2026-01",
+        endMonth: "2028-12",
+        propertyAssetId: "asset-1",
+        mortgageLiabilityId: "loan-1",
+        purchasePrice: 9000000,
+        mortgageRatePct: 3.5,
+        mortgageTermYears: 30,
+        mortgagePayment: 28000,
+        rental: {
+          enabled: true,
+          rentMonthly: 18000,
+          startMonth: "2026-02",
+          endMonth: "2028-11",
+          vacancyRatePct: 4,
+          rentAnnualGrowthPct: 3,
+          rentGrowthMode: "custom",
+        },
+      },
+      "conservative"
+    );
+
+    expect(draft).toMatchObject({
+      startMonth: "2026-07",
+      endMonth: "2029-06",
+      rental: {
+        enabled: true,
+        rentMonthly: "18000",
+        startMonth: "2026-08",
+        endMonth: "2029-05",
+        vacancyRatePct: "4",
+        rentAnnualGrowthPct: "3",
+        rentGrowthMode: "custom",
+      },
+    });
+  });
+
+  it("fails closed for unknown bundle templates", () => {
+    expect(resolveDecisionTemplateBundleTemplateId("home_purchase")).toBe(
+      "life_home_purchase"
+    );
+    expect(resolveDecisionTemplateBundleTemplateId("mortgage_rate_hike")).toBeNull();
+    expect(resolveDecisionTemplateBundleTemplateId("move_home")).toBeNull();
+  });
+
 });

@@ -30,6 +30,8 @@ export const submissionFlags = {
     process.env.NEXT_PUBLIC_FF_PLANLAB_SUBMISSION_V2_ENABLED,
     false
   ),
+  // Rollout rule: only enable after onboarding start rate stays >= 85% and
+  // onboarding review -> completed conversion is supported by two stable weekly windows.
   planLabDeferredDecisionTemplatesEnabled: readFlag(
     process.env.NEXT_PUBLIC_FF_PLANLAB_DEFERRED_DECISION_TEMPLATES,
     false
