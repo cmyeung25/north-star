@@ -1,12 +1,12 @@
 ﻿# North Star Implementation Status
-Last updated: 2026-03-21 (overview → Plan Lab first-decision path landed)
+Last updated: 2026-03-22 (weekly product analytics decision memo refreshed for 2026-03-09 → 2026-03-16 UTC)
 
 ## Readiness Baseline
 | 指標 | 分數 | 說明 |
 |---|---:|---|
 | Core infra readiness | 70% | auth/cloud save、scenario persistence、核心路由與 quality gates 已可運行 |
 | Closed Beta readiness | 78% | 核心能力存在，Plan Lab 模板入口與摘要層已前進主流程，onboarding housing/property IA 已更清晰，且 review / submit 前已可看到 completeness + housing/property guardrails summary、severity 分組、返回修正入口、較低壓力的 guardrail 文案與提交回饋；本輪再把「onboarding complete → overview baseline → Plan Lab 第一次重大決策比較」補成同一條主路徑：Overview 會在 baseline ready 且無 recovery banner 時顯示第一次比較 CTA，並直接把使用者帶入 Plan Lab decision-template mode 與推薦模板 |
-| Public MVP readiness | 50% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，sample journey impression / case created 事件與 market-entry weekly review ritual 已補齊，且 onboarding funnel 已有 review / guardrail / completion 事件、operator-ready weekly review pack、固定 weekly workflow 與 guardrail locale parity lint，但營運支援與流量擴大前的實際 cohort 數據仍待累積 |
+| Public MVP readiness | 50% | 可行動摘要層已有最小可用品質；market entry 訊息架構已較一致，sample journey impression / case created 事件與 market-entry weekly review ritual 已補齊，且 onboarding funnel 已有 review / guardrail / completion 事件、operator-ready weekly review pack、固定 weekly workflow 與 guardrail locale parity lint。惟最新固定週窗（2026-03-09 → 2026-03-16 UTC）在目前 repo / internal export 環境仍未取得實際 onboarding review 與 market-entry cohort 事件，因此 readiness 仍受「缺少真實週報證據」限制。 |
 
 ## Capability Matrix
 | 能力模組 | 進度 | 現況 | 上市缺口 |
@@ -14,10 +14,10 @@ Last updated: 2026-03-21 (overview → Plan Lab first-decision path landed)
 | Onboarding + Property Bundle | 78% | 已有家庭/收入/支出/物業/按揭欄位與流程骨架；housing/property IA 先區分「現時租屋 vs 已持有物業」，再分流自住／出租／按揭欄位與 review 摘要。onboarding draft → v3 asset/compiler 映射現已對齊：down payment 百分比不再因 custom mortgage base 翻轉語意、`usage` / 租金 fallback 更一致、0 principal 不再生成假按揭資料；guardrails v1 亦已覆蓋 housing/property 最常見錯誤。 | 需補齊既有物業 household 的一致輸入與更完整的 review 修正入口 |
 | Plan Lab 決策化 | 84% | 已接入 3 類決策模板（置業/生育/收入衝擊）與模板可用性 guard；並已把模板成本檔位（保守/中位/進取）對應到人生事件 wizard 初始值，實驗群組與保存流程維持一致。本輪再把 Overview → Plan Lab 入口接上：active scenario 一旦完成 baseline 且無 recovery banner，Overview 會顯示第一次重大決策比較卡片，CTA 直接把使用者帶入 Plan Lab decision-template mode，並用 allowlisted route intent 標示推薦模板 | 尚缺利率上升/換樓模板的 beta 啟動判準達標、預設 payload 校準與成效回顧節奏 |
 | Persistence / Auth | 81% | case/scenario, cloud save, revision conflict, and dev-only E2E auth bootstrap/reset are in place | Still needs tighter onboarding/preset/compare integration and CI coverage |
-| Guardrails / Completeness | 96% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。本輪再按兩週 weekly review evidence 對四條 priority rules（`property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing`）做第二輪 focused UX calibration：文案更直接點出現居路徑/物業定位、fix path 更具體，warning / info 區塊亦更清楚表明「唔阻擋提交」。analytics contract 仍維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter。現在再加上固定 weekly workflow：helper 會產生上一個完整週窗、priority focus rows、sample-size / locale-bias 檢查，並明確把 persona/preset/journey bias 標為需到 market-entry board 交叉驗證，避免把低信心週報誤升級成產品決策。 | 仍需依下一個完整週窗驗證本輪 copy/fix-path 校準是否真係降低 review drop-off，並持續觀察誤報率與 review dashboard 門檻，先可以把目前 evidence 升級為更強 readiness 結論 |
+| Guardrails / Completeness | 96% | 已有 assumptions / Plan Lab 局部 warning；onboarding completeness score + guardrails v1 現已接入 review / submit UX，使用者可在提交前看到總體完整度、overall guardrail summary、依 severity 分組的 `critical / warning / info` 區塊、逐項返回修正入口與清晰 submit/save feedback；housing/property guardrails severity 已完成首輪 calibration，只有會扭曲 baseline 核心語意的規則維持 `critical`，重複輸入類則降為 `warning` / `info`。analytics contract 仍維持 operator-ready review-pack 版本：payload 只保留 metadata allowlist，並新增安全的 `reviewSessionId` / `reviewSourceContext`、穩定的 `guardrail_fixed` 消失判準，以及可直接輸出 weekly summary / table JSON 的 builder + formatter。固定 weekly workflow 現已按上一個完整週窗（2026-03-09 → 2026-03-16 UTC）跑過 decision memo，但該窗在目前環境 review sessions = 0，四條 priority rules（`property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing`）全部只能列為 observation only，尚未足以判斷 show-rate / fix-success / review→completed 是否較上一窗改善。 | 仍需用下一個完整週窗的真實 review export 驗證本輪 copy/fix-path 校準是否真係降低 review drop-off；在 review sessions < 20 或單條 rule shown support < 5 前，不得把 guardrail 週報升級成產品決策。 |
 | Actionable Output | 61% | 已加入 Plan Lab 決策摘要（風險節奏/方向、正負 driver、下一步建議）；Overview 新增 KPI health scorecard 與 scenario-scoped KPI watchlist（可增刪/排序並持久化） | 仍需擴展到跨頁輸出與可下載/可分享格式 |
-| Preset 主流程整合 | 97% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線三個 beta surfaces：scenario onboarding start / resume shell、overview/dashboard onboarding-recovery banner、以及 scenario settings → data-management reset。三者都重用同一套 allowlist、journey guidance / summary presenter 與 onboarding draft write path；本輪再把三個 surfaces 的 copy rule 明確拉開：onboarding / dashboard / settings 全部直接聲明自己不是 Plan Lab template / Money event create flow，dashboard 另有專屬 recovery heading + CTA，settings 則維持較克制的 restart / replace draft 語意與覆蓋警告。 | 尚需持續觀察 routed onboarding recovery 在已完成 scenario 上的回流體驗，並用下一個週窗驗證 copy guard 是否足以壓低「誤把 preset 當 experiment / event create」的 beta confusion signal |
-| GTM / 營運就緒 | 39% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA；本輪再補齊 sample journey impression、case created 成功事件與固定 weekly review ritual | 仍缺 beta feedback loop、支援流程與真實 cohort 基線 |
+| Preset 主流程整合 | 97% | 已產品化部分：member create modal blank/preset、marketing persona / sample journey → `/member/cases` canonical handoff、6 個 allowlist seeds、journey summary + ETA / outcome copy；app 內延伸入口現已上線三個 beta surfaces：scenario onboarding start / resume shell、overview/dashboard onboarding-recovery banner、以及 scenario settings → data-management reset。三者都重用同一套 allowlist、journey guidance / summary presenter 與 onboarding draft write path；copy rule 亦已明確拉開：onboarding / dashboard / settings 全部直接聲明自己不是 Plan Lab template / Money event create flow，dashboard 另有專屬 recovery heading + CTA，settings 則維持較克制的 restart / replace draft 語意與覆蓋警告。最新固定週窗 decision memo 已把 confusion cross-check 補進，但因該窗無實際 cohort / beta feedback 證據，所以目前仍只可列為 beta watch item。 | 尚需把下一個完整週窗的真實 market-entry / onboarding export 與 tagged beta feedback 一齊交叉檢查，先可判斷 copy guard 是否足以壓低「誤把 preset 當 experiment / event create」的 confusion signal。 |
+| GTM / 營運就緒 | 39% | 已有 marketing pages、sample journey -> member/cases 導流入口，且 landing IA 已重整為 hero → proof → persona → journey → CTA；sample journey impression、case created 成功事件、signed-in/out completion attribution 與固定 weekly review ritual 都已補齊。最新固定週窗（2026-03-09 → 2026-03-16 UTC）market-entry board 在目前環境為 0 landing / 0 journey click / 0 case created / 0 onboarding completed，因此 publishability decision 仍只可維持 `hold`。 | 仍缺 beta feedback loop、支援流程與真實 cohort 基線；未有連續兩個完整週窗的真實 traffic/export 前，不得宣稱 sample journey 已 ready to scale。 |
 
 ## Market Entry + Sample Journey Progress
 | 子項 | 進度 | 現況 | 阻塞項 | 下一里程碑 |
@@ -37,6 +37,13 @@ Last updated: 2026-03-21 (overview → Plan Lab first-decision path landed)
 | Onboarding 啟動率 | ≥ 85% | 已可量測 `preset_create_submitted` → `onboarding_started` | 尚未確認 signed-out auth return path 對啟動率的影響 | 比較 signed-in / signed-out 兩條 handoff 漏斗 |
 | Landing → Journey CTA CTR | ≥ 12% | 已有基礎 CTR 公式，且 review ritual 已定義 sample-size warning 與 signed-in/out cohort 比較 | 缺 CTA placement / copy 實驗位與 dashboard automation | 建立週報 export / CTA copy experiment plan |
 | Case created → Onboarding completed 流失差 | < 25 個百分點 | `case_created` 與 market-entry `onboarding_completed` 現已可在固定 weekly board / export 共同檢視，並拆開 signed-in / signed-out delta 與 journey↔preset pair drop-off。 | 缺真實 cohort 基線與兩個連續週窗的穩定比較 | 先跑兩週 drop-off report，再決定是否可 scale traffic |
+
+## Latest Update (2026-03-22)
+- 已按 `docs/product/ONBOARDING_GUARDRAIL_WEEKLY_REVIEW_WORKFLOW.md` 與 `docs/product/MARKET_ENTRY_REVIEW_RITUAL.md` 的固定規則，重新跑上一個完整 Monday → Monday UTC 週窗：**2026-03-09 00:00 UTC → 2026-03-16 00:00 UTC**，並把結果整理成單頁 decision memo（`docs/product/WEEKLY_PRODUCT_ANALYTICS_DECISION_MEMO.md`）。
+- aggregate + locale pack 仍由 `apps/web/src/lib/analytics/onboardingReviewPack.ts`、`marketEntryReviewBoard.ts`、`weeklyProductAnalyticsDashboard.ts` 統一輸出；required cohort 維度（signed-in / signed-out、journey / preset、journey↔preset、experiment slot / variant）依然保留在 board schema，但目前環境該窗沒有任何可用事件，因此所有 cohort rows 皆為空。
+- onboarding review evidence：aggregate review sessions = 0、`en` locale pack = 0、`zh-HK` locale pack = 0；四條固定 priority guardrails（`property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing`）shown support 全部為 0，依 workflow 規則只能標記為 observation only，不能宣稱較上一窗改善，也不能升級成 severity / copy 決策。
+- market-entry evidence：landing views / journey clicks / case created / onboarding completed 全部為 0，signed-in vs signed-out delta 無法計算，review-board decision 只能維持 `hold`。現時最清楚的 blocker 已由「公式 / export 未齊」轉為「未有真實完整週窗 cohort export」。
+- app preset recovery confusion cross-check：本輪無 onboarding / market-entry cohort 證據支持或反駁「誤以為係 Plan Lab template / Money event create」的 beta confusion signal，因此仍只可列為 watch item；下一輪必須把真實 weekly export 與 tagged beta feedback 一起看，先可做產品判斷。
 
 
 ## Latest Update (2026-03-21)
@@ -232,9 +239,9 @@ Last updated: 2026-03-21 (overview → Plan Lab first-decision path landed)
 
 ## 真正阻塞上市
 - Onboarding 與 property bundle 的體驗仍未形成一致、低摩擦的首次建模流程。
-- Guardrails 未形成可量化 completeness 與明確修正建議，影響用戶信任。
+- Guardrails 雖已有 completeness / review workflow / decision memo，但最新固定週窗（2026-03-09 → 2026-03-16 UTC）仍無實際 review sessions，因此未能以真實 evidence 判斷四條 priority rules 是否改善，影響用戶信任與 roadmap 排序信心。
 - 可行動結論頁不足，使用者較難快速理解決策差異與下一步。
-- 市場入口與示例旅程未完整對接現有產品能力，導流轉化風險高。
+- 市場入口與示例旅程雖已有固定 weekly board，但最新固定週窗仍無真實 market-entry cohort export，故 publishability / confusion / scale-traffic 判斷仍停留在 `hold` / observation only，導流轉化風險仍未被真實數據收斂。
 
 ## Quality Gates Baseline (2026-03-07)
 | Command | Status | Notes |
