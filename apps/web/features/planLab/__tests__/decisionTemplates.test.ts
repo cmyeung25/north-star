@@ -150,27 +150,72 @@ describe("decisionTemplates", () => {
     });
   });
 
-  it("adds deferred templates only after the beta launch gate is enabled", () => {
+  it("keeps deferred templates hidden while the beta gate is disabled", () => {
+    const templates = buildPlanLabDecisionTemplateOptions({
+      enableDeferredTemplates: false,
+      hasEligibleIncomeEvent: true,
+      hasEditableMortgageEvent: true,
+      hasEditableHousingEvent: true,
+      translate,
+      selectedCostProfile: {},
+    });
+
+    expect(templates.map((template) => template.id)).not.toContain("mortgage_rate_hike");
+    expect(templates.map((template) => template.id)).not.toContain("move_home");
+  });
+
+  it("adds deferred templates after the beta launch gate is enabled and keeps them fail-closed when baseline events are missing", () => {
     const templates = buildPlanLabDecisionTemplateOptions({
       enableDeferredTemplates: true,
       hasEligibleIncomeEvent: true,
       hasEditableMortgageEvent: false,
       hasEditableHousingEvent: false,
       translate,
-      selectedCostProfile: {},
+      selectedCostProfile: {
+        mortgage_rate_hike: "aggressive",
+        move_home: "conservative",
+      },
     });
-
-    expect(templates.map((template) => template.id)).toContain("mortgage_rate_hike");
-    expect(templates.map((template) => template.id)).toContain("move_home");
 
     const mortgageRateHike = templates.find(
       (template) => template.id === "mortgage_rate_hike"
     );
     const moveHome = templates.find((template) => template.id === "move_home");
 
+    expect(mortgageRateHike?.launcher).toBe("event_edit_mortgage");
+    expect(mortgageRateHike?.selectedCostProfile).toBe("aggressive");
     expect(mortgageRateHike?.availability.enabled).toBe(false);
-    expect(mortgageRateHike?.availability.reasonFallback).toContain("mortgage event");
+    expect(mortgageRateHike?.availability.reasonFallback).toContain("baseline mortgage");
+    expect(mortgageRateHike?.costRangeItems.map((item) => item.id)).toEqual([
+      "mortgageRateHikeRateUplift",
+      "mortgageRateHikePaymentPressure",
+    ]);
+
+    expect(moveHome?.launcher).toBe("event_edit_housing");
+    expect(moveHome?.selectedCostProfile).toBe("conservative");
     expect(moveHome?.availability.enabled).toBe(false);
-    expect(moveHome?.availability.reasonFallback).toContain("housing event");
+    expect(moveHome?.availability.reasonFallback).toContain("baseline housing");
+    expect(moveHome?.costRangeItems.map((item) => item.id)).toEqual([
+      "moveHomeTimingShift",
+      "moveHomeTransitionFocus",
+    ]);
+  });
+
+  it("enables deferred templates when the gate is on and active-scenario baseline events are available", () => {
+    const templates = buildPlanLabDecisionTemplateOptions({
+      enableDeferredTemplates: true,
+      hasEligibleIncomeEvent: true,
+      hasEditableMortgageEvent: true,
+      hasEditableHousingEvent: true,
+      translate,
+      selectedCostProfile: {},
+    });
+
+    expect(
+      templates.find((template) => template.id === "mortgage_rate_hike")?.availability.enabled
+    ).toBe(true);
+    expect(
+      templates.find((template) => template.id === "move_home")?.availability.enabled
+    ).toBe(true);
   });
 });

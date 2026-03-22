@@ -486,14 +486,51 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     id: "mortgage_rate_hike",
     launcher: "event_edit_mortgage",
     titleKey: "planLabDecisionTemplateMortgageRateHikeTitle",
-    titleFallback: "Mortgage rate hike",
+    titleFallback: "Mortgage reset stress test",
     descriptionKey: "planLabDecisionTemplateMortgageRateHikeDesc",
     descriptionFallback:
-      "Stress-test an editable mortgage event by pre-filling a higher reset rate in the housing drawer.",
+      "Open the active scenario's editable baseline mortgage event and prefill a higher reset-rate draft for Plan Lab stress testing.",
     estimateGuideKey: "planLabDecisionTemplateMortgageRateHikeGuide",
     estimateGuideFallback:
-      "Use this only when you already have an editable baseline mortgage event to tune inside Plan Lab.",
-    costRangeItems: [],
+      "Cost profiles add a rate uplift on top of the current mortgage, keep payment in estimated mode, and stay inside the existing Plan Lab patch flow.",
+    costRangeItems: [
+      {
+        id: "mortgageRateHikeRateUplift",
+        labelKey: "planLabCostMortgageRateHikeRateUplift",
+        labelFallback: "Reset-rate uplift preset",
+        valueKeys: {
+          conservative: "planLabCostMortgageRateHikeRateUpliftConservative",
+          median: "planLabCostMortgageRateHikeRateUpliftMedian",
+          aggressive: "planLabCostMortgageRateHikeRateUpliftAggressive",
+        },
+        valueFallbacks: {
+          conservative: "+0.75 pp",
+          median: "+1.5 pp",
+          aggressive: "+2.5 pp",
+        },
+        factorHintKey: "planLabCostMortgageRateHikeRateUpliftFactor",
+        factorHintFallback:
+          "Applied on top of the current editable mortgage rate; no new baseline mortgage is invented.",
+      },
+      {
+        id: "mortgageRateHikePaymentPressure",
+        labelKey: "planLabCostMortgageRateHikePaymentPressure",
+        labelFallback: "Estimated payment pressure",
+        valueKeys: {
+          conservative: "planLabCostMortgageRateHikePaymentPressureConservative",
+          median: "planLabCostMortgageRateHikePaymentPressureMedian",
+          aggressive: "planLabCostMortgageRateHikePaymentPressureAggressive",
+        },
+        valueFallbacks: {
+          conservative: "Light stress check",
+          median: "Core refinance stress",
+          aggressive: "High-buffer stress",
+        },
+        factorHintKey: "planLabCostMortgageRateHikePaymentPressureFactor",
+        factorHintFallback:
+          "The editor recalculates payment from the existing mortgage details after the higher rate draft is applied.",
+      },
+    ],
     availabilityGuard: ({ enableDeferredTemplates, hasEditableMortgageEvent }) => {
       if (!enableDeferredTemplates) {
         return {
@@ -509,7 +546,7 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
             enabled: false,
             reasonKey: "planLabDecisionTemplateMortgageRateHikeDisabled",
             reasonFallback:
-              "No editable mortgage event available. Add or unlock a mortgage housing event first.",
+              "No editable baseline mortgage event is available in this scenario. Add or unlock one first.",
           };
     },
   },
@@ -517,14 +554,51 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
     id: "move_home",
     launcher: "event_edit_housing",
     titleKey: "planLabDecisionTemplateMoveHomeTitle",
-    titleFallback: "Move home",
+    titleFallback: "Move-home timing reset",
     descriptionKey: "planLabDecisionTemplateMoveHomeDesc",
     descriptionFallback:
-      "Start from an editable housing event and prefill a later housing timing draft for move-home what-if testing.",
+      "Open the active scenario's editable baseline housing event and prefill a later start timing draft for move-home comparison.",
     estimateGuideKey: "planLabDecisionTemplateMoveHomeGuide",
     estimateGuideFallback:
-      "Use this when the active scenario already has an editable rent or mortgage housing event to anchor the move timing.",
-    costRangeItems: [],
+      "Cost profiles only shift the timing anchor later; they reuse the current housing event and stay inside the existing Plan Lab patch flow.",
+    costRangeItems: [
+      {
+        id: "moveHomeTimingShift",
+        labelKey: "planLabCostMoveHomeTimingShift",
+        labelFallback: "Move-later timing preset",
+        valueKeys: {
+          conservative: "planLabCostMoveHomeTimingShiftConservative",
+          median: "planLabCostMoveHomeTimingShiftMedian",
+          aggressive: "planLabCostMoveHomeTimingShiftAggressive",
+        },
+        valueFallbacks: {
+          conservative: "+6 months",
+          median: "+12 months",
+          aggressive: "+18 months",
+        },
+        factorHintKey: "planLabCostMoveHomeTimingShiftFactor",
+        factorHintFallback:
+          "The draft reuses the current rent/mortgage setup and only pushes the housing timeline later for comparison.",
+      },
+      {
+        id: "moveHomeTransitionFocus",
+        labelKey: "planLabCostMoveHomeTransitionFocus",
+        labelFallback: "What to review in editor",
+        valueKeys: {
+          conservative: "planLabCostMoveHomeTransitionFocusConservative",
+          median: "planLabCostMoveHomeTransitionFocusMedian",
+          aggressive: "planLabCostMoveHomeTransitionFocusAggressive",
+        },
+        valueFallbacks: {
+          conservative: "Short delay, light overlap check",
+          median: "1-year delay, rent/holding overlap check",
+          aggressive: "Long delay, multi-phase overlap check",
+        },
+        factorHintKey: "planLabCostMoveHomeTransitionFocusFactor",
+        factorHintFallback:
+          "Review move month, any overlap period, and whether the existing housing event still matches the decision you want to compare.",
+      },
+    ],
     availabilityGuard: ({ enableDeferredTemplates, hasEditableHousingEvent }) => {
       if (!enableDeferredTemplates) {
         return {
@@ -540,7 +614,7 @@ export const PLAN_LAB_DECISION_TEMPLATE_CATALOG: PlanLabDecisionTemplateCatalogI
             enabled: false,
             reasonKey: "planLabDecisionTemplateMoveHomeDisabled",
             reasonFallback:
-              "No editable housing event available. Add rent/home housing first or use the housing create templates.",
+              "No editable baseline housing event is available in this scenario. Add rent/home housing first or use the housing create templates.",
           };
     },
   },
