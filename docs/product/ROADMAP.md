@@ -57,7 +57,7 @@ Last updated: 2026-03-21
 - [x] weekly calibration v1.2 已收斂高摩擦 guardrails 優先名單：`property_usage_missing` / `duplicate_current_home_housing_costs` / `duplicate_rent_expense_inputs` 視為 top-shown 候選；其中 duplicate current-home path 降為 `info`，並連同 `mortgage_property_basics_missing`、duplicate rent copy 一併改寫成「原因 + 影響 + 下一步」與更明確 fix path。
 - [x] weekly review workflow 已固定：新增 `onboardingReviewPack` workflow helper 與產品文件，將上一個完整週窗匯出、priority guardrail 檢視、sample-size / locale-bias 檢查，以及 persona/preset/journey distortion 需回看 market-entry weekly board 的規則正式化。
 - [x] 兩週 evidence-driven focused UX calibration 已完成首輪：針對 `property_usage_missing`、`duplicate_current_home_housing_costs`、`duplicate_rent_expense_inputs`、`mortgage_property_basics_missing` 再微調文案與 fix path，把現居路徑／物業定位講得更白，避免高 show rate 被誤讀成 blocking 錯誤。
-- [ ] 下一步：依 beta feedback 與固定 weekly review workflow 結果，繼續調整 guardrail 文案、誤報率與 severity/copy 策略，並累積至少兩個完整週窗的實際 cohort 證據，避免警示疲勞或誤判高 show rate。
+- [ ] 下一步：先按 PR1 固定好的 weekly artifacts 持續補齊真實 export，再依 beta feedback 與固定 weekly review workflow 結果調整 guardrail 文案、誤報率與 severity/copy 策略。現時 current / previous 兩個完整週窗都無 review sessions，所以四條 priority rules 的 show-rate、fix-success、review→completed trend 仍只屬 observation-only heuristic；roadmap 排序暫不因這些數字改動。
 4. Presets 接入主流程
 - [x] v1 已交付：member/cases「建立案例」支援 blank / preset create mode；preset 以 onboarding-prefill 方式接入，不直接建立已完成 scenario。
 - [x] v1 已交付：member 入口 preset allowlist 擴至 6 個產品化 seeds（single-renter、dual-income-home、dual-income-rental、new-baby、new-baby-helper、high-asset）。
@@ -70,6 +70,7 @@ Last updated: 2026-03-21
 - [x] Beta 實作入口 3：Scenario Settings → Data Management 現已提供 guarded 的 preset recovery 入口，只在使用者明確進入資料管理 / reset surface 時顯示，並以較克制的 restart / replace draft copy、覆蓋警告與返回 onboarding 的後續動作承接 active scenario。
 - [x] Beta 文案與 IA：onboarding start / resume 入口已補齊與 member create dialog 對齊的 journey guidance + ETA + outcome copy 與 replace warning；共享 summary presenter 現已明確採用 `audience → starting context → ETA → outcome` 結構，且文案再次鎖定為「重新選擇 onboarding draft 起點」，不是快速完成 scenario 或直接新增 baseline。下一步仍需把同一套 setup/recovery copy rule 延伸到 dashboard recovery，並讓 settings recovery 維持較簡潔的 reset/restart copy，避免與一般資料維護操作混淆。
 - [x] 三個 preset recovery surfaces 已補上更明確的 copy rule：onboarding / dashboard / settings 現都會直接聲明自己不是 Plan Lab experiment 或 Money event create/edit flow，dashboard 另有專屬 recovery heading / CTA，settings 則維持更克制的 reset 語氣。
+- [ ] 下一步（排序更新）：preset recovery confusion 仍未有真實 cohort / tagged beta feedback 證據；因此 roadmap 只保留「先驗證、後決策」狀態說明，不在本輪提升為新功能承諾或額外 analytics scope。
 - [x] Guardrail：source-guard 測試現已同時鎖定 onboarding、dashboard recovery、與 settings data-management recovery 三個 preset helper；它們不得出現在 Plan Lab Add Experiment、Money add-event / template picker、或任何 baseline 事件 create/edit drawer，避免把「建立 baseline 起點」誤解成「新增事件」或「新增實驗」。
 5. Beta 回饋閉環
 - 以封閉測試流程建立「收集問題 -> 分類 -> 迭代 -> 驗收」節奏。
