@@ -89,6 +89,7 @@ import {
   HEALTH_SCORECARD_METRICS,
 } from "../../../src/domain/dashboard/healthScorecard";
 import { getNextKeyEvent } from "../../../src/domain/dashboard/nextKeyEvent";
+import { recommendOverviewFirstDecisionJourney } from "../../../src/domain/dashboard/firstDecisionJourney";
 import { buildOverviewTimelineMarkers } from "../../../src/domain/timeline/buildOverviewTimelineMarkers";
 import type { MilestoneEvent, MilestoneEventTemplateType } from "../../../src/domain/milestoneEvents/types";
 import { normalizeMonthStrict } from "../../../src/utils/month";
@@ -1223,6 +1224,8 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
   const sd = (key: string, fallback: string, values?: Record<string, string | number>) =>
     safeT(tDashboard, key, fallback, values);
   const emptyValueLabel = sd("common.emptyValue", "--");
+  const firstDecisionJourney = recommendOverviewFirstDecisionJourney(selectedScenario);
+  const firstDecisionPlanLabHref = `${planLabFamilyEntryHref}?openDecisionTemplates=1&decisionTemplate=${firstDecisionJourney.templateId}`;
 
   const formatKpiValue = (value: number | null, formatter: (presentValue: number) => string) => {
     if (value === null || !Number.isFinite(value)) {
@@ -1597,6 +1600,7 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
       isScenarioActive: resolveScenarioLifecycle(selectedScenario) === "active",
       hasOnboardingRecoveryGaps,
     });
+  const showMainPathDecisionCard = !showCompare && !showOnboardingRecoveryBanner;
 
   return (
     <Stack gap="sm" pb={isDesktop ? undefined : 120}>
@@ -1758,6 +1762,59 @@ export default function OverviewClient({ scenarioId }: OverviewClientProps) {
               segments={healthScoreSegments}
               distribution={healthScoreDistribution}
             />
+            {showMainPathDecisionCard ? (
+              <Card withBorder radius="md" padding="md">
+                <Stack gap="sm">
+                  <Group justify="space-between" align="flex-start" wrap="wrap">
+                    <Stack gap={4}>
+                      <Group gap="xs">
+                        <Badge color="teal" variant="light">
+                          {sd("mainPath.baselineReady", "Baseline ready")}
+                        </Badge>
+                        <Badge color="aurora" variant="light">
+                          {sd("mainPath.recommendedBadge", "Next recommended step")}
+                        </Badge>
+                      </Group>
+                      <Text fw={700}>
+                        {sd(
+                          "mainPath.title",
+                          "Make your first major decision comparison in Plan Lab"
+                        )}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        {sd(
+                          "mainPath.description",
+                          "Your baseline is ready. Open Plan Lab from this overview and start with one guided decision template instead of building a comparison from scratch."
+                        )}
+                      </Text>
+                    </Stack>
+                    <Button component={Link} href={firstDecisionPlanLabHref}>
+                      {sd("mainPath.openPlanLab", "Open Plan Lab")}
+                    </Button>
+                  </Group>
+                  <Stack gap={2}>
+                    <Text size="sm" fw={600}>
+                      {sd(
+                        `mainPath.templates.${firstDecisionJourney.templateId}.label`,
+                        "Recommended first comparison"
+                      )}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      {sd(
+                        `mainPath.signals.${firstDecisionJourney.signal}`,
+                        "Start with one guided template to compare a meaningful next move against your current baseline."
+                      )}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {sd(
+                        "mainPath.helper",
+                        "This opens Plan Lab only. Your baseline will stay unchanged unless you later choose to save or apply the result."
+                      )}
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Card>
+            ) : null}
             <Card withBorder radius="md" padding="sm" display="none">
               <Stack gap={6}>
                 <Text fw={600} size="sm">{sd("completeness.title", "Completeness")}</Text>

@@ -1096,6 +1096,42 @@
         "selectedTitle": "Selected order",
         "reset": "Reset",
         "currentStatus": "Current status"
+      },
+      "mainPath": {
+        "baselineReady": "Baseline ready",
+        "recommendedBadge": "Next recommended step",
+        "title": "Make your first major decision comparison in Plan Lab",
+        "description": "Your baseline is ready. Open Plan Lab from this overview and start with one guided decision template instead of building a comparison from scratch.",
+        "openPlanLab": "Open Plan Lab",
+        "helper": "This opens Plan Lab only. Your baseline will stay unchanged unless you later choose to save or apply the result.",
+        "signals": {
+          "retirement": "Start with retirement drawdown so you can compare long-run spending pressure against your current baseline.",
+          "childbirth": "Start with childbirth so you can compare near-term family cash pressure before you commit to the next life stage.",
+          "parenting": "Start with parenting so you can compare recurring childcare and education pressure against your current baseline.",
+          "rent_to_buy": "Start with home purchase so you can compare mortgage cashflow pressure and upfront cash hit against your current rent baseline.",
+          "income_resilience": "Start with income shock so you can pressure-test downside resilience before making a larger commitment.",
+          "rental_setup": "Start with rental plan so you can compare a cleaner housing setup path against your current baseline."
+        },
+        "templates": {
+          "retirement": {
+            "label": "Recommended first comparison: retirement"
+          },
+          "childbirth": {
+            "label": "Recommended first comparison: childbirth"
+          },
+          "parenting": {
+            "label": "Recommended first comparison: parenting"
+          },
+          "home_purchase": {
+            "label": "Recommended first comparison: home purchase"
+          },
+          "income_shock": {
+            "label": "Recommended first comparison: income shock"
+          },
+          "rental_plan": {
+            "label": "Recommended first comparison: rental plan"
+          }
+        }
       }
     },
     "breakdownSummaryDelta": "MoM: Net worth {netWorth}, cash {cash}",
@@ -5319,5 +5355,6 @@
         }
       }
     }
-  }
+  },
+  "planLabDecisionTemplateRecommendedBadge": "Recommended next step"
 }
